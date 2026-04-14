@@ -121,74 +121,82 @@ function switchTab(tab) {
 async function loadOverview() {
     var el = document.getElementById('overviewContent');
     try {
-        var data = await api('/api/overview');
+        var data = await api('/api/overview-stats');
         loaded['overview'] = true;
 
-        document.getElementById('statDepts').textContent = data.totals.departments;
-        document.getElementById('statAgents').textContent = data.totals.agents;
-        document.getElementById('statActive').textContent = data.totals.active;
-
-        populateDeptFilters(data.floors);
+        var a = data.agents || {};
+        var j = data.jobs_24h || {};
+        var k = data.knowledge || {};
+        var o = data.ollama || {};
+        var s = data.scans || {};
+        var q = data.qa || {};
 
         var html = '';
-        for (var fi = 0; fi < FLOOR_ORDER.length; fi++) {
-            var fl = FLOOR_ORDER[fi];
-            var floor = data.floors[fl];
-            if (!floor) continue;
-            var color = floorColor(fl);
 
-            html += '<div class="dhq-floor-section">'
-                + '<div class="dhq-floor-header" data-floor="' + esc(fl) + '">'
-                + '<span class="dhq-floor-name" style="color:' + color + '">' + esc(fl) + '</span>'
-                + '<span class="dhq-floor-badge">' + floor.total_agents + ' agents</span>'
-                + '<span class="dhq-floor-badge">' + floor.active_agents + ' active</span>'
-                + '</div>'
-                + '<div class="dhq-dept-grid">';
+        // ── Hero Stats Row ──
+        html += '<div class="dhq-hero-stats">';
+        html += heroCard(a.active || 0, 'Agents Online', '#00e5ff');
+        html += heroCard(o.models_loaded || '?', 'Models Loaded', '#10b981');
+        html += heroCard(j.total || 0, 'Jobs 24h', '#fbbf24');
+        html += heroCard(j.success_rate ? j.success_rate + '%' : '—', 'Success Rate', j.success_rate >= 90 ? '#10b981' : j.success_rate >= 70 ? '#fbbf24' : '#f87171');
+        html += heroCard(s.security_issues || 0, 'Security Issues', s.security_issues > 0 ? '#f87171' : '#10b981');
+        html += heroCard(formatNum(k.total || 0), 'KB Entries', '#8b5cf6');
+        html += '</div>';
 
-            for (var di = 0; di < floor.departments.length; di++) {
-                var dept = floor.departments[di];
-                html += '<div class="dhq-dept-card" style="--card-accent:' + color + '">'
-                    + '<div class="dhq-dept-name">' + esc(dept.department) + '</div>'
-                    + '<div class="dhq-dept-stats">'
-                    + '<div class="dhq-dept-stat"><span class="dhq-dept-stat-label">Total</span><span class="dhq-dept-stat-val">' + dept.total_agents + '</span></div>'
-                    + '<div class="dhq-dept-stat"><span class="dhq-dept-stat-label">Active</span><span class="dhq-dept-stat-val">' + dept.active + '</span></div>'
-                    + '<div class="dhq-dept-stat"><span class="dhq-dept-stat-label">Sessions</span><span class="dhq-dept-stat-val">' + dept.active_sessions + '</span></div>'
-                    + '<div class="dhq-dept-stat"><span class="dhq-dept-stat-label">Jobs 24h</span><span class="dhq-dept-stat-val">' + dept.jobs_24h + '</span></div>'
-                    + '<div class="dhq-dept-stat"><span class="dhq-dept-stat-label">Completed</span><span class="dhq-dept-stat-val">' + dept.completed_24h + '</span></div>'
-                    + '<div class="dhq-dept-stat"><span class="dhq-dept-stat-label">Failed</span><span class="dhq-dept-stat-val">' + dept.failed_24h + '</span></div>'
-                    + '</div>'
-                    + (dept.directors > 0 ? '<span class="dhq-director-tag">AI Director</span>' : '')
+        // ── Attention Needed ──
+        var attn = data.attention || [];
+        if (attn.length > 0) {
+            html += '<div class="dhq-attention">';
+            html += '<div class="dhq-attention-header">ATTENTION NEEDED</div>';
+            for (var i = 0; i < attn.length && i < 8; i++) {
+                var item = attn[i];
+                var icon = item.level === 'error' ? '🔴' : item.level === 'warn' ? '🟡' : '🟢';
+                var tab = item.link_tab || '';
+                html += '<div class="dhq-attention-item" onclick="switchTab(\'' + esc(tab) + '\')">'
+                    + '<span class="dhq-attention-icon">' + icon + '</span>'
+                    + '<span class="dhq-attention-text">' + esc(item.text) + '</span>'
+                    + '<span class="dhq-attention-link">→ ' + esc(tab) + '</span>'
                     + '</div>';
             }
-            html += '</div></div>';
+            html += '</div>';
         }
 
-        // Unknown floors
-        var floorKeys = Object.keys(data.floors);
-        for (var ki = 0; ki < floorKeys.length; ki++) {
-            var fk = floorKeys[ki];
-            if (FLOOR_ORDER.indexOf(fk) === -1) {
-                var uf = data.floors[fk];
-                html += '<div class="dhq-floor-section">'
-                    + '<div class="dhq-floor-header"><span class="dhq-floor-name">' + esc(fk) + '</span>'
-                    + '<span class="dhq-floor-badge">' + uf.total_agents + ' agents</span></div>'
-                    + '<div class="dhq-dept-grid">';
-                for (var ui = 0; ui < uf.departments.length; ui++) {
-                    var ud = uf.departments[ui];
-                    html += '<div class="dhq-dept-card"><div class="dhq-dept-name">' + esc(ud.department) + '</div>'
-                        + '<div class="dhq-dept-stats">'
-                        + '<div class="dhq-dept-stat"><span class="dhq-dept-stat-label">Total</span><span class="dhq-dept-stat-val">' + ud.total_agents + '</span></div>'
-                        + '<div class="dhq-dept-stat"><span class="dhq-dept-stat-label">Active</span><span class="dhq-dept-stat-val">' + ud.active + '</span></div>'
-                        + '</div></div>';
-                }
-                html += '</div></div>';
+        // ── Department Grid (condensed) ──
+        var floors = data.floors || [];
+        if (floors.length > 0) {
+            var floorColors = {
+                'BRIDGE': '#00e5ff', 'OPERATIONS': '#fbbf24', 'ENGINEERING': '#10b981',
+                'CREATIVE': '#f472b6', 'SERVICES': '#8b5cf6'
+            };
+            html += '<div class="dhq-floor-grid">';
+            for (var fi = 0; fi < floors.length; fi++) {
+                var f = floors[fi];
+                var color = floorColors[f.name] || '#666';
+                html += '<div class="dhq-floor-card" style="border-left:3px solid ' + color + '">'
+                    + '<div class="dhq-floor-card-name" style="color:' + color + '">' + esc(f.name) + '</div>'
+                    + '<div class="dhq-floor-card-stats">'
+                    + f.agents + ' agents · ' + f.active + ' active · ' + f.departments + ' depts'
+                    + '</div></div>';
             }
+            html += '</div>';
         }
 
-        setHtml(el, html || '<div class="dhq-empty">No department data found.</div>');
+        setHtml(el, html);
     } catch (err) {
         setHtml(el, '<div class="dhq-empty">Error loading overview: ' + esc(err.message) + '</div>');
     }
+}
+
+function heroCard(value, label, color) {
+    return '<div class="dhq-hero-card">'
+        + '<div class="dhq-hero-val" style="color:' + color + '">' + value + '</div>'
+        + '<div class="dhq-hero-label">' + label + '</div>'
+        + '</div>';
+}
+
+function formatNum(n) {
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return '' + n;
 }
 
 function populateDeptFilters(floors) {
@@ -594,6 +602,49 @@ async function loadCreed() {
             html += '</div>';
         }
         html += '</div>';
+
+        // Workload scoring section
+        try {
+            var wl = await api('/api/creed/workload-scores');
+            if (wl.success && wl.departments) {
+                html += '<div class="dhq-ad-section" style="margin-top:1rem">';
+                html += '<div class="dhq-ad-section-title" style="color:#fbbf24">WORKLOAD SCORING</div>';
+                html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0.5rem;margin-top:0.5rem">';
+                for (var wi = 0; wi < wl.departments.length; wi++) {
+                    var d = wl.departments[wi];
+                    var barColor = d.status === 'critical' ? '#ef4444' : d.status === 'warning' ? '#fbbf24' : d.status === 'moderate' ? '#f97316' : '#10b981';
+                    html += '<div style="background:var(--dhq-card-bg,#111827);border:1px solid ' + barColor + '33;border-radius:6px;padding:0.5rem">'
+                        + '<div style="display:flex;justify-content:space-between;align-items:center">'
+                        + '<span style="color:' + barColor + ';font-weight:bold;font-size:0.8rem">' + esc(d.department) + '</span>'
+                        + '<span style="color:' + barColor + ';font-size:0.75rem">' + d.workload_score + '/100</span>'
+                        + '</div>'
+                        + '<div style="background:#1a1a2e;border-radius:3px;height:4px;margin:0.3rem 0">'
+                        + '<div style="background:' + barColor + ';height:100%;border-radius:3px;width:' + Math.min(100, d.workload_score) + '%"></div>'
+                        + '</div>'
+                        + '<div style="color:#666;font-size:0.65rem">'
+                        + d.active_count + '/' + d.agent_count + ' active · stress ' + (d.avg_stress * 100).toFixed(0) + '% · energy ' + (d.avg_energy * 100).toFixed(0) + '%'
+                        + ' · ' + (d.avg_tokens_per_agent / 1000).toFixed(1) + 'K tok/agent'
+                        + '</div></div>';
+                }
+                html += '</div>';
+
+                // Overworked agents
+                if (wl.overworked_agents && wl.overworked_agents.length > 0) {
+                    html += '<div style="margin-top:0.75rem;font-size:0.75rem;color:#f87171">';
+                    html += '<strong>Top Overworked Agents:</strong> ';
+                    for (var oi = 0; oi < wl.overworked_agents.length; oi++) {
+                        var oa = wl.overworked_agents[oi];
+                        if (oi > 0) html += ' · ';
+                        html += '<span onclick="openAgentDetail(' + oa.id + ')" style="cursor:pointer;text-decoration:underline">'
+                            + esc(oa.display_name) + '</span> (' + (oa.stress * 100).toFixed(0) + '% stress)';
+                    }
+                    html += '</div>';
+                }
+
+                html += '</div>';
+            }
+        } catch(e) { /* workload scores not critical */ }
+
         setHtml(el, html);
     } catch (err) {
         setHtml(el, '<div class="dhq-empty">Error loading C.R.E.E.D.: ' + esc(err.message) + '</div>');
@@ -2259,8 +2310,8 @@ async function loadProviderManagement() {
             .map(function(p) {
                 var key = (p.provider_key || '').toLowerCase();
                 var style = PROVIDER_STYLES[key] || { color: '#f97316', bg: 'rgba(249,115,22,0.3)', label: key.charAt(0).toUpperCase() };
-                var budget = p.monthly_budget_usd || 0;
-                var spent = p.current_month_cost_usd || 0;
+                var budget = parseFloat(p.monthly_budget_usd) || 0;
+                var spent = parseFloat(p.current_month_cost_usd) || 0;
                 var pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
                 var barColor = pct > 90 ? '#ef4444' : pct > 70 ? '#fbbf24' : '#10b981';
                 var caps = (p.capabilities || []).slice(0, 4);

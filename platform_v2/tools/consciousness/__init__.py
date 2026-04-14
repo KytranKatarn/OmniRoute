@@ -57,6 +57,11 @@ register_dashboard_routes(consciousness_bp, admin_required)
 # Register language/translation routes
 register_language_routes(consciousness_bp, admin_required)
 
+# Register Dev HQ routes (merged from standalone /dev-hq, Decision #433)
+from .devhq_routes import register_devhq_routes
+
+register_devhq_routes(consciousness_bp, admin_required)
+
 # Loop startup moved to Autonomy module (2026-03-23)
 # See: tools/autonomy/__init__.py
 

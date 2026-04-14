@@ -673,7 +673,7 @@ def get_portraits(agent_id):
     """Get all portraits for an agent."""
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            """SELECT id, image_path, prompt, style, is_primary, generation_status, generated_at
+            """SELECT id, canonical_image_path as image_path, prompt, style, is_primary, generation_status, created_at as generated_at
                FROM agent_portraits WHERE agent_id = %s
                ORDER BY is_primary DESC, created_at DESC""",
             (agent_id,),

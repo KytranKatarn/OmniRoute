@@ -1911,10 +1911,8 @@ from tools.api_docs import api_docs_bp  # noqa: E402
 
 app.register_blueprint(api_docs_bp)
 
-# Dev HQ - Unified Development Command Center (not a module - header-level admin tool)
-from tools.dev_hq import dev_hq_bp  # noqa: E402
-
-app.register_blueprint(dev_hq_bp)
+# Dev HQ merged into Consciousness module (Decision #433)
+# Routes now at /tools/consciousness/api/devhq/*
 
 # Blueprint module removed (Decision #431) — intelligence functions moved to
 # consciousness/services/platform_intelligence.py
@@ -2298,7 +2296,7 @@ def _startup_mcp_sync_and_health():
     def _do_sync():
         try:
             with app.app_context():
-                from tools.dev_hq.routes import sync_mcp_tool_registry, _run_and_store_health_check
+                from tools.consciousness.devhq_routes import sync_mcp_tool_registry, _run_and_store_health_check
 
                 synced = sync_mcp_tool_registry()
                 if synced:
@@ -2813,6 +2811,68 @@ def clear_all_notifications():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# UNIFIED ALERTS API (Project #251 — consolidates notifications + dashboard alerts)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@app.route("/api/alerts/unified", methods=["GET"])
+@login_required
+def api_alerts_unified():
+    """Unified alerts from all 7 sources — one endpoint for bell, dashboard, elbow."""
+    try:
+        from services.alert_service import get_unified_alerts
+
+        result = get_unified_alerts(
+            user_id=current_user.id,
+            is_admin=getattr(current_user, "is_admin", False),
+        )
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        logger.error(f"Unified alerts error: {e}")
+        return jsonify(
+            {
+                "success": True,
+                "critical": [],
+                "categories": {},
+                "counts": {"total": 0, "unread": 0, "critical": 0},
+            }
+        )
+
+
+@app.route("/api/alerts/unified/mark-read", methods=["POST"])
+@login_required
+def api_alerts_mark_read():
+    """Mark a single alert as read."""
+    try:
+        from services.alert_service import mark_alert_read
+
+        data = request.get_json(silent=True) or {}
+        alert_key = data.get("alert_key")
+        if not alert_key:
+            return jsonify({"success": False, "error": "alert_key required"}), 400
+        mark_alert_read(current_user.id, alert_key)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/alerts/unified/mark-all-read", methods=["POST"])
+@login_required
+def api_alerts_mark_all_read():
+    """Mark all current alerts as read."""
+    try:
+        from services.alert_service import mark_all_alerts_read
+
+        count = mark_all_alerts_read(
+            current_user.id,
+            getattr(current_user, "is_admin", False),
+        )
+        return jsonify({"success": True, "marked": count})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # ============================================================================
 # ERROR HANDLERS
 # ============================================================================
@@ -3282,7 +3342,7 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
 
         # Phase 5b: Module job registrations
         # NOTE: All module jobs now registered via agent_loop.py Phase 5 block:
-        #   register_consciousness_jobs(), register_security_jobs(), register_devhq_jobs(),
+        #   register_consciousness_jobs(), register_security_jobs(), register_department_hq_jobs(),
         #   register_agent_welfare_jobs(), register_fleet_jobs()
 
         # Initialize Telegram Gateway (Project Autonomy Phase 3)

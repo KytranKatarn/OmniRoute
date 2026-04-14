@@ -134,20 +134,20 @@
   var _notifPollInterval = null;
 
   function _pollNotifications() {
-    fetch("/api/notifications")
+    fetch("/api/alerts/unified")
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data.success) return;
-        var notifs = (data.notifications || []);
-        var unread = notifs.filter(function (n) { return !n.is_read; }).length;
-        var errors = notifs.filter(function (n) { return !n.is_read && n.type === "error"; }).length;
-        var critical = notifs.filter(function (n) { return !n.is_read && n.priority === "critical"; }).length;
+        // Cache for bell modal reuse
+        window._lastUnifiedAlerts = data;
 
-        // Update elbow alert state
+        var counts = data.counts || {};
+        var unread = counts.unread || 0;
+        var critical = counts.critical || 0;
+
+        // Update elbow alert state — red flash only for critical
         if (critical > 0) {
           lcarsSetAlertState("critical");
-        } else if (errors > 0) {
-          lcarsSetAlertState("warning");
         } else {
           lcarsSetAlertState("normal");
         }
@@ -199,6 +199,103 @@
     if (overlay) overlay.classList.remove("active");
   };
 
+  function _renderAlertItem(a) {
+    var container = document.createElement("div");
+    container.style.cssText = "border-bottom:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.06);";
+
+    // Summary row (always visible)
+    var summary = document.createElement("div");
+    summary.style.cssText = "display:flex;gap:10px;padding:8px 12px;cursor:pointer;transition:background 0.15s ease;align-items:flex-start;";
+    summary.addEventListener("mouseenter", function () { summary.style.background = "rgba(var(--cat-accent-rgb,0,255,255),0.04)"; });
+    summary.addEventListener("mouseleave", function () { summary.style.background = "none"; });
+
+    // Severity dot
+    var dot = document.createElement("span");
+    var dotColor = a.type === "error" ? "#ef4444" : a.type === "warning" ? "#ff9f43" : "var(--cat-accent,#00ffff)";
+    dot.style.cssText = "width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px;background:" + dotColor + ";box-shadow:0 0 6px " + dotColor + ";";
+    summary.appendChild(dot);
+
+    // Title
+    var titleEl = document.createElement("div");
+    titleEl.style.cssText = "flex:1;min-width:0;font-size:0.7rem;color:#e2e8f0;font-family:'Antonio',sans-serif;text-transform:uppercase;letter-spacing:0.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+    titleEl.textContent = a.title || "Alert";
+    summary.appendChild(titleEl);
+
+    // Chevron
+    var chevron = document.createElement("span");
+    chevron.textContent = "\u25B8";
+    chevron.style.cssText = "color:#64748b;font-size:0.7rem;flex-shrink:0;transition:transform 0.2s ease;";
+    summary.appendChild(chevron);
+
+    container.appendChild(summary);
+
+    // Detail panel (hidden by default)
+    var detail = document.createElement("div");
+    detail.style.cssText = "display:none;padding:4px 12px 10px 30px;";
+
+    // Message
+    if (a.message) {
+      var msgEl = document.createElement("div");
+      msgEl.style.cssText = "font-size:0.65rem;color:#94a3b8;margin-bottom:6px;line-height:1.4;word-break:break-word;";
+      msgEl.textContent = a.message;
+      detail.appendChild(msgEl);
+    }
+
+    // Meta row: source + timestamp + priority
+    var meta = document.createElement("div");
+    meta.style.cssText = "display:flex;gap:8px;font-size:0.55rem;color:#475569;font-family:'IBM Plex Mono',monospace;";
+
+    var srcEl = document.createElement("span");
+    srcEl.textContent = (a.source || "system").replace(/_/g, " ").toUpperCase();
+    srcEl.style.cssText = "background:rgba(var(--cat-accent-rgb,0,255,255),0.08);padding:1px 6px;border-radius:3px;";
+    meta.appendChild(srcEl);
+
+    var priEl = document.createElement("span");
+    priEl.textContent = (a.priority || "medium").toUpperCase();
+    var priColor = a.priority === "critical" ? "#ef4444" : a.priority === "high" ? "#ff9f43" : "#64748b";
+    priEl.style.cssText = "color:" + priColor + ";";
+    meta.appendChild(priEl);
+
+    if (a.timestamp) {
+      var tsEl = document.createElement("span");
+      try { tsEl.textContent = new Date(a.timestamp).toLocaleString(); } catch (e) { tsEl.textContent = a.timestamp; }
+      meta.appendChild(tsEl);
+    }
+    detail.appendChild(meta);
+
+    // Mark read button
+    var markBtn = document.createElement("button");
+    markBtn.textContent = "MARK READ";
+    markBtn.style.cssText = "margin-top:8px;background:rgba(var(--cat-accent-rgb,0,255,255),0.1);border:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.2);color:var(--cat-accent,#00ffff);font-family:'Antonio',sans-serif;font-size:0.6rem;letter-spacing:1px;padding:3px 10px;border-radius:4px;cursor:pointer;";
+    markBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      fetch("/api/alerts/unified/mark-read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alert_key: a.id })
+      }).then(function () {
+        container.style.opacity = "0.4";
+        a.is_read = true;
+        markBtn.textContent = "READ";
+        markBtn.disabled = true;
+        _pollNotifications();
+      });
+    });
+    detail.appendChild(markBtn);
+
+    container.appendChild(detail);
+
+    // Toggle detail on click
+    var expanded = false;
+    summary.addEventListener("click", function () {
+      expanded = !expanded;
+      detail.style.display = expanded ? "block" : "none";
+      chevron.style.transform = expanded ? "rotate(90deg)" : "rotate(0deg)";
+    });
+
+    return container;
+  }
+
   function _loadNotificationList() {
     var body = document.getElementById("lcarsNotifBody");
     if (!body) return;
@@ -206,178 +303,80 @@
     body.textContent = "";
     var loading = document.createElement("p");
     loading.style.color = "#94a3b8";
-    loading.textContent = "Loading notifications...";
+    loading.textContent = "Loading alerts...";
     body.appendChild(loading);
 
-    fetch("/api/notifications")
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        body.textContent = "";
+    var doRender = function (data) {
+      body.textContent = "";
+      var counts = data.counts || {};
 
-        // Filter to unread only
-        var notifs = (data.notifications || []).filter(function (n) { return !n.is_read; });
+      if (!data.success || counts.total === 0 || counts.unread === 0) {
+        var empty = document.createElement("p");
+        empty.style.color = "#64748b";
+        empty.textContent = "All clear \u2014 no unread alerts";
+        body.appendChild(empty);
+        return;
+      }
 
-        if (!data.success || notifs.length === 0) {
-          var empty = document.createElement("p");
-          empty.style.color = "#64748b";
-          empty.textContent = "All clear \u2014 no notifications";
-          body.appendChild(empty);
-          return;
+      var critical = data.critical || [];
+      var categories = data.categories || {};
+      var catOrder = ["infrastructure", "agents", "security", "jobs"];
+
+      // Critical section
+      if (critical.length > 0) {
+        var critHdr = document.createElement("div");
+        critHdr.style.cssText = "font-size:0.7rem;color:#ef4444;font-family:'Antonio',sans-serif;letter-spacing:0.8px;padding:6px 12px 4px;text-transform:uppercase;";
+        critHdr.textContent = "CRITICAL (" + critical.length + ")";
+        body.appendChild(critHdr);
+        critical.forEach(function (a) { body.appendChild(_renderAlertItem(a)); });
+      }
+
+      // Category sections
+      catOrder.forEach(function (cat) {
+        var items = (categories[cat] || []).filter(function (a) { return !a.is_read; });
+        if (items.length === 0) return;
+
+        var hdr = document.createElement("div");
+        hdr.style.cssText = "font-size:0.65rem;color:var(--cat-accent,#00ffff);font-family:'Antonio',sans-serif;letter-spacing:0.8px;padding:6px 12px 4px;text-transform:uppercase;border-top:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.12);margin-top:4px;";
+        hdr.textContent = cat.toUpperCase() + " (" + items.length + ")";
+        body.appendChild(hdr);
+
+        var shown = items.slice(0, 5);
+        shown.forEach(function (a) { body.appendChild(_renderAlertItem(a)); });
+
+        if (items.length > 5) {
+          var more = document.createElement("div");
+          more.style.cssText = "font-size:0.6rem;color:#64748b;padding:4px 12px 6px;font-family:'IBM Plex Mono',monospace;";
+          more.textContent = "+" + (items.length - 5) + " more \u2014 see Dashboard";
+          body.appendChild(more);
         }
-
-        notifs.forEach(function (n) {
-          var wrapper = document.createElement("div");
-          wrapper.style.cssText = "border-bottom:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.08);transition:opacity 0.3s ease,transform 0.3s ease,max-height 0.5s ease;overflow:hidden;";
-
-          // Summary row (clickable)
-          var item = document.createElement("div");
-          item.style.cssText = "display:flex;align-items:flex-start;gap:10px;padding:10px 12px;cursor:pointer;transition:background 0.15s ease;";
-          item.addEventListener("mouseenter", function () { item.style.background = "rgba(var(--cat-accent-rgb,0,255,255),0.04)"; });
-          item.addEventListener("mouseleave", function () { item.style.background = "none"; });
-
-          // Severity dot
-          var dot = document.createElement("span");
-          var dotColor = n.type === "error" ? "#ef4444" : n.type === "warning" ? "#ff9f43" : "var(--cat-accent, #00ffff)";
-          dot.style.cssText = "width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:6px;background:" + dotColor + ";box-shadow:0 0 6px " + dotColor + ";";
-          item.appendChild(dot);
-
-          // Summary content
-          var content = document.createElement("div");
-          content.style.cssText = "flex:1;min-width:0;";
-
-          var title = document.createElement("div");
-          title.style.cssText = "font-size:0.8rem;color:#e2e8f0;font-family:'Antonio',sans-serif;text-transform:uppercase;letter-spacing:0.3px;";
-          title.textContent = n.title || "Notification";
-          content.appendChild(title);
-
-          // Short preview
-          var preview = document.createElement("div");
-          preview.style.cssText = "font-size:0.65rem;color:#64748b;margin-top:2px;";
-          var previewParts = [];
-          if (n.source) previewParts.push(n.source);
-          if (n.created_at) {
-            var d = new Date(n.created_at);
-            if (!isNaN(d)) previewParts.push(d.toLocaleString());
-          }
-          preview.textContent = previewParts.join(" \u2022 ");
-          content.appendChild(preview);
-
-          item.appendChild(content);
-
-          // Arrow indicator
-          var arrow = document.createElement("span");
-          arrow.style.cssText = "flex-shrink:0;color:rgba(var(--cat-accent-rgb,0,255,255),0.3);font-size:0.7rem;margin-top:4px;transition:transform 0.2s ease;";
-          arrow.textContent = "\u25B8";
-          item.appendChild(arrow);
-
-          wrapper.appendChild(item);
-
-          // Detail panel (hidden by default)
-          var detail = document.createElement("div");
-          detail.style.cssText = "max-height:0;overflow:hidden;transition:max-height 0.3s ease,padding 0.3s ease;padding:0 12px 0 30px;background:rgba(var(--cat-accent-rgb,0,255,255),0.03);";
-
-          // Parse message
-          var fullMsg = n.message || "No details available.";
-          try {
-            var parsed = JSON.parse(n.message);
-            if (typeof parsed === "object") {
-              fullMsg = Object.keys(parsed).map(function (k) { return k + ": " + parsed[k]; }).join("\n");
-            }
-          } catch (e) { /* not JSON */ }
-
-          // Detail fields
-          var fields = [
-            { label: "TYPE", value: (n.type || "info").toUpperCase() },
-            { label: "PRIORITY", value: (n.priority || "normal").toUpperCase() },
-            { label: "SOURCE", value: n.source || "—" },
-            { label: "MESSAGE", value: fullMsg },
-            { label: "CREATED", value: n.created_at ? new Date(n.created_at).toLocaleString() : "—" },
-            { label: "ID", value: n.id ? "#" + n.id : "—" }
-          ];
-
-          fields.forEach(function (f) {
-            var row = document.createElement("div");
-            row.style.cssText = "display:flex;gap:8px;padding:3px 0;";
-
-            var lbl = document.createElement("span");
-            lbl.style.cssText = "font-size:0.55rem;color:rgba(var(--cat-accent-rgb,0,255,255),0.5);font-family:'Antonio',sans-serif;letter-spacing:0.5px;width:60px;flex-shrink:0;text-transform:uppercase;";
-            lbl.textContent = f.label;
-            row.appendChild(lbl);
-
-            var val = document.createElement("span");
-            val.style.cssText = "font-size:0.65rem;color:#cbd5e1;font-family:'IBM Plex Mono',monospace;white-space:pre-wrap;word-break:break-word;";
-            val.textContent = f.value;
-            row.appendChild(val);
-
-            detail.appendChild(row);
-          });
-
-          // Action buttons in detail
-          var actions = document.createElement("div");
-          actions.style.cssText = "display:flex;gap:8px;padding:8px 0;margin-top:4px;border-top:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.08);";
-
-          if (typeof n.id === "number") {
-            var clearBtn = document.createElement("button");
-            clearBtn.style.cssText = "background:none;border:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.25);color:var(--cat-accent,#00ffff);font-size:0.55rem;font-family:'Antonio',sans-serif;letter-spacing:0.8px;padding:4px 12px;border-radius:3px;cursor:pointer;text-transform:uppercase;transition:background 0.15s;";
-            clearBtn.textContent = "CLEAR";
-            clearBtn.addEventListener("click", function (e) {
-              e.stopPropagation();
-              fetch("/api/notifications/mark-read/" + n.id, { method: "POST" })
-                .then(function () {
-                  wrapper.style.opacity = "0";
-                  wrapper.style.transform = "translateX(30px)";
-                  wrapper.style.maxHeight = "0";
-                  setTimeout(function () {
-                    if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
-                    _pollNotifications();
-                    if (body.querySelectorAll("div").length === 0) {
-                      var empty = document.createElement("p");
-                      empty.style.color = "#64748b";
-                      empty.textContent = "All clear — no notifications";
-                      body.appendChild(empty);
-                    }
-                  }, 300);
-                });
-            });
-            clearBtn.addEventListener("mouseenter", function () { clearBtn.style.background = "rgba(var(--cat-accent-rgb,0,255,255),0.1)"; });
-            clearBtn.addEventListener("mouseleave", function () { clearBtn.style.background = "none"; });
-            actions.appendChild(clearBtn);
-          }
-
-          detail.appendChild(actions);
-          wrapper.appendChild(detail);
-
-          // Toggle detail on click
-          var expanded = false;
-          item.addEventListener("click", function () {
-            expanded = !expanded;
-            if (expanded) {
-              detail.style.maxHeight = "600px";
-              detail.style.padding = "8px 12px 8px 30px";
-              arrow.style.transform = "rotate(90deg)";
-              arrow.style.color = "var(--cat-accent, #00ffff)";
-              // Scroll expanded item into view
-              setTimeout(function () {
-                wrapper.scrollIntoView({ behavior: "smooth", block: "nearest" });
-              }, 100);
-            } else {
-              detail.style.maxHeight = "0";
-              detail.style.padding = "0 12px 0 30px";
-              arrow.style.transform = "rotate(0deg)";
-              arrow.style.color = "rgba(var(--cat-accent-rgb,0,255,255),0.3)";
-            }
-          });
-
-          body.appendChild(wrapper);
-        });
-      })
-      .catch(function () {
-        body.textContent = "";
-        var err = document.createElement("p");
-        err.style.color = "#ef4444";
-        err.textContent = "Failed to load notifications";
-        body.appendChild(err);
       });
+
+      // Dashboard link
+      var link = document.createElement("a");
+      link.href = "/dashboard#mission-briefing";
+      link.style.cssText = "display:block;font-size:0.65rem;color:var(--cat-accent,#00ffff);font-family:'Antonio',sans-serif;letter-spacing:0.8px;padding:10px 12px;text-align:center;border-top:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.15);margin-top:4px;text-decoration:none;";
+      link.textContent = "VIEW FULL DASHBOARD \u25B8";
+      body.appendChild(link);
+    };
+
+    if (window._lastUnifiedAlerts) {
+      doRender(window._lastUnifiedAlerts);
+    } else {
+      fetch("/api/alerts/unified")
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          window._lastUnifiedAlerts = data;
+          doRender(data);
+        })
+        .catch(function () {
+          body.textContent = "";
+          var err = document.createElement("p");
+          err.style.color = "#ef4444";
+          err.textContent = "Failed to load alerts";
+          body.appendChild(err);
+        });
+    }
   }
 
   /* -- Stardate -- */

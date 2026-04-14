@@ -1043,8 +1043,8 @@ window.timeAgo = function timeAgo(isoString) {
         container.appendChild(ul);
     }
 
-    // ── Render System Alerts ──
-    function renderAlerts(data) {
+    // ── Render System Alerts (legacy — kept for reference) ──
+    function _renderAlertsLegacy(data) {
         var container = document.getElementById('briefingAlerts');
         if (!container) return;
 
@@ -1171,13 +1171,179 @@ window.timeAgo = function timeAgo(isoString) {
             });
     }
 
+    // ── Build a single briefing alert item — expandable with click-to-read ──
+    function _buildBriefingAlertItem(a, severity) {
+        var container = document.createElement('div');
+        container.style.cssText = 'border-bottom:1px solid rgba(0,229,255,0.06);';
+
+        // Summary row (always visible)
+        var div = document.createElement('div');
+        div.className = 'briefing-alert-item ' + (severity || 'alert-warning');
+        div.style.cursor = 'pointer';
+
+        var icon = document.createElement('i');
+        icon.setAttribute('data-lucide', severity === 'alert-critical' ? 'x-circle' : 'alert-triangle');
+        div.appendChild(icon);
+
+        var textWrap = document.createElement('span');
+        textWrap.className = 'briefing-alert-text';
+        textWrap.style.flex = '1';
+
+        var titleSpan = document.createElement('span');
+        titleSpan.className = 'briefing-alert-title';
+        titleSpan.textContent = a.title || 'Alert';
+        textWrap.appendChild(titleSpan);
+
+        div.appendChild(textWrap);
+
+        // Chevron
+        var chevron = document.createElement('span');
+        chevron.textContent = '\u25B8';
+        chevron.style.cssText = 'color:#64748b;font-size:0.7rem;flex-shrink:0;transition:transform 0.2s ease;margin-left:auto;';
+        div.appendChild(chevron);
+
+        container.appendChild(div);
+
+        // Detail panel (hidden by default)
+        var detail = document.createElement('div');
+        detail.style.cssText = 'display:none;padding:6px 12px 10px 32px;';
+
+        // Message
+        if (a.message) {
+            var msgEl = document.createElement('div');
+            msgEl.style.cssText = 'font-size:0.65rem;color:#94a3b8;margin-bottom:6px;line-height:1.4;word-break:break-word;';
+            msgEl.textContent = a.message;
+            detail.appendChild(msgEl);
+        }
+
+        // Meta row
+        var meta = document.createElement('div');
+        meta.style.cssText = 'display:flex;gap:8px;font-size:0.55rem;color:#475569;font-family:"IBM Plex Mono",monospace;flex-wrap:wrap;';
+
+        var srcEl = document.createElement('span');
+        srcEl.textContent = (a.source || 'system').replace(/_/g, ' ').toUpperCase();
+        srcEl.style.cssText = 'background:rgba(0,229,255,0.08);padding:1px 6px;border-radius:3px;';
+        meta.appendChild(srcEl);
+
+        var priEl = document.createElement('span');
+        priEl.textContent = (a.priority || 'medium').toUpperCase();
+        var priColor = a.priority === 'critical' ? '#ef4444' : a.priority === 'high' ? '#ff9f43' : '#64748b';
+        priEl.style.cssText = 'color:' + priColor + ';';
+        meta.appendChild(priEl);
+
+        if (a.timestamp) {
+            var tsEl = document.createElement('span');
+            try { tsEl.textContent = new Date(a.timestamp).toLocaleString(); } catch (e) { tsEl.textContent = a.timestamp; }
+            meta.appendChild(tsEl);
+        }
+        detail.appendChild(meta);
+
+        // Mark read button
+        var markBtn = document.createElement('button');
+        markBtn.textContent = 'MARK READ';
+        markBtn.style.cssText = 'margin-top:8px;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.2);color:#00e5ff;font-family:"Antonio",sans-serif;font-size:0.6rem;letter-spacing:1px;padding:3px 10px;border-radius:4px;cursor:pointer;';
+        markBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            fetch('/api/alerts/unified/mark-read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ alert_key: a.id })
+            }).then(function() {
+                container.style.opacity = '0.4';
+                a.is_read = true;
+                markBtn.textContent = 'READ';
+                markBtn.disabled = true;
+                // Refresh counts
+                fetchAlerts();
+            });
+        });
+        detail.appendChild(markBtn);
+
+        container.appendChild(detail);
+
+        // Toggle on click
+        var expanded = false;
+        div.addEventListener('click', function() {
+            expanded = !expanded;
+            detail.style.display = expanded ? 'block' : 'none';
+            chevron.style.transform = expanded ? 'rotate(90deg)' : 'rotate(0deg)';
+        });
+
+        return container;
+    }
+
+    // ── Render System Alerts (unified endpoint) ──
+    function renderAlertsUnified(data) {
+        var container = document.getElementById('briefingAlerts');
+        if (!container) return;
+
+        var counts = data.counts || {};
+        var totalAlerts = counts.unread || 0;
+
+        _currentCounts.alerts = totalAlerts;
+        updateBadge('alerts', totalAlerts);
+
+        container.textContent = '';
+
+        if (totalAlerts === 0) {
+            var nominal = document.createElement('div');
+            nominal.className = 'briefing-alert-nominal';
+            var nomIcon = document.createElement('i');
+            nomIcon.setAttribute('data-lucide', 'check-circle');
+            nominal.appendChild(nomIcon);
+            var nomText = document.createElement('span');
+            nomText.textContent = archieI18n.t('js.briefing.all_nominal', 'ALL SYSTEMS NOMINAL');
+            nominal.appendChild(nomText);
+            container.appendChild(nominal);
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            return;
+        }
+
+        // Critical alerts first
+        var criticals = data.critical || [];
+        criticals.forEach(function(a) {
+            container.appendChild(_buildBriefingAlertItem(a, 'alert-critical'));
+        });
+
+        // Category alerts (unread only), in fixed order
+        var categories = data.categories || {};
+        var catOrder = ['infrastructure', 'agents', 'security', 'jobs'];
+        catOrder.forEach(function(cat) {
+            var items = (categories[cat] || []).filter(function(a) {
+                return !a.is_read;
+            });
+            if (items.length === 0) return;
+
+            var header = document.createElement('div');
+            header.style.cssText = [
+                'font-family:Antonio,sans-serif',
+                'font-size:0.7rem',
+                'letter-spacing:0.1em',
+                'color:var(--archie-accent,#00e5ff)',
+                'border-top:1px solid var(--archie-accent,#00e5ff)',
+                'padding-top:4px',
+                'margin-top:6px',
+                'text-transform:uppercase'
+            ].join(';');
+            header.textContent = cat;
+            container.appendChild(header);
+
+            items.forEach(function(a) {
+                var sev = (a.severity === 'critical' || a.priority === 'critical') ? 'alert-critical' : 'alert-warning';
+                container.appendChild(_buildBriefingAlertItem(a, sev));
+            });
+        });
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
     // ── Fetch Alerts ──
     function fetchAlerts() {
-        fetch('/api/dashboard/alerts')
+        fetch('/api/alerts/unified')
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) {
-                    renderAlerts(data);
+                    renderAlertsUnified(data);
                 }
             })
             .catch(function(err) {

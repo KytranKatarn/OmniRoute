@@ -185,7 +185,7 @@ def register_routes(bp, admin_required):
 
         # Call orchestration engine
         try:
-            from ai_bridge.orchestration_engine import OrchestrationEngine
+            from tools.department_hq.services.orchestration_engine import OrchestrationEngine
 
             engine = OrchestrationEngine()
             result = engine.orchestrate(
@@ -429,15 +429,11 @@ def register_routes(bp, admin_required):
             with _gc() as (conn, cur):
                 cur.execute(
                     """
-                    SELECT a.id, a.name, a.display_name, a.status,
-                           a.shift_state, a.specialty, a.capabilities,
-                           sa.station_code
+                    SELECT a.id, a.name, a.display_name,
+                           a.shift_state, a.department, a.model
                     FROM agents a
-                    LEFT JOIN station_assignments sa
-                        ON sa.agent_id = a.id AND sa.is_active = TRUE
-                    WHERE a.status = 'active'
-                      AND a.shift_state IN ('active', 'deployed')
-                    ORDER BY sa.station_code, a.display_name
+                    WHERE a.shift_state IN ('active', 'deployed')
+                    ORDER BY a.department, a.display_name
                     """
                 )
                 rows = cur.fetchall()
@@ -449,9 +445,8 @@ def register_routes(bp, admin_required):
                         "id": r["id"],
                         "name": r["name"],
                         "display_name": r["display_name"],
-                        "station_code": r["station_code"],
-                        "specialty": r["specialty"],
-                        "capabilities": r["capabilities"],
+                        "department": r["department"],
+                        "model": r["model"],
                         "shift_state": r["shift_state"],
                     }
                 )

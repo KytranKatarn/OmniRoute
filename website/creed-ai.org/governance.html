@@ -62,6 +62,7 @@
                 <a href="programs.html" class="nav__link" data-i18n="nav.programs">Programs</a>
                 <a href="research.html" class="nav__link" data-i18n="nav.research">Research</a>
                 <a href="governance.html" class="nav__link" data-i18n="nav.governance">Governance</a>
+                <a href="platform.html" class="nav__link" data-i18n="nav.platform">Platform</a>
                 <a href="manifesto.html" class="nav__link" data-i18n="nav.manifesto">Manifesto</a>
                 <a href="news.html" class="nav__link" data-i18n="nav.news">News</a>
                 <a href="get-involved.html" class="nav__link" data-i18n="nav.get_involved">Get Involved</a>
@@ -172,6 +173,73 @@
                         <div class="gov-metric-card__label">Governance Score</div>
                         <div class="gov-metric-card__sub">Real-time composite score</div>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3b. Live Governance Data (API) -->
+        <section id="live-governance-data" style="padding:4rem 0;">
+            <div class="container" style="max-width:1000px;">
+                <h2 style="font-family:'Orbitron',sans-serif;font-size:clamp(1.2rem,3vw,1.5rem);color:#c9a44c;letter-spacing:0.1em;margin-bottom:0.75rem;text-align:center;">LIVE GOVERNANCE DATA</h2>
+                <p style="text-align:center;color:#94a3b8;margin-bottom:2.5rem;max-width:600px;margin-left:auto;margin-right:auto;font-size:0.95rem;">
+                    Fetched live from the C.R.E.E.D. API. Auto-refreshes every 60 seconds.
+                </p>
+
+                <!-- Overall score row -->
+                <div id="lgd-overall" style="display:flex;align-items:center;gap:2rem;flex-wrap:wrap;justify-content:center;margin-bottom:2.5rem;">
+                    <div style="text-align:center;min-width:120px;">
+                        <img id="lgd-badge" src="https://creed.kytranempowerment.com/api/v1/badge/overall" alt="Governance compliance badge" style="height:80px;width:auto;" onerror="this.style.display='none'">
+                    </div>
+                    <div style="display:flex;gap:2rem;flex-wrap:wrap;justify-content:center;">
+                        <div style="background:rgba(201,164,76,0.08);border:1px solid rgba(201,164,76,0.25);border-radius:12px;padding:1.25rem 2rem;text-align:center;min-width:130px;">
+                            <div id="lgd-grade" style="font-family:'Orbitron',sans-serif;font-size:2.5rem;color:#22c55e;font-weight:900;line-height:1;">—</div>
+                            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;margin-top:0.4rem;">Overall Grade</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1.25rem 2rem;text-align:center;min-width:130px;">
+                            <div id="lgd-score" style="font-family:'Orbitron',sans-serif;font-size:2.5rem;color:#c9a44c;font-weight:700;line-height:1;">—</div>
+                            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;margin-top:0.4rem;">Score %</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1.25rem 2rem;text-align:center;min-width:130px;">
+                            <div id="lgd-events" style="font-family:'Orbitron',sans-serif;font-size:2.5rem;color:#94a3b8;font-weight:700;line-height:1;">—</div>
+                            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;margin-top:0.4rem;">Events Logged</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Category breakdown -->
+                <div id="lgd-categories" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:2rem;">
+                    <!-- populated by JS -->
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:1.25rem;text-align:center;animation:pulse 1.5s ease-in-out infinite;">
+                        <div style="height:1.5rem;background:rgba(255,255,255,0.06);border-radius:4px;margin-bottom:0.75rem;"></div>
+                        <div style="height:2rem;background:rgba(255,255,255,0.04);border-radius:4px;"></div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:1.25rem;text-align:center;animation:pulse 1.5s ease-in-out infinite;">
+                        <div style="height:1.5rem;background:rgba(255,255,255,0.06);border-radius:4px;margin-bottom:0.75rem;"></div>
+                        <div style="height:2rem;background:rgba(255,255,255,0.04);border-radius:4px;"></div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:1.25rem;text-align:center;animation:pulse 1.5s ease-in-out infinite;">
+                        <div style="height:1.5rem;background:rgba(255,255,255,0.06);border-radius:4px;margin-bottom:0.75rem;"></div>
+                        <div style="height:2rem;background:rgba(255,255,255,0.04);border-radius:4px;"></div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:1.25rem;text-align:center;animation:pulse 1.5s ease-in-out infinite;">
+                        <div style="height:1.5rem;background:rgba(255,255,255,0.06);border-radius:4px;margin-bottom:0.75rem;"></div>
+                        <div style="height:2rem;background:rgba(255,255,255,0.04);border-radius:4px;"></div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:1.25rem;text-align:center;animation:pulse 1.5s ease-in-out infinite;">
+                        <div style="height:1.5rem;background:rgba(255,255,255,0.06);border-radius:4px;margin-bottom:0.75rem;"></div>
+                        <div style="height:2rem;background:rgba(255,255,255,0.04);border-radius:4px;"></div>
+                    </div>
+                </div>
+
+                <!-- Status + CTA row -->
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.75rem;color:#475569;">
+                        <span id="lgd-status" style="display:inline-flex;align-items:center;gap:0.4rem;">
+                            <span id="lgd-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#475569;"></span>
+                            <span id="lgd-status-text">Loading&hellip;</span>
+                        </span>
+                    </div>
+                    <a href="https://creed.kytranempowerment.com/results" target="_blank" rel="noopener" class="btn btn--outline magnetic" style="border-color:#c9a44c;color:#c9a44c;padding:0.6rem 1.4rem;font-size:0.9rem;">View Full Results &rarr;</a>
                 </div>
             </div>
         </section>
@@ -387,6 +455,138 @@
     <script defer src="js/governance.js"></script>
     <script defer src="js/app.js"></script>
     <script defer src="js/i18n.js"></script>
+    <!-- Live Governance Data fetch -->
+    <script>
+    (function () {
+        var API_URL = 'https://creed.kytranempowerment.com/api/v1/scores';
+        var REFRESH_MS = 60000;
+
+        var CATEGORY_LABELS = {
+            accountability: 'Accountability',
+            fairness: 'Fairness',
+            privacy: 'Privacy',
+            safety: 'Safety',
+            transparency: 'Transparency'
+        };
+        var CATEGORY_ORDER = ['accountability', 'fairness', 'privacy', 'safety', 'transparency'];
+
+        function gradeColor(grade) {
+            if (!grade) return '#94a3b8';
+            var g = String(grade).toUpperCase();
+            if (g === 'A+' || g === 'A') return '#22c55e';
+            if (g === 'B+' || g === 'B') return '#3b82f6';
+            if (g === 'C') return '#eab308';
+            if (g === 'D') return '#f97316';
+            return '#ef4444';
+        }
+
+        function scoreToGradeColor(score) {
+            if (score >= 95) return '#22c55e';
+            if (score >= 80) return '#3b82f6';
+            if (score >= 70) return '#eab308';
+            if (score >= 60) return '#f97316';
+            return '#ef4444';
+        }
+
+        function setStatus(msg, ok) {
+            var dot = document.getElementById('lgd-dot');
+            var txt = document.getElementById('lgd-status-text');
+            if (txt) txt.textContent = msg;
+            if (dot) dot.style.background = ok ? '#22c55e' : '#ef4444';
+        }
+
+        function applyStyles(el, styles) {
+            Object.keys(styles).forEach(function (k) { el.style[k] = styles[k]; });
+        }
+
+        function makeCategoryCard(key, cat) {
+            var score = cat && cat.score !== undefined ? Math.round(cat.score) : (typeof cat === 'number' ? Math.round(cat) : null);
+            var grade = cat && cat.grade ? cat.grade : null;
+            var label = CATEGORY_LABELS[key] || (key.charAt(0).toUpperCase() + key.slice(1));
+            var color = grade ? gradeColor(grade) : (score !== null ? scoreToGradeColor(score) : '#94a3b8');
+            var displayVal = grade || (score !== null ? (score + '%') : '—');
+
+            var card = document.createElement('div');
+            applyStyles(card, { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '1.25rem', textAlign: 'center' });
+
+            var labelEl = document.createElement('div');
+            applyStyles(labelEl, { fontFamily: "'IBM Plex Mono',monospace", fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' });
+            labelEl.textContent = label;
+
+            var valEl = document.createElement('div');
+            applyStyles(valEl, { fontFamily: "'Orbitron',sans-serif", fontSize: '1.6rem', fontWeight: '700', color: color, lineHeight: '1' });
+            valEl.textContent = displayVal;
+
+            card.appendChild(labelEl);
+            card.appendChild(valEl);
+
+            if (grade && score !== null) {
+                var subEl = document.createElement('div');
+                applyStyles(subEl, { fontFamily: "'IBM Plex Mono',monospace", fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.3rem' });
+                subEl.textContent = score + '%';
+                card.appendChild(subEl);
+            }
+
+            return card;
+        }
+
+        function renderCategories(categories) {
+            var container = document.getElementById('lgd-categories');
+            if (!container) return;
+            while (container.firstChild) container.removeChild(container.firstChild);
+
+            if (!categories) {
+                var msg = document.createElement('div');
+                applyStyles(msg, { color: '#64748b', fontSize: '0.85rem', gridColumn: '1/-1', textAlign: 'center' });
+                msg.textContent = 'No category breakdown available.';
+                container.appendChild(msg);
+                return;
+            }
+
+            var keys = CATEGORY_ORDER.filter(function (k) { return k in categories; });
+            if (!keys.length) keys = Object.keys(categories);
+            keys.forEach(function (key) {
+                container.appendChild(makeCategoryCard(key, categories[key]));
+            });
+        }
+
+        function fetchData() {
+            fetch(API_URL, { mode: 'cors', cache: 'no-cache' })
+                .then(function (r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
+                .then(function (data) {
+                    var overall = data.overall || data;
+                    var grade = overall.grade || data.grade || '—';
+                    var score = overall.score !== undefined ? Math.round(overall.score) : (data.score !== undefined ? Math.round(data.score) : null);
+                    var events = overall.event_count !== undefined ? overall.event_count : (data.event_count !== undefined ? data.event_count : null);
+
+                    var gradeEl = document.getElementById('lgd-grade');
+                    if (gradeEl) { gradeEl.textContent = grade; gradeEl.style.color = gradeColor(grade); }
+
+                    var scoreEl = document.getElementById('lgd-score');
+                    if (scoreEl) scoreEl.textContent = score !== null ? score + '%' : '—';
+
+                    var eventsEl = document.getElementById('lgd-events');
+                    if (eventsEl) eventsEl.textContent = events !== null ? Number(events).toLocaleString() : '—';
+
+                    renderCategories(data.categories || data.breakdown || null);
+                    setStatus('Updated ' + new Date().toLocaleTimeString(), true);
+                })
+                .catch(function (err) {
+                    setStatus('Unavailable — retrying in 60s', false);
+                    console.warn('[LGD] fetch error:', err);
+                });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            fetchData();
+            setInterval(fetchData, REFRESH_MS);
+        });
+    })();
+    </script>
+
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof I18n !== 'undefined') I18n.init();

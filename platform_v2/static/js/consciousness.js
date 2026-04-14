@@ -170,7 +170,7 @@ function loadTabData(tab) {
 
   switch (tab) {
     case "dashboard":   loadDashboard(); break;
-    case "intelligence": if (typeof loadDashboardV2Panels === "function") { loadDashboardV2Panels(); } break;
+    case "devhq":        if (typeof initDevHQPanel === "function") { initDevHQPanel(); } if (typeof loadDashboardV2Panels === "function") { loadDashboardV2Panels(); } break;
     case "knowledge":   loadKnowledge(); break;
     /* team tab merged into Starbase Command */
     case "github":      loadGitHub(); break;
@@ -534,6 +534,17 @@ window.switchKnowledgeSubtab = function(sub) {
   if (sub === "categories") loadCategories();
   if (sub === "embeddings") loadEmbeddingStatus();
   if (sub === "graph") loadKnowledgeGraph();
+};
+
+/* ── Dev HQ Tab ────────────────────────────────────── */
+
+window.switchDevHQSubtab = function(sub) {
+  document.querySelectorAll("#devhqSubtabs .cs-subtab").forEach(function(b) {
+    b.classList.toggle("active", b.dataset.subtab === sub);
+  });
+  document.querySelectorAll("#panel-devhq .cs-subpanel").forEach(function(p) {
+    p.style.display = (p.id === sub) ? "" : "none";
+  });
 };
 
 /* ── Knowledge Graph (D3 force-directed) ──────────── */
@@ -2443,7 +2454,7 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   var hash = window.location.hash.replace("#", "");
-  var validTabs = ["dashboard", "intelligence", "knowledge", "github", "languages", "codehealth"];
+  var validTabs = ["dashboard", "devhq", "knowledge", "github", "languages", "codehealth"];
   if (hash && validTabs.indexOf(hash) !== -1) {
     lcarsHeaderSwitchTab(hash);
     switchConsciousnessTab(hash);

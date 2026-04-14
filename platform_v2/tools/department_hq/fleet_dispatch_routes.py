@@ -599,7 +599,7 @@ def register_dispatch_routes(bp, admin_required):
     def api_resume_job(job_id):
         """Resume a failed job from its last checkpoint."""
         try:
-            from ai_bridge.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             result = dispatcher.resume_job(job_id)
@@ -623,7 +623,7 @@ def register_dispatch_routes(bp, admin_required):
             return jsonify({"success": False, "error": "capability and prompt required"}), 400
 
         try:
-            from ai_bridge.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             result = dispatcher.delegate_subtask(job_id, capability, prompt, timeout)
@@ -639,15 +639,19 @@ def register_dispatch_routes(bp, admin_required):
     @bp.route("/api/dispatch/cross-station-analytics")
     @login_required
     def cross_station_analytics():
-        """Cross-station dispatch analytics for ARCHIE/Vigil evaluation."""
+        """Cross-department dispatch analytics."""
         try:
             with get_db_cursor() as (conn, cur):
-                cur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY cross_station_dispatch_summary")
-                cur.execute("SELECT * FROM cross_station_dispatch_summary ORDER BY dispatch_count DESC")
+                cur.execute(
+                    """SELECT a.department, bj.status, COUNT(*) as cnt
+                       FROM bridge_jobs bj
+                       LEFT JOIN agents a ON a.name = bj.agent_name
+                       WHERE bj.created_at > NOW() - INTERVAL '7 days'
+                       GROUP BY a.department, bj.status
+                       ORDER BY cnt DESC"""
+                )
                 cross_dispatches = cur.fetchall()
-                cur.execute("SELECT * FROM station_borrowing_summary")
-                borrowing = cur.fetchall()
-            return jsonify(success=True, cross_dispatches=cross_dispatches, borrowing=borrowing)
+            return jsonify(success=True, cross_dispatches=cross_dispatches, borrowing=[])
         except Exception as e:
             logger.error(f"cross_station_analytics error: {e}")
             return jsonify(success=False, error="Internal server error"), 500

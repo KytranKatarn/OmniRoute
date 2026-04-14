@@ -849,6 +849,160 @@ def register_knowledge_routes(bp, admin_required):
             cur.close()
             conn.close()
 
+    @bp.route("/api/knowledge/links/<int:entry_id>", methods=["GET"])
+    @login_required
+    @admin_required
+    def knowledge_links(entry_id):
+        """Get all links (forward + backlinks) for a KB entry."""
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            # Forward links (this entry → others)
+            cur.execute(
+                """
+                SELECT kr.to_id as linked_id, kr.relationship_type, kr.strength,
+                       kb.title, kb.knowledge_type, kb.category
+                FROM knowledge_relationships kr
+                JOIN knowledge_base kb ON kb.id = kr.to_id
+                WHERE kr.from_id = %s
+                ORDER BY kr.strength DESC
+                """,
+                (entry_id,),
+            )
+            forward = cur.fetchall()
+
+            # Backlinks (others → this entry)
+            cur.execute(
+                """
+                SELECT kr.from_id as linked_id, kr.relationship_type, kr.strength,
+                       kb.title, kb.knowledge_type, kb.category
+                FROM knowledge_relationships kr
+                JOIN knowledge_base kb ON kb.id = kr.from_id
+                WHERE kr.to_id = %s
+                ORDER BY kr.strength DESC
+                """,
+                (entry_id,),
+            )
+            backlinks = cur.fetchall()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "entry_id": entry_id,
+                    "forward_links": [
+                        {
+                            "id": r["linked_id"],
+                            "title": r["title"][:100] if r["title"] else f"Entry {r['linked_id']}",
+                            "type": r["relationship_type"],
+                            "strength": float(r["strength"] or 0.5),
+                            "knowledge_type": r["knowledge_type"],
+                            "category": r["category"],
+                        }
+                        for r in forward
+                    ],
+                    "backlinks": [
+                        {
+                            "id": r["linked_id"],
+                            "title": r["title"][:100] if r["title"] else f"Entry {r['linked_id']}",
+                            "type": r["relationship_type"],
+                            "strength": float(r["strength"] or 0.5),
+                            "knowledge_type": r["knowledge_type"],
+                            "category": r["category"],
+                        }
+                        for r in backlinks
+                    ],
+                    "total_links": len(forward),
+                    "total_backlinks": len(backlinks),
+                }
+            )
+        except Exception as e:
+            logger.error(f"[LINKS] Failed for entry {entry_id}: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+            conn.close()
+
+    @bp.route("/api/knowledge/links", methods=["POST"])
+    @login_required
+    @admin_required
+    def create_knowledge_link():
+        """Create a manual link between two KB entries."""
+        data = request.get_json() or {}
+        from_id = data.get("from_id")
+        to_id = data.get("to_id")
+        link_type = data.get("type", "related_to")
+
+        if not from_id or not to_id:
+            return jsonify({"success": False, "error": "from_id and to_id required"}), 400
+        if from_id == to_id:
+            return jsonify({"success": False, "error": "Cannot link entry to itself"}), 400
+
+        conn = _get_db()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                INSERT INTO knowledge_relationships (from_id, to_id, relationship_type, strength, created_by)
+                VALUES (%s, %s, %s, 0.8, 'manual')
+                ON CONFLICT DO NOTHING
+                RETURNING id
+                """,
+                (from_id, to_id, link_type),
+            )
+            result = cur.fetchone()
+            conn.commit()
+            if result:
+                return jsonify({"success": True, "link_id": result[0]})
+            else:
+                return jsonify({"success": True, "message": "Link already exists"})
+        except Exception as e:
+            conn.rollback()
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+            conn.close()
+
+    @bp.route("/api/knowledge/backlinks-summary", methods=["GET"])
+    @login_required
+    @admin_required
+    def knowledge_backlinks_summary():
+        """Top KB entries by number of backlinks — most referenced knowledge."""
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """
+                SELECT kb.id, kb.title, kb.knowledge_type, kb.category,
+                       COUNT(kr.id) as backlink_count
+                FROM knowledge_base kb
+                JOIN knowledge_relationships kr ON kr.to_id = kb.id
+                GROUP BY kb.id, kb.title, kb.knowledge_type, kb.category
+                ORDER BY backlink_count DESC
+                LIMIT 20
+                """
+            )
+            entries = cur.fetchall()
+            return jsonify(
+                {
+                    "success": True,
+                    "entries": [
+                        {
+                            "id": e["id"],
+                            "title": e["title"][:100] if e["title"] else f"Entry {e['id']}",
+                            "knowledge_type": e["knowledge_type"],
+                            "category": e["category"],
+                            "backlink_count": e["backlink_count"],
+                        }
+                        for e in entries
+                    ],
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+            conn.close()
+
     @bp.route("/unified/search", methods=["POST"])
     @login_required
     @admin_required

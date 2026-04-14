@@ -42,7 +42,56 @@ def _visibility_filter(is_admin, user_id, table_alias="sn"):
 # ---------------------------------------------------------------------------
 # 1. GET /api/notifications — blended notifications list
 # ---------------------------------------------------------------------------
+def _unified_to_notif(a):
+    """Convert a unified alert item to the legacy notification dict format."""
+    return {
+        "id": a["id"],
+        "type": a.get("type", "info"),
+        "title": a.get("title", ""),
+        "message": a.get("message", ""),
+        "source": a.get("source", "system"),
+        "is_read": a.get("is_read", True),
+        "priority": a.get("priority", "normal"),
+        "created_at": a.get("timestamp"),
+    }
+
+
 def get_notifications(user_id, is_admin):
+    """Blended notifications — wraps the unified alert service.
+
+    Flattens critical + all categories into one deduplicated list and converts
+    each item to the legacy notification format.  Falls back to the legacy
+    direct-query implementation on any exception.
+    """
+    try:
+        from services.alert_service import get_unified_alerts
+
+        unified = get_unified_alerts(user_id, is_admin)
+
+        seen_ids = set()
+        merged = []
+
+        # Include critical alerts first, then everything else by category
+        for item in unified.get("critical", []):
+            item_id = item.get("id")
+            if item_id not in seen_ids:
+                seen_ids.add(item_id)
+                merged.append(_unified_to_notif(item))
+
+        for _cat, items in unified.get("categories", {}).items():
+            for item in items:
+                item_id = item.get("id")
+                if item_id not in seen_ids:
+                    seen_ids.add(item_id)
+                    merged.append(_unified_to_notif(item))
+
+        return merged[:20]
+    except Exception:
+        logger.exception("get_notifications: unified alert service failed, falling back to legacy")
+        return _get_notifications_legacy(user_id, is_admin)
+
+
+def _get_notifications_legacy(user_id, is_admin):
     """Blended notifications — grouped system_notifications + bridge alerts + security.
 
     Returns list of notification dicts sorted: unread first, then by timestamp DESC.

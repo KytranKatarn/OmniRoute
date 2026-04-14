@@ -1,0 +1,17 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "Back to Dashboard" [ref=e5] [cursor=pointer]:
+      - /url: /dashboard
+      - img [ref=e6]
+    - generic [ref=e9]:
+      - generic [ref=e10]
+      - generic [ref=e13]
+      - generic [ref=e62]
+  - generic [ref=e141]:
+    - generic [ref=e142]:
+      - generic [ref=e143]: DEPARTMENT OVERVIEW
+      - generic [ref=e144]: BRIDGE
+    - generic [ref=e150]:
+      - generic [ref=e155]
+      - generic [ref=e174]
+  - button "💬" [ref=e152] [cursor=pointer]

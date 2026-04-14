@@ -1,0 +1,71 @@
+suite:
+  name: "AI Command — Repair Bay"
+  description: "Critical paths for Repair Bay: scan, proposals, sandbox, deploy, QA"
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: "repair-bay-page-loads"
+    type: api
+    method: GET
+    path: /tools/repair-bay/
+    expect:
+      status: [200, 302]
+
+  - name: "repair-bay-scan-status"
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/scan/status
+    expect:
+      status: [200, 302]
+
+  - name: "repair-bay-scan-stats"
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/scan/stats
+    expect:
+      status: [200, 302]
+
+  - name: "repair-bay-scan-issues"
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/scan/issues
+    expect:
+      status: [200, 302]
+
+  - name: "repair-bay-proposals"
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/proposals
+    expect:
+      status: [200, 302]
+
+  - name: "repair-bay-sandbox-list"
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/sandbox/list
+    expect:
+      status: [200, 302]
+
+  - name: "repair-bay-deploy-history"
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/deploy/history
+    expect:
+      status: [200, 302]
+
+  - name: "repair-bay-qa-suites"
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/qa/suites
+    expect:
+      status: [200, 302]
+
+  - name: "repair-bay-station-jobs"
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/station/jobs
+    expect:
+      status: [200, 302]

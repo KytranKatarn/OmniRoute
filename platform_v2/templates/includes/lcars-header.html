@@ -10,6 +10,8 @@
      module_title     -- Module display name (e.g. "CONSCIOUSNESS")
      module_back_url  -- URL for back button (defaults to /dashboard)
      header_tabs      -- List of tuples: [(id, label, icon), ...]
+     header_shortcuts -- List of tuples: [(label, icon, url), ...] for module shortcuts strip
+     i18n_prefix      -- i18n namespace prefix (defaults to module_title lowercased)
 #}
 
 {% set _accent = cat_accent|default('#00ffff') %}
@@ -18,6 +20,8 @@
 {% set _module = module_title|default('MODULE')|upper %}
 {% set _back = module_back_url|default('/dashboard') %}
 {% set _tabs = header_tabs|default([]) %}
+{% set _shortcuts = header_shortcuts|default([]) %}
+{% set _i18n = i18n_prefix|default(_module|lower|replace(' ', '_')) %}
 
 <header class="lcars-header" id="lcarsHeader"
         style="--cat-accent:{{ _accent }}; --cat-accent-dark:{{ _accent_dark }}; --cat-accent-rgb:{{ _accent_rgb }};"
@@ -41,8 +45,8 @@
       <span class="lcars-header-category">{{ cat_label|default('')|upper }}</span>
     </div>
 
-    <!-- Status strip (utilities) -->
-    <div class="lcars-header-strip">
+    <!-- Status strip (utilities + module shortcuts) -->
+    <div class="lcars-header-strip" style="display:flex;align-items:center;">
       <span class="lcars-header-stardate" id="lcarsStardate"></span>
       <span class="lcars-strip-divider"></span>
       <button class="lcars-strip-btn" onclick="if(window.showLanguageMenu)showLanguageMenu();" title="Language" data-i18n-title="nav.language">
@@ -60,6 +64,17 @@
         <span>ALERTS</span>
         <span class="lcars-strip-badge" id="lcarsStripBadge" style="display:none;">0</span>
       </button>
+      {% if _shortcuts %}
+      <span style="flex:1;"></span>
+      <span class="lcars-strip-divider"></span>
+      {% for sc_label, sc_icon, sc_url in _shortcuts %}
+      <a href="{{ sc_url }}" class="lcars-strip-btn" title="{{ sc_label }}"
+         style="text-decoration:none;display:inline-flex;align-items:center;gap:3px;{% if sc_url in request.path %}color:var(--cat-accent,#00ffff);opacity:1;font-weight:700;text-shadow:0 0 8px var(--cat-accent,#00ffff),0 0 16px rgba(var(--cat-accent-rgb,0,255,255),0.4);{% endif %}">
+        <i data-lucide="{{ sc_icon }}" style="width:11px;height:11px;"></i>
+        <span style="font-size:0.55rem;letter-spacing:0.5px;{% if sc_url in request.path %}font-size:0.6rem;letter-spacing:1px;{% endif %}">{{ sc_label|upper }}</span>
+      </a>
+      {% endfor %}
+      {% endif %}
     </div>
 
     <!-- Tab row -->
@@ -69,7 +84,7 @@
               data-tab="{{ tab_id }}"
               onclick="if(window.lcarsHeaderSwitchTab)lcarsHeaderSwitchTab('{{ tab_id }}')">
         <i data-lucide="{{ tab_icon }}" style="width:14px;height:14px;"></i>
-        <span class="lcars-header-tab-label" data-i18n="consciousness.tabs.{{ tab_id }}">{{ tab_label }}</span>
+        <span class="lcars-header-tab-label" data-i18n="{{ _i18n }}.tabs.{{ tab_id }}">{{ tab_label }}</span>
         <span class="lcars-header-tab-short">{{ tab_label[:4]|upper }}</span>
       </button>
       {% endfor %}
@@ -82,6 +97,48 @@
 
 <!-- Toast container -->
 <div class="lcars-toast-container" id="lcarsToastContainer"></div>
+
+<!-- Notification Modal (bm- LCARS tablet) — shared across all modules -->
+<div class="bm-overlay" id="lcarsNotifModal"
+     style="--bm-accent:var(--cat-accent, #00ffff); --bm-accent-rgb:var(--cat-accent-rgb, 0,255,255);">
+    <div class="bm-shell" style="max-width:500px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light on"></div>
+            <div class="bm-frame-light amber"></div>
+            <div class="bm-frame-seg cyan"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
+        </div>
+        <div class="bm-content">
+            <div class="bm-header">
+                <span class="bm-header-title">NOTIFICATIONS</span>
+                <div class="bm-header-strip">
+                    <span class="bm-header-pip w1"></span>
+                    <span class="bm-header-pip w2"></span>
+                    <span class="bm-header-pip w3"></span>
+                    <button class="bm-close" onclick="lcarsCloseNotifications()">&times;</button>
+                </div>
+            </div>
+            <div class="bm-body" id="lcarsNotifBody" style="max-height:60vh;overflow-y:auto;">
+                <p style="color:#94a3b8;">Loading...</p>
+            </div>
+            <div class="bm-actions">
+                <button class="btn-cancel" onclick="lcarsCloseNotifications()">Close</button>
+                <button class="btn-submit" onclick="fetch('/api/alerts/unified/mark-all-read',{method:'POST'}).then(function(){var b=document.getElementById('lcarsNotifBody');if(b){b.textContent='';var p=document.createElement('p');p.style.color='#64748b';p.textContent='All clear — no notifications';b.appendChild(p);}window._lastUnifiedAlerts=null;if(window._pollNotifications)window._pollNotifications();})">Mark All Read</button>
+            </div>
+            <div class="bm-footer">
+                <div class="bm-footer-strip">
+                    <span class="bm-footer-dot cyan"></span>
+                    <span class="bm-footer-dot gold"></span>
+                    <span class="bm-footer-dot green"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <style>
 .lcars-notif-badge {

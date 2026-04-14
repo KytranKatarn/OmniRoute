@@ -3,46 +3,54 @@
 {% block title %}Agent Academy — A.R.C.H.I.E.{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="{{ url_for('agent_academy.static', filename='css/agent-academy.css') }}">
 {% endblock %}
 
 {% block content %}
-<div class="aa-container">
-    <!-- Header -->
-    <div class="aa-header">
-        <div class="aa-header-bar">
-            <div class="aa-header-elbow"></div>
-            <h1 class="aa-title">AGENT ACADEMY</h1>
-            <div class="aa-header-status">
-                <span class="aa-badge aa-badge-teal" id="aa-agent-count">--</span> AGENTS
-                <span class="aa-badge aa-badge-purple" id="aa-skill-count">--</span> SKILLS
-            </div>
-        </div>
-    </div>
+{% set cat_accent = '#00ffff' %}
+{% set cat_accent_rgb = '0,255,255' %}
+{% set cat_accent_dark = '#00cccc' %}
+{% set cat_label = 'AI COMMAND' %}
+{% set module_title = 'AGENT ACADEMY' %}
+{% set header_shortcuts = [
+    ("A.R.C.H.I.E.", "bot", "/tools/archie-chat"),
+    ("Consciousness", "brain", "/tools/consciousness"),
+    ("Dept HQ", "building", "/tools/department-hq"),
+    ("Academy", "graduation-cap", "/tools/agent-academy"),
+    ("Repair Bay", "wrench", "/tools/repair-bay")
+] %}
+{% set header_tabs = [
+    ("benchmarks", "Benchmarks", "zap"),
+    ("training", "Training", "graduation-cap"),
+    ("models", "Models", "cpu"),
+    ("ab-test", "A/B Testing", "git-compare"),
+    ("knowledge", "Knowledge", "book-open")
+] %}
+{% include 'includes/lcars-header.html' %}
 
-    <!-- Tab Navigation -->
-    <div class="aa-tab-bar">
-        <button class="aa-tab active" data-tab="benchmarks" onclick="switchTab('benchmarks')">
-            <i data-lucide="zap"></i> BENCHMARKS
-        </button>
-        <button class="aa-tab" data-tab="training" onclick="switchTab('training')">
-            <i data-lucide="graduation-cap"></i> TRAINING
-        </button>
-        <button class="aa-tab" data-tab="models" onclick="switchTab('models')">
-            <i data-lucide="cpu"></i> MODELS
-        </button>
-        <button class="aa-tab" data-tab="ab-test" onclick="switchTab('ab-test')">
-            <i data-lucide="git-compare"></i> A/B TESTING
-        </button>
-        <button class="aa-tab" data-tab="knowledge" onclick="switchTab('knowledge')">
-            <i data-lucide="book-open"></i> KNOWLEDGE
-        </button>
-    </div>
+<div class="aa-container">
 
     <!-- Tab Panels -->
 
     <!-- BENCHMARKS TAB -->
     <div class="aa-panel active" id="panel-benchmarks">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+          <div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+          <div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+          <div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+        </div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+            <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">BENCHMARKS</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">PERFORMANCE</span>
+            <div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div>
+          </div>
+          <div style="flex:1 !important;padding:16px !important;">
         <div class="aa-panel-controls">
             <h2 class="aa-panel-title">Run Benchmark</h2>
             <div class="aa-form-row">
@@ -64,10 +72,30 @@
 
         <h2 class="aa-panel-title" style="margin-top:1.5rem">Recent Runs</h2>
         <div id="benchmarks-container"></div>
+          </div>
+          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
     </div>
 
     <!-- TRAINING TAB -->
     <div class="aa-panel" id="panel-training">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+          <div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+          <div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+          <div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+        </div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+            <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">TRAINING</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">SKILLS</span>
+            <div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div>
+          </div>
+          <div style="flex:1 !important;padding:16px !important;">
         <div class="aa-panel-controls">
             <h2 class="aa-panel-title">Assign Training</h2>
             <div class="aa-form-row">
@@ -93,10 +121,30 @@
 
         <h2 class="aa-panel-title" style="margin-top:1.5rem">Department Status</h2>
         <div id="training-status-container"></div>
+          </div>
+          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
     </div>
 
     <!-- MODELS TAB -->
     <div class="aa-panel" id="panel-models">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+          <div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+          <div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+          <div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+        </div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+            <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">MODELS</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">AGENTS</span>
+            <div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div>
+          </div>
+          <div style="flex:1 !important;padding:16px !important;">
         <div class="aa-panel-controls aa-form-row">
             <select id="model-dept-filter" class="aa-select" onchange="loadModelAgents()">
                 <option value="">All Departments</option>
@@ -132,10 +180,30 @@
                 </div>
             </div>
         </div>
+          </div>
+          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
     </div>
 
     <!-- A/B TESTING TAB -->
     <div class="aa-panel" id="panel-ab-test">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+          <div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+          <div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+          <div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+        </div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+            <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">A/B TESTING</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">COMPARE</span>
+            <div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div>
+          </div>
+          <div style="flex:1 !important;padding:16px !important;">
         <div class="aa-panel-controls">
             <h2 class="aa-panel-title">Compare Models</h2>
             <div class="aa-form-row">
@@ -178,10 +246,30 @@
 
         <h2 class="aa-panel-title" style="margin-top:1.5rem">Test History</h2>
         <div id="ab-history-container"></div>
+          </div>
+          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
     </div>
 
     <!-- KNOWLEDGE TAB -->
     <div class="aa-panel" id="panel-knowledge">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+          <div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+          <div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+          <div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+        </div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+            <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">KNOWLEDGE</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">PROMPTS</span>
+            <div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div>
+          </div>
+          <div style="flex:1 !important;padding:16px !important;">
         <h2 class="aa-panel-title">Agent System Prompts</h2>
         <div id="knowledge-container"></div>
 
@@ -205,10 +293,18 @@
                 </div>
             </div>
         </div>
+          </div>
+          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script src="{{ url_for('agent_academy.static', filename='js/agent-academy.js') }}"></script>
+<script>
+  window.onLcarsTabSwitch = function(tabId) { switchTab(tabId); };
+</script>
 {% endblock %}

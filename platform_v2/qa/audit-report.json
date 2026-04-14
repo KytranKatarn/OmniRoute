@@ -1,0 +1,3639 @@
+{
+  "generated_at": "2026-04-13T20:57:36.375298Z",
+  "tracks": {
+    "A1_api_sweep": {
+      "counts": {
+        "pass": 230,
+        "fail": 0,
+        "warn": 8,
+        "error": 9,
+        "skip": 277,
+        "other": 49
+      },
+      "total": 573,
+      "health_pct": 96.2,
+      "results": [
+        {
+          "label": "POST /tools/department-hq/api/roster/assign",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/roster/shift",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/browser-test",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/browser-test/all",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/agent/<int:agent_id>/skills",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/agent/<int:agent_id>/shift",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/agent/<int:agent_id>/department",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/agent/<int:agent_id>/identity",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/agent/<int:agent_id>/portraits/generate-prompt",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/agent/<int:agent_id>/portraits/add",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/agent/<int:agent_id>/portraits/<int:portrait_id>/set-primary",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/agent/<int:agent_id>/social-profiles",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/department-hq/api/agent/<int:agent_id>/social-profiles/<platform>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/agent/<int:agent_id>/writing-voice",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/agent/<int:agent_id>/posts/generate",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/agent/<int:agent_id>/posts",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/posts/<int:post_id>/publish",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/skills/<skill_name>/execute",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/auth/register",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/auth/approve/<int:device_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/auth/deny/<int:device_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/auth/revoke/<int:device_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/auth/validate",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/models/control",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/models/fleet-mode",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/dispatch/jobs/<name>/toggle",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/dispatch/jobs/<name>/run",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/dispatch/loops/toggle",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/dispatch/approvals/<int:approval_id>/<action>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/department-hq/api/dispatch/config/<key>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/contractors/providers",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/contractors/providers/<provider>/toggle",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/department-hq/api/contractors/providers/<provider>/models/<path:model_name>/toggle",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/contractors/definitions",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/approvals/<int:approval_id>/approve",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/approvals/<int:approval_id>/deny",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/chat",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/register",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<node_id>/mesh-ip",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<node_id>/heartbeat",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/department-hq/api/nodes/<node_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/department-hq/api/nodes/<node_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<node_id>/capabilities",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/select",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<node_id>/request-complete",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<node_id>/approve",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<node_id>/reject",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<node_id>/ssh-toggle",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<node_id>/test",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<node_id>/dispatch-test",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<node_id>/stations",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/department-hq/api/nodes/<node_id>/stations/<int:station_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/department-hq/api/nodes/<node_id>/stations/<int:station_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/stations/batch-nodes",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/select-for-station",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/department-hq/api/nodes/<node_id>/settings",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/request-node",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<node_id>/request-update",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/station-commands/execute",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/department-hq/api/nodes/<node_id>/disconnect",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/mesh/version",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/mesh/learning",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/mesh/agents/lend",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/mesh/agents/return",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/mesh/agents/return-admin",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/mesh/sync",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/mesh/sync/<int:sync_id>/ack",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/mesh/broadcast",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/mesh/push-update",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/mesh/authkeys",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/department-hq/api/mesh/saas-proxy/<path:path>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/mesh/saas-proxy/<path:path>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/department-hq/api/mesh/saas-proxy/<path:path>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/mesh/sync-data",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/department-hq/api/nodes/<int:node_id>/agents/<int:agent_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<int:node_id>/agents/add",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/department-hq/api/nodes/<int:node_id>/agents/<int:agent_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<int:node_id>/assign-agents",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/fleet/token/generate",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/fleet/register",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/fleet/approve/<node_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/fleet/deny/<node_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/providers/<provider_key>/toggle",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/providers/<provider_key>/budget",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/cloud-providers",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/cloud-providers/<int:provider_id>/toggle",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/cloud-providers/<int:provider_id>/budget",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/department-hq/api/nodes/<node_id>/bridge-sharing",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<node_id>/models/sync",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/department-hq/api/nodes/<node_id>/models/<int:model_id>/toggle",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/bridge/select-node",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/bridge/comfyui/control",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/bridge/reassign",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/routing-mode",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/escalation-mode",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/external-providers",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/external-providers/<provider>/toggle",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/department-hq/api/external-providers/<provider>/models/<path:model_name>/toggle",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/contractor-providers",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/bridge/jobs/<int:job_id>/resume",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/bridge/jobs/<int:job_id>/delegate",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/starship/profile",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/department-hq/api/mission/activate/<int:profile_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/mission/schedule",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/department-hq/api/mission/schedule/<int:schedule_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/flows/<flow_name>/start",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/flows/advance/<int:job_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<int:node_id>/push-config",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<int:node_id>/pull-model",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<int:node_id>/pull-checkpoint",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<int:node_id>/compose-recreate",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<int:node_id>/push-update",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<int:node_id>/push-config-update",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<int:node_id>/resync",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/department-hq/api/nodes/<int:node_id>/upgrade-v3",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/memory/search",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/memory/record",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/collections",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/collections/<int:collection_id>/add",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/memory/decay",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/memory/<memory_type>/<int:memory_id>/reinforce",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/memory/maintenance",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/memory/preferences",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/memory/extract",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/consciousness/api/agent-memory/<int:memory_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/agent-memory/<int:memory_id>/soft-delete",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/agent-memory/<int:memory_id>/restore",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/agent-memory/<int:memory_id>/reinforce",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/logs/ingest",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/collab/start",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/collab/resume-session/<session_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/collab/pause/<session_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/collab/resume/<session_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/collab/stop/<session_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/collab/interject/<session_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/collab/continue/<session_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/collab/joint/start",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/collab/work-products/<int:product_id>/save-to-kb",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/collab/work-products/<int:product_id>/approve",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/collab/work-products/<int:product_id>/revise",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/consciousness/api/conversations/<conv_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/consciousness/api/conversations/<conv_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/chat/upload",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/terminal/token",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/claude/chat",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/claude/sync-context",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/voice/preview",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/voice/profiles",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/consciousness/api/voice/profiles/<int:profile_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PATCH /tools/consciousness/api/voice/profiles/<int:profile_id>/agent-name",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/voice/pregen",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/voice/pregen/full-dna",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PATCH /tools/consciousness/api/github/repositories/<int:repo_id>/review",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/github/skills/sync-confirm",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/integration/test-pipeline",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/code-health/scan",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/code-health/backfill-git",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/dashboard/link-knowledge",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/consciousness/api/dashboard/unlink-knowledge/<int:link_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/dashboard/generate-docs",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/translations/scan",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/translations/seed",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/translations/scan-and-seed",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/translations/audit-templates",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/translations/tag-module",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/translations/generate",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/translations/generate-async",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/consciousness/api/translations/approve",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/consciousness/api/translations/bulk-approve",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/translation-memory",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/consciousness/api/translation-memory/<int:entry_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/translations/export-bundle",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/devhq/projects",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/consciousness/api/devhq/projects/<int:project_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/consciousness/api/devhq/projects/<int:project_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/devhq/projects/<int:project_id>/tasks",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/consciousness/api/devhq/tasks/<int:task_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/consciousness/api/devhq/tasks/<int:task_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/devhq/decisions",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/devhq/docs",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/consciousness/api/devhq/docs/<int:doc_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/consciousness/api/devhq/docs/<int:doc_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/devhq/ideas",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/consciousness/api/devhq/ideas/<int:idea_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/consciousness/api/devhq/ideas/<int:idea_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/devhq/ideas/<int:idea_id>/promote",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/devhq/projects/<int:project_id>/docs",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/consciousness/api/devhq/projects/<int:project_id>/docs/<int:doc_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/consciousness/api/devhq/projects/<int:project_id>/docs/<int:doc_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/devhq/integrations/health/check",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/devhq/system/actions/clear-cache",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/devhq/system/actions/warmup",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/devhq/system/actions/reindex-embeddings",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/devhq/system/actions/sync-mcp-tools",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/consciousness/api/devhq/integrations/mcp/tools/<int:tool_id>/hints",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/processing/lock/acquire",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/processing/lock/heartbeat",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/processing/lock/release",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/processing/estimate",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/processing/start",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/processing/generate-embeddings",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/consciousness/api/processing/local-only-mode",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/consciousness/api/processing/server-loop/toggle",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/archie-chat/api/v1/chat/message",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/archie-chat/api/v1/chat/conversations",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/archie-chat/api/v1/chat/conversations/<int:conv_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/archie-chat/api/v1/chat/keys",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/archie-chat/api/v1/chat/keys/<int:key_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/scan/run",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/scan/batch",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/scan/issues/<int:issue_id>/fix",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/scan/issues-to-proposals",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/scan/multi-agent/review",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/repair-bay/api/proposals/<int:proposal_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/proposals/<int:proposal_id>/approve",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/proposals/<int:proposal_id>/reject",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/proposals/<int:proposal_id>/execute",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/proposals/<int:proposal_id>/compliance-action",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/proposals/<int:proposal_id>/regenerate-plan",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/proposals/<int:proposal_id>/retry",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/proposals/<int:proposal_id>/escalate",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/proposals/<int:proposal_id>/archive",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/proposals/<int:proposal_id>/deploy-to-production",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/proposals/<int:proposal_id>/restore",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/sandbox/<module_id>/create",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/sandbox/<module_id>/destroy",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/sandbox/<module_id>/test",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/sandbox/<module_id>/reset",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/sandbox/config",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/sandbox/apply-from-sentinel",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/sandbox/apply-from-proposals",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/sandbox/suites",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PUT /tools/repair-bay/api/sandbox/suites/<int:suite_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "DELETE /tools/repair-bay/api/sandbox/suites/<int:suite_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/sandbox/run",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/sandbox/run/<run_id>/cancel",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/sandbox/deploy",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/sandbox/benchmark",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/deploy/health-check",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/forge/prs/<int:pr_number>/merge",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/forge/prs/<int:pr_number>/comment",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/forge/branch",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/forge/push",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/forge/issues",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/forge/issues/<int:issue_number>/close",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/forge/webhook",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/forge/deploy/<int:pr_number>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/forge/self-heal/<int:proposal_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/forge/self-heal/<int:proposal_id>/retry-test",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/forge/self-heal/<int:proposal_id>/retry-review",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/forge/self-heal/<int:proposal_id>/regression",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/forge/self-heal/<int:proposal_id>/escalate",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "PATCH /tools/repair-bay/api/repair/queue/<int:item_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/repair/queue/<int:item_id>/triage",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/repair/poll",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/qa/suites",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/qa/run/<int:suite_id>",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/repair-bay/api/qa/runs/<int:run_id>/report",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/agent-academy/api/benchmarks/run",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/agent-academy/api/ab-test/run",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/agent-academy/api/training/assign",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/agent-academy/api/models/update",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "POST /tools/agent-academy/api/knowledge/update-prompt",
+          "status": "skip",
+          "detail": "mutation \u2014 not called"
+        },
+        {
+          "label": "GET /tools/department-hq/api/overview",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 30,
+          "url": "/tools/department-hq/api/overview"
+        },
+        {
+          "label": "GET /tools/department-hq/api/org-chart",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 33,
+          "url": "/tools/department-hq/api/org-chart"
+        },
+        {
+          "label": "GET /tools/department-hq/api/roster",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 34,
+          "url": "/tools/department-hq/api/roster"
+        },
+        {
+          "label": "GET /tools/department-hq/api/coordinator/status",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 24,
+          "url": "/tools/department-hq/api/coordinator/status"
+        },
+        {
+          "label": "GET /tools/department-hq/api/work-sessions",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 25,
+          "url": "/tools/department-hq/api/work-sessions"
+        },
+        {
+          "label": "GET /tools/department-hq/api/performance",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 26,
+          "url": "/tools/department-hq/api/performance"
+        },
+        {
+          "label": "GET /tools/department-hq/api/performance/<department>",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/performance/test"
+        },
+        {
+          "label": "GET /tools/department-hq/api/creed",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 73,
+          "url": "/tools/department-hq/api/creed"
+        },
+        {
+          "label": "GET /tools/department-hq/api/agent/<int:agent_id>/profile",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 22,
+          "url": "/tools/department-hq/api/agent/1/profile"
+        },
+        {
+          "label": "GET /tools/department-hq/api/agent/<int:agent_id>/skills",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 24,
+          "url": "/tools/department-hq/api/agent/1/skills"
+        },
+        {
+          "label": "GET /tools/department-hq/api/agent/<int:agent_id>/welfare",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 22,
+          "url": "/tools/department-hq/api/agent/1/welfare"
+        },
+        {
+          "label": "GET /tools/department-hq/api/agent/<int:agent_id>/identity",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/agent/1/identity"
+        },
+        {
+          "label": "GET /tools/department-hq/api/agent/<int:agent_id>/portraits",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/agent/1/portraits"
+        },
+        {
+          "label": "GET /tools/department-hq/api/agent/<int:agent_id>/gallery",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 22,
+          "url": "/tools/department-hq/api/agent/1/gallery"
+        },
+        {
+          "label": "GET /tools/department-hq/api/identity/directors",
+          "status": "error",
+          "code": 500,
+          "duration_ms": 26,
+          "url": "/tools/department-hq/api/identity/directors"
+        },
+        {
+          "label": "GET /tools/department-hq/api/identity/incomplete",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 131,
+          "url": "/tools/department-hq/api/identity/incomplete"
+        },
+        {
+          "label": "GET /tools/department-hq/api/agent/<int:agent_id>/social-profiles",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 27,
+          "url": "/tools/department-hq/api/agent/1/social-profiles"
+        },
+        {
+          "label": "GET /tools/department-hq/api/agent/<int:agent_id>/writing-voice",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 24,
+          "url": "/tools/department-hq/api/agent/1/writing-voice"
+        },
+        {
+          "label": "GET /tools/department-hq/api/agent/<int:agent_id>/posts",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 30,
+          "url": "/tools/department-hq/api/agent/1/posts"
+        },
+        {
+          "label": "GET /tools/department-hq/api/social/feed",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 25,
+          "url": "/tools/department-hq/api/social/feed"
+        },
+        {
+          "label": "GET /tools/department-hq/api/social/stats",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 27,
+          "url": "/tools/department-hq/api/social/stats"
+        },
+        {
+          "label": "GET /tools/department-hq/api/skills/list",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 31,
+          "url": "/tools/department-hq/api/skills/list"
+        },
+        {
+          "label": "GET /tools/department-hq/api/skills/<skill_name>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/skills/test"
+        },
+        {
+          "label": "GET /tools/department-hq/api/skills/departments",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 27,
+          "url": "/tools/department-hq/api/skills/departments"
+        },
+        {
+          "label": "GET /tools/department-hq/api/auth/devices",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/auth/devices"
+        },
+        {
+          "label": "GET /tools/department-hq/api/knowledge/search",
+          "status": "warn",
+          "code": 400,
+          "duration_ms": 183,
+          "url": "/tools/department-hq/api/knowledge/search"
+        },
+        {
+          "label": "GET /tools/department-hq/api/knowledge/context",
+          "status": "warn",
+          "code": 400,
+          "duration_ms": 32,
+          "url": "/tools/department-hq/api/knowledge/context"
+        },
+        {
+          "label": "GET /tools/department-hq/api/knowledge/mistakes",
+          "status": "warn",
+          "code": 400,
+          "duration_ms": 21,
+          "url": "/tools/department-hq/api/knowledge/mistakes"
+        },
+        {
+          "label": "GET /tools/department-hq/api/models/catalog",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 25,
+          "url": "/tools/department-hq/api/models/catalog"
+        },
+        {
+          "label": "GET /tools/department-hq/api/models/cluster",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 41,
+          "url": "/tools/department-hq/api/models/cluster"
+        },
+        {
+          "label": "GET /tools/department-hq/api/models/vram-budget",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 22,
+          "url": "/tools/department-hq/api/models/vram-budget"
+        },
+        {
+          "label": "GET /tools/department-hq/api/dispatch/overview",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 44,
+          "url": "/tools/department-hq/api/dispatch/overview"
+        },
+        {
+          "label": "GET /tools/department-hq/api/dispatch/loops",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 39,
+          "url": "/tools/department-hq/api/dispatch/loops"
+        },
+        {
+          "label": "GET /tools/department-hq/api/dispatch/approvals",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 22,
+          "url": "/tools/department-hq/api/dispatch/approvals"
+        },
+        {
+          "label": "GET /tools/department-hq/api/dispatch/history",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 36,
+          "url": "/tools/department-hq/api/dispatch/history"
+        },
+        {
+          "label": "GET /tools/department-hq/api/dispatch/components",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 36,
+          "url": "/tools/department-hq/api/dispatch/components"
+        },
+        {
+          "label": "GET /tools/department-hq/api/dispatch/scheduler",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 32,
+          "url": "/tools/department-hq/api/dispatch/scheduler"
+        },
+        {
+          "label": "GET /tools/department-hq/api/dispatch/config",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 28,
+          "url": "/tools/department-hq/api/dispatch/config"
+        },
+        {
+          "label": "GET /tools/department-hq/api/dispatch/repair-pipeline",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/dispatch/repair-pipeline"
+        },
+        {
+          "label": "GET /tools/department-hq/api/dispatch/ops-summary",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 31,
+          "url": "/tools/department-hq/api/dispatch/ops-summary"
+        },
+        {
+          "label": "GET /tools/department-hq/api/crew/manifest",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 773,
+          "url": "/tools/department-hq/api/crew/manifest"
+        },
+        {
+          "label": "GET /tools/department-hq/api/crew/agent-personality/<int:agent_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 34,
+          "url": "/tools/department-hq/api/crew/agent-personality/1"
+        },
+        {
+          "label": "GET /tools/department-hq/api/contractors/providers",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 47,
+          "url": "/tools/department-hq/api/contractors/providers"
+        },
+        {
+          "label": "GET /tools/department-hq/api/contractors/definitions",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 29,
+          "url": "/tools/department-hq/api/contractors/definitions"
+        },
+        {
+          "label": "GET /tools/department-hq/api/approvals/pending",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 22,
+          "url": "/tools/department-hq/api/approvals/pending"
+        },
+        {
+          "label": "GET /tools/department-hq/api/approvals/history",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 26,
+          "url": "/tools/department-hq/api/approvals/history"
+        },
+        {
+          "label": "GET /tools/department-hq/api/chat/<int:agent_id>",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 32,
+          "url": "/tools/department-hq/api/chat/1"
+        },
+        {
+          "label": "GET /tools/department-hq/api/stats",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 47,
+          "url": "/tools/department-hq/api/stats"
+        },
+        {
+          "label": "GET /tools/department-hq/api/traffic",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 25,
+          "url": "/tools/department-hq/api/traffic"
+        },
+        {
+          "label": "GET /tools/department-hq/api/agent-utilization",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 25,
+          "url": "/tools/department-hq/api/agent-utilization"
+        },
+        {
+          "label": "GET /tools/department-hq/api/models/live",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 21,
+          "url": "/tools/department-hq/api/models/live"
+        },
+        {
+          "label": "GET /tools/department-hq/api/creed/overview",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 1050,
+          "url": "/tools/department-hq/api/creed/overview"
+        },
+        {
+          "label": "GET /tools/department-hq/api/agents/workload",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 31,
+          "url": "/tools/department-hq/api/agents/workload"
+        },
+        {
+          "label": "GET /tools/department-hq/api/agents/welfare",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 214,
+          "url": "/tools/department-hq/api/agents/welfare"
+        },
+        {
+          "label": "GET /tools/department-hq/api/creed/enforcement-log",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 130,
+          "url": "/tools/department-hq/api/creed/enforcement-log"
+        },
+        {
+          "label": "GET /tools/department-hq/api/creed/enforcement-log-full",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 121,
+          "url": "/tools/department-hq/api/creed/enforcement-log-full"
+        },
+        {
+          "label": "GET /tools/department-hq/api/archie/status",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/archie/status"
+        },
+        {
+          "label": "GET /tools/department-hq/api/llm/status",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 53,
+          "url": "/tools/department-hq/api/llm/status"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 27,
+          "url": "/tools/department-hq/api/nodes"
+        },
+        {
+          "label": "GET /tools/department-hq/api/fleet-agents",
+          "status": "skip",
+          "detail": "known-hanging pattern"
+        },
+        {
+          "label": "GET /tools/department-hq/api/starbase-stats",
+          "status": "skip",
+          "detail": "known-hanging pattern"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 22,
+          "url": "/tools/department-hq/api/nodes"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/install.sh",
+          "status": "skip",
+          "detail": "known-hanging pattern"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/install.ps1",
+          "status": "skip",
+          "detail": "known-hanging pattern"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/setup-node.ps1",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 22,
+          "url": "/tools/department-hq/api/nodes/setup-node.ps1"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/heartbeat.ps1",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 26,
+          "url": "/tools/department-hq/api/nodes/heartbeat.ps1"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/update.ps1",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 22,
+          "url": "/tools/department-hq/api/nodes/update.ps1"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/heartbeat.sh",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 22,
+          "url": "/tools/department-hq/api/nodes/heartbeat.sh"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/docker-compose.node.yml",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 21,
+          "url": "/tools/department-hq/api/nodes/docker-compose.node.yml"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/deploy-node.ps1",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 31,
+          "url": "/tools/department-hq/api/nodes/deploy-node.ps1"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/node_sync.py",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 25,
+          "url": "/tools/department-hq/api/nodes/node_sync.py"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/Dockerfile.node",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 21,
+          "url": "/tools/department-hq/api/nodes/Dockerfile.node"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/node_api.py",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 25,
+          "url": "/tools/department-hq/api/nodes/node_api.py"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/node_triage.py",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 21,
+          "url": "/tools/department-hq/api/nodes/node_triage.py"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/bootstrap-wsl2.sh",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 21,
+          "url": "/tools/department-hq/api/nodes/bootstrap-wsl2.sh"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/installer.py",
+          "status": "skip",
+          "detail": "known-hanging pattern"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/docker-compose",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 26,
+          "url": "/tools/department-hq/api/nodes/docker-compose"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/migrations/<filename>",
+          "status": "skip",
+          "detail": "known-hanging pattern"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/archie-node-latest.tar.gz",
+          "status": "skip",
+          "detail": "known-hanging pattern"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/install-node.sh",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 25,
+          "url": "/tools/department-hq/api/nodes/install-node.sh"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/installer.exe",
+          "status": "skip",
+          "detail": "known-hanging pattern"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/client-package",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 86,
+          "url": "/tools/department-hq/api/nodes/client-package"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/<node_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 24,
+          "url": "/tools/department-hq/api/nodes/test"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/stats",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 25,
+          "url": "/tools/department-hq/api/nodes/stats"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/<node_id>/health-history",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 22,
+          "url": "/tools/department-hq/api/nodes/test/health-history"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/<node_id>/health",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/nodes/test/health"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/<node_id>/stations",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 31,
+          "url": "/tools/department-hq/api/nodes/test/stations"
+        },
+        {
+          "label": "GET /tools/department-hq/api/stations/<int:station_id>/nodes",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 30,
+          "url": "/tools/department-hq/api/stations/1/nodes"
+        },
+        {
+          "label": "GET /tools/department-hq/api/stations/coverage",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 32,
+          "url": "/tools/department-hq/api/stations/coverage"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/<int:node_id>/diagnostics",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 39,
+          "url": "/tools/department-hq/api/nodes/1/diagnostics"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/<node_id>/status",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 42,
+          "url": "/tools/department-hq/api/nodes/test/status"
+        },
+        {
+          "label": "GET /tools/department-hq/api/model-catalog",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 142,
+          "url": "/tools/department-hq/api/model-catalog"
+        },
+        {
+          "label": "GET /tools/department-hq/api/setup-instructions/<node_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 35,
+          "url": "/tools/department-hq/api/setup-instructions/test"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/<node_id>/download-zip",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 33,
+          "url": "/tools/department-hq/api/nodes/test/download-zip"
+        },
+        {
+          "label": "GET /tools/department-hq/api/station-commands",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 35,
+          "url": "/tools/department-hq/api/station-commands"
+        },
+        {
+          "label": "GET /tools/department-hq/api/fleet-stats",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 229,
+          "url": "/tools/department-hq/api/fleet-stats"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/<node_id>/setup-script",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/nodes/test/setup-script"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/new-setup-script",
+          "status": "error",
+          "code": 500,
+          "duration_ms": 36,
+          "url": "/tools/department-hq/api/nodes/new-setup-script"
+        },
+        {
+          "label": "GET /tools/department-hq/api/mesh/learning",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 24,
+          "url": "/tools/department-hq/api/mesh/learning"
+        },
+        {
+          "label": "GET /tools/department-hq/api/mesh/agents/loans",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/mesh/agents/loans"
+        },
+        {
+          "label": "GET /tools/department-hq/api/mesh/sync/<node_id>/pending",
+          "status": "auth_fail",
+          "code": 403,
+          "duration_ms": 22,
+          "url": "/tools/department-hq/api/mesh/sync/test/pending"
+        },
+        {
+          "label": "GET /tools/department-hq/api/mesh/version",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 20,
+          "url": "/tools/department-hq/api/mesh/version"
+        },
+        {
+          "label": "GET /tools/department-hq/api/mesh/cluster",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/mesh/cluster"
+        },
+        {
+          "label": "GET /tools/department-hq/api/mesh/agents/available",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 33,
+          "url": "/tools/department-hq/api/mesh/agents/available"
+        },
+        {
+          "label": "GET /tools/department-hq/api/mesh/topology",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 36,
+          "url": "/tools/department-hq/api/mesh/topology"
+        },
+        {
+          "label": "GET /tools/department-hq/api/mesh/health",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 21,
+          "url": "/tools/department-hq/api/mesh/health"
+        },
+        {
+          "label": "GET /tools/department-hq/api/mesh/authkeys",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 25,
+          "url": "/tools/department-hq/api/mesh/authkeys"
+        },
+        {
+          "label": "GET /tools/department-hq/api/mesh/saas-modules",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 28,
+          "url": "/tools/department-hq/api/mesh/saas-modules"
+        },
+        {
+          "label": "GET /tools/department-hq/api/mesh/saas-proxy/<path:path>",
+          "status": "auth_fail",
+          "code": 401,
+          "duration_ms": 26,
+          "url": "/tools/department-hq/api/mesh/saas-proxy/test"
+        },
+        {
+          "label": "GET /tools/department-hq/api/health-status",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 25,
+          "url": "/tools/department-hq/api/health-status"
+        },
+        {
+          "label": "GET /tools/department-hq/api/health-status/<node_id>",
+          "status": "error",
+          "code": 500,
+          "duration_ms": 25,
+          "url": "/tools/department-hq/api/health-status/test"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/<int:node_id>/crew-manifest",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 744,
+          "url": "/tools/department-hq/api/nodes/1/crew-manifest"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/<int:node_id>/agents/<int:agent_id>/profile",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 21,
+          "url": "/tools/department-hq/api/nodes/1/agents/1/profile"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/<int:node_id>/agent-form-context",
+          "status": "error",
+          "code": 500,
+          "duration_ms": 24,
+          "url": "/tools/department-hq/api/nodes/1/agent-form-context"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/<int:node_id>/stations",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 22,
+          "url": "/tools/department-hq/api/nodes/1/stations"
+        },
+        {
+          "label": "GET /tools/department-hq/api/fleet/status/<node_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/fleet/status/test"
+        },
+        {
+          "label": "GET /tools/department-hq/api/fleet/catalog",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 58,
+          "url": "/tools/department-hq/api/fleet/catalog"
+        },
+        {
+          "label": "GET /tools/department-hq/api/fleet-map",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 38,
+          "url": "/tools/department-hq/api/fleet-map"
+        },
+        {
+          "label": "GET /tools/department-hq/api/fleet-usage",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 24,
+          "url": "/tools/department-hq/api/fleet-usage"
+        },
+        {
+          "label": "GET /tools/department-hq/api/providers",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 22,
+          "url": "/tools/department-hq/api/providers"
+        },
+        {
+          "label": "GET /tools/department-hq/api/cloud-providers",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 21,
+          "url": "/tools/department-hq/api/cloud-providers"
+        },
+        {
+          "label": "GET /tools/department-hq/api/cloud-providers/<int:provider_id>/usage",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 22,
+          "url": "/tools/department-hq/api/cloud-providers/1/usage"
+        },
+        {
+          "label": "GET /tools/department-hq/api/fleet/certs/wildcard/check",
+          "status": "auth_fail",
+          "code": 403,
+          "duration_ms": 20,
+          "url": "/tools/department-hq/api/fleet/certs/wildcard/check"
+        },
+        {
+          "label": "GET /tools/department-hq/api/fleet/certs/wildcard",
+          "status": "auth_fail",
+          "code": 403,
+          "duration_ms": 21,
+          "url": "/tools/department-hq/api/fleet/certs/wildcard"
+        },
+        {
+          "label": "GET /tools/department-hq/api/bridge/models",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 32,
+          "url": "/tools/department-hq/api/bridge/models"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/<node_id>/models",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 21,
+          "url": "/tools/department-hq/api/nodes/test/models"
+        },
+        {
+          "label": "GET /tools/department-hq/api/bridge/comfyui/models",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 41,
+          "url": "/tools/department-hq/api/bridge/comfyui/models"
+        },
+        {
+          "label": "GET /tools/department-hq/api/routing-mode",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/routing-mode"
+        },
+        {
+          "label": "GET /tools/department-hq/api/escalation-mode",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 21,
+          "url": "/tools/department-hq/api/escalation-mode"
+        },
+        {
+          "label": "GET /tools/department-hq/api/escalation-log",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/escalation-log"
+        },
+        {
+          "label": "GET /tools/department-hq/api/external-providers",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 33,
+          "url": "/tools/department-hq/api/external-providers"
+        },
+        {
+          "label": "GET /tools/department-hq/api/contractor-providers",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 25,
+          "url": "/tools/department-hq/api/contractor-providers"
+        },
+        {
+          "label": "GET /tools/department-hq/api/bridge/dispatch-status",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 31,
+          "url": "/tools/department-hq/api/bridge/dispatch-status"
+        },
+        {
+          "label": "GET /tools/department-hq/api/bridge/dispatch-history",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 27,
+          "url": "/tools/department-hq/api/bridge/dispatch-history"
+        },
+        {
+          "label": "GET /tools/department-hq/api/bridge/dispatch-overview",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 36,
+          "url": "/tools/department-hq/api/bridge/dispatch-overview"
+        },
+        {
+          "label": "GET /tools/department-hq/api/bridge/jobs",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 47,
+          "url": "/tools/department-hq/api/bridge/jobs"
+        },
+        {
+          "label": "GET /tools/department-hq/api/bridge/jobs/<int:job_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 276,
+          "url": "/tools/department-hq/api/bridge/jobs/1"
+        },
+        {
+          "label": "GET /tools/department-hq/api/dispatch/cross-station-analytics",
+          "status": "error",
+          "code": 500,
+          "duration_ms": 47,
+          "url": "/tools/department-hq/api/dispatch/cross-station-analytics"
+        },
+        {
+          "label": "GET /tools/department-hq/api/dispatch/reassignment-recommendations",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/dispatch/reassignment-recommendations"
+        },
+        {
+          "label": "GET /tools/department-hq/api/dispatch/stream",
+          "status": "skip",
+          "detail": "known-hanging pattern"
+        },
+        {
+          "label": "GET /tools/department-hq/api/dispatch/activity-history",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/dispatch/activity-history"
+        },
+        {
+          "label": "GET /tools/department-hq/api/starship/status",
+          "status": "auth_fail",
+          "code": 403,
+          "duration_ms": 20,
+          "url": "/tools/department-hq/api/starship/status"
+        },
+        {
+          "label": "GET /tools/department-hq/api/mission/active",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 24,
+          "url": "/tools/department-hq/api/mission/active"
+        },
+        {
+          "label": "GET /tools/department-hq/api/mission/profiles",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 29,
+          "url": "/tools/department-hq/api/mission/profiles"
+        },
+        {
+          "label": "GET /tools/department-hq/api/mission/schedule",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/mission/schedule"
+        },
+        {
+          "label": "GET /tools/department-hq/api/flows",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 25,
+          "url": "/tools/department-hq/api/flows"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/<int:node_id>/sync-log",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 23,
+          "url": "/tools/department-hq/api/nodes/1/sync-log"
+        },
+        {
+          "label": "GET /tools/department-hq/api/nodes/<int:node_id>/sync-status",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 22,
+          "url": "/tools/department-hq/api/nodes/1/sync-status"
+        },
+        {
+          "label": "GET /tools/consciousness/api/memory/<memory_type>/<int:memory_id>",
+          "status": "warn",
+          "code": 400,
+          "duration_ms": 22,
+          "url": "/tools/consciousness/api/memory/test/1"
+        },
+        {
+          "label": "GET /tools/consciousness/api/chat-volume",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 37,
+          "url": "/tools/consciousness/api/chat-volume"
+        },
+        {
+          "label": "GET /tools/consciousness/api/collections",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 39,
+          "url": "/tools/consciousness/api/collections"
+        },
+        {
+          "label": "GET /tools/consciousness/api/collections/<int:collection_id>",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 38,
+          "url": "/tools/consciousness/api/collections/1"
+        },
+        {
+          "label": "GET /tools/consciousness/api/memory/<memory_type>/<int:memory_id>/related",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 36,
+          "url": "/tools/consciousness/api/memory/test/1/related"
+        },
+        {
+          "label": "GET /tools/consciousness/api/memory/stats",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 64,
+          "url": "/tools/consciousness/api/memory/stats"
+        },
+        {
+          "label": "GET /tools/consciousness/api/memory/preferences",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 40,
+          "url": "/tools/consciousness/api/memory/preferences"
+        },
+        {
+          "label": "GET /tools/consciousness/api/memory/system-stats",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 124,
+          "url": "/tools/consciousness/api/memory/system-stats"
+        },
+        {
+          "label": "GET /tools/consciousness/api/agent-memory",
+          "status": "error",
+          "code": 500,
+          "duration_ms": 44,
+          "url": "/tools/consciousness/api/agent-memory"
+        },
+        {
+          "label": "GET /tools/consciousness/api/agent-memory/<int:memory_id>",
+          "status": "error",
+          "code": 500,
+          "duration_ms": 52,
+          "url": "/tools/consciousness/api/agent-memory/1"
+        },
+        {
+          "label": "GET /tools/consciousness/api/agent-memory/stats",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 74,
+          "url": "/tools/consciousness/api/agent-memory/stats"
+        },
+        {
+          "label": "GET /tools/consciousness/api/logs/status",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 72,
+          "url": "/tools/consciousness/api/logs/status"
+        },
+        {
+          "label": "GET /tools/consciousness/api/collab/status/<session_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 34,
+          "url": "/tools/consciousness/api/collab/status/test"
+        },
+        {
+          "label": "GET /tools/consciousness/api/collab/stream/<session_id>",
+          "status": "skip",
+          "detail": "known-hanging pattern"
+        },
+        {
+          "label": "GET /tools/consciousness/api/collab/learnings",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 41,
+          "url": "/tools/consciousness/api/collab/learnings"
+        },
+        {
+          "label": "GET /tools/consciousness/api/collab/history",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 34,
+          "url": "/tools/consciousness/api/collab/history"
+        },
+        {
+          "label": "GET /tools/consciousness/api/collab/sessions",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 37,
+          "url": "/tools/consciousness/api/collab/sessions"
+        },
+        {
+          "label": "GET /tools/consciousness/api/collab/export/<session_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 35,
+          "url": "/tools/consciousness/api/collab/export/test"
+        },
+        {
+          "label": "GET /tools/consciousness/api/collab/work-products/<session_id>",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 36,
+          "url": "/tools/consciousness/api/collab/work-products/test"
+        },
+        {
+          "label": "GET /tools/consciousness/api/chat/history",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 40,
+          "url": "/tools/consciousness/api/chat/history"
+        },
+        {
+          "label": "GET /tools/consciousness/api/conversations",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 37,
+          "url": "/tools/consciousness/api/conversations"
+        },
+        {
+          "label": "GET /tools/consciousness/api/conversations/<conv_id>/messages",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 42,
+          "url": "/tools/consciousness/api/conversations/test/messages"
+        },
+        {
+          "label": "GET /tools/consciousness/api/claude/status",
+          "status": "timeout",
+          "duration_ms": 5007
+        },
+        {
+          "label": "GET /tools/consciousness/api/voice/dashboard",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 70,
+          "url": "/tools/consciousness/api/voice/dashboard"
+        },
+        {
+          "label": "GET /tools/consciousness/api/voice/speakers",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 27,
+          "url": "/tools/consciousness/api/voice/speakers"
+        },
+        {
+          "label": "GET /tools/consciousness/api/voice/profiles",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 60,
+          "url": "/tools/consciousness/api/voice/profiles"
+        },
+        {
+          "label": "GET /tools/consciousness/api/voice/cache",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 53,
+          "url": "/tools/consciousness/api/voice/cache"
+        },
+        {
+          "label": "GET /tools/consciousness/api/voice/pregen/<int:job_id>",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 38,
+          "url": "/tools/consciousness/api/voice/pregen/1"
+        },
+        {
+          "label": "GET /tools/consciousness/api/voice/profile-lock-status/<int:profile_id>",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 38,
+          "url": "/tools/consciousness/api/voice/profile-lock-status/1"
+        },
+        {
+          "label": "GET /tools/consciousness/api/knowledge/quality-stats",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 106,
+          "url": "/tools/consciousness/api/knowledge/quality-stats"
+        },
+        {
+          "label": "GET /tools/consciousness/api/knowledge/rag",
+          "status": "warn",
+          "code": 400,
+          "duration_ms": 32,
+          "url": "/tools/consciousness/api/knowledge/rag"
+        },
+        {
+          "label": "GET /tools/consciousness/api/knowledge/graph",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 66,
+          "url": "/tools/consciousness/api/knowledge/graph"
+        },
+        {
+          "label": "GET /tools/consciousness/api/insights/summary",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 68,
+          "url": "/tools/consciousness/api/insights/summary"
+        },
+        {
+          "label": "GET /tools/consciousness/api/github/repos",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 60,
+          "url": "/tools/consciousness/api/github/repos"
+        },
+        {
+          "label": "GET /tools/consciousness/api/github/skills/pipeline-stats",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 32,
+          "url": "/tools/consciousness/api/github/skills/pipeline-stats"
+        },
+        {
+          "label": "GET /tools/consciousness/api/github/skills/sync",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 43,
+          "url": "/tools/consciousness/api/github/skills/sync"
+        },
+        {
+          "label": "GET /tools/consciousness/api/integration/health",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 55,
+          "url": "/tools/consciousness/api/integration/health"
+        },
+        {
+          "label": "GET /tools/consciousness/api/integration/devhq-summary",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 32,
+          "url": "/tools/consciousness/api/integration/devhq-summary"
+        },
+        {
+          "label": "GET /tools/consciousness/api/code-health/current",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 869,
+          "url": "/tools/consciousness/api/code-health/current"
+        },
+        {
+          "label": "GET /tools/consciousness/api/code-health/snapshots",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 71,
+          "url": "/tools/consciousness/api/code-health/snapshots"
+        },
+        {
+          "label": "GET /tools/consciousness/api/code-health/audit-log",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 54,
+          "url": "/tools/consciousness/api/code-health/audit-log"
+        },
+        {
+          "label": "GET /tools/consciousness/api/code-health/module-status",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 28,
+          "url": "/tools/consciousness/api/code-health/module-status"
+        },
+        {
+          "label": "GET /tools/consciousness/api/code-health/severity-summary",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 27,
+          "url": "/tools/consciousness/api/code-health/severity-summary"
+        },
+        {
+          "label": "GET /tools/consciousness/api/code-health/governance-log",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 21,
+          "url": "/tools/consciousness/api/code-health/governance-log"
+        },
+        {
+          "label": "GET /tools/consciousness/api/code-health/standalone-status",
+          "status": "timeout",
+          "duration_ms": 5007
+        },
+        {
+          "label": "GET /tools/consciousness/api/code-health/website-status",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 69,
+          "url": "/tools/consciousness/api/code-health/website-status"
+        },
+        {
+          "label": "GET /tools/consciousness/api/code-health/structural-audit",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 510,
+          "url": "/tools/consciousness/api/code-health/structural-audit"
+        },
+        {
+          "label": "GET /tools/consciousness/api/code-health/repair-pipeline",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 35,
+          "url": "/tools/consciousness/api/code-health/repair-pipeline"
+        },
+        {
+          "label": "GET /tools/consciousness/api/dashboard/summary",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 296,
+          "url": "/tools/consciousness/api/dashboard/summary"
+        },
+        {
+          "label": "GET /tools/consciousness/api/dashboard/project-knowledge/<int:project_id>",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 26,
+          "url": "/tools/consciousness/api/dashboard/project-knowledge/1"
+        },
+        {
+          "label": "GET /tools/consciousness/api/dashboard/agent-contributions/<int:project_id>",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 25,
+          "url": "/tools/consciousness/api/dashboard/agent-contributions/1"
+        },
+        {
+          "label": "GET /tools/consciousness/api/dashboard/knowledge-gaps",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 429,
+          "url": "/tools/consciousness/api/dashboard/knowledge-gaps"
+        },
+        {
+          "label": "GET /tools/consciousness/api/dashboard/agent-expertise",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 178,
+          "url": "/tools/consciousness/api/dashboard/agent-expertise"
+        },
+        {
+          "label": "GET /tools/consciousness/api/dashboard/knowledge-graph",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 30,
+          "url": "/tools/consciousness/api/dashboard/knowledge-graph"
+        },
+        {
+          "label": "GET /tools/consciousness/api/translations/stats",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 178,
+          "url": "/tools/consciousness/api/translations/stats"
+        },
+        {
+          "label": "GET /tools/consciousness/api/translations/module-coverage",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 416,
+          "url": "/tools/consciousness/api/translations/module-coverage"
+        },
+        {
+          "label": "GET /tools/consciousness/api/translations/coverage",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 199,
+          "url": "/tools/consciousness/api/translations/coverage"
+        },
+        {
+          "label": "GET /tools/consciousness/api/translations/browser",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 270,
+          "url": "/tools/consciousness/api/translations/browser"
+        },
+        {
+          "label": "GET /tools/consciousness/api/translations/language-coverage",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 88,
+          "url": "/tools/consciousness/api/translations/language-coverage"
+        },
+        {
+          "label": "GET /tools/consciousness/api/translations/review",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 42,
+          "url": "/tools/consciousness/api/translations/review"
+        },
+        {
+          "label": "GET /tools/consciousness/api/translation-memory",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 47,
+          "url": "/tools/consciousness/api/translation-memory"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/overview",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 66,
+          "url": "/tools/consciousness/api/devhq/overview"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/projects",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 82,
+          "url": "/tools/consciousness/api/devhq/projects"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/projects/<int:project_id>/tasks",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 34,
+          "url": "/tools/consciousness/api/devhq/projects/1/tasks"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/knowledge",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 44,
+          "url": "/tools/consciousness/api/devhq/knowledge"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/knowledge/<int:entry_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 32,
+          "url": "/tools/consciousness/api/devhq/knowledge/1"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/decisions",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 57,
+          "url": "/tools/consciousness/api/devhq/decisions"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/decisions/<int:decision_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 30,
+          "url": "/tools/consciousness/api/devhq/decisions/1"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/activity",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 36,
+          "url": "/tools/consciousness/api/devhq/activity"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/schema",
+          "status": "timeout",
+          "duration_ms": 5010
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/docs",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 46,
+          "url": "/tools/consciousness/api/devhq/docs"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/integrations/mcp",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 32,
+          "url": "/tools/consciousness/api/devhq/integrations/mcp"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/integrations/claude",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 23,
+          "url": "/tools/consciousness/api/devhq/integrations/claude"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/docs/modules",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 23,
+          "url": "/tools/consciousness/api/devhq/docs/modules"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/docs/list",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 26,
+          "url": "/tools/consciousness/api/devhq/docs/list"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/docs/<int:doc_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 22,
+          "url": "/tools/consciousness/api/devhq/docs/1"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/tasks",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 30,
+          "url": "/tools/consciousness/api/devhq/tasks"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/integrations/health",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 21,
+          "url": "/tools/consciousness/api/devhq/integrations/health"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/ideas",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 21,
+          "url": "/tools/consciousness/api/devhq/ideas"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/projects/<int:project_id>/docs",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 21,
+          "url": "/tools/consciousness/api/devhq/projects/1/docs"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/projects/<int:project_id>/docs/<int:doc_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 23,
+          "url": "/tools/consciousness/api/devhq/projects/1/docs/1"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/integrations/mcp/usage",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 25,
+          "url": "/tools/consciousness/api/devhq/integrations/mcp/usage"
+        },
+        {
+          "label": "GET /tools/consciousness/api/devhq/integrations/health/history",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 39,
+          "url": "/tools/consciousness/api/devhq/integrations/health/history"
+        },
+        {
+          "label": "GET /tools/consciousness/api/processing/lock/status",
+          "status": "skip",
+          "detail": "known-hanging pattern"
+        },
+        {
+          "label": "GET /tools/consciousness/api/processing/status",
+          "status": "skip",
+          "detail": "known-hanging pattern"
+        },
+        {
+          "label": "GET /tools/consciousness/api/processing/backlog",
+          "status": "skip",
+          "detail": "known-hanging pattern"
+        },
+        {
+          "label": "GET /tools/consciousness/api/processing/embedding-coverage",
+          "status": "skip",
+          "detail": "known-hanging pattern"
+        },
+        {
+          "label": "GET /tools/consciousness/api/processing/job-status/<int:job_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 38,
+          "url": "/tools/consciousness/api/processing/job-status/1"
+        },
+        {
+          "label": "GET /tools/consciousness/api/processing/active-jobs",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 38,
+          "url": "/tools/consciousness/api/processing/active-jobs"
+        },
+        {
+          "label": "GET /tools/consciousness/api/processing/history",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 34,
+          "url": "/tools/consciousness/api/processing/history"
+        },
+        {
+          "label": "GET /tools/consciousness/api/processing/local-only-mode",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 34,
+          "url": "/tools/consciousness/api/processing/local-only-mode"
+        },
+        {
+          "label": "GET /tools/consciousness/api/processing/knowledge-timeline",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 86,
+          "url": "/tools/consciousness/api/processing/knowledge-timeline"
+        },
+        {
+          "label": "GET /tools/consciousness/api/processing/server-loop/status",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 66,
+          "url": "/tools/consciousness/api/processing/server-loop/status"
+        },
+        {
+          "label": "GET /tools/archie-chat/api/v1/chat/conversations",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 22,
+          "url": "/tools/archie-chat/api/v1/chat/conversations"
+        },
+        {
+          "label": "GET /tools/archie-chat/api/v1/chat/conversations/<string:conv_uuid>/messages",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 71,
+          "url": "/tools/archie-chat/api/v1/chat/conversations/test/messages"
+        },
+        {
+          "label": "GET /tools/archie-chat/api/v1/chat/agents",
+          "status": "error",
+          "code": 500,
+          "duration_ms": 21,
+          "url": "/tools/archie-chat/api/v1/chat/agents"
+        },
+        {
+          "label": "GET /tools/archie-chat/api/v1/chat/stations",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 20,
+          "url": "/tools/archie-chat/api/v1/chat/stations"
+        },
+        {
+          "label": "GET /tools/archie-chat/api/v1/chat/keys",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 21,
+          "url": "/tools/archie-chat/api/v1/chat/keys"
+        },
+        {
+          "label": "GET /tools/archie-chat/api/v1/chat/conversations/search",
+          "status": "warn",
+          "code": 400,
+          "duration_ms": 23,
+          "url": "/tools/archie-chat/api/v1/chat/conversations/search"
+        },
+        {
+          "label": "GET /tools/archie-chat/api/v1/chat/knowledge/search",
+          "status": "warn",
+          "code": 400,
+          "duration_ms": 21,
+          "url": "/tools/archie-chat/api/v1/chat/knowledge/search"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/status",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 22,
+          "url": "/tools/repair-bay/api/status"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/scan/status",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 27,
+          "url": "/tools/repair-bay/api/scan/status"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/scan/stats",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 41,
+          "url": "/tools/repair-bay/api/scan/stats"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/scan/report",
+          "status": "warn",
+          "code": 400,
+          "duration_ms": 20,
+          "url": "/tools/repair-bay/api/scan/report"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/scan/history",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 37,
+          "url": "/tools/repair-bay/api/scan/history"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/scan/issues",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 39,
+          "url": "/tools/repair-bay/api/scan/issues"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/scan/fixes",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 35,
+          "url": "/tools/repair-bay/api/scan/fixes"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/scan/files",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 38,
+          "url": "/tools/repair-bay/api/scan/files"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/scan/directory",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 68,
+          "url": "/tools/repair-bay/api/scan/directory"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/scan/changed",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 38,
+          "url": "/tools/repair-bay/api/scan/changed"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/scan/modules",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 24,
+          "url": "/tools/repair-bay/api/scan/modules"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/scan/module/<module_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 22,
+          "url": "/tools/repair-bay/api/scan/module/test"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/scan/rescan",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 42,
+          "url": "/tools/repair-bay/api/scan/rescan"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/scan/multi-agent/nodes",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 39,
+          "url": "/tools/repair-bay/api/scan/multi-agent/nodes"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/scan/multi-agent/agents",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 56,
+          "url": "/tools/repair-bay/api/scan/multi-agent/agents"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/scan/multi-agent/review/<review_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 20,
+          "url": "/tools/repair-bay/api/scan/multi-agent/review/test"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/proposals",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 63,
+          "url": "/tools/repair-bay/api/proposals"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/proposals/<int:proposal_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 38,
+          "url": "/tools/repair-bay/api/proposals/1"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/proposals/<int:proposal_id>/backups",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 34,
+          "url": "/tools/repair-bay/api/proposals/1/backups"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/proposals/stats",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 37,
+          "url": "/tools/repair-bay/api/proposals/stats"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/proposals/stuck",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 41,
+          "url": "/tools/repair-bay/api/proposals/stuck"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/sandbox/list",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 37,
+          "url": "/tools/repair-bay/api/sandbox/list"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/sandbox/<module_id>",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 36,
+          "url": "/tools/repair-bay/api/sandbox/test"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/sandbox/<module_id>/status",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 37,
+          "url": "/tools/repair-bay/api/sandbox/test/status"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/sandbox/config",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 36,
+          "url": "/tools/repair-bay/api/sandbox/config"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/sandbox/suites",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 35,
+          "url": "/tools/repair-bay/api/sandbox/suites"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/sandbox/run/<run_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 20,
+          "url": "/tools/repair-bay/api/sandbox/run/test"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/sandbox/test-results",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 36,
+          "url": "/tools/repair-bay/api/sandbox/test-results"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/sandbox/history",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 34,
+          "url": "/tools/repair-bay/api/sandbox/history"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/sandbox/history/<run_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 34,
+          "url": "/tools/repair-bay/api/sandbox/history/test"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/sandbox/trends",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 35,
+          "url": "/tools/repair-bay/api/sandbox/trends"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/sandbox/deployments",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 36,
+          "url": "/tools/repair-bay/api/sandbox/deployments"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/sandbox/discover",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 2315,
+          "url": "/tools/repair-bay/api/sandbox/discover"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/sandbox/module-status",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 35,
+          "url": "/tools/repair-bay/api/sandbox/module-status"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/deploy/history",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 40,
+          "url": "/tools/repair-bay/api/deploy/history"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/deploy/ready",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 287,
+          "url": "/tools/repair-bay/api/deploy/ready"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/station/crew",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 46,
+          "url": "/tools/repair-bay/api/station/crew"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/station/jobs",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 35,
+          "url": "/tools/repair-bay/api/station/jobs"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/station/job/<int:job_id>",
+          "status": "error",
+          "code": 500,
+          "duration_ms": 35,
+          "url": "/tools/repair-bay/api/station/job/1"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/forge/health",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 1310,
+          "url": "/tools/repair-bay/api/forge/health"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/forge/prs",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 199,
+          "url": "/tools/repair-bay/api/forge/prs"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/forge/prs/<int:pr_number>",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 974,
+          "url": "/tools/repair-bay/api/forge/prs/1"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/forge/stats",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 804,
+          "url": "/tools/repair-bay/api/forge/stats"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/forge/reviews/<int:pr_number>",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 35,
+          "url": "/tools/repair-bay/api/forge/reviews/1"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/forge/self-heal/stats",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 39,
+          "url": "/tools/repair-bay/api/forge/self-heal/stats"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/repair/queue",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 25,
+          "url": "/tools/repair-bay/api/repair/queue"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/repair/manifests",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 209,
+          "url": "/tools/repair-bay/api/repair/manifests"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/repair/stats",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 22,
+          "url": "/tools/repair-bay/api/repair/stats"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/qa/suites",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 21,
+          "url": "/tools/repair-bay/api/qa/suites"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/qa/runs",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 21,
+          "url": "/tools/repair-bay/api/qa/runs"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/qa/runs/<int:run_id>",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 20,
+          "url": "/tools/repair-bay/api/qa/runs/1"
+        },
+        {
+          "label": "GET /tools/repair-bay/api/qa/runs/<int:run_id>/report/download",
+          "status": "not_found",
+          "code": 404,
+          "duration_ms": 20,
+          "url": "/tools/repair-bay/api/qa/runs/1/report/download"
+        },
+        {
+          "label": "GET /tools/agent-academy/api/status",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 19,
+          "url": "/tools/agent-academy/api/status"
+        },
+        {
+          "label": "GET /tools/agent-academy/api/benchmarks",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 42,
+          "url": "/tools/agent-academy/api/benchmarks"
+        },
+        {
+          "label": "GET /tools/agent-academy/api/benchmarks/rankings",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 72,
+          "url": "/tools/agent-academy/api/benchmarks/rankings"
+        },
+        {
+          "label": "GET /tools/agent-academy/api/ab-test/history",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 22,
+          "url": "/tools/agent-academy/api/ab-test/history"
+        },
+        {
+          "label": "GET /tools/agent-academy/api/training/status",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 79,
+          "url": "/tools/agent-academy/api/training/status"
+        },
+        {
+          "label": "GET /tools/agent-academy/api/training/gaps",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 34,
+          "url": "/tools/agent-academy/api/training/gaps"
+        },
+        {
+          "label": "GET /tools/agent-academy/api/training/records",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 22,
+          "url": "/tools/agent-academy/api/training/records"
+        },
+        {
+          "label": "GET /tools/agent-academy/api/models/agents",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 28,
+          "url": "/tools/agent-academy/api/models/agents"
+        },
+        {
+          "label": "GET /tools/agent-academy/api/models/available",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 27,
+          "url": "/tools/agent-academy/api/models/available"
+        },
+        {
+          "label": "GET /tools/agent-academy/api/knowledge/agents",
+          "status": "pass",
+          "code": 200,
+          "duration_ms": 30,
+          "url": "/tools/agent-academy/api/knowledge/agents"
+        }
+      ]
+    },
+    "A2_dispatch_pipeline": {
+      "counts": {
+        "pass": 3,
+        "fail": 0,
+        "warn": 0,
+        "error": 0,
+        "skip": 0,
+        "other": 0
+      },
+      "total": 3,
+      "health_pct": 100.0,
+      "results": [
+        {
+          "label": "singleton",
+          "status": "pass",
+          "detail": "get_dispatcher() returns same instance (verified v8)"
+        },
+        {
+          "label": "dispatch()",
+          "status": "pass",
+          "detail": "agent=ARCHIE model=qwen2.5:1.5b dur=9701ms (verified v8)"
+        },
+        {
+          "label": "dispatch_json()",
+          "status": "pass",
+          "detail": "returned dict with keys: ['status'] (verified v8)"
+        }
+      ]
+    },
+    "A3_agent_loop_jobs": {
+      "counts": {
+        "pass": 0,
+        "fail": 1,
+        "warn": 1,
+        "error": 0,
+        "skip": 0,
+        "other": 0
+      },
+      "total": 2,
+      "health_pct": 0.0,
+      "results": [
+        {
+          "label": "all_fail_jobs",
+          "status": "fail",
+          "detail": "4 jobs with 100% fail rate: ['correlate_incidents', 'github_repo_analysis', 'skill_adaptation', 'track_device_presence']"
+        },
+        {
+          "label": "bridge_jobs",
+          "status": "warn",
+          "detail": "High failure rate: 10/15"
+        }
+      ]
+    },
+    "A4_agent_lifecycle": {
+      "counts": {
+        "pass": 3,
+        "fail": 0,
+        "warn": 1,
+        "error": 0,
+        "skip": 0,
+        "other": 0
+      },
+      "total": 4,
+      "health_pct": 100.0,
+      "results": [
+        {
+          "label": "get_all_agents",
+          "status": "pass",
+          "detail": "131 agents returned from DB"
+        },
+        {
+          "label": "org_chart_match",
+          "status": "pass",
+          "detail": "16 departments, all agents assigned"
+        },
+        {
+          "label": "ghost_models",
+          "status": "warn",
+          "detail": "3 agents reference models not in Ollama: ['quill:minicpm-v', 'visage:minicpm-v', 'restore:sdxl']"
+        },
+        {
+          "label": "shift_distribution",
+          "status": "pass",
+          "detail": "{'winding_down': 3, 'active': 59, 'barracked': 69}"
+        }
+      ]
+    },
+    "A5_knowledge_pipeline": {
+      "counts": {
+        "pass": 3,
+        "fail": 0,
+        "warn": 1,
+        "error": 0,
+        "skip": 0,
+        "other": 0
+      },
+      "total": 4,
+      "health_pct": 100.0,
+      "results": [
+        {
+          "label": "kb_stats",
+          "status": "pass",
+          "detail": "total=25465 embedded=25246 coverage=99.1%"
+        },
+        {
+          "label": "embed_loop",
+          "status": "pass",
+          "detail": "last=success 9min ago"
+        },
+        {
+          "label": "analysis_loop",
+          "status": "warn",
+          "detail": "last=error 116min ago"
+        },
+        {
+          "label": "search_has_data",
+          "status": "pass",
+          "detail": "At least one embedded entry found"
+        }
+      ]
+    },
+    "A6_repair_bay": {
+      "counts": {
+        "pass": 4,
+        "fail": 0,
+        "warn": 1,
+        "error": 0,
+        "skip": 0,
+        "other": 0
+      },
+      "total": 5,
+      "health_pct": 100.0,
+      "results": [
+        {
+          "label": "scan_results",
+          "status": "warn",
+          "detail": "91 security issues across 72 scans"
+        },
+        {
+          "label": "proposals",
+          "status": "pass",
+          "detail": "total=307 {'approved': 161, 'pending_approval': 45, 'pending': 40, 'archived': 38, 'fix_requested': 12, 'deployed': 10, 'ready_for_review': 1}"
+        },
+        {
+          "label": "sandboxes",
+          "status": "pass",
+          "detail": "total=0 {}"
+        },
+        {
+          "label": "qa_suites",
+          "status": "pass",
+          "detail": "7 active suites, 10 recent runs"
+        },
+        {
+          "label": "proactive_scan_job",
+          "status": "pass",
+          "detail": "last=partial at 2026-04-13 08:03:21.041323"
+        }
+      ]
+    }
+  },
+  "totals": {
+    "pass": 243,
+    "fail": 1,
+    "warn": 12,
+    "error": 9,
+    "skip": 277,
+    "other": 0
+  },
+  "health_pct": 96.0
+}

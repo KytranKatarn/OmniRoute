@@ -1,4 +1,8 @@
 {#
+   DEPRECATED: Use includes/lcars-header.html for new modules.
+   AI Command modules migrated 2026-04-13 (Project #251).
+   Kept for non-AI-Command categories (Admin, SaaS, Media, etc.)
+
    Generic Category Navigation — LCARS Compact Command Bar
    Single parameterized include replacing all per-category nav files.
 
@@ -89,11 +93,7 @@
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                             <span class="cn-notif-badge" id="cnNotifBadge" style="display:none;"></span>
                         </a>
-                        {% if current_user.is_authenticated and current_user.is_admin %}
-                        <a href="{{ url_for('dev_hq.index') }}" class="cn-icon-btn {% if request.endpoint and 'dev_hq' in request.endpoint %}active{% endif %}" data-accent="green" onclick="showTransition(event, this.href)" title="Dev HQ">
-                            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
-                        </a>
-                        {% endif %}
+                        <!-- Dev HQ removed — now inside Consciousness module (Decision #433) -->
                     </div>
                 </div>
 

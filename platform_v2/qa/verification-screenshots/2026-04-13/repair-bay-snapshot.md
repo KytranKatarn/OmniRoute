@@ -1,0 +1,101 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "Back to Dashboard" [ref=e5] [cursor=pointer]:
+      - /url: /dashboard
+      - img [ref=e6]
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]: REPAIR BAY
+        - generic [ref=e12]: AI COMMAND
+      - generic [ref=e13]:
+        - generic [ref=e14]: SD 2026102.5
+        - button "EN" [ref=e16] [cursor=pointer]:
+          - img [ref=e17]
+          - generic [ref=e20]: EN
+        - button "THEME" [ref=e22] [cursor=pointer]:
+          - img [ref=e23]
+          - generic [ref=e25]: THEME
+        - button "ALERTS 11" [ref=e153] [cursor=pointer]:
+          - img [ref=e28]
+          - generic [ref=e31]: ALERTS
+          - generic [ref=e154]: "11"
+        - link "A.R.C.H.I.E." [ref=e33] [cursor=pointer]:
+          - /url: /tools/archie-chat
+          - img [ref=e34]
+          - generic [ref=e37]: A.R.C.H.I.E.
+        - link "CONSCIOUSNESS" [ref=e38] [cursor=pointer]:
+          - /url: /tools/consciousness
+          - img [ref=e39]
+          - generic [ref=e47]: CONSCIOUSNESS
+        - link "DEPT HQ" [ref=e48] [cursor=pointer]:
+          - /url: /tools/department-hq
+          - img [ref=e49]
+          - generic [ref=e52]: DEPT HQ
+        - link "ACADEMY" [ref=e53] [cursor=pointer]:
+          - /url: /tools/agent-academy
+          - img [ref=e54]
+          - generic [ref=e57]: ACADEMY
+        - link "REPAIR BAY" [ref=e58] [cursor=pointer]:
+          - /url: /tools/repair-bay
+          - img [ref=e59]
+          - generic [ref=e61]: REPAIR BAY
+      - generic [ref=e62]:
+        - button "Reviews" [ref=e63] [cursor=pointer]:
+          - img [ref=e64]
+          - generic [ref=e66]: Reviews
+        - button "Repairs" [ref=e67] [cursor=pointer]:
+          - img [ref=e68]
+          - generic [ref=e70]: Repairs
+        - button "Diagnose" [ref=e71] [cursor=pointer]:
+          - img [ref=e72]
+          - generic [ref=e75]: Diagnose
+        - button "Test Bay" [ref=e76] [cursor=pointer]:
+          - img [ref=e77]
+          - generic [ref=e80]: Test Bay
+        - button "Ship" [ref=e81] [cursor=pointer]:
+          - img [ref=e82]
+          - generic [ref=e87]: Ship
+        - button "QA" [ref=e88] [cursor=pointer]:
+          - img [ref=e89]
+          - generic [ref=e92]: QA
+  - generic [ref=e94]:
+    - generic [ref=e96]:
+      - generic [ref=e97]: Repair Bay
+      - generic [ref=e98]: F.O.R.G.E.'s Repair Bay • Diagnose • Repair • Test • Ship
+    - generic [ref=e99]:
+      - generic [ref=e100]:
+        - generic [ref=e101]: Diagnoses (24h)
+        - generic [ref=e102]: "0"
+      - generic [ref=e103]:
+        - generic [ref=e104]: Repairs
+        - generic [ref=e105]: "0"
+      - generic [ref=e106]:
+        - generic [ref=e107]: Test Runs
+        - generic [ref=e108]: "0"
+      - generic [ref=e109]:
+        - generic [ref=e110]: Shipped
+        - generic [ref=e111]: "0"
+    - generic [ref=e112]:
+      - generic [ref=e113]:
+        - generic [ref=e115]: ENGINEERING STATION
+        - generic [ref=e116]: ONLINE
+      - generic [ref=e119]:
+        - button "SCAN ALL" [ref=e120] [cursor=pointer]
+        - button "PROPOSALS" [ref=e121] [cursor=pointer]
+        - button "SANDBOX" [ref=e122] [cursor=pointer]
+    - generic [ref=e131]:
+      - generic [ref=e132]:
+        - generic [ref=e133]: CODE REVIEWS
+        - generic [ref=e134]: PR STATUS
+      - generic [ref=e139]:
+        - generic [ref=e140]:
+          - combobox [ref=e141]:
+            - option "Open" [selected]
+            - option "All"
+            - option "Closed"
+          - button "Refresh" [ref=e142] [cursor=pointer]:
+            - img [ref=e143]
+            - text: Refresh
+          - generic [ref=e155]: 0 PRs
+        - generic [ref=e157]: No open PRs found.
+  - button "💬" [ref=e152] [cursor=pointer]

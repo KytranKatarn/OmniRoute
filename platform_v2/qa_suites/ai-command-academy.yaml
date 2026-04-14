@@ -1,0 +1,50 @@
+suite:
+  name: "AI Command — Agent Academy"
+  description: "Critical paths for Agent Academy: benchmarks, training, models, knowledge"
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: "academy-page-loads"
+    type: api
+    method: GET
+    path: /tools/agent-academy/
+    expect:
+      status: [200, 302]
+
+  - name: "academy-benchmarks"
+    type: api
+    method: GET
+    path: /tools/agent-academy/api/benchmarks
+    expect:
+      status: [200, 302]
+
+  - name: "academy-training-gaps"
+    type: api
+    method: GET
+    path: /tools/agent-academy/api/training/gaps
+    expect:
+      status: [200, 302]
+
+  - name: "academy-training-records"
+    type: api
+    method: GET
+    path: /tools/agent-academy/api/training/records
+    expect:
+      status: [200, 302]
+
+  - name: "academy-models-agents"
+    type: api
+    method: GET
+    path: /tools/agent-academy/api/models/agents
+    expect:
+      status: [200, 302]
+
+  - name: "academy-knowledge-agents"
+    type: api
+    method: GET
+    path: /tools/agent-academy/api/knowledge/agents
+    expect:
+      status: [200, 302]

@@ -932,17 +932,7 @@ class OrchestrationEngine:
 
             if action:
                 try:
-                    sys.path.insert(
-                        0,
-                        os.path.join(
-                            os.path.dirname(__file__),
-                            "..",
-                            "platform_v2",
-                            "tools",
-                            "team_management",
-                        ),
-                    )
-                    from creed_routes import check_constraints
+                    from tools.creed.admin_routes import check_constraints
 
                     violations = check_constraints(action)
                     if violations:
@@ -2654,17 +2644,7 @@ You can ask me to:
     ):
         """Log to governance_audit_log"""
         try:
-            sys.path.insert(
-                0,
-                os.path.join(
-                    os.path.dirname(__file__),
-                    "..",
-                    "platform_v2",
-                    "tools",
-                    "team_management",
-                ),
-            )
-            from creed_routes import log_governance_event
+            from tools.creed.admin_routes import log_governance_event
 
             log_governance_event(
                 event_type=event_type,

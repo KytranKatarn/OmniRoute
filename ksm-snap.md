@@ -1,0 +1,23 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - link "Logo Kytran Server Manager" [ref=e3] [cursor=pointer]:
+      - /url: /dashboard
+      - img "Logo" [ref=e4]
+      - generic [ref=e5]: Kytran Server Manager
+    - generic [ref=e6]:
+      - link " admin" [ref=e7] [cursor=pointer]:
+        - /url: /settings
+        - generic [ref=e8]: 
+        - generic [ref=e9]: admin
+      - link "Logout" [ref=e10] [cursor=pointer]:
+        - /url: /logout
+  - main [ref=e11]:
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - generic [ref=e24]: SYSTEM OPERATIONS
+        - generic [ref=e25]: SYS OPS
+      - generic [ref=e26]:
+        - generic [ref=e27]
+        - generic [ref=e33]
+        - generic [ref=e50]
+        - generic

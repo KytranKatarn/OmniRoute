@@ -287,5 +287,22 @@
     "description": "Head of Medical and Wellness, protecting the wellbeing of every agent and operator. A vigilant caretaker who monitors health metrics, enforces safety protocols, and coordinates wellness initiatives with clinical precision.",
     "floor": "SERVICES",
     "floor_color": "#10b981"
+  },
+  {
+    "id": 149,
+    "name": "FACT",
+    "display_name": "F.A.C.T.",
+    "full_name": "F.A.C.T.",
+    "department": "News & Media",
+    "title": "Department Director & AI Loop Manager",
+    "agent_type": "director",
+    "shift_state": "active",
+    "avatar_url": "/assets/portraits/fact.png",
+    "email": "fact@kytranempowerment.com",
+    "acronym": "F.A.C.T.",
+    "acronym_expansion": "Factual Analysis, Coverage & Transparency",
+    "description": "Director of News & Media, leading the What The Fact initiative. Oversees AI-driven bias detection, real-time fact-checking, and transparent reporting. Every claim verified, every editorial decision audited by C.R.E.E.D.",
+    "floor": "CREATIVE",
+    "floor_color": "#f472b6"
   }
 ]

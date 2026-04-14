@@ -43,7 +43,7 @@
 
   function api(path, opts) {
     opts = opts || {};
-    var url = "/dev-hq" + path;
+    var url = "/tools/consciousness" + path.replace(/^\/api\//, "/api/devhq/");
     var fetchOpts = { headers: {} };
     if (opts.method) fetchOpts.method = opts.method;
     if (opts.body) {
@@ -96,13 +96,25 @@
      ======================================================================== */
 
   function switchDevHQTab(tab) {
-    document.querySelectorAll(".devhq-tab").forEach(function (btn) {
-      btn.classList.toggle("active", btn.dataset.tab === tab);
-    });
-    document.querySelectorAll(".devhq-panel").forEach(function (panel) {
-      panel.classList.toggle("active", panel.id === "panel-" + tab);
-    });
-    history.replaceState(null, "", "#" + tab);
+    var inConsciousness = !!document.getElementById("panel-devhq");
+    if (inConsciousness) {
+      /* Inside Consciousness — use subtab pattern */
+      document.querySelectorAll("#devhqSubtabs .cs-subtab").forEach(function (btn) {
+        btn.classList.toggle("active", btn.dataset.subtab === "dh-" + tab);
+      });
+      document.querySelectorAll("#panel-devhq .cs-subpanel").forEach(function (panel) {
+        panel.style.display = panel.id === "dh-" + tab ? "block" : "none";
+      });
+    } else {
+      /* Standalone /dev-hq page */
+      document.querySelectorAll(".devhq-tab").forEach(function (btn) {
+        btn.classList.toggle("active", btn.dataset.tab === tab);
+      });
+      document.querySelectorAll(".devhq-panel").forEach(function (panel) {
+        panel.classList.toggle("active", panel.id === "panel-" + tab);
+      });
+      history.replaceState(null, "", "#" + tab);
+    }
     loadTabData(tab);
   }
 
@@ -139,14 +151,15 @@
     api("/api/overview").then(function (data) {
       if (!data.success) return;
 
-      var activeCount = data.project_stats.active || 0;
+      var activeCount = (data.project_stats.active || 0) + (data.project_stats.planning || 0);
       var openTasks = data.task_stats.open_tasks || 0;
-      document.getElementById("statActiveProjects").textContent = activeCount;
-      document.getElementById("statOpenTasks").textContent = openTasks;
-      document.getElementById("statKnowledge").textContent = data.knowledge_count || 0;
-      document.getElementById("statEmbedding").textContent = (data.embedding_coverage || 0) + "%";
-      document.getElementById("hqProjectCount").textContent = activeCount;
-      document.getElementById("hqTaskCount").textContent = openTasks;
+      var _s = function(id, v) { var e = document.getElementById(id); if (e) e.textContent = v; };
+      _s("statActiveProjects", activeCount);
+      _s("statOpenTasks", openTasks);
+      _s("statKnowledge", data.knowledge_count || 0);
+      _s("statEmbedding", (data.embedding_coverage || 0) + "%");
+      _s("hqProjectCount", activeCount);
+      _s("hqTaskCount", openTasks);
 
       // Activity feed (all content escaped via escHtml)
       var actEl = document.getElementById("overviewActivity");
@@ -2005,59 +2018,67 @@
      INIT
      ======================================================================== */
 
-  document.addEventListener("DOMContentLoaded", function () {
+  /* Expose init for Consciousness tab integration */
+  window.initDevHQPanel = function () {
     refreshIcons();
-    updateClock();
-    setInterval(updateClock, 1000);
+    loadTabData("overview");
+  };
 
-    // Hash deep-linking
-    var hash = window.location.hash.replace("#", "");
-    var validTabs = ["overview", "projects", "ideas", "knowledge", "decisions", "system"];
-    if (hash && validTabs.indexOf(hash) !== -1) {
-      switchDevHQTab(hash);
-    } else {
-      switchDevHQTab("overview");
+  document.addEventListener("DOMContentLoaded", function () {
+    /* Only self-initialize on the standalone /dev-hq page */
+    if (!document.getElementById("panel-devhq")) {
+      refreshIcons();
+      updateClock();
+      setInterval(updateClock, 1000);
+
+      var hash = window.location.hash.replace("#", "");
+      var validTabs = ["overview", "projects", "ideas", "knowledge", "decisions", "system"];
+      if (hash && validTabs.indexOf(hash) !== -1) {
+        switchDevHQTab(hash);
+      } else {
+        switchDevHQTab("overview");
+      }
+      // Projects filters
+      var el;
+      el = document.getElementById("projFilterStatus"); if (el) el.addEventListener("change", function () { _cache.projects = false; loadProjects(); });
+      el = document.getElementById("projFilterPriority"); if (el) el.addEventListener("change", function () { _cache.projects = false; loadProjects(); });
+      el = document.getElementById("projFilterSearch"); if (el) el.addEventListener("input", function () { debounceReload("projects", loadProjects); });
+
+      // Ideas filters
+      el = document.getElementById("ideaFilterCategory"); if (el) el.addEventListener("change", function () { _ideasState.page = 0; _cache.ideas = false; loadIdeas(); });
+      el = document.getElementById("ideaFilterStatus"); if (el) el.addEventListener("change", function () { _ideasState.page = 0; _cache.ideas = false; loadIdeas(); });
+      el = document.getElementById("ideaFilterSearch"); if (el) el.addEventListener("input", function () { _ideasState.page = 0; debounceReload("ideas", loadIdeas); });
+
+      // Knowledge filters
+      el = document.getElementById("kbSearch"); if (el) el.addEventListener("input", function () { _kbState.page = 0; debounceReload("knowledge", loadKnowledge); });
+      el = document.getElementById("kbTypeFilter"); if (el) el.addEventListener("change", function () { _kbState.page = 0; _cache.knowledge = false; loadKnowledge(); });
+      el = document.getElementById("kbCategory"); if (el) el.addEventListener("change", function () { _kbState.page = 0; _cache.knowledge = false; loadKnowledge(); });
+
+      // Decisions filters
+      el = document.getElementById("decFilterProject"); if (el) el.addEventListener("change", function () { _decisionsState.page = 0; _cache.decisions = false; loadDecisions(); });
+      el = document.getElementById("decFilterStatus"); if (el) el.addEventListener("change", function () { _decisionsState.page = 0; _cache.decisions = false; loadDecisions(); });
+      el = document.getElementById("decFilterSearch"); if (el) el.addEventListener("input", function () { _decisionsState.page = 0; debounceReload("decisions", loadDecisions); });
+
+      // Schema search
+      el = document.getElementById("schemaSearch"); if (el) el.addEventListener("input", function () {
+        if (!_schemaData) return;
+        var q = this.value.toLowerCase();
+        var filtered = q
+          ? _schemaData.filter(function (t) { return (t.table_name || t.name || "").toLowerCase().indexOf(q) !== -1; })
+          : _schemaData;
+        renderSchemaList(filtered);
+      });
+
+      // API search
+      el = document.getElementById("apiSearch"); if (el) el.addEventListener("input", function () {
+        if (!_apiData) return;
+        renderApiDocs(_apiData);
+      });
+
+      // Module docs filters
+      el = document.getElementById("moduleDocsModule"); if (el) el.addEventListener("change", function () { _moduleDocsState.page = 0; loadModuleDocs(); });
+      el = document.getElementById("moduleDocsType"); if (el) el.addEventListener("change", function () { _moduleDocsState.page = 0; loadModuleDocs(); });
+      el = document.getElementById("moduleDocsSearch"); if (el) el.addEventListener("input", function () { _moduleDocsState.page = 0; debounceReload("moduleDocs", loadModuleDocs); });
     }
-
-    // Projects filters
-    document.getElementById("projFilterStatus").addEventListener("change", function () { _cache.projects = false; loadProjects(); });
-    document.getElementById("projFilterPriority").addEventListener("change", function () { _cache.projects = false; loadProjects(); });
-    document.getElementById("projFilterSearch").addEventListener("input", function () { debounceReload("projects", loadProjects); });
-
-    // Ideas filters
-    document.getElementById("ideaFilterCategory").addEventListener("change", function () { _ideasState.page = 0; _cache.ideas = false; loadIdeas(); });
-    document.getElementById("ideaFilterStatus").addEventListener("change", function () { _ideasState.page = 0; _cache.ideas = false; loadIdeas(); });
-    document.getElementById("ideaFilterSearch").addEventListener("input", function () { _ideasState.page = 0; debounceReload("ideas", loadIdeas); });
-
-    // Knowledge filters
-    document.getElementById("kbSearch").addEventListener("input", function () { _kbState.page = 0; debounceReload("knowledge", loadKnowledge); });
-    document.getElementById("kbTypeFilter").addEventListener("change", function () { _kbState.page = 0; _cache.knowledge = false; loadKnowledge(); });
-    document.getElementById("kbCategory").addEventListener("change", function () { _kbState.page = 0; _cache.knowledge = false; loadKnowledge(); });
-
-    // Decisions filters
-    document.getElementById("decFilterProject").addEventListener("change", function () { _decisionsState.page = 0; _cache.decisions = false; loadDecisions(); });
-    document.getElementById("decFilterStatus").addEventListener("change", function () { _decisionsState.page = 0; _cache.decisions = false; loadDecisions(); });
-    document.getElementById("decFilterSearch").addEventListener("input", function () { _decisionsState.page = 0; debounceReload("decisions", loadDecisions); });
-
-    // Schema search
-    document.getElementById("schemaSearch").addEventListener("input", function () {
-      if (!_schemaData) return;
-      var q = this.value.toLowerCase();
-      var filtered = q
-        ? _schemaData.filter(function (t) { return (t.table_name || t.name || "").toLowerCase().indexOf(q) !== -1; })
-        : _schemaData;
-      renderSchemaList(filtered);
-    });
-
-    // API search
-    document.getElementById("apiSearch").addEventListener("input", function () {
-      if (!_apiData) return;
-      renderApiDocs(_apiData);
-    });
-
-    // Module docs filters
-    document.getElementById("moduleDocsModule").addEventListener("change", function () { _moduleDocsState.page = 0; loadModuleDocs(); });
-    document.getElementById("moduleDocsType").addEventListener("change", function () { _moduleDocsState.page = 0; loadModuleDocs(); });
-    document.getElementById("moduleDocsSearch").addEventListener("input", function () { _moduleDocsState.page = 0; debounceReload("moduleDocs", loadModuleDocs); });
   });
 })();

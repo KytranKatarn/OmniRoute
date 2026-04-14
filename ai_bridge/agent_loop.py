@@ -1236,9 +1236,9 @@ class AgentLoop:
             logger.error("[AgentLoop] Failed to register consciousness jobs: %s", e)
 
         try:
-            from tools.dev_hq.jobs import register_devhq_jobs
-            register_devhq_jobs(self.scheduler, self.flask_app)
-            logger.info("[AgentLoop] Dev HQ jobs registered via module")
+            from tools.department_hq.jobs import register_department_hq_jobs
+            register_department_hq_jobs(self.scheduler, self.flask_app)
+            logger.info("[AgentLoop] Department HQ jobs registered (moved from Dev HQ, Decision #433)")
         except Exception as e:
             logger.error("[AgentLoop] Failed to register dev_hq jobs: %s", e)
 
@@ -1273,8 +1273,18 @@ class AgentLoop:
         )
         logger.info("Registered job: Knowledge Quality Review (every 30m)")
 
+        # Job: C.R.E.E.D. Governance Reporter (every 5 min)
+        self.scheduler.add_job(
+            with_app_context(self._creed_governance_reporter),
+            trigger=IntervalTrigger(minutes=5),
+            id="creed_governance_reporter",
+            name="C.R.E.E.D. Governance Reporter",
+            replace_existing=True,
+        )
+        logger.info("Registered job: C.R.E.E.D. Governance Reporter (every 5m)")
+
         self._running = True
-        logger.info("Agent loop started with 72 jobs")
+        logger.info("Agent loop started with 73 jobs")
 
     def _update_stock_prices(self):
         """Job #27: DISABLED — StockBot migrated to Kytran Market Watch (standalone).
@@ -5398,6 +5408,132 @@ class AgentLoop:
             run_quality_review()
         except Exception as e:
             logger.error("Quality review job failed: %s", e)
+
+    def _creed_governance_reporter(self):
+        """Job: Forward governance_audit_log events to standalone C.R.E.E.D. instance.
+
+        Runs every 5 minutes. Tracks last-reported event ID in settings table.
+        Maps platform event categories to C.R.E.E.D. compliance categories.
+        """
+        import requests as req
+
+        CREED_URL = os.environ.get("CREED_API_URL", "http://192.168.1.200:8086")
+        CATEGORY_MAP = {
+            "creed_gate": "accountability",
+            "bridge_dispatch": "transparency",
+            "emotional": "fairness",
+            "autonomous_operations": "safety",
+            "system": "safety",
+            "development": "transparency",
+            "operations": "accountability",
+            "data_management": "privacy",
+        }
+        SEVERITY_MAP = {
+            "success": "info",
+            "created": "info",
+            "failed": "warning",
+            "denied": "violation",
+            "blocked": "violation",
+            "error": "critical",
+        }
+
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Get last reported event ID
+            cur.execute(
+                "SELECT value FROM system_config WHERE key = 'creed_reporter_last_id'"
+            )
+            row = cur.fetchone()
+            last_id = int(row["value"]) if row else 0
+
+            # Fetch new events (batch of 100)
+            cur.execute(
+                """SELECT g.id, g.event_type, g.event_category, g.action,
+                          g.agent_id, g.outcome, g.reason, g.timestamp,
+                          a.name as agent_name
+                   FROM governance_audit_log g
+                   LEFT JOIN agents a ON g.agent_id = a.id
+                   WHERE g.id > %s
+                   ORDER BY g.id ASC LIMIT 100""",
+                (last_id,),
+            )
+            events = cur.fetchall()
+
+            if not events:
+                conn.close()
+                return
+
+            reported = 0
+            new_last_id = last_id
+
+            for event in events:
+                creed_category = CATEGORY_MAP.get(
+                    event["event_category"], "accountability"
+                )
+                creed_severity = SEVERITY_MAP.get(
+                    event.get("outcome", ""), "info"
+                )
+                payload = {
+                    "event_type": event["event_type"] or "agent_action",
+                    "source_platform": "archie",
+                    "agent_id": str(event.get("agent_id") or "system"),
+                    "agent_name": event.get("agent_name") or "System",
+                    "category": creed_category,
+                    "severity": creed_severity,
+                    "description": (
+                        f"{event['action']}: {event.get('reason') or event['event_type']}"
+                    ),
+                    "metadata": {
+                        "original_category": event["event_category"],
+                        "original_outcome": event.get("outcome"),
+                        "archie_event_id": event["id"],
+                    },
+                }
+
+                try:
+                    resp = req.post(
+                        f"{CREED_URL}/api/v1/events",
+                        json=payload,
+                        timeout=5,
+                    )
+                    if resp.status_code == 201:
+                        reported += 1
+                        new_last_id = event["id"]
+                    else:
+                        logger.warning(
+                            "[CREED Reporter] Event %d rejected: %s",
+                            event["id"],
+                            resp.text[:200],
+                        )
+                except req.RequestException as e:
+                    logger.warning(
+                        "[CREED Reporter] Connection failed: %s", e
+                    )
+                    break
+
+            # Save checkpoint
+            if new_last_id > last_id:
+                cur.execute(
+                    """INSERT INTO system_config (key, value, description)
+                       VALUES ('creed_reporter_last_id', %s, 'Last governance_audit_log ID forwarded to C.R.E.E.D. standalone')
+                       ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = NOW()""",
+                    (str(new_last_id), str(new_last_id)),
+                )
+                conn.commit()
+
+            conn.close()
+
+            if reported > 0:
+                logger.info(
+                    "[CREED Reporter] Forwarded %d events (up to id %d)",
+                    reported,
+                    new_last_id,
+                )
+
+        except Exception as e:
+            logger.error("[CREED Reporter] Job failed: %s", e)
 
 
 # ---------------------------------------------------------------------------

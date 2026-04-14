@@ -115,8 +115,19 @@ website/kytranempowerment.com/assets/portraits/
 website/kytranempowerment.com/assets/logo.png
 website/kytranempowerment.com/assets/cart-icon.png
 
-# Nested git repos (should be submodules)
+# Standalone products (live at /mnt/standalone/, symlinked here)
 archie-code/
+kytran-creed/
+kytran-server-manager/
+kytran-gov-watch/
+kytran-business-suite/
+kytran-news/
+watch-api/
+legal-watch/
+market-watch/
+
+# Ingested GitHub skills (read-only pipeline artifacts)
+.claude/skills/github/
 
 # HTML mockup files in root
 /*.html

@@ -1,13 +1,13 @@
 ---
-globs: ["platform_v2/tools/dev_hq/**", "platform_v2/services/knowledge_service.py", "platform_v2/services/project_service.py"]
+globs: ["platform_v2/tools/consciousness/devhq_routes.py", "platform_v2/services/knowledge_service.py", "platform_v2/services/project_service.py"]
 ---
 
 # Project & Knowledge Rules
 
 ## Modules
-- **Dev HQ** — `/dev-hq`, development command center
-  - 6 tabs: Overview, Projects, Ideas, Knowledge, Decisions, System
-  - Routes at `tools/dev_hq/` (if Blueprint) or `app.py` dev-hq routes
+- **Dev HQ** — Consciousness module → Dev HQ tab (`/tools/consciousness/#devhq`)
+  - 5 subtabs: Overview (with intelligence analytics), Projects, Ideas, Decisions, System
+  - Routes at `tools/consciousness/devhq_routes.py` (Decision #433)
 
 ## Key DB Tables
 - `unified_projects` — uses `name` NOT `title`, `slug` is NOT NULL

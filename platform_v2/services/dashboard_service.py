@@ -215,7 +215,60 @@ def get_recent_activity():
 
 
 def get_alerts(user_id):
-    """Blended system alerts for mission briefing.
+    """Blended system alerts for mission briefing — wraps the unified alert service.
+
+    Splits unified alerts into service_issues (source='service_status') and
+    general alerts (everything else).  Falls back to legacy direct-query
+    implementation on any exception.
+
+    Returns: dict with alerts list and service_issues list
+    """
+    try:
+        from services.alert_service import get_unified_alerts
+
+        unified = get_unified_alerts(user_id, is_admin=True)
+
+        alerts = []
+        service_issues = []
+
+        all_items = list(unified.get("critical", []))
+        for items in unified.get("categories", {}).values():
+            all_items.extend(items)
+
+        seen_ids = set()
+        for item in all_items:
+            item_id = item.get("id")
+            if item_id in seen_ids:
+                continue
+            seen_ids.add(item_id)
+
+            if item.get("source") == "service_status":
+                service_issues.append(
+                    {
+                        "service": item.get("title", ""),
+                        "status": item.get("type", "unknown"),
+                        "error": item.get("message", ""),
+                    }
+                )
+            else:
+                alerts.append(
+                    {
+                        "type": item.get("type", "info"),
+                        "title": item.get("title", ""),
+                        "message": item.get("message", ""),
+                        "priority": item.get("priority", "normal"),
+                        "timestamp": item.get("timestamp"),
+                    }
+                )
+
+        return {"alerts": alerts[:20], "service_issues": service_issues[:10]}
+    except Exception:
+        logger.exception("get_alerts: unified alert service failed, falling back to legacy")
+        return _get_alerts_legacy(user_id)
+
+
+def _get_alerts_legacy(user_id):
+    """Blended system alerts for mission briefing (legacy direct-query implementation).
     Returns: dict with alerts list and service_issues list
     """
     with get_db_connection() as conn:

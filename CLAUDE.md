@@ -82,8 +82,8 @@ Every new session MUST begin with one of:
 | Resource | Location |
 |----------|----------|
 | Platform | http://192.168.1.200:3000 |
-| Dev HQ | http://192.168.1.200:3000/dev-hq |
-| Docs | `knowledge_base` table → Dev HQ Knowledge tab or MCP `search_knowledge` |
+| Dev HQ | http://192.168.1.200:3000/tools/consciousness/#devhq (tab inside Consciousness) |
+| Docs | `knowledge_base` table → Consciousness Knowledge tab or MCP `search_knowledge` |
 | Modules | `/mnt/archie_brain/platform_v2/tools/` (46 modules) |
 | MCP Tools | 85 tools via `.mcp.json` (incl. `session_briefing`) |
 | Projects | `unified_projects` table → MCP `get_projects` / `create_task` |
@@ -93,7 +93,7 @@ Every new session MUST begin with one of:
 1. **Knowledge Base** - `knowledge_base` table (~22,000 active entries, 97% embedded, quality-scored)
 2. **AI Bridge** - `/ai_bridge/archie_bridge.py` (multi-model router)
 3. **Module System** - Flask Blueprints in `/platform_v2/tools/`
-4. **Dev HQ** - Development command center (`/dev-hq`)
+4. **Dev HQ** - Development command center (Consciousness → Dev HQ tab, Decision #433)
 5. **Consciousness** - Knowledge analytics, AI processing, embedding coverage
 6. **Self-Healing Pipeline** - Audit → Propose → Fix → Verify (`services/audit_pipeline.py`)
 7. **Orchestration Engine** - `platform_v2/tools/department_hq/services/orchestration_engine.py` (intent→route→delegate→execute)

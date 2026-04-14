@@ -1260,7 +1260,17 @@ Respond with ONLY valid JSON:
                     prompt=prompt,
                     module_id="repo_relevance_analyzer",
                     system_prompt=system_prompt,
+                    prefer_model="qwen2.5-coder:7b",
                 )
+
+                if not result:
+                    logger.warning(
+                        f"[RepoRelevance] dispatch_json returned None for {repo_name} — LLM may have returned non-JSON"
+                    )
+                elif not isinstance(result, dict):
+                    logger.warning(
+                        f"[RepoRelevance] dispatch_json returned {type(result).__name__} for {repo_name}: {str(result)[:200]}"
+                    )
 
                 if result and isinstance(result, dict):
                     relevance = result.get("relevance", "low")
@@ -1473,8 +1483,21 @@ capabilities: [<list>]
                     prompt=prompt,
                     module_id="skill_adapter",
                     system_prompt=system_prompt,
+                    prefer_model="qwen2.5-coder:7b",
                 )
                 result = dispatch_result.response if dispatch_result and dispatch_result.success else None
+
+                if not result:
+                    logger.warning(
+                        f"[SkillAdapt] Dispatch returned no result for {skill_title} — "
+                        f"success={getattr(dispatch_result, 'success', '?')}, "
+                        f"agent={getattr(dispatch_result, 'agent_name', '?')}, "
+                        f"error={getattr(dispatch_result, 'error', '?')}"
+                    )
+                elif len(result) <= 100:
+                    logger.warning(
+                        f"[SkillAdapt] Response too short ({len(result)} chars) for {skill_title}: {result[:100]}"
+                    )
 
                 if result and isinstance(result, str) and len(result) > 100:
                     # Read current content and inject ## Archie CLI section

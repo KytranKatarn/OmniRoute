@@ -30,7 +30,7 @@ class IncidentService:
             # not already linked to an incident.
             cur.execute(
                 """
-                SELECT sn.id, sn.title, sn.message, sn.level, sn.created_at
+                SELECT sn.id, sn.title, sn.message, sn.type, sn.created_at
                 FROM system_notifications sn
                 WHERE sn.source = 'security_network'
                   AND sn.created_at > NOW() - INTERVAL '2 hours'
@@ -67,7 +67,7 @@ class IncidentService:
             if len(correlated) < 3:
                 continue
 
-            severity = self._highest_severity([a["level"] for a in correlated])
+            severity = self._highest_severity([a["type"] for a in correlated])
             alert_ids = [a["id"] for a in correlated]
             title = f"Correlated incident: {len(correlated)} alerts from {ip}"
 
@@ -129,7 +129,7 @@ class IncidentService:
             if alert_ids:
                 cur.execute(
                     """
-                    SELECT id, title, message, level, created_at
+                    SELECT id, title, message, type, created_at
                     FROM system_notifications
                     WHERE id = ANY(%s)
                     ORDER BY created_at DESC

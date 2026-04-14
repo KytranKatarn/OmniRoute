@@ -514,8 +514,8 @@
     {% set cat_label = 'AI COMMAND' %}
     {% set cat_icon = 'brain' %}
     {% set cat_modules = [
-        {'url': url_for('fleet.fleet_dashboard'), 'endpoint_prefix': 'fleet', 'icon': 'rocket', 'label': 'A.R.M.A.D.A.', 'title': 'A.R.M.A.D.A.'},
         {'url': url_for('consciousness.index'), 'endpoint_prefix': 'consciousness', 'icon': 'brain', 'label': 'Mind', 'title': 'Consciousness'},
+        {'url': url_for('department_hq.index'), 'endpoint_prefix': 'department_hq', 'icon': 'building', 'label': 'Dept HQ', 'title': 'Department HQ'},
         {'url': url_for('archie_chat.index'), 'endpoint_prefix': 'archie_chat', 'icon': 'message-circle', 'label': 'Chat', 'title': 'A.R.C.H.I.E. Chat'}
     ] %}
     {% include 'includes/category_nav.html' %}

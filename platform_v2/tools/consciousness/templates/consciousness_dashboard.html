@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/neural-core.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pixel-crew.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/glass-nav.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dev-hq.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="/static/css/consciousness-dashboard-v2.css">
@@ -23,57 +24,24 @@
 {% set cat_accent_dark = '#00cccc' %}
 {% set cat_label = 'AI COMMAND' %}
 {% set module_title = 'CONSCIOUSNESS' %}
+{% set header_shortcuts = [
+    ("A.R.C.H.I.E.", "bot", "/tools/archie-chat"),
+    ("Consciousness", "brain", "/tools/consciousness"),
+    ("Dept HQ", "building", "/tools/department-hq"),
+    ("Academy", "graduation-cap", "/tools/agent-academy"),
+    ("Repair Bay", "wrench", "/tools/repair-bay")
+] %}
 {% set header_tabs = [
     ("dashboard", "Dashboard", "layout-dashboard"),
-    ("intelligence", "Intelligence", "brain-circuit"),
+    ("devhq", "Dev HQ", "terminal"),
     ("knowledge", "Knowledge", "book-open"),
-    ("github", "GitHub", "github"),
+    ("github", "GitHub", "git-branch"),
     ("languages", "Languages", "languages"),
     ("codehealth", "Code Health", "activity")
 ] %}
 {% include 'includes/lcars-header.html' %}
 
-<!-- Notification Modal (bm- LCARS tablet) -->
-<div class="bm-overlay" id="lcarsNotifModal"
-     style="--bm-accent:var(--cat-accent, #00ffff); --bm-accent-rgb:var(--cat-accent-rgb, 0,255,255);">
-    <div class="bm-shell" style="max-width:500px;">
-        <div class="bm-frame">
-            <div class="bm-frame-elbow-top"></div>
-            <div class="bm-frame-seg"></div>
-            <div class="bm-frame-seg dim"></div>
-            <div class="bm-frame-light on"></div>
-            <div class="bm-frame-light amber"></div>
-            <div class="bm-frame-seg cyan"></div>
-            <div class="bm-frame-fill"></div>
-            <div class="bm-frame-elbow-bottom"></div>
-        </div>
-        <div class="bm-content">
-            <div class="bm-header">
-                <span class="bm-header-title">NOTIFICATIONS</span>
-                <div class="bm-header-strip">
-                    <span class="bm-header-pip w1"></span>
-                    <span class="bm-header-pip w2"></span>
-                    <span class="bm-header-pip w3"></span>
-                    <button class="bm-close" onclick="lcarsCloseNotifications()">&times;</button>
-                </div>
-            </div>
-            <div class="bm-body" id="lcarsNotifBody" style="max-height:60vh;overflow-y:auto;">
-                <p style="color:#94a3b8;">Loading...</p>
-            </div>
-            <div class="bm-actions">
-                <button class="btn-cancel" onclick="lcarsCloseNotifications()">Close</button>
-                <button class="btn-submit" onclick="fetch('/api/notifications/mark-all-read',{method:'POST'}).then(function(){var b=document.getElementById('lcarsNotifBody');if(b){b.textContent='';var p=document.createElement('p');p.style.color='#64748b';p.textContent='All clear — no notifications';b.appendChild(p);}if(window._pollNotifications)window._pollNotifications();})">Mark All Read</button>
-            </div>
-            <div class="bm-footer">
-                <div class="bm-footer-strip">
-                    <span class="bm-footer-dot cyan"></span>
-                    <span class="bm-footer-dot gold"></span>
-                    <span class="bm-footer-dot green"></span>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- Notification modal now in shared lcars-header.html (Project #251) -->
 
 <style>
 /* ============================================================================
@@ -118,6 +86,18 @@
     0%   { opacity: 0; transform: translateY(12px); }
     100% { opacity: 1; transform: translateY(0); }
 }
+
+/* Style LCARS header to match section frame aesthetic */
+.lcars-header {
+    background: transparent !important;
+}
+/* Header overrides now in shared lcars-header.css (Project #251) */
+.cs-body {
+    border-top: 3px solid rgba(var(--cat-accent-rgb, 0,255,255), 0.15) !important;
+    margin-top: 12px !important;
+    padding-top: 16px !important;
+}
+/* Footer override now in shared lcars-header.css (Project #251) */
 
 /* Scanline overlay on Intelligence tab panels */
 .cs-panel#panel-intelligence .lcars-frame {
@@ -2398,12 +2378,14 @@
 .ch-table-header.ch-cyan .ch-header-icon { background: #22d3ee; box-shadow: 0 0 6px rgba(34, 211, 238, 0.4); }
 
 .ch-table-body {
-    max-height: 420px;
     overflow-y: auto;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
     scrollbar-color: rgba(var(--cat-accent-rgb), 0.3) transparent;
+}
+#chAuditTable {
+    max-height: 420px;
 }
 .ch-table-body::-webkit-scrollbar { width: 5px; height: 5px; }
 .ch-table-body::-webkit-scrollbar-track { background: transparent; }
@@ -2790,123 +2772,727 @@
         <!-- ════════════════════════════════════════════════════════ -->
         <!-- Placeholder Panels (populated by consciousness.js)      -->
         <!-- ════════════════════════════════════════════════════════ -->
-        <div class="cs-panel" id="panel-intelligence">
+        <div class="cs-panel" id="panel-devhq">
 
-            <!-- Project-Knowledge Map -->
-            <div style="--frame-color: var(--cat-accent); --frame-rgb: var(--cat-accent-rgb); margin-bottom: 20px; margin-top: 20px;">
-              <div class="lcars-frame">
-                <div class="lcars-sidebar">
-                  <div style="background:var(--cat-accent);flex:2;border-radius:8px 0 0 0"></div>
-                  <div style="background:var(--cat-accent-dark);flex:1"></div>
-                  <div style="background:var(--cat-accent);flex:1;border-radius:0 0 0 8px"></div>
-                </div>
-                <div class="lcars-content">
-                  <div class="lcars-bar" style="background:var(--cat-accent)">
-                    <span class="lcars-bar-text">PROJECT-KNOWLEDGE MAP</span>
-                  </div>
-                  <div class="lcars-body" id="cs-project-knowledge-map">
-                    <p style="color:#94a3b8">Loading project-knowledge map...</p>
-                  </div>
-                  <div class="lcars-footer-bar" style="background:var(--cat-accent)"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Agent Contributions -->
-            <div style="--frame-color: var(--cat-accent); --frame-rgb: var(--cat-accent-rgb); margin-bottom: 20px;">
-              <div class="lcars-frame">
-                <div class="lcars-sidebar">
-                  <div style="background:var(--cat-accent);flex:2;border-radius:8px 0 0 0"></div>
-                  <div style="background:var(--cat-accent-dark);flex:1"></div>
-                  <div style="background:var(--cat-accent);flex:1;border-radius:0 0 0 8px"></div>
-                </div>
-                <div class="lcars-content">
-                  <div class="lcars-bar" style="background:var(--cat-accent)">
-                    <span class="lcars-bar-text">AGENT CONTRIBUTIONS</span>
-                  </div>
-                  <div class="lcars-body">
-                    <div class="cs-contrib-filters">
-                      <button class="cs-contrib-filter-btn active" data-days="0" onclick="setContribFilter(null)">All Time</button>
-                      <button class="cs-contrib-filter-btn" data-days="7" onclick="setContribFilter(7)">7 Days</button>
-                      <button class="cs-contrib-filter-btn" data-days="30" onclick="setContribFilter(30)">30 Days</button>
+            <!-- Dev HQ Subtabs (compact nav frame) -->
+            <div style="--frame-color:#00ffff; --frame-rgb:0,255,255; margin-bottom:16px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 40px !important; gap: 3px !important;">
+                        <div style="height: 36px !important; background: #00ffff !important; border-radius: 14px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 16px !important; border-radius: 0 6px 6px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(0,255,255,0.15) !important; border-radius: 0 6px 6px 0 !important; min-height: 4px !important;"></div>
+                        <div style="height: 24px !important; background: #00ffff !important; border-radius: 0 0 0 14px !important; flex-shrink: 0 !important;"></div>
                     </div>
-                    <div id="cs-agent-contributions-body">
-                      <p style="color:#94a3b8">Select a project from the map above to see agent contributions.</p>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 6px !important; min-width: 0 !important;">
+                        <div style="height: 32px !important; background: #00ffff !important; border-radius: 0 14px 14px 0 !important; display: flex !important; align-items: center !important; gap: 10px !important; padding: 0 14px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.78rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">DEV HQ</span>
+                            <div style="flex:1"></div>
+                            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.6rem;color:rgba(0,0,0,0.4);letter-spacing:1px;">COMMAND CENTER</span>
+                            <div style="display: flex !important; align-items: center !important; gap: 3px !important;">
+                                <span style="width:16px; height:6px; border-radius:3px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:28px; height:6px; border-radius:3px; background:rgba(0,0,0,0.2)"></span>
+                            </div>
+                        </div>
+                        <div style="padding: 8px 8px 6px !important;">
+                            <div class="cs-subtabs" id="devhqSubtabs" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+                                <button class="cs-subtab active" data-subtab="dh-overview" onclick="switchDevHQTab('overview')">Overview</button>
+                                <button class="cs-subtab" data-subtab="dh-projects" onclick="switchDevHQTab('projects')">Projects</button>
+                                <button class="cs-subtab" data-subtab="dh-ideas" onclick="switchDevHQTab('ideas')">Ideas</button>
+                                <button class="cs-subtab" data-subtab="dh-decisions" onclick="switchDevHQTab('decisions')">Decisions</button>
+                                <button class="cs-subtab" data-subtab="dh-system" onclick="switchDevHQTab('system')">System</button>
+                            </div>
+                        </div>
                     </div>
-                  </div>
-                  <div class="lcars-footer-bar" style="background:var(--cat-accent)"></div>
                 </div>
-              </div>
             </div>
 
-            <!-- Knowledge Gaps -->
-            <div style="--frame-color: var(--cat-accent); --frame-rgb: var(--cat-accent-rgb); margin-bottom: 20px;">
-              <div class="lcars-frame">
-                <div class="lcars-sidebar">
-                  <div style="background:var(--cat-accent);flex:2;border-radius:8px 0 0 0"></div>
-                  <div style="background:var(--cat-accent-dark);flex:1"></div>
-                  <div style="background:var(--cat-accent);flex:1;border-radius:0 0 0 8px"></div>
-                </div>
-                <div class="lcars-content">
-                  <div class="lcars-bar" style="background:var(--cat-accent)">
-                    <span class="lcars-bar-text">KNOWLEDGE GAPS</span>
-                  </div>
-                  <div class="lcars-body" id="cs-knowledge-gaps-body">
-                    <p style="color:#94a3b8">Loading knowledge gaps...</p>
-                  </div>
-                  <div class="lcars-footer-bar" style="background:var(--cat-accent)"></div>
-                </div>
-              </div>
-            </div>
+            <!-- OVERVIEW subtab -->
+            <div class="cs-subpanel active" id="dh-overview">
 
-            <!-- Agent Expertise -->
-            <div style="--frame-color: var(--cat-accent); --frame-rgb: var(--cat-accent-rgb); margin-bottom: 20px;">
-              <div class="lcars-frame">
-                <div class="lcars-sidebar">
-                  <div style="background:var(--cat-accent);flex:2;border-radius:8px 0 0 0"></div>
-                  <div style="background:var(--cat-accent-dark);flex:1"></div>
-                  <div style="background:var(--cat-accent);flex:1;border-radius:0 0 0 8px"></div>
-                </div>
-                <div class="lcars-content">
-                  <div class="lcars-bar" style="background:var(--cat-accent)">
-                    <span class="lcars-bar-text">AGENT EXPERTISE</span>
-                  </div>
-                  <div class="lcars-body">
-                    <div class="cs-expertise-project-tabs" id="cs-expertise-project-tabs"></div>
-                    <div id="cs-agent-expertise-body">
-                      <p style="color:#94a3b8">Loading agent expertise...</p>
+                <!-- Platform Overview frame (cyan) -->
+                <div style="--frame-color:#22d3ee; --frame-rgb:34,211,238; margin-bottom:20px;">
+                    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                            <div class="lcars-elbow-top" style="height: 52px !important; background: #22d3ee !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22d3ee !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #06b6d4 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#22d3ee;box-shadow:0 0 8px #22d3ee;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                            <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                            <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(34,211,238,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                            <div class="lcars-elbow-bottom" style="height: 36px !important; background: #22d3ee !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        </div>
+                        <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                            <div class="lcars-bar" style="height: 44px !important; background: #22d3ee !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                                <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">PLATFORM OVERVIEW</span>
+                                <div style="flex:1"></div>
+                                <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">STATS</span>
+                                <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                    <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                    <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                    <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                </div>
+                            </div>
+                            <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
+                                <div class="devhq-stats" id="overviewStats">
+                                    <div class="devhq-stat green">
+                                        <div class="devhq-stat-icon"><i data-lucide="folder-open"></i></div>
+                                        <div class="devhq-stat-value" id="statActiveProjects">--</div>
+                                        <div class="devhq-stat-label" data-i18n="devhq.stats.active_projects">Active Projects</div>
+                                    </div>
+                                    <div class="devhq-stat orange">
+                                        <div class="devhq-stat-icon"><i data-lucide="list-checks"></i></div>
+                                        <div class="devhq-stat-value" id="statOpenTasks">--</div>
+                                        <div class="devhq-stat-label" data-i18n="devhq.stats.open_tasks">Open Tasks</div>
+                                    </div>
+                                    <div class="devhq-stat cyan">
+                                        <div class="devhq-stat-icon"><i data-lucide="brain"></i></div>
+                                        <div class="devhq-stat-value" id="statKnowledge">--</div>
+                                        <div class="devhq-stat-label" data-i18n="devhq.stats.knowledge">Knowledge Entries</div>
+                                    </div>
+                                    <div class="devhq-stat purple">
+                                        <div class="devhq-stat-icon"><i data-lucide="activity"></i></div>
+                                        <div class="devhq-stat-value" id="statEmbedding">--</div>
+                                        <div class="devhq-stat-label" data-i18n="devhq.stats.embedding">Embedding Coverage</div>
+                                    </div>
+                                </div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+                                    <div class="devhq-card">
+                                        <div class="devhq-card-header" data-i18n="devhq.overview.recent_activity">Recent Activity</div>
+                                        <div class="devhq-card-body compact">
+                                            <div class="devhq-activity-list" id="overviewActivity">
+                                                <div class="devhq-loading" data-i18n="common.loading">Loading</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="devhq-card" style="margin-bottom:16px;">
+                                            <div class="devhq-card-header" data-i18n="devhq.overview.quick_actions">Quick Actions</div>
+                                            <div class="devhq-card-body">
+                                                <div class="devhq-quick-actions">
+                                                    <div class="devhq-quick-action" onclick="switchDevHQTab('projects');setTimeout(function(){openProjectModal()},100)">
+                                                        <i data-lucide="folder-plus"></i>
+                                                        <span data-i18n="devhq.actions.new_project">New Project</span>
+                                                    </div>
+                                                    <div class="devhq-quick-action" onclick="switchDevHQTab('ideas');setTimeout(function(){openIdeaModal()},100)">
+                                                        <i data-lucide="lightbulb"></i>
+                                                        <span data-i18n="devhq.actions.new_idea">New Idea</span>
+                                                    </div>
+                                                    <div class="devhq-quick-action" onclick="switchDevHQTab('system')">
+                                                        <i data-lucide="heart-pulse"></i>
+                                                        <span data-i18n="devhq.actions.health_check">Health Check</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="devhq-card">
+                                            <div class="devhq-card-header" data-i18n="devhq.overview.active_projects">Active Projects</div>
+                                            <div class="devhq-card-body compact" id="overviewProjects">
+                                                <div class="devhq-loading" data-i18n="common.loading">Loading</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                  </div>
-                  <div class="lcars-footer-bar" style="background:var(--cat-accent)"></div>
                 </div>
-              </div>
+
+                <!-- Intelligence Analytics frame (purple) -->
+                <div style="--frame-color:#8b5cf6; --frame-rgb:139,92,246; margin-bottom:20px;">
+                    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                            <div class="lcars-elbow-top" style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#8b5cf6;box-shadow:0 0 8px #8b5cf6;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                            <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                            <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                            <div class="lcars-elbow-bottom" style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        </div>
+                        <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                            <div class="lcars-bar" style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                                <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">INTELLIGENCE ANALYTICS</span>
+                                <div style="flex:1"></div>
+                                <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">ANALYSIS</span>
+                                <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                    <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                    <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                    <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                </div>
+                            </div>
+                            <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
+                                <div id="dhIntelligence">
+                                    <div id="cs-project-knowledge-map"><p style="color:#94a3b8">Loading project-knowledge map...</p></div>
+                                    <div class="cs-contrib-filters" style="margin-top:12px;">
+                                        <button class="cs-contrib-filter-btn active" data-days="0" onclick="setContribFilter(null)">All Time</button>
+                                        <button class="cs-contrib-filter-btn" data-days="7" onclick="setContribFilter(7)">7 Days</button>
+                                        <button class="cs-contrib-filter-btn" data-days="30" onclick="setContribFilter(30)">30 Days</button>
+                                    </div>
+                                    <div id="cs-agent-contributions-body"><p style="color:#94a3b8">Loading contributions...</p></div>
+                                    <div id="cs-knowledge-gaps-body" style="margin-top:12px;"><p style="color:#94a3b8">Loading knowledge gaps...</p></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /dh-overview -->
+
+            <!-- PROJECTS subtab -->
+            <div class="cs-subpanel" id="dh-projects" style="display:none;">
+
+                <!-- Projects frame (purple) -->
+                <div style="--frame-color:#8b5cf6; --frame-rgb:139,92,246; margin-bottom:20px;">
+                    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                            <div class="lcars-elbow-top" style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#8b5cf6;box-shadow:0 0 8px #8b5cf6;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                            <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                            <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                            <div class="lcars-elbow-bottom" style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        </div>
+                        <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                            <div class="lcars-bar" style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                                <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">PROJECTS</span>
+                                <div style="flex:1"></div>
+                                <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">TRACKING</span>
+                                <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                    <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                    <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                    <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                </div>
+                            </div>
+                            <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
+                                <!-- Projects List View -->
+                                <div id="projectsView">
+                                    <div class="devhq-filters">
+                                        <select id="projFilterStatus">
+                                            <option value="" data-i18n="devhq.filter.all_status">All Status</option>
+                                            <option value="active" data-i18n="devhq.filter.active">Active</option>
+                                            <option value="completed" data-i18n="devhq.filter.completed">Completed</option>
+                                            <option value="on_hold" data-i18n="devhq.filter.on_hold">On Hold</option>
+                                            <option value="archived" data-i18n="devhq.filter.archived">Archived</option>
+                                        </select>
+                                        <select id="projFilterPriority">
+                                            <option value="" data-i18n="devhq.filter.all_priority">All Priority</option>
+                                            <option value="critical" data-i18n="devhq.filter.critical">Critical</option>
+                                            <option value="high" data-i18n="devhq.filter.high">High</option>
+                                            <option value="medium" data-i18n="devhq.filter.medium">Medium</option>
+                                            <option value="low" data-i18n="devhq.filter.low">Low</option>
+                                        </select>
+                                        <input type="text" id="projFilterSearch" placeholder="Search projects..." data-i18n-placeholder="devhq.filter.search_projects">
+                                        <button class="devhq-btn primary" onclick="openProjectModal()" data-i18n="devhq.actions.new_project_btn">+ New Project</button>
+                                    </div>
+                                    <div id="projectsGrid" class="devhq-project-grid">
+                                        <div class="devhq-loading" data-i18n="devhq.loading.projects">Loading projects</div>
+                                    </div>
+                                </div>
+                                <!-- Project Detail View -->
+                                <div id="projectDetail" style="display:none;">
+                                    <div class="devhq-detail-header" id="projectDetailHeader">
+                                        <button class="devhq-back-btn" onclick="closeProjectDetail()">
+                                            <i data-lucide="arrow-left" style="width:16px;height:16px;"></i>
+                                        </button>
+                                        <div style="flex:1;min-width:0;">
+                                            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                                                <span id="projDetailName" style="font-family:'Orbitron',sans-serif;font-size:0.9rem;font-weight:600;color:var(--archie-orange);"></span>
+                                                <span id="projDetailStatus" class="devhq-badge"></span>
+                                                <span id="projDetailPriority" class="devhq-badge"></span>
+                                            </div>
+                                            <div id="projDetailDesc" style="font-size:0.75rem;color:var(--archie-text-muted);margin-top:6px;"></div>
+                                            <div style="margin-top:8px;">
+                                                <div class="devhq-progress" style="width:200px;"><div class="devhq-progress-fill" id="projDetailProgress" style="width:0%;"></div></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="devhq-sub-tabs">
+                                        <button class="devhq-sub-tab active" onclick="switchProjectSubTab('tasks')" data-subtab="tasks">
+                                            <i data-lucide="list-checks" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i><span data-i18n="devhq.project.subtab_tasks">Tasks</span>
+                                        </button>
+                                        <button class="devhq-sub-tab" onclick="switchProjectSubTab('decisions')" data-subtab="decisions">
+                                            <i data-lucide="scale" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i><span data-i18n="devhq.project.subtab_decisions">Decisions</span>
+                                        </button>
+                                        <button class="devhq-sub-tab" onclick="switchProjectSubTab('docs')" data-subtab="docs">
+                                            <i data-lucide="file-text" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i><span data-i18n="devhq.project.subtab_docs">Docs</span>
+                                        </button>
+                                        <button class="devhq-sub-tab" onclick="switchProjectSubTab('activity')" data-subtab="activity">
+                                            <i data-lucide="activity" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i><span data-i18n="devhq.project.subtab_activity">Activity</span>
+                                        </button>
+                                    </div>
+                                    <div class="devhq-sub-panel active" id="projSubTasks">
+                                        <div class="devhq-loading" data-i18n="devhq.loading.tasks">Loading tasks</div>
+                                    </div>
+                                    <div class="devhq-sub-panel" id="projSubDecisions">
+                                        <div class="devhq-loading" data-i18n="devhq.loading.decisions">Loading decisions</div>
+                                    </div>
+                                    <div class="devhq-sub-panel" id="projSubDocs">
+                                        <div class="devhq-loading" data-i18n="devhq.loading.documents">Loading documents</div>
+                                    </div>
+                                    <div class="devhq-sub-panel" id="projSubActivity">
+                                        <div class="devhq-loading" data-i18n="devhq.loading.activity">Loading activity</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /dh-projects -->
+
+            <!-- IDEAS subtab -->
+            <div class="cs-subpanel" id="dh-ideas" style="display:none;">
+
+                <!-- Ideas frame (amber) -->
+                <div style="--frame-color:#f59e0b; --frame-rgb:245,158,11; margin-bottom:20px;">
+                    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                            <div class="lcars-elbow-top" style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#f59e0b;box-shadow:0 0 8px #f59e0b;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                            <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                            <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                            <div class="lcars-elbow-bottom" style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        </div>
+                        <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                            <div class="lcars-bar" style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                                <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">IDEAS</span>
+                                <div style="flex:1"></div>
+                                <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">BACKLOG</span>
+                                <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                    <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                    <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                    <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                </div>
+                            </div>
+                            <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
+                                <div class="devhq-filters">
+                                    <select id="ideaFilterCategory">
+                                        <option value="" data-i18n="devhq.filter.all_categories">All Categories</option>
+                                        <option value="feature" data-i18n="devhq.filter.feature">Feature</option>
+                                        <option value="improvement" data-i18n="devhq.filter.improvement">Improvement</option>
+                                        <option value="research" data-i18n="devhq.filter.research">Research</option>
+                                        <option value="integration" data-i18n="devhq.filter.integration">Integration</option>
+                                    </select>
+                                    <select id="ideaFilterStatus">
+                                        <option value="" data-i18n="devhq.filter.all_status_ideas">All Status</option>
+                                        <option value="new" data-i18n="devhq.filter.new">New</option>
+                                        <option value="exploring" data-i18n="devhq.filter.exploring">Exploring</option>
+                                        <option value="approved" data-i18n="devhq.filter.approved">Approved</option>
+                                        <option value="rejected" data-i18n="devhq.filter.rejected">Rejected</option>
+                                        <option value="promoted" data-i18n="devhq.filter.promoted">Promoted</option>
+                                    </select>
+                                    <input type="text" id="ideaFilterSearch" placeholder="Search ideas..." data-i18n-placeholder="devhq.filter.search_ideas">
+                                    <button class="devhq-btn primary" onclick="openIdeaModal()" data-i18n="devhq.actions.new_idea_btn">+ New Idea</button>
+                                </div>
+                                <div id="ideasGrid" class="devhq-project-grid">
+                                    <div class="devhq-loading" data-i18n="devhq.loading.ideas">Loading ideas</div>
+                                </div>
+                                <div class="devhq-pagination" id="ideasPagination" style="display:none;">
+                                    <button class="devhq-btn small secondary" id="ideasPrev" onclick="ideaPage(-1)" data-i18n="devhq.pagination.prev">Prev</button>
+                                    <span id="ideasPageInfo">--</span>
+                                    <button class="devhq-btn small secondary" id="ideasNext" onclick="ideaPage(1)" data-i18n="devhq.pagination.next">Next</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /dh-ideas -->
+
+            <!-- DECISIONS subtab -->
+            <div class="cs-subpanel" id="dh-decisions" style="display:none;">
+
+                <!-- Decisions frame (green) -->
+                <div style="--frame-color:#10b981; --frame-rgb:16,185,129; margin-bottom:20px;">
+                    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                            <div class="lcars-elbow-top" style="height: 52px !important; background: #10b981 !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #10b981 !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #059669 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#10b981;box-shadow:0 0 8px #10b981;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                            <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                            <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(16,185,129,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                            <div class="lcars-elbow-bottom" style="height: 36px !important; background: #10b981 !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        </div>
+                        <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                            <div class="lcars-bar" style="height: 44px !important; background: #10b981 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                                <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">DECISIONS</span>
+                                <div style="flex:1"></div>
+                                <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">ADR LOG</span>
+                                <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                    <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                    <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                    <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                </div>
+                            </div>
+                            <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
+                                <div class="devhq-filters">
+                                    <select id="decFilterProject"><option value="" data-i18n="devhq.filter.all_projects">All Projects</option></select>
+                                    <select id="decFilterStatus">
+                                        <option value="" data-i18n="devhq.filter.all_status_decisions">All Status</option>
+                                        <option value="accepted" data-i18n="devhq.filter.accepted">Accepted</option>
+                                        <option value="proposed" data-i18n="devhq.filter.proposed">Proposed</option>
+                                        <option value="deprecated" data-i18n="devhq.filter.deprecated">Deprecated</option>
+                                        <option value="superseded" data-i18n="devhq.filter.superseded">Superseded</option>
+                                    </select>
+                                    <input type="text" id="decFilterSearch" placeholder="Search decisions..." data-i18n-placeholder="devhq.filter.search_decisions">
+                                    <button class="devhq-btn primary" onclick="openDecisionModal()" data-i18n="devhq.actions.new_decision_btn">+ New Decision</button>
+                                </div>
+                                <div id="decisionsContainer"><div class="devhq-loading" data-i18n="devhq.loading.decisions_tab">Loading decisions</div></div>
+                                <div class="devhq-pagination" id="decisionsPagination" style="display:none;">
+                                    <button class="devhq-btn small secondary" id="decisionsPrev" onclick="decisionPage(-1)" data-i18n="devhq.pagination.prev">Prev</button>
+                                    <span id="decisionsPageInfo">--</span>
+                                    <button class="devhq-btn small secondary" id="decisionsNext" onclick="decisionPage(1)" data-i18n="devhq.pagination.next">Next</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /dh-decisions -->
+
+            <!-- SYSTEM subtab -->
+            <div class="cs-subpanel" id="dh-system" style="display:none;">
+
+                <!-- System frame (cyan) -->
+                <div style="--frame-color:#22d3ee; --frame-rgb:34,211,238; margin-bottom:20px;">
+                    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                            <div class="lcars-elbow-top" style="height: 52px !important; background: #22d3ee !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22d3ee !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #06b6d4 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#22d3ee;box-shadow:0 0 8px #22d3ee;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                            <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                            <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(34,211,238,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                            <div class="lcars-elbow-bottom" style="height: 36px !important; background: #22d3ee !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        </div>
+                        <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                            <div class="lcars-bar" style="height: 44px !important; background: #22d3ee !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                                <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SYSTEM</span>
+                                <div style="flex:1"></div>
+                                <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">INTEGRATIONS</span>
+                                <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                    <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                    <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                    <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                </div>
+                            </div>
+                            <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
+                                <!-- Integrations Section -->
+                                <div class="devhq-card" id="systemIntegrations">
+                                    <div class="devhq-card-header" onclick="toggleSystemSection('systemIntBody')" style="cursor:pointer;">
+                                        <span><i data-lucide="plug" style="width:14px;height:14px;vertical-align:middle;margin-right:6px;"></i><span data-i18n="devhq.system.integrations">Integrations</span></span>
+                                        <i data-lucide="chevron-down" id="systemIntChevron" style="width:16px;height:16px;transition:transform 0.2s;"></i>
+                                    </div>
+                                    <div class="devhq-card-body" id="systemIntBody">
+                                        <div class="devhq-integrations-grid" id="integrationsGrid">
+                                            <div class="devhq-loading" data-i18n="devhq.loading.integrations">Loading integrations</div>
+                                        </div>
+                                        <div id="healthHistoryRow" style="display:none; margin-top:12px;">
+                                            <div style="font-size:0.72rem; color:var(--archie-text-muted); margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                                                <i data-lucide="activity" style="width:14px;height:14px;"></i> <span data-i18n="devhq.system.health_timeline">24h Health Timeline</span>
+                                            </div>
+                                            <div id="healthSparklines" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+                                        </div>
+                                        <div class="devhq-card" style="margin-top:16px;">
+                                            <div class="devhq-card-header" data-i18n="devhq.system.mcp_servers">MCP Servers</div>
+                                            <div class="devhq-card-body" id="mcpServersPanel">
+                                                <div class="devhq-loading" data-i18n="devhq.loading.mcp_servers">Loading MCP servers</div>
+                                            </div>
+                                        </div>
+                                        <div class="devhq-card" style="margin-top:16px;">
+                                            <div class="devhq-card-header"><span data-i18n="devhq.system.mcp_tool_registry">MCP Tool Registry</span> <span id="mcpToolCount" style="font-size:0.65rem;color:var(--archie-text-muted);font-weight:400;"></span></div>
+                                            <div class="devhq-card-body" id="mcpToolRegistry">
+                                                <div class="devhq-loading" data-i18n="devhq.loading.tool_registry">Loading tool registry</div>
+                                            </div>
+                                        </div>
+                                        <div class="devhq-card" style="margin-top:16px;">
+                                            <div class="devhq-card-header"><span data-i18n="devhq.system.mcp_tool_usage">MCP Tool Usage</span> <span id="mcpUsagePeriod" style="font-size:0.65rem;color:var(--archie-text-muted);font-weight:400;" data-i18n="devhq.system.seven_days">(7 days)</span></div>
+                                            <div class="devhq-card-body" id="mcpUsagePanel">
+                                                <div class="devhq-loading" data-i18n="devhq.loading.usage_data">Loading usage data</div>
+                                            </div>
+                                        </div>
+                                        <div class="devhq-card" style="margin-top:16px;">
+                                            <div class="devhq-card-header" data-i18n="devhq.system.claude_configuration">Claude Configuration</div>
+                                            <div class="devhq-card-body" id="claudeConfigPanel">
+                                                <div class="devhq-loading" data-i18n="devhq.loading.claude_config">Loading Claude config</div>
+                                            </div>
+                                        </div>
+                                        <div class="devhq-card" style="margin-top:16px;">
+                                            <div class="devhq-card-header"><i data-lucide="zap" style="width:14px;height:14px;vertical-align:middle;margin-right:6px;"></i><span data-i18n="devhq.system.quick_actions">Quick Actions</span></div>
+                                            <div class="devhq-card-body" style="display:flex; flex-wrap:wrap; gap:8px;" id="quickActionsGrid">
+                                                <button class="devhq-quick-action-btn" onclick="runQuickAction('clear-cache')">
+                                                    <i data-lucide="trash-2" style="width:14px;height:14px;"></i> <span data-i18n="devhq.system.clear_bridge_cache">Clear Bridge Cache</span>
+                                                </button>
+                                                <button class="devhq-quick-action-btn" onclick="runQuickAction('warmup')">
+                                                    <i data-lucide="flame" style="width:14px;height:14px;"></i> <span data-i18n="devhq.system.restart_warmup">Restart Warmup</span>
+                                                </button>
+                                                <button class="devhq-quick-action-btn" onclick="runQuickAction('reindex-embeddings')">
+                                                    <i data-lucide="database" style="width:14px;height:14px;"></i> <span data-i18n="devhq.system.reindex_embeddings">Reindex Embeddings</span>
+                                                </button>
+                                                <button class="devhq-quick-action-btn" onclick="runQuickAction('sync-mcp-tools')">
+                                                    <i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> <span data-i18n="devhq.system.sync_mcp_tools">Sync MCP Tools</span>
+                                                </button>
+                                                <button class="devhq-quick-action-btn" onclick="runQuickAction('health-check')">
+                                                    <i data-lucide="heart-pulse" style="width:14px;height:14px;"></i> <span data-i18n="devhq.system.run_health_check">Run Health Check</span>
+                                                </button>
+                                            </div>
+                                            <div id="quickActionResult" style="display:none; padding:8px 16px; font-size:0.75rem; border-top:1px solid var(--archie-border-default);"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Schema Section -->
+                                <div class="devhq-card" id="systemSchema" style="margin-top:16px;">
+                                    <div class="devhq-card-header" onclick="toggleSystemSection('systemSchemaBody')" style="cursor:pointer;">
+                                        <span><i data-lucide="database" style="width:14px;height:14px;vertical-align:middle;margin-right:6px;"></i><span data-i18n="devhq.system.database_schema">Database Schema</span></span>
+                                        <i data-lucide="chevron-down" id="systemSchemaChevron" style="width:16px;height:16px;transition:transform 0.2s;"></i>
+                                    </div>
+                                    <div class="devhq-card-body" id="systemSchemaBody" style="display:none;">
+                                        <div class="devhq-schema-layout">
+                                            <div class="devhq-card">
+                                                <div class="devhq-card-header" data-i18n="devhq.system.tables">Tables</div>
+                                                <div class="devhq-card-body compact">
+                                                    <input type="text" id="schemaSearch" placeholder="Filter tables..." style="width:100%;padding:6px 10px;background:var(--archie-bg-primary);border:1px solid var(--archie-border-default);border-radius:6px;color:var(--archie-text-primary);font-family:var(--archie-font-mono);font-size:0.72rem;margin-bottom:8px;" data-i18n-placeholder="devhq.system.filter_tables">
+                                                    <div class="devhq-table-list" id="schemaTableList">
+                                                        <div class="devhq-loading" data-i18n="devhq.loading.schema">Loading schema</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="devhq-card">
+                                                <div class="devhq-card-header" id="schemaDetailHeader" data-i18n="devhq.system.select_a_table">Select a table</div>
+                                                <div class="devhq-card-body" id="schemaDetail">
+                                                    <div class="devhq-empty" data-i18n="devhq.system.click_table_to_view">Click a table to view its columns</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- API Section -->
+                                <div class="devhq-card" id="systemApi" style="margin-top:16px;">
+                                    <div class="devhq-card-header" onclick="toggleSystemSection('systemApiBody')" style="cursor:pointer;">
+                                        <span><i data-lucide="file-code" style="width:14px;height:14px;vertical-align:middle;margin-right:6px;"></i><span data-i18n="devhq.system.api_documentation">API Documentation</span></span>
+                                        <i data-lucide="chevron-down" id="systemApiChevron" style="width:16px;height:16px;transition:transform 0.2s;"></i>
+                                    </div>
+                                    <div class="devhq-card-body" id="systemApiBody" style="display:none;">
+                                        <div class="devhq-filters">
+                                            <input type="text" id="apiSearch" placeholder="Search endpoints..." style="flex:1;" data-i18n-placeholder="devhq.system.search_endpoints">
+                                        </div>
+                                        <div id="apiDocsContainer">
+                                            <div class="devhq-loading" data-i18n="devhq.loading.api_documentation">Loading API documentation</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Module Docs Section -->
+                                <div class="devhq-card" id="systemModuleDocs" style="margin-top:16px;">
+                                    <div class="devhq-card-header" onclick="toggleSystemSection('systemModuleDocsBody')" style="cursor:pointer;">
+                                        <span><i data-lucide="book-open" style="width:14px;height:14px;vertical-align:middle;margin-right:6px;"></i><span data-i18n="devhq.system.module_docs">Module Documentation</span> <span id="moduleDocsCount" style="font-size:0.65rem;color:var(--archie-text-muted);font-weight:400;"></span></span>
+                                        <i data-lucide="chevron-down" id="systemModuleDocsChevron" style="width:16px;height:16px;transition:transform 0.2s;"></i>
+                                    </div>
+                                    <div class="devhq-card-body" id="systemModuleDocsBody" style="display:none;">
+                                        <div class="devhq-filters" style="margin-bottom:12px;">
+                                            <select id="moduleDocsModule" style="min-width:140px;">
+                                                <option value="">All Modules</option>
+                                            </select>
+                                            <select id="moduleDocsType" style="min-width:120px;">
+                                                <option value="">All Types</option>
+                                                <option value="user">User Guide</option>
+                                                <option value="coder">Coder Doc</option>
+                                            </select>
+                                            <input type="text" id="moduleDocsSearch" placeholder="Search docs..." style="flex:1;" data-i18n-placeholder="devhq.system.search_module_docs">
+                                        </div>
+                                        <div id="moduleDocsContainer">
+                                            <div class="devhq-loading">Loading module docs</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /dh-system -->
+
+            <!-- ===== DEV HQ MODALS ===== -->
+
+            <!-- Project Modal -->
+            <div class="devhq-modal-overlay" id="projectModal" style="display:none;" onclick="if(event.target===this)closeModal('projectModal')">
+                <div class="devhq-modal">
+                    <div class="devhq-modal-header">
+                        <span class="devhq-modal-title" id="projectModalTitle" data-i18n="devhq.modal.new_project">New Project</span>
+                        <button class="devhq-modal-close" onclick="closeModal('projectModal')">&times;</button>
+                    </div>
+                    <div class="devhq-modal-body">
+                        <input type="hidden" id="projectEditId">
+                        <div class="devhq-field"><label data-i18n="devhq.modal.name">Name</label><input type="text" id="projectName" placeholder="Project name" data-i18n-placeholder="devhq.modal.project_name_placeholder"></div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.description">Description</label><textarea id="projectDesc" placeholder="Description" data-i18n-placeholder="devhq.modal.description_placeholder"></textarea></div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.type">Type</label><select id="projectType"><option value="feature" data-i18n="devhq.type.feature">Feature</option><option value="bugfix" data-i18n="devhq.type.bugfix">Bugfix</option><option value="maintenance" data-i18n="devhq.type.maintenance">Maintenance</option><option value="research" data-i18n="devhq.type.research">Research</option><option value="infrastructure" data-i18n="devhq.type.infrastructure">Infrastructure</option></select></div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.priority">Priority</label><select id="projectPriority"><option value="medium" data-i18n="devhq.priority.medium">Medium</option><option value="critical" data-i18n="devhq.priority.critical">Critical</option><option value="high" data-i18n="devhq.priority.high">High</option><option value="low" data-i18n="devhq.priority.low">Low</option></select></div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.target_date">Target Date</label><input type="date" id="projectTargetDate"></div>
+                    </div>
+                    <div class="devhq-modal-footer">
+                        <button class="devhq-btn secondary" onclick="closeModal('projectModal')" data-i18n="devhq.modal.cancel">Cancel</button>
+                        <button class="devhq-btn primary" id="projectSubmitBtn" onclick="submitProject()" data-i18n="devhq.modal.create">Create</button>
+                    </div>
+                </div>
             </div>
 
-            <!-- Knowledge Graph -->
-            <div style="--frame-color: var(--cat-accent); --frame-rgb: var(--cat-accent-rgb); margin-bottom: 20px;">
-              <div class="lcars-frame">
-                <div class="lcars-sidebar">
-                  <div style="background:var(--cat-accent);flex:2;border-radius:8px 0 0 0"></div>
-                  <div style="background:var(--cat-accent-dark);flex:1"></div>
-                  <div style="background:var(--cat-accent);flex:1;border-radius:0 0 0 8px"></div>
+            <!-- Task Modal -->
+            <div class="devhq-modal-overlay" id="taskModal" style="display:none;" onclick="if(event.target===this)closeModal('taskModal')">
+                <div class="devhq-modal">
+                    <div class="devhq-modal-header">
+                        <span class="devhq-modal-title" id="taskModalTitle" data-i18n="devhq.modal.new_task">New Task</span>
+                        <button class="devhq-modal-close" onclick="closeModal('taskModal')">&times;</button>
+                    </div>
+                    <div class="devhq-modal-body">
+                        <input type="hidden" id="taskEditId">
+                        <input type="hidden" id="taskProjectId">
+                        <div class="devhq-field"><label data-i18n="devhq.modal.title">Title</label><input type="text" id="taskTitle" placeholder="Task title" data-i18n-placeholder="devhq.modal.task_title_placeholder"></div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.description">Description</label><textarea id="taskDesc" placeholder="Description" data-i18n-placeholder="devhq.modal.description_placeholder"></textarea></div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.project">Project</label><select id="taskProject"><option value="" data-i18n="devhq.modal.select_project">Select project...</option></select></div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.type">Type</label><select id="taskType"><option value="implementation" data-i18n="devhq.type.implementation">Implementation</option><option value="review" data-i18n="devhq.type.review">Review</option><option value="testing" data-i18n="devhq.type.testing">Testing</option><option value="documentation" data-i18n="devhq.type.documentation">Documentation</option><option value="research" data-i18n="devhq.type.research">Research</option><option value="bugfix" data-i18n="devhq.type.bugfix">Bugfix</option></select></div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.priority">Priority</label><select id="taskPriority"><option value="medium" data-i18n="devhq.priority.medium">Medium</option><option value="critical" data-i18n="devhq.priority.critical">Critical</option><option value="high" data-i18n="devhq.priority.high">High</option><option value="low" data-i18n="devhq.priority.low">Low</option></select></div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.due_date">Due Date</label><input type="date" id="taskDueDate"></div>
+                    </div>
+                    <div class="devhq-modal-footer">
+                        <button class="devhq-btn secondary" onclick="closeModal('taskModal')" data-i18n="devhq.modal.cancel">Cancel</button>
+                        <button class="devhq-btn primary" id="taskSubmitBtn" onclick="submitTask()" data-i18n="devhq.modal.create">Create</button>
+                    </div>
                 </div>
-                <div class="lcars-content">
-                  <div class="lcars-bar" style="background:var(--cat-accent)">
-                    <span class="lcars-bar-text">KNOWLEDGE GRAPH</span>
-                  </div>
-                  <div class="lcars-body">
-                    <p style="color:#94a3b8">Loading knowledge graph...</p>
-                    <canvas id="cs-knowledge-graph-canvas" style="display:none; width:100%; border-radius:6px;"></canvas>
-                  </div>
-                  <div class="lcars-footer-bar" style="background:var(--cat-accent)"></div>
+            </div>
+
+            <!-- Idea Modal -->
+            <div class="devhq-modal-overlay" id="ideaModal" style="display:none;" onclick="if(event.target===this)closeModal('ideaModal')">
+                <div class="devhq-modal">
+                    <div class="devhq-modal-header">
+                        <span class="devhq-modal-title" id="ideaModalTitle" data-i18n="devhq.modal.new_idea">New Idea</span>
+                        <button class="devhq-modal-close" onclick="closeModal('ideaModal')">&times;</button>
+                    </div>
+                    <div class="devhq-modal-body">
+                        <input type="hidden" id="ideaEditId">
+                        <div class="devhq-field"><label data-i18n="devhq.modal.title">Title</label><input type="text" id="ideaTitle" placeholder="Idea title" data-i18n-placeholder="devhq.modal.idea_title_placeholder"></div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.description">Description</label><textarea id="ideaDesc" placeholder="Describe your idea..." data-i18n-placeholder="devhq.modal.idea_desc_placeholder"></textarea></div>
+                        <div class="devhq-field">
+                            <label data-i18n="devhq.modal.category">Category</label>
+                            <select id="ideaCategory">
+                                <option value="feature" data-i18n="devhq.type.feature">Feature</option>
+                                <option value="improvement" data-i18n="devhq.type.improvement">Improvement</option>
+                                <option value="research" data-i18n="devhq.type.research">Research</option>
+                                <option value="integration" data-i18n="devhq.type.integration">Integration</option>
+                            </select>
+                        </div>
+                        <div class="devhq-field">
+                            <label data-i18n="devhq.modal.priority_1_10">Priority (1-10)</label>
+                            <select id="ideaPriority">
+                                <option value="5" data-i18n="devhq.priority.five_medium">5 - Medium</option>
+                                <option value="1" data-i18n="devhq.priority.one_lowest">1 - Lowest</option>
+                                <option value="2">2</option><option value="3">3</option><option value="4">4</option>
+                                <option value="6">6</option><option value="7">7</option>
+                                <option value="8" data-i18n="devhq.priority.eight_high">8 - High</option>
+                                <option value="9">9</option>
+                                <option value="10" data-i18n="devhq.priority.ten_highest">10 - Highest</option>
+                            </select>
+                        </div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.tags">Tags</label><input type="text" id="ideaTags" placeholder="Comma-separated tags" data-i18n-placeholder="devhq.modal.tags_placeholder"></div>
+                    </div>
+                    <div class="devhq-modal-footer">
+                        <button class="devhq-btn secondary" onclick="closeModal('ideaModal')" data-i18n="devhq.modal.cancel">Cancel</button>
+                        <button class="devhq-btn primary" id="ideaSubmitBtn" onclick="submitIdea()" data-i18n="devhq.modal.create">Create</button>
+                    </div>
                 </div>
-              </div>
+            </div>
+
+            <!-- Decision Modal -->
+            <div class="devhq-modal-overlay" id="decisionModal" style="display:none;" onclick="if(event.target===this)closeModal('decisionModal')">
+                <div class="devhq-modal" style="max-width:700px;">
+                    <div class="devhq-modal-header">
+                        <span class="devhq-modal-title" id="decisionModalTitle" data-i18n="devhq.modal.new_decision">New Decision</span>
+                        <button class="devhq-modal-close" onclick="closeModal('decisionModal')">&times;</button>
+                    </div>
+                    <div class="devhq-modal-body">
+                        <input type="hidden" id="decisionEditId">
+                        <div class="devhq-field"><label data-i18n="devhq.modal.title">Title</label><input type="text" id="decisionTitle" placeholder="Decision title (e.g. ADR-032: ...)" data-i18n-placeholder="devhq.modal.decision_title_placeholder"></div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.project">Project</label><select id="decisionProject"><option value="" data-i18n="devhq.modal.select_project">Select project...</option></select></div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.context">Context</label><textarea id="decisionContext" placeholder="What is the context or problem?" data-i18n-placeholder="devhq.modal.context_placeholder"></textarea></div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.decision">Decision</label><textarea id="decisionText" placeholder="What was decided?" data-i18n-placeholder="devhq.modal.decision_placeholder"></textarea></div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.alternatives_considered">Alternatives Considered</label><textarea id="decisionAlternatives" placeholder="What other options were considered?" data-i18n-placeholder="devhq.modal.alternatives_placeholder"></textarea></div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.consequences">Consequences</label><textarea id="decisionConsequences" placeholder="What are the consequences of this decision?" data-i18n-placeholder="devhq.modal.consequences_placeholder"></textarea></div>
+                        <div class="devhq-field">
+                            <label data-i18n="devhq.modal.status">Status</label>
+                            <select id="decisionStatus">
+                                <option value="proposed" data-i18n="devhq.status.proposed">Proposed</option>
+                                <option value="accepted" data-i18n="devhq.status.accepted">Accepted</option>
+                                <option value="deprecated" data-i18n="devhq.status.deprecated">Deprecated</option>
+                            </select>
+                        </div>
+                        <div class="devhq-field"><label data-i18n="devhq.modal.tags">Tags</label><input type="text" id="decisionTags" placeholder="Comma-separated tags" data-i18n-placeholder="devhq.modal.tags_placeholder"></div>
+                    </div>
+                    <div class="devhq-modal-footer">
+                        <button class="devhq-btn secondary" onclick="closeModal('decisionModal')" data-i18n="devhq.modal.cancel">Cancel</button>
+                        <button class="devhq-btn primary" id="decisionSubmitBtn" onclick="submitDecision()" data-i18n="devhq.modal.create">Create</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Project Doc Modal -->
+            <div class="devhq-modal-overlay" id="projectDocModal" style="display:none;" onclick="if(event.target===this)closeModal('projectDocModal')">
+                <div class="devhq-modal" style="max-width:900px;">
+                    <div class="devhq-modal-header">
+                        <span class="devhq-modal-title" id="projectDocModalTitle" data-i18n="devhq.modal.new_document">New Document</span>
+                        <button class="devhq-modal-close" onclick="closeModal('projectDocModal')">&times;</button>
+                    </div>
+                    <div class="devhq-modal-body">
+                        <div class="devhq-field"><label data-i18n="devhq.modal.title">Title</label><input type="text" id="projectDocTitle" placeholder="Document title" data-i18n-placeholder="devhq.modal.document_title_placeholder"></div>
+                        <div class="devhq-field">
+                            <label data-i18n="devhq.modal.type">Type</label>
+                            <select id="projectDocType">
+                                <option value="design" data-i18n="devhq.doc_type.design_doc">Design Doc</option>
+                                <option value="spec" data-i18n="devhq.doc_type.specification">Specification</option>
+                                <option value="notes" data-i18n="devhq.doc_type.notes">Notes</option>
+                                <option value="runbook" data-i18n="devhq.doc_type.runbook">Runbook</option>
+                                <option value="adr" data-i18n="devhq.doc_type.adr">ADR</option>
+                            </select>
+                        </div>
+                        <div class="devhq-split-editor">
+                            <div class="editor-pane">
+                                <div class="devhq-field" style="margin-bottom:0;">
+                                    <label data-i18n="devhq.modal.content">Content</label>
+                                    <textarea id="projectDocContent" placeholder="Write content (Markdown supported)..." style="min-height:300px;" oninput="updateProjectDocPreview()" data-i18n-placeholder="devhq.modal.content_placeholder"></textarea>
+                                </div>
+                            </div>
+                            <div class="preview-pane devhq-md-content" id="projectDocPreview">
+                                <div style="color:var(--archie-text-muted);font-size:0.72rem;" data-i18n="devhq.modal.preview_placeholder">Preview will appear here...</div>
+                            </div>
+                        </div>
+                        <div class="devhq-field" style="margin-top:14px;"><label data-i18n="devhq.modal.tags">Tags</label><input type="text" id="projectDocTags" placeholder="Comma-separated tags" data-i18n-placeholder="devhq.modal.tags_placeholder"></div>
+                    </div>
+                    <div class="devhq-modal-footer">
+                        <button class="devhq-btn secondary" onclick="closeModal('projectDocModal')" data-i18n="devhq.modal.cancel">Cancel</button>
+                        <button class="devhq-btn primary" id="projectDocSubmitBtn" onclick="submitProjectDoc()" data-i18n="devhq.modal.create">Create</button>
+                    </div>
+                </div>
             </div>
 
         </div>
 
         <div class="cs-panel" id="panel-knowledge">
           <!-- Knowledge Operations Terminal (like Languages pattern) -->
+          <div style="--frame-color:#22d3ee; --frame-rgb:34,211,238; margin-bottom:20px;">
+            <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;">
+              <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+                <div class="lcars-elbow-top" style="height:52px !important;background:#22d3ee !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+                <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#22d3ee !important;flex-shrink:0 !important;"></div>
+                <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#06b6d4 !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+                <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#22d3ee;box-shadow:0 0 8px #22d3ee;"></div>
+                <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;"></div>
+                <div class="lcars-seg-fill" style="flex:1 !important;background:rgba(34,211,238,0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+                <div class="lcars-elbow-bottom" style="height:36px !important;background:#22d3ee !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+              </div>
+              <div class="lcars-content" style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+                <div class="lcars-bar" style="background:#22d3ee !important;height:14px !important;min-height:14px !important;flex-shrink:0 !important;border-radius:0 20px 20px 0 !important;"></div>
+                <div class="lcars-body" style="flex:1;padding:16px;">
           <div class="cs-ops-terminal" id="kbOpsTerminal">
             <div class="cs-ops-header">
               <div class="cs-ops-elbow"></div>
@@ -2926,7 +3512,35 @@
               <div id="procResult" style="margin-top:8px;"></div>
             </div>
           </div>
+                </div>
+                <div class="lcars-footer-bar" style="background:#22d3ee !important;height:10px !important;min-height:10px !important;flex-shrink:0 !important;border-radius:0 20px 20px 0 !important;"></div>
+              </div>
+            </div>
+          </div>
 
+            <div style="--frame-color:#22d3ee; --frame-rgb:34,211,238; margin-bottom:20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: #22d3ee !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22d3ee !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #06b6d4 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#22d3ee;box-shadow:0 0 8px #22d3ee;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(34,211,238,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #22d3ee !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: #22d3ee !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">KNOWLEDGE BASE</span>
+                            <div style="flex:1"></div>
+                            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">EXPLORER</span>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
           <div class="cs-subtabs">
             <button class="cs-subtab active" onclick="switchKnowledgeSubtab('browser')"><i data-lucide="search"></i> <span data-i18n="consciousness.browser">Browser</span></button>
             <button class="cs-subtab" onclick="switchKnowledgeSubtab('categories')"><i data-lucide="folder-tree"></i> <span data-i18n="consciousness.categories">Categories</span></button>
@@ -3009,6 +3623,7 @@
               <div id="graphNodeMeta" style="font-size:0.8rem;color:rgba(255,255,255,0.5);"></div>
             </div>
           </div>
+                        </div></div></div></div>
         </div>
 
         <!-- Team panel removed — merged into Starbase Command → Crew → Manifest -->
@@ -3018,6 +3633,20 @@
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-languages">
           <!-- LCARS Operations Terminal (top) -->
+          <div style="--frame-color:#10b981; --frame-rgb:16,185,129; margin-bottom:20px;">
+            <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;">
+              <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+                <div class="lcars-elbow-top" style="height:52px !important;background:#10b981 !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+                <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#10b981 !important;flex-shrink:0 !important;"></div>
+                <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#059669 !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+                <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#10b981;box-shadow:0 0 8px #10b981;"></div>
+                <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;"></div>
+                <div class="lcars-seg-fill" style="flex:1 !important;background:rgba(16,185,129,0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+                <div class="lcars-elbow-bottom" style="height:36px !important;background:#10b981 !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+              </div>
+              <div class="lcars-content" style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+                <div class="lcars-bar" style="background:#10b981 !important;height:14px !important;min-height:14px !important;flex-shrink:0 !important;border-radius:0 20px 20px 0 !important;"></div>
+                <div class="lcars-body" style="flex:1;padding:16px;">
           <div class="cs-ops-terminal" id="langOpsTerminal">
             <div class="cs-ops-header">
               <div class="cs-ops-elbow"></div>
@@ -3034,8 +3663,36 @@
               <div id="langScanStatus" style="display:none; margin-top:8px; font-size:0.82rem; color:rgba(255,255,255,0.6);"></div>
             </div>
           </div>
+                </div>
+                <div class="lcars-footer-bar" style="background:#10b981 !important;height:10px !important;min-height:10px !important;flex-shrink:0 !important;border-radius:0 20px 20px 0 !important;"></div>
+              </div>
+            </div>
+          </div>
 
           <!-- LCARS Readout Strips -->
+            <div style="--frame-color:#22d3ee; --frame-rgb:34,211,238; margin-bottom:20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: #22d3ee !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22d3ee !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #06b6d4 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#22d3ee;box-shadow:0 0 8px #22d3ee;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(34,211,238,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #22d3ee !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: #22d3ee !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">TRANSLATION STATUS</span>
+                            <div style="flex:1"></div>
+                            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">LIVE</span>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
           <div class="cs-gh-readouts">
             <div class="cs-gh-strip purple">
               <div class="cs-gh-cap"></div>
@@ -3066,8 +3723,31 @@
               <div class="cs-gh-strip-value" id="langPending">--</div>
             </div>
           </div>
+                        </div></div></div></div>
 
-          <!-- Language Coverage Section -->
+            <div style="--frame-color:#8b5cf6; --frame-rgb:139,92,246; margin-bottom:20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#8b5cf6;box-shadow:0 0 8px #8b5cf6;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">COVERAGE</span>
+                            <div style="flex:1"></div>
+                            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">ANALYSIS</span>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
           <div class="cs-gh-repo-section">
             <div class="cs-gh-repo-bar">
               <div class="cs-gh-repo-bar-cap"></div>
@@ -3084,8 +3764,31 @@
             </div>
             <div id="langCoverageGrid"><div class="cs-loading"><span data-i18n="consciousness.loading_coverage">Loading coverage...</span></div></div>
           </div>
+                        </div></div></div></div>
 
-          <!-- Translation Browser Section -->
+            <div style="--frame-color:#f59e0b; --frame-rgb:245,158,11; margin-bottom:20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#f59e0b;box-shadow:0 0 8px #f59e0b;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">TRANSLATIONS</span>
+                            <div style="flex:1"></div>
+                            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">BROWSER</span>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
           <div class="cs-gh-repo-section">
             <div class="cs-gh-repo-bar">
               <div class="cs-gh-repo-bar-cap"></div>
@@ -3144,6 +3847,7 @@
             </div>
             <div id="langGlossaryList"><div class="cs-loading"><span data-i18n="consciousness.loading_glossary">Loading...</span></div></div>
           </div>
+                        </div></div></div></div>
         </div>
 
         <!-- ════════════════════════════════════════════════════════ -->
@@ -3152,6 +3856,20 @@
         <div class="cs-panel" id="panel-github">
 
             <!-- GitHub Operations Terminal (Station Crew pattern) -->
+            <div style="--frame-color:#8b5cf6; --frame-rgb:139,92,246; margin-bottom:20px;">
+              <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;">
+                <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+                  <div class="lcars-elbow-top" style="height:52px !important;background:#8b5cf6 !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+                  <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#8b5cf6 !important;flex-shrink:0 !important;"></div>
+                  <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#7c3aed !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+                  <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#8b5cf6;box-shadow:0 0 8px #8b5cf6;"></div>
+                  <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;"></div>
+                  <div class="lcars-seg-fill" style="flex:1 !important;background:rgba(139,92,246,0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+                  <div class="lcars-elbow-bottom" style="height:36px !important;background:#8b5cf6 !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+                </div>
+                <div class="lcars-content" style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+                  <div class="lcars-bar" style="background:#8b5cf6 !important;height:14px !important;min-height:14px !important;flex-shrink:0 !important;border-radius:0 20px 20px 0 !important;"></div>
+                  <div class="lcars-body" style="flex:1;padding:16px;">
             <div class="cs-ops-terminal" id="ghOpsTerminal">
               <div class="cs-ops-header">
                 <div class="cs-ops-elbow"></div>
@@ -3167,8 +3885,35 @@
                 <div id="ghActiveJob" style="display:none; margin-top:10px; font-size:0.82rem;"></div>
               </div>
             </div>
+                  </div>
+                  <div class="lcars-footer-bar" style="background:#8b5cf6 !important;height:10px !important;min-height:10px !important;flex-shrink:0 !important;border-radius:0 20px 20px 0 !important;"></div>
+                </div>
+              </div>
+            </div>
 
-            <!-- Zone 1: Knowledge Intake Port -->
+            <div style="--frame-color:#8b5cf6; --frame-rgb:139,92,246; margin-bottom:20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#8b5cf6;box-shadow:0 0 8px #8b5cf6;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">KNOWLEDGE INTAKE</span>
+                            <div style="flex:1"></div>
+                            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">INGEST</span>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
             <div class="gh-intake">
                 <div class="gh-intake-title">Knowledge Intake</div>
                 <div class="gh-intake-row">
@@ -3237,8 +3982,31 @@
                     <div class="cs-gh-strip-value" id="ghSearchable">--</div>
                 </div>
             </div>
+                        </div></div></div></div><!-- /G1 intake frame -->
 
-            <!-- Zone 2: Repository Intelligence Cards -->
+            <div style="--frame-color:#22d3ee; --frame-rgb:34,211,238; margin-bottom:20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: #22d3ee !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22d3ee !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #06b6d4 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#22d3ee;box-shadow:0 0 8px #22d3ee;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(34,211,238,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #22d3ee !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: #22d3ee !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">REPOSITORY INTELLIGENCE</span>
+                            <div style="flex:1"></div>
+                            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">INDEX</span>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
             <div class="gh-cards-header">
                 <div class="gh-cards-header-cap"></div>
                 <div class="gh-cards-header-title">Indexed Repositories</div>
@@ -3285,8 +4053,31 @@
             <div id="ghSkillCards" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px; margin:12px 0;">
                 <div class="cs-loading">Skill data loads after first analysis cycle...</div>
             </div>
+                        </div></div></div></div><!-- /G2 repos+skills frame -->
 
-            <!-- Zone 4: Discovery Console -->
+            <div style="--frame-color:#f59e0b; --frame-rgb:245,158,11; margin-bottom:20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#f59e0b;box-shadow:0 0 8px #f59e0b;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">DISCOVERY</span>
+                            <div style="flex:1"></div>
+                            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">SEARCH</span>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
             <div class="gh-discovery">
                 <div class="gh-discovery-title">Discovery</div>
                 <input type="text" class="gh-discovery-input" id="ghDiscoveryInput"
@@ -3294,6 +4085,7 @@
                        onkeydown="if(event.key==='Enter')searchGithubSemantic()">
                 <div class="gh-discovery-results" id="ghDiscoveryResults"></div>
             </div>
+                        </div></div></div></div>
 
             <!-- Repository Explorer (full-page takeover) -->
             <div class="gh-explorer" id="ghRepoExplorer" style="display:none;">
@@ -3318,8 +4110,6 @@
                 </div>
             </div>
         </div>
-
-    </div><!-- /.cs-body -->
 
     <!-- Agent Profile Modal removed — merged into Starbase Command -->
 
@@ -3400,7 +4190,30 @@
         <div class="cs-panel" id="panel-codehealth">
 
             <!-- ═══ SECTION 1: SYSTEM HEALTH OVERVIEW ═══ -->
-            <div class="ch-narrative-section">
+            <div style="--frame-color:#10b981; --frame-rgb:16,185,129; margin-bottom:20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: #10b981 !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #10b981 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #059669 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#10b981;box-shadow:0 0 8px #10b981;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(16,185,129,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #10b981 !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: #10b981 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SYSTEM HEALTH</span>
+                            <div style="flex:1"></div>
+                            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">DIAGNOSTIC</span>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
+            <div class="ch-narrative-section" style="margin-bottom:0;">
                 <div class="ch-narrative-header">
                     <span class="ch-narrative-num">01</span>
                     <span class="ch-narrative-title">SYSTEM HEALTH</span>
@@ -3460,9 +4273,33 @@
                     </div>
                 </div>
             </div>
+                  </div></div></div></div><!-- /section 1 frame -->
 
-            <!-- ═══ SECTION 2: WHAT'S GOOD ═══ -->
-            <div class="ch-narrative-section">
+            <!-- ═══ SECTION 2: CODEBASE OVERVIEW ═══ -->
+            <div style="--frame-color:#22d3ee; --frame-rgb:34,211,238; margin-bottom:20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: #22d3ee !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22d3ee !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #06b6d4 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#22d3ee;box-shadow:0 0 8px #22d3ee;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(34,211,238,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #22d3ee !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: #22d3ee !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">CODEBASE OVERVIEW</span>
+                            <div style="flex:1"></div>
+                            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">METRICS</span>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
+            <div class="ch-narrative-section" style="margin-bottom:0;">
                 <div class="ch-narrative-header">
                     <span class="ch-narrative-num">02</span>
                     <span class="ch-narrative-title">CODEBASE OVERVIEW</span>
@@ -3565,9 +4402,33 @@
                     <div class="ch-table-body" id="chWebsiteTable"></div>
                 </div>
             </div>
+                  </div></div></div></div><!-- /section 2 frame -->
 
             <!-- ═══ SECTION 3: WHAT NEEDS ATTENTION ═══ -->
-            <div class="ch-narrative-section">
+            <div style="--frame-color:#f59e0b; --frame-rgb:245,158,11; margin-bottom:20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#f59e0b;box-shadow:0 0 8px #f59e0b;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#ef4444;box-shadow:0 0 8px #ef4444;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">NEEDS ATTENTION</span>
+                            <div style="flex:1"></div>
+                            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">ALERTS</span>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
+            <div class="ch-narrative-section" style="margin-bottom:0;">
                 <div class="ch-narrative-header">
                     <span class="ch-narrative-num">03</span>
                     <span class="ch-narrative-title">NEEDS ATTENTION</span>
@@ -3599,9 +4460,33 @@
                     <div class="ch-table-body" id="chAuditTable"></div>
                 </div>
             </div>
+                  </div></div></div></div><!-- /section 3 frame -->
 
             <!-- ═══ SECTION 4: REPAIR BAY PIPELINE ═══ -->
-            <div class="ch-narrative-section">
+            <div style="--frame-color:#8b5cf6; --frame-rgb:139,92,246; margin-bottom:20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#8b5cf6;box-shadow:0 0 8px #8b5cf6;animation:bmLightPulse 2s ease-in-out infinite;"></div>
+                        <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">REPAIR BAY PIPELINE</span>
+                            <div style="flex:1"></div>
+                            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">ENGINEERING</span>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
+            <div class="ch-narrative-section" style="margin-bottom:0;">
                 <div class="ch-narrative-header">
                     <span class="ch-narrative-num">04</span>
                     <span class="ch-narrative-title">REPAIR BAY PIPELINE</span>
@@ -3688,6 +4573,7 @@
             </style>
 
         </div>
+                  </div></div></div></div><!-- /section 4 frame -->
 
         <!-- Audit Detail Modal (LCARS Tablet) -->
         <div class="cs-modal-overlay" id="chAuditModal">
@@ -3724,6 +4610,8 @@
             </div>
         </div>
 
+    </div><!-- /.cs-body -->
+
 </div><!-- /.cs-container -->
 
 <!-- External Libraries -->
@@ -3750,4 +4638,5 @@
 <script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script src="{{ url_for('static', filename='js/consciousness.js') }}"></script>
 <script src="/static/js/consciousness-dashboard-v2.js"></script>
+<script src="{{ url_for('static', filename='js/devhq.js') }}"></script>
 {% endblock %}

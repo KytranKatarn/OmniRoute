@@ -26,6 +26,7 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  gap: 4px;
 }
 
 .lcars-header-main {
@@ -39,10 +40,10 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
    2. ELBOW TOP (back arrow)
    ============================================================ */
 .lcars-header-elbow-top {
-  height: 34px;
+  flex: 3;
   flex-shrink: 0;
-  background: linear-gradient(135deg, var(--cat-accent), var(--cat-accent-dark));
-  border-radius: 16px 0 0 0;
+  background: var(--cat-accent, #00ffff);
+  border-radius: 20px 0 0 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -77,14 +78,14 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
    ============================================================ */
 .lcars-header-elbow-bottom {
   flex: 1;
-  background: linear-gradient(180deg, var(--cat-accent-dark), color-mix(in srgb, var(--cat-accent-dark) 70%, #000 30%));
-  border-radius: 0 0 0 16px;
+  background: var(--cat-accent, #00ffff);
+  border-radius: 0 0 0 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-evenly;
   gap: 0;
-  padding: 8px 4px;
+  padding: 0;
   overflow: hidden;
 }
 
@@ -130,26 +131,16 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
 }
 
 /* ============================================================
-   4. ALERT STATES
+   4. ALERT STATES — only bottom elbow flashes
    ============================================================ */
-[data-alert-state="warning"] .lcars-header-elbow-top,
 [data-alert-state="warning"] .lcars-header-elbow-bottom {
-  background: linear-gradient(135deg, #ff9f43, #e67e22);
+  background: #ff9f43;
   animation: lcarsElbowPulse 2s ease-in-out infinite;
 }
 
-[data-alert-state="warning"] .lcars-header-elbow-bottom {
-  background: linear-gradient(180deg, #e67e22, color-mix(in srgb, #e67e22 70%, #000 30%));
-}
-
-[data-alert-state="critical"] .lcars-header-elbow-top,
 [data-alert-state="critical"] .lcars-header-elbow-bottom {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
+  background: #ef4444;
   animation: lcarsElbowPulse 1s ease-in-out infinite;
-}
-
-[data-alert-state="critical"] .lcars-header-elbow-bottom {
-  background: linear-gradient(180deg, #dc2626, color-mix(in srgb, #dc2626 70%, #000 30%));
 }
 
 @keyframes lcarsElbowPulse {
@@ -162,40 +153,42 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
    5. TITLE BAR
    ============================================================ */
 .lcars-header-bar {
-  background: linear-gradient(
-    to right,
-    var(--cat-accent),
-    var(--cat-accent-dark) 40%,
-    transparent 100%
-  );
+  background: var(--cat-accent, #00ffff);
+  border-radius: 0 20px 20px 0;
   padding: 5px 16px;
-  min-height: 32px;
+  height: 44px;
+  min-height: 44px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   flex-shrink: 0;
+  position: relative;
 }
 
 .lcars-header-title {
-  font-family: 'Antonio', sans-serif;
-  font-weight: 700;
-  font-size: 1rem;
-  color: rgba(0, 0, 0, 0.82);
+  font-family: 'Orbitron', 'Antonio', sans-serif;
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: rgba(0, 0, 0, 0.9);
   text-transform: uppercase;
-  letter-spacing: 1.5px;
+  letter-spacing: 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.2;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.2);
 }
 
 .lcars-header-category {
   font-family: 'Antonio', sans-serif;
-  font-size: 0.65rem;
-  color: rgba(0, 0, 0, 0.55);
+  font-size: 0.6rem;
+  color: rgba(0, 0, 0, 0.45);
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 2px;
   white-space: nowrap;
+  position: absolute;
+  right: 20px;
 }
 
 .lcars-header-stardate {
@@ -295,14 +288,12 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
 .lcars-header-tabs {
   display: flex;
   flex-direction: row;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  flex-wrap: wrap;
   gap: 4px;
-  padding: 6px 16px;
-  background: rgba(var(--cat-accent-rgb), 0.03);
-  border-bottom: 2px solid rgba(var(--cat-accent-rgb), 0.2);
+  padding: 10px 14px;
+  background: rgba(var(--cat-accent-rgb), 0.04);
+  border-radius: 0 0 14px 0;
+  justify-content: center;
   flex-shrink: 0;
 }
 
@@ -362,9 +353,9 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
    6b. FOOTER BAR (bridges nav to content below)
    ============================================================ */
 .lcars-header-footer {
-  height: 12px;
-  background: linear-gradient(90deg, var(--cat-accent), var(--cat-accent-dark) 40%, transparent 100%);
-  border-radius: 0 20px 20px 0;
+  height: 6px;
+  background: var(--cat-accent, #00ffff);
+  border-radius: 0 14px 0 0;
   flex-shrink: 0;
   position: relative;
 }

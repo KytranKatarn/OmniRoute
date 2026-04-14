@@ -59,7 +59,8 @@ function setContent(el, safeHtml) {
 function loadAgentList() {
     return api('/api/models/agents').then(function(data) {
         aaAgents = data.agents || [];
-        document.getElementById('aa-agent-count').textContent = aaAgents.length;
+        var aCnt = document.getElementById('aa-agent-count');
+        if (aCnt) aCnt.textContent = aaAgents.length;
         populateAgentSelects();
         populateDeptFilter();
     }).catch(function(e) {
@@ -208,7 +209,8 @@ function loadRankings() {
     api('/api/benchmarks/rankings').then(function(data) {
         var caps = data.capabilities || {};
         var skills = Object.keys(caps);
-        document.getElementById('aa-skill-count').textContent = skills.length;
+        var sCnt = document.getElementById('aa-skill-count');
+        if (sCnt) sCnt.textContent = skills.length;
 
         if (!skills.length) {
             setContent('rankings-container', '<div class="aa-empty">No skills data yet. Run benchmarks to populate rankings.</div>');

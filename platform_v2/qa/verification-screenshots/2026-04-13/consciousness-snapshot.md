@@ -1,0 +1,256 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "Back to Dashboard" [ref=e5] [cursor=pointer]:
+      - /url: /dashboard
+      - img [ref=e208]
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]: CONSCIOUSNESS
+        - generic [ref=e12]: AI COMMAND
+      - generic [ref=e13]:
+        - generic [ref=e14]: SD 2026102.5
+        - button "EN" [ref=e16] [cursor=pointer]:
+          - img [ref=e210]
+          - generic [ref=e20]: EN
+        - button "THEME" [ref=e22] [cursor=pointer]:
+          - img [ref=e213]
+          - generic [ref=e25]: THEME
+        - button "ALERTS 11" [ref=e27] [cursor=pointer]:
+          - img [ref=e215]
+          - generic [ref=e31]: ALERTS
+          - generic [ref=e32]: "11"
+        - link "A.R.C.H.I.E." [ref=e34] [cursor=pointer]:
+          - /url: /tools/archie-chat
+          - img [ref=e218]
+          - generic [ref=e38]: A.R.C.H.I.E.
+        - link "CONSCIOUSNESS" [ref=e39] [cursor=pointer]:
+          - /url: /tools/consciousness
+          - img [ref=e221]
+          - generic [ref=e48]: CONSCIOUSNESS
+        - link "DEPT HQ" [ref=e49] [cursor=pointer]:
+          - /url: /tools/department-hq
+          - img [ref=e229]
+          - generic [ref=e53]: DEPT HQ
+        - link "ACADEMY" [ref=e54] [cursor=pointer]:
+          - /url: /tools/agent-academy
+          - img [ref=e232]
+          - generic [ref=e58]: ACADEMY
+        - link "REPAIR BAY" [ref=e59] [cursor=pointer]:
+          - /url: /tools/repair-bay
+          - img [ref=e235]
+          - generic [ref=e62]: REPAIR BAY
+      - generic [ref=e63]:
+        - button "Dashboard" [ref=e64] [cursor=pointer]:
+          - img [ref=e237]
+          - generic [ref=e70]: Dashboard
+        - button "Dev HQ" [ref=e71] [cursor=pointer]:
+          - img [ref=e242]
+          - generic [ref=e74]: Dev HQ
+        - button "Knowledge" [ref=e75] [cursor=pointer]:
+          - img [ref=e244]
+          - generic [ref=e78]: Knowledge
+        - button "GitHub" [ref=e79] [cursor=pointer]:
+          - img [ref=e246]
+          - generic [ref=e84]: GitHub
+        - button "Languages" [ref=e85] [cursor=pointer]:
+          - img [ref=e250]
+          - generic [ref=e90]: Languages
+        - button "Code Health" [ref=e91] [cursor=pointer]:
+          - img [ref=e254]
+          - generic [ref=e94]: Code Health
+  - generic [ref=e98]:
+    - generic [ref=e109]:
+      - generic [ref=e110]:
+        - generic [ref=e111]: NEURAL CORE
+        - generic [ref=e112]: LIVE
+      - generic [ref=e118]:
+        - generic:
+          - generic: INITIALIZING NEURAL CORE
+          - text: INITIALIZING NEURAL CORE
+        - generic:
+          - img
+          - generic:
+            - generic: A.R.C.H.I.E.
+            - generic: focused
+          - generic "Conv" [ref=e256] [cursor=pointer]:
+            - generic [ref=e257]: 4.2K
+            - generic [ref=e258]: Conv
+          - generic "Code" [ref=e259] [cursor=pointer]:
+            - generic [ref=e260]: 19.6K
+            - generic [ref=e261]: Code
+          - generic "Vault" [ref=e262] [cursor=pointer]:
+            - generic [ref=e263]: "646"
+            - generic [ref=e264]: Vault
+          - generic "Repos" [ref=e265] [cursor=pointer]:
+            - generic [ref=e266]: "62"
+            - generic [ref=e267]: Repos
+          - generic "Learn" [ref=e268] [cursor=pointer]:
+            - generic [ref=e269]: "112"
+            - generic [ref=e270]: Learn
+          - generic "Sessions" [ref=e271] [cursor=pointer]:
+            - generic [ref=e272]: "208"
+            - generic [ref=e273]: Sessions
+          - generic "Languages" [ref=e274] [cursor=pointer]:
+            - generic [ref=e275]: 30.1K
+            - generic [ref=e276]: Languages
+          - generic "Decisions" [ref=e277] [cursor=pointer]:
+            - generic [ref=e278]: "429"
+            - generic [ref=e279]: Decisions
+        - generic:
+          - generic [ref=e122]: 55,989 Knowledge
+          - generic [ref=e123]: 19,439 GitHub Files
+          - generic [ref=e124]: 99% Embedded
+          - generic [ref=e125]: 131/131 Agents
+          - generic [ref=e126]: 746 Project Links
+          - generic [ref=e127]: 36 Projects
+          - generic [ref=e128]: 38% Completeness
+          - generic [ref=e129]: 57 Quality
+          - generic [ref=e130]: 599,310 Code Lines
+          - generic [ref=e131]: A Health
+    - generic [ref=e142]:
+      - generic [ref=e144]: DEPARTMENT HQ ANALYTICS · 7 DAYS
+      - generic [ref=e148]:
+        - generic:
+          - generic [ref=e149]: 1,195 Dispatches
+          - generic [ref=e150]: 186s Avg Response
+          - generic [ref=e151]: "-- Total Tokens"
+          - generic [ref=e152]: 647 New Knowledge
+    - generic [ref=e164]:
+      - generic [ref=e166]: FLEET STATUS
+      - generic [ref=e172]:
+        - generic [ref=e173]:
+          - generic [ref=e174]: Recent Activity
+          - generic [ref=e175]:
+            - generic [ref=e280]:
+              - img [ref=e281]
+              - generic [ref=e287]: "Bridge task #26870"
+              - generic [ref=e288]: 21m ago
+            - generic [ref=e289]:
+              - img [ref=e290]
+              - generic [ref=e292]: LCARS content frames — A.R.C.H.I.E. Chat (5 tabs)
+              - generic [ref=e293]: 1h ago
+            - generic [ref=e294]:
+              - img [ref=e295]
+              - generic [ref=e297]: LCARS content frames — Repair Bay (6 tabs)
+              - generic [ref=e298]: 1h ago
+            - generic [ref=e299]:
+              - img [ref=e300]
+              - generic [ref=e302]: LCARS content frames — Agent Academy (5 tabs)
+              - generic [ref=e303]: 1h ago
+            - generic [ref=e304]:
+              - img [ref=e305]
+              - generic [ref=e307]: LCARS content frames — Department HQ (12 tabs)
+              - generic [ref=e308]: 1h ago
+            - generic [ref=e309]:
+              - img [ref=e310]
+              - generic [ref=e312]: P.R.O.B.E. baseline screenshots — all AI Command module tabs
+              - generic [ref=e313]: 1h ago
+            - generic [ref=e314]:
+              - img [ref=e315]
+              - generic [ref=e321]: "Bridge task #26869"
+              - generic [ref=e322]: 5h ago
+            - generic [ref=e323]:
+              - img [ref=e324]
+              - generic [ref=e330]: "Bridge task #26868"
+              - generic [ref=e331]: 6h ago
+            - generic [ref=e332]:
+              - img [ref=e333]
+              - generic [ref=e339]: "Bridge task #26867"
+              - generic [ref=e340]: 6h ago
+            - generic [ref=e341]:
+              - img [ref=e342]
+              - generic [ref=e348]: "Bridge task #26866"
+              - generic [ref=e349]: 6h ago
+            - generic [ref=e350]:
+              - img [ref=e351]
+              - generic [ref=e353]: No pre-flight snapshot for command-type fixes
+              - generic [ref=e354]: 6h ago
+            - generic [ref=e355]:
+              - img [ref=e356]
+              - generic [ref=e358]: "Project #238 - Filter Audit Pre-User Onboarding"
+              - generic [ref=e359]: 8h ago
+            - generic [ref=e360]:
+              - img [ref=e361]
+              - generic [ref=e363]: AdGuard Rule Configuration Adjustment
+              - generic [ref=e364]: 8h ago
+            - generic [ref=e365]:
+              - img [ref=e366]
+              - generic [ref=e368]: KSO Compliance Report — Template Data Mapping Issues
+              - generic [ref=e369]: 16h ago
+            - generic [ref=e370]:
+              - img [ref=e371]
+              - generic [ref=e373]: KSO Compliance Scanner — Full Pipeline Working (100% Network STIG)
+              - generic [ref=e374]: 16h ago
+        - generic [ref=e177]:
+          - generic [ref=e178]: Fleet Wellness
+          - generic [ref=e179]:
+            - generic [ref=e180]:
+              - generic [ref=e182]: Emotional State
+              - generic [ref=e183]: "--"
+            - generic [ref=e184]:
+              - generic [ref=e185]: Energy
+              - generic [ref=e187]: 100%
+            - generic [ref=e188]:
+              - generic [ref=e189]: Stress
+              - generic [ref=e191]: 3%
+            - generic [ref=e192]:
+              - generic [ref=e193]: Mood
+              - generic [ref=e195]: 50%
+            - generic [ref=e378]:
+              - generic [ref=e379]:
+                - generic [ref=e380]: "59"
+                - generic [ref=e381]: Active
+              - generic [ref=e382]:
+                - generic [ref=e383]: "69"
+                - generic [ref=e384]: Reserve
+              - generic [ref=e385]:
+                - generic [ref=e386]: "3"
+                - generic [ref=e387]: Off Duty
+              - generic [ref=e388]:
+                - generic [ref=e389]: "1"
+                - generic [ref=e390]: Tasks/1h
+              - generic [ref=e391]:
+                - generic [ref=e392]: 0%
+                - generic [ref=e393]: Success
+        - generic [ref=e196]:
+          - generic [ref=e197]: Dev HQ Activity
+          - generic [ref=e198]:
+            - generic [ref=e394]: Recent Projects
+            - generic [ref=e395]:
+              - img [ref=e396]
+              - generic [ref=e398]: P.R.O.B.E. Visual Regression — Automated QA Pipeline
+              - generic [ref=e399]: planning
+            - generic [ref=e400]:
+              - img [ref=e401]
+              - generic [ref=e403]: Chrome DevTools MCP — xvfb-run Fix & Verification
+              - generic [ref=e404]: planning
+            - generic [ref=e405]:
+              - img [ref=e406]
+              - generic [ref=e408]: LCARS Content Frame Audit — AI Command Modules
+              - generic [ref=e409]: planning
+            - generic [ref=e410]:
+              - img [ref=e411]
+              - generic [ref=e413]: LCARS Header Standardization — AI Command Modules
+              - generic [ref=e414]: planning
+            - generic [ref=e415]:
+              - img [ref=e416]
+              - generic [ref=e418]: KBS Workflow Automation — n8n Integration
+              - generic [ref=e419]: planning
+            - generic [ref=e420]: Recent Decisions
+            - generic [ref=e421]:
+              - img [ref=e422]
+              - generic [ref=e424]: Unified LCARS Header + Unified Alert System for AI Command modules
+              - generic [ref=e425]: 1h ago
+            - generic [ref=e426]:
+              - img [ref=e427]
+              - generic [ref=e429]: Disable Automations module — move to KBS as n8n integration
+              - generic [ref=e430]: 3h ago
+            - generic [ref=e431]:
+              - img [ref=e432]
+              - generic [ref=e434]: Merge Dev HQ into Consciousness module as Dev HQ tab
+              - generic [ref=e435]: 5h ago
+    - button "PIPELINE TEST" [ref=e202] [cursor=pointer]:
+      - generic [ref=e203]: PIPELINE TEST
+      - img [ref=e436]
+    - generic [ref=e206]: Last updated 14:23:15
+  - button "💬" [ref=e207] [cursor=pointer]

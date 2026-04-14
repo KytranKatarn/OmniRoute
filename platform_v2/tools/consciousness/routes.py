@@ -3288,7 +3288,7 @@ def list_agent_memories():
 
         cur.execute(
             f"""
-            SELECT am.*, a.name as agent_name, a.role as agent_role,
+            SELECT am.*, a.name as agent_name, a.title as agent_role,
                    u.username as deleted_by_username
             FROM agent_memory am
             LEFT JOIN agents a ON am.agent_id = a.id
@@ -3344,7 +3344,7 @@ def get_agent_memory(memory_id):
 
         cur.execute(
             """
-            SELECT am.*, a.name as agent_name, a.role as agent_role,
+            SELECT am.*, a.name as agent_name, a.title as agent_role,
                    u.username as deleted_by_username
             FROM agent_memory am
             LEFT JOIN agents a ON am.agent_id = a.id

@@ -82,6 +82,20 @@ STANDALONE_PRODUCTS = [
         "tier": 1,
         "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu"],
     },
+    {
+        "name": "C.R.E.E.D. Governance Platform",
+        "path": "/mnt/archie_brain/kytran-creed",
+        "module_key": "standalone_creed_governance",
+        "tier": 2,
+        "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig", "cis-ubuntu"],
+    },
+    {
+        "name": "The News (What The Fact)",
+        "path": "/mnt/archie_brain/website/thenews.kytranempowerment.com",
+        "module_key": "standalone_kytran_news",
+        "tier": 1,
+        "compliance_packs": ["ubuntu-stig", "docker-stig"],
+    },
 ]
 
 # Infrastructure services tracked in Code Health (not customer-facing products)
@@ -110,6 +124,11 @@ WEBSITE_PRODUCTS = [
         "name": "thenews.kytranempowerment.com",
         "path": "/mnt/archie_brain/website/thenews.kytranempowerment.com",
         "module_key": "website_kytran_news",
+    },
+    {
+        "name": "what-the-fact.com",
+        "path": "/mnt/archie_brain/website/what-the-fact.com",
+        "module_key": "website_what_the_fact",
     },
 ]
 

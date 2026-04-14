@@ -1,0 +1,89 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "Back to Dashboard" [ref=e5] [cursor=pointer]:
+      - /url: /dashboard
+      - img [ref=e6]
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]: A.R.C.H.I.E. CHAT
+        - generic [ref=e12]: AI COMMAND
+      - generic [ref=e13]:
+        - generic [ref=e14]: SD 2026102.5
+        - button "EN" [ref=e16] [cursor=pointer]:
+          - img [ref=e17]
+          - generic [ref=e20]: EN
+        - button "THEME" [ref=e22] [cursor=pointer]:
+          - img [ref=e23]
+          - generic [ref=e25]: THEME
+        - button "ALERTS 11" [ref=e110] [cursor=pointer]:
+          - img [ref=e28]
+          - generic [ref=e31]: ALERTS
+          - generic [ref=e111]: "11"
+        - link "A.R.C.H.I.E." [ref=e33] [cursor=pointer]:
+          - /url: /tools/archie-chat
+          - img [ref=e34]
+          - generic [ref=e37]: A.R.C.H.I.E.
+        - link "CONSCIOUSNESS" [ref=e38] [cursor=pointer]:
+          - /url: /tools/consciousness
+          - img [ref=e39]
+          - generic [ref=e47]: CONSCIOUSNESS
+        - link "DEPT HQ" [ref=e48] [cursor=pointer]:
+          - /url: /tools/department-hq
+          - img [ref=e49]
+          - generic [ref=e52]: DEPT HQ
+        - link "ACADEMY" [ref=e53] [cursor=pointer]:
+          - /url: /tools/agent-academy
+          - img [ref=e54]
+          - generic [ref=e57]: ACADEMY
+        - link "REPAIR BAY" [ref=e58] [cursor=pointer]:
+          - /url: /tools/repair-bay
+          - img [ref=e59]
+          - generic [ref=e61]: REPAIR BAY
+      - generic [ref=e62]:
+        - button "Chat" [ref=e63] [cursor=pointer]:
+          - img [ref=e64]
+          - generic [ref=e66]: Chat
+        - button "History" [ref=e67] [cursor=pointer]:
+          - img [ref=e68]
+          - generic [ref=e71]: History
+        - button "Collaboration" [ref=e72] [cursor=pointer]:
+          - img [ref=e73]
+          - generic [ref=e78]: Collaboration
+        - button "Claude TTY" [ref=e79] [cursor=pointer]:
+          - img [ref=e80]
+          - generic [ref=e82]: Claude TTY
+        - button "Settings" [ref=e83] [cursor=pointer]:
+          - img [ref=e84]
+          - generic [ref=e87]: Settings
+  - generic [ref=e90]:
+    - complementary [ref=e91]:
+      - button "+ New Chat" [ref=e93] [cursor=pointer]:
+        - generic [ref=e94]: +
+        - text: New Chat
+      - generic [ref=e95]:
+        - generic [ref=e113] [cursor=pointer]: Hey archie does this work
+        - generic [ref=e115] [cursor=pointer]: Hello ARCHIE, list your 10 stations briefly
+        - generic [ref=e117] [cursor=pointer]: Hey Archie
+      - generic [ref=e96]:
+        - generic [ref=e97]: Route to
+        - combobox "Route to" [ref=e98] [cursor=pointer]:
+          - option "Auto-route" [selected]
+          - option "COMMAND"
+          - option "ANALYTICS"
+          - option "CREATIVE"
+          - option "ENGINEERING"
+          - option "COMMUNICATIONS"
+          - option "RESEARCH"
+          - option "SECURITY"
+          - option "LOGISTICS"
+          - option "DIPLOMATIC"
+          - option "OPERATIONS"
+    - main [ref=e99]:
+      - generic [ref=e102]:
+        - textbox "Send a message to A.R.C.H.I.E...." [ref=e103]
+        - button "▶" [disabled] [ref=e104]:
+          - generic [ref=e105]: ▶
+        - button "💬" [ref=e106] [cursor=pointer]:
+          - generic [ref=e107]: 💬
+    - button "☰" [ref=e108] [cursor=pointer]:
+      - generic [ref=e109]: ☰

@@ -47,7 +47,7 @@
         "GPU/VRAM-aware routing",
         "Agent welfare monitoring",
         "Compliance scanning",
-        "Department organization (16 depts)",
+        "Department organization (17 depts)",
         "Fleet node management"
       ],
       "archie_planned": ["A2A protocol", "Durable execution / checkpoints"]
@@ -69,8 +69,8 @@
       "name": "3. Self-Hosted AI Platforms",
       "description": "Local-first AI platforms for chat, RAG, and model management. A.R.C.H.I.E. is deeper but more complex.",
       "archie_unique_features": [
-        "Multi-agent orchestration (129 agents)",
-        "Department organization (16 depts)",
+        "Multi-agent orchestration (130+ agents)",
+        "Department organization (17 depts)",
         "Compliance scanning",
         "Agent welfare",
         "Self-healing pipeline"
@@ -99,7 +99,7 @@
       "id": "workflow",
       "name": "6. Workflow Builders",
       "description": "Visual drag-and-drop platforms. Simpler and more accessible than A.R.C.H.I.E., but shallower.",
-      "archie_edge": "Full orchestration -- agents, models, hardware, security, operations. 16 departments, 129 agents.",
+      "archie_edge": "Full orchestration -- agents, models, hardware, security, operations. 17 departments, 130+ agents.",
       "their_edge": "Visual drag-and-drop, 5-minute setup, massive communities."
     },
     {

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en" data-barba="wrapper">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Platform — C.R.E.E.D. Institute</title>
+    <meta name="description" content="C.R.E.E.D. Governance Platform — open-source, event-driven compliance scoring for AI systems. Real-time grades, verifiable badges, and a public REST API.">
+    <meta name="theme-color" content="#0a0a1a">
+    <link rel="canonical" href="https://creed-ai.org/platform.html">
+    <link rel="alternate" hreflang="en" href="https://creed-ai.org/platform.html">
+    <link rel="alternate" hreflang="fr" href="https://creed-ai.org/fr/platform.html">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="C.R.E.E.D. Institute">
+    <meta property="og:title" content="Platform — C.R.E.E.D. Institute">
+    <meta property="og:description" content="Open-source, event-driven compliance scoring for AI systems. Real-time grades, verifiable badges, and a public REST API.">
+    <meta property="og:url" content="https://creed-ai.org/platform.html">
+    <meta property="og:image" content="https://creed-ai.org/images/creed-og.svg">
+    <meta property="og:locale" content="en_CA">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Platform — C.R.E.E.D. Institute">
+    <meta name="twitter:description" content="Open-source, event-driven compliance scoring for AI systems. Real-time grades, verifiable badges, and a public REST API.">
+    <meta name="twitter:image" content="https://creed-ai.org/images/creed-og.svg">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/responsive.css?v=20260407u">
+    <link rel="stylesheet" href="css/reduced-motion.css">
+</head>
+<body>
+    <!-- Global background layers -->
+    <div class="aurora"></div>
+    <div class="dot-grid"></div>
+    <div class="noise-overlay"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+    <!-- Language Overlay -->
+    <div class="lang-overlay" id="langOverlay">
+        <div class="lang-overlay__panel">
+            <button class="lang-overlay__close" aria-label="Close">&times;</button>
+            <h3 class="lang-overlay__title">Select Language</h3>
+            <div class="lang-overlay__grid">
+                <button class="lang-overlay__btn" data-lang="en">English</button>
+                <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais</button>
+                <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
+                <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
+                <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
+                <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
+                <button class="lang-overlay__btn" data-lang="ar">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
+                <button class="lang-overlay__btn" data-lang="he">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="nav" id="mainNav">
+        <div class="nav__inner container">
+            <a href="/" class="nav__logo"><span class="nav__logo-text">C.R.E.E.D.</span></a>
+            <div class="nav__links" id="navLinks">
+                <a href="about.html" class="nav__link" data-i18n="nav.about">About</a>
+                <a href="programs.html" class="nav__link" data-i18n="nav.programs">Programs</a>
+                <a href="research.html" class="nav__link" data-i18n="nav.research">Research</a>
+                <a href="governance.html" class="nav__link" data-i18n="nav.governance">Governance</a>
+                <a href="platform.html" class="nav__link nav__link--active" data-i18n="nav.platform">Platform</a>
+                <a href="manifesto.html" class="nav__link" data-i18n="nav.manifesto">Manifesto</a>
+                <a href="news.html" class="nav__link" data-i18n="nav.news">News</a>
+                <a href="get-involved.html" class="nav__link" data-i18n="nav.get_involved">Get Involved</a>
+                <a href="donate.html" class="nav__link nav__link--cta" data-i18n="nav.donate">Donate</a>
+            </div>
+            <button class="nav__lang" id="langToggle" aria-label="Change language">EN</button>
+            <button class="nav__menu-btn" id="menuToggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page content -->
+    <main data-barba="container" data-barba-namespace="platform">
+
+        <!-- Hero -->
+        <section class="hero" style="min-height:auto;padding-top:calc(var(--nav-height) + 4rem);padding-bottom:3rem;">
+            <div class="hero__content container" style="text-align:center;">
+                <h1 style="font-family:'Orbitron',sans-serif;font-size:clamp(1.8rem,4vw,2.5rem);color:#c9a44c;letter-spacing:0.1em;margin-bottom:1rem;">C.R.E.E.D. Governance Platform</h1>
+                <p style="color:#94a3b8;max-width:650px;margin:0 auto 2rem;font-size:1.1rem;line-height:1.7;">
+                    Open-source, event-driven compliance scoring for AI systems.
+                </p>
+                <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
+                    <a href="https://creed.kytranempowerment.com" class="btn btn--primary magnetic" style="background:#c9a44c;border-color:#c9a44c;" target="_blank" rel="noopener">View Live Dashboard</a>
+                    <a href="https://github.com/KytranKatarn/kytran-creed" class="btn btn--outline magnetic" style="border-color:#c9a44c;color:#c9a44c;" target="_blank" rel="noopener">View on GitHub</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works -->
+        <section style="padding:4rem 0;">
+            <div class="container" style="max-width:960px;">
+                <h2 style="font-family:'Orbitron',sans-serif;font-size:clamp(1.2rem,3vw,1.5rem);color:#c9a44c;letter-spacing:0.1em;margin-bottom:2.5rem;text-align:center;">HOW IT WORKS</h2>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.5rem;">
+
+                    <!-- Step 1 -->
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(201,164,76,0.15);border-radius:12px;padding:2rem;text-align:center;">
+                        <div style="font-family:'Orbitron',sans-serif;font-size:2rem;color:#c9a44c;margin-bottom:1rem;">01</div>
+                        <h3 style="font-family:'Antonio',sans-serif;font-size:1.15rem;color:#e2e8f0;margin-bottom:0.75rem;">Event Ingestion</h3>
+                        <p style="color:#94a3b8;font-size:0.9rem;line-height:1.7;">AI platforms send governance events via REST API</p>
+                    </div>
+
+                    <!-- Step 2 -->
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(201,164,76,0.15);border-radius:12px;padding:2rem;text-align:center;">
+                        <div style="font-family:'Orbitron',sans-serif;font-size:2rem;color:#c9a44c;margin-bottom:1rem;">02</div>
+                        <h3 style="font-family:'Antonio',sans-serif;font-size:1.15rem;color:#e2e8f0;margin-bottom:0.75rem;">Scoring Engine</h3>
+                        <p style="color:#94a3b8;font-size:0.9rem;line-height:1.7;">Rate-based compliance scoring with configurable thresholds</p>
+                    </div>
+
+                    <!-- Step 3 -->
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(201,164,76,0.15);border-radius:12px;padding:2rem;text-align:center;">
+                        <div style="font-family:'Orbitron',sans-serif;font-size:2rem;color:#c9a44c;margin-bottom:1rem;">03</div>
+                        <h3 style="font-family:'Antonio',sans-serif;font-size:1.15rem;color:#e2e8f0;margin-bottom:0.75rem;">Compliance Grades</h3>
+                        <p style="color:#94a3b8;font-size:0.9rem;line-height:1.7;">A+ through F grades calculated in real-time</p>
+                    </div>
+
+                    <!-- Step 4 -->
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(201,164,76,0.15);border-radius:12px;padding:2rem;text-align:center;">
+                        <div style="font-family:'Orbitron',sans-serif;font-size:2rem;color:#c9a44c;margin-bottom:1rem;">04</div>
+                        <h3 style="font-family:'Antonio',sans-serif;font-size:1.15rem;color:#e2e8f0;margin-bottom:0.75rem;">SVG Badges</h3>
+                        <p style="color:#94a3b8;font-size:0.9rem;line-height:1.7;">Verifiable compliance badges for public accountability</p>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- API Overview -->
+        <section style="padding:4rem 0;background:rgba(201,164,76,0.03);border-top:1px solid rgba(201,164,76,0.1);border-bottom:1px solid rgba(201,164,76,0.1);">
+            <div class="container" style="max-width:900px;">
+                <h2 style="font-family:'Orbitron',sans-serif;font-size:clamp(1.2rem,3vw,1.5rem);color:#c9a44c;letter-spacing:0.1em;margin-bottom:2.5rem;text-align:center;">API</h2>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:2rem;">
+
+                    <!-- Ingest Events -->
+                    <div>
+                        <h3 style="font-family:'IBM Plex Mono',monospace;font-size:0.8rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:1rem;">Ingest Events</h3>
+                        <pre style="background:#0d0d1f;border:1px solid rgba(201,164,76,0.2);border-radius:10px;padding:1.5rem;overflow-x:auto;font-family:'IBM Plex Mono',monospace;font-size:0.82rem;color:#e2e8f0;line-height:1.7;margin:0;"><code><span style="color:#c9a44c;">POST</span> /api/events
+Content-Type: application/json
+
+{
+  <span style="color:#94a3b8;">"event_type"</span>: <span style="color:#4ade80;">"governance_check"</span>,
+  <span style="color:#94a3b8;">"category"</span>: <span style="color:#4ade80;">"agent_welfare"</span>,
+  <span style="color:#94a3b8;">"result"</span>: <span style="color:#4ade80;">"pass"</span>,
+  <span style="color:#94a3b8;">"details"</span>: <span style="color:#4ade80;">"Agent stress below threshold"</span>
+}</code></pre>
+                    </div>
+
+                    <!-- Get Scores -->
+                    <div>
+                        <h3 style="font-family:'IBM Plex Mono',monospace;font-size:0.8rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:1rem;">Get Scores</h3>
+                        <pre style="background:#0d0d1f;border:1px solid rgba(201,164,76,0.2);border-radius:10px;padding:1.5rem;overflow-x:auto;font-family:'IBM Plex Mono',monospace;font-size:0.82rem;color:#e2e8f0;line-height:1.7;margin:0;"><code><span style="color:#c9a44c;">GET</span> /scores
+
+{
+  <span style="color:#94a3b8;">"overall_grade"</span>: <span style="color:#4ade80;">"A+"</span>,
+  <span style="color:#94a3b8;">"overall_score"</span>: <span style="color:#60a5fa;">99.7</span>,
+  <span style="color:#94a3b8;">"total_events"</span>: <span style="color:#60a5fa;">502</span>
+}</code></pre>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Pricing -->
+        <section style="padding:4rem 0;">
+            <div class="container" style="max-width:960px;">
+                <h2 style="font-family:'Orbitron',sans-serif;font-size:clamp(1.2rem,3vw,1.5rem);color:#c9a44c;letter-spacing:0.1em;margin-bottom:2.5rem;text-align:center;">PRICING</h2>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.5rem;align-items:start;">
+
+                    <!-- Community -->
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(201,164,76,0.25);border-radius:12px;padding:2rem;display:flex;flex-direction:column;gap:1rem;">
+                        <div>
+                            <h3 style="font-family:'Orbitron',sans-serif;font-size:1rem;color:#c9a44c;letter-spacing:0.08em;margin-bottom:0.25rem;">Community</h3>
+                            <div style="font-family:'IBM Plex Mono',monospace;font-size:1.8rem;color:#e2e8f0;font-weight:700;">Free</div>
+                            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;color:#64748b;">Self-hosted</div>
+                        </div>
+                        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.6rem;">
+                            <li style="color:#94a3b8;font-size:0.9rem;display:flex;align-items:flex-start;gap:0.5rem;"><span style="color:#c9a44c;flex-shrink:0;">&#10003;</span> Self-hosted deployment</li>
+                            <li style="color:#94a3b8;font-size:0.9rem;display:flex;align-items:flex-start;gap:0.5rem;"><span style="color:#c9a44c;flex-shrink:0;">&#10003;</span> Full REST API access</li>
+                            <li style="color:#94a3b8;font-size:0.9rem;display:flex;align-items:flex-start;gap:0.5rem;"><span style="color:#c9a44c;flex-shrink:0;">&#10003;</span> Real-time scoring engine</li>
+                            <li style="color:#94a3b8;font-size:0.9rem;display:flex;align-items:flex-start;gap:0.5rem;"><span style="color:#c9a44c;flex-shrink:0;">&#10003;</span> SVG compliance badges</li>
+                            <li style="color:#94a3b8;font-size:0.9rem;display:flex;align-items:flex-start;gap:0.5rem;"><span style="color:#c9a44c;flex-shrink:0;">&#10003;</span> Public dashboard</li>
+                        </ul>
+                        <a href="https://github.com/KytranKatarn/kytran-creed" class="btn btn--primary magnetic" style="background:#c9a44c;border-color:#c9a44c;text-align:center;margin-top:auto;" target="_blank" rel="noopener">Get Started</a>
+                    </div>
+
+                    <!-- Pro -->
+                    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:2rem;display:flex;flex-direction:column;gap:1rem;opacity:0.7;">
+                        <div>
+                            <h3 style="font-family:'Orbitron',sans-serif;font-size:1rem;color:#94a3b8;letter-spacing:0.08em;margin-bottom:0.25rem;">Pro</h3>
+                            <div style="font-family:'IBM Plex Mono',monospace;font-size:1.8rem;color:#94a3b8;font-weight:700;">TBD</div>
+                            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;color:#64748b;">Coming Soon</div>
+                        </div>
+                        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.6rem;">
+                            <li style="color:#64748b;font-size:0.9rem;display:flex;align-items:flex-start;gap:0.5rem;"><span style="flex-shrink:0;">&#10003;</span> Multi-organization support</li>
+                            <li style="color:#64748b;font-size:0.9rem;display:flex;align-items:flex-start;gap:0.5rem;"><span style="flex-shrink:0;">&#10003;</span> Advanced compliance reports</li>
+                            <li style="color:#64748b;font-size:0.9rem;display:flex;align-items:flex-start;gap:0.5rem;"><span style="flex-shrink:0;">&#10003;</span> PDF certificates</li>
+                        </ul>
+                        <button class="btn btn--outline" style="border-color:#475569;color:#475569;cursor:not-allowed;text-align:center;margin-top:auto;" disabled>Coming Soon</button>
+                    </div>
+
+                    <!-- Enterprise -->
+                    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:2rem;display:flex;flex-direction:column;gap:1rem;opacity:0.7;">
+                        <div>
+                            <h3 style="font-family:'Orbitron',sans-serif;font-size:1rem;color:#94a3b8;letter-spacing:0.08em;margin-bottom:0.25rem;">Enterprise</h3>
+                            <div style="font-family:'IBM Plex Mono',monospace;font-size:1.8rem;color:#94a3b8;font-weight:700;">Custom</div>
+                            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;color:#64748b;">Coming Soon</div>
+                        </div>
+                        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.6rem;">
+                            <li style="color:#64748b;font-size:0.9rem;display:flex;align-items:flex-start;gap:0.5rem;"><span style="flex-shrink:0;">&#10003;</span> SaaS hosted</li>
+                            <li style="color:#64748b;font-size:0.9rem;display:flex;align-items:flex-start;gap:0.5rem;"><span style="flex-shrink:0;">&#10003;</span> SSO integration</li>
+                            <li style="color:#64748b;font-size:0.9rem;display:flex;align-items:flex-start;gap:0.5rem;"><span style="flex-shrink:0;">&#10003;</span> SLA guarantee</li>
+                            <li style="color:#64748b;font-size:0.9rem;display:flex;align-items:flex-start;gap:0.5rem;"><span style="flex-shrink:0;">&#10003;</span> Custom rule packs</li>
+                        </ul>
+                        <a href="mailto:contact@creed-ai.org" class="btn btn--outline magnetic" style="border-color:#475569;color:#64748b;text-align:center;margin-top:auto;">Contact Us</a>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Contact -->
+        <section style="padding:3rem 0 4rem;">
+            <div class="container" style="max-width:600px;text-align:center;">
+                <p style="color:#94a3b8;font-size:1rem;line-height:1.8;">
+                    Questions? Reach us at <a href="mailto:contact@creed-ai.org" style="color:#c9a44c;text-decoration:none;">contact@creed-ai.org</a>
+                </p>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer__inner container">
+            <div class="footer__brand">
+                <span class="footer__logo">C.R.E.E.D. INSTITUTE</span>
+                <p class="footer__tagline">Preventive AI Ethics</p>
+            </div>
+            <div class="footer__links">
+                <a href="about.html">About</a>
+                <a href="programs.html">Programs</a>
+                <a href="research.html">Research</a>
+                <a href="case-studies.html">Case Studies</a>
+                <a href="governance.html">Governance</a>
+                <a href="platform.html">Platform</a>
+                <a href="policy.html">Policy</a>
+                <a href="manifesto.html">Manifesto</a>
+                <a href="news.html">News</a>
+                <a href="press.html">Press</a>
+                <a href="get-involved.html">Get Involved</a>
+                <a href="donate.html">Donate</a>
+                <a href="partners.html">Partners</a>
+                <a href="contact.html">Contact</a>
+            </div>
+            <div class="footer__copy" data-i18n="footer.copyright">&copy; 2026 C.R.E.E.D. Institute. Canadian Registered Nonprofit. All rights reserved.</div>
+            <p class="footer__initiative" data-i18n="footer.initiative">A founding initiative of Kytran Empowerment Inc.</p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script defer src="js/lib/gsap.min.js"></script>
+    <script defer src="js/lib/ScrollTrigger.min.js"></script>
+    <script defer src="js/lib/lenis.min.js"></script>
+    <script defer src="js/lib/splitting.min.js"></script>
+    <script defer src="js/lib/barba.min.js"></script>
+    <script defer src="js/effects.js"></script>
+    <script defer src="js/nav.js?v=20260407u"></script>
+    <script defer src="js/transitions.js"></script>
+    <script defer src="js/app.js"></script>
+    <script defer src="js/i18n.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof I18n !== 'undefined') I18n.init();
+        var langToggle = document.getElementById('langToggle');
+        var langOverlay = document.getElementById('langOverlay');
+        var closeBtn = langOverlay ? langOverlay.querySelector('.lang-overlay__close') : null;
+        if (langToggle && langOverlay) {
+            langToggle.addEventListener('click', function() { langOverlay.classList.add('active'); });
+        }
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function() { langOverlay.classList.remove('active'); });
+        }
+        if (langOverlay) {
+            langOverlay.addEventListener('click', function(e) {
+                if (e.target === langOverlay) langOverlay.classList.remove('active');
+            });
+        }
+        document.querySelectorAll('.lang-overlay__btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var lang = this.getAttribute('data-lang');
+                if (typeof I18n !== 'undefined') I18n.setLang(lang);
+                if (langToggle) langToggle.textContent = lang.toUpperCase();
+                document.querySelectorAll('.lang-overlay__btn').forEach(function(b) { b.classList.remove('active'); });
+                this.classList.add('active');
+                if (langOverlay) langOverlay.classList.remove('active');
+            });
+        });
+        if (langToggle && typeof I18n !== 'undefined') {
+            langToggle.textContent = I18n.getLang().toUpperCase();
+        }
+    });
+    </script>
+</body>
+</html>

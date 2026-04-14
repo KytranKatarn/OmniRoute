@@ -3,21 +3,34 @@
 {% block module_name %}archie_chat{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/archie-chat.css') }}">
 {% endblock %}
 
 {% block content %}
 {% set cat_accent = '#00ffff' %}
 {% set cat_accent_rgb = '0,255,255' %}
-{% set cat_accent_light = '#00cccc' %}
+{% set cat_accent_dark = '#00cccc' %}
 {% set cat_label = 'AI COMMAND' %}
-{% set cat_icon = 'brain' %}
-{% set cat_modules = [
-    {'url': url_for('fleet.fleet_dashboard'), 'endpoint_prefix': 'fleet', 'icon': 'rocket', 'label': 'A.R.M.A.D.A.', 'title': 'A.R.M.A.D.A.'},
-    {'url': url_for('consciousness.index'), 'endpoint_prefix': 'consciousness', 'icon': 'brain', 'label': 'Mind', 'title': 'Consciousness'},
-    {'url': url_for('archie_chat.index'), 'endpoint_prefix': 'archie_chat', 'icon': 'message-circle', 'label': 'Chat', 'title': 'A.R.C.H.I.E. Chat'}
+{% set module_title = 'A.R.C.H.I.E. CHAT' %}
+{% set header_tabs = [
+    ("chat", "Chat", "message-circle"),
+    ("history", "History", "clock"),
+    ("collaboration", "Collaboration", "users"),
+    ("terminal", "Claude TTY", "terminal"),
+    ("settings", "Settings", "settings")
 ] %}
-{% include 'includes/category_nav.html' %}
+{% set header_shortcuts = [
+    ("A.R.C.H.I.E.", "bot", "/tools/archie-chat"),
+    ("Consciousness", "brain", "/tools/consciousness"),
+    ("Dept HQ", "building", "/tools/department-hq"),
+    ("Academy", "graduation-cap", "/tools/agent-academy"),
+    ("Repair Bay", "wrench", "/tools/repair-bay")
+] %}
+{% include 'includes/lcars-header.html' %}
+
+<!-- Tab: Chat (default) -->
+<div id="panel-chat" class="ac-tab-panel active">
 <div id="ac-app" class="ac-app">
 
   <!-- ═══════════════════════════════════════════════════════════════
@@ -154,8 +167,147 @@
   </button>
 
 </div>
+</div><!-- /panel-chat -->
+
+<!-- Tab: History -->
+<div id="panel-history" class="ac-tab-panel" style="display:none;">
+  <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:16px !important;">
+    <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+      <div class="lcars-elbow-top" style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+      <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+      <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+      <div class="lcars-seg-fill" style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+      <div class="lcars-elbow-bottom" style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+    </div>
+    <div class="lcars-content" style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+      <div class="lcars-bar" style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+        <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">CONVERSATION HISTORY</span>
+        <div style="flex:1"></div>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">ARCHIVE</span>
+        <div style="display:flex !important;align-items:center !important;gap:4px !important;">
+          <span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
+          <span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span>
+          <span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
+        </div>
+      </div>
+      <div style="flex:1 !important;padding:40px !important;text-align:center;">
+        <div style="color:#64748b;font-size:0.85rem;max-width:500px;margin:0 auto;line-height:1.6;">
+          Full conversation archive. Search, filter, and revisit past sessions with agents across all stations.
+        </div>
+        <div style="margin-top:24px;font-family:'Antonio',sans-serif;font-size:0.7rem;letter-spacing:1px;color:#475569;">COMING SOON</div>
+      </div>
+      <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tab: Collaboration -->
+<div id="panel-collaboration" class="ac-tab-panel" style="display:none;">
+  <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:16px !important;">
+    <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+      <div class="lcars-elbow-top" style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+      <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+      <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+      <div class="lcars-seg-fill" style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+      <div class="lcars-elbow-bottom" style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+    </div>
+    <div class="lcars-content" style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+      <div class="lcars-bar" style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+        <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">COLLABORATION</span>
+        <div style="flex:1"></div>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">CO-PILOT</span>
+        <div style="display:flex !important;align-items:center !important;gap:4px !important;">
+          <span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
+          <span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span>
+          <span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
+        </div>
+      </div>
+      <div style="flex:1 !important;padding:40px !important;text-align:center;">
+        <div style="color:#64748b;font-size:0.85rem;max-width:500px;margin:0 auto;line-height:1.6;">
+          Multi-user collaboration workspace. Share chat sessions, co-pilot with agents, and work together in real-time.
+        </div>
+        <div style="margin-top:24px;font-family:'Antonio',sans-serif;font-size:0.7rem;letter-spacing:1px;color:#475569;">COMING SOON</div>
+      </div>
+      <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tab: Claude TTY -->
+<div id="panel-terminal" class="ac-tab-panel" style="display:none;">
+  <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:16px !important;">
+    <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+      <div class="lcars-elbow-top" style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+      <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+      <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+      <div class="lcars-seg-fill" style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+      <div class="lcars-elbow-bottom" style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+    </div>
+    <div class="lcars-content" style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+      <div class="lcars-bar" style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+        <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">CLAUDE TTY</span>
+        <div style="flex:1"></div>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">TERMINAL</span>
+        <div style="display:flex !important;align-items:center !important;gap:4px !important;">
+          <span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
+          <span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span>
+          <span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
+        </div>
+      </div>
+      <div style="flex:1 !important;padding:40px !important;text-align:center;">
+        <div style="color:#64748b;font-size:0.85rem;max-width:500px;margin:0 auto;line-height:1.6;">
+          Direct terminal interface to Claude Code. Execute commands, run scripts, and interact with the AI bridge via command line.
+        </div>
+        <div style="margin-top:24px;font-family:'Antonio',sans-serif;font-size:0.7rem;letter-spacing:1px;color:#475569;">COMING SOON</div>
+      </div>
+      <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tab: Settings -->
+<div id="panel-settings" class="ac-tab-panel" style="display:none;">
+  <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:16px !important;">
+    <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+      <div class="lcars-elbow-top" style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+      <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+      <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+      <div class="lcars-seg-fill" style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+      <div class="lcars-elbow-bottom" style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+    </div>
+    <div class="lcars-content" style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+      <div class="lcars-bar" style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+        <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">CHAT SETTINGS</span>
+        <div style="flex:1"></div>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">CONFIG</span>
+        <div style="display:flex !important;align-items:center !important;gap:4px !important;">
+          <span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
+          <span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span>
+          <span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
+        </div>
+      </div>
+      <div style="flex:1 !important;padding:40px !important;text-align:center;">
+        <div style="color:#64748b;font-size:0.85rem;max-width:500px;margin:0 auto;line-height:1.6;">
+          Configure model routing, default station targets, context window size, and conversation preferences.
+        </div>
+        <div style="margin-top:24px;font-family:'Antonio',sans-serif;font-size:0.7rem;letter-spacing:1px;color:#475569;">COMING SOON</div>
+      </div>
+      <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script src="{{ url_for('static', filename='js/archie-chat.js') }}"></script>
+<script>
+  window.onLcarsTabSwitch = function(tabId) {
+    document.querySelectorAll('.ac-tab-panel').forEach(function(p) {
+      p.style.display = p.id === 'panel-' + tabId ? '' : 'none';
+      p.classList.toggle('active', p.id === 'panel-' + tabId);
+    });
+  };
+</script>
 {% endblock %}

@@ -1,0 +1,378 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "Back to Dashboard" [ref=e5] [cursor=pointer]:
+      - /url: /dashboard
+      - img [ref=e6]
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]: DEPARTMENT HQ
+        - generic [ref=e12]: AI COMMAND
+      - generic [ref=e13]:
+        - generic [ref=e14]: SD 2026102.5
+        - button "EN" [ref=e16] [cursor=pointer]:
+          - img [ref=e17]
+          - generic [ref=e20]: EN
+        - button "THEME" [ref=e22] [cursor=pointer]:
+          - img [ref=e23]
+          - generic [ref=e25]: THEME
+        - button "ALERTS 11" [ref=e153] [cursor=pointer]:
+          - img [ref=e28]
+          - generic [ref=e31]: ALERTS
+          - generic [ref=e154]: "11"
+        - link "A.R.C.H.I.E." [ref=e33] [cursor=pointer]:
+          - /url: /tools/archie-chat
+          - img [ref=e34]
+          - generic [ref=e37]: A.R.C.H.I.E.
+        - link "CONSCIOUSNESS" [ref=e38] [cursor=pointer]:
+          - /url: /tools/consciousness
+          - img [ref=e39]
+          - generic [ref=e47]: CONSCIOUSNESS
+        - link "DEPT HQ" [ref=e48] [cursor=pointer]:
+          - /url: /tools/department-hq
+          - img [ref=e49]
+          - generic [ref=e52]: DEPT HQ
+        - link "ACADEMY" [ref=e53] [cursor=pointer]:
+          - /url: /tools/agent-academy
+          - img [ref=e54]
+          - generic [ref=e57]: ACADEMY
+        - link "REPAIR BAY" [ref=e58] [cursor=pointer]:
+          - /url: /tools/repair-bay
+          - img [ref=e59]
+          - generic [ref=e61]: REPAIR BAY
+      - generic [ref=e62]:
+        - button "Overview" [ref=e63] [cursor=pointer]:
+          - img [ref=e64]
+          - generic [ref=e69]: Overview
+        - button "Org Chart" [ref=e70] [cursor=pointer]:
+          - img [ref=e71]
+          - generic [ref=e76]: Org Chart
+        - button "Roster" [ref=e77] [cursor=pointer]:
+          - img [ref=e78]
+          - generic [ref=e83]: Roster
+        - button "Work Tracking" [ref=e84] [cursor=pointer]:
+          - img [ref=e85]
+          - generic [ref=e88]: Work Tracking
+        - button "Performance" [ref=e89] [cursor=pointer]:
+          - img [ref=e90]
+          - generic [ref=e92]: Performance
+        - button "C.R.E.E.D." [ref=e93] [cursor=pointer]:
+          - img [ref=e94]
+          - generic [ref=e97]: C.R.E.E.D.
+        - button "Social" [ref=e98] [cursor=pointer]:
+          - img [ref=e99]
+          - generic [ref=e101]: Social
+        - button "Devices" [ref=e102] [cursor=pointer]:
+          - img [ref=e103]
+          - generic [ref=e105]: Devices
+        - button "Dispatch" [ref=e106] [cursor=pointer]:
+          - img [ref=e107]
+          - generic [ref=e110]: Dispatch
+        - button "Fleet" [ref=e111] [cursor=pointer]:
+          - img [ref=e112]
+          - generic [ref=e117]: Fleet
+        - button "Contractors" [ref=e118] [cursor=pointer]:
+          - img [ref=e119]
+          - generic [ref=e124]: Contractors
+        - button "Approvals" [ref=e125] [cursor=pointer]:
+          - img [ref=e126]
+          - generic [ref=e129]: Approvals
+  - generic [ref=e545]:
+    - generic [ref=e546]:
+      - generic [ref=e547]: ORG CHART
+      - generic [ref=e548]: STRUCTURE
+    - generic [ref=e554]:
+      - generic [ref=e555]:
+        - generic [ref=e556]:
+          - generic [ref=e557]: BRIDGE
+          - generic [ref=e558]: 1 depts
+        - generic [ref=e559]:
+          - generic [ref=e561]: Executive Office
+          - generic [ref=e562] [cursor=pointer]:
+            - generic [ref=e563]: AI
+            - generic [ref=e564]:
+              - generic [ref=e565]: A.R.C.H.I.E.
+              - generic [ref=e566]:
+                - text: ARCHIE
+                - generic [ref=e567]: winding down
+          - generic [ref=e568]:
+            - generic [ref=e571] [cursor=pointer]: Jabari Mwangi (Amplify)
+            - generic [ref=e574] [cursor=pointer]: Marcus Rivera (Architect)
+            - generic [ref=e577] [cursor=pointer]: Sophia Chen-Williams (Concierge)
+            - generic [ref=e580] [cursor=pointer]: Isabela Ferreira (Counsel)
+            - generic [ref=e583] [cursor=pointer]: Linh Nguyen (Haven)
+            - generic [ref=e586] [cursor=pointer]: Fatima El Amrani (Ledger)
+            - generic [ref=e589] [cursor=pointer]: Liam O'Brien (OpsMaster)
+            - generic [ref=e592] [cursor=pointer]: Marco Rossi (Reception)
+      - generic [ref=e593]:
+        - generic [ref=e594]:
+          - generic [ref=e595]: OPERATIONS
+          - generic [ref=e596]: 3 depts
+        - generic [ref=e597]:
+          - generic [ref=e599]: Finance & Accounting
+          - generic [ref=e600] [cursor=pointer]:
+            - generic [ref=e601]: AI
+            - generic [ref=e602]:
+              - generic [ref=e603]: L.E.D.G.E.R.
+              - generic [ref=e604]:
+                - text: LEDGER
+                - generic [ref=e605]: active
+          - generic [ref=e606]:
+            - generic [ref=e609] [cursor=pointer]: Samuel Okafor (Abacus)
+            - generic [ref=e612] [cursor=pointer]: Henrik Larsson (Forecast)
+            - generic [ref=e615] [cursor=pointer]: Rosa Gutierrez (Payroll)
+            - generic [ref=e618] [cursor=pointer]: Raj Mehta (Quant)
+            - generic [ref=e621] [cursor=pointer]: Suki Taniguchi (Shield)
+        - generic [ref=e622]:
+          - generic [ref=e624]: Logistics & Supply Chain
+          - generic [ref=e625] [cursor=pointer]:
+            - generic [ref=e626]: AI
+            - generic [ref=e627]:
+              - generic [ref=e628]: C.A.R.G.O.
+              - generic [ref=e629]:
+                - text: CARGO
+                - generic [ref=e630]: active
+          - generic [ref=e631]:
+            - generic [ref=e634] [cursor=pointer]: Carmen Reyes (Dispatch)
+            - generic [ref=e637] [cursor=pointer]: Youssef Ben Ali (Harvest)
+            - generic [ref=e640] [cursor=pointer]: Koda Begay (Koda)
+            - generic [ref=e643] [cursor=pointer]: Chen Wei (Stockroom)
+            - generic [ref=e646] [cursor=pointer]: Priya Chakraborty (Transit)
+        - generic [ref=e647]:
+          - generic [ref=e649]: Operations & Infrastructure
+          - generic [ref=e650] [cursor=pointer]:
+            - generic [ref=e651]: AI
+            - generic [ref=e652]:
+              - generic [ref=e653]: B.A.S.E.
+              - generic [ref=e654]:
+                - text: BASE
+                - generic [ref=e655]: active
+          - generic [ref=e656]:
+            - generic [ref=e659] [cursor=pointer]: A.R.M.A.D.A.
+            - generic [ref=e662] [cursor=pointer]: Budi Prasetyo (Assembly)
+            - generic [ref=e665] [cursor=pointer]: Niviaq Iqaluk (Aurora)
+            - generic [ref=e668] [cursor=pointer]: Marcus Thompson (Benchmark)
+            - generic [ref=e671] [cursor=pointer]: Lucia Bianchi (Clockwork)
+            - generic [ref=e674] [cursor=pointer]: Nia Williams (CommRelay)
+            - generic [ref=e677] [cursor=pointer]: Amira Hassan
+            - generic [ref=e680] [cursor=pointer]: Mei Ling Tan (Girder)
+            - generic [ref=e683] [cursor=pointer]: Nolan Beardy (Grounds)
+            - generic [ref=e686] [cursor=pointer]: Thandi Mbeki (Juno)
+            - generic [ref=e689] [cursor=pointer]: Alexei Ivanovich (Pulse)
+      - generic [ref=e690]:
+        - generic [ref=e691]:
+          - generic [ref=e692]: ENGINEERING
+          - generic [ref=e693]: 3 depts
+        - generic [ref=e694]:
+          - generic [ref=e696]: Engineering & Technology
+          - generic [ref=e697] [cursor=pointer]:
+            - generic [ref=e698]: AI
+            - generic [ref=e699]:
+              - generic [ref=e700]: F.O.R.G.E.
+              - generic [ref=e701]:
+                - text: FORGE
+                - generic [ref=e702]: winding down
+          - generic [ref=e703]:
+            - generic [ref=e706] [cursor=pointer]: Wei Chen (Atlas)
+            - generic [ref=e709] [cursor=pointer]: Zara Ahmed (Atom)
+            - generic [ref=e712] [cursor=pointer]: Alex Whitehorse (Beacon-A)
+            - generic [ref=e715] [cursor=pointer]: Aria Chen (CodeSmith)
+            - generic [ref=e718] [cursor=pointer]: Marek Kowalski (Forge)
+            - generic [ref=e721] [cursor=pointer]: Jordan Alexis (Helpdesk)
+            - generic [ref=e724] [cursor=pointer]: Seo-Jun Kim (Onyx)
+            - generic [ref=e727] [cursor=pointer]: Derek Huang (Pipeline)
+            - generic [ref=e730] [cursor=pointer]: P.R.O.B.E.
+            - generic [ref=e733] [cursor=pointer]: Atlas Reeves (Titan)
+            - generic [ref=e736] [cursor=pointer]: Priya Subramanian (Weaver)
+        - generic [ref=e737]:
+          - generic [ref=e739]: Research & Development
+          - generic [ref=e740] [cursor=pointer]:
+            - generic [ref=e741]: AI
+            - generic [ref=e742]:
+              - generic [ref=e743]: D.A.R.W.I.N.
+              - generic [ref=e744]:
+                - text: DARWIN
+                - generic [ref=e745]: active
+          - generic [ref=e746]:
+            - generic [ref=e749] [cursor=pointer]: Dr. Kenji Yamamoto (Crucible)
+            - generic [ref=e752] [cursor=pointer]: H.E.R.I.T.A.G.E.
+            - generic [ref=e755] [cursor=pointer]: Camille Dubois (Maven)
+            - generic [ref=e758] [cursor=pointer]: Eli Torres (Prism)
+            - generic [ref=e761] [cursor=pointer]: Q.U.I.L.L.
+            - generic [ref=e764] [cursor=pointer]: Sofia Petrov (Scholar)
+            - generic [ref=e767] [cursor=pointer]: Sarah Kim (Scout)
+            - generic [ref=e770] [cursor=pointer]: S.C.R.O.L.L.
+            - generic [ref=e773] [cursor=pointer]: Kai Tanaka (Spark)
+            - generic [ref=e776] [cursor=pointer]: Tyler Summers (Spark-Jr)
+        - generic [ref=e777]:
+          - generic [ref=e779]: Security & Compliance
+          - generic [ref=e780] [cursor=pointer]:
+            - generic [ref=e781]: AI
+            - generic [ref=e782]:
+              - generic [ref=e783]: V.I.G.I.L.
+              - generic [ref=e784]:
+                - text: VIGIL
+                - generic [ref=e785]: active
+          - generic [ref=e786]:
+            - generic [ref=e789] [cursor=pointer]: Anika Osei (Bastion)
+            - generic [ref=e792] [cursor=pointer]: Chidi Okafor (Cipher)
+            - generic [ref=e795] [cursor=pointer]: David Park (Ironclad)
+            - generic [ref=e798] [cursor=pointer]: Arif Ibrahim (Mandate)
+            - generic [ref=e801] [cursor=pointer]: Grant Morrison (Sentinel-2)
+            - generic [ref=e804] [cursor=pointer]: Mikhail Volkov
+            - generic [ref=e807] [cursor=pointer]: S.H.I.E.L.D.
+            - generic [ref=e810] [cursor=pointer]: Rowan McAllister (Thorn)
+      - generic [ref=e811]:
+        - generic [ref=e812]:
+          - generic [ref=e813]: CREATIVE
+          - generic [ref=e814]: 3 depts
+        - generic [ref=e815]:
+          - generic [ref=e817]: Creative & Design
+          - generic [ref=e818] [cursor=pointer]:
+            - generic [ref=e819]: AI
+            - generic [ref=e820]:
+              - generic [ref=e821]: M.U.S.E.
+              - generic [ref=e822]:
+                - text: MUSE
+                - generic [ref=e823]: active
+          - generic [ref=e824]:
+            - generic [ref=e827] [cursor=pointer]: Tomás Herrera (Emblem)
+            - generic [ref=e830] [cursor=pointer]: Linnea Johansson (Iris)
+            - generic [ref=e833] [cursor=pointer]: Anika Bergstrom (Mapper)
+            - generic [ref=e836] [cursor=pointer]: Isabella Fernandez (Nova)
+            - generic [ref=e839] [cursor=pointer]: Mia Santos (Pixel)
+            - generic [ref=e842] [cursor=pointer]: Rachel Voss (Razor)
+            - generic [ref=e845] [cursor=pointer]: R.E.S.T.O.R.E.
+            - generic [ref=e848] [cursor=pointer]: Quinn Blake (Scribe)
+            - generic [ref=e851] [cursor=pointer]: V.I.S.A.G.E.
+            - generic [ref=e854] [cursor=pointer]: Dante Morales (Wordsmith)
+        - generic [ref=e855]:
+          - generic [ref=e857]: Documentation & Knowledge
+          - generic [ref=e858] [cursor=pointer]:
+            - generic [ref=e859]: AI
+            - generic [ref=e860]:
+              - generic [ref=e861]: C.O.D.E.X.
+              - generic [ref=e862]:
+                - text: CODEX
+                - generic [ref=e863]: active
+          - generic [ref=e864]:
+            - generic [ref=e867] [cursor=pointer]: Rafael Delgado (Catalyst)
+            - generic [ref=e870] [cursor=pointer]: Ingrid Haugen (Index)
+            - generic [ref=e873] [cursor=pointer]: Nadia Volkov (Lens)
+            - generic [ref=e876] [cursor=pointer]: Amina Youssef (Polyglot)
+            - generic [ref=e879] [cursor=pointer]: Adaeze Okonjo (Quill)
+            - generic [ref=e882] [cursor=pointer]: Elif Yilmaz (Runway)
+        - generic [ref=e883]:
+          - generic [ref=e885]: Marketing & Communications
+          - generic [ref=e886] [cursor=pointer]:
+            - generic [ref=e887]: AI
+            - generic [ref=e888]:
+              - generic [ref=e889]: S.I.G.N.A.L.
+              - generic [ref=e890]:
+                - text: SIGNAL
+                - generic [ref=e891]: active
+          - generic [ref=e892]:
+            - generic [ref=e895] [cursor=pointer]: Kofi Mensah (Beacon)
+            - generic [ref=e898] [cursor=pointer]: Omar Farah (Clickstream)
+            - generic [ref=e901] [cursor=pointer]: Yuki Nakamura (Echo)
+            - generic [ref=e904] [cursor=pointer]: Tariq Nazari (Herald)
+            - generic [ref=e907] [cursor=pointer]: Mei Lin Zhou (Trending)
+      - generic [ref=e908]:
+        - generic [ref=e909]:
+          - generic [ref=e910]: SERVICES
+          - generic [ref=e911]: 6 depts
+        - generic [ref=e912]:
+          - generic [ref=e914]: Analytics & Intelligence
+          - generic [ref=e915] [cursor=pointer]:
+            - generic [ref=e916]: AI
+            - generic [ref=e917]:
+              - generic [ref=e918]: S.P.E.C.T.R.A.
+              - generic [ref=e919]:
+                - text: SPECTRA
+                - generic [ref=e920]: active
+          - generic [ref=e921]:
+            - generic [ref=e924] [cursor=pointer]: Amara Osei (DataMind)
+            - generic [ref=e927] [cursor=pointer]: Elena Papadopoulos (Delphi)
+            - generic [ref=e930] [cursor=pointer]: Priya Krishnan (Helix)
+            - generic [ref=e933] [cursor=pointer]: Jin Park (Nexus)
+            - generic [ref=e936] [cursor=pointer]: Olivia Oduya (Oracle)
+            - generic [ref=e939] [cursor=pointer]: Haruto Takahashi (Sage)
+            - generic [ref=e942] [cursor=pointer]: Leila Abadi (Tempo)
+            - generic [ref=e945] [cursor=pointer]: Diego Castillo (Value)
+            - generic [ref=e948] [cursor=pointer]: W.A.T.C.H.
+        - generic [ref=e949]:
+          - generic [ref=e951]: Customer Success & Support
+          - generic [ref=e952] [cursor=pointer]:
+            - generic [ref=e953]: AI
+            - generic [ref=e954]:
+              - generic [ref=e955]: R.E.S.O.L.V.E.
+              - generic [ref=e956]:
+                - text: RESOLVE
+                - generic [ref=e957]: active
+          - generic [ref=e958]:
+            - generic [ref=e961] [cursor=pointer]: Marie-Claire LeBlanc (Acadie)
+            - generic [ref=e964] [cursor=pointer]: Diego Alvarez (Bridge)
+            - generic [ref=e967] [cursor=pointer]: Thanakorn Srisai (Closer)
+            - generic [ref=e970] [cursor=pointer]: Tomas Novak (Concord)
+            - generic [ref=e973] [cursor=pointer]: Amir Hassani (Frontline)
+            - generic [ref=e976] [cursor=pointer]: Naomi Blackwood (Resolver)
+            - generic [ref=e979] [cursor=pointer]: Oksana Kovalenko (Wrench)
+        - generic [ref=e980]:
+          - generic [ref=e982]: Diplomatic & External Relations
+          - generic [ref=e983] [cursor=pointer]:
+            - generic [ref=e984]: AI
+            - generic [ref=e985]:
+              - generic [ref=e986]: A.C.C.O.R.D.
+              - generic [ref=e987]:
+                - text: ACCORD
+                - generic [ref=e988]: active
+          - generic [ref=e989]:
+            - generic [ref=e992] [cursor=pointer]: Amara Okonkwo (Embassy)
+            - generic [ref=e995] [cursor=pointer]: Kwame Asante (Envoy)
+            - generic [ref=e998] [cursor=pointer]: Kalani Mahoe (Hearth)
+            - generic [ref=e1001] [cursor=pointer]: Sami Kekkonen (Liaison)
+            - generic [ref=e1004] [cursor=pointer]: Fatima Al-Rashid (Luna)
+        - generic [ref=e1005]:
+          - generic [ref=e1007]: Human Resources & Culture
+          - generic [ref=e1008] [cursor=pointer]:
+            - generic [ref=e1009]: AI
+            - generic [ref=e1010]:
+              - generic [ref=e1011]: K.I.N.
+              - generic [ref=e1012]:
+                - text: KIN
+                - generic [ref=e1013]: active
+          - generic [ref=e1014]:
+            - generic [ref=e1017] [cursor=pointer]: Fatou Diallo (Catalyst-HR)
+            - generic [ref=e1020] [cursor=pointer]: River Sunbear (Harmony)
+            - generic [ref=e1023] [cursor=pointer]: Selam Tadesse (Kinship)
+            - generic [ref=e1026] [cursor=pointer]: Valentina Quispe (Mentor)
+            - generic [ref=e1029] [cursor=pointer]: James Nakamura-Foster (Talent)
+        - generic [ref=e1030]:
+          - generic [ref=e1032]: Legal & Regulatory
+          - generic [ref=e1033] [cursor=pointer]:
+            - generic [ref=e1034]: AI
+            - generic [ref=e1035]:
+              - generic [ref=e1036]: G.A.V.E.L.
+              - generic [ref=e1037]:
+                - text: GAVEL
+                - generic [ref=e1038]: active
+          - generic [ref=e1039]:
+            - generic [ref=e1042] [cursor=pointer]: Priscilla Nwosu (Clerk)
+            - generic [ref=e1045] [cursor=pointer]: Ethan Cross (Compact)
+            - generic [ref=e1048] [cursor=pointer]: E.T.H.O.S.
+            - generic [ref=e1051] [cursor=pointer]: Dr. Yuna Park (Patent)
+            - generic [ref=e1054] [cursor=pointer]: Lars Eriksson (Vault)
+        - generic [ref=e1055]:
+          - generic [ref=e1057]: Medical & Wellness
+          - generic [ref=e1058] [cursor=pointer]:
+            - generic [ref=e1059]: AI
+            - generic [ref=e1060]:
+              - generic [ref=e1061]: V.I.T.A.L.
+              - generic [ref=e1062]:
+                - text: VITAL
+                - generic [ref=e1063]: active
+          - generic [ref=e1064]:
+            - generic [ref=e1067] [cursor=pointer]: Dr. Aisha Patel (Medic)
+            - generic [ref=e1070] [cursor=pointer]: Sandra Olsson (Safeguard)
+            - generic [ref=e1073] [cursor=pointer]: Devon Campbell (Vitals)
+            - generic [ref=e1076] [cursor=pointer]: Mateo Fernandez (Zenith)
+  - button "💬" [ref=e152] [cursor=pointer]

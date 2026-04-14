@@ -1,50 +1,109 @@
 ---
 name: deploy-website
-description: Deploy kytranempowerment.com static website to Hostinger hosting
+description: This skill should be used when the user asks to "deploy website", "push to Hostinger", "deploy creed-ai.org", "deploy kytranempowerment.com", "update live site", or mentions deploying static websites to Hostinger hosting. Handles both kytranempowerment.com and creed-ai.org with retry logic and verification.
 user_invocable: true
 ---
 
-# Deploy Website to Hostinger
+# Deploy Static Websites to Hostinger
 
-Deploy the static website at `website/kytranempowerment.com/` to Hostinger shared hosting.
+Deploy static websites to Hostinger shared hosting. Supports two sites:
+
+| Site | Source | Domain | Archive Size |
+|------|--------|--------|-------------|
+| Kytran Empowerment | `website/kytranempowerment.com/` | kytranempowerment.com | ~110MB |
+| C.R.E.E.D. Institute | `website/creed-ai.org/` | creed-ai.org | ~200KB |
+
+## Usage
+
+Invoke with optional site argument:
+- `/deploy-website` — deploy both sites
+- `/deploy-website kytran` — deploy kytranempowerment.com only
+- `/deploy-website creed` — deploy creed-ai.org only
 
 ## Pre-Deploy Checklist
 
-1. **Verify changes are committed** — `git status` should show no modified files under `website/kytranempowerment.com/`
-2. **Review what changed** — `git log --oneline -5 -- website/kytranempowerment.com/` to see recent changes
-3. **Quick sanity check** — open 1-2 modified HTML files and verify they look correct
+1. **Verify changes committed** — `git status -- website/` should show no unexpected modifications
+2. **Review changes** — `git log --oneline -5 -- website/kytranempowerment.com/ website/creed-ai.org/`
+3. **Quick sanity check** — read 1-2 modified HTML files to verify correctness
 
-## Deploy Steps
+## Deploy Process (Per Site)
 
-1. Create archive from the website directory:
-   ```bash
-   cd /mnt/archie_brain/website/kytranempowerment.com && tar -czf /tmp/kytranempowerment_deploy.tar.gz --exclude='./_fix_nav_mobile.py' --exclude='./.git' .
-   ```
+### Step 1: Create Archive
 
-2. Deploy via Hostinger MCP tool:
-   ```
-   mcp__hostinger-api__hosting_deployStaticWebsite(
-     domain: "kytranempowerment.com",
-     archivePath: "/tmp/kytranempowerment_deploy.tar.gz",
-     removeArchive: true
-   )
-   ```
+Use zip format (more reliable with Hostinger):
 
-3. **Verify deployment** — wait 1-2 minutes, then check the live site via browser or curl:
-   ```bash
-   curl -sI https://kytranempowerment.com | head -5
-   ```
+```bash
+# For kytranempowerment.com:
+cd /mnt/archie_brain/website/kytranempowerment.com && \
+  zip -r /tmp/kytranempowerment_deploy_$(date +%Y%m%d_%H%M%S).zip . \
+  -x "*.git*" -x "./_fix_nav_mobile.py"
+
+# For creed-ai.org:
+cd /mnt/archie_brain/website/creed-ai.org && \
+  zip -r /tmp/creed-ai_deploy_$(date +%Y%m%d_%H%M%S).zip . \
+  -x "*.git*"
+```
+
+If `zip` is not installed, use tar.gz:
+```bash
+tar czf /tmp/site_deploy.tar.gz --exclude='.git*' -C /path/to/site .
+```
+
+### Step 2: Deploy via Hostinger API
+
+```
+mcp__hostinger-api__hosting_deployStaticWebsite(
+  domain: "DOMAIN",
+  archivePath: "/tmp/ARCHIVE_FILE",
+  removeArchive: false  # keep for retry
+)
+```
+
+### Step 3: Retry Logic
+
+If deploy returns status 500 (Hostinger server error):
+
+1. **Wait 30 seconds**, then retry the same deploy call (archive is still on disk)
+2. If second attempt fails, **wait 60 seconds** and retry once more
+3. After 3 failures, the archive was uploaded to Hostinger but extraction failed server-side
+
+**Fallback when API fails:**
+- Inform user: "Hostinger deploy API returned 500. The archive was uploaded successfully."
+- Instruct user to manually extract via hPanel:
+  1. Log into Hostinger hPanel
+  2. File Manager → navigate to public_html for the domain
+  3. Find the uploaded archive → right-click → Extract
+- Create an ARCHIE task to retry deployment next session
+
+### Step 4: Verify Deployment
+
+Wait 60 seconds after successful deploy, then verify:
+
+```bash
+# Check HTTP response
+curl -sI https://DOMAIN | head -5
+
+# Check specific changed page content (pick a page that was modified)
+curl -s https://DOMAIN/PAGE.html | grep "EXPECTED_CONTENT"
+```
+
+For creed-ai.org, also verify the governance page fetches live data:
+```bash
+curl -s https://creed-ai.org/governance.html | grep "creed.kytranempowerment.com/api"
+```
 
 ## Post-Deploy
 
-- Confirm HTTP 200 response
-- Spot-check 2-3 pages that were changed
+- Confirm HTTP 200 on both sites
+- Spot-check 2-3 pages that were modified
+- Log deployment via `mcp__archie__log_decision` if significant changes
 - Update session handoff with deployment confirmation
 
-## Notes
+## Important Notes
 
-- Archive is ~14MB for the full site
-- Hostinger extracts the archive server-side
-- DNS points root domain to Hostinger CDN (cdn.hstgr.net)
-- Subdomains (market, civic, legal, gov, thenews) are on VPS — NOT affected by this deploy
-- `creed-ai.org` is separate Hostinger hosting — deploy separately if needed
+- **Deploy one site at a time** — do NOT parallel deploy, Hostinger may rate limit
+- DNS: root domains point to Hostinger CDN (cdn.hstgr.net)
+- VPS subdomains (market, civic, legal, gov, thenews) are NOT affected by Hostinger deploys
+- creed.kytranempowerment.com runs on Docker (hub) — NOT a Hostinger deploy
+- Always keep archive on disk until verification passes (set removeArchive: false)
+- Clean up archives after verification: `rm /tmp/*_deploy_*.{zip,tar.gz}`

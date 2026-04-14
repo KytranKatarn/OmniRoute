@@ -1,0 +1,29 @@
+suite:
+  name: "AI Command — A.R.C.H.I.E. Chat"
+  description: "Critical paths for A.R.C.H.I.E. Chat: page load, conversations, agents"
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: "chat-page-loads"
+    type: api
+    method: GET
+    path: /tools/archie-chat/
+    expect:
+      status: [200, 302, 401]
+
+  - name: "chat-conversations"
+    type: api
+    method: GET
+    path: /tools/archie-chat/api/v1/chat/conversations
+    expect:
+      status: [200, 302, 401]
+
+  - name: "chat-models"
+    type: api
+    method: GET
+    path: /tools/archie-chat/api/v1/chat/models
+    expect:
+      status: [200, 302, 401]

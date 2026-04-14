@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://what-the-fact.com/sitemap.xml

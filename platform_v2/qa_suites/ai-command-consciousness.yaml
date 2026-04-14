@@ -1,0 +1,64 @@
+suite:
+  name: "AI Command — Consciousness"
+  description: "Critical paths for Consciousness: dashboard, dev hq, knowledge, github, languages, code health"
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: "consciousness-page-loads"
+    type: api
+    method: GET
+    path: /tools/consciousness/
+    expect:
+      status: [200, 302]
+
+  - name: "consciousness-dashboard-stats"
+    type: api
+    method: GET
+    path: /tools/consciousness/api/dashboard/stats
+    expect:
+      status: [200, 302]
+
+  - name: "consciousness-devhq-overview"
+    type: api
+    method: GET
+    path: /tools/consciousness/api/devhq/overview
+    expect:
+      status: [200, 302]
+
+  - name: "consciousness-knowledge-stats"
+    type: api
+    method: GET
+    path: /tools/consciousness/api/knowledge/stats
+    expect:
+      status: [200, 302]
+
+  - name: "consciousness-knowledge-quality"
+    type: api
+    method: GET
+    path: /tools/consciousness/api/knowledge/quality-stats
+    expect:
+      status: [200, 302]
+
+  - name: "consciousness-github-repos"
+    type: api
+    method: GET
+    path: /tools/consciousness/api/github/repos
+    expect:
+      status: [200, 302]
+
+  - name: "consciousness-translations-stats"
+    type: api
+    method: GET
+    path: /tools/consciousness/api/translations/stats
+    expect:
+      status: [200, 302]
+
+  - name: "consciousness-code-health"
+    type: api
+    method: GET
+    path: /tools/consciousness/api/code-health/summary
+    expect:
+      status: [200, 302]

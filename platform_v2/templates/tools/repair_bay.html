@@ -3,22 +3,32 @@
 {% block title %}Repair Bay{% endblock %}
 
 {% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/repair-bay.css') }}">
 {% endblock %}
 
 {% block content %}
-{% from "layouts/lcars.html" import tab_nav %}
 {% set cat_accent = '#00ffff' %}
 {% set cat_accent_rgb = '0,255,255' %}
-{% set cat_accent_light = '#00cccc' %}
+{% set cat_accent_dark = '#00cccc' %}
 {% set cat_label = 'AI COMMAND' %}
-{% set cat_icon = 'brain' %}
-{% set cat_modules = [
-    {'url': url_for('department_hq.index'), 'endpoint_prefix': 'department_hq', 'icon': 'rocket', 'label': 'A.R.M.A.D.A.', 'title': 'A.R.M.A.D.A.'},
-    {'url': url_for('consciousness.index'), 'endpoint_prefix': 'consciousness', 'icon': 'brain', 'label': 'Mind', 'title': 'Consciousness'},
-    {'url': url_for('archie_chat.index'), 'endpoint_prefix': 'archie_chat', 'icon': 'message-circle', 'label': 'Chat', 'title': 'A.R.C.H.I.E. Chat'}
+{% set module_title = 'REPAIR BAY' %}
+{% set header_shortcuts = [
+    ("A.R.C.H.I.E.", "bot", "/tools/archie-chat"),
+    ("Consciousness", "brain", "/tools/consciousness"),
+    ("Dept HQ", "building", "/tools/department-hq"),
+    ("Academy", "graduation-cap", "/tools/agent-academy"),
+    ("Repair Bay", "wrench", "/tools/repair-bay")
 ] %}
-{% include 'includes/category_nav.html' %}
+{% set header_tabs = [
+    ("reviews", "Reviews", "message-square"),
+    ("proposals", "Repairs", "wrench"),
+    ("scan", "Diagnose", "shield-check"),
+    ("sandbox", "Test Bay", "test-tube-2"),
+    ("deploy", "Ship", "rocket"),
+    ("qa", "QA", "check-circle")
+] %}
+{% include 'includes/lcars-header.html' %}
 
 <div class="dp-container">
     <div class="dp-header">
@@ -65,19 +75,24 @@
         </div>
     </div>
 
-    <!-- Tab Navigation (pruned 2026-04-11: removed Vulnerabilities stub +
-         consolidated Repair Queue into Repairs. Reviews is default for PR flow.) -->
-    {{ tab_nav(tabs=[
-        {'id': 'reviews', 'label': 'Reviews', 'icon': 'message-square'},
-        {'id': 'proposals', 'label': 'Repairs', 'icon': 'wrench'},
-        {'id': 'scan', 'label': 'Diagnose', 'icon': 'shield-check'},
-        {'id': 'sandbox', 'label': 'Test Bay', 'icon': 'test-tube-2'},
-        {'id': 'deploy', 'label': 'Ship', 'icon': 'rocket'},
-        {'id': 'qa', 'label': 'QA', 'icon': 'check-circle'}
-    ], onswitch='switchTab') }}
-
     <!-- Reviews Tab (default — shows open GitHub PRs with CodeRabbit + check status) -->
     <div id="tab-reviews" class="tab-content active">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+          <div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+          <div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+          <div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+        </div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+            <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">CODE REVIEWS</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">PR STATUS</span>
+            <div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div>
+          </div>
+          <div style="flex:1 !important;padding:16px !important;">
         <div style="display:flex; gap:8px; align-items:center; margin-bottom:16px; flex-wrap:wrap;">
             <select id="reviewsStateFilter" class="dp-module-select" onchange="loadReviews()" style="min-width:110px;">
                 <option value="open" selected>Open</option>
@@ -92,10 +107,30 @@
         <div id="reviewsList" class="dp-proposal-list">
             <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading PR reviews...</div></div>
         </div>
+          </div>
+          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
     </div>
 
     <!-- Scan Tab -->
     <div id="tab-scan" class="tab-content">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+          <div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+          <div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+          <div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+        </div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+            <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">DIAGNOSTICS</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">SCANNER</span>
+            <div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div>
+          </div>
+          <div style="flex:1 !important;padding:16px !important;">
         <!-- AI Status -->
         <div class="dp-ai-status" id="scanAiStatus">
             <span class="dp-status-dot" id="scanAiDot"></span>
@@ -211,10 +246,30 @@
             <div class="dp-modal-summary" id="reportModalSummary"></div>
             <div class="dp-modal-issues" id="reportModalIssues"></div>
         </div>
+          </div>
+          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
     </div>
 
     <!-- Proposals Tab -->
     <div id="tab-proposals" class="tab-content">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+          <div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+          <div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+          <div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+        </div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+            <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">REPAIR PROPOSALS</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">FIXES</span>
+            <div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div>
+          </div>
+          <div style="flex:1 !important;padding:16px !important;">
         <!-- Status filter -->
         <div class="dp-filter-row" id="proposalFilters">
             <button class="dp-filter active" data-pfilter="all" onclick="filterProposals('all')">All</button>
@@ -258,10 +313,30 @@
             </div>
             <div class="dp-detail-actions" id="detailActions"></div>
         </div>
+          </div>
+          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
     </div>
 
     <!-- Sandbox Tab -->
     <div id="tab-sandbox" class="tab-content">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+          <div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+          <div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+          <div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+        </div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+            <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">TEST BAY</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">SANDBOX</span>
+            <div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div>
+          </div>
+          <div style="flex:1 !important;padding:16px !important;">
         <!-- Sub-tabs: Environments | Test Runs | Suites -->
         <div class="dp-subtabs">
             <button class="dp-subtab active" data-subtab="environments" onclick="switchSubTab('sandbox', 'environments')">Environments</button>
@@ -295,10 +370,30 @@
                 <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading test suites...</div></div>
             </div>
         </div>
+          </div>
+          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
     </div>
 
     <!-- Deploy Tab -->
     <div id="tab-deploy" class="tab-content">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+          <div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+          <div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+          <div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+        </div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+            <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">DEPLOYMENT</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">SHIP</span>
+            <div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div>
+          </div>
+          <div style="flex:1 !important;padding:16px !important;">
         <!-- Deploy stats -->
         <div class="dp-stats" id="deployStats" style="margin-bottom:16px;">
             <div class="dp-stat-card" style="--card-accent: #00ff41;">
@@ -385,10 +480,30 @@
                 </div>
             </div>
         </div>
+          </div>
+          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
     </div>
 
     <!-- QA Tab (P.R.O.B.E.) -->
     <div id="tab-qa" class="tab-content">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+          <div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+          <div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+          <div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+        </div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+            <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">P.R.O.B.E. QA</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">TESTING</span>
+            <div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div>
+          </div>
+          <div style="flex:1 !important;padding:16px !important;">
         <div class="dp-stats" style="margin-bottom:16px;">
             <div class="dp-stat-card" style="--card-accent: #00ff41;">
                 <div class="dp-stat-label">Suite</div>
@@ -437,6 +552,10 @@
                 <tr><td colspan="8" style="text-align:center; color:#666; padding:20px;">No runs yet</td></tr>
             </tbody>
         </table>
+          </div>
+          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
     </div>
 </div>
 
@@ -2308,5 +2427,9 @@ function startStationPolling() {
 document.addEventListener('DOMContentLoaded', function() {
     startStationPolling();
 });
+</script>
+<script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
+<script>
+  window.onLcarsTabSwitch = function(tabId) { switchTab(tabId); };
 </script>
 {% endblock %}

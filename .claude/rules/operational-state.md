@@ -13,11 +13,12 @@
 | Business Suite | 8091 | business.kytranempowerment.com | kbs_app | Hub |
 | System Operations | 8085 | server.kytranempowerment.com | kytran-system-operations | Hub |
 | Stalwart Mail | 25/465/587/993 | mail.kytranempowerment.com | stalwart_mail | Hub |
-| CORS Proxy | 8098 | — | kytran_cors_proxy | Hub |
+| CORS Proxy | 8098 | proxy.kytranempowerment.com | kytran_cors_proxy | Hub |
 | Headscale Mesh | 8095 | mesh.kytranempowerment.com | archie_headscale | Hub |
 | AdGuard DNS | 53/5354 | adguard.kytranempowerment.com | network_adguard | Hub |
 | Nagios Monitoring | 8082 | nagios.kytranempowerment.com | monitoring_nagios | Hub |
-| NPM Proxy | — | proxy.kytranempowerment.com | NOT DEPLOYED | Hub |
+| C.R.E.E.D. Governance | 8086 | creed.kytranempowerment.com | kytran_creed | Hub |
+| NPM Proxy | 80/443 | proxy.kytranempowerment.com | nginx_proxy_manager | Hub |
 | Plex | 32400 (host) | — | media_plex | Hub |
 | Jellyfin | 8096 | — | media_jellyfin | Hub |
 | Sonarr | 8989 | — | media_sonarr | Hub |
@@ -38,9 +39,10 @@
 ## DNS (kytranempowerment.com)
 
 - Root (@) → Hostinger CDN (cdn.hstgr.net)
-- 27+ subdomains pointing to hub (153.68.195.85) — NO reverse proxy on hub, most return 000 externally
+- 22 subdomains pointing to hub (153.68.195.85) — NPM reverse proxy active, SSL on all proxy hosts
 - 7 subdomains pointing to VPS (76.13.107.109): market, civic, legal, gov, thenews, outpost-us, relay — ALL LIVE
-- Hub public IP: 153.68.195.85 (was 142.169.21.199, updated 2026-04-07)
+- Hub public IP: 153.68.195.85
+- NPM: 17 proxy hosts, all SSL forced (cleaned 2026-04-13 — removed portainer, mdm, code, devhq, *.fleet DNS + 7 dead proxy hosts)
 - `creed-ai.org` → Hostinger shared hosting (separate domain)
 
 ## Consciousness Module Status

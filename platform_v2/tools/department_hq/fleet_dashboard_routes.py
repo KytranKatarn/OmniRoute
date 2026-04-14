@@ -1258,7 +1258,7 @@ def register_dashboard_routes(bp, auth_decorator):
     def api_starbase_stats():
         """Hero Starbase stats -- real data from dispatcher + DB."""
         try:
-            from ai_bridge.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             manifest = dispatcher.get_crew_manifest()
@@ -1298,3 +1298,90 @@ def register_dashboard_routes(bp, auth_decorator):
         except Exception as e:
             logger.error(f"Starbase stats error: {e}")
             return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    @bp.route("/api/creed/workload-scores")
+    @auth_decorator
+    def api_creed_workload_scores():
+        """Token-based workload scoring per department for C.R.E.E.D. enforcement."""
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT department,
+                           COUNT(*) as agent_count,
+                           COUNT(*) FILTER (WHERE shift_state = 'active') as active_count,
+                           COALESCE(AVG(stress_level), 0) as avg_stress,
+                           COALESCE(AVG(energy_level), 0.5) as avg_energy,
+                           COALESCE(SUM(total_tokens_used), 0) as total_tokens,
+                           COALESCE(AVG(total_tokens_used), 0) as avg_tokens_per_agent
+                    FROM agents
+                    GROUP BY department
+                    ORDER BY SUM(total_tokens_used) DESC NULLS LAST
+                    """
+                )
+                departments = []
+                for row in cur.fetchall():
+                    dept = row["department"]
+                    count = row["agent_count"]
+                    active = row["active_count"]
+                    stress = float(row["avg_stress"])
+                    energy = float(row["avg_energy"])
+                    total_tok = float(row["total_tokens"])
+                    avg_tok = float(row["avg_tokens_per_agent"])
+
+                    stress_score = stress * 40
+                    energy_score = (1 - energy) * 30
+                    token_score = min(30, avg_tok / 10000 * 30) if avg_tok else 0
+                    workload = round(stress_score + energy_score + token_score, 1)
+
+                    if workload > 70:
+                        status = "critical"
+                    elif workload > 50:
+                        status = "warning"
+                    elif workload > 30:
+                        status = "moderate"
+                    else:
+                        status = "healthy"
+
+                    departments.append(
+                        {
+                            "department": dept,
+                            "agent_count": count,
+                            "active_count": active,
+                            "avg_stress": round(stress, 3),
+                            "avg_energy": round(energy, 3),
+                            "total_tokens": int(total_tok),
+                            "avg_tokens_per_agent": int(avg_tok),
+                            "workload_score": workload,
+                            "status": status,
+                        }
+                    )
+
+                cur.execute(
+                    """
+                    SELECT id, name, display_name, department,
+                           stress_level, energy_level, total_tokens_used
+                    FROM agents
+                    WHERE shift_state = 'active'
+                    ORDER BY stress_level DESC, energy_level ASC
+                    LIMIT 5
+                    """
+                )
+                overworked = []
+                for row in cur.fetchall():
+                    overworked.append(
+                        {
+                            "id": row["id"],
+                            "name": row["name"],
+                            "display_name": row["display_name"],
+                            "department": row["department"],
+                            "stress": round(float(row["stress_level"] or 0), 3),
+                            "energy": round(float(row["energy_level"] or 0.5), 3),
+                            "tokens_used": int(row["total_tokens_used"] or 0),
+                        }
+                    )
+
+            return jsonify(success=True, departments=departments, overworked_agents=overworked)
+        except Exception as e:
+            logger.error(f"Workload scores error: {e}")
+            return jsonify(success=False, error=str(e)[:200]), 500

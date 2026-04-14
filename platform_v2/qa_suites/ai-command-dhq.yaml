@@ -1,0 +1,78 @@
+suite:
+  name: "AI Command — Department HQ"
+  description: "Critical paths for Department HQ: overview, roster, dispatch, fleet, approvals"
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: "dhq-page-loads"
+    type: api
+    method: GET
+    path: /tools/department-hq/
+    expect:
+      status: [200, 302]
+
+  - name: "dhq-overview-stats"
+    type: api
+    method: GET
+    path: /tools/department-hq/api/overview-stats
+    expect:
+      status: [200, 302]
+
+  - name: "dhq-overview"
+    type: api
+    method: GET
+    path: /tools/department-hq/api/overview
+    expect:
+      status: [200, 302]
+
+  - name: "dhq-roster"
+    type: api
+    method: GET
+    path: /tools/department-hq/api/roster
+    expect:
+      status: [200, 302]
+
+  - name: "dhq-org-chart"
+    type: api
+    method: GET
+    path: /tools/department-hq/api/org-chart
+    expect:
+      status: [200, 302]
+
+  - name: "dhq-dispatch-overview"
+    type: api
+    method: GET
+    path: /tools/department-hq/api/dispatch/overview
+    expect:
+      status: [200, 302]
+
+  - name: "dhq-creed-overview"
+    type: api
+    method: GET
+    path: /tools/department-hq/api/creed/overview
+    expect:
+      status: [200, 302]
+
+  - name: "dhq-contractors"
+    type: api
+    method: GET
+    path: /tools/department-hq/api/contractors/providers
+    expect:
+      status: [200, 302]
+
+  - name: "dhq-approvals"
+    type: api
+    method: GET
+    path: /tools/department-hq/api/approvals/pending
+    expect:
+      status: [200, 302]
+
+  - name: "dhq-agents-welfare"
+    type: api
+    method: GET
+    path: /tools/department-hq/api/agents/welfare
+    expect:
+      status: [200, 302]

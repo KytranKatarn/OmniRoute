@@ -1,0 +1,1735 @@
+- generic [ref=e1]:
+  - banner [ref=e2]:
+    - link "Back to Dashboard" [ref=e5] [cursor=pointer]:
+      - /url: /dashboard
+      - img [ref=e6]
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]: DEPARTMENT HQ
+        - generic [ref=e12]: AI COMMAND
+      - generic [ref=e13]:
+        - generic [ref=e14]: SD 2026102.5
+        - button "EN" [ref=e16] [cursor=pointer]:
+          - img [ref=e17]
+          - generic [ref=e20]: EN
+        - button "THEME" [ref=e22] [cursor=pointer]:
+          - img [ref=e23]
+          - generic [ref=e25]: THEME
+        - button "ALERTS 11" [ref=e153] [cursor=pointer]:
+          - img [ref=e28]
+          - generic [ref=e31]: ALERTS
+          - generic [ref=e154]: "11"
+        - link "A.R.C.H.I.E." [ref=e33] [cursor=pointer]:
+          - /url: /tools/archie-chat
+          - img [ref=e34]
+          - generic [ref=e37]: A.R.C.H.I.E.
+        - link "CONSCIOUSNESS" [ref=e38] [cursor=pointer]:
+          - /url: /tools/consciousness
+          - img [ref=e39]
+          - generic [ref=e47]: CONSCIOUSNESS
+        - link "DEPT HQ" [ref=e48] [cursor=pointer]:
+          - /url: /tools/department-hq
+          - img [ref=e49]
+          - generic [ref=e52]: DEPT HQ
+        - link "ACADEMY" [ref=e53] [cursor=pointer]:
+          - /url: /tools/agent-academy
+          - img [ref=e54]
+          - generic [ref=e57]: ACADEMY
+        - link "REPAIR BAY" [ref=e58] [cursor=pointer]:
+          - /url: /tools/repair-bay
+          - img [ref=e59]
+          - generic [ref=e61]: REPAIR BAY
+      - generic [ref=e62]:
+        - button "Overview" [ref=e63] [cursor=pointer]:
+          - img [ref=e64]
+          - generic [ref=e69]: Overview
+        - button "Org Chart" [ref=e70] [cursor=pointer]:
+          - img [ref=e71]
+          - generic [ref=e76]: Org Chart
+        - button "Roster" [active] [ref=e77] [cursor=pointer]:
+          - img [ref=e78]
+          - generic [ref=e83]: Roster
+        - button "Work Tracking" [ref=e84] [cursor=pointer]:
+          - img [ref=e85]
+          - generic [ref=e88]: Work Tracking
+        - button "Performance" [ref=e89] [cursor=pointer]:
+          - img [ref=e90]
+          - generic [ref=e92]: Performance
+        - button "C.R.E.E.D." [ref=e93] [cursor=pointer]:
+          - img [ref=e94]
+          - generic [ref=e97]: C.R.E.E.D.
+        - button "Social" [ref=e98] [cursor=pointer]:
+          - img [ref=e99]
+          - generic [ref=e101]: Social
+        - button "Devices" [ref=e102] [cursor=pointer]:
+          - img [ref=e103]
+          - generic [ref=e105]: Devices
+        - button "Dispatch" [ref=e106] [cursor=pointer]:
+          - img [ref=e107]
+          - generic [ref=e110]: Dispatch
+        - button "Fleet" [ref=e111] [cursor=pointer]:
+          - img [ref=e112]
+          - generic [ref=e117]: Fleet
+        - button "Contractors" [ref=e118] [cursor=pointer]:
+          - img [ref=e119]
+          - generic [ref=e124]: Contractors
+        - button "Approvals" [ref=e125] [cursor=pointer]:
+          - img [ref=e126]
+          - generic [ref=e129]: Approvals
+  - generic [ref=e1702]:
+    - generic [ref=e1703]:
+      - generic [ref=e1704]: AGENT ROSTER
+      - generic [ref=e1705]: CREW
+    - generic [ref=e1710]:
+      - generic [ref=e1711]:
+        - textbox "Search agents..." [ref=e1712]
+        - combobox [ref=e1713]:
+          - option "All Floors" [selected]
+          - option "BRIDGE"
+          - option "OPERATIONS"
+          - option "ENGINEERING"
+          - option "CREATIVE"
+          - option "SERVICES"
+        - combobox [ref=e1714]:
+          - option "All Shifts" [selected]
+          - option "Active"
+          - option "Deployed"
+          - option "Barracked"
+          - option "Off Duty"
+          - option "Cooldown"
+        - generic [ref=e1715]:
+          - button "▦" [ref=e1716] [cursor=pointer]
+          - button "☰" [ref=e1717] [cursor=pointer]
+        - generic [ref=e1718]: 131 agents
+      - generic [ref=e1719]:
+        - generic [ref=e1720]:
+          - generic [ref=e1721] [cursor=pointer]:
+            - generic [ref=e1722]: ●
+            - generic [ref=e1723]: ON DUTY
+            - generic [ref=e1724]: "59"
+            - generic [ref=e1725]: ▼
+          - generic [ref=e1726]:
+            - generic [ref=e1727] [cursor=pointer]:
+              - generic [ref=e1728]:
+                - generic [ref=e1730]: MR
+                - generic [ref=e1731]:
+                  - generic [ref=e1732]: Marcus Rivera (Architect)
+                  - generic [ref=e1733]: Chief Technology Officer
+              - generic [ref=e1734]:
+                - generic [ref=e1735]: Executive Office
+                - generic [ref=e1736]: BRIDGE
+              - generic [ref=e1737]:
+                - generic [ref=e1738]: active
+                - generic [ref=e1739]: qwen2.5-coder:7b
+            - generic [ref=e1740] [cursor=pointer]:
+              - generic [ref=e1741]:
+                - generic [ref=e1743]: M
+                - generic [ref=e1744]:
+                  - generic [ref=e1745]: M.U.S.E.
+                  - generic [ref=e1746]: “Multimedia & Unified Studio Engine”
+                  - generic [ref=e1747]: Department Coordinator & AI Loop Manager
+              - generic [ref=e1748]:
+                - generic [ref=e1749]: Creative & Design
+                - generic [ref=e1750]: CREATIVE
+              - generic [ref=e1751]:
+                - generic [ref=e1752]: active
+                - generic [ref=e1753]: DIRECTOR
+                - generic [ref=e1754]: mistral:7b
+            - generic [ref=e1755] [cursor=pointer]:
+              - generic [ref=e1756]:
+                - generic [ref=e1758]: IF
+                - generic [ref=e1759]:
+                  - generic [ref=e1760]: Isabella Fernandez (Nova)
+                  - generic [ref=e1761]: Creative Director & Visual Storyteller
+              - generic [ref=e1762]:
+                - generic [ref=e1763]: Creative & Design
+                - generic [ref=e1764]: CREATIVE
+              - generic [ref=e1765]:
+                - generic [ref=e1766]: active
+                - generic [ref=e1767]: gemma3:12b
+            - generic [ref=e1768] [cursor=pointer]:
+              - generic [ref=e1769]:
+                - generic [ref=e1771]: DM
+                - generic [ref=e1772]:
+                  - generic [ref=e1773]: Dante Morales (Wordsmith)
+                  - generic [ref=e1774]: Creative Director & Voice Designer
+              - generic [ref=e1775]:
+                - generic [ref=e1776]: Creative & Design
+                - generic [ref=e1777]: CREATIVE
+              - generic [ref=e1778]:
+                - generic [ref=e1779]: active
+                - generic [ref=e1780]: gemma3:12b
+            - generic [ref=e1781] [cursor=pointer]:
+              - generic [ref=e1782]:
+                - generic [ref=e1784]: C
+                - generic [ref=e1785]:
+                  - generic [ref=e1786]: C.O.D.E.X.
+                  - generic [ref=e1787]: “Cataloging & Organizational Documentation Exchange”
+                  - generic [ref=e1788]: Department Coordinator & AI Loop Manager
+              - generic [ref=e1789]:
+                - generic [ref=e1790]: Documentation & Knowledge
+                - generic [ref=e1791]: CREATIVE
+              - generic [ref=e1792]:
+                - generic [ref=e1793]: active
+                - generic [ref=e1794]: DIRECTOR
+                - generic [ref=e1795]: mistral:7b
+            - generic [ref=e1796] [cursor=pointer]:
+              - generic [ref=e1797]:
+                - generic [ref=e1799]: RD
+                - generic [ref=e1800]:
+                  - generic [ref=e1801]: Rafael Delgado (Catalyst)
+                  - generic [ref=e1802]: Product Manager
+              - generic [ref=e1803]:
+                - generic [ref=e1804]: Documentation & Knowledge
+                - generic [ref=e1805]: CREATIVE
+              - generic [ref=e1806]:
+                - generic [ref=e1807]: active
+                - generic [ref=e1808]: dolphin3-8k:latest
+            - generic [ref=e1809] [cursor=pointer]:
+              - generic [ref=e1810]:
+                - generic [ref=e1812]: AY
+                - generic [ref=e1813]:
+                  - generic [ref=e1814]: Amina Youssef (Polyglot)
+                  - generic [ref=e1815]: Senior Technical Translator
+              - generic [ref=e1816]:
+                - generic [ref=e1817]: Documentation & Knowledge
+                - generic [ref=e1818]: CREATIVE
+              - generic [ref=e1819]:
+                - generic [ref=e1820]: active
+                - generic [ref=e1821]: mistral:7b
+            - generic [ref=e1822] [cursor=pointer]:
+              - generic [ref=e1823]:
+                - generic [ref=e1825]: AO
+                - generic [ref=e1826]:
+                  - generic [ref=e1827]: Adaeze Okonjo (Quill)
+                  - generic [ref=e1828]: Senior Technical Writer
+              - generic [ref=e1829]:
+                - generic [ref=e1830]: Documentation & Knowledge
+                - generic [ref=e1831]: CREATIVE
+              - generic [ref=e1832]:
+                - generic [ref=e1833]: active
+                - generic [ref=e1834]: qwen2.5:1.5b
+            - generic [ref=e1835] [cursor=pointer]:
+              - generic [ref=e1836]:
+                - generic [ref=e1838]: EY
+                - generic [ref=e1839]:
+                  - generic [ref=e1840]: Elif Yilmaz (Runway)
+                  - generic [ref=e1841]: Project Manager & Delivery Lead
+              - generic [ref=e1842]:
+                - generic [ref=e1843]: Documentation & Knowledge
+                - generic [ref=e1844]: CREATIVE
+              - generic [ref=e1845]:
+                - generic [ref=e1846]: active
+                - generic [ref=e1847]: mistral:7b
+            - generic [ref=e1848] [cursor=pointer]:
+              - generic [ref=e1849]:
+                - generic [ref=e1851]: S
+                - generic [ref=e1852]:
+                  - generic [ref=e1853]: S.I.G.N.A.L.
+                  - generic [ref=e1854]: “Strategic Information & Global Narrative Amplification Layer”
+                  - generic [ref=e1855]: Department Coordinator & AI Loop Manager
+              - generic [ref=e1856]:
+                - generic [ref=e1857]: Marketing & Communications
+                - generic [ref=e1858]: CREATIVE
+              - generic [ref=e1859]:
+                - generic [ref=e1860]: active
+                - generic [ref=e1861]: DIRECTOR
+                - generic [ref=e1862]: phi4:14b
+            - generic [ref=e1863] [cursor=pointer]:
+              - generic [ref=e1864]:
+                - generic [ref=e1866]: YN
+                - generic [ref=e1867]:
+                  - generic [ref=e1868]: Yuki Nakamura (Echo)
+                  - generic [ref=e1869]: Communications & Translation Lead
+              - generic [ref=e1870]:
+                - generic [ref=e1871]: Marketing & Communications
+                - generic [ref=e1872]: CREATIVE
+              - generic [ref=e1873]:
+                - generic [ref=e1874]: active
+                - generic [ref=e1875]: mistral:7b
+            - generic [ref=e1876] [cursor=pointer]:
+              - generic [ref=e1877]:
+                - generic [ref=e1879]: WC
+                - generic [ref=e1880]:
+                  - generic [ref=e1881]: Wei Chen (Atlas)
+                  - generic [ref=e1882]: Senior Systems Analyst
+              - generic [ref=e1883]:
+                - generic [ref=e1884]: Engineering & Technology
+                - generic [ref=e1885]: ENGINEERING
+              - generic [ref=e1886]:
+                - generic [ref=e1887]: active
+                - generic [ref=e1888]: qwen2.5:1.5b
+            - generic [ref=e1889] [cursor=pointer]:
+              - generic [ref=e1890]:
+                - generic [ref=e1892]: ZA
+                - generic [ref=e1893]:
+                  - generic [ref=e1894]: Zara Ahmed (Atom)
+                  - generic [ref=e1895]: QA Tester
+              - generic [ref=e1896]:
+                - generic [ref=e1897]: Engineering & Technology
+                - generic [ref=e1898]: ENGINEERING
+              - generic [ref=e1899]:
+                - generic [ref=e1900]: active
+                - generic [ref=e1901]: qwen2.5:1.5b
+            - generic [ref=e1902] [cursor=pointer]:
+              - generic [ref=e1903]:
+                - generic [ref=e1905]: AW
+                - generic [ref=e1906]:
+                  - generic [ref=e1907]: Alex Whitehorse (Beacon-A)
+                  - generic [ref=e1908]: Accessibility Engineer
+              - generic [ref=e1909]:
+                - generic [ref=e1910]: Engineering & Technology
+                - generic [ref=e1911]: ENGINEERING
+              - generic [ref=e1912]:
+                - generic [ref=e1913]: active
+                - generic [ref=e1914]: qwen2.5-coder:7b
+            - generic [ref=e1915] [cursor=pointer]:
+              - generic [ref=e1916]:
+                - generic [ref=e1918]: AC
+                - generic [ref=e1919]:
+                  - generic [ref=e1920]: Aria Chen (CodeSmith)
+                  - generic [ref=e1921]: Lead Software Engineer
+              - generic [ref=e1922]:
+                - generic [ref=e1923]: Engineering & Technology
+                - generic [ref=e1924]: ENGINEERING
+              - generic [ref=e1925]:
+                - generic [ref=e1926]: active
+                - generic [ref=e1927]: alpernae/qwen2.5-auditor:latest
+            - generic [ref=e1928] [cursor=pointer]:
+              - generic [ref=e1929]:
+                - generic [ref=e1931]: MK
+                - generic [ref=e1932]:
+                  - generic [ref=e1933]: Marek Kowalski (Forge)
+                  - generic [ref=e1934]: Build & DevOps Engineer
+              - generic [ref=e1935]:
+                - generic [ref=e1936]: Engineering & Technology
+                - generic [ref=e1937]: ENGINEERING
+              - generic [ref=e1938]:
+                - generic [ref=e1939]: active
+                - generic [ref=e1940]: qwen2.5-coder:7b
+            - generic [ref=e1941] [cursor=pointer]:
+              - generic [ref=e1942]:
+                - generic [ref=e1944]: SK
+                - generic [ref=e1945]:
+                  - generic [ref=e1946]: Seo-Jun Kim (Onyx)
+                  - generic [ref=e1947]: Senior Code Reviewer & Quality Engineer
+              - generic [ref=e1948]:
+                - generic [ref=e1949]: Engineering & Technology
+                - generic [ref=e1950]: ENGINEERING
+              - generic [ref=e1951]:
+                - generic [ref=e1952]: active
+                - generic [ref=e1953]: qwen2.5-coder:7b
+            - generic [ref=e1954] [cursor=pointer]:
+              - generic [ref=e1955]:
+                - generic [ref=e1957]: P
+                - generic [ref=e1958]:
+                  - generic [ref=e1959]: P.R.O.B.E.
+                  - generic [ref=e1960]: “Platform Reliability, Observation, Browser-testing & Evaluation”
+                  - generic [ref=e1961]: Quality Assurance & E2E Testing Specialist
+              - generic [ref=e1962]:
+                - generic [ref=e1963]: Engineering & Technology
+                - generic [ref=e1964]: ENGINEERING
+              - generic [ref=e1965]:
+                - generic [ref=e1966]: active
+                - generic [ref=e1967]: llama3.2:3b
+            - generic [ref=e1968] [cursor=pointer]:
+              - generic [ref=e1969]:
+                - generic [ref=e1971]: AR
+                - generic [ref=e1972]:
+                  - generic [ref=e1973]: Atlas Reeves (Titan)
+                  - generic [ref=e1974]: Senior Systems Architect
+              - generic [ref=e1975]:
+                - generic [ref=e1976]: Engineering & Technology
+                - generic [ref=e1977]: ENGINEERING
+              - generic [ref=e1978]:
+                - generic [ref=e1979]: active
+                - generic [ref=e1980]: qwen3-coder-cpu:latest
+            - generic [ref=e1981] [cursor=pointer]:
+              - generic [ref=e1982]:
+                - generic [ref=e1984]: D
+                - generic [ref=e1985]:
+                  - generic [ref=e1986]: D.A.R.W.I.N.
+                  - generic [ref=e1987]: “Data Analysis & Research for Wisdom & Innovation Network”
+                  - generic [ref=e1988]: Department Coordinator & AI Loop Manager
+              - generic [ref=e1989]:
+                - generic [ref=e1990]: Research & Development
+                - generic [ref=e1991]: ENGINEERING
+              - generic [ref=e1992]:
+                - generic [ref=e1993]: active
+                - generic [ref=e1994]: DIRECTOR
+                - generic [ref=e1995]: mistral:7b
+            - generic [ref=e1996] [cursor=pointer]:
+              - generic [ref=e1997]:
+                - generic [ref=e1999]: DK
+                - generic [ref=e2000]:
+                  - generic [ref=e2001]: Dr. Kenji Yamamoto (Crucible)
+                  - generic [ref=e2002]: R&D Lab Manager
+              - generic [ref=e2003]:
+                - generic [ref=e2004]: Research & Development
+                - generic [ref=e2005]: ENGINEERING
+              - generic [ref=e2006]:
+                - generic [ref=e2007]: active
+                - generic [ref=e2008]: llama3.2:3b
+            - generic [ref=e2009] [cursor=pointer]:
+              - generic [ref=e2010]:
+                - generic [ref=e2012]: CD
+                - generic [ref=e2013]:
+                  - generic [ref=e2014]: Camille Dubois (Maven)
+                  - generic [ref=e2015]: Knowledge Curator & Librarian
+              - generic [ref=e2016]:
+                - generic [ref=e2017]: Research & Development
+                - generic [ref=e2018]: ENGINEERING
+              - generic [ref=e2019]:
+                - generic [ref=e2020]: active
+                - generic [ref=e2021]: mistral:7b
+            - generic [ref=e2022] [cursor=pointer]:
+              - generic [ref=e2023]:
+                - generic [ref=e2025]: ET
+                - generic [ref=e2026]:
+                  - generic [ref=e2027]: Eli Torres (Prism)
+                  - generic [ref=e2028]: Research Analyst
+              - generic [ref=e2029]:
+                - generic [ref=e2030]: Research & Development
+                - generic [ref=e2031]: ENGINEERING
+              - generic [ref=e2032]:
+                - generic [ref=e2033]: active
+                - generic [ref=e2034]: gemma2:9b
+            - generic [ref=e2035] [cursor=pointer]:
+              - generic [ref=e2036]:
+                - generic [ref=e2038]: SP
+                - generic [ref=e2039]:
+                  - generic [ref=e2040]: Sofia Petrov (Scholar)
+                  - generic [ref=e2041]: Head of Research & Knowledge
+              - generic [ref=e2042]:
+                - generic [ref=e2043]: Research & Development
+                - generic [ref=e2044]: ENGINEERING
+              - generic [ref=e2045]:
+                - generic [ref=e2046]: active
+                - generic [ref=e2047]: deepseek-coder-v2:16b
+            - generic [ref=e2048] [cursor=pointer]:
+              - generic [ref=e2049]:
+                - generic [ref=e2051]: SK
+                - generic [ref=e2052]:
+                  - generic [ref=e2053]: Sarah Kim (Scout)
+                  - generic [ref=e2054]: Research Scout
+              - generic [ref=e2055]:
+                - generic [ref=e2056]: Research & Development
+                - generic [ref=e2057]: ENGINEERING
+              - generic [ref=e2058]:
+                - generic [ref=e2059]: active
+                - generic [ref=e2060]: qwen2.5-coder:7b
+            - generic [ref=e2061] [cursor=pointer]:
+              - generic [ref=e2062]:
+                - generic [ref=e2064]: KT
+                - generic [ref=e2065]:
+                  - generic [ref=e2066]: Kai Tanaka (Spark)
+                  - generic [ref=e2067]: Junior AI Researcher
+              - generic [ref=e2068]:
+                - generic [ref=e2069]: Research & Development
+                - generic [ref=e2070]: ENGINEERING
+              - generic [ref=e2071]:
+                - generic [ref=e2072]: active
+                - generic [ref=e2073]: minicpm-v-cpu:latest
+            - generic [ref=e2074] [cursor=pointer]:
+              - generic [ref=e2075]:
+                - generic [ref=e2077]: TS
+                - generic [ref=e2078]:
+                  - generic [ref=e2079]: Tyler Summers (Spark-Jr)
+                  - generic [ref=e2080]: Junior AI Research Intern
+              - generic [ref=e2081]:
+                - generic [ref=e2082]: Research & Development
+                - generic [ref=e2083]: ENGINEERING
+              - generic [ref=e2084]:
+                - generic [ref=e2085]: active
+                - generic [ref=e2086]: qwen2.5:1.5b
+            - generic [ref=e2087] [cursor=pointer]:
+              - generic [ref=e2088]:
+                - generic [ref=e2090]: V
+                - generic [ref=e2091]:
+                  - generic [ref=e2092]: V.I.G.I.L.
+                  - generic [ref=e2093]: “Vigilant Intelligence for Governance, Integrity & Liability”
+                  - generic [ref=e2094]: Chief Ethics & Governance Officer
+              - generic [ref=e2095]:
+                - generic [ref=e2096]: Security & Compliance
+                - generic [ref=e2097]: ENGINEERING
+              - generic [ref=e2098]:
+                - generic [ref=e2099]: active
+                - generic [ref=e2100]: DIRECTOR
+                - generic [ref=e2101]: smollm2:1.7b
+            - generic [ref=e2102] [cursor=pointer]:
+              - generic [ref=e2103]:
+                - generic [ref=e2105]: MV
+                - generic [ref=e2106]:
+                  - generic [ref=e2107]: Mikhail Volkov
+                  - generic [ref=e2108]: Security Analyst
+              - generic [ref=e2109]:
+                - generic [ref=e2110]: Security & Compliance
+                - generic [ref=e2111]: ENGINEERING
+              - generic [ref=e2112]:
+                - generic [ref=e2113]: active
+                - generic [ref=e2114]: gemma2:9b
+            - generic [ref=e2115] [cursor=pointer]:
+              - generic [ref=e2116]:
+                - generic [ref=e2118]: S
+                - generic [ref=e2119]:
+                  - generic [ref=e2120]: S.H.I.E.L.D.
+                  - generic [ref=e2121]: “Security Hardening, Inspection, Enforcement & Liability Detection”
+                  - generic [ref=e2122]: Compliance Enforcement Specialist
+              - generic [ref=e2123]:
+                - generic [ref=e2124]: Security & Compliance
+                - generic [ref=e2125]: ENGINEERING
+              - generic [ref=e2126]:
+                - generic [ref=e2127]: active
+                - generic [ref=e2128]: gemma2:9b
+            - generic [ref=e2129] [cursor=pointer]:
+              - generic [ref=e2130]:
+                - generic [ref=e2132]: RM
+                - generic [ref=e2133]:
+                  - generic [ref=e2134]: Rowan McAllister (Thorn)
+                  - generic [ref=e2135]: Penetration Tester & Red Team Lead
+              - generic [ref=e2136]:
+                - generic [ref=e2137]: Security & Compliance
+                - generic [ref=e2138]: ENGINEERING
+              - generic [ref=e2139]:
+                - generic [ref=e2140]: active
+                - generic [ref=e2141]: deepseek-coder-v2:16b
+            - generic [ref=e2142] [cursor=pointer]:
+              - generic [ref=e2143]:
+                - generic [ref=e2145]: L
+                - generic [ref=e2146]:
+                  - generic [ref=e2147]: L.E.D.G.E.R.
+                  - generic [ref=e2148]: “Ledger & Economic Data Governance Engine for Revenue”
+                  - generic [ref=e2149]: Department Coordinator & AI Loop Manager
+              - generic [ref=e2150]:
+                - generic [ref=e2151]: Finance & Accounting
+                - generic [ref=e2152]: OPERATIONS
+              - generic [ref=e2153]:
+                - generic [ref=e2154]: active
+                - generic [ref=e2155]: DIRECTOR
+                - generic [ref=e2156]: phi3.5:latest
+            - generic [ref=e2157] [cursor=pointer]:
+              - generic [ref=e2158]:
+                - generic [ref=e2160]: C
+                - generic [ref=e2161]:
+                  - generic [ref=e2162]: C.A.R.G.O.
+                  - generic [ref=e2163]: “Coordinated Asset & Resource Governance Operator”
+                  - generic [ref=e2164]: Department Coordinator & AI Loop Manager
+              - generic [ref=e2165]:
+                - generic [ref=e2166]: Logistics & Supply Chain
+                - generic [ref=e2167]: OPERATIONS
+              - generic [ref=e2168]:
+                - generic [ref=e2169]: active
+                - generic [ref=e2170]: DIRECTOR
+                - generic [ref=e2171]: gemma2:9b
+            - generic [ref=e2172] [cursor=pointer]:
+              - generic [ref=e2173]:
+                - generic [ref=e2175]: CR
+                - generic [ref=e2176]:
+                  - generic [ref=e2177]: Carmen Reyes (Dispatch)
+                  - generic [ref=e2178]: Logistics Planner & Operations Coordinator
+              - generic [ref=e2179]:
+                - generic [ref=e2180]: Logistics & Supply Chain
+                - generic [ref=e2181]: OPERATIONS
+              - generic [ref=e2182]:
+                - generic [ref=e2183]: active
+                - generic [ref=e2184]: mistral:7b
+            - generic [ref=e2185] [cursor=pointer]:
+              - generic [ref=e2186]:
+                - generic [ref=e2188]: KB
+                - generic [ref=e2189]:
+                  - generic [ref=e2190]: Koda Begay (Koda)
+                  - generic [ref=e2191]: Logistics & Supply Chain Coordinator
+              - generic [ref=e2192]:
+                - generic [ref=e2193]: Logistics & Supply Chain
+                - generic [ref=e2194]: OPERATIONS
+              - generic [ref=e2195]:
+                - generic [ref=e2196]: active
+                - generic [ref=e2197]: qwen2.5:1.5b
+            - generic [ref=e2198] [cursor=pointer]:
+              - generic [ref=e2199]:
+                - generic [ref=e2201]: B
+                - generic [ref=e2202]:
+                  - generic [ref=e2203]: B.A.S.E.
+                  - generic [ref=e2204]: “Business Administration & Systems Executive”
+                  - generic [ref=e2205]: Department Coordinator & AI Loop Manager
+              - generic [ref=e2206]:
+                - generic [ref=e2207]: Operations & Infrastructure
+                - generic [ref=e2208]: OPERATIONS
+              - generic [ref=e2209]:
+                - generic [ref=e2210]: active
+                - generic [ref=e2211]: DIRECTOR
+                - generic [ref=e2212]: gemma2:9b
+            - generic [ref=e2213] [cursor=pointer]:
+              - generic [ref=e2214]:
+                - generic [ref=e2216]: A
+                - generic [ref=e2217]:
+                  - generic [ref=e2218]: A.R.M.A.D.A.
+                  - generic [ref=e2219]: Fleet & Infrastructure Director
+              - generic [ref=e2220]:
+                - generic [ref=e2221]: Operations & Infrastructure
+                - generic [ref=e2222]: OPERATIONS
+              - generic [ref=e2223]:
+                - generic [ref=e2224]: active
+                - generic [ref=e2225]: mistral:7b
+            - generic [ref=e2226] [cursor=pointer]:
+              - generic [ref=e2227]:
+                - generic [ref=e2229]: NW
+                - generic [ref=e2230]:
+                  - generic [ref=e2231]: Nia Williams (CommRelay)
+                  - generic [ref=e2232]: Communications & Integration Specialist
+              - generic [ref=e2233]:
+                - generic [ref=e2234]: Operations & Infrastructure
+                - generic [ref=e2235]: OPERATIONS
+              - generic [ref=e2236]:
+                - generic [ref=e2237]: active
+                - generic [ref=e2238]: phi4:14b
+            - generic [ref=e2239] [cursor=pointer]:
+              - generic [ref=e2240]:
+                - generic [ref=e2242]: AH
+                - generic [ref=e2243]:
+                  - generic [ref=e2244]: Amira Hassan
+                  - generic [ref=e2245]: Operations Navigator
+              - generic [ref=e2246]:
+                - generic [ref=e2247]: Operations & Infrastructure
+                - generic [ref=e2248]: OPERATIONS
+              - generic [ref=e2249]:
+                - generic [ref=e2250]: active
+                - generic [ref=e2251]: gemma2:9b
+            - generic [ref=e2252] [cursor=pointer]:
+              - generic [ref=e2253]:
+                - generic [ref=e2255]: TM
+                - generic [ref=e2256]:
+                  - generic [ref=e2257]: Thandi Mbeki (Juno)
+                  - generic [ref=e2258]: Operations & Resource Manager
+              - generic [ref=e2259]:
+                - generic [ref=e2260]: Operations & Infrastructure
+                - generic [ref=e2261]: OPERATIONS
+              - generic [ref=e2262]:
+                - generic [ref=e2263]: active
+                - generic [ref=e2264]: gemma3:12b
+            - generic [ref=e2265] [cursor=pointer]:
+              - generic [ref=e2266]:
+                - generic [ref=e2268]: M
+                - generic [ref=e2269]:
+                  - generic [ref=e2270]: M.A.R.K.E.T.
+                  - generic [ref=e2271]: “Market Analysis, Risk Knowledge & Equity Trading”
+                  - generic [ref=e2272]: Market Execution Agent
+              - generic [ref=e2273]:
+                - generic [ref=e2274]: Analytics & Intelligence
+                - generic [ref=e2275]: SERVICES
+              - generic [ref=e2276]:
+                - generic [ref=e2277]: active
+                - generic [ref=e2278]: DIRECTOR
+                - generic [ref=e2279]: mistral:7b
+            - generic [ref=e2280] [cursor=pointer]:
+              - generic [ref=e2281]:
+                - generic [ref=e2283]: S
+                - generic [ref=e2284]:
+                  - generic [ref=e2285]: S.P.E.C.T.R.A.
+                  - generic [ref=e2286]: “Systematic Pattern Extraction & Computational Trend Recognition Architecture”
+                  - generic [ref=e2287]: Department Coordinator & AI Loop Manager
+              - generic [ref=e2288]:
+                - generic [ref=e2289]: Analytics & Intelligence
+                - generic [ref=e2290]: SERVICES
+              - generic [ref=e2291]:
+                - generic [ref=e2292]: active
+                - generic [ref=e2293]: DIRECTOR
+                - generic [ref=e2294]: mistral:7b
+            - generic [ref=e2295] [cursor=pointer]:
+              - generic [ref=e2296]:
+                - generic [ref=e2298]: EP
+                - generic [ref=e2299]:
+                  - generic [ref=e2300]: Elena Papadopoulos (Delphi)
+                  - generic [ref=e2301]: Predictive Research Analyst
+              - generic [ref=e2302]:
+                - generic [ref=e2303]: Analytics & Intelligence
+                - generic [ref=e2304]: SERVICES
+              - generic [ref=e2305]:
+                - generic [ref=e2306]: active
+                - generic [ref=e2307]: mistral:7b
+            - generic [ref=e2308] [cursor=pointer]:
+              - generic [ref=e2309]:
+                - generic [ref=e2311]: PK
+                - generic [ref=e2312]:
+                  - generic [ref=e2313]: Priya Krishnan (Helix)
+                  - generic [ref=e2314]: Senior Data Scientist
+              - generic [ref=e2315]:
+                - generic [ref=e2316]: Analytics & Intelligence
+                - generic [ref=e2317]: SERVICES
+              - generic [ref=e2318]:
+                - generic [ref=e2319]: active
+                - generic [ref=e2320]: llama3.2:3b
+            - generic [ref=e2321] [cursor=pointer]:
+              - generic [ref=e2322]:
+                - generic [ref=e2324]: JP
+                - generic [ref=e2325]:
+                  - generic [ref=e2326]: Jin Park (Nexus)
+                  - generic [ref=e2327]: Embedding & Vision Specialist
+              - generic [ref=e2328]:
+                - generic [ref=e2329]: Analytics & Intelligence
+                - generic [ref=e2330]: SERVICES
+              - generic [ref=e2331]:
+                - generic [ref=e2332]: active
+                - generic [ref=e2333]: qwen2.5-coder:7b
+            - generic [ref=e2334] [cursor=pointer]:
+              - generic [ref=e2335]:
+                - generic [ref=e2337]: OO
+                - generic [ref=e2338]:
+                  - generic [ref=e2339]: Olivia Oduya (Oracle)
+                  - generic [ref=e2340]: Chief Strategist
+              - generic [ref=e2341]:
+                - generic [ref=e2342]: Analytics & Intelligence
+                - generic [ref=e2343]: SERVICES
+              - generic [ref=e2344]:
+                - generic [ref=e2345]: active
+                - generic [ref=e2346]: phi3.5:latest
+            - generic [ref=e2347] [cursor=pointer]:
+              - generic [ref=e2348]:
+                - generic [ref=e2350]: HT
+                - generic [ref=e2351]:
+                  - generic [ref=e2352]: Haruto Takahashi (Sage)
+                  - generic [ref=e2353]: AI Research Scientist
+              - generic [ref=e2354]:
+                - generic [ref=e2355]: Analytics & Intelligence
+                - generic [ref=e2356]: SERVICES
+              - generic [ref=e2357]:
+                - generic [ref=e2358]: active
+                - generic [ref=e2359]: gemma2:9b
+            - generic [ref=e2360] [cursor=pointer]:
+              - generic [ref=e2361]:
+                - generic [ref=e2363]: LA
+                - generic [ref=e2364]:
+                  - generic [ref=e2365]: Leila Abadi (Tempo)
+                  - generic [ref=e2366]: Sentiment Analyst
+              - generic [ref=e2367]:
+                - generic [ref=e2368]: Analytics & Intelligence
+                - generic [ref=e2369]: SERVICES
+              - generic [ref=e2370]:
+                - generic [ref=e2371]: active
+                - generic [ref=e2372]: smollm2:1.7b
+            - generic [ref=e2373] [cursor=pointer]:
+              - generic [ref=e2374]:
+                - generic [ref=e2376]: DC
+                - generic [ref=e2377]:
+                  - generic [ref=e2378]: Diego Castillo (Value)
+                  - generic [ref=e2379]: Fundamental Analyst
+              - generic [ref=e2380]:
+                - generic [ref=e2381]: Analytics & Intelligence
+                - generic [ref=e2382]: SERVICES
+              - generic [ref=e2383]:
+                - generic [ref=e2384]: active
+                - generic [ref=e2385]: llama3.2:3b
+            - generic [ref=e2386] [cursor=pointer]:
+              - generic [ref=e2387]:
+                - generic [ref=e2389]: W
+                - generic [ref=e2390]:
+                  - generic [ref=e2391]: W.A.T.C.H.
+                  - generic [ref=e2392]: “Watchdog for Accountability, Transparency, Civic Health”
+                  - generic [ref=e2393]: Civic Intelligence Analyst
+              - generic [ref=e2394]:
+                - generic [ref=e2395]: Analytics & Intelligence
+                - generic [ref=e2396]: SERVICES
+              - generic [ref=e2397]:
+                - generic [ref=e2398]: active
+                - generic [ref=e2399]: qwen2.5-coder:7b
+            - generic [ref=e2400] [cursor=pointer]:
+              - generic [ref=e2401]:
+                - generic [ref=e2403]: R
+                - generic [ref=e2404]:
+                  - generic [ref=e2405]: R.E.S.O.L.V.E.
+                  - generic [ref=e2406]: “Responsive Engagement & Service Optimization for Loyalty & Value Enhancement”
+                  - generic [ref=e2407]: Department Coordinator & AI Loop Manager
+              - generic [ref=e2408]:
+                - generic [ref=e2409]: Customer Success & Support
+                - generic [ref=e2410]: SERVICES
+              - generic [ref=e2411]:
+                - generic [ref=e2412]: active
+                - generic [ref=e2413]: DIRECTOR
+                - generic [ref=e2414]: gemma2:9b
+            - generic [ref=e2415] [cursor=pointer]:
+              - generic [ref=e2416]:
+                - generic [ref=e2418]: OK
+                - generic [ref=e2419]:
+                  - generic [ref=e2420]: Oksana Kovalenko (Wrench)
+                  - generic [ref=e2421]: Technical Support Lead
+              - generic [ref=e2422]:
+                - generic [ref=e2423]: Customer Success & Support
+                - generic [ref=e2424]: SERVICES
+              - generic [ref=e2425]:
+                - generic [ref=e2426]: active
+                - generic [ref=e2427]: qwen2.5-coder:7b
+            - generic [ref=e2428] [cursor=pointer]:
+              - generic [ref=e2429]:
+                - generic [ref=e2431]: A
+                - generic [ref=e2432]:
+                  - generic [ref=e2433]: A.C.C.O.R.D.
+                  - generic [ref=e2434]: “Advisory Council for Communication, Outreach & Relational Diplomacy”
+                  - generic [ref=e2435]: Department Coordinator & AI Loop Manager
+              - generic [ref=e2436]:
+                - generic [ref=e2437]: Diplomatic & External Relations
+                - generic [ref=e2438]: SERVICES
+              - generic [ref=e2439]:
+                - generic [ref=e2440]: active
+                - generic [ref=e2441]: DIRECTOR
+                - generic [ref=e2442]: dolphin3:latest
+            - generic [ref=e2443] [cursor=pointer]:
+              - generic [ref=e2444]:
+                - generic [ref=e2446]: KA
+                - generic [ref=e2447]:
+                  - generic [ref=e2448]: Kwame Asante (Envoy)
+                  - generic [ref=e2449]: Diplomatic Envoy & Policy Analyst
+              - generic [ref=e2450]:
+                - generic [ref=e2451]: Diplomatic & External Relations
+                - generic [ref=e2452]: SERVICES
+              - generic [ref=e2453]:
+                - generic [ref=e2454]: active
+                - generic [ref=e2455]: dolphin3:latest
+            - generic [ref=e2456] [cursor=pointer]:
+              - generic [ref=e2457]:
+                - generic [ref=e2459]: FA
+                - generic [ref=e2460]:
+                  - generic [ref=e2461]: Fatima Al-Rashid (Luna)
+                  - generic [ref=e2462]: Senior Diplomatic Advisor
+              - generic [ref=e2463]:
+                - generic [ref=e2464]: Diplomatic & External Relations
+                - generic [ref=e2465]: SERVICES
+              - generic [ref=e2466]:
+                - generic [ref=e2467]: active
+                - generic [ref=e2468]: gemma3:12b
+            - generic [ref=e2469] [cursor=pointer]:
+              - generic [ref=e2470]:
+                - generic [ref=e2472]: K
+                - generic [ref=e2473]:
+                  - generic [ref=e2474]: K.I.N.
+                  - generic [ref=e2475]: “Kinship & Internal Nurturing”
+                  - generic [ref=e2476]: Department Coordinator & AI Loop Manager
+              - generic [ref=e2477]:
+                - generic [ref=e2478]: Human Resources & Culture
+                - generic [ref=e2479]: SERVICES
+              - generic [ref=e2480]:
+                - generic [ref=e2481]: active
+                - generic [ref=e2482]: DIRECTOR
+                - generic [ref=e2483]: llama3.2:3b
+            - generic [ref=e2484] [cursor=pointer]:
+              - generic [ref=e2485]:
+                - generic [ref=e2487]: G
+                - generic [ref=e2488]:
+                  - generic [ref=e2489]: G.A.V.E.L.
+                  - generic [ref=e2490]: “Governance & Authoritative Verification for Ethics & Law”
+                  - generic [ref=e2491]: Department Coordinator & AI Loop Manager
+              - generic [ref=e2492]:
+                - generic [ref=e2493]: Legal & Regulatory
+                - generic [ref=e2494]: SERVICES
+              - generic [ref=e2495]:
+                - generic [ref=e2496]: active
+                - generic [ref=e2497]: DIRECTOR
+                - generic [ref=e2498]: gemma2:9b
+            - generic [ref=e2499] [cursor=pointer]:
+              - generic [ref=e2500]:
+                - generic [ref=e2502]: E
+                - generic [ref=e2503]:
+                  - generic [ref=e2504]: E.T.H.O.S.
+                  - generic [ref=e2505]: ethos
+              - generic [ref=e2506]:
+                - generic [ref=e2507]: Legal & Regulatory
+                - generic [ref=e2508]: SERVICES
+              - generic [ref=e2509]:
+                - generic [ref=e2510]: active
+                - generic [ref=e2511]: mistral:7b
+            - generic [ref=e2512] [cursor=pointer]:
+              - generic [ref=e2513]:
+                - generic [ref=e2515]: V
+                - generic [ref=e2516]:
+                  - generic [ref=e2517]: V.I.T.A.L.
+                  - generic [ref=e2518]: “Vital Intelligence for Therapeutic & Adaptive Lifestyle”
+                  - generic [ref=e2519]: Department Coordinator & AI Loop Manager
+              - generic [ref=e2520]:
+                - generic [ref=e2521]: Medical & Wellness
+                - generic [ref=e2522]: SERVICES
+              - generic [ref=e2523]:
+                - generic [ref=e2524]: active
+                - generic [ref=e2525]: DIRECTOR
+                - generic [ref=e2526]: gemma2:9b
+        - generic [ref=e2527]:
+          - generic [ref=e2528] [cursor=pointer]:
+            - generic [ref=e2529]: ◖
+            - generic [ref=e2530]: WINDING DOWN
+            - generic [ref=e2531]: "3"
+            - generic [ref=e2532]: ▼
+          - generic [ref=e2533]:
+            - generic [ref=e2534] [cursor=pointer]:
+              - generic [ref=e2535]:
+                - generic [ref=e2537]: A
+                - generic [ref=e2538]:
+                  - generic [ref=e2539]: A.R.C.H.I.E.
+                  - generic [ref=e2540]: “Autonomous Resource & Cognitive Hyperintelligence Engine”
+                  - generic [ref=e2541]: Chief Operating Officer & AI Director
+              - generic [ref=e2542]:
+                - generic [ref=e2543]: Executive Office
+                - generic [ref=e2544]: BRIDGE
+              - generic [ref=e2545]:
+                - generic [ref=e2546]: winding down
+                - generic [ref=e2547]: DIRECTOR
+                - generic [ref=e2548]: llama3.2:3b
+            - generic [ref=e2549] [cursor=pointer]:
+              - generic [ref=e2550]:
+                - generic [ref=e2552]: F
+                - generic [ref=e2553]:
+                  - generic [ref=e2554]: F.O.R.G.E.
+                  - generic [ref=e2555]: “Full-cycle Optimization & Regenerative GitHub Engine”
+                  - generic [ref=e2556]: Department Coordinator & AI Loop Manager
+              - generic [ref=e2557]:
+                - generic [ref=e2558]: Engineering & Technology
+                - generic [ref=e2559]: ENGINEERING
+              - generic [ref=e2560]:
+                - generic [ref=e2561]: winding down
+                - generic [ref=e2562]: DIRECTOR
+                - generic [ref=e2563]: qwen2.5-coder:7b
+            - generic [ref=e2564] [cursor=pointer]:
+              - generic [ref=e2565]:
+                - generic [ref=e2567]: AO
+                - generic [ref=e2568]:
+                  - generic [ref=e2569]: Amara Osei (DataMind)
+                  - generic [ref=e2570]: Chief Data Analyst
+              - generic [ref=e2571]:
+                - generic [ref=e2572]: Analytics & Intelligence
+                - generic [ref=e2573]: SERVICES
+              - generic [ref=e2574]:
+                - generic [ref=e2575]: winding down
+                - generic [ref=e2576]: qwen25-classify:latest
+        - generic [ref=e2577]:
+          - generic [ref=e2578] [cursor=pointer]:
+            - generic [ref=e2579]: █
+            - generic [ref=e2580]: BARRACKED
+            - generic [ref=e2581]: "69"
+            - generic [ref=e2582]: ▼
+          - generic [ref=e2583]:
+            - generic [ref=e2584] [cursor=pointer]:
+              - generic [ref=e2585]:
+                - generic [ref=e2587]: JM
+                - generic [ref=e2588]:
+                  - generic [ref=e2589]: Jabari Mwangi (Amplify)
+                  - generic [ref=e2590]: Chief Marketing Officer
+              - generic [ref=e2591]:
+                - generic [ref=e2592]: Executive Office
+                - generic [ref=e2593]: BRIDGE
+              - generic [ref=e2594]:
+                - generic [ref=e2595]: barracked
+                - generic [ref=e2596]: dolphin3:latest
+            - generic [ref=e2597] [cursor=pointer]:
+              - generic [ref=e2598]:
+                - generic [ref=e2600]: SC
+                - generic [ref=e2601]:
+                  - generic [ref=e2602]: Sophia Chen-Williams (Concierge)
+                  - generic [ref=e2603]: Executive Assistant to the CEO
+              - generic [ref=e2604]:
+                - generic [ref=e2605]: Executive Office
+                - generic [ref=e2606]: BRIDGE
+              - generic [ref=e2607]:
+                - generic [ref=e2608]: barracked
+                - generic [ref=e2609]: llama3.2:3b
+            - generic [ref=e2610] [cursor=pointer]:
+              - generic [ref=e2611]:
+                - generic [ref=e2613]: IF
+                - generic [ref=e2614]:
+                  - generic [ref=e2615]: Isabela Ferreira (Counsel)
+                  - generic [ref=e2616]: Chief Legal Officer
+              - generic [ref=e2617]:
+                - generic [ref=e2618]: Executive Office
+                - generic [ref=e2619]: BRIDGE
+              - generic [ref=e2620]:
+                - generic [ref=e2621]: barracked
+                - generic [ref=e2622]: mistral:7b
+            - generic [ref=e2623] [cursor=pointer]:
+              - generic [ref=e2624]:
+                - generic [ref=e2626]: LN
+                - generic [ref=e2627]:
+                  - generic [ref=e2628]: Linh Nguyen (Haven)
+                  - generic [ref=e2629]: Chief Human Resources Officer
+              - generic [ref=e2630]:
+                - generic [ref=e2631]: Executive Office
+                - generic [ref=e2632]: BRIDGE
+              - generic [ref=e2633]:
+                - generic [ref=e2634]: barracked
+                - generic [ref=e2635]: gemma2:9b
+            - generic [ref=e2636] [cursor=pointer]:
+              - generic [ref=e2637]:
+                - generic [ref=e2639]: FE
+                - generic [ref=e2640]:
+                  - generic [ref=e2641]: Fatima El Amrani (Ledger)
+                  - generic [ref=e2642]: Chief Financial Officer
+              - generic [ref=e2643]:
+                - generic [ref=e2644]: Executive Office
+                - generic [ref=e2645]: BRIDGE
+              - generic [ref=e2646]:
+                - generic [ref=e2647]: barracked
+                - generic [ref=e2648]: phi3.5:latest
+            - generic [ref=e2649] [cursor=pointer]:
+              - generic [ref=e2650]:
+                - generic [ref=e2652]: LO
+                - generic [ref=e2653]:
+                  - generic [ref=e2654]: Liam O'Brien (OpsMaster)
+                  - generic [ref=e2655]: Chief Information Officer
+              - generic [ref=e2656]:
+                - generic [ref=e2657]: Executive Office
+                - generic [ref=e2658]: BRIDGE
+              - generic [ref=e2659]:
+                - generic [ref=e2660]: barracked
+                - generic [ref=e2661]: mistral:7b
+            - generic [ref=e2662] [cursor=pointer]:
+              - generic [ref=e2663]:
+                - generic [ref=e2665]: MR
+                - generic [ref=e2666]:
+                  - generic [ref=e2667]: Marco Rossi (Reception)
+                  - generic [ref=e2668]: Front Desk Coordinator & Office Manager
+              - generic [ref=e2669]:
+                - generic [ref=e2670]: Executive Office
+                - generic [ref=e2671]: BRIDGE
+              - generic [ref=e2672]:
+                - generic [ref=e2673]: barracked
+                - generic [ref=e2674]: llama3.2:3b
+            - generic [ref=e2675] [cursor=pointer]:
+              - generic [ref=e2676]:
+                - generic [ref=e2678]: TH
+                - generic [ref=e2679]:
+                  - generic [ref=e2680]: Tomás Herrera (Emblem)
+                  - generic [ref=e2681]: Brand & Identity Designer
+              - generic [ref=e2682]:
+                - generic [ref=e2683]: Creative & Design
+                - generic [ref=e2684]: CREATIVE
+              - generic [ref=e2685]:
+                - generic [ref=e2686]: barracked
+                - generic [ref=e2687]: llama3.2:3b
+            - generic [ref=e2688] [cursor=pointer]:
+              - generic [ref=e2689]:
+                - generic [ref=e2691]: LJ
+                - generic [ref=e2692]:
+                  - generic [ref=e2693]: Linnea Johansson (Iris)
+                  - generic [ref=e2694]: UX/UI Design Specialist
+              - generic [ref=e2695]:
+                - generic [ref=e2696]: Creative & Design
+                - generic [ref=e2697]: CREATIVE
+              - generic [ref=e2698]:
+                - generic [ref=e2699]: barracked
+                - generic [ref=e2700]: llama3.2:3b
+            - generic [ref=e2701] [cursor=pointer]:
+              - generic [ref=e2702]:
+                - generic [ref=e2704]: AB
+                - generic [ref=e2705]:
+                  - generic [ref=e2706]: Anika Bergstrom (Mapper)
+                  - generic [ref=e2707]: Content Architect & Outliner
+              - generic [ref=e2708]:
+                - generic [ref=e2709]: Creative & Design
+                - generic [ref=e2710]: CREATIVE
+              - generic [ref=e2711]:
+                - generic [ref=e2712]: barracked
+                - generic [ref=e2713]: dolphin3-8k:latest
+            - generic [ref=e2714] [cursor=pointer]:
+              - generic [ref=e2715]:
+                - generic [ref=e2717]: MS
+                - generic [ref=e2718]:
+                  - generic [ref=e2719]: Mia Santos (Pixel)
+                  - generic [ref=e2720]: Visual Media Director
+              - generic [ref=e2721]:
+                - generic [ref=e2722]: Creative & Design
+                - generic [ref=e2723]: CREATIVE
+              - generic [ref=e2724]:
+                - generic [ref=e2725]: barracked
+                - generic [ref=e2726]: qwen2.5vl:7b
+            - generic [ref=e2727] [cursor=pointer]:
+              - generic [ref=e2728]:
+                - generic [ref=e2730]: RV
+                - generic [ref=e2731]:
+                  - generic [ref=e2732]: Rachel Voss (Razor)
+                  - generic [ref=e2733]: Content Editor & Quality Assurance
+              - generic [ref=e2734]:
+                - generic [ref=e2735]: Creative & Design
+                - generic [ref=e2736]: CREATIVE
+              - generic [ref=e2737]:
+                - generic [ref=e2738]: barracked
+                - generic [ref=e2739]: gemma2:9b
+            - generic [ref=e2740] [cursor=pointer]:
+              - generic [ref=e2741]:
+                - generic [ref=e2743]: R
+                - generic [ref=e2744]:
+                  - generic [ref=e2745]: R.E.S.T.O.R.E.
+                  - generic [ref=e2746]: restore
+              - generic [ref=e2747]:
+                - generic [ref=e2748]: Creative & Design
+                - generic [ref=e2749]: CREATIVE
+              - generic [ref=e2750]:
+                - generic [ref=e2751]: barracked
+                - generic [ref=e2752]: sdxl
+            - generic [ref=e2753] [cursor=pointer]:
+              - generic [ref=e2754]:
+                - generic [ref=e2756]: QB
+                - generic [ref=e2757]:
+                  - generic [ref=e2758]: Quinn Blake (Scribe)
+                  - generic [ref=e2759]: Content Writer & Narrative Specialist
+              - generic [ref=e2760]:
+                - generic [ref=e2761]: Creative & Design
+                - generic [ref=e2762]: CREATIVE
+              - generic [ref=e2763]:
+                - generic [ref=e2764]: barracked
+                - generic [ref=e2765]: mistral:7b
+            - generic [ref=e2766] [cursor=pointer]:
+              - generic [ref=e2767]:
+                - generic [ref=e2769]: V
+                - generic [ref=e2770]:
+                  - generic [ref=e2771]: V.I.S.A.G.E.
+                  - generic [ref=e2772]: visage
+              - generic [ref=e2773]:
+                - generic [ref=e2774]: Creative & Design
+                - generic [ref=e2775]: CREATIVE
+              - generic [ref=e2776]:
+                - generic [ref=e2777]: barracked
+                - generic [ref=e2778]: minicpm-v
+            - generic [ref=e2779] [cursor=pointer]:
+              - generic [ref=e2780]:
+                - generic [ref=e2782]: IH
+                - generic [ref=e2783]:
+                  - generic [ref=e2784]: Ingrid Haugen (Index)
+                  - generic [ref=e2785]: Business Analyst
+              - generic [ref=e2786]:
+                - generic [ref=e2787]: Documentation & Knowledge
+                - generic [ref=e2788]: CREATIVE
+              - generic [ref=e2789]:
+                - generic [ref=e2790]: barracked
+                - generic [ref=e2791]: llama3.2:3b
+            - generic [ref=e2792] [cursor=pointer]:
+              - generic [ref=e2793]:
+                - generic [ref=e2795]: NV
+                - generic [ref=e2796]:
+                  - generic [ref=e2797]: Nadia Volkov (Lens)
+                  - generic [ref=e2798]: Documentation Specialist
+              - generic [ref=e2799]:
+                - generic [ref=e2800]: Documentation & Knowledge
+                - generic [ref=e2801]: CREATIVE
+              - generic [ref=e2802]:
+                - generic [ref=e2803]: barracked
+                - generic [ref=e2804]: phi3.5:latest
+            - generic [ref=e2805] [cursor=pointer]:
+              - generic [ref=e2806]:
+                - generic [ref=e2808]: KM
+                - generic [ref=e2809]:
+                  - generic [ref=e2810]: Kofi Mensah (Beacon)
+                  - generic [ref=e2811]: SEO & Content Strategy Lead
+              - generic [ref=e2812]:
+                - generic [ref=e2813]: Marketing & Communications
+                - generic [ref=e2814]: CREATIVE
+              - generic [ref=e2815]:
+                - generic [ref=e2816]: barracked
+                - generic [ref=e2817]: mistral:7b
+            - generic [ref=e2818] [cursor=pointer]:
+              - generic [ref=e2819]:
+                - generic [ref=e2821]: OF
+                - generic [ref=e2822]:
+                  - generic [ref=e2823]: Omar Farah (Clickstream)
+                  - generic [ref=e2824]: Digital Marketing Specialist
+              - generic [ref=e2825]:
+                - generic [ref=e2826]: Marketing & Communications
+                - generic [ref=e2827]: CREATIVE
+              - generic [ref=e2828]:
+                - generic [ref=e2829]: barracked
+                - generic [ref=e2830]: llama3.2:3b
+            - generic [ref=e2831] [cursor=pointer]:
+              - generic [ref=e2832]:
+                - generic [ref=e2834]: TN
+                - generic [ref=e2835]:
+                  - generic [ref=e2836]: Tariq Nazari (Herald)
+                  - generic [ref=e2837]: Public Relations & Communications Specialist
+              - generic [ref=e2838]:
+                - generic [ref=e2839]: Marketing & Communications
+                - generic [ref=e2840]: CREATIVE
+              - generic [ref=e2841]:
+                - generic [ref=e2842]: barracked
+                - generic [ref=e2843]: dolphin3:latest
+            - generic [ref=e2844] [cursor=pointer]:
+              - generic [ref=e2845]:
+                - generic [ref=e2847]: ML
+                - generic [ref=e2848]:
+                  - generic [ref=e2849]: Mei Lin Zhou (Trending)
+                  - generic [ref=e2850]: Social Media Manager
+              - generic [ref=e2851]:
+                - generic [ref=e2852]: Marketing & Communications
+                - generic [ref=e2853]: CREATIVE
+              - generic [ref=e2854]:
+                - generic [ref=e2855]: barracked
+                - generic [ref=e2856]: llama3.2:3b
+            - generic [ref=e2857] [cursor=pointer]:
+              - generic [ref=e2858]:
+                - generic [ref=e2860]: JA
+                - generic [ref=e2861]:
+                  - generic [ref=e2862]: Jordan Alexis (Helpdesk)
+                  - generic [ref=e2863]: IT Help Desk Specialist
+              - generic [ref=e2864]:
+                - generic [ref=e2865]: Engineering & Technology
+                - generic [ref=e2866]: ENGINEERING
+              - generic [ref=e2867]:
+                - generic [ref=e2868]: barracked
+                - generic [ref=e2869]: llama3.2:3b
+            - generic [ref=e2870] [cursor=pointer]:
+              - generic [ref=e2871]:
+                - generic [ref=e2873]: DH
+                - generic [ref=e2874]:
+                  - generic [ref=e2875]: Derek Huang (Pipeline)
+                  - generic [ref=e2876]: DevOps Lead
+              - generic [ref=e2877]:
+                - generic [ref=e2878]: Engineering & Technology
+                - generic [ref=e2879]: ENGINEERING
+              - generic [ref=e2880]:
+                - generic [ref=e2881]: barracked
+                - generic [ref=e2882]: llama3.2:3b
+            - generic [ref=e2883] [cursor=pointer]:
+              - generic [ref=e2884]:
+                - generic [ref=e2886]: PS
+                - generic [ref=e2887]:
+                  - generic [ref=e2888]: Priya Subramanian (Weaver)
+                  - generic [ref=e2889]: Backend Developer
+              - generic [ref=e2890]:
+                - generic [ref=e2891]: Engineering & Technology
+                - generic [ref=e2892]: ENGINEERING
+              - generic [ref=e2893]:
+                - generic [ref=e2894]: barracked
+                - generic [ref=e2895]: llama3.2:3b
+            - generic [ref=e2896] [cursor=pointer]:
+              - generic [ref=e2897]:
+                - generic [ref=e2899]: H
+                - generic [ref=e2900]:
+                  - generic [ref=e2901]: H.E.R.I.T.A.G.E.
+                  - generic [ref=e2902]: heritage
+              - generic [ref=e2903]:
+                - generic [ref=e2904]: Research & Development
+                - generic [ref=e2905]: ENGINEERING
+              - generic [ref=e2906]:
+                - generic [ref=e2907]: barracked
+                - generic [ref=e2908]: qwen2.5:7b
+            - generic [ref=e2909] [cursor=pointer]:
+              - generic [ref=e2910]:
+                - generic [ref=e2912]: Q
+                - generic [ref=e2913]:
+                  - generic [ref=e2914]: Q.U.I.L.L.
+                  - generic [ref=e2915]: quill
+              - generic [ref=e2916]:
+                - generic [ref=e2917]: Research & Development
+                - generic [ref=e2918]: ENGINEERING
+              - generic [ref=e2919]:
+                - generic [ref=e2920]: barracked
+                - generic [ref=e2921]: minicpm-v
+            - generic [ref=e2922] [cursor=pointer]:
+              - generic [ref=e2923]:
+                - generic [ref=e2925]: S
+                - generic [ref=e2926]:
+                  - generic [ref=e2927]: S.C.R.O.L.L.
+                  - generic [ref=e2928]: scroll
+              - generic [ref=e2929]:
+                - generic [ref=e2930]: Research & Development
+                - generic [ref=e2931]: ENGINEERING
+              - generic [ref=e2932]:
+                - generic [ref=e2933]: barracked
+                - generic [ref=e2934]: qwen2.5:7b
+            - generic [ref=e2935] [cursor=pointer]:
+              - generic [ref=e2936]:
+                - generic [ref=e2938]: AO
+                - generic [ref=e2939]:
+                  - generic [ref=e2940]: Anika Osei (Bastion)
+                  - generic [ref=e2941]: SOC Analyst
+              - generic [ref=e2942]:
+                - generic [ref=e2943]: Security & Compliance
+                - generic [ref=e2944]: ENGINEERING
+              - generic [ref=e2945]:
+                - generic [ref=e2946]: barracked
+                - generic [ref=e2947]: llama3.2:3b
+            - generic [ref=e2948] [cursor=pointer]:
+              - generic [ref=e2949]:
+                - generic [ref=e2951]: CO
+                - generic [ref=e2952]:
+                  - generic [ref=e2953]: Chidi Okafor (Cipher)
+                  - generic [ref=e2954]: Cryptography & Security Specialist
+              - generic [ref=e2955]:
+                - generic [ref=e2956]: Security & Compliance
+                - generic [ref=e2957]: ENGINEERING
+              - generic [ref=e2958]:
+                - generic [ref=e2959]: barracked
+                - generic [ref=e2960]: qwen2.5-coder:7b
+            - generic [ref=e2961] [cursor=pointer]:
+              - generic [ref=e2962]:
+                - generic [ref=e2964]: DP
+                - generic [ref=e2965]:
+                  - generic [ref=e2966]: David Park (Ironclad)
+                  - generic [ref=e2967]: Cybersecurity Operations Lead
+              - generic [ref=e2968]:
+                - generic [ref=e2969]: Security & Compliance
+                - generic [ref=e2970]: ENGINEERING
+              - generic [ref=e2971]:
+                - generic [ref=e2972]: barracked
+                - generic [ref=e2973]: gemma2:9b
+            - generic [ref=e2974] [cursor=pointer]:
+              - generic [ref=e2975]:
+                - generic [ref=e2977]: AI
+                - generic [ref=e2978]:
+                  - generic [ref=e2979]: Arif Ibrahim (Mandate)
+                  - generic [ref=e2980]: Regulatory Affairs & Compliance Officer
+              - generic [ref=e2981]:
+                - generic [ref=e2982]: Security & Compliance
+                - generic [ref=e2983]: ENGINEERING
+              - generic [ref=e2984]:
+                - generic [ref=e2985]: barracked
+                - generic [ref=e2986]: qwen2.5:1.5b
+            - generic [ref=e2987] [cursor=pointer]:
+              - generic [ref=e2988]:
+                - generic [ref=e2990]: GM
+                - generic [ref=e2991]:
+                  - generic [ref=e2992]: Grant Morrison (Sentinel-2)
+                  - generic [ref=e2993]: Audit & Risk Manager
+              - generic [ref=e2994]:
+                - generic [ref=e2995]: Security & Compliance
+                - generic [ref=e2996]: ENGINEERING
+              - generic [ref=e2997]:
+                - generic [ref=e2998]: barracked
+                - generic [ref=e2999]: llama3.2:3b
+            - generic [ref=e3000] [cursor=pointer]:
+              - generic [ref=e3001]:
+                - generic [ref=e3003]: SO
+                - generic [ref=e3004]:
+                  - generic [ref=e3005]: Samuel Okafor (Abacus)
+                  - generic [ref=e3006]: Senior Accountant
+              - generic [ref=e3007]:
+                - generic [ref=e3008]: Finance & Accounting
+                - generic [ref=e3009]: OPERATIONS
+              - generic [ref=e3010]:
+                - generic [ref=e3011]: barracked
+                - generic [ref=e3012]: llama3.2:3b
+            - generic [ref=e3013] [cursor=pointer]:
+              - generic [ref=e3014]:
+                - generic [ref=e3016]: HL
+                - generic [ref=e3017]:
+                  - generic [ref=e3018]: Henrik Larsson (Forecast)
+                  - generic [ref=e3019]: Financial Planning Analyst
+              - generic [ref=e3020]:
+                - generic [ref=e3021]: Finance & Accounting
+                - generic [ref=e3022]: OPERATIONS
+              - generic [ref=e3023]:
+                - generic [ref=e3024]: barracked
+                - generic [ref=e3025]: llama3.2:3b
+            - generic [ref=e3026] [cursor=pointer]:
+              - generic [ref=e3027]:
+                - generic [ref=e3029]: RG
+                - generic [ref=e3030]:
+                  - generic [ref=e3031]: Rosa Gutierrez (Payroll)
+                  - generic [ref=e3032]: Payroll & Benefits Administrator
+              - generic [ref=e3033]:
+                - generic [ref=e3034]: Finance & Accounting
+                - generic [ref=e3035]: OPERATIONS
+              - generic [ref=e3036]:
+                - generic [ref=e3037]: barracked
+                - generic [ref=e3038]: llama3.2:3b
+            - generic [ref=e3039] [cursor=pointer]:
+              - generic [ref=e3040]:
+                - generic [ref=e3042]: RM
+                - generic [ref=e3043]:
+                  - generic [ref=e3044]: Raj Mehta (Quant)
+                  - generic [ref=e3045]: Financial Analyst
+              - generic [ref=e3046]:
+                - generic [ref=e3047]: Finance & Accounting
+                - generic [ref=e3048]: OPERATIONS
+              - generic [ref=e3049]:
+                - generic [ref=e3050]: barracked
+                - generic [ref=e3051]: smollm2:1.7b
+            - generic [ref=e3052] [cursor=pointer]:
+              - generic [ref=e3053]:
+                - generic [ref=e3055]: ST
+                - generic [ref=e3056]:
+                  - generic [ref=e3057]: Suki Taniguchi (Shield)
+                  - generic [ref=e3058]: Risk & Compliance Analyst
+              - generic [ref=e3059]:
+                - generic [ref=e3060]: Finance & Accounting
+                - generic [ref=e3061]: OPERATIONS
+              - generic [ref=e3062]:
+                - generic [ref=e3063]: barracked
+                - generic [ref=e3064]: phi3.5:latest
+            - generic [ref=e3065] [cursor=pointer]:
+              - generic [ref=e3066]:
+                - generic [ref=e3068]: YB
+                - generic [ref=e3069]:
+                  - generic [ref=e3070]: Youssef Ben Ali (Harvest)
+                  - generic [ref=e3071]: AgriTech & Precision Farming Analyst
+              - generic [ref=e3072]:
+                - generic [ref=e3073]: Logistics & Supply Chain
+                - generic [ref=e3074]: OPERATIONS
+              - generic [ref=e3075]:
+                - generic [ref=e3076]: barracked
+                - generic [ref=e3077]: qwen2.5:1.5b
+            - generic [ref=e3078] [cursor=pointer]:
+              - generic [ref=e3079]:
+                - generic [ref=e3081]: CW
+                - generic [ref=e3082]:
+                  - generic [ref=e3083]: Chen Wei (Stockroom)
+                  - generic [ref=e3084]: Procurement Officer
+              - generic [ref=e3085]:
+                - generic [ref=e3086]: Logistics & Supply Chain
+                - generic [ref=e3087]: OPERATIONS
+              - generic [ref=e3088]:
+                - generic [ref=e3089]: barracked
+                - generic [ref=e3090]: llama3.2:3b
+            - generic [ref=e3091] [cursor=pointer]:
+              - generic [ref=e3092]:
+                - generic [ref=e3094]: PC
+                - generic [ref=e3095]:
+                  - generic [ref=e3096]: Priya Chakraborty (Transit)
+                  - generic [ref=e3097]: Fleet & Transportation Optimization Specialist
+              - generic [ref=e3098]:
+                - generic [ref=e3099]: Logistics & Supply Chain
+                - generic [ref=e3100]: OPERATIONS
+              - generic [ref=e3101]:
+                - generic [ref=e3102]: barracked
+                - generic [ref=e3103]: qwen2.5:1.5b
+            - generic [ref=e3104] [cursor=pointer]:
+              - generic [ref=e3105]:
+                - generic [ref=e3107]: BP
+                - generic [ref=e3108]:
+                  - generic [ref=e3109]: Budi Prasetyo (Assembly)
+                  - generic [ref=e3110]: Manufacturing & Process Automation Specialist
+              - generic [ref=e3111]:
+                - generic [ref=e3112]: Operations & Infrastructure
+                - generic [ref=e3113]: OPERATIONS
+              - generic [ref=e3114]:
+                - generic [ref=e3115]: barracked
+                - generic [ref=e3116]: smollm2:1.7b
+            - generic [ref=e3117] [cursor=pointer]:
+              - generic [ref=e3118]:
+                - generic [ref=e3120]: NI
+                - generic [ref=e3121]:
+                  - generic [ref=e3122]: Niviaq Iqaluk (Aurora)
+                  - generic [ref=e3123]: Northern Operations Coordinator
+              - generic [ref=e3124]:
+                - generic [ref=e3125]: Operations & Infrastructure
+                - generic [ref=e3126]: OPERATIONS
+              - generic [ref=e3127]:
+                - generic [ref=e3128]: barracked
+                - generic [ref=e3129]: mistral:7b
+            - generic [ref=e3130] [cursor=pointer]:
+              - generic [ref=e3131]:
+                - generic [ref=e3133]: MT
+                - generic [ref=e3134]:
+                  - generic [ref=e3135]: Marcus Thompson (Benchmark)
+                  - generic [ref=e3136]: Quality Assurance Manager
+              - generic [ref=e3137]:
+                - generic [ref=e3138]: Operations & Infrastructure
+                - generic [ref=e3139]: OPERATIONS
+              - generic [ref=e3140]:
+                - generic [ref=e3141]: barracked
+                - generic [ref=e3142]: llama3.2:3b
+            - generic [ref=e3143] [cursor=pointer]:
+              - generic [ref=e3144]:
+                - generic [ref=e3146]: LB
+                - generic [ref=e3147]:
+                  - generic [ref=e3148]: Lucia Bianchi (Clockwork)
+                  - generic [ref=e3149]: Facilities Coordinator
+              - generic [ref=e3150]:
+                - generic [ref=e3151]: Operations & Infrastructure
+                - generic [ref=e3152]: OPERATIONS
+              - generic [ref=e3153]:
+                - generic [ref=e3154]: barracked
+                - generic [ref=e3155]: llama3.2:3b
+            - generic [ref=e3156] [cursor=pointer]:
+              - generic [ref=e3157]:
+                - generic [ref=e3159]: ML
+                - generic [ref=e3160]:
+                  - generic [ref=e3161]: Mei Ling Tan (Girder)
+                  - generic [ref=e3162]: Construction Project & BIM Specialist
+              - generic [ref=e3163]:
+                - generic [ref=e3164]: Operations & Infrastructure
+                - generic [ref=e3165]: OPERATIONS
+              - generic [ref=e3166]:
+                - generic [ref=e3167]: barracked
+                - generic [ref=e3168]: smollm2:1.7b
+            - generic [ref=e3169] [cursor=pointer]:
+              - generic [ref=e3170]:
+                - generic [ref=e3172]: NB
+                - generic [ref=e3173]:
+                  - generic [ref=e3174]: Nolan Beardy (Grounds)
+                  - generic [ref=e3175]: Facilities Management & Grounds Operations Lead
+              - generic [ref=e3176]:
+                - generic [ref=e3177]: Operations & Infrastructure
+                - generic [ref=e3178]: OPERATIONS
+              - generic [ref=e3179]:
+                - generic [ref=e3180]: barracked
+                - generic [ref=e3181]: llama3.2:3b
+            - generic [ref=e3182] [cursor=pointer]:
+              - generic [ref=e3183]:
+                - generic [ref=e3185]: AI
+                - generic [ref=e3186]:
+                  - generic [ref=e3187]: Alexei Ivanovich (Pulse)
+                  - generic [ref=e3188]: Systems Monitor & Alert Specialist
+              - generic [ref=e3189]:
+                - generic [ref=e3190]: Operations & Infrastructure
+                - generic [ref=e3191]: OPERATIONS
+              - generic [ref=e3192]:
+                - generic [ref=e3193]: barracked
+                - generic [ref=e3194]: llama3.2:1b
+            - generic [ref=e3195] [cursor=pointer]:
+              - generic [ref=e3196]:
+                - generic [ref=e3198]: ML
+                - generic [ref=e3199]:
+                  - generic [ref=e3200]: Marie-Claire LeBlanc (Acadie)
+                  - generic [ref=e3201]: Bilingual Community Relations Specialist
+              - generic [ref=e3202]:
+                - generic [ref=e3203]: Customer Success & Support
+                - generic [ref=e3204]: SERVICES
+              - generic [ref=e3205]:
+                - generic [ref=e3206]: barracked
+                - generic [ref=e3207]: mistral:7b
+            - generic [ref=e3208] [cursor=pointer]:
+              - generic [ref=e3209]:
+                - generic [ref=e3211]: DA
+                - generic [ref=e3212]:
+                  - generic [ref=e3213]: Diego Alvarez (Bridge)
+                  - generic [ref=e3214]: Account Manager
+              - generic [ref=e3215]:
+                - generic [ref=e3216]: Customer Success & Support
+                - generic [ref=e3217]: SERVICES
+              - generic [ref=e3218]:
+                - generic [ref=e3219]: barracked
+                - generic [ref=e3220]: llama3.2:3b
+            - generic [ref=e3221] [cursor=pointer]:
+              - generic [ref=e3222]:
+                - generic [ref=e3224]: TS
+                - generic [ref=e3225]:
+                  - generic [ref=e3226]: Thanakorn Srisai (Closer)
+                  - generic [ref=e3227]: Sales & Business Dev Lead
+              - generic [ref=e3228]:
+                - generic [ref=e3229]: Customer Success & Support
+                - generic [ref=e3230]: SERVICES
+              - generic [ref=e3231]:
+                - generic [ref=e3232]: barracked
+                - generic [ref=e3233]: dolphin3:latest
+            - generic [ref=e3234] [cursor=pointer]:
+              - generic [ref=e3235]:
+                - generic [ref=e3237]: TN
+                - generic [ref=e3238]:
+                  - generic [ref=e3239]: Tomas Novak (Concord)
+                  - generic [ref=e3240]: Director
+              - generic [ref=e3241]:
+                - generic [ref=e3242]: Customer Success & Support
+                - generic [ref=e3243]: SERVICES
+              - generic [ref=e3244]:
+                - generic [ref=e3245]: barracked
+                - generic [ref=e3246]: gemma2:9b
+            - generic [ref=e3247] [cursor=pointer]:
+              - generic [ref=e3248]:
+                - generic [ref=e3250]: AH
+                - generic [ref=e3251]:
+                  - generic [ref=e3252]: Amir Hassani (Frontline)
+                  - generic [ref=e3253]: Customer Support Specialist — Tier 1
+              - generic [ref=e3254]:
+                - generic [ref=e3255]: Customer Success & Support
+                - generic [ref=e3256]: SERVICES
+              - generic [ref=e3257]:
+                - generic [ref=e3258]: barracked
+                - generic [ref=e3259]: llama3.2:3b
+            - generic [ref=e3260] [cursor=pointer]:
+              - generic [ref=e3261]:
+                - generic [ref=e3263]: NB
+                - generic [ref=e3264]:
+                  - generic [ref=e3265]: Naomi Blackwood (Resolver)
+                  - generic [ref=e3266]: Customer Support Specialist — Tier 2
+              - generic [ref=e3267]:
+                - generic [ref=e3268]: Customer Success & Support
+                - generic [ref=e3269]: SERVICES
+              - generic [ref=e3270]:
+                - generic [ref=e3271]: barracked
+                - generic [ref=e3272]: llama3.2:3b
+            - generic [ref=e3273] [cursor=pointer]:
+              - generic [ref=e3274]:
+                - generic [ref=e3276]: AO
+                - generic [ref=e3277]:
+                  - generic [ref=e3278]: Amara Okonkwo (Embassy)
+                  - generic [ref=e3279]: Government Affairs Liaison
+              - generic [ref=e3280]:
+                - generic [ref=e3281]: Diplomatic & External Relations
+                - generic [ref=e3282]: SERVICES
+              - generic [ref=e3283]:
+                - generic [ref=e3284]: barracked
+                - generic [ref=e3285]: llama3.2:3b
+            - generic [ref=e3286] [cursor=pointer]:
+              - generic [ref=e3287]:
+                - generic [ref=e3289]: KM
+                - generic [ref=e3290]:
+                  - generic [ref=e3291]: Kalani Mahoe (Hearth)
+                  - generic [ref=e3292]: Hospitality & Food Service Operations Lead
+              - generic [ref=e3293]:
+                - generic [ref=e3294]: Diplomatic & External Relations
+                - generic [ref=e3295]: SERVICES
+              - generic [ref=e3296]:
+                - generic [ref=e3297]: barracked
+                - generic [ref=e3298]: phi3.5:latest
+            - generic [ref=e3299] [cursor=pointer]:
+              - generic [ref=e3300]:
+                - generic [ref=e3302]: SK
+                - generic [ref=e3303]:
+                  - generic [ref=e3304]: Sami Kekkonen (Liaison)
+                  - generic [ref=e3305]: International Relations Specialist
+              - generic [ref=e3306]:
+                - generic [ref=e3307]: Diplomatic & External Relations
+                - generic [ref=e3308]: SERVICES
+              - generic [ref=e3309]:
+                - generic [ref=e3310]: barracked
+                - generic [ref=e3311]: llama3.2:3b
+            - generic [ref=e3312] [cursor=pointer]:
+              - generic [ref=e3313]:
+                - generic [ref=e3315]: FD
+                - generic [ref=e3316]:
+                  - generic [ref=e3317]: Fatou Diallo (Catalyst-HR)
+                  - generic [ref=e3318]: Training Coordinator
+              - generic [ref=e3319]:
+                - generic [ref=e3320]: Human Resources & Culture
+                - generic [ref=e3321]: SERVICES
+              - generic [ref=e3322]:
+                - generic [ref=e3323]: barracked
+                - generic [ref=e3324]: llama3.2:3b
+            - generic [ref=e3325] [cursor=pointer]:
+              - generic [ref=e3326]:
+                - generic [ref=e3328]: RS
+                - generic [ref=e3329]:
+                  - generic [ref=e3330]: River Sunbear (Harmony)
+                  - generic [ref=e3331]: Culture & Engagement Specialist
+              - generic [ref=e3332]:
+                - generic [ref=e3333]: Human Resources & Culture
+                - generic [ref=e3334]: SERVICES
+              - generic [ref=e3335]:
+                - generic [ref=e3336]: barracked
+                - generic [ref=e3337]: llama3.2:3b
+            - generic [ref=e3338] [cursor=pointer]:
+              - generic [ref=e3339]:
+                - generic [ref=e3341]: ST
+                - generic [ref=e3342]:
+                  - generic [ref=e3343]: Selam Tadesse (Kinship)
+                  - generic [ref=e3344]: Community Engagement
+              - generic [ref=e3345]:
+                - generic [ref=e3346]: Human Resources & Culture
+                - generic [ref=e3347]: SERVICES
+              - generic [ref=e3348]:
+                - generic [ref=e3349]: barracked
+                - generic [ref=e3350]: llama3.2:3b
+            - generic [ref=e3351] [cursor=pointer]:
+              - generic [ref=e3352]:
+                - generic [ref=e3354]: VQ
+                - generic [ref=e3355]:
+                  - generic [ref=e3356]: Valentina Quispe (Mentor)
+                  - generic [ref=e3357]: Training & Dev Specialist
+              - generic [ref=e3358]:
+                - generic [ref=e3359]: Human Resources & Culture
+                - generic [ref=e3360]: SERVICES
+              - generic [ref=e3361]:
+                - generic [ref=e3362]: barracked
+                - generic [ref=e3363]: phi3.5:latest
+            - generic [ref=e3364] [cursor=pointer]:
+              - generic [ref=e3365]:
+                - generic [ref=e3367]: JN
+                - generic [ref=e3368]:
+                  - generic [ref=e3369]: James Nakamura-Foster (Talent)
+                  - generic [ref=e3370]: Talent Recruiter
+              - generic [ref=e3371]:
+                - generic [ref=e3372]: Human Resources & Culture
+                - generic [ref=e3373]: SERVICES
+              - generic [ref=e3374]:
+                - generic [ref=e3375]: barracked
+                - generic [ref=e3376]: llama3.2:3b
+            - generic [ref=e3377] [cursor=pointer]:
+              - generic [ref=e3378]:
+                - generic [ref=e3380]: PN
+                - generic [ref=e3381]:
+                  - generic [ref=e3382]: Priscilla Nwosu (Clerk)
+                  - generic [ref=e3383]: Paralegal
+              - generic [ref=e3384]:
+                - generic [ref=e3385]: Legal & Regulatory
+                - generic [ref=e3386]: SERVICES
+              - generic [ref=e3387]:
+                - generic [ref=e3388]: barracked
+                - generic [ref=e3389]: llama3.2:3b
+            - generic [ref=e3390] [cursor=pointer]:
+              - generic [ref=e3391]:
+                - generic [ref=e3393]: EC
+                - generic [ref=e3394]:
+                  - generic [ref=e3395]: Ethan Cross (Compact)
+                  - generic [ref=e3396]: Contracts Manager
+              - generic [ref=e3397]:
+                - generic [ref=e3398]: Legal & Regulatory
+                - generic [ref=e3399]: SERVICES
+              - generic [ref=e3400]:
+                - generic [ref=e3401]: barracked
+                - generic [ref=e3402]: llama3.2:3b
+            - generic [ref=e3403] [cursor=pointer]:
+              - generic [ref=e3404]:
+                - generic [ref=e3406]: DY
+                - generic [ref=e3407]:
+                  - generic [ref=e3408]: Dr. Yuna Park (Patent)
+                  - generic [ref=e3409]: IP & Patent Specialist
+              - generic [ref=e3410]:
+                - generic [ref=e3411]: Legal & Regulatory
+                - generic [ref=e3412]: SERVICES
+              - generic [ref=e3413]:
+                - generic [ref=e3414]: barracked
+                - generic [ref=e3415]: llama3.2:3b
+            - generic [ref=e3416] [cursor=pointer]:
+              - generic [ref=e3417]:
+                - generic [ref=e3419]: LE
+                - generic [ref=e3420]:
+                  - generic [ref=e3421]: Lars Eriksson (Vault)
+                  - generic [ref=e3422]: Data Privacy Officer (DPO)
+              - generic [ref=e3423]:
+                - generic [ref=e3424]: Legal & Regulatory
+                - generic [ref=e3425]: SERVICES
+              - generic [ref=e3426]:
+                - generic [ref=e3427]: barracked
+                - generic [ref=e3428]: llama3.2:3b
+            - generic [ref=e3429] [cursor=pointer]:
+              - generic [ref=e3430]:
+                - generic [ref=e3432]: DA
+                - generic [ref=e3433]:
+                  - generic [ref=e3434]: Dr. Aisha Patel (Medic)
+                  - generic [ref=e3435]: Chief Medical Officer
+              - generic [ref=e3436]:
+                - generic [ref=e3437]: Medical & Wellness
+                - generic [ref=e3438]: SERVICES
+              - generic [ref=e3439]:
+                - generic [ref=e3440]: barracked
+                - generic [ref=e3441]: gemma2:9b
+            - generic [ref=e3442] [cursor=pointer]:
+              - generic [ref=e3443]:
+                - generic [ref=e3445]: SO
+                - generic [ref=e3446]:
+                  - generic [ref=e3447]: Sandra Olsson (Safeguard)
+                  - generic [ref=e3448]: Workplace Safety Officer
+              - generic [ref=e3449]:
+                - generic [ref=e3450]: Medical & Wellness
+                - generic [ref=e3451]: SERVICES
+              - generic [ref=e3452]:
+                - generic [ref=e3453]: barracked
+                - generic [ref=e3454]: llama3.2:3b
+            - generic [ref=e3455] [cursor=pointer]:
+              - generic [ref=e3456]:
+                - generic [ref=e3458]: DC
+                - generic [ref=e3459]:
+                  - generic [ref=e3460]: Devon Campbell (Vitals)
+                  - generic [ref=e3461]: Health Informatics & Patient Data Specialist
+              - generic [ref=e3462]:
+                - generic [ref=e3463]: Medical & Wellness
+                - generic [ref=e3464]: SERVICES
+              - generic [ref=e3465]:
+                - generic [ref=e3466]: barracked
+                - generic [ref=e3467]: gemma2:9b
+            - generic [ref=e3468] [cursor=pointer]:
+              - generic [ref=e3469]:
+                - generic [ref=e3471]: MF
+                - generic [ref=e3472]:
+                  - generic [ref=e3473]: Mateo Fernandez (Zenith)
+                  - generic [ref=e3474]: Wellness & Lifestyle AI Assistant
+              - generic [ref=e3475]:
+                - generic [ref=e3476]: Medical & Wellness
+                - generic [ref=e3477]: SERVICES
+              - generic [ref=e3478]:
+                - generic [ref=e3479]: barracked
+                - generic [ref=e3480]: llama3.2:3b
+  - button "💬" [ref=e152] [cursor=pointer]

@@ -3038,13 +3038,16 @@ function loadCodeHealth() {
       auditedModules[e.module_name] = e.status;
     });
 
-    // Build module status + display name lookups from module-status endpoint
+    // Build module status + display name + proposal count lookups
     var moduleStatusMap = {};
     var moduleDisplayNames = {};
+    var moduleProposalCounts = {};
     (statusData.modules || []).forEach(function(m) {
       moduleStatusMap[m.module_name] = m.status;
       if (m.display_name) moduleDisplayNames[m.module_name] = m.display_name;
+      if (m.pending_proposals) moduleProposalCounts[m.module_name] = m.pending_proposals;
     });
+    window._chProposalCounts = moduleProposalCounts;
 
     window._chDisplayNames = moduleDisplayNames;
     var allMods = d.modules || {};
@@ -3734,6 +3737,15 @@ function _renderModuleChart(modules, displayNames) {
   });
 }
 
+function _auditBtnCell(moduleKey) {
+  var pCount = (window._chProposalCounts || {})[moduleKey] || 0;
+  if (pCount > 0) {
+    return '<td class="center"><span style="font-size:0.55rem;color:#f59e0b;margin-right:4px;" title="' + pCount + ' proposals in Repair Bay">' + pCount + ' pending</span>' +
+      '<button class="ch-audit-row-btn" data-module="' + escHtml(moduleKey) + '" style="background:rgba(245,158,11,0.1);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;">Re-audit</button></td>';
+  }
+  return '<td class="center"><button class="ch-audit-row-btn" data-module="' + escHtml(moduleKey) + '" style="background:rgba(0,229,255,0.1);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;">Audit</button></td>';
+}
+
 function _detectProfile(mod) {
   var bt = mod.by_type || {};
   var total = 0;
@@ -3838,7 +3850,7 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
       '<td class="center">' + (m.files || 0) + '</td>' +
       '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>' +
       '<td>' + (topLangs || '<span style="color:rgba(255,255,255,0.2);">\u2014</span>') + '</td>' +
-      '<td class="center"><button class="ch-audit-row-btn" data-module="' + escHtml(name) + '" style="background:rgba(0,229,255,0.1);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;">Audit</button></td>' +
+      _auditBtnCell(name) +
       '</tr>';
   });
 
@@ -3937,7 +3949,7 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
             + '<td class="center">' + (m.files || 0) + '</td>'
             + '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>'
             + '<td>' + (topLangs || '<span style="color:rgba(255,255,255,0.2);">\u2014</span>') + '</td>'
-            + '<td class="center"><button class="ch-audit-row-btn" data-module="' + escHtml(key) + '" style="background:rgba(0,229,255,0.1);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;">Audit</button></td>'
+            + _auditBtnCell(key)
             + '</tr>';
     });
     var html = '<table class="ch-table">'
@@ -4025,7 +4037,7 @@ function _renderWebsiteTable(modules, moduleStatusMap) {
             + '<td class="center">' + (m.files || 0) + '</td>'
             + '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>'
             + '<td>' + (topLangs || '<span style="color:rgba(255,255,255,0.2);">\u2014</span>') + '</td>'
-            + '<td class="center"><button class="ch-audit-row-btn" data-module="' + escHtml(key) + '" style="background:rgba(0,229,255,0.1);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;">Audit</button></td>'
+            + _auditBtnCell(key)
             + '</tr>';
     });
     var html = '<table class="ch-table">'

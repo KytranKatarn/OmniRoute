@@ -187,6 +187,27 @@ def register_code_health_routes(bp, admin_required):
             scan_row = cur.fetchone()
             last_scan_date = scan_row["scanned_at"].isoformat() if scan_row else None
 
+            # Get pending proposal counts per module (active proposals in pipeline)
+            proposal_counts = {}
+            try:
+                cur.execute(
+                    """SELECT metadata->>'file_path' as fp, COUNT(*) as cnt
+                       FROM improvement_proposals
+                       WHERE metadata->>'source' = 'code_health_audit'
+                         AND status NOT IN ('archived', 'rejected', 'deployed')
+                       GROUP BY metadata->>'file_path'"""
+                )
+                for pr in cur.fetchall():
+                    fp = pr["fp"] or ""
+                    # Extract module name from path
+                    if "platform_v2/tools/" in fp:
+                        mod = fp.split("platform_v2/tools/")[1].split("/")[0]
+                    else:
+                        mod = fp.split("/")[0]
+                    proposal_counts[mod] = proposal_counts.get(mod, 0) + pr["cnt"]
+            except Exception:
+                pass
+
             for name in sorted(module_names):
                 audit = audits.get(name)
                 if not audit:
@@ -211,6 +232,7 @@ def register_code_health_routes(bp, admin_required):
                         "stale": audit.get("stale", False) if audit else False,
                         "files_changed_since_audit": 0,
                         "last_scan_date": last_scan_date,
+                        "pending_proposals": proposal_counts.get(name, 0),
                     }
                 )
 

@@ -3203,11 +3203,12 @@ function _renderCodeHealthSummaryBar(summary, counts) {
   if (!el) return;
 
   var g = summary.green || 0;
+  var p = summary.purple || 0;
   var o = summary.orange || 0;
   var y = summary.yellow || 0;
   var r = summary.red || 0;
   window._chUnauditedCount = r;
-  var total = g + o + y + r;
+  var total = g + p + o + y + r;
 
   // Build summary bar using safe DOM methods
   el.style.cssText = "display:flex;gap:1rem;align-items:center;justify-content:center;padding:0.6rem 1rem;margin-bottom:1rem;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;text-align:center;";
@@ -3220,6 +3221,7 @@ function _renderCodeHealthSummaryBar(summary, counts) {
 
   var items = [
     {color: "#22c55e", count: g, text: "clean"},
+    {color: "#a78bfa", count: p, text: "in repair"},
     {color: "#f59e0b", count: o, text: "issues"},
     {color: "#eab308", count: y, text: "stale"},
     {color: "#ef4444", count: r, text: "unaudited"}
@@ -3814,6 +3816,8 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
     var badgeClass, badgeLabel;
     if (healthStatus === "green") {
       badgeClass = "ch-badge-green"; badgeLabel = "CLEAN";
+    } else if (healthStatus === "purple") {
+      badgeClass = "ch-badge-purple"; badgeLabel = "IN REPAIR";
     } else if (healthStatus === "orange") {
       badgeClass = "ch-badge-amber"; badgeLabel = "ISSUES";
     } else if (healthStatus === "yellow") {
@@ -3838,8 +3842,8 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
       return '<span style="font-size:0.6rem;padding:1px 4px;border-radius:3px;background:' + (langColors[l.lang] || '#666') + '22;color:' + (langColors[l.lang] || '#999') + ';margin-right:2px;">' + escHtml(l.lang) + ' ' + l.lines.toLocaleString() + '</span>';
     }).join('');
 
-    // Module name color: green=clean, orange/yellow=issues/stale, red=unaudited
-    var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";
+    // Module name color: green=clean, purple=in repair, orange=issues, yellow=stale, red=unaudited
+    var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "purple" ? "#a78bfa" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";
     var nameStyle = "color:" + nameColor + ";font-weight:600;";
 
     html += '<tr>' +
@@ -3920,6 +3924,8 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
         var badgeClass, badgeLabel;
         if (healthStatus === "green") {
             badgeClass = "ch-badge-green"; badgeLabel = "CLEAN";
+        } else if (healthStatus === "purple") {
+            badgeClass = "ch-badge-purple"; badgeLabel = "IN REPAIR";
         } else if (healthStatus === "orange") {
             badgeClass = "ch-badge-amber"; badgeLabel = "ISSUES";
         } else if (healthStatus === "yellow") {
@@ -3928,7 +3934,7 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
             badgeClass = "ch-badge-red"; badgeLabel = "UNAUDITED";
         }
         var badgeHtml = '<span class="ch-badge ' + badgeClass + '"><span class="ch-badge-dot"></span>' + badgeLabel + '</span>';
-        var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";
+        var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "purple" ? "#a78bfa" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";
         // Issues count
         var issueCount = issuesMap[key] || 0;
         var issueColor = issueCount === 0 ? "#22c55e" : issueCount <= 5 ? "#f59e0b" : "#ef4444";
@@ -4012,11 +4018,12 @@ function _renderWebsiteTable(modules, moduleStatusMap) {
         var healthStatus = moduleStatusMap[key] || "red";
         var badgeClass, badgeLabel;
         if (healthStatus === "green") { badgeClass = "ch-badge-green"; badgeLabel = "CLEAN"; }
+        else if (healthStatus === "purple") { badgeClass = "ch-badge-purple"; badgeLabel = "IN REPAIR"; }
         else if (healthStatus === "orange") { badgeClass = "ch-badge-amber"; badgeLabel = "ISSUES"; }
         else if (healthStatus === "yellow") { badgeClass = "ch-badge-amber"; badgeLabel = "STALE"; }
         else { badgeClass = "ch-badge-red"; badgeLabel = "UNAUDITED"; }
         var badgeHtml = '<span class="ch-badge ' + badgeClass + '"><span class="ch-badge-dot"></span>' + badgeLabel + '</span>';
-        var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";
+        var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "purple" ? "#a78bfa" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";
         // Issues count
         var issueCount = issuesMap[key] || 0;
         var issueColor = issueCount === 0 ? "#22c55e" : issueCount <= 5 ? "#f59e0b" : "#ef4444";
@@ -4135,6 +4142,7 @@ function _renderStructuralAudit(d, statusSummary) {
       '<div style="display:flex;justify-content:center;gap:16px;margin-top:6px;">' +
       '<div><span style="font-size:1.2rem;font-weight:700;color:#3b82f6;">' + auditedTotal + '</span><span style="font-size:0.6rem;color:rgba(255,255,255,0.4);">/' + totalMods + '</span><div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">audited</div></div>' +
       '<div><span style="font-size:1.2rem;font-weight:700;color:#22c55e;">' + (statusSummary.green || 0) + '</span><div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">clean</div></div>' +
+      '<div><span style="font-size:1.2rem;font-weight:700;color:#a78bfa;">' + (statusSummary.purple || 0) + '</span><div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">in repair</div></div>' +
       '<div><span style="font-size:1.2rem;font-weight:700;color:#f59e0b;">' + (statusSummary.orange || 0) + '</span><div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">issues</div></div>' +
       '<div><span style="font-size:1.2rem;font-weight:700;color:#ef4444;">' + (statusSummary.red || 0) + '</span><div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">unaudited</div></div>' +
       '</div>' +

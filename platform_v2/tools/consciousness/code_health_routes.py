@@ -422,7 +422,8 @@ def register_code_health_routes(bp, admin_required):
     @login_required
     @admin_required
     def code_health_audit():
-        """Trigger audit for one or all modules. Dispatched via F.O.R.G.E."""
+        """Trigger audit for one or all modules. Dispatched via F.O.R.G.E.
+        Auto-submits findings to Repair Bay (deduped)."""
         from flask import request as req
         from services.code_metrics_service import (
             audit_single_module,
@@ -462,12 +463,28 @@ def register_code_health_routes(bp, admin_required):
                     trigger_reason="manual",
                     dispatched_via="F.O.R.G.E.",
                 )
+
+                # Auto-submit findings to Repair Bay (deduped — won't create duplicates)
+                proposals_created = 0
+                proposals_skipped = 0
+                if issues_list:
+                    try:
+                        from services.audit_pipeline import process_audit_findings
+
+                        repair_result = process_audit_findings(key, issues_list)
+                        proposals_created = repair_result.get("proposals_created", 0)
+                        proposals_skipped = repair_result.get("skipped_duplicates", 0)
+                    except Exception as repair_err:
+                        logger.warning("Auto-submit to Repair Bay failed for %s: %s", key, repair_err)
+
                 results.append(
                     {
                         "module": key,
                         "profile": profile,
                         "issues": issues_found,
                         "status": status,
+                        "proposals_created": proposals_created,
+                        "proposals_skipped": proposals_skipped,
                     }
                 )
             except Exception as e:

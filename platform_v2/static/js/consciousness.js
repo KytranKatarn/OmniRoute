@@ -3123,12 +3123,14 @@ function loadCodeHealth() {
         if (moduleKeys.length === 0) return;
         auditAllBtn.disabled = true;
         auditAllBtn.style.opacity = "0.6";
-        var done = 0, cleanCount = 0, issueCount = 0, total = moduleKeys.length;
+        var done = 0, cleanCount = 0, issueCount = 0, repairCount = 0, total = moduleKeys.length;
         auditAllBtn.textContent = "Auditing 0/" + total + "...";
 
         function auditNext(idx) {
           if (idx >= moduleKeys.length) {
-            auditAllBtn.textContent = cleanCount + " clean, " + issueCount + " issues — reloading...";
+            var summary = cleanCount + " clean, " + issueCount + " issues";
+            if (repairCount > 0) summary += ", " + repairCount + " sent to repair";
+            auditAllBtn.textContent = summary + " — reloading...";
             setTimeout(function() {
               auditAllBtn.disabled = false;
               auditAllBtn.textContent = "Audit All Modules";
@@ -3142,7 +3144,9 @@ function loadCodeHealth() {
           api("/api/code-health/audit", {body: {module: key}}).then(function(d) {
             done++;
             if (d.success && d.results && d.results[0]) {
-              if (d.results[0].status === "completed") cleanCount++; else issueCount++;
+              var r = d.results[0];
+              if (r.status === "completed") cleanCount++; else issueCount++;
+              if (r.proposals_created) repairCount += r.proposals_created;
             }
             auditAllBtn.textContent = "Auditing " + done + "/" + total + "...";
             auditNext(idx + 1);
@@ -3884,10 +3888,20 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
       api("/api/code-health/audit", {body: {module: mod}}).then(function(d) {
         if (d.success && d.results && d.results[0]) {
           var r = d.results[0];
-          btn.textContent = r.status === "completed" ? "\u2713" : r.issues + " issues";
-          btn.style.background = r.status === "completed" ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)";
-          btn.style.color = r.status === "completed" ? "#22c55e" : "#ef4444";
-          btn.style.borderColor = r.status === "completed" ? "#22c55e" : "#ef4444";
+          if (r.status === "completed") {
+            btn.textContent = "\u2713 clean";
+            btn.style.background = "rgba(34,197,94,0.2)";
+            btn.style.color = "#22c55e";
+            btn.style.borderColor = "#22c55e";
+          } else {
+            var msg = r.issues + " issues";
+            if (r.proposals_created > 0) msg += ", " + r.proposals_created + " sent to repair";
+            else if (r.proposals_skipped > 0) msg += ", all in repair";
+            btn.textContent = msg;
+            btn.style.background = "rgba(167,139,250,0.2)";
+            btn.style.color = "#a78bfa";
+            btn.style.borderColor = "#a78bfa";
+          }
           setTimeout(function() { _cache = {}; loadCodeHealth(); }, 2000);
         }
       }).catch(function() { btn.disabled = false; btn.textContent = "Audit"; });

@@ -3731,6 +3731,12 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
   moduleStatusMap = moduleStatusMap || {};
   moduleDisplayNames = moduleDisplayNames || {};
 
+  // Build issues map from latest audit per module
+  var issuesMap = {};
+  (window._chAuditEntries || []).forEach(function(e) {
+    if (!issuesMap[e.module_name]) issuesMap[e.module_name] = e.issues_found || 0;
+  });
+
   // Sort: tool modules by lines desc, then infra modules at the bottom (matching chart order)
   var infraKeys = {"[SHARED]":1, "[APP_CORE]":1, "[AI_BRIDGE]":1, "[MIGRATIONS]":1};
   var toolKeys = Object.keys(modules).filter(function(k) { return !infraKeys[k]; }).sort(function(a, b) {
@@ -3741,9 +3747,17 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
   });
   var sorted = toolKeys.concat(infraSorted);
 
+  // Search filter
+  var searchHtml = '<div style="display:flex;justify-content:center;margin-bottom:8px;">'
+    + '<input id="chModuleSearch" type="text" placeholder="Search modules..." '
+    + 'style="background:rgba(255,255,255,0.05);border:1px solid rgba(0,229,255,0.2);color:#fff;padding:6px 12px;border-radius:4px;font-size:0.75rem;width:250px;outline:none;" />'
+    + '</div>';
+
+  var langColors = {python:"#8b5cf6",js:"#00ccff",html:"#f59e0b",css:"#22c55e",sql:"#fde047",json:"#2dd4bf",shell:"#ef4444",yaml:"#06b6d4",markdown:"#a78bfa",go:"#38bdf8",svg:"#fb923c",config:"#94a3b8",text:"#64748b"};
+
   var html = '<table class="ch-table"><thead><tr>' +
-    '<th>Module</th><th class="center">Profile</th><th class="center">Status</th><th class="center">Files</th><th class="center">Lines</th>' +
-    '<th class="center">Python</th><th class="center">JS</th><th class="center">HTML</th><th class="center">CSS</th><th class="center">SQL</th><th class="center">Shell</th><th class="center">JSON</th>' +
+    '<th>Module</th><th class="center">Profile</th><th class="center">Status</th><th class="center">Issues</th><th class="center">Files</th><th class="center">Lines</th>' +
+    '<th>Top Languages</th>' +
     '</tr></thead><tbody>';
 
   var profileColors = {python: "#8b5cf6", web: "#f59e0b", config: "#94a3b8"};
@@ -3776,6 +3790,20 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
     var badgeHtml = '<span class="ch-badge ' + badgeClass + '">' +
       '<span class="ch-badge-dot"></span>' + badgeLabel + '</span>';
 
+    // Issues count
+    var issueCount = issuesMap[name] || 0;
+    var issueColor = issueCount === 0 ? "#22c55e" : issueCount <= 5 ? "#f59e0b" : "#ef4444";
+
+    // Top 3 languages by lines
+    var langEntries = [];
+    Object.keys(bt).forEach(function(lang) {
+      if (bt[lang].lines > 0) langEntries.push({lang: lang, lines: bt[lang].lines});
+    });
+    langEntries.sort(function(a, b) { return b.lines - a.lines; });
+    var topLangs = langEntries.slice(0, 3).map(function(l) {
+      return '<span style="font-size:0.6rem;padding:1px 4px;border-radius:3px;background:' + (langColors[l.lang] || '#666') + '22;color:' + (langColors[l.lang] || '#999') + ';margin-right:2px;">' + escHtml(l.lang) + ' ' + l.lines.toLocaleString() + '</span>';
+    }).join('');
+
     // Module name color: green=clean, orange/yellow=issues/stale, red=unaudited
     var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";
     var nameStyle = "color:" + nameColor + ";font-weight:600;";
@@ -3784,20 +3812,27 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
       '<td><span style="' + nameStyle + '">' + escHtml(moduleDisplayNames[name] || name) + '</span>' + (healthStatus === "green" ? ' <span style="font-size:0.6rem;opacity:0.5;">&#x2713;</span>' : '') + '</td>' +
       '<td class="center">' + profileBadge + '</td>' +
       '<td class="center">' + badgeHtml + '</td>' +
+      '<td class="center" style="color:' + issueColor + ';font-weight:600;">' + issueCount + '</td>' +
       '<td class="center">' + (m.files || 0) + '</td>' +
       '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>' +
-      '<td class="center">' + (bt.python ? bt.python.lines : 0).toLocaleString() + '</td>' +
-      '<td class="center">' + (bt.js ? bt.js.lines : 0).toLocaleString() + '</td>' +
-      '<td class="center">' + (bt.html ? bt.html.lines : 0).toLocaleString() + '</td>' +
-      '<td class="center">' + (bt.css ? bt.css.lines : 0).toLocaleString() + '</td>' +
-      '<td class="center">' + (bt.sql ? bt.sql.lines : 0).toLocaleString() + '</td>' +
-      '<td class="center">' + (bt.shell ? bt.shell.lines : 0).toLocaleString() + '</td>' +
-      '<td class="center">' + (bt.json ? bt.json.lines : 0).toLocaleString() + '</td>' +
+      '<td>' + (topLangs || '<span style="color:rgba(255,255,255,0.2);">—</span>') + '</td>' +
       '</tr>';
   });
 
   html += '</tbody></table>';
-  setHtml(el, html);
+  setHtml(el, searchHtml + html);
+
+  // Search handler
+  var searchInput = document.getElementById("chModuleSearch");
+  if (searchInput) {
+    searchInput.addEventListener("input", function() {
+      var q = searchInput.value.toLowerCase();
+      el.querySelectorAll("tbody tr").forEach(function(row) {
+        var name = (row.cells[0] || {}).textContent || "";
+        row.style.display = name.toLowerCase().indexOf(q) !== -1 ? "" : "none";
+      });
+    });
+  }
 
   // Click-to-audit individual modules
   el.querySelectorAll("tr[data-module]").forEach(function(row) {
@@ -3826,13 +3861,20 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
         setHtml(el, '<div class="ch-empty">No standalone products registered.</div>');
         return;
     }
+    // Build issues map from latest audit per module
+    var issuesMap = {};
+    (window._chAuditEntries || []).forEach(function(e) {
+        if (!issuesMap[e.module_name]) issuesMap[e.module_name] = e.issues_found || 0;
+    });
+    var langColors = {python:"#8b5cf6",js:"#00ccff",html:"#f59e0b",css:"#22c55e",sql:"#fde047",json:"#2dd4bf",shell:"#ef4444",yaml:"#06b6d4",markdown:"#a78bfa",go:"#38bdf8",svg:"#fb923c",config:"#94a3b8",text:"#64748b"};
+    var profileColors = {python: "#8b5cf6", web: "#f59e0b", config: "#94a3b8"};
     var rows = keys.map(function(key) {
         var m = modules[key];
         var displayName = key.replace('standalone_', '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
-        var py = (m.by_type && m.by_type.python) || {files: 0, lines: 0};
-        var js = (m.by_type && m.by_type.js) || {files: 0, lines: 0};
-        var ht = (m.by_type && m.by_type.html) || {files: 0, lines: 0};
-        var cs = (m.by_type && m.by_type.css) || {files: 0, lines: 0};
+        var bt = m.by_type || {};
+        // Profile badge
+        var profile = _detectProfile(m);
+        var profileBadge = '<span style="font-size:0.55rem;padding:1px 5px;border-radius:3px;background:' + profileColors[profile] + '22;color:' + profileColors[profile] + ';border:1px solid ' + profileColors[profile] + '44;text-transform:uppercase;">' + profile + '</span>';
         // Audit status badge
         var healthStatus = moduleStatusMap[key] || "red";
         var badgeClass, badgeLabel;
@@ -3847,6 +3889,18 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
         }
         var badgeHtml = '<span class="ch-badge ' + badgeClass + '"><span class="ch-badge-dot"></span>' + badgeLabel + '</span>';
         var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";
+        // Issues count
+        var issueCount = issuesMap[key] || 0;
+        var issueColor = issueCount === 0 ? "#22c55e" : issueCount <= 5 ? "#f59e0b" : "#ef4444";
+        // Top 3 languages by lines
+        var langEntries = [];
+        Object.keys(bt).forEach(function(lang) {
+            if (bt[lang].lines > 0) langEntries.push({lang: lang, lines: bt[lang].lines});
+        });
+        langEntries.sort(function(a, b) { return b.lines - a.lines; });
+        var topLangs = langEntries.slice(0, 3).map(function(l) {
+            return '<span style="font-size:0.6rem;padding:1px 4px;border-radius:3px;background:' + (langColors[l.lang] || '#666') + '22;color:' + (langColors[l.lang] || '#999') + ';margin-right:2px;">' + escHtml(l.lang) + ' ' + l.lines.toLocaleString() + '</span>';
+        }).join('');
         // Dynamic tier progress badge
         var tierHtml;
         var tp = tierMap[key];
@@ -3863,26 +3917,24 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
         }
         return '<tr data-module="' + escHtml(key) + '" style="cursor:pointer;" title="Click to audit">'
             + '<td><span style="color:' + nameColor + ';font-weight:600;">' + escHtml(displayName) + '</span></td>'
+            + '<td class="center">' + profileBadge + '</td>'
             + '<td class="center">' + badgeHtml + '</td>'
+            + '<td class="center" style="color:' + issueColor + ';font-weight:600;">' + issueCount + '</td>'
             + '<td class="center">' + (m.files || 0) + '</td>'
             + '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>'
-            + '<td class="center">' + py.lines.toLocaleString() + '</td>'
-            + '<td class="center">' + js.lines.toLocaleString() + '</td>'
-            + '<td class="center">' + ht.lines.toLocaleString() + '</td>'
-            + '<td class="center">' + cs.lines.toLocaleString() + '</td>'
+            + '<td>' + (topLangs || '<span style="color:rgba(255,255,255,0.2);">—</span>') + '</td>'
             + '<td class="center">' + tierHtml + '</td>'
             + '</tr>';
     });
     var html = '<table class="ch-table">'
         + '<thead><tr>'
         + '<th>Standalone Product</th>'
+        + '<th class="center">Profile</th>'
         + '<th class="center">Status</th>'
+        + '<th class="center">Issues</th>'
         + '<th class="center">Files</th>'
         + '<th class="center">Lines</th>'
-        + '<th class="center">Python</th>'
-        + '<th class="center">JS</th>'
-        + '<th class="center">HTML</th>'
-        + '<th class="center">CSS</th>'
+        + '<th>Top Languages</th>'
         + '<th class="center">Tier</th>'
         + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
     setHtml(el, html);
@@ -3897,14 +3949,21 @@ function _renderWebsiteTable(modules, moduleStatusMap) {
         setHtml(el, '<div class="ch-empty">No website products registered.</div>');
         return;
     }
+    // Build issues map from latest audit per module
+    var issuesMap = {};
+    (window._chAuditEntries || []).forEach(function(e) {
+        if (!issuesMap[e.module_name]) issuesMap[e.module_name] = e.issues_found || 0;
+    });
+    var langColors = {python:"#8b5cf6",js:"#00ccff",html:"#f59e0b",css:"#22c55e",sql:"#fde047",json:"#2dd4bf",shell:"#ef4444",yaml:"#06b6d4",markdown:"#a78bfa",go:"#38bdf8",svg:"#fb923c",config:"#94a3b8",text:"#64748b"};
+    var profileColors = {python: "#8b5cf6", web: "#f59e0b", config: "#94a3b8"};
     var rows = keys.map(function(key) {
         var m = modules[key];
         var displayName = key.replace('website_', '').replace(/_/g, '.').replace(/\b\w/g, function(c) { return c; });
         var dn = (window._chDisplayNames || {})[key] || displayName;
-        var js = (m.by_type && m.by_type.js) || {files: 0, lines: 0};
-        var ht = (m.by_type && m.by_type.html) || {files: 0, lines: 0};
-        var cs = (m.by_type && m.by_type.css) || {files: 0, lines: 0};
-        var jn = (m.by_type && m.by_type.json) || {files: 0, lines: 0};
+        var bt = m.by_type || {};
+        // Profile badge
+        var profile = _detectProfile(m);
+        var profileBadge = '<span style="font-size:0.55rem;padding:1px 5px;border-radius:3px;background:' + profileColors[profile] + '22;color:' + profileColors[profile] + ';border:1px solid ' + profileColors[profile] + '44;text-transform:uppercase;">' + profile + '</span>';
         // Status badge + name color
         var healthStatus = moduleStatusMap[key] || "red";
         var badgeClass, badgeLabel;
@@ -3914,27 +3973,37 @@ function _renderWebsiteTable(modules, moduleStatusMap) {
         else { badgeClass = "ch-badge-red"; badgeLabel = "UNAUDITED"; }
         var badgeHtml = '<span class="ch-badge ' + badgeClass + '"><span class="ch-badge-dot"></span>' + badgeLabel + '</span>';
         var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";
+        // Issues count
+        var issueCount = issuesMap[key] || 0;
+        var issueColor = issueCount === 0 ? "#22c55e" : issueCount <= 5 ? "#f59e0b" : "#ef4444";
+        // Top 3 languages by lines
+        var langEntries = [];
+        Object.keys(bt).forEach(function(lang) {
+            if (bt[lang].lines > 0) langEntries.push({lang: lang, lines: bt[lang].lines});
+        });
+        langEntries.sort(function(a, b) { return b.lines - a.lines; });
+        var topLangs = langEntries.slice(0, 3).map(function(l) {
+            return '<span style="font-size:0.6rem;padding:1px 4px;border-radius:3px;background:' + (langColors[l.lang] || '#666') + '22;color:' + (langColors[l.lang] || '#999') + ';margin-right:2px;">' + escHtml(l.lang) + ' ' + l.lines.toLocaleString() + '</span>';
+        }).join('');
         return '<tr data-module="' + escHtml(key) + '" style="cursor:pointer;" title="Click to audit">'
             + '<td><span style="color:' + nameColor + ';font-weight:600;">' + escHtml(dn) + '</span></td>'
+            + '<td class="center">' + profileBadge + '</td>'
             + '<td class="center">' + badgeHtml + '</td>'
+            + '<td class="center" style="color:' + issueColor + ';font-weight:600;">' + issueCount + '</td>'
             + '<td class="center">' + (m.files || 0) + '</td>'
             + '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>'
-            + '<td class="center">' + ht.lines.toLocaleString() + '</td>'
-            + '<td class="center">' + js.lines.toLocaleString() + '</td>'
-            + '<td class="center">' + cs.lines.toLocaleString() + '</td>'
-            + '<td class="center">' + jn.lines.toLocaleString() + '</td>'
+            + '<td>' + (topLangs || '<span style="color:rgba(255,255,255,0.2);">—</span>') + '</td>'
             + '</tr>';
     });
     var html = '<table class="ch-table">'
         + '<thead><tr>'
         + '<th>Website</th>'
+        + '<th class="center">Profile</th>'
         + '<th class="center">Status</th>'
+        + '<th class="center">Issues</th>'
         + '<th class="center">Files</th>'
         + '<th class="center">Lines</th>'
-        + '<th class="center">HTML</th>'
-        + '<th class="center">JS</th>'
-        + '<th class="center">CSS</th>'
-        + '<th class="center">JSON</th>'
+        + '<th>Top Languages</th>'
         + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
     setHtml(el, html);
 }

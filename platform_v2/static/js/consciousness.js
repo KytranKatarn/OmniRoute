@@ -3038,16 +3038,20 @@ function loadCodeHealth() {
       auditedModules[e.module_name] = e.status;
     });
 
-    // Build module status + display name + proposal count lookups
+    // Build module status + display name + proposal count + audit date lookups
     var moduleStatusMap = {};
     var moduleDisplayNames = {};
     var moduleProposalCounts = {};
+    var moduleAuditDates = {};
     (statusData.modules || []).forEach(function(m) {
       moduleStatusMap[m.module_name] = m.status;
       if (m.display_name) moduleDisplayNames[m.module_name] = m.display_name;
       if (m.pending_proposals) moduleProposalCounts[m.module_name] = m.pending_proposals;
+      if (m.last_audit_date) moduleAuditDates[m.module_name] = m.last_audit_date;
     });
     window._chProposalCounts = moduleProposalCounts;
+    window._chAuditDates = moduleAuditDates;
+    window._chStatusMap = moduleStatusMap;
 
     window._chDisplayNames = moduleDisplayNames;
     var allMods = d.modules || {};
@@ -3745,11 +3749,28 @@ function _renderModuleChart(modules, displayNames) {
 
 function _auditBtnCell(moduleKey) {
   var pCount = (window._chProposalCounts || {})[moduleKey] || 0;
+  var auditDate = (window._chAuditDates || {})[moduleKey];
+  var status = (window._chStatusMap || {})[moduleKey] || "red";
+
+  // Freshness stamp for clean/passed modules
+  var freshStamp = "";
+  if (auditDate && (status === "green" || status === "purple")) {
+    var ageMs = Date.now() - new Date(auditDate).getTime();
+    var ageHours = ageMs / 3600000;
+    if (ageHours < 24) {
+      freshStamp = '<span style="font-size:0.5rem;color:#22c55e;margin-right:3px;" title="Audited within 24h">\u2713 today</span>';
+    } else if (ageHours < 168) {
+      freshStamp = '<span style="font-size:0.5rem;color:#3b82f6;margin-right:3px;" title="Audited within 7 days">\u2713 this week</span>';
+    } else {
+      freshStamp = '<span style="font-size:0.5rem;color:rgba(255,255,255,0.3);margin-right:3px;" title="Audit older than 7 days">\u231B old</span>';
+    }
+  }
+
   if (pCount > 0) {
-    return '<td class="center"><span style="font-size:0.55rem;color:#a78bfa;margin-right:4px;" title="' + pCount + ' proposals in Repair Bay pipeline">' + pCount + ' in repair</span>' +
+    return '<td class="center">' + freshStamp + '<span style="font-size:0.55rem;color:#a78bfa;margin-right:4px;" title="' + pCount + ' proposals in Repair Bay pipeline">' + pCount + ' in repair</span>' +
       '<button class="ch-audit-row-btn" data-module="' + escHtml(moduleKey) + '" style="background:rgba(245,158,11,0.1);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;">Re-audit</button></td>';
   }
-  return '<td class="center"><button class="ch-audit-row-btn" data-module="' + escHtml(moduleKey) + '" style="background:rgba(0,229,255,0.1);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;">Audit</button></td>';
+  return '<td class="center">' + freshStamp + '<button class="ch-audit-row-btn" data-module="' + escHtml(moduleKey) + '" style="background:rgba(0,229,255,0.1);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;">Audit</button></td>';
 }
 
 function _detectProfile(mod) {

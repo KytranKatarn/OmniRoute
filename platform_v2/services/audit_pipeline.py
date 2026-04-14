@@ -370,7 +370,7 @@ def _create_audit_proposal(issue, module_name, file_path):
     fname = issue.get("file", "")
     config = _TIER_CONFIG[severity]
 
-    title = f"[{config['priority'].upper()}] {issue_code}: {fname}"
+    title = f"[{config['priority'].upper()}] {issue_code}: {module_name}/{fname}"
     if detail:
         title = f"{title} ({detail})"
     # Truncate title to reasonable length

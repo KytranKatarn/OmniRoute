@@ -514,17 +514,18 @@ def register_code_health_routes(bp, admin_required):
                         severity = "yellow"
                     findings.append({"code": code, "detail": detail, "severity": severity})
 
-            # Check if proposals already exist for this module
+            # Check if proposals already exist for this module (use metadata for accuracy)
             proposal_status = {"total": 0, "by_status": {}}
             try:
-                module_pattern = f"%{row['module_name']}%"
+                module_path_pattern = f"platform_v2/tools/{row['module_name']}/%"
                 cur.execute(
                     """SELECT status, COUNT(*) as cnt
                        FROM improvement_proposals
-                       WHERE title ILIKE %s
-                         AND status NOT IN ('archived', 'rejected')
+                       WHERE metadata->>'source' = 'code_health_audit'
+                         AND metadata->>'file_path' LIKE %s
+                         AND status NOT IN ('archived', 'rejected', 'deployed')
                        GROUP BY status""",
-                    (module_pattern,),
+                    (module_path_pattern,),
                 )
                 for pr in cur.fetchall():
                     proposal_status["by_status"][pr["status"]] = pr["cnt"]

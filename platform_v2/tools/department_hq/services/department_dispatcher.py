@@ -7228,7 +7228,7 @@ class DepartmentDispatcher:
             for mname in model_names:
                 _req.post(
                     f"{ollama_url}/api/generate",
-                    json={"model": mname, "prompt": "", "keep_alive": "24h"},
+                    json={"model": mname, "prompt": "", "keep_alive": "5m"},
                     timeout=30,
                 )
                 logger.info(f"[BridgeDispatcher] VRAM swap: reloaded {mname} on {target}")
@@ -7645,7 +7645,7 @@ class DepartmentDispatcher:
                 try:
                     resp = requests.post(
                         f"{ollama_url}/api/generate",
-                        json={"model": model_name, "prompt": "", "keep_alive": "24h"},
+                        json={"model": model_name, "prompt": "", "keep_alive": "5m"},
                         timeout=120,
                     )
                     if resp.status_code == 200:

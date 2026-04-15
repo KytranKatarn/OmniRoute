@@ -117,7 +117,7 @@ def register_model_routes(bp, admin_required):
 
                 # Use Bridge dispatcher for load
                 try:
-                    from ai_bridge.bridge_dispatcher import get_dispatcher
+                    from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
                     dispatcher = get_dispatcher()
                     opts = {}
@@ -131,7 +131,7 @@ def register_model_routes(bp, admin_required):
                     logger.error("Model load via dispatcher failed: %s", e)
                     # Fallback: direct Ollama generate with keep_alive
                     try:
-                        payload = {"model": model, "keep_alive": "24h"}
+                        payload = {"model": model, "keep_alive": "5m"}
                         if num_gpu is not None:
                             payload["options"] = {"num_gpu": num_gpu}
                         resp = requests.post(
@@ -282,7 +282,7 @@ def register_model_routes(bp, admin_required):
                     try:
                         resp = requests.post(
                             f"{OLLAMA_URL}/api/generate",
-                            json={"model": model_name, "keep_alive": "24h"},
+                            json={"model": model_name, "keep_alive": "5m"},
                             timeout=300,
                         )
                         results.append({"model": model_name, "success": resp.ok})

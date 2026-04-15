@@ -180,10 +180,10 @@ class ModelService:
         return self.get_available_ram() >= needed_gb
 
     def load_model(self, model: str) -> bool:
-        """Load *model* via /api/generate with keep_alive=24h."""
+        """Load *model* via /api/generate with keep_alive=5m."""
         try:
             url = f"{self.ollama_host}/api/generate"
-            payload = json.dumps({"model": model, "keep_alive": "24h", "prompt": ""}).encode()
+            payload = json.dumps({"model": model, "keep_alive": "5m", "prompt": ""}).encode()
             req = urllib.request.Request(
                 url,
                 data=payload,

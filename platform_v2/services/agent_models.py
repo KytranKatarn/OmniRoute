@@ -74,7 +74,7 @@ def load_model(agent_id, ollama_url=None):
 
     url = (ollama_url or OLLAMA_URL) + "/api/generate"
     try:
-        payload = json.dumps({"model": model_name, "prompt": "", "keep_alive": "24h"}).encode()
+        payload = json.dumps({"model": model_name, "prompt": "", "keep_alive": "5m"}).encode()
         req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=300) as resp:
             resp.read()

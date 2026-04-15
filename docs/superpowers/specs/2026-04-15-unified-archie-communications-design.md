@@ -123,6 +123,37 @@ A.R.C.H.I.E. does NOT watch everything herself. Her directors monitor their depa
 3. **Collaboration Engine to Claude** — complex/multi-step tasks her local team can't handle
 4. **Direct Claude Terminal** — Kytran's own tasks, always available independently
 
+### Container Architecture (Decision: Independent Container)
+
+A.R.C.H.I.E.'s communication layer runs as a **separate container** (`archie_comms`) on the same host. If the platform crashes during a repair or restart, she stays alive — can Telegram Kytran, diagnose the issue, attempt recovery, and bring Claude in if needed.
+
+```
+Hub (192.168.1.200 — 128GB RAM, Quadro M4000)
+├── archie_database     (PostgreSQL — shared by all)
+├── archie_platform     (Flask web app — can crash)
+├── archie_comms        (A.R.C.H.I.E.'s independent voice — survives platform crashes)
+└── Ollama              (host service — shared by all, port 11434)
+```
+
+**Resource cost:** ~50-100MB RAM. No extra models, no extra GPU. Same Ollama, same DB, same network — just a separate process boundary.
+
+**What `archie_comms` runs:**
+- Voice service (personality engine) — `archie_voice_service.py`
+- Telegram send/receive — outbound alerts + inbound message handling
+- Platform health watchdog — monitors `archie_platform` container, alerts on crash
+- Knowledge base access — can search KB for context during incidents
+- Ollama dispatch — can call dolphin3-8k directly (no Flask dependency)
+- Docker API — can attempt `archie_platform` restart with approval
+- Collaboration engine — can bring Claude in when platform is down
+
+**What stays in `archie_platform`:**
+- Web UI (Flask, templates, static assets)
+- All module routes (Department HQ, Consciousness, etc.)
+- Agent loop scheduler (APScheduler jobs)
+- Platform chat widget (serves the UI, but A.R.C.H.I.E. processes messages from `archie_comms`)
+
+**Design rule:** All A.R.C.H.I.E. capabilities are written Flask-free — pure Python with direct DB + Ollama access. This means the same code runs inside the platform (for web chat) AND independently in `archie_comms` (for Telegram + watchdog). No duplication, one codebase, two deployment targets.
+
 ## 5. Existing Infrastructure (What We Build On)
 
 | Component | File | Status | Lines |

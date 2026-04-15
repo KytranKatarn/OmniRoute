@@ -4,9 +4,9 @@
 
 **Goal:** Replace A.R.C.H.I.E.'s robotic template-formatted messages with Jarvis-level personality by routing every outbound message through her LLM (dolphin3-8k) with a personality system prompt.
 
-**Architecture:** New `archie_voice_service.py` sits between `telegram_service.send()` and the Telegram API. It takes raw alert data + context and produces a natural-language message in A.R.C.H.I.E.'s voice via a dispatch call to dolphin3-8k. Falls back to the current template format if LLM is unavailable. The personality prompt is stored in the `archie_personality` table (already has 10 traits).
+**Architecture:** New `archie_voice_service.py` sits between `telegram_service.send()` and the Telegram API. It takes raw alert data + context and produces a natural-language message in A.R.C.H.I.E.'s voice via a dispatch call to dolphin3-8k. Falls back to the current template format if LLM is unavailable. The personality prompt is stored in the `archie_personality` table (already has 10 traits). **Critical design rule:** Zero Flask dependencies — pure Python with direct DB + Ollama access. This service will run both inside `archie_platform` and independently in the future `archie_comms` container (see spec Section 4: Container Architecture).
 
-**Tech Stack:** Python (Flask), dolphin3-8k via department dispatcher `dispatch()`, existing `archie_personality` table, `telegram_service.py`.
+**Tech Stack:** Python (no Flask), dolphin3-8k via Ollama HTTP API (not dispatcher — Flask-free), existing `archie_personality` table, `telegram_service.py`.
 
 **Spec:** `docs/superpowers/specs/2026-04-15-unified-archie-communications-design.md` — Phase 1
 
@@ -213,25 +213,14 @@ def format_message(
     user_prompt = _build_user_prompt(category, title, raw_message, source_agent, source_department)
 
     try:
-        from tools.department_hq.services.bridge_dispatcher import dispatch
-
-        result = dispatch(
-            prompt=user_prompt,
-            system_prompt=system_prompt,
-            model="dolphin3-8k:latest",
-            json_mode=False,
-            timeout=30,
-        )
-
-        if result and result.success and result.response:
-            voice_text = result.response.strip()
+        voice_text = _call_ollama(system_prompt, user_prompt)
+        if voice_text:
             # Append platform link for non-critical alerts that might need follow-up
             if context and context.get("needs_response") and category not in ("security",):
                 voice_text += "\n\nMore details at archie.kytranempowerment.com"
             return voice_text
         else:
-            reason = getattr(result, "error", "unknown") if result else "no result"
-            logger.warning("archie_voice: dispatch failed (%s), using fallback", reason)
+            logger.warning("archie_voice: empty LLM response, using fallback")
             return _template_fallback(category, title, raw_message, source_agent)
 
     except Exception as e:
@@ -239,12 +228,46 @@ def format_message(
         return _template_fallback(category, title, raw_message, source_agent)
 
 
-def _template_fallback(category, title, raw_message, source_agent=None):
-    """Original template format — used when LLM is unavailable."""
-    from services.telegram_service import CATEGORIES
+def _call_ollama(system_prompt, user_prompt):
+    """Call Ollama directly via HTTP — no Flask, no dispatcher dependency.
 
-    cat = CATEGORIES.get(category, CATEGORIES["info"])
-    icon = cat["icon"]
+    This is intentionally Flask-free so it works both inside archie_platform
+    and independently in the archie_comms container.
+    """
+    import urllib.request
+
+    ollama_host = os.getenv("OLLAMA_HOST", "http://192.168.1.200:11434")
+    model = os.getenv("ARCHIE_VOICE_MODEL", "dolphin3-8k:latest")
+
+    payload = json.dumps({
+        "model": model,
+        "prompt": user_prompt,
+        "system": system_prompt,
+        "stream": False,
+        "options": {"num_predict": 300, "temperature": 0.7, "num_gpu": 0},
+        "keep_alive": "5m",
+    }).encode()
+
+    req = urllib.request.Request(
+        f"{ollama_host}/api/generate",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        result = json.loads(resp.read())
+        return result.get("response", "").strip() or None
+
+
+def _template_fallback(category, title, raw_message, source_agent=None):
+    """Original template format — used when LLM is unavailable.
+    Inline icon map to avoid importing telegram_service (keeps Flask-free).
+    """
+    icons = {
+        "security": "🔴", "system": "🟡", "forge": "🔧",
+        "agent": "🤖", "sync": "📡", "info": "📋",
+    }
+    icon = icons.get(category, "📋")
 
     if source_agent:
         return f"{icon} *{title}*\n\n{source_agent} reports:\n{raw_message}\n\n_— A.R.C.H.I.E._"

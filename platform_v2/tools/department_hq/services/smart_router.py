@@ -184,6 +184,31 @@ CAPABILITY_ROUTING = {
     "audio_music": "minimax_cloud",  # Placeholder — actual routing via media adapters
 }
 
+# Capability taxonomy — maps detected intent to normalized capability tags
+# Must match department_capability_profiles.required_capabilities and contractor_providers.capabilities
+CAPABILITY_TAXONOMY = {
+    "code_generation": ["code", "generate code", "implement", "build function", "create class", "write code"],
+    "code_review": ["review code", "audit code", "check code", "code quality", "pr review"],
+    "debugging": ["debug", "fix bug", "error", "traceback", "exception", "stack trace"],
+    "architecture": ["architect", "design system", "refactor", "restructure", "migration plan"],
+    "summarization": ["summarize", "summary", "tldr", "brief", "recap"],
+    "reasoning": ["reason", "analyze", "think through", "logic", "explain why", "evaluate"],
+    "creative_writing": ["write story", "creative", "compose", "draft article", "blog post"],
+    "image_gen": ["image", "picture", "draw", "generate image", "visual", "illustration"],
+    "vision": ["describe image", "what is this image", "analyze photo", "ocr"],
+    "classification": ["classify", "categorize", "label", "tag", "sort into"],
+    "data_analysis": ["data", "statistics", "chart", "graph", "trend", "forecast"],
+    "fact_checking": ["fact check", "verify claim", "is this true", "source check"],
+    "translation": ["translate", "language", "multilingual", "localize"],
+    "conversation": ["chat", "talk", "discuss", "help me", "question"],
+    "ethics_reasoning": ["ethical", "creed", "compliance", "policy violation", "governance"],
+    "research_synthesis": ["research", "find information", "investigate", "literature review"],
+    "embedding": ["embed", "vector", "similarity search", "semantic"],
+    "knowledge_extraction": ["extract", "parse", "pull out", "identify entities"],
+    "news_writing": ["news", "article", "headline", "press release", "editorial"],
+    "bias_detection": ["bias", "fairness", "balanced", "perspective"],
+}
+
 
 def _get_routing_mode() -> str:
     """Read routing_mode from platform_settings. Returns 'full' on error."""
@@ -765,26 +790,48 @@ Original task:
             logger.error(f"Error getting analytics: {e}")
             return {"error": str(e)}
 
-    def classify_task(self, prompt: str, context: dict = None) -> str:
+    def _detect_capability(self, prompt: str) -> str:
+        """Detect the primary capability needed from the prompt text.
+
+        Returns a normalized capability tag matching department_capability_profiles
+        and contractor_providers.capabilities taxonomy.
+        """
+        if not prompt:
+            return "conversation"
+        prompt_lower = prompt.lower()
+        best_match = "conversation"  # default fallback
+        best_score = 0
+        for capability, keywords in CAPABILITY_TAXONOMY.items():
+            score = sum(1 for kw in keywords if kw in prompt_lower)
+            if score > best_score:
+                best_score = score
+                best_match = capability
+        return best_match
+
+    def classify_task(self, prompt: str, context: dict = None, return_capability: bool = False):
         """
         Classify a task based on prompt content.
 
         This is a simple heuristic classifier. In production,
         you might use a more sophisticated approach or even
         an LLM for classification.
+
+        Args:
+            prompt: The task prompt to classify.
+            context: Optional context dict.
+            return_capability: If True, returns (tier, capability) tuple.
+                               If False (default), returns just the tier string.
         """
         prompt_lower = prompt.lower()
 
         # Architecture/design tasks
         if any(kw in prompt_lower for kw in ["architecture", "design system", "high-level", "system design"]):
-            return "architecture"
-
+            tier = "architecture"
         # Security tasks
-        if any(kw in prompt_lower for kw in ["security", "vulnerability", "audit", "penetration", "cve"]):
-            return "security_audit"
-
+        elif any(kw in prompt_lower for kw in ["security", "vulnerability", "audit", "penetration", "cve"]):
+            tier = "security_audit"
         # Complex debugging
-        if any(
+        elif any(
             kw in prompt_lower
             for kw in [
                 "race condition",
@@ -794,61 +841,57 @@ Original task:
                 "intermittent",
             ]
         ):
-            return "debug_hard"
-
+            tier = "debug_hard"
         # Simple debugging
-        if any(kw in prompt_lower for kw in ["debug", "fix bug", "error", "exception", "traceback"]):
-            return "debug_simple"
-
+        elif any(kw in prompt_lower for kw in ["debug", "fix bug", "error", "exception", "traceback"]):
+            tier = "debug_simple"
         # Refactoring
-        if any(kw in prompt_lower for kw in ["refactor", "restructure", "clean up", "improve code"]):
-            return "refactor"
-
+        elif any(kw in prompt_lower for kw in ["refactor", "restructure", "clean up", "improve code"]):
+            tier = "refactor"
         # Code review
-        if any(kw in prompt_lower for kw in ["review", "code review", "pr review", "pull request"]):
-            return "review"
-
+        elif any(kw in prompt_lower for kw in ["review", "code review", "pr review", "pull request"]):
+            tier = "review"
         # API design
-        if any(kw in prompt_lower for kw in ["api design", "endpoint design", "rest api", "graphql"]):
-            return "api_design"
-
+        elif any(kw in prompt_lower for kw in ["api design", "endpoint design", "rest api", "graphql"]):
+            tier = "api_design"
         # SQL
-        if any(kw in prompt_lower for kw in ["sql", "query", "database", "migration"]):
-            return "sql"
-
+        elif any(kw in prompt_lower for kw in ["sql", "query", "database", "migration"]):
+            tier = "sql"
         # Documentation
-        if any(kw in prompt_lower for kw in ["document", "readme", "docstring", "jsdoc", "comment"]):
-            return "documentation"
-
+        elif any(kw in prompt_lower for kw in ["document", "readme", "docstring", "jsdoc", "comment"]):
+            tier = "documentation"
         # Tests
-        if any(kw in prompt_lower for kw in ["test", "unit test", "integration test", "spec"]):
-            return "test_scaffold"
-
+        elif any(kw in prompt_lower for kw in ["test", "unit test", "integration test", "spec"]):
+            tier = "test_scaffold"
         # Formatting
-        if any(kw in prompt_lower for kw in ["format", "lint", "prettier", "style"]):
-            return "format"
-
+        elif any(kw in prompt_lower for kw in ["format", "lint", "prettier", "style"]):
+            tier = "format"
         # Summarization
-        if any(kw in prompt_lower for kw in ["summarize", "summary", "tldr", "overview"]):
-            return "summarize"
-
+        elif any(kw in prompt_lower for kw in ["summarize", "summary", "tldr", "overview"]):
+            tier = "summarize"
         # Rewrite
-        if any(kw in prompt_lower for kw in ["rewrite", "rephrase", "improve writing"]):
-            return "rewrite"
-
+        elif any(kw in prompt_lower for kw in ["rewrite", "rephrase", "improve writing"]):
+            tier = "rewrite"
         # Check complexity indicators for code tasks
-        complexity_indicators = [
-            "multiple files",
-            "across",
-            "entire",
-            "whole codebase",
-            "full implementation",
-        ]
-        if any(kw in prompt_lower for kw in complexity_indicators):
-            return "code_complex"
+        elif any(
+            kw in prompt_lower
+            for kw in [
+                "multiple files",
+                "across",
+                "entire",
+                "whole codebase",
+                "full implementation",
+            ]
+        ):
+            tier = "code_complex"
+        else:
+            # Default to simple coding
+            tier = "code_simple"
 
-        # Default to simple coding
-        return "code_simple"
+        if return_capability:
+            capability = self._detect_capability(prompt)
+            return tier, capability
+        return tier
 
     def get_loaded_model(self) -> Optional[str]:
         """
@@ -1044,9 +1087,16 @@ def track_execution(**kwargs) -> Optional[int]:
     return get_router().track_execution(**kwargs)
 
 
-def classify_task(prompt: str, context: dict = None) -> str:
-    """Convenience function to classify task"""
-    return get_router().classify_task(prompt, context)
+def classify_task(prompt: str, context: dict = None, return_capability: bool = False):
+    """Convenience function to classify task.
+
+    Args:
+        prompt: The task prompt to classify.
+        context: Optional context dict.
+        return_capability: If True, returns (tier, capability) tuple.
+                           If False (default), returns just the tier string.
+    """
+    return get_router().classify_task(prompt, context, return_capability=return_capability)
 
 
 def get_loaded_model() -> Optional[str]:

@@ -53,12 +53,13 @@
 - Loops CANNOT auto-disable (kill switches removed 2026-04-02, Decision #369)
 - MCP sessions store to knowledge_base directly (not ai_conversations)
 
-## 4-System Architecture (MANDATORY — See project_core-architecture-vision.md)
+## 3-System Architecture (MANDATORY — See project_core-architecture-vision.md)
 
 1. **Autonomy Module** — runs scheduled jobs (agent_loop.py)
-2. **Department HQ** — manages agents, skills, models, departments
-3. **AI Bridge + Dispatcher** — routes requests (SHOULD BE MERGED)
-4. **Starbase Command** — fleet nodes, extends compute resources
+2. **Department HQ** — manages agents, departments, fleet, dispatch, jobs (11 tabs incl. Fleet)
+3. **AI Bridge** — model routing, embeddings, knowledge analysis (`ai_bridge/`). Dispatcher moved to Dept HQ (Decision #440).
+
+*Starbase Command merged into Department HQ Fleet tab (2026-04-08). No longer a separate system.*
 
 ## Before ANY Infrastructure Change
 

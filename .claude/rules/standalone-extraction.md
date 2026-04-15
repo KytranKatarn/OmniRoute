@@ -63,3 +63,4 @@ Every extraction follows this playbook. No exceptions.
 |---------|------|------|------|--------|
 | Kytran System Operations | 8085 | `/mnt/archie_brain/kytran-server-manager` | 1 | In Progress |
 | Kytran Business Suite | 8091 | `/mnt/archie_brain/kytran-business-suite` | 1 | Phase 1 Complete |
+| C.R.E.E.D. Governance | 8086 | `/mnt/archie_brain/kytran-creed` | 1 | Deployed (Decision #438) |

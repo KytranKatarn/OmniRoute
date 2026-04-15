@@ -256,7 +256,7 @@ def register_roster_routes(bp, admin_required):
         directors = sum(1 for a in agents if a["is_director"])
         departments = len(set(a["department"] for a in agents if a["department"]))
 
-        return jsonify(
+        resp = jsonify(
             {
                 "success": True,
                 "agents": agents,
@@ -268,6 +268,11 @@ def register_roster_routes(bp, admin_required):
                 },
             }
         )
+        # CORS — allow website + CREED standalone to fetch
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Methods"] = "GET"
+        resp.headers["Cache-Control"] = "public, max-age=300"
+        return resp
 
     @bp.route("/api/coordinator/status")
     @admin_required

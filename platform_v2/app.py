@@ -48,6 +48,12 @@ class DateTimeEncoder(json.JSONEncoder):
 app = Flask(__name__)
 app.config.from_object(Config)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB upload limit
+app.config["PREFERRED_URL_SCHEME"] = "https"  # Behind NPM SSL proxy
+
+# Tell Flask it's behind a reverse proxy (NPM) so url_for generates https://
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 app.json_encoder = DateTimeEncoder
 
 # Initialize SocketIO for Game Studio multiplayer

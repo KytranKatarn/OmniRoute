@@ -539,7 +539,7 @@ def translate():
         return resp
 
     try:
-        from ai_bridge.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
         prompt = (

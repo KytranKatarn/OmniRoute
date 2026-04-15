@@ -1,5 +1,6 @@
 # platform_v2/tools/security_network/ddns_service.py
 """DDNS management service — IP tracking, history, manual updates."""
+
 import logging
 import os
 import subprocess

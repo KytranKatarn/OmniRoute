@@ -17,7 +17,6 @@ import requests
 from psycopg2.extras import Json
 from database import get_db_cursor
 
-
 CURATED_MODULES = {
     "network": [
         {"id": "dns_lookup", "name": "DNS Lookup", "description": "Resolve domain to IP addresses"},

@@ -4,6 +4,7 @@
 Uses cookie-based session auth (POST /authorize.html) since ntopng
 does not support basic auth for REST API endpoints.
 """
+
 import logging
 import os
 import requests

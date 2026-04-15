@@ -6823,7 +6823,28 @@ class BridgeDispatcher:
         return result
 
     def ensure_model_ready(self, agent_name, model, target_host=None):
-        """Ensure model is loaded — delegates to ModelService."""
+        """Ensure model is loaded — delegates to ModelService.
+
+        Pre-checks the RAM budget and triggers LRU eviction if the new
+        model would exceed the 102 GB limit (80 % of 128 GB host RAM).
+        Budget check is best-effort — dispatch is never blocked by it.
+        """
+        # --- RAM budget pre-check (best-effort) ---
+        if not target_host:  # budget enforcer only manages the hub
+            try:
+                from services.ram_budget import ensure_budget_for
+
+                if not ensure_budget_for(model):
+                    logger.warning(
+                        "[BridgeDispatcher] RAM budget cannot accommodate %s — proceeding anyway",
+                        model,
+                    )
+            except Exception as budget_err:
+                logger.debug(
+                    "[BridgeDispatcher] RAM budget check failed: %s — proceeding",
+                    budget_err,
+                )
+        # --- end budget pre-check ---
         svc = get_model_service()
         return svc.ensure_model_ready(agent_name, model, target_host)
 

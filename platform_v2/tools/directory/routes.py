@@ -231,7 +231,7 @@ def api_directory_live_status():
     No internal details (model, hardware, jobs, stats) are exposed.
     """
     try:
-        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
         manifest = dispatcher.get_crew_manifest()

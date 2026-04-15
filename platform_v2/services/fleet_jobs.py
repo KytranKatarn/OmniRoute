@@ -76,7 +76,7 @@ def _log_cycle(
 def check_fleet_health():
     """Job #45: Monitor fleet node heartbeats -- return agents to barracks if offline."""
     try:
-        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
         dispatcher.check_fleet_health()
@@ -167,7 +167,7 @@ def check_mesh_health():
         # Refresh fleet cache if any node changed status
         if changed:
             try:
-                from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+                from tools.department_hq.services.department_dispatcher import get_dispatcher
 
                 dispatcher = get_dispatcher()
                 dispatcher._refresh_fleet_cache()
@@ -189,7 +189,7 @@ def check_mesh_health():
 def save_model_state():
     """Job #46: Save current loaded models to DB for restart recovery."""
     try:
-        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
         dispatcher._save_model_state()  # Hub

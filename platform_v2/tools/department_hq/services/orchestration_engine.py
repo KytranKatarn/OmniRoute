@@ -39,7 +39,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 def _default_conversation_model():
     """Get conversation model from BridgeDispatcher (lazy, with fallback)."""
     try:
-        from bridge_dispatcher import get_dispatcher
+        from department_dispatcher import get_dispatcher
 
         model = get_dispatcher().get_model_for_capability("conversation")
         return model or "dolphin3-8k:latest"
@@ -1361,7 +1361,7 @@ class OrchestrationEngine:
         # Relative import now that orchestration_engine and bridge_dispatcher
         # both live in tools.department_hq.services (Project #244 Phase 2).
         try:
-            from .bridge_dispatcher import get_dispatcher
+            from .department_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             task_type = (routing or {}).get("task_type", "general")

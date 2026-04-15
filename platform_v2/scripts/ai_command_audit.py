@@ -243,7 +243,7 @@ def audit_a2_dispatch_pipeline():
     results = []
 
     try:
-        from tools.department_hq.services.bridge_dispatcher import dispatch, dispatch_json, get_dispatcher
+        from tools.department_hq.services.department_dispatcher import dispatch, dispatch_json, get_dispatcher
     except ImportError as exc:
         return [_err("import bridge_dispatcher", str(exc))]
 

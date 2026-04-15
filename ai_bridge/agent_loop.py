@@ -3622,7 +3622,7 @@ class AgentLoop:
     def _reap_stale_jobs(self):
         """Reap orphaned bridge jobs that stopped updating (every 2 min)."""
         try:
-            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
             dispatcher = get_dispatcher()
             reaped = dispatcher.reap_stale_jobs(max_age_minutes=5)
             if reaped:
@@ -3909,7 +3909,7 @@ class AgentLoop:
                             failure_summary["error_patterns"].append(msg[:100])
 
                     if error_texts:
-                        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+                        from tools.department_hq.services.department_dispatcher import get_dispatcher
                         disp = get_dispatcher()
                         if disp:
                             prompt = (
@@ -4520,7 +4520,7 @@ class AgentLoop:
         """Job #48: Process approved improvement proposals by dispatching to coding agents."""
         try:
             from database import get_db_cursor
-            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             if not dispatcher:

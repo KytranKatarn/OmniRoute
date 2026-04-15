@@ -1,5 +1,5 @@
 """
-BridgeDispatcher — Central AI Work Dispatch System
+DepartmentDispatcher — Central AI Work Dispatch System
 Project #91: Team Management Redesign
 
 Single entry point for all AI work requests. Replaces direct LLM calls
@@ -389,7 +389,7 @@ def _detect_project_id(text: str) -> Optional[int]:
     return min(best_pids)
 
 
-class BridgeDispatcher:
+class DepartmentDispatcher:
     """
     Central dispatch system for all AI work on the ARCHIE Platform.
 
@@ -7464,11 +7464,11 @@ class BridgeDispatcher:
 _dispatcher = None
 
 
-def get_dispatcher() -> BridgeDispatcher:
-    """Get the singleton BridgeDispatcher instance."""
+def get_dispatcher() -> DepartmentDispatcher:
+    """Get the singleton DepartmentDispatcher instance."""
     global _dispatcher
     if _dispatcher is None:
-        _dispatcher = BridgeDispatcher()
+        _dispatcher = DepartmentDispatcher()
         # Reap ALL orphaned jobs from previous runs on first init.
         # No background threads survive a container restart, so any
         # job still marked 'running' is guaranteed stale.

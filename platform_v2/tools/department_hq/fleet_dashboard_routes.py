@@ -1258,7 +1258,7 @@ def register_dashboard_routes(bp, auth_decorator):
     def api_starbase_stats():
         """Hero Starbase stats -- real data from dispatcher + DB."""
         try:
-            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             manifest = dispatcher.get_crew_manifest()

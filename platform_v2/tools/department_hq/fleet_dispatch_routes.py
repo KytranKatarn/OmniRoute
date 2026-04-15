@@ -599,7 +599,7 @@ def register_dispatch_routes(bp, admin_required):
     def api_resume_job(job_id):
         """Resume a failed job from its last checkpoint."""
         try:
-            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             result = dispatcher.resume_job(job_id)
@@ -623,7 +623,7 @@ def register_dispatch_routes(bp, admin_required):
             return jsonify({"success": False, "error": "capability and prompt required"}), 400
 
         try:
-            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             result = dispatcher.delegate_subtask(job_id, capability, prompt, timeout)

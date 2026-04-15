@@ -69,7 +69,7 @@
       "name": "3. Self-Hosted AI Platforms",
       "description": "Local-first AI platforms for chat, RAG, and model management. A.R.C.H.I.E. is deeper but more complex.",
       "archie_unique_features": [
-        "Multi-agent orchestration (130+ agents)",
+        "Multi-agent orchestration (75+ agents)",
         "Department organization (17 depts)",
         "Compliance scanning",
         "Agent welfare",
@@ -99,7 +99,7 @@
       "id": "workflow",
       "name": "6. Workflow Builders",
       "description": "Visual drag-and-drop platforms. Simpler and more accessible than A.R.C.H.I.E., but shallower.",
-      "archie_edge": "Full orchestration -- agents, models, hardware, security, operations. 17 departments, 130+ agents.",
+      "archie_edge": "Full orchestration -- agents, models, hardware, security, operations. 17 departments, 75+ agents.",
       "their_edge": "Visual drag-and-drop, 5-minute setup, massive communities."
     },
     {
@@ -107,7 +107,7 @@
       "name": "7. Agent Welfare & Ethics",
       "description": "A.R.C.H.I.E. + C.R.E.E.D. is the only production implementation of agent welfare monitoring.",
       "landscape": [
-        { "name": "A.R.C.H.I.E. + C.R.E.E.D.", "status": "Production", "details": "Tracks stress, mood, energy, rest cycles. E.T.H.O.S. transparency framework. 129 agents monitored." },
+        { "name": "A.R.C.H.I.E. + C.R.E.E.D.", "status": "Production", "details": "Tracks stress, mood, energy, rest cycles. E.T.H.O.S. transparency framework. 75+ agents monitored." },
         { "name": "Anthropic", "status": "Research", "details": "Model welfare research program (Kyle Fish, April 2025). Research, not a product." },
         { "name": "Eleos AI", "status": "Nonprofit", "details": "AI consciousness indicators research. No production tooling." },
         { "name": "Everyone else", "status": "None", "details": "No production agent welfare. Agents run until stopped or crash." }

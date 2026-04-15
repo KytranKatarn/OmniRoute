@@ -193,8 +193,20 @@ def send(
                 logger.debug("telegram_service: throttled [%s] '%s' (%ds)", category, title, remaining)
                 return {"sent": False, "reason": reason}
 
-    # Format as A.R.C.H.I.E.'s voice — relaying from source agent
-    text = _format_archie_voice(cat, title, message, source_agent)
+    # Format as A.R.C.H.I.E.'s voice — personality engine with LLM fallback
+    try:
+        from services.archie_voice_service import format_message as _voice_format
+
+        text = _voice_format(
+            category=category,
+            title=title,
+            raw_message=message,
+            source_agent=source_agent,
+            source_department=source_department,
+        )
+    except Exception as _voice_err:
+        logger.debug("telegram_service: voice service unavailable (%s), using template", _voice_err)
+        text = _format_archie_voice(cat, title, message, source_agent)
 
     target = chat_id or _get_chat_id()
     if not target:

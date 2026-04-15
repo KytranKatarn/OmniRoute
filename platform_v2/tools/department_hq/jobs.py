@@ -338,14 +338,8 @@ def daily_code_health_digest(flask_app, scheduler):
     """Job #51: Send a morning Telegram summary of code health status at 8:00 AM."""
     start = time.time()
     try:
-        import asyncio
         from datetime import datetime, timedelta
         from database import get_db_cursor
-
-        gateway = flask_app.config.get("TELEGRAM_GATEWAY")
-        if not gateway or not gateway.is_running:
-            logger.debug("Code health digest: Telegram gateway not available, skipping")
-            return
 
         with get_db_cursor() as (conn, cur):
             # Get latest code metrics snapshot
@@ -432,30 +426,19 @@ def daily_code_health_digest(flask_app, scheduler):
 
             text = "\n".join(lines)
 
-            # Send to first authorized admin
-            cur.execute(
-                """
-                SELECT telegram_id FROM telegram_users
-                WHERE is_authorized = TRUE AND telegram_id IS NOT NULL LIMIT 1
-            """
-            )
-            tg_user = cur.fetchone()
-            if tg_user:
-                loop = gateway._loop
-                asyncio.run_coroutine_threadsafe(
-                    gateway._application.bot.send_message(
-                        chat_id=tg_user["telegram_id"],
-                        text=text,
-                        parse_mode="Markdown",
-                    ),
-                    loop,
-                )
+            # Send to authorized admins via unified telegram service
+            try:
+                from services.telegram_service import send_info
+
+                send_info("Code Health Digest", text, source_module="department_hq.jobs")
                 logger.info(
                     "Code health digest sent: %d green, %d stale, %d violations",
                     green,
                     stale,
                     violations,
                 )
+            except Exception as tg_err:
+                logger.warning(f"Code health digest telegram failed: {tg_err}")
 
         duration_ms = int((time.time() - start) * 1000)
         _log_cycle("code_health_digest", 1, 0, duration_ms)
@@ -498,7 +481,6 @@ def competitor_landscape_scan(flask_app):
     """Job #52: Scan AI competitor landscape every 2 weeks, update knowledge_base, notify via Telegram."""
     start = time.time()
     try:
-        import asyncio
         from services.competitor_scan_service import run_competitor_scan
 
         result = run_competitor_scan()
@@ -524,28 +506,12 @@ def competitor_landscape_scan(flask_app):
         text = "\n".join(lines)
 
         # Send Telegram notification
-        gateway = flask_app.config.get("TELEGRAM_GATEWAY")
-        if gateway and gateway.is_running:
-            from database import get_db_cursor
+        try:
+            from services.telegram_service import send_sync
 
-            with get_db_cursor() as (conn, cur):
-                cur.execute(
-                    """
-                    SELECT telegram_id FROM telegram_users
-                    WHERE is_authorized = TRUE AND telegram_id IS NOT NULL LIMIT 1
-                """
-                )
-                tg_user = cur.fetchone()
-                if tg_user:
-                    loop = gateway._loop
-                    asyncio.run_coroutine_threadsafe(
-                        gateway._application.bot.send_message(
-                            chat_id=tg_user["telegram_id"],
-                            text=text,
-                            parse_mode="Markdown",
-                        ),
-                        loop,
-                    )
+            send_sync("Competitor Landscape Scan", text, source_module="department_hq.jobs")
+        except Exception as tg_err:
+            logger.warning(f"Competitor scan telegram failed: {tg_err}")
 
         logger.info(
             "[Competitors] Scan complete: %d new, %d updated out of %d tracked",

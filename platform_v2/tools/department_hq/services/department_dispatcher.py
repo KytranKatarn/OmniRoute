@@ -5328,6 +5328,9 @@ class DepartmentDispatcher:
             conn.close()
 
             # 2. Send Telegram with buttons for cross_station + free_cloud
+            # TODO: migrate to telegram_service — needs reply_markup support
+            # This block uses inline_keyboard buttons for escalation approval,
+            # which the unified telegram_service doesn't support yet.
             if advisory_type in ("cross_station", "free_cloud") and buttons:
                 try:
                     import os

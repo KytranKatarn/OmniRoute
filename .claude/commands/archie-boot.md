@@ -55,7 +55,8 @@ These standalone products exist:
 
 | Product | Port | Subdomain | Client ID |
 |---------|------|-----------|-----------|
-| ARCHIE Platform | 3000 | archie.kytranempowerment.com | — |
+| ARCHIE Platform | 3000 | platform.kytranempowerment.com | — |
+| A.R.C.H.I.E. Comms | 3002 | archie.kytranempowerment.com | — |
 | Market Watch | 8101 | market.kytranempowerment.com | market-watch-viewer |
 | Civic Watch | 8099 | civic.kytranempowerment.com | civic-watch |
 | Legal Watch | 8100 | legal.kytranempowerment.com | legal-watch |

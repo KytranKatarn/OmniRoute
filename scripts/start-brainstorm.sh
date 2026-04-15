@@ -12,7 +12,7 @@
 #   - Hostinger DNS: A record via DDNS script
 
 BRAINSTORM_PORT=52000 \
-  /home/kytran/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.6/skills/brainstorming/scripts/start-server.sh \
+  /home/kytran/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/brainstorming/scripts/start-server.sh \
   --project-dir /mnt/archie_brain \
   --host 0.0.0.0 \
   --url-host brainstorm.kytranempowerment.com

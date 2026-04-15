@@ -9,7 +9,7 @@ Usage:
 Env vars required:
     KYTRAN_CLIENT_ID       — OAuth client ID (e.g., "kso")
     KYTRAN_CLIENT_SECRET   — OAuth client secret
-    KYTRAN_AUTH_URL         — ARCHIE hub URL (e.g., "https://archie.kytranempowerment.com")
+    KYTRAN_AUTH_URL         — ARCHIE hub URL (e.g., "https://platform.kytranempowerment.com")
     KYTRAN_REDIRECT_URI    — Callback URL for this product
 """
 
@@ -51,7 +51,7 @@ class KytranAuth:
         self.app = app
         self.client_id = app.config.get("KYTRAN_CLIENT_ID") or os.environ.get("KYTRAN_CLIENT_ID", "")
         self.client_secret = app.config.get("KYTRAN_CLIENT_SECRET") or os.environ.get("KYTRAN_CLIENT_SECRET", "")
-        self.auth_url = app.config.get("KYTRAN_AUTH_URL") or os.environ.get("KYTRAN_AUTH_URL", "https://archie.kytranempowerment.com")
+        self.auth_url = app.config.get("KYTRAN_AUTH_URL") or os.environ.get("KYTRAN_AUTH_URL", "https://platform.kytranempowerment.com")
         self.redirect_uri = app.config.get("KYTRAN_REDIRECT_URI") or os.environ.get("KYTRAN_REDIRECT_URI", "")
 
         self._register_routes(app)

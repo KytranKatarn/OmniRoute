@@ -267,7 +267,7 @@ class ArchieInstaller(tk.Tk):
             fg=TEXT_DIM, bg=BG_DARK, anchor="w",
         ).pack(side="left")
 
-        self.hub_url_var = tk.StringVar(value="https://archie.kytranempowerment.com")
+        self.hub_url_var = tk.StringVar(value="https://platform.kytranempowerment.com")
         entry_font = tkfont.Font(family=FONT_MONO, size=10)
         self.hub_entry = tk.Entry(
             url_frame, textvariable=self.hub_url_var, font=entry_font,

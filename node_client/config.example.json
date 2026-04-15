@@ -1,6 +1,6 @@
 {
     "node_id": "YOUR_NODE_ID",
-    "hub_url": "https://archie.kytranempowerment.com",
+    "hub_url": "https://platform.kytranempowerment.com",
     "hub_api_key": "YOUR_API_KEY",
     "ollama_host": "http://localhost:11434",
     "heartbeat_interval": 30,

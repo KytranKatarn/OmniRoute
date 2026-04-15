@@ -63,7 +63,7 @@ echo "[4/5] Node Registration"
 if [ -f "$INSTALL_DIR/.env" ]; then
     echo "     Using existing .env config."
 else
-    read -p "     Hub URL (e.g. https://archie.kytranempowerment.com): " HUB_URL
+    read -p "     Hub URL (e.g. https://platform.kytranempowerment.com): " HUB_URL
     HUB_URL="${HUB_URL%/}"
     HOSTNAME_VAL=$(hostname)
     LOCAL_IP=$(hostname -I | awk '{print $1}')

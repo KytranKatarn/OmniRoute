@@ -4,7 +4,8 @@
 
 | Product | Port | Subdomain | Container | Location |
 |---------|------|-----------|-----------|----------|
-| ARCHIE Platform | 3000 | archie.kytranempowerment.com | archie_platform | Hub |
+| ARCHIE Platform | 3000 | platform.kytranempowerment.com | archie_platform | Hub |
+| A.R.C.H.I.E. Comms | 3002 | archie.kytranempowerment.com | archie_comms | Hub |
 | Market Watch | 8101 | market.kytranempowerment.com | kytran_market_api | VPS |
 | Civic Watch | 8099 | civic.kytranempowerment.com | kytran_watch_api | VPS |
 | Legal Watch | 8100 | legal.kytranempowerment.com | kytran_legal_api | VPS |

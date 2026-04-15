@@ -3742,7 +3742,7 @@ function _getSecOps() {
             statusElId: 'secOpsOnline',
             commands: [
                 { label: 'NMAP SCAN', cls: 'amber', fn: "openQuickScanModal('nmap_scan','NMAP SCAN','Target IP/Host','192.168.1.0/24')", id: 'secCmdNmap' },
-                { label: 'SSL CHECK', cls: 'green', fn: "openQuickScanModal('testssl_scan','SSL CHECK','Domain','archie.kytranempowerment.com')", id: 'secCmdSsl' },
+                { label: 'SSL CHECK', cls: 'green', fn: "openQuickScanModal('testssl_scan','SSL CHECK','Domain','platform.kytranempowerment.com')", id: 'secCmdSsl' },
                 { label: 'DEVICE AUDIT', cls: 'cyan', fn: "switchSecurityTab('devices')", id: 'secCmdDevices' },
                 { label: 'DNS REPORT', cls: 'purple', fn: "switchSecurityTab('dns')", id: 'secCmdDns' }
             ],

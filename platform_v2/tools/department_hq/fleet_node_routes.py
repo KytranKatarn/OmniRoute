@@ -1175,7 +1175,7 @@ def register_node_routes(bp, login_required, admin_required):
                 agent_welfare = data.get("agent_welfare", {})
                 if agent_welfare:
                     try:
-                        from ai_bridge.bridge_dispatcher import get_dispatcher
+                        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
                         dispatcher = get_dispatcher()
                         for agent_name, welfare in agent_welfare.items():
@@ -2938,7 +2938,7 @@ def register_node_routes(bp, login_required, admin_required):
             # Build config for the node
             hub_url = os.getenv(
                 "STARSHIP_HUB_URL",
-                "https://archie.kytranempowerment.com",
+                "https://platform.kytranempowerment.com",
             )
             config = {
                 "node_id": node_id,
@@ -3011,7 +3011,7 @@ def register_node_routes(bp, login_required, admin_required):
                     status=403,
                 )
 
-        hub_url = os.environ.get("STARSHIP_HUB_URL", "https://archie.kytranempowerment.com")
+        hub_url = os.environ.get("STARSHIP_HUB_URL", "https://platform.kytranempowerment.com")
         node_id = node["node_id"]
 
         ua = (request.headers.get("User-Agent") or "").lower()
@@ -3210,7 +3210,7 @@ def register_node_routes(bp, login_required, admin_required):
         if not command:
             return jsonify({"error": "Command not found"}), 404
 
-        from ai_bridge.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
 
@@ -3369,7 +3369,7 @@ def register_node_routes(bp, login_required, admin_required):
             return jsonify({"success": False, "error": "Node not found"}), 404
 
         os_type = request.args.get("os", "linux").lower()
-        hub_url = os.environ.get("STARSHIP_HUB_URL", "https://archie.kytranempowerment.com")
+        hub_url = os.environ.get("STARSHIP_HUB_URL", "https://platform.kytranempowerment.com")
         token = node.get("setup_token", "")
         node_name = node.get("node_name", "Starship Node")
 
@@ -3408,7 +3408,7 @@ def register_node_routes(bp, login_required, admin_required):
         if not node_name:
             node_name = f"Starship-{secrets.token_hex(3).upper()}"
 
-        hub_url = os.environ.get("STARSHIP_HUB_URL", "https://archie.kytranempowerment.com")
+        hub_url = os.environ.get("STARSHIP_HUB_URL", "https://platform.kytranempowerment.com")
 
         try:
             with get_db_cursor(commit=True) as (conn, cur):

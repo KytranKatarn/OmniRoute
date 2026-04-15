@@ -244,7 +244,11 @@ def register_roster_routes(bp, admin_required):
                         "acronym": r["acronym"],
                         "acronym_expansion": r["acronym_expansion"],
                         "bio": r["bio"],
-                        "avatar_url": r["avatar_url"],
+                        "avatar_url": (
+                            "https://archie.kytranempowerment.com" + r["avatar_url"]
+                            if r["avatar_url"] and r["avatar_url"].startswith("/")
+                            else r["avatar_url"]
+                        ),
                         "is_director": bool(r["is_department_ai"]),
                         "worker_type": r["worker_type"],
                         "shift_state": r["shift_state"],

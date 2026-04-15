@@ -92,7 +92,7 @@ Every new session MUST begin with one of:
 
 ### 3 Core Systems
 1. **Autonomy Module** - Scheduled jobs, background processing (`ai_bridge/agent_loop.py`)
-2. **Department HQ** - Agents, departments, dispatch, fleet, jobs — 11 tabs (`tools/department_hq/`)
+2. **Department HQ** - Agents, departments, dispatch, fleet, jobs — 12 tabs (`tools/department_hq/`)
 3. **AI Bridge** - Model routing, embeddings, knowledge analysis (`ai_bridge/`)
 
 ### 6 Subsystems
@@ -136,9 +136,12 @@ platform_v2/static/js/archie-time.js        - Timezone formatter
 ai_bridge/archie_bridge.py                  - AI routing (intent parse + cost calc)
 ai_bridge/knowledge_analyzer.py             - Knowledge extraction
 ai_bridge/embedding_service.py              - Vector embeddings
-platform_v2/tools/department_hq/services/bridge_dispatcher.py    - Dispatch entry point (Project #244)
+platform_v2/tools/department_hq/services/department_dispatcher.py - Dispatch entry point (renamed from bridge_dispatcher, Decision #441)
 platform_v2/tools/department_hq/services/orchestration_engine.py - 8-step orchestration pipeline
-platform_v2/tools/department_hq/services/smart_router.py         - GPU-aware 11-tier routing
+platform_v2/tools/department_hq/services/smart_router.py         - GPU-aware 11-tier routing + CAPABILITY_TAXONOMY
+platform_v2/tools/department_hq/coms_routes.py                   - COMs tab: Telegram message feed, config, migration status
+platform_v2/tools/agent_academy/competency_routes.py             - Competency testing + department readiness
+platform_v2/services/telegram_service.py                         - Unified Telegram: A.R.C.H.I.E. voice, source_agent, message logging
 # NOTE: ai_bridge/{bridge_dispatcher,orchestration_engine,smart_router}.py are back-compat shims only.
 # New code must import from tools.department_hq.services.* — enforced by scripts/check_agent_single_writer.py
 ```
@@ -148,7 +151,7 @@ platform_v2/tools/department_hq/services/smart_router.py         - GPU-aware 11-
 ### Department HQ → Agent Service Pattern
 - All agent mutations go through `agent_service.py` — no direct SQL on agent tables
 - 17 departments across 5 floors: BRIDGE, OPERATIONS, ENGINEERING, CREATIVE, SERVICES
-- Department HQ module: 11 tabs (Overview, Org Chart, Roster, Work Tracking, Performance, C.R.E.E.D., Social, Devices, Dispatch, Fleet, Contractors)
+- Department HQ module: 12 tabs (Overview, Org Chart, Roster, Work Tracking, Performance, C.R.E.E.D., Social, Devices, Dispatch, Fleet, Contractors, COMs)
 - Agent Academy module: 5 tabs (Benchmarks, Training, A/B Testing, Skills, Reports)
 - Agent lifecycle: `agent_service.create_agent()`, `.update_agent()`, `.deactivate_agent()`
 
@@ -164,12 +167,12 @@ platform_v2/tools/department_hq/services/smart_router.py         - GPU-aware 11-
 - Reference: `bridge.html` lines 9209-9249
 
 ### Agent Roster
-- `agents` table = single source of truth (131 agents: 76 active roster + 55 decommissioned)
-- 29 AI agents (worker_type='ai') across 17 departments — 19 active, 5 barracked, 2 winding_down
+- `agents` table = single source of truth (131 non-decommissioned: 34 AI + 90 internal + 5 contractor)
+- 34 AI agents (worker_type='ai') across 17 departments — 29 active, 5 barracked
 - 17 departments (News & Media added 2026-04-14 with 6 AI agents)
 - 1 agent = 1 department (managed via `agent_service.py`)
 - Shift states: active, deployed, barracked, off_duty, winding_down, cooldown
-- A.R.C.H.I.E. = Executive Office (winding_down), P.R.O.B.E. = Engineering director, V.I.G.I.L. = Security & Compliance director
+- A.R.C.H.I.E. = Executive Office (COO), P.R.O.B.E. = Engineering director, V.I.G.I.L. = Security & Compliance director
 - Column is `worker_type` (ai/internal/contractor) — NOT `agent_type`
 - All agent mutations go through `agent_service.py` — no direct SQL on agent tables
 

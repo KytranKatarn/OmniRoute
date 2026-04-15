@@ -91,48 +91,24 @@ def _notify_ingestion_complete(repo_count, file_count, repo_names):
 
     Tells Kytran what ARCHIE just learned so Claude can be upgraded next session.
     """
-    import asyncio
-
-    gateway = current_app.config.get("TELEGRAM_GATEWAY")
-    if not gateway or not gateway.is_running:
-        return
-
     # Build repo list (max 5 shown)
     repo_list = "\n".join(f"  \u2022 {r}" for r in repo_names[:5])
     if len(repo_names) > 5:
         repo_list += f"\n  ... and {len(repo_names) - 5} more"
 
     text = (
-        "\U0001f9e0 *A.R.C.H.I.E. Knowledge Ingestion Complete*\n\n"
-        f"\U0001f4da *{file_count}* files indexed from *{repo_count}* repo(s)\n\n"
-        f"*Repos:*\n{repo_list}\n\n"
-        "\U0001f916 _Skills will be synced to Claude within 6 hours "
+        f"{file_count} files indexed from {repo_count} repo(s)\n\n"
+        f"Repos:\n{repo_list}\n\n"
+        "Skills will be synced to Claude within 6 hours "
         "(Agent Loop Job #54). Next Claude session will have "
-        "these skills auto-loaded._\n\n"
-        "\U0001f50d Use `/archie-search` to explore what was learned."
+        "these skills auto-loaded.\n\n"
+        "Use /archie-search to explore what was learned."
     )
 
     try:
-        from database import get_db_cursor
+        from services.telegram_service import send_sync
 
-        with get_db_cursor() as (conn, cur):
-            cur.execute(
-                """
-                SELECT telegram_id FROM telegram_users
-                WHERE is_authorized = TRUE AND telegram_id IS NOT NULL LIMIT 1
-            """
-            )
-            tg_user = cur.fetchone()
-            if tg_user:
-                loop = gateway._loop
-                asyncio.run_coroutine_threadsafe(
-                    gateway._application.bot.send_message(
-                        chat_id=tg_user["telegram_id"],
-                        text=text,
-                        parse_mode="Markdown",
-                    ),
-                    loop,
-                )
+        send_sync("GitHub Ingestion Complete", text, source_module="consciousness.github_routes")
     except Exception as e:
         logger.warning(f"[GitHub] Telegram ingestion notification failed: {e}")
 
@@ -898,7 +874,7 @@ def run_reindex_background(repos_list, job_id):
     2. Index files into knowledge_base via Tree API
     3. Update github_repositories with local_path, indexed_at, status
     """
-    from ai_bridge.bridge_dispatcher import get_dispatcher
+    from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
     d = get_dispatcher()
     total_indexed = 0

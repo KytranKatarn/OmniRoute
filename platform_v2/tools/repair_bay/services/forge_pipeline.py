@@ -359,40 +359,15 @@ def deploy_via_merge(pr_number: int, proposal_id: int = None) -> Dict:
 
     # 6. Send Telegram notification
     try:
-        import os
-        import requests as _req
+        from services.telegram_service import send_forge
 
-        bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-        if bot_token:
-            import psycopg2 as _pg
-
-            text = (
-                f"✅ *F.O.R.G.E. Deployed*\n\n"
-                f"PR #{pr_number} merged successfully\n"
-                f"{'Proposal #' + str(proposal_id) if proposal_id else ''}\n"
-                f"Approved by: {', '.join(r.get('user', '?') for r in approved) or 'none'}\n\n"
-                f"_Code is now in main._"
-            )
-            tg_conn = _pg.connect(
-                host=os.getenv("DB_HOST", "archie_database"),
-                database=os.getenv("DB_NAME", "archie"),
-                user=os.getenv("DB_USER", "archie"),
-                password=_get_db_password(),
-            )
-            tg_cur = tg_conn.cursor()
-            try:
-                tg_cur.execute(
-                    "SELECT telegram_id FROM telegram_users " "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
-                )
-                for row in tg_cur.fetchall():
-                    _req.post(
-                        f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                        json={"chat_id": row[0], "text": text, "parse_mode": "Markdown"},
-                        timeout=15,
-                    )
-            finally:
-                tg_cur.close()
-                tg_conn.close()
+        text = (
+            f"PR #{pr_number} merged successfully\n"
+            f"{'Proposal #' + str(proposal_id) if proposal_id else ''}\n"
+            f"Approved by: {', '.join(r.get('user', '?') for r in approved) or 'none'}\n\n"
+            f"Code is now in main."
+        )
+        send_forge("PR Merged & Deployed", text, source_module="forge_pipeline")
     except Exception as tg_err:
         logger.warning(f"[FORGE] Telegram notification failed: {tg_err}")
 

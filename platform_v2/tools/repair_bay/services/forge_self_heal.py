@@ -76,33 +76,6 @@ def _log_autonomy_action(
         logger.warning(f"[FORGE] Autonomy log failed: {e}")
 
 
-def _send_telegram(text: str):
-    """Send Telegram notification to authorized users."""
-    try:
-        import requests
-
-        bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-        if not bot_token:
-            return
-        conn = _get_db()
-        cur = conn.cursor()
-        try:
-            cur.execute(
-                "SELECT telegram_id FROM telegram_users " "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
-            )
-            for row in cur.fetchall():
-                requests.post(
-                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                    json={"chat_id": row[0], "text": text, "parse_mode": "Markdown"},
-                    timeout=15,
-                )
-        finally:
-            cur.close()
-            conn.close()
-    except Exception as e:
-        logger.warning(f"[FORGE] Telegram failed: {e}")
-
-
 # ============================================================================
 # CIRCUIT BREAKER (Phase 13)
 # ============================================================================
@@ -186,13 +159,18 @@ def escalate_to_human(proposal_id: int, reason: str, context: Dict):
         success=False,
     )
 
-    _send_telegram(
-        f"🚨 *F.O.R.G.E. Escalation*\n\n"
-        f"Proposal #{proposal_id} needs human intervention\n"
-        f"Reason: {reason}\n"
-        f"Attempts: {context.get('attempt', '?')}\n\n"
-        f"[View Pipeline](http://192.168.1.200:3000/tools/repair-bay)"
-    )
+    try:
+        from services.telegram_service import send_forge
+
+        msg = (
+            f"Proposal #{proposal_id} needs human intervention\n"
+            f"Reason: {reason}\n"
+            f"Attempts: {context.get('attempt', '?')}\n\n"
+            f"View Pipeline: http://192.168.1.200:3000/tools/repair-bay"
+        )
+        send_forge("F.O.R.G.E. Escalation", msg, source_module="forge_self_heal")
+    except Exception as tg_err:
+        logger.warning(f"[FORGE] Telegram escalation failed: {tg_err}")
 
     logger.info(f"[FORGE] Escalated proposal #{proposal_id}: {reason}")
 

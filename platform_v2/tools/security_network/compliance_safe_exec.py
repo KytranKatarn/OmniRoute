@@ -338,19 +338,15 @@ def _fire_rollback_failed_alert(rule_id: str, snap: Dict[str, Any], detail: str)
     """Best-effort Telegram alert when rollback itself fails.
     Never raises — rollback-failed is already the worst case."""
     try:
-        from ai_bridge.agent_loop import _send_telegram  # type: ignore
-    except ImportError:
-        logger.error("Cannot import _send_telegram — %s rollback_failed: %s", rule_id, detail)
-        return
-    try:
+        from services.telegram_service import send_security
+
         msg = (
-            f"🚨 COMPLIANCE ROLLBACK FAILED\n"
             f"Rule: {rule_id}\n"
             f"Snapshot: {json.dumps({k: str(v)[:80] for k, v in snap.items()})}\n"
             f"Detail: {detail}\n\n"
             f"MANUAL INTERVENTION REQUIRED."
         )
-        _send_telegram(msg)
+        send_security("Compliance Rollback Failed", msg, source_module="compliance_safe_exec")
     except Exception as exc:
         logger.error("Failed to send rollback-failed telegram: %s", exc)
 

@@ -628,12 +628,7 @@ def run_auto_apply_window():
         SAFE_FIX_TYPES,
     )
 
-    try:
-        from ai_bridge.agent_loop import _send_telegram  # type: ignore
-    except ImportError:
-
-        def _send_telegram(msg):  # type: ignore
-            logger.info("TELEGRAM (no sender): %s", msg)
+    from services.telegram_service import send_security
 
     max_fixes = 5
     picked: list = []
@@ -687,7 +682,7 @@ def run_auto_apply_window():
                 f"🛠 Compliance window {_dt.datetime.now():%Y-%m-%d %H:%M}\n"
                 f"Applied: {ok}/{total} | Failed: {failed}\n" + "\n".join(detail_lines)
             )
-        _send_telegram(msg)
+        send_security("Compliance Auto-Apply", msg, source_module="security_network.jobs")
         logger.info("auto_apply_window summary: %s", msg.replace("\n", " | "))
     except Exception as exc:
         logger.error("auto_apply_window failed: %s", exc)

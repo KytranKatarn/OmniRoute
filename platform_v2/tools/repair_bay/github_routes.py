@@ -374,27 +374,15 @@ def register_github_routes(bp, admin_required):
                 # Send Telegram notification for changes_requested
                 if review_status == "changes_requested":
                     try:
-                        import requests as _req
+                        from services.telegram_service import send_forge
 
-                        bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-                        if bot_token:
-                            text = (
-                                f"🔧 *F.O.R.G.E. Review: Changes Requested*\n\n"
-                                f"PR #{pr_number}: {pr_title}\n"
-                                f"Reviewer: {reviewer}\n"
-                                f"Proposal: #{proposal_id}\n\n"
-                                f"_{review_body[:200] if review_body else 'No details'}_"
-                            )
-                            cur.execute(
-                                "SELECT telegram_id FROM telegram_users "
-                                "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
-                            )
-                            for row in cur.fetchall():
-                                _req.post(
-                                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                                    json={"chat_id": row["telegram_id"], "text": text, "parse_mode": "Markdown"},
-                                    timeout=15,
-                                )
+                        text = (
+                            f"PR #{pr_number}: {pr_title}\n"
+                            f"Reviewer: {reviewer}\n"
+                            f"Proposal: #{proposal_id}\n\n"
+                            f"{review_body[:200] if review_body else 'No details'}"
+                        )
+                        send_forge("PR Review: Changes Requested", text, source_module="github_routes")
                     except Exception as tg_err:
                         logger.warning(f"[FORGE] Telegram failed: {tg_err}")
 

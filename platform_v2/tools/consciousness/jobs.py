@@ -512,44 +512,22 @@ def sync_learned_skills():
             sync_learned_skills._last_skill_count = skill_count
 
             if new_skills > 0:
-                bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-                if bot_token:
-                    import requests as _req
+                try:
+                    from services.telegram_service import send_sync
 
                     # Build notification
-                    tg_lines = ["\U0001f9e0 *New Skills Discovered*\n"]
-                    tg_lines.append(f"*{new_skills}* new skill files found across " f"*{len(repos)}* repos\n")
-                    tg_lines.append(f"Total skills indexed: *{skill_count}*\n")
+                    tg_lines = [f"{new_skills} new skill files found across {len(repos)} repos\n"]
+                    tg_lines.append(f"Total skills indexed: {skill_count}\n")
                     # Show repos with most skills
                     top_repos = sorted(repos.items(), key=lambda x: len(x[1]), reverse=True)[:5]
                     for rname, rskills in top_repos:
-                        tg_lines.append(f"\u2022 `{rname}` \u2014 {len(rskills)} skills")
-                    tg_lines.append(
-                        "\n[View in Consciousness]" "(http://192.168.1.200:3000/tools/consciousness?tab=github)"
-                    )
+                        tg_lines.append(f"\u2022 {rname} \u2014 {len(rskills)} skills")
+                    tg_lines.append("\nView in Consciousness: http://192.168.1.200:3000/tools/consciousness?tab=github")
                     text = "\n".join(tg_lines)
-
-                    from db import get_db
-
-                    tg_conn = get_db()
-                    tg_cur = tg_conn.cursor()
-                    tg_cur.execute(
-                        "SELECT telegram_id FROM telegram_users "
-                        "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
-                    )
-                    for row in tg_cur.fetchall():
-                        _req.post(
-                            f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                            json={
-                                "chat_id": row[0],
-                                "text": text,
-                                "parse_mode": "Markdown",
-                            },
-                            timeout=15,
-                        )
-                    tg_cur.close()
-                    tg_conn.close()
+                    send_sync("Skill Pipeline: New Skills", text, source_module="consciousness.jobs")
                     logger.info(f"[SkillSync] Telegram sent: {new_skills} new skills")
+                except Exception as tg_inner_err:
+                    logger.warning(f"[SkillSync] Telegram send failed: {tg_inner_err}")
             elif prev_count == 0:
                 # First run — just store baseline, don't notify
                 sync_learned_skills._last_skill_count = skill_count
@@ -730,28 +708,9 @@ def github_auto_pull():
                     lines.append(f"\n*{total_indexed}* files re-indexed from disk. " f"Skill sync will run next cycle.")
                     text = "\n".join(lines)
 
-                    from db import get_db
+                    from services.telegram_service import send_sync
 
-                    tg_conn = get_db()
-                    tg_cur = tg_conn.cursor()
-                    tg_cur.execute(
-                        "SELECT telegram_id FROM telegram_users "
-                        "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
-                    )
-                    for row in tg_cur.fetchall():
-                        import requests as _req
-
-                        _req.post(
-                            f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                            json={
-                                "chat_id": row[0],
-                                "text": text,
-                                "parse_mode": "Markdown",
-                            },
-                            timeout=15,
-                        )
-                    tg_cur.close()
-                    tg_conn.close()
+                    send_sync("GitHub Auto-Pull Complete", text, source_module="consciousness.jobs")
             except Exception as tg_err:
                 logger.warning(f"[GitPull] Telegram notification failed: {tg_err}")
 
@@ -1044,26 +1003,9 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                         f"[View Skills](http://192.168.1.200:3000/tools/consciousness?tab=github)"
                     )
 
-                    from db import get_db
+                    from services.telegram_service import send_sync
 
-                    tg_conn = get_db()
-                    tg_cur = tg_conn.cursor()
-                    tg_cur.execute(
-                        "SELECT telegram_id FROM telegram_users "
-                        "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
-                    )
-                    for row in tg_cur.fetchall():
-                        _req.post(
-                            f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                            json={
-                                "chat_id": row[0],
-                                "text": text,
-                                "parse_mode": "Markdown",
-                            },
-                            timeout=15,
-                        )
-                    tg_cur.close()
-                    tg_conn.close()
+                    send_sync("Skill Analysis Complete", text, source_module="consciousness.jobs")
             except Exception as tg_err:
                 logger.warning(f"[SkillAnalyzer] Telegram notification failed: {tg_err}")
 
@@ -1328,26 +1270,9 @@ Respond with ONLY valid JSON:
                                     f"[Review in Consciousness](http://192.168.1.200:3000/tools/consciousness?tab=github)"
                                 )
 
-                                from db import get_db
+                                from services.telegram_service import send_sync
 
-                                tg_conn = get_db()
-                                tg_cur = tg_conn.cursor()
-                                tg_cur.execute(
-                                    "SELECT telegram_id FROM telegram_users "
-                                    "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
-                                )
-                                for row in tg_cur.fetchall():
-                                    _req.post(
-                                        f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                                        json={
-                                            "chat_id": row[0],
-                                            "text": text,
-                                            "parse_mode": "Markdown",
-                                        },
-                                        timeout=15,
-                                    )
-                                tg_cur.close()
-                                tg_conn.close()
+                                send_sync("Repo Relevance Analysis", text, source_module="consciousness.jobs")
                         except Exception as tg_err:
                             logger.warning(f"[RepoRelevance] Telegram failed: {tg_err}")
 
@@ -1559,22 +1484,9 @@ capabilities: [<list>]
                         f"[View in Consciousness](http://192.168.1.200:3000/tools/consciousness?tab=github)"
                     )
 
-                    from db import get_db
+                    from services.telegram_service import send_sync
 
-                    tg_conn = get_db()
-                    tg_cur = tg_conn.cursor()
-                    tg_cur.execute(
-                        "SELECT telegram_id FROM telegram_users "
-                        "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
-                    )
-                    for row in tg_cur.fetchall():
-                        _req.post(
-                            f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                            json={"chat_id": row[0], "text": text, "parse_mode": "Markdown"},
-                            timeout=15,
-                        )
-                    tg_cur.close()
-                    tg_conn.close()
+                    send_sync("Skills Adapted for A.R.C.H.I.E.", text, source_module="consciousness.jobs")
             except Exception as tg_err:
                 logger.warning(f"[SkillAdapt] Telegram failed: {tg_err}")
 
@@ -2224,22 +2136,9 @@ def _check_push_failure_alerts():
                 f"({f['fail_count']}x): {(f['last_error'] or '')[:60]}\n"
             )
 
-        tg_conn = get_db()
-        tg_cur = tg_conn.cursor()
-        tg_cur.execute(
-            "SELECT telegram_id FROM telegram_users " "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
-        )
-        for row in tg_cur.fetchall():
-            _req.post(
-                f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                json={
-                    "chat_id": row[0],
-                    "text": text,
-                    "parse_mode": "Markdown",
-                },
-                timeout=15,
-            )
-        tg_cur.close()
+        from services.telegram_service import send_system
+
+        send_system("Skill Push Failures", text, source_module="consciousness.jobs")
         tg_conn.close()
     except Exception as e:
         logger.warning("[SkillPush] Telegram alert failed: %s", e)

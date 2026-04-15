@@ -247,6 +247,24 @@ def update_agent(agent_id, **fields):
 
     if updated:
         logger.info("Updated agent #%d: %s", agent_id, list(fields.keys()))
+
+        # Sync Modelfile when system_prompt changes
+        if "system_prompt" in fields and fields["system_prompt"]:
+            try:
+                from tools.department_hq.services.modelfile_sync import export_modelfile
+
+                # Fetch agent name and model (may have been updated in same call)
+                with get_db_cursor() as (conn, cur):
+                    cur.execute("SELECT name, model FROM agents WHERE id = %s", (agent_id,))
+                    row = cur.fetchone()
+                if row:
+                    agent_name = row[0]
+                    model = fields.get("model") or row[1] or ""
+                    if model:
+                        export_modelfile(agent_name, model, fields["system_prompt"])
+            except Exception as e:
+                logger.warning("Modelfile sync failed for agent #%d: %s", agent_id, e)
+
     return updated
 
 

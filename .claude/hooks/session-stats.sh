@@ -133,9 +133,17 @@ session_reset_mins = 300  # 5 hours
 session_elapsed_pct = min(99, round((total_mins / session_reset_mins) * 100))
 session_remaining_mins = max(0, session_reset_mins - total_mins)
 
-# Recommendation
-if hours >= 4 or msg_count > 80:
-    recommendation = "Extended session — consider /archie-save or /archie-end"
+# Recommendation — 50% is the REAL limit (model degrades beyond this)
+usable_pct = round((est_total / 500000) * 100, 1)  # 500K usable, not 1M
+
+if est_pct >= 50:
+    recommendation = "CONTEXT CRITICAL — quality degrading. /archie-save and start fresh NOW"
+elif est_pct >= 40:
+    recommendation = "Context heavy — wrap up current task, then /archie-save"
+elif est_pct >= 30:
+    recommendation = "Context building — plan remaining work carefully"
+elif hours >= 4 or msg_count > 80:
+    recommendation = "Extended session — consider /archie-save checkpoint"
 elif hours >= 2 or msg_count > 40:
     recommendation = f"Active session — {commit_count} commits shipped"
 elif msg_count < 10:
@@ -161,6 +169,7 @@ print(json.dumps({
     "context_k": round(est_total / 1000),
     "context_max_k": context_max // 1000,
     "context_pct": est_pct,
+    "usable_pct": usable_pct,
     "output_tokens": total_output_session,
     "output_k": round(total_output_session / 1000),
     "cache_read_k": round(real_cache_read / 1000),

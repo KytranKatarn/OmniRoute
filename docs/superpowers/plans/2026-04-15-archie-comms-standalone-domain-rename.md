@@ -819,6 +819,115 @@ git commit -m "feat: domain rename — platform.kytranempowerment.com for web ap
 
 ---
 
+### Task 9.5: OAuth, Login, Proxy & Cross-Product QA
+
+**Files:**
+- Modify: `.env`, `platform_v2/.env` (OAuth callbacks)
+- Modify: `kytran-auth/kytran_auth.py` (SSO redirect URLs)
+- Verify: All NPM proxy hosts
+- Verify: All products that authenticate against the platform
+
+- [ ] **Step 1: Update Google OAuth callback URL**
+
+In `.env` and `platform_v2/.env`, the `GOOGLE_REDIRECT_URI` was already updated in Task 9. Verify:
+```bash
+grep GOOGLE_REDIRECT_URI .env platform_v2/.env
+```
+Expected: Both show `https://platform.kytranempowerment.com/tools/google-work-suite/oauth/callback`
+
+- [ ] **Step 2: Update kytran-auth SSO redirect URLs**
+
+In `kytran-auth/kytran_auth.py` and `kytran-auth/template/kytran_auth.py`, verify ALL redirect URLs point to `platform.kytranempowerment.com`:
+- Login redirect after auth
+- Logout redirect
+- SSO callback endpoints
+- Any hardcoded `archie.kytranempowerment.com` references
+
+```bash
+grep -rn 'kytranempowerment' kytran-auth/ | grep -v __pycache__
+```
+
+- [ ] **Step 3: Verify NPM proxy hosts are correct**
+
+Check ALL proxy hosts in NPM (192.168.1.200:81):
+
+| Subdomain | Should Point To | Port |
+|-----------|----------------|------|
+| `platform.kytranempowerment.com` | 192.168.1.200 | 3000 (NEW) |
+| `archie.kytranempowerment.com` | 192.168.1.200 | 3001 (CHANGED) |
+| `business.kytranempowerment.com` | 192.168.1.200 | 8091 (unchanged) |
+| `server.kytranempowerment.com` | 192.168.1.200 | 8085 (unchanged) |
+| `creed.kytranempowerment.com` | 192.168.1.200 | 8086 (unchanged) |
+| `mail.kytranempowerment.com` | 192.168.1.200 | 25/465 (unchanged) |
+
+Verify each has a valid SSL certificate.
+
+- [ ] **Step 4: Test platform login flow**
+
+```
+1. Open https://platform.kytranempowerment.com in browser
+2. Login with admin / Kyt$13ran2025
+3. Verify dashboard loads
+4. Verify all module links work (spot check: DHQ, Consciousness, Repair Bay)
+5. Verify Google Work Suite OAuth callback works (if configured)
+```
+
+- [ ] **Step 5: Test A.R.C.H.I.E. chat on new domain**
+
+```
+1. Open https://archie.kytranempowerment.com in browser
+2. Should load A.R.C.H.I.E.'s chat UI
+3. Send a test message
+4. Verify response comes through with personality voice
+```
+
+- [ ] **Step 6: Test Watch products that authenticate back to platform**
+
+Each Watch product may have OAuth or API callbacks to the platform. Verify:
+
+```bash
+# Check Watch products for archie.kytranempowerment.com references
+grep -rn 'archie\.kytranempowerment' /mnt/archie_brain/kytran-civic-watch/ /mnt/archie_brain/kytran-legal-watch/ /mnt/archie_brain/kytran-market-api/ /mnt/archie_brain/kytran-gov-watch/ /mnt/archie_brain/kytran-news/ 2>/dev/null | grep -v __pycache__
+```
+
+Update any found references to `platform.kytranempowerment.com`.
+
+- [ ] **Step 7: Test Business Suite login**
+
+```
+1. Open https://business.kytranempowerment.com
+2. Login (if SSO, verify it redirects to platform.kytranempowerment.com for auth)
+3. Verify dashboard loads
+```
+
+- [ ] **Step 8: Test C.R.E.E.D. standalone**
+
+```
+1. Open https://creed.kytranempowerment.com
+2. Verify public pages load
+3. If SSO enabled, verify auth flow works with new platform domain
+```
+
+- [ ] **Step 9: Verify Telegram bot webhook (if configured)**
+
+If the Telegram bot has a webhook URL pointing to `archie.kytranempowerment.com`, it now correctly routes to archie_comms (which owns Telegram). Verify:
+
+```bash
+# Check current webhook
+curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo" | python3 -m json.tool
+```
+
+If webhook URL contains `archie.kytranempowerment.com`, it stays — that's now archie_comms.
+
+- [ ] **Step 10: Commit any additional fixes found during QA**
+
+```bash
+git add -A
+git commit -m "fix: OAuth + login + proxy fixes from domain rename QA"
+```
+
+---
+
 ## Phase C: Redirect Safety Net
 
 ### Task 10: Platform Redirect for Old URLs
@@ -865,4 +974,5 @@ git commit -m "feat: 301 redirect archie.* → platform.* (safety net, remove af
 | 7 | A | docker-compose + Code Health + build | 2 (modified) |
 | 8 | B | DNS + NPM + AdGuard + firewall | Infra only |
 | 9 | B | 15 code files domain rename | 15+ (modified) |
+| 9.5 | B | OAuth, login, proxy & cross-product QA | Verify + fix |
 | 10 | C | Redirect safety net | 1 (modified) |

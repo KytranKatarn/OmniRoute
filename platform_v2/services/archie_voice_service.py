@@ -131,6 +131,9 @@ def _call_ollama(system_prompt, user_prompt):
     import urllib.request
 
     ollama_host = os.getenv("OLLAMA_HOST", "http://192.168.1.200:11434")
+    # Ensure scheme prefix — container env often has bare host:port
+    if ollama_host and not ollama_host.startswith("http"):
+        ollama_host = f"http://{ollama_host}"
     model = os.getenv("ARCHIE_VOICE_MODEL", "dolphin3-8k:latest")
 
     payload = json.dumps(
@@ -139,7 +142,7 @@ def _call_ollama(system_prompt, user_prompt):
             "prompt": user_prompt,
             "system": system_prompt,
             "stream": False,
-            "options": {"num_predict": 300, "temperature": 0.7, "num_gpu": 0},
+            "options": {"num_predict": 150, "temperature": 0.7, "num_gpu": 0},
             "keep_alive": "5m",
         }
     ).encode()
@@ -150,7 +153,7 @@ def _call_ollama(system_prompt, user_prompt):
         headers={"Content-Type": "application/json"},
     )
 
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with urllib.request.urlopen(req, timeout=60) as resp:
         result = json.loads(resp.read())
         return result.get("response", "").strip() or None
 

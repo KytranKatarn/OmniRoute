@@ -2878,11 +2878,172 @@ class DepartmentDispatcher:
         except Exception as _exc:
             return "auto"
 
-    # Cloud contractor models (free via OLLAMA_API_KEY)
+    # Cloud contractor models (free via OLLAMA_API_KEY) — legacy fallback.
+    # Prefer _find_contractors_for_capability() which queries contractor_providers table.
     FREE_CLOUD_MODELS = [
         "minimax-m2.5:cloud",
         "qwen3-coder-next:cloud",
     ]
+
+    def _find_contractors_for_capability(
+        self, capability: str, max_tier: int = 28, exclude_restricted: bool = False
+    ) -> list:
+        """Find contractors matching a capability, ordered by tier_position (cheapest first).
+
+        Queries contractor_providers table for active providers whose capabilities
+        JSONB array contains a matching tag. Falls back to text_chat if no exact match.
+
+        Args:
+            capability: Normalized capability tag (e.g., 'code_generation', 'image_gen')
+            max_tier: Max tier_position to consider (for budget control)
+            exclude_restricted: If True, skip creed_compliance_tier=3 contractors
+
+        Returns:
+            List of dicts: {provider_key, display_name, tier_position,
+                           creed_compliance_tier, base_url, default_model, is_cloud_proxy}
+        """
+        # Map CAPABILITY_TAXONOMY tags to contractor_providers.capabilities tags
+        capability_map = {
+            "code_generation": "code",
+            "code_review": "code",
+            "debugging": "code",
+            "architecture": "code",
+            "creative_writing": "text_chat",
+            "summarization": "text_chat",
+            "reasoning": "text_chat",
+            "conversation": "text_chat",
+            "classification": "text_chat",
+            "data_analysis": "text_chat",
+            "fact_checking": "text_chat",
+            "ethics_reasoning": "text_chat",
+            "research_synthesis": "text_chat",
+            "translation": "text_chat",
+            "knowledge_extraction": "text_chat",
+            "image_generation": "image_gen",
+            "vision": "vision",
+            "embedding": "embedding",
+        }
+        provider_capability = capability_map.get(capability, "text_chat")
+
+        try:
+            from psycopg2.extras import RealDictCursor
+
+            conn = self._get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            query = """
+                SELECT provider_key, display_name, tier_position,
+                       creed_compliance_tier, base_url, default_model, is_cloud_proxy
+                FROM contractor_providers
+                WHERE is_active = true
+                  AND tier_position <= %s
+                  AND capabilities @> %s::jsonb
+            """
+            params = [max_tier, f'["{provider_capability}"]']
+
+            if exclude_restricted:
+                query += " AND creed_compliance_tier < 3"
+
+            query += " ORDER BY tier_position ASC"
+
+            cur.execute(query, params)
+            results = [dict(r) for r in cur.fetchall()]
+            cur.close()
+            conn.close()
+            return results
+        except Exception as e:
+            logger.warning(f"[DepartmentDispatcher] Contractor capability query failed: {e}")
+            return []
+
+    def _dispatch_to_contractor(
+        self,
+        contractor: dict,
+        prompt: str,
+        capability: str,
+        module_id: str,
+        system_prompt: str = None,
+        json_mode: bool = False,
+        timeout: int = 120,
+    ) -> Optional["DispatchResult"]:
+        """Dispatch work to a cloud contractor provider.
+
+        For cloud proxy providers (is_cloud_proxy=True), uses _execute_llm()
+        which routes through Ollama cloud. For standard providers, uses
+        external_providers.call_external().
+
+        Returns DispatchResult on success, None on failure.
+        """
+        provider_key = contractor["provider_key"]
+        model = contractor.get("default_model")
+
+        try:
+            if contractor.get("is_cloud_proxy"):
+                # Cloud proxy (e.g. minimax, qwen3) — route through Ollama
+                llm_result = self._execute_llm(
+                    model=model or provider_key,
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    json_mode=json_mode,
+                    timeout=timeout,
+                )
+                if llm_result.get("success"):
+                    return DispatchResult(
+                        success=True,
+                        response=llm_result.get("response", ""),
+                        agent_name=f"CONTRACTOR→{contractor['display_name']}",
+                        agent_id=None,
+                        model_used=model or provider_key,
+                        department="Contractors",
+                        capability=capability,
+                        duration_ms=0,  # caller sets this
+                        prompt_tokens=llm_result.get("prompt_tokens", llm_result.get("prompt_eval_count", 0)),
+                        completion_tokens=llm_result.get("completion_tokens", llm_result.get("eval_count", 0)),
+                        provider=f"contractor:{provider_key}",
+                        metadata={
+                            "escalation": "contractor_capability",
+                            "contractor": provider_key,
+                            "tier_position": contractor["tier_position"],
+                            "creed_tier": contractor.get("creed_compliance_tier", 2),
+                            "is_cloud_proxy": True,
+                        },
+                    )
+            else:
+                # Standard external provider (OpenAI-compatible)
+                from ai_bridge.external_providers import call_external
+
+                result = call_external(
+                    provider_key=provider_key,
+                    prompt=prompt,
+                    model=model,
+                    system_prompt=system_prompt,
+                    json_mode=json_mode,
+                    timeout=timeout,
+                )
+                if result.get("success"):
+                    return DispatchResult(
+                        success=True,
+                        response=result.get("response", ""),
+                        agent_name=f"CONTRACTOR→{contractor['display_name']}",
+                        agent_id=None,
+                        model_used=model or provider_key,
+                        department="Contractors",
+                        capability=capability,
+                        duration_ms=0,  # caller sets this
+                        prompt_tokens=result.get("prompt_tokens", 0),
+                        completion_tokens=result.get("completion_tokens", 0),
+                        provider=f"contractor:{provider_key}",
+                        metadata={
+                            "escalation": "contractor_capability",
+                            "contractor": provider_key,
+                            "tier_position": contractor["tier_position"],
+                            "creed_tier": contractor.get("creed_compliance_tier", 2),
+                            "is_cloud_proxy": False,
+                        },
+                    )
+        except Exception as e:
+            logger.warning(f"[DepartmentDispatcher] Contractor dispatch failed ({provider_key}): {e}")
+
+        return None
 
     # Proficiency tier mapping: level → tier name
     _PROFICIENCY_TIERS = {1: "novice", 2: "novice", 3: "intermediate", 4: "advanced", 5: "advanced"}
@@ -4036,12 +4197,13 @@ class DepartmentDispatcher:
         #    budget, Telegram approval) still control actual model selection.
         recommended_tier = None
         smart_route_info = {}
+        detected_capability = None
         try:
             # Relative intra-package import — see _get_next_tier comment.
             from .smart_router import get_router
 
             router = get_router()
-            task_type = router.classify_task(prompt)
+            task_type, detected_capability = router.classify_task(prompt, return_capability=True)
             routing_rec = router.suggest_model(task_type, complexity=5)
             recommended_tier = routing_rec.tier
             smart_route_info = {
@@ -4050,14 +4212,15 @@ class DepartmentDispatcher:
                 "recommended_model": routing_rec.model_name,
                 "should_escalate": routing_rec.should_escalate,
                 "estimated_cost": routing_rec.estimated_cost,
+                "detected_capability": detected_capability,
             }
             logger.info(
-                f"[BridgeDispatcher] SmartRouter advisory: "
+                f"[DepartmentDispatcher] SmartRouter advisory: "
                 f"task_type={task_type} tier={recommended_tier} "
-                f"model={routing_rec.model_name}"
+                f"model={routing_rec.model_name} capability={detected_capability}"
             )
         except Exception as sr_err:
-            logger.debug(f"[BridgeDispatcher] SmartRouter advisory skipped: {sr_err}")
+            logger.debug(f"[DepartmentDispatcher] SmartRouter advisory skipped: {sr_err}")
 
         # 1. Map capability → department
         _coord = get_dept_coordinator()
@@ -4270,80 +4433,135 @@ class DepartmentDispatcher:
                     ),
                 )
 
-            # 2d. Try free cloud contractors (only if escalation_mode is auto)
+            # 2d. Capability-aware contractor routing (only if escalation_mode is auto)
+            #     Queries contractor_providers by detected capability, tries in
+            #     tier_position order (cheapest first). Falls back to legacy
+            #     FREE_CLOUD_MODELS if no contractors match.
             escalation_mode = self._get_escalation_mode()
             if routing_mode != "local_only" and escalation_mode == "auto":
-                for cloud_model in self.FREE_CLOUD_MODELS:
+                # Use detected_capability from SmartRouter, fall back to request capability
+                contractor_cap = detected_capability or capability
+                contractors = self._find_contractors_for_capability(contractor_cap, max_tier=13)  # free tier first
+                if not contractors:
+                    # Broaden: try with text_chat as generic fallback
+                    contractors = self._find_contractors_for_capability("conversation", max_tier=13)
+
+                contractor_succeeded = False
+                for contractor in contractors:
                     logger.info(
-                        f"[BridgeDispatcher] Department {blocked_department} exhausted "
-                        f"for '{capability}'. Trying cloud: {cloud_model}"
+                        f"[DepartmentDispatcher] Department {blocked_department} exhausted "
+                        f"for '{capability}' (cap={contractor_cap}). "
+                        f"Trying contractor: {contractor['display_name']} "
+                        f"(tier {contractor['tier_position']})"
                     )
                     # Create visible bridge_job for 3D bridge view
                     cloud_job_id = self._create_cloud_job(
-                        cloud_model,
-                        "ollama_cloud",
+                        contractor.get("default_model") or contractor["provider_key"],
+                        f"contractor:{contractor['provider_key']}",
                         DEPARTMENT_FLOOR_MAP.get(blocked_department, "ENGINEERING"),
                         capability,
                         module_id,
                     )
-                    llm_result = self._execute_llm(
-                        model=cloud_model,
+                    contractor_result = self._dispatch_to_contractor(
+                        contractor=contractor,
                         prompt=prompt,
+                        capability=capability,
+                        module_id=module_id,
                         system_prompt=system_prompt,
                         json_mode=json_mode,
                         timeout=timeout,
                     )
-                    if llm_result.get("success"):
+                    if contractor_result:
                         self._complete_cloud_job(cloud_job_id, success=True)
                         duration_ms = int((time.time() - start) * 1000)
+                        contractor_result.duration_ms = duration_ms
+                        contractor_result.department = blocked_department
+                        contractor_result.metadata.update(
+                            {
+                                "blocked_department": blocked_department,
+                                "home_department": home_department,
+                                "is_cross_station": True,
+                                "is_cloud": True,
+                            }
+                        )
                         self._telegram_dispatch_advisory(
                             advisory_type="free_cloud",
                             module_id=module_id,
                             capability=capability,
                             home_station=blocked_department,
-                            cloud_model=cloud_model,
-                            cloud_provider="ollama_cloud",
+                            cloud_model=contractor.get("default_model") or contractor["provider_key"],
+                            cloud_provider=f"contractor:{contractor['provider_key']}",
                             reason=f"Department {blocked_department} at capacity",
                         )
-                        # ── Capacity event: cloud contractor (ADR-055) ──
                         self._log_capacity_event(
                             department=blocked_department,
                             event_type="cloud_contractor",
-                            agent_name=f"CLOUD→{cloud_model}",
+                            agent_name=contractor_result.agent_name,
                             capability=capability,
-                            reason=f"Cloud contractor {cloud_model} for {capability}",
+                            reason=f"Contractor {contractor['display_name']} for {capability}",
                             metadata={
-                                "cloud_model": cloud_model,
+                                "contractor": contractor["provider_key"],
+                                "tier_position": contractor["tier_position"],
                                 "module_id": module_id,
+                                "detected_capability": contractor_cap,
                             },
                         )
-                        result = DispatchResult(
-                            success=True,
-                            response=llm_result.get("response", ""),
-                            agent_name=f"CLOUD→{cloud_model}",
-                            agent_id=None,
-                            model_used=cloud_model,
-                            department=blocked_department,
-                            capability=capability,
-                            duration_ms=duration_ms,
-                            prompt_tokens=llm_result.get("prompt_tokens", llm_result.get("prompt_eval_count", 0)),
-                            completion_tokens=llm_result.get("completion_tokens", llm_result.get("eval_count", 0)),
-                            provider="ollama_cloud",
-                            metadata={
-                                "escalation": "department_exhausted_cloud",
-                                "blocked_department": blocked_department,
-                                "home_department": home_department,
-                                "department": blocked_department,
-                                "is_cross_station": True,
-                                "is_cloud": True,
-                                "cloud_model": cloud_model,
-                                "cloud_provider": "ollama_cloud",
-                            },
-                        )
-                        self._log_execution(result, module_id, user_id, job_id=job_id)
-                        return result
+                        self._log_execution(contractor_result, module_id, user_id, job_id=job_id)
+                        return contractor_result
                     else:
                         self._complete_cloud_job(cloud_job_id, success=False)
+
+                # Legacy fallback: try FREE_CLOUD_MODELS if no contractors matched
+                if not contractors:
+                    for cloud_model in self.FREE_CLOUD_MODELS:
+                        logger.info(
+                            f"[DepartmentDispatcher] No contractors for '{contractor_cap}'. "
+                            f"Legacy fallback: {cloud_model}"
+                        )
+                        cloud_job_id = self._create_cloud_job(
+                            cloud_model,
+                            "ollama_cloud",
+                            DEPARTMENT_FLOOR_MAP.get(blocked_department, "ENGINEERING"),
+                            capability,
+                            module_id,
+                        )
+                        llm_result = self._execute_llm(
+                            model=cloud_model,
+                            prompt=prompt,
+                            system_prompt=system_prompt,
+                            json_mode=json_mode,
+                            timeout=timeout,
+                        )
+                        if llm_result.get("success"):
+                            self._complete_cloud_job(cloud_job_id, success=True)
+                            duration_ms = int((time.time() - start) * 1000)
+                            result = DispatchResult(
+                                success=True,
+                                response=llm_result.get("response", ""),
+                                agent_name=f"CLOUD→{cloud_model}",
+                                agent_id=None,
+                                model_used=cloud_model,
+                                department=blocked_department,
+                                capability=capability,
+                                duration_ms=duration_ms,
+                                prompt_tokens=llm_result.get("prompt_tokens", llm_result.get("prompt_eval_count", 0)),
+                                completion_tokens=llm_result.get("completion_tokens", llm_result.get("eval_count", 0)),
+                                provider="ollama_cloud",
+                                metadata={
+                                    "escalation": "department_exhausted_cloud",
+                                    "blocked_department": blocked_department,
+                                    "home_department": home_department,
+                                    "department": blocked_department,
+                                    "is_cross_station": True,
+                                    "is_cloud": True,
+                                    "cloud_model": cloud_model,
+                                    "cloud_provider": "ollama_cloud",
+                                },
+                            )
+                            self._log_execution(result, module_id, user_id, job_id=job_id)
+                            return result
+                        else:
+                            self._complete_cloud_job(cloud_job_id, success=False)
 
             # 2e. Free cloud failed — request paid cloud via Telegram approval
             if routing_mode not in ("local_only", "local_cloud"):

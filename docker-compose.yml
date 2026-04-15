@@ -518,6 +518,7 @@ services:
     ports:
       - "8091:8090"
     env_file: ./kytran-business-suite/.env
+    dns: 192.168.1.200
     read_only: true
     tmpfs:
       - /tmp:size=256m

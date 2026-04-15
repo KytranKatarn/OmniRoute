@@ -345,7 +345,7 @@ function renderRosterTable(data, el) {
         var a = data.agents[i];
         var color = floorColor(a.floor);
         html += '<tr class="dhq-roster-row" onclick="openAgentDetail(' + a.id + ')">'
-            + '<td><div style="font-weight:600">' + esc(a.display_name || a.name) + '</div>'
+            + '<td><div style="font-weight:600">' + esc(a.display_name || a.name) + ' <span class="dhq-wellness-dot" data-status="' + esc(a.wellness_status || 'green') + '" title="Stress: ' + (a.stress_level != null ? a.stress_level.toFixed(2) : '0.00') + '"></span></div>'
             + '<div style="font-size:0.7rem;color:var(--dhq-text-dim)">' + esc(a.name) + '</div></td>'
             + '<td style="color:' + color + '">' + esc(a.department) + '</td>'
             + '<td>' + esc(a.floor) + '</td>'
@@ -405,7 +405,7 @@ function renderRosterCards(data, el) {
                 + '<span>' + esc(initials) + '</span>'
                 + '</div>'
                 + '<div class="dhq-crew-card-info">'
-                + '<div class="dhq-crew-card-name">' + esc(a.display_name || a.name) + '</div>'
+                + '<div class="dhq-crew-card-name">' + esc(a.display_name || a.name) + ' <span class="dhq-wellness-dot" data-status="' + esc(a.wellness_status || 'green') + '" title="Stress: ' + (a.stress_level != null ? a.stress_level.toFixed(2) : '0.00') + '"></span></div>'
                 + (a.acronym_expansion
                     ? '<div class="dhq-crew-card-acronym">&ldquo;' + esc(a.acronym_expansion) + '&rdquo;</div>'
                     : '')

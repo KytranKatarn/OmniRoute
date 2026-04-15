@@ -50,9 +50,9 @@ def _fetch_wellness_map():
                 """
             )
             for row in cur.fetchall():
-                aid = row[0]
-                stress = row[1]
-                mood = row[2]
+                aid = row["agent_id"]
+                stress = row["stress_level"]
+                mood = row["mood_intensity"]
                 wellness[aid] = {
                     "wellness_status": _compute_wellness(stress, mood),
                     "stress_level": float(stress) if stress is not None else 0.0,

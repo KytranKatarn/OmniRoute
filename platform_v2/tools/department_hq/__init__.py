@@ -1,8 +1,8 @@
 """
 Department HQ Module — THE Command Center
 ==========================================
-11 tabs: Overview, Org Chart, Roster, Work Tracking, Performance,
-C.R.E.E.D., Social, Devices, Dispatch, Fleet, Contractors
+12 tabs: Overview, Org Chart, Roster, Work Tracking, Performance,
+C.R.E.E.D., Social, Devices, Dispatch, Fleet, Contractors, COMs
 
 Manages 16 departments across 5 floors with AI Directors and staff agents.
 Fleet/node/mesh/OTA management migrated from A.R.M.A.D.A. (2026-04-08).
@@ -43,6 +43,7 @@ from .contractor_routes import register_contractor_routes  # noqa: E402
 from .approvals_routes import register_approvals_routes  # noqa: E402
 from .chat_routes import register_chat_routes as register_agent_chat  # noqa: E402
 from .creed_routes import register_creed_routes  # noqa: E402
+from .coms_routes import register_coms_routes  # noqa: E402
 
 # Fleet routes (migrated from A.R.M.A.D.A.)
 from .fleet_dashboard_routes import register_dashboard_routes as register_fleet_dashboard  # noqa: E402
@@ -71,6 +72,7 @@ register_contractor_routes(department_hq_bp, admin_required)
 register_approvals_routes(department_hq_bp, admin_required)
 register_agent_chat(department_hq_bp, admin_required)
 register_creed_routes(department_hq_bp, admin_required)
+register_coms_routes(department_hq_bp, admin_required)
 
 # Fleet routes — all under /tools/department-hq/api/fleet/*
 register_fleet_dashboard(department_hq_bp, login_required)

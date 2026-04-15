@@ -2320,6 +2320,19 @@ _startup_mcp_sync_and_health()
 
 
 @app.before_request
+def redirect_old_archie_domain():
+    """Redirect archie.kytranempowerment.com to platform.kytranempowerment.com.
+    Safety net for bookmarks and hardcoded links during domain transition.
+    archie.* now serves archie_comms (:3002). Platform lives at platform.*
+    Remove after 30 days (2026-05-15). Decision #442.
+    """
+    host = request.host.split(":")[0]
+    if host == "archie.kytranempowerment.com":
+        new_url = request.url.replace("archie.kytranempowerment.com", "platform.kytranempowerment.com", 1)
+        return redirect(new_url, code=301)
+
+
+@app.before_request
 def clear_sandbox_mode_for_production():
     """
     Clear sandbox mode from session when accessing production routes

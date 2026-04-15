@@ -1,5 +1,6 @@
 # platform_v2/tools/security_network/nagios_service.py
 """Nagios CGI API client — host/service status, check results."""
+
 import logging
 import os
 import requests

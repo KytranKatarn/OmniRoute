@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # Bridge dispatcher (all AI work routes through here)
 # ---------------------------------------------------------------------------
 try:
-    from ai_bridge.bridge_dispatcher import get_dispatcher
+    from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
     _dispatcher = get_dispatcher()
     BRIDGE_AVAILABLE = True
@@ -596,7 +596,7 @@ def _run_image_benchmark_thread(
         # Route through dispatcher for proper bridge_job tracking, VRAM management,
         # and agent welfare integration (ADR-013: all inference through Bridge).
         from ai_bridge.comfyui_service import get_comfyui_service
-        from ai_bridge.bridge_dispatcher import BridgeDispatcher
+        from tools.department_hq.services.bridge_dispatcher import BridgeDispatcher
 
         comfyui = get_comfyui_service()
         dispatcher = BridgeDispatcher()

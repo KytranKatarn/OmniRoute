@@ -198,7 +198,7 @@ def register_ha_routes(bp):
             user_context["chat_mode"] = "home_assistant"
 
             try:
-                from ai_bridge.bridge_dispatcher import get_dispatcher
+                from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
                 dispatcher = get_dispatcher()
                 result = dispatcher.dispatch(

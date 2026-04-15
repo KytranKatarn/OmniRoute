@@ -29,7 +29,6 @@ from services.agent_social_service import (
     generate_post_content,
 )
 
-
 VALID_PLATFORMS = (
     "twitter",
     "linkedin",

@@ -14,7 +14,6 @@ from typing import Dict, Any, List
 from psycopg2.extras import Json
 from database import get_db_cursor
 
-
 # ============================================================================
 # FIREWALL STATUS
 # ============================================================================

@@ -28,7 +28,7 @@ def register_crew_routes(bp, admin_required):
     def get_crew_manifest():
         """Get the live crew manifest — all agents with status, wellness, jobs, stats."""
         try:
-            from ai_bridge.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             manifest = dispatcher.get_crew_manifest()

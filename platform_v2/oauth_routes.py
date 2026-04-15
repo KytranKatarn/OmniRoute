@@ -59,10 +59,8 @@ def google_login():
     if current_user.is_authenticated:
         return redirect(url_for("dashboard"))
 
-    # Get redirect URI from environment or construct it
-    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
-    if not redirect_uri:
-        redirect_uri = url_for("oauth.google_callback", _external=True)
+    # Always use the login callback URL — GOOGLE_REDIRECT_URI is for Work Suite OAuth
+    redirect_uri = url_for("oauth.google_callback", _external=True)
 
     return oauth.google.authorize_redirect(redirect_uri)
 

@@ -14,7 +14,6 @@ from flask_login import current_user
 
 from database import get_db_cursor
 
-
 # In-memory rate limiter store: user_id -> list of timestamps
 _rate_limit_store = defaultdict(list)
 

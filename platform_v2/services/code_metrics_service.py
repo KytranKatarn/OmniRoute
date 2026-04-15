@@ -126,6 +126,13 @@ _STANDALONE_DEFS = [
         "type": "cli",  # CLI tool — no Docker, no static
         "compliance_packs": [],
     },
+    {
+        "name": "A.R.C.H.I.E. Comms",
+        "dir_name": "archie-comms",
+        "module_key": "standalone_archie_comms",
+        "tier": 1,
+        "compliance_packs": ["docker-stig"],
+    },
 ]
 
 

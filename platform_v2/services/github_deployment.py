@@ -302,7 +302,7 @@ def setup_domain(domain, deploy_type="main_site"):
                 "port": 80,
             },
             "archie": {
-                "domain": "archie.kytranempowerment.com",
+                "domain": "platform.kytranempowerment.com",
                 "path": "/mnt/archie_brain/platform_v2",
                 "port": 3000,
                 "proxy": True,

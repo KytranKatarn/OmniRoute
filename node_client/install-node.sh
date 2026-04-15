@@ -3,8 +3,8 @@ set -e
 
 # =============================================================================
 # A.R.C.H.I.E. Node Installer v3.0 — Linux
-# Usage: curl -fsSL https://archie.kytranempowerment.com/tools/starbase/api/nodes/install-node.sh | sudo bash
-#   or:  sudo bash install-node.sh https://archie.kytranempowerment.com
+# Usage: curl -fsSL https://platform.kytranempowerment.com/tools/starbase/api/nodes/install-node.sh | sudo bash
+#   or:  sudo bash install-node.sh https://platform.kytranempowerment.com
 # =============================================================================
 
 CLIENT_VERSION="3.0.0"
@@ -95,7 +95,7 @@ main() {
     # Hub URL
     HUB_URL="${1:-}"
     if [ -z "$HUB_URL" ]; then
-        echo -n "  Enter hub URL (e.g. https://archie.kytranempowerment.com): "
+        echo -n "  Enter hub URL (e.g. https://platform.kytranempowerment.com): "
         read -r HUB_URL
     fi
     HUB_URL="${HUB_URL%/}"

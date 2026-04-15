@@ -1344,6 +1344,7 @@ class OrchestrationEngine:
         voice_mode: bool,
         user_context: Optional[Dict],
         steps: List[ThinkingStep],
+        project_id: Optional[int] = None,
     ) -> str:
         """Step 7: Execute the request with the selected model.
 

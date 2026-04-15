@@ -11,7 +11,6 @@ from datetime import datetime
 from typing import Dict, Any, List
 from database import get_db_cursor
 
-
 _BASE_DIR = os.getenv("ARCHIE_BASE_DIR", "/mnt/archie_brain")
 SCANS_DIR = os.path.join(_BASE_DIR, "security_scans")
 REPORTS_DIR = os.path.join(_BASE_DIR, "security_scans", "reports")

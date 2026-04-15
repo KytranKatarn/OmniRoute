@@ -4,6 +4,7 @@
 Uses the host_command_client to execute fail2ban-client commands on the host,
 since fail2ban runs on the host OS, not inside the Docker container.
 """
+
 import ipaddress
 import logging
 import re

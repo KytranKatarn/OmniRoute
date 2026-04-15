@@ -1414,14 +1414,14 @@ capabilities: [<list>]
 
                 if not result:
                     logger.warning(
-                        f"[SkillAdapt] Dispatch returned no result for {skill_title} — "
+                        f"[SkillAdapt] Dispatch returned no result for {skill['skill_name']} — "
                         f"success={getattr(dispatch_result, 'success', '?')}, "
                         f"agent={getattr(dispatch_result, 'agent_name', '?')}, "
                         f"error={getattr(dispatch_result, 'error', '?')}"
                     )
                 elif len(result) <= 100:
                     logger.warning(
-                        f"[SkillAdapt] Response too short ({len(result)} chars) for {skill_title}: {result[:100]}"
+                        f"[SkillAdapt] Response too short ({len(result)} chars) for {skill['skill_name']}: {result[:100]}"
                     )
 
                 if result and isinstance(result, str) and len(result) > 100:
@@ -2139,7 +2139,6 @@ def _check_push_failure_alerts():
         from services.telegram_service import send_system
 
         send_system("Skill Push Failures", text, source_module="consciousness.jobs")
-        tg_conn.close()
     except Exception as e:
         logger.warning("[SkillPush] Telegram alert failed: %s", e)
 

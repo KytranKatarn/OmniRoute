@@ -1138,7 +1138,7 @@ def _check_proficiency_degradation(cur, conn):
                         failure_summary["error_patterns"].append(msg[:100])
 
                 if error_texts:
-                    from ai_bridge.bridge_dispatcher import get_dispatcher
+                    from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
                     disp = get_dispatcher()
                     if disp:

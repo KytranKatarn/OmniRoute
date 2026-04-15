@@ -2,7 +2,7 @@
 
 ## Before Any Work
 1. Run `/archie-boot` OR call `mcp__archie__session_briefing` with the task topic
-2. The knowledge base has 22,000+ entries with embeddings — **search before building, search before asking**
+2. The knowledge base has 25,700+ entries with embeddings (99% coverage) — **search before building, search before asking**
 3. Check `mistake_learned` entries for the task area — these prevent repeating costly errors
 4. The user is REMOTE (not on the server) — never give localhost URLs, always use 192.168.1.200
 
@@ -54,4 +54,4 @@ At session start, if MEMORY.md references counts or statuses (agent count, KB si
 - `mcp__archie__get_quick_summary` for platform health and agent status
 - `mcp__archie__list_agents` to see who's available and their capabilities
 - Bridge dispatcher handles agent routing — use `get_dispatcher()` singleton, never instantiate directly
-- 107 agents across 10 stations, ~25 active at any time
+- 76 active roster agents across 17 departments, ~66 active at any time

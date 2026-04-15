@@ -2,9 +2,10 @@
 Department HQ — Roster routes
 
 Endpoints:
-  GET  /api/roster        — All agents with filters (?department=, ?floor=, ?shift_state=, ?search=)
-  POST /api/roster/assign — Reassign agent to department {agent_id, department}
-  POST /api/roster/shift  — Change shift state {agent_id, shift_state}
+  GET  /api/roster               — All agents with filters (?department=, ?floor=, ?shift_state=, ?search=)
+  POST /api/roster/assign        — Reassign agent to department {agent_id, department}
+  POST /api/roster/shift         — Change shift state {agent_id, shift_state}
+  GET  /api/agents/public-roster — Public no-auth roster for website + C.R.E.E.D.
 
 Uses the centralized agent_service for all agent operations.
 """
@@ -17,8 +18,48 @@ from services.agent_service import (
     DEPARTMENT_FLOOR_MAP,
     VALID_SHIFT_STATES,
 )
+from database import get_db_cursor
 
 VALID_DEPARTMENTS = set(DEPARTMENT_FLOOR_MAP.keys())
+
+
+def _compute_wellness(stress, mood):
+    """Compute wellness badge color from stress_level and mood_intensity."""
+    if stress is None and mood is None:
+        return "green"
+    s = float(stress) if stress is not None else 0.2
+    m = float(mood) if mood is not None else 0.5
+    if s >= 0.8 or m <= 0.1:
+        return "red"
+    if s >= 0.5 or m <= 0.3:
+        return "yellow"
+    return "green"
+
+
+def _fetch_wellness_map():
+    """Fetch latest emotional state per agent, return {agent_id: {wellness_status, stress_level}}."""
+    wellness = {}
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT DISTINCT ON (agent_id)
+                    agent_id, stress_level, mood_intensity
+                FROM agent_emotional_state
+                ORDER BY agent_id, timestamp DESC
+                """
+            )
+            for row in cur.fetchall():
+                aid = row["agent_id"]
+                stress = row["stress_level"]
+                mood = row["mood_intensity"]
+                wellness[aid] = {
+                    "wellness_status": _compute_wellness(stress, mood),
+                    "stress_level": float(stress) if stress is not None else 0.0,
+                }
+    except Exception:
+        pass  # If table missing or query fails, all agents default to green
+    return wellness
 
 
 def register_roster_routes(bp, admin_required):
@@ -49,9 +90,13 @@ def register_roster_routes(bp, admin_required):
             total = len(all_agents)
             agents = all_agents[offset : offset + limit]
 
+            # Fetch wellness data for all agents
+            wellness_map = _fetch_wellness_map()
+
             # Trim to the fields the original endpoint returned
             trimmed = []
             for a in agents:
+                w = wellness_map.get(a["id"], {})
                 trimmed.append(
                     {
                         "id": a["id"],
@@ -65,6 +110,8 @@ def register_roster_routes(bp, admin_required):
                         "status": a["status"],
                         "title": a.get("title"),
                         "acronym_expansion": a.get("acronym_expansion"),
+                        "wellness_status": w.get("wellness_status", "green"),
+                        "stress_level": w.get("stress_level", 0.0),
                     }
                 )
 
@@ -154,6 +201,82 @@ def register_roster_routes(bp, admin_required):
             return jsonify({"error": str(e)}), 400
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/agents/public-roster")
+    def public_roster():
+        """Public read-only agent roster for website and C.R.E.E.D. standalone.
+
+        No authentication required. Returns only public-safe fields.
+        Used by: kytranempowerment.com directors page, creed-ai.org,
+        Org Chart tab, external integrations.
+        """
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT display_name, name, title, department, floor,
+                       acronym, acronym_expansion, bio, avatar_url,
+                       is_department_ai, worker_type, shift_state
+                FROM agents
+                WHERE shift_state NOT IN ('decommissioned')
+                ORDER BY
+                    CASE floor
+                        WHEN 'BRIDGE' THEN 1
+                        WHEN 'OPERATIONS' THEN 2
+                        WHEN 'ENGINEERING' THEN 3
+                        WHEN 'CREATIVE' THEN 4
+                        WHEN 'SERVICES' THEN 5
+                        ELSE 6
+                    END,
+                    department,
+                    is_department_ai DESC,
+                    display_name
+                """
+            )
+            agents = []
+            for r in cur.fetchall():
+                agents.append(
+                    {
+                        "display_name": r["display_name"],
+                        "code_name": r["name"],
+                        "title": r["title"],
+                        "department": r["department"],
+                        "floor": r["floor"],
+                        "acronym": r["acronym"],
+                        "acronym_expansion": r["acronym_expansion"],
+                        "bio": r["bio"],
+                        "avatar_url": (
+                            "https://archie.kytranempowerment.com" + r["avatar_url"]
+                            if r["avatar_url"] and r["avatar_url"].startswith("/")
+                            else r["avatar_url"]
+                        ),
+                        "is_director": bool(r["is_department_ai"]),
+                        "worker_type": r["worker_type"],
+                        "shift_state": r["shift_state"],
+                    }
+                )
+
+        total = len(agents)
+        active = sum(1 for a in agents if a["shift_state"] == "active")
+        directors = sum(1 for a in agents if a["is_director"])
+        departments = len(set(a["department"] for a in agents if a["department"]))
+
+        resp = jsonify(
+            {
+                "success": True,
+                "agents": agents,
+                "summary": {
+                    "total": total,
+                    "active": active,
+                    "directors": directors,
+                    "departments": departments,
+                },
+            }
+        )
+        # CORS — allow website + CREED standalone to fetch
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Methods"] = "GET"
+        resp.headers["Cache-Control"] = "public, max-age=300"
+        return resp
 
     @bp.route("/api/coordinator/status")
     @admin_required

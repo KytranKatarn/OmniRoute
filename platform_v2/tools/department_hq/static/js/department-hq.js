@@ -345,7 +345,7 @@ function renderRosterTable(data, el) {
         var a = data.agents[i];
         var color = floorColor(a.floor);
         html += '<tr class="dhq-roster-row" onclick="openAgentDetail(' + a.id + ')">'
-            + '<td><div style="font-weight:600">' + esc(a.display_name || a.name) + '</div>'
+            + '<td><div style="font-weight:600">' + esc(a.display_name || a.name) + ' <span class="dhq-wellness-dot" data-status="' + esc(a.wellness_status || 'green') + '" title="Stress: ' + (a.stress_level != null ? a.stress_level.toFixed(2) : '0.00') + '"></span></div>'
             + '<div style="font-size:0.7rem;color:var(--dhq-text-dim)">' + esc(a.name) + '</div></td>'
             + '<td style="color:' + color + '">' + esc(a.department) + '</td>'
             + '<td>' + esc(a.floor) + '</td>'
@@ -405,7 +405,7 @@ function renderRosterCards(data, el) {
                 + '<span>' + esc(initials) + '</span>'
                 + '</div>'
                 + '<div class="dhq-crew-card-info">'
-                + '<div class="dhq-crew-card-name">' + esc(a.display_name || a.name) + '</div>'
+                + '<div class="dhq-crew-card-name">' + esc(a.display_name || a.name) + ' <span class="dhq-wellness-dot" data-status="' + esc(a.wellness_status || 'green') + '" title="Stress: ' + (a.stress_level != null ? a.stress_level.toFixed(2) : '0.00') + '"></span></div>'
                 + (a.acronym_expansion
                     ? '<div class="dhq-crew-card-acronym">&ldquo;' + esc(a.acronym_expansion) + '&rdquo;</div>'
                     : '')
@@ -1463,6 +1463,7 @@ async function loadDispatch() {
     loadDispatchScheduler();
     loadDispatchConfig();
     loadDispatchRepairPipeline();
+    loadJobMonitoring();
 }
 
 function renderOllamaHud(o) {
@@ -1781,6 +1782,69 @@ async function loadDispatchRepairPipeline() {
         setHtml(el, html);
     } catch(e) { setHtml(el, '<div class="dhq-empty">Pipeline unavailable</div>'); }
 }
+
+// ───────────────────────────────────────────────────────────────
+// Job Monitoring by Department
+// ───────────────────────────────────────────────────────────────
+
+async function loadJobMonitoring() {
+    var el = document.getElementById('jobMonitorContent');
+    var countEl = document.getElementById('jobMonitorCount');
+    if (!el) return;
+    try {
+        var data = await api('/api/jobs/by-department');
+        var depts = data.departments || {};
+        var deptKeys = Object.keys(depts);
+        if (countEl) countEl.textContent = '(' + deptKeys.length + ' departments)';
+        if (!deptKeys.length) {
+            setHtml(el, '<div class="dhq-empty">No job registry data</div>');
+            return;
+        }
+        var html = '';
+        deptKeys.forEach(function(key) {
+            var dept = depts[key];
+            var failBadge = dept.total_fails > 0
+                ? '<span style="color:#EF4444;font-weight:600;margin-left:8px">' + dept.total_fails + ' fail</span>'
+                : '';
+            var okBadge = '<span style="color:#10B981;margin-left:8px">' + dept.total_success + ' ok</span>';
+            var deptId = 'jm-dept-' + key.replace(/[^a-zA-Z0-9]/g, '_');
+            html += '<div class="dhq-jm-dept">'
+                + '<div class="dhq-jm-dept-header" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--dhq-surface-2);border-radius:6px;margin-bottom:4px">'
+                + '<div style="display:flex;align-items:center;gap:8px">'
+                + '<span style="font-family:\'Antonio\',sans-serif;font-size:0.8rem;letter-spacing:1px;color:var(--dhq-accent)">' + esc(dept.name) + '</span>'
+                + '<span style="font-size:0.65rem;color:var(--dhq-text-dim)">' + esc(dept.director) + '</span>'
+                + '<span style="font-size:0.65rem;color:var(--dhq-text-dim)">' + dept.jobs.length + ' jobs</span>'
+                + '</div>'
+                + '<div>' + okBadge + failBadge + '</div>'
+                + '</div>'
+                + '<div id="' + deptId + '" class="dhq-jm-jobs" style="display:none;padding:0 0 8px 16px">';
+            dept.jobs.forEach(function(j) {
+                var dotColor = j.status === 'ok' ? '#10B981' : j.status === 'error' ? '#EF4444' : j.status === 'warning' ? '#FFAA00' : '#555';
+                html += '<div class="dhq-jm-job" style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:0.75rem;border-bottom:1px solid var(--dhq-border)">'
+                    + '<span style="width:8px;height:8px;border-radius:50%;background:' + dotColor + ';flex-shrink:0"></span>'
+                    + '<span style="flex:1;color:var(--dhq-text)">' + esc(j.description) + '</span>'
+                    + '<span style="color:var(--dhq-text-dim);font-family:\'IBM Plex Mono\',monospace;font-size:0.65rem">' + esc(j.interval) + '</span>'
+                    + '<span style="color:var(--dhq-text-dim);font-size:0.65rem">' + (j.last_run ? fmtTime(j.last_run) : 'never') + '</span>';
+                if (j.last_error) {
+                    html += '<span title="' + esc(j.last_error) + '" style="color:#EF4444;font-size:0.65rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block">' + esc(j.last_error) + '</span>';
+                }
+                html += '</div>';
+            });
+            html += '</div></div>';
+        });
+        setHtml(el, html);
+    } catch(e) {
+        setHtml(el, '<div class="dhq-empty">Job monitoring unavailable: ' + esc(e.message) + '</div>');
+    }
+}
+
+// Toggle helper for job monitoring department sections
+document.addEventListener('click', function(e) {
+    var header = e.target.closest('.dhq-jm-dept-header');
+    if (!header) return;
+    var jobs = header.nextElementSibling;
+    if (jobs) jobs.style.display = jobs.style.display === 'none' ? 'block' : 'none';
+});
 
 // ───────────────────────────────────────────────────────────────
 function loadFleet() {

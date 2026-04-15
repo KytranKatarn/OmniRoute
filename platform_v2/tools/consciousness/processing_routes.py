@@ -349,7 +349,7 @@ def _run_analysis_job(items_data, category, batch_id, job_id):
     from ai_bridge.embedding_service import generate_embedding
     from ai_bridge.knowledge_cards import save_knowledge_card
     from ai_bridge.relationship_mapper import get_relationship_mapper
-    from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+    from tools.department_hq.services.department_dispatcher import get_dispatcher
 
     dispatcher = get_dispatcher()
     analyzer = get_knowledge_analyzer()
@@ -472,7 +472,7 @@ def start_processing():
     Work runs in a background thread with progress tracked in Starbase Command.
     """
     try:
-        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         data = request.get_json() or {}
         category = data.get("category", "conversations")
@@ -665,7 +665,7 @@ def _run_embedding_job(item_ids_and_data, job_id):
     or (id, title, content, source) where source is 'decisions' or 'translations'.
     """
     from ai_bridge.embedding_service import generate_embedding, get_embedding_service
-    from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+    from tools.department_hq.services.department_dispatcher import get_dispatcher
 
     # Ensure arctic-embed model is loaded before starting batch
     try:
@@ -755,7 +755,7 @@ def generate_embeddings():
     Work runs in a background thread with progress tracked in Starbase Command.
     """
     try:
-        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         data = request.get_json() or {}
         batch_size = min(int(data.get("batch_size", 50)), 200)
@@ -1174,7 +1174,7 @@ def _trigger_loop_op(op):
     cur = conn.cursor()
 
     try:
-        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
 

@@ -189,3 +189,76 @@ def register_training_routes(bp, admin_required):
                 records.append(r)
 
         return jsonify({"records": records})
+
+    @bp.route("/api/training/growth/<int:agent_id>")
+    @admin_required
+    def agent_growth(agent_id):
+        """Track agent growth over time — real dispatch metrics by week."""
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT
+                       DATE_TRUNC('week', created_at) AS week,
+                       COUNT(*) AS total_dispatches,
+                       COUNT(*) FILTER (WHERE success = true) AS successes,
+                       ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END)::numeric, 2) AS success_rate,
+                       ROUND(AVG(duration_ms)::numeric) AS avg_duration_ms
+                   FROM task_execution_log
+                   WHERE agent_id = %s
+                   GROUP BY week
+                   ORDER BY week DESC
+                   LIMIT 12""",
+                (agent_id,),
+            )
+            weeks = []
+            for row in cur.fetchall():
+                r = dict(row)
+                r["week"] = str(r["week"]) if r["week"] else None
+                weeks.append(r)
+
+        return jsonify({"success": True, "agent_id": agent_id, "growth": weeks})
+
+    @bp.route("/api/training/capability-matrix")
+    @admin_required
+    def capability_matrix():
+        """Department requirements vs agent capabilities — gap analysis matrix."""
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT dcp.department, dcp.floor, dcp.required_capabilities
+                   FROM department_capability_profiles dcp
+                   ORDER BY dcp.department"""
+            )
+            departments = [dict(r) for r in cur.fetchall()]
+
+            for dept in departments:
+                caps = dept.get("required_capabilities") or []
+                cur.execute(
+                    """SELECT a.id, a.name, a.display_name
+                       FROM agents a
+                       WHERE a.department = %s AND a.worker_type = 'ai'
+                         AND a.shift_state = 'active'""",
+                    (dept["department"],),
+                )
+                agents = [dict(r) for r in cur.fetchall()]
+
+                for agent in agents:
+                    cur.execute(
+                        """SELECT capability, score
+                           FROM agent_competency_scores
+                           WHERE agent_id = %s""",
+                        (agent["id"],),
+                    )
+                    agent["scores"] = {r["capability"]: float(r["score"]) for r in cur.fetchall()}
+                    agent["gaps"] = [c for c in caps if c not in agent["scores"]]
+
+                dept["agents"] = agents
+                dept["coverage"] = (
+                    round(
+                        sum(1 for a in agents for c in caps if a["scores"].get(c, 0) >= 0.5)
+                        / max(len(agents) * len(caps), 1),
+                        2,
+                    )
+                    if caps
+                    else 0
+                )
+
+        return jsonify({"success": True, "matrix": departments})

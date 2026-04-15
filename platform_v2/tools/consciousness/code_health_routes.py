@@ -4,10 +4,14 @@ Code Health Routes — Consciousness Module
 API endpoints for codebase metrics, audit progress, and snapshots.
 """
 
-from flask import jsonify
+import logging
+
+from flask import jsonify, request
 from flask_login import login_required
 
 from database import get_db_cursor
+
+logger = logging.getLogger(__name__)
 
 
 def register_code_health_routes(bp, admin_required):
@@ -50,11 +54,7 @@ def register_code_health_routes(bp, admin_required):
         if row and row.get("per_module"):
             import json as _json
 
-            per_module = (
-                _json.loads(row["per_module"])
-                if isinstance(row["per_module"], str)
-                else row["per_module"]
-            )
+            per_module = _json.loads(row["per_module"]) if isinstance(row["per_module"], str) else row["per_module"]
 
             # Reconstruct per-language totals from per_module by_type data
             lang_totals = {}
@@ -70,7 +70,9 @@ def register_code_health_routes(bp, admin_required):
                 "total_lines": row["total_lines"],
                 "total_folders": row.get("total_folders", 0),
                 "modules": per_module,
-                "python": lang_totals.get("python", {"files": row.get("python_files", 0), "lines": row.get("python_lines", 0)}),
+                "python": lang_totals.get(
+                    "python", {"files": row.get("python_files", 0), "lines": row.get("python_lines", 0)}
+                ),
                 "js": lang_totals.get("js", {"files": row.get("js_files", 0), "lines": row.get("js_lines", 0)}),
                 "css": lang_totals.get("css", {"files": row.get("css_files", 0), "lines": row.get("css_lines", 0)}),
                 "html": lang_totals.get("html", {"files": row.get("html_files", 0), "lines": row.get("html_lines", 0)}),
@@ -79,6 +81,10 @@ def register_code_health_routes(bp, admin_required):
                 "json": lang_totals.get("json", {"files": 0, "lines": 0}),
                 "yaml": lang_totals.get("yaml", {"files": 0, "lines": 0}),
                 "markdown": lang_totals.get("markdown", {"files": 0, "lines": 0}),
+                "go": lang_totals.get("go", {"files": 0, "lines": 0}),
+                "svg": lang_totals.get("svg", {"files": 0, "lines": 0}),
+                "config": lang_totals.get("config", {"files": 0, "lines": 0}),
+                "text": lang_totals.get("text", {"files": 0, "lines": 0}),
                 "orphans": {},
                 "snapshot_age": row["scanned_at"].isoformat() if row["scanned_at"] else None,
             }
@@ -133,7 +139,7 @@ def register_code_health_routes(bp, admin_required):
     @admin_required
     def code_health_module_status():
         modules = []
-        summary = {"green": 0, "yellow": 0, "red": 0, "total": 0}
+        summary = {"green": 0, "purple": 0, "yellow": 0, "orange": 0, "red": 0, "total": 0}
 
         # Map folder names to proper display names
         from module_registry import MODULES
@@ -185,16 +191,43 @@ def register_code_health_routes(bp, admin_required):
             scan_row = cur.fetchone()
             last_scan_date = scan_row["scanned_at"].isoformat() if scan_row else None
 
+            # Get pending proposal counts per module (active proposals in pipeline)
+            proposal_counts = {}
+            try:
+                cur.execute(
+                    """SELECT metadata->>'file_path' as fp, COUNT(*) as cnt
+                       FROM improvement_proposals
+                       WHERE metadata->>'source' = 'code_health_audit'
+                         AND status NOT IN ('archived', 'rejected', 'deployed')
+                       GROUP BY metadata->>'file_path'"""
+                )
+                for pr in cur.fetchall():
+                    fp = pr["fp"] or ""
+                    # Extract module name from path
+                    if "platform_v2/tools/" in fp:
+                        mod = fp.split("platform_v2/tools/")[1].split("/")[0]
+                    else:
+                        mod = fp.split("/")[0]
+                    proposal_counts[mod] = proposal_counts.get(mod, 0) + pr["cnt"]
+                    # Also map the raw file_path as module name (for standalone/special modules)
+                    if fp and fp not in proposal_counts:
+                        proposal_counts[fp] = pr["cnt"]
+            except Exception:
+                pass
+
             for name in sorted(module_names):
                 audit = audits.get(name)
+                has_proposals = proposal_counts.get(name, 0) > 0
                 if not audit:
-                    status = "red"
+                    status = "red"  # never audited
+                elif audit["status"] == "violations_found" and has_proposals:
+                    status = "purple"  # issues submitted to Repair Bay
                 elif audit["status"] == "violations_found":
-                    status = "red"
+                    status = "orange"  # audited but issues not submitted yet
                 elif audit.get("stale"):
-                    status = "yellow"
+                    status = "yellow"  # audit expired (>30 days)
                 else:
-                    status = "green"
+                    status = "green"  # clean
 
                 summary[status] += 1
                 summary["total"] += 1
@@ -209,6 +242,7 @@ def register_code_health_routes(bp, admin_required):
                         "stale": audit.get("stale", False) if audit else False,
                         "files_changed_since_audit": 0,
                         "last_scan_date": last_scan_date,
+                        "pending_proposals": proposal_counts.get(name, 0),
                     }
                 )
 
@@ -303,46 +337,50 @@ def register_code_health_routes(bp, admin_required):
     @login_required
     @admin_required
     def code_health_standalone_status():
-        """Return standalone product metrics with compliance tier info."""
-        from services.code_metrics_service import STANDALONE_PRODUCTS, _get_standalone_stats
+        """Return standalone product metrics with compliance tier info.
+        Uses latest snapshot for stats (fast), DB for compliance scores."""
+        from services.code_metrics_service import STANDALONE_PRODUCTS
+        import json as _json
 
-        standalone_stats = _get_standalone_stats()
+        # Get stats from latest snapshot (no filesystem walk)
+        standalone_stats = {}
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT per_module FROM code_metrics_snapshots
+                   ORDER BY scanned_at DESC LIMIT 1"""
+            )
+            row = cur.fetchone()
+            if row and row.get("per_module"):
+                pm = _json.loads(row["per_module"]) if isinstance(row["per_module"], str) else row["per_module"]
+                for k, v in pm.items():
+                    if k.startswith("standalone_"):
+                        standalone_stats[k] = v
+
+        # Get all compliance scores in one query
+        compliance_map = {}
+        try:
+            product_names = [p["name"] for p in STANDALONE_PRODUCTS]
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT DISTINCT ON (scan_target) scan_target, overall_score, scanned_at
+                       FROM compliance_scans
+                       WHERE scan_target = ANY(%s)
+                       ORDER BY scan_target, scanned_at DESC""",
+                    (product_names,),
+                )
+                for r in cur.fetchall():
+                    compliance_map[r["scan_target"]] = {
+                        "score": float(r["overall_score"]) if r.get("overall_score") else None,
+                        "scanned_at": r["scanned_at"].isoformat() if r.get("scanned_at") else None,
+                    }
+        except Exception:
+            pass
+
         results = []
         for product in STANDALONE_PRODUCTS:
             key = product["module_key"]
             stats = standalone_stats.get(key, {})
-
-            # Check compliance scan results if available
-            compliance_score = None
-            last_scan = None
-            try:
-                with get_db_cursor() as (conn, cur):
-                    cur.execute(
-                        """SELECT overall_score, scanned_at
-                           FROM compliance_scans
-                           WHERE scan_target = %s
-                           ORDER BY scanned_at DESC LIMIT 1""",
-                        (product["name"],),
-                    )
-                    row = cur.fetchone()
-                    if row:
-                        compliance_score = float(row["overall_score"]) if row.get("overall_score") else None
-                        last_scan = row["scanned_at"].isoformat() if row.get("scanned_at") else None
-            except Exception:
-                pass
-
-            # Fetch tier progress from standalone
-            tier_progress = None
-            try:
-                import requests as req
-                import os
-
-                standalone_url = os.getenv("STANDALONE_SYSOPS_URL", "https://server.kytranempowerment.com")
-                health_resp = req.get(f"{standalone_url}/dashboard/api/health", timeout=5)
-                if health_resp.status_code == 200:
-                    tier_progress = health_resp.json().get("tier_progress")
-            except Exception:
-                pass
+            comp = compliance_map.get(product["name"], {})
 
             results.append(
                 {
@@ -353,10 +391,9 @@ def register_code_health_routes(bp, admin_required):
                     "files": stats.get("files", 0),
                     "lines": stats.get("lines", 0),
                     "by_type": stats.get("by_type", {}),
-                    "compliance_score": compliance_score,
-                    "last_compliance_scan": last_scan,
+                    "compliance_score": comp.get("score"),
+                    "last_compliance_scan": comp.get("scanned_at"),
                     "compliance_packs": product.get("compliance_packs", []),
-                    "tier_progress": tier_progress,
                 }
             )
 
@@ -387,6 +424,392 @@ def register_code_health_routes(bp, admin_required):
             )
 
         return jsonify({"success": True, "websites": results})
+
+    @bp.route("/api/code-health/audit", methods=["POST"])
+    @login_required
+    @admin_required
+    def code_health_audit():
+        """Trigger audit for one or all modules. Dispatched via F.O.R.G.E.
+        Auto-submits findings to Repair Bay (deduped)."""
+        from flask import request as req
+        from services.code_metrics_service import (
+            audit_single_module,
+            log_audit,
+            scan_codebase,
+        )
+
+        data = req.get_json(silent=True) or {}
+        module_key = data.get("module")  # single module key, or None for all
+
+        # Get current module data for profile detection
+        metrics = scan_codebase()
+        all_modules = metrics.get("modules", {})
+
+        if module_key:
+            if module_key not in all_modules:
+                return jsonify({"success": False, "error": f"Module not found: {module_key}"}), 404
+            targets = [module_key]
+        else:
+            targets = list(all_modules.keys())
+
+        results = []
+        for key in targets:
+            mod_data = all_modules.get(key, {})
+            try:
+                issues_found, notes, status, issues_list, profile = audit_single_module(key, module_data=mod_data)
+                log_audit(
+                    module_name=key,
+                    category=profile.upper(),
+                    files_reviewed=mod_data.get("files", 0),
+                    lines_before=mod_data.get("lines", 0),
+                    lines_after=mod_data.get("lines", 0),
+                    issues_found=issues_found,
+                    notes=notes,
+                    status=status,
+                    audit_profile=profile,
+                    trigger_reason="manual",
+                    dispatched_via="F.O.R.G.E.",
+                )
+
+                # Auto-submit findings to Repair Bay (deduped — won't create duplicates)
+                proposals_created = 0
+                proposals_skipped = 0
+                if issues_list:
+                    try:
+                        from services.audit_pipeline import process_audit_findings
+
+                        repair_result = process_audit_findings(key, issues_list)
+                        proposals_created = repair_result.get("proposals_created", 0)
+                        proposals_skipped = repair_result.get("skipped_duplicates", 0)
+                    except Exception as repair_err:
+                        logger.warning("Auto-submit to Repair Bay failed for %s: %s", key, repair_err)
+
+                results.append(
+                    {
+                        "module": key,
+                        "profile": profile,
+                        "issues": issues_found,
+                        "status": status,
+                        "proposals_created": proposals_created,
+                        "proposals_skipped": proposals_skipped,
+                    }
+                )
+            except Exception as e:
+                results.append(
+                    {
+                        "module": key,
+                        "profile": "unknown",
+                        "issues": -1,
+                        "status": f"error: {str(e)[:100]}",
+                    }
+                )
+
+        return jsonify(
+            {
+                "success": True,
+                "audited": len(results),
+                "results": results,
+                "trigger": "manual",
+            }
+        )
+
+    @bp.route("/api/code-health/audit/<int:audit_id>/details")
+    @login_required
+    @admin_required
+    def code_health_audit_details(audit_id):
+        """Get full audit details including findings for a specific audit entry."""
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT id, module_name, category, files_reviewed, lines_before,
+                          lines_after, issues_found, issues_fixed, notes, status,
+                          audited_at, audit_profile, trigger_reason, dispatched_via
+                   FROM code_audit_log WHERE id = %s""",
+                (audit_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Audit entry not found"}), 404
+
+            # Parse notes into structured findings
+            findings = []
+            notes = row["notes"] or ""
+            if notes and notes != "clean — all checks passed" and notes != "clean":
+                for part in notes.split("; "):
+                    part = part.strip()
+                    if not part:
+                        continue
+                    code = part.split(":")[0].strip() if ":" in part else part
+                    detail = part.split(":", 1)[1].strip() if ":" in part else ""
+                    severity = "info"
+                    red_codes = {
+                        "SQL_INJECTION_RISK",
+                        "HARDCODED_SECRET",
+                        "DIRECT_OLLAMA",
+                        "DIRECT_CLOUD",
+                        "INSECURE_DEFAULT",
+                    }
+                    yellow_codes = {
+                        "BARE_EXCEPT",
+                        "LARGE_FILE",
+                        "MISSING_INIT",
+                        "INLINE_SCRIPT",
+                        "CONSOLE_LOG",
+                        "LATEST_TAG",
+                        "MISSING_RESOURCE_LIMIT",
+                    }
+                    if code in red_codes:
+                        severity = "red"
+                    elif code in yellow_codes:
+                        severity = "yellow"
+                    findings.append({"code": code, "detail": detail, "severity": severity})
+
+            # Check if proposals already exist for this module (use metadata for accuracy)
+            proposal_status = {"total": 0, "by_status": {}, "items": []}
+            try:
+                module_name = row["module_name"]
+                if (
+                    module_name.startswith("standalone_")
+                    or module_name.startswith("website_")
+                    or module_name.startswith("[")
+                ):
+                    module_path_pattern = f"{module_name}/%"
+                else:
+                    module_path_pattern = f"platform_v2/tools/{module_name}/%"
+                cur.execute(
+                    """SELECT id, title, status, priority
+                       FROM improvement_proposals
+                       WHERE metadata->>'source' = 'code_health_audit'
+                         AND metadata->>'file_path' LIKE %s
+                         AND status NOT IN ('archived', 'rejected')
+                       ORDER BY id DESC
+                       LIMIT 20""",
+                    (module_path_pattern,),
+                )
+                for pr in cur.fetchall():
+                    s = pr["status"]
+                    proposal_status["by_status"][s] = proposal_status["by_status"].get(s, 0) + 1
+                    proposal_status["total"] += 1
+                    proposal_status["items"].append(
+                        {
+                            "id": pr["id"],
+                            "title": pr["title"],
+                            "status": pr["status"],
+                            "priority": pr["priority"],
+                        }
+                    )
+            except Exception:
+                pass
+
+            result = {
+                "success": True,
+                "audit": {
+                    "id": row["id"],
+                    "module_name": row["module_name"],
+                    "category": row["category"],
+                    "files_reviewed": row["files_reviewed"],
+                    "lines_before": row["lines_before"],
+                    "issues_found": row["issues_found"],
+                    "issues_fixed": row["issues_fixed"],
+                    "status": row["status"],
+                    "audited_at": row["audited_at"].isoformat() if row["audited_at"] else None,
+                    "audit_profile": row.get("audit_profile", "python"),
+                    "trigger_reason": row.get("trigger_reason", "unknown"),
+                    "dispatched_via": row.get("dispatched_via"),
+                },
+                "findings": findings,
+                "notes_raw": notes,
+                "proposals": proposal_status,
+            }
+            return jsonify(result)
+
+    @bp.route("/api/code-health/audit/<int:audit_id>/submit-repair", methods=["POST"])
+    @login_required
+    @admin_required
+    def code_health_submit_repair(audit_id):
+        """Submit audit findings to Repair Bay as improvement proposals."""
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT module_name, notes, issues_found, status FROM code_audit_log WHERE id = %s",
+                (audit_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Audit entry not found"}), 404
+            if row["status"] == "completed" and row["issues_found"] == 0:
+                return jsonify(
+                    {
+                        "success": False,
+                        "error": "No issues to submit — module is clean",
+                    }
+                )
+
+        # Parse notes into issues_list format for process_audit_findings
+        issues_list = []
+        notes = row["notes"] or ""
+        for part in notes.split("; "):
+            part = part.strip()
+            if not part:
+                continue
+            code = part.split(":")[0].strip() if ":" in part else part
+            detail = part.split(":", 1)[1].strip() if ":" in part else ""
+            red_codes = {
+                "SQL_INJECTION_RISK",
+                "HARDCODED_SECRET",
+                "DIRECT_OLLAMA",
+                "DIRECT_CLOUD",
+                "INSECURE_DEFAULT",
+            }
+            yellow_codes = {
+                "BARE_EXCEPT",
+                "LARGE_FILE",
+                "MISSING_INIT",
+                "INLINE_SCRIPT",
+                "CONSOLE_LOG",
+                "LATEST_TAG",
+                "MISSING_RESOURCE_LIMIT",
+            }
+            if code in red_codes:
+                severity = "red"
+            elif code in yellow_codes:
+                severity = "yellow"
+            else:
+                severity = "info"
+            issues_list.append(
+                {
+                    "code": code,
+                    "severity": severity,
+                    "file": row["module_name"],
+                    "detail": detail,
+                }
+            )
+
+        try:
+            from services.audit_pipeline import process_audit_findings
+
+            result = process_audit_findings(row["module_name"], issues_list)
+            return jsonify(
+                {
+                    "success": True,
+                    "proposals_created": result.get("proposals_created", 0),
+                    "skipped_duplicates": result.get("skipped_duplicates", 0),
+                    "module": row["module_name"],
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/code-health/submit-attention", methods=["POST"])
+    @login_required
+    @admin_required
+    def code_health_submit_attention():
+        """Submit a Needs Attention item to Repair Bay for investigation."""
+        data = request.get_json() or {}
+        item_type = data.get("type", "")
+        label = data.get("label", "")
+
+        if not item_type:
+            return jsonify({"success": False, "error": "type is required"}), 400
+
+        try:
+            from services.audit_pipeline import process_audit_findings
+
+            issues_list = []
+
+            if item_type == "orphan_files":
+                # Submit orphan files for investigation
+                from services.code_metrics_service import _find_orphan_files
+
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        """SELECT per_module FROM code_metrics_snapshots
+                           ORDER BY scanned_at DESC LIMIT 1"""
+                    )
+                    row = cur.fetchone()
+                if row and row.get("per_module"):
+                    import json as _json
+
+                    per_module = (
+                        _json.loads(row["per_module"]) if isinstance(row["per_module"], str) else row["per_module"]
+                    )
+                    orphans = _find_orphan_files(set(per_module.keys()))
+                    for category, files in orphans.items():
+                        for f in files:
+                            fname = f if isinstance(f, str) else f.get("file", str(f))
+                            issues_list.append(
+                                {
+                                    "code": "ORPHAN_FILE",
+                                    "severity": "yellow",
+                                    "file": fname,
+                                    "detail": f"Unmapped {category} file — not claimed by any module",
+                                }
+                            )
+                module_name = "APP_CORE"
+
+            elif item_type == "modules_with_issues":
+                # Submit modules that have audit issues
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        """SELECT DISTINCT module_name, notes, issues_found
+                           FROM code_audit_log
+                           WHERE status = 'completed' AND issues_found > 0
+                           AND id IN (
+                               SELECT MAX(id) FROM code_audit_log
+                               GROUP BY module_name
+                           )"""
+                    )
+                    rows = cur.fetchall()
+                for row in rows:
+                    notes = row["notes"] or ""
+                    for part in notes.split("; "):
+                        part = part.strip()
+                        if not part:
+                            continue
+                        code = part.split(":")[0].strip() if ":" in part else part
+                        detail = part.split(":", 1)[1].strip() if ":" in part else ""
+                        issues_list.append(
+                            {
+                                "code": code,
+                                "severity": "yellow",
+                                "file": row["module_name"],
+                                "detail": detail,
+                            }
+                        )
+                module_name = "PLATFORM"
+
+            elif item_type == "standalone_issues":
+                from services.code_metrics_service import _audit_standalone_products
+
+                sa = _audit_standalone_products()
+                for issue in sa.get("issues", []):
+                    issues_list.append(
+                        {
+                            "code": "STANDALONE_TIER1",
+                            "severity": "yellow",
+                            "file": issue.split("]")[0].replace("[", "").strip() if "]" in issue else "standalone",
+                            "detail": issue,
+                        }
+                    )
+                module_name = "STANDALONE"
+
+            else:
+                return jsonify({"success": False, "error": f"Unknown type: {item_type}"}), 400
+
+            if not issues_list:
+                return jsonify({"success": True, "proposals_created": 0, "message": "No issues to submit"})
+
+            result = process_audit_findings(module_name, issues_list)
+            return jsonify(
+                {
+                    "success": True,
+                    "proposals_created": result.get("proposals_created", 0),
+                    "skipped_duplicates": result.get("skipped_duplicates", 0),
+                    "type": item_type,
+                    "label": label,
+                }
+            )
+        except Exception as e:
+            logger.exception("Failed to submit attention item to Repair Bay")
+            return jsonify({"success": False, "error": str(e)}), 500
 
     @bp.route("/api/code-health/structural-audit")
     @login_required

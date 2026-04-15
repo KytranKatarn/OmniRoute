@@ -1865,13 +1865,14 @@ def register_security_jobs(scheduler, flask_app):
     )
 
     # --- Device presence & ARP spoof detection ---
-    scheduler.add_job(
-        with_ctx(track_device_presence),
-        trigger=IntervalTrigger(minutes=5),
-        id="agent_device_presence",
-        name="Agent Loop: Device Presence & ARP Spoof Detection",
-        replace_existing=True,
-    )
+    # DISABLED 2026-04-14: 120 fails/day, returning 0 — see Project #261
+    # scheduler.add_job(
+    #     with_ctx(track_device_presence),
+    #     trigger=IntervalTrigger(minutes=5),
+    #     id="agent_device_presence",
+    #     name="Agent Loop: Device Presence & ARP Spoof Detection",
+    #     replace_existing=True,
+    # )
 
     # --- IP geolocation enrichment ---
     scheduler.add_job(

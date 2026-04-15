@@ -20,7 +20,9 @@ from .routes import admin_required  # noqa: E402
 from .benchmark_routes import register_benchmark_routes  # noqa: E402
 from .training_routes import register_training_routes  # noqa: E402
 from .model_routes import register_model_routes  # noqa: E402
+from .competency_routes import register_competency_routes  # noqa: E402
 
 register_benchmark_routes(agent_academy_bp, admin_required)
 register_training_routes(agent_academy_bp, admin_required)
 register_model_routes(agent_academy_bp, admin_required)
+register_competency_routes(agent_academy_bp, admin_required)

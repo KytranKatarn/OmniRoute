@@ -1603,6 +1603,19 @@
     margin-top: 0.15rem;
 }
 
+/* ── C.R.E.E.D. Wellness Badge ── */
+.dhq-wellness-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+.dhq-wellness-dot[data-status="green"] { background: #22c55e; box-shadow: 0 0 4px rgba(34,197,94,0.5); }
+.dhq-wellness-dot[data-status="yellow"] { background: #eab308; box-shadow: 0 0 4px rgba(234,179,8,0.5); }
+.dhq-wellness-dot[data-status="red"] { background: #ef4444; box-shadow: 0 0 4px rgba(239,68,68,0.5); }
+
 @media (max-width: 768px) {
     .dhq-hero-stats { grid-template-columns: repeat(3, 1fr); }
     .dhq-floor-grid { grid-template-columns: repeat(2, 1fr); }

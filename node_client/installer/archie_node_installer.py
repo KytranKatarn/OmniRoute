@@ -72,7 +72,7 @@ services:
               count: all
               capabilities: [gpu]
     environment:
-      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_KEEP_ALIVE=5m
       - OLLAMA_NUM_PARALLEL=4
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:

@@ -136,26 +136,43 @@ def send(
     category: str,
     title: str,
     message: str,
+    source_agent: str = None,
+    source_department: str = None,
+    source_module: str = None,
     chat_id: str = None,
     force: bool = False,
 ) -> dict:
-    """Send a categorized Telegram notification.
+    """Send a categorized Telegram notification as A.R.C.H.I.E.
+
+    A.R.C.H.I.E. is the sole voice to Kytran. When source_agent is provided,
+    the message is framed as A.R.C.H.I.E. relaying intelligence from that
+    agent/department (e.g., "V.I.G.I.L. flagged a compliance issue...").
 
     Args:
-        category: One of CATEGORIES keys (security/system/forge/agent/sync/info).
-                  Unknown categories fall back to 'info'.
-        title:    Short title — appears bold in the message.
-        message:  Notification body text (plain text or Markdown).
-        chat_id:  Override the default chat ID for this message.
-        force:    If True, bypass throttle regardless of priority.
+        category:          One of CATEGORIES keys (security/system/forge/agent/sync/info).
+        title:             Short title for the message.
+        message:           Notification body text.
+        source_agent:      Who originated this (e.g., 'V.I.G.I.L.', 'K.I.N.', 'P.R.O.B.E.').
+        source_department: Originating department (e.g., 'Security & Compliance').
+        source_module:     Code module that triggered the send (for migration tracking).
+        chat_id:           Override the default chat ID.
+        force:             If True, bypass throttle.
 
     Returns:
-        dict with keys:
-            sent   (bool)    — True if message was delivered
-            reason (str)     — present when sent=False, explains why
+        dict: {sent: bool, reason: str (if not sent), log_id: int (if logged)}
     """
     token = _get_token()
     if not token:
+        _log_message(
+            category,
+            title,
+            message,
+            source_agent,
+            source_department,
+            source_module,
+            "failed",
+            "no bot token configured",
+        )
         return {"sent": False, "reason": "no bot token configured"}
 
     cat = CATEGORIES.get(category, CATEGORIES["info"])
@@ -169,19 +186,21 @@ def send(
             elapsed = time.time() - last
             if elapsed < throttle_secs:
                 remaining = int(throttle_secs - elapsed)
-                logger.debug(
-                    "telegram_service: throttled [%s] '%s' (retry in %ds)",
-                    category,
-                    title,
-                    remaining,
+                reason = f"throttled ({priority}, {remaining}s remaining)"
+                _log_message(
+                    category, title, message, source_agent, source_department, source_module, "throttled", reason
                 )
-                return {"sent": False, "reason": f"throttled ({priority}, {remaining}s remaining)"}
+                logger.debug("telegram_service: throttled [%s] '%s' (%ds)", category, title, remaining)
+                return {"sent": False, "reason": reason}
 
-    # Format
-    text = f"{cat['icon']} *{cat['label']}*\n\n*{title}*\n\n{message}"
+    # Format as A.R.C.H.I.E.'s voice — relaying from source agent
+    text = _format_archie_voice(cat, title, message, source_agent)
 
     target = chat_id or _get_chat_id()
     if not target:
+        _log_message(
+            category, title, message, source_agent, source_department, source_module, "failed", "no chat_id configured"
+        )
         return {"sent": False, "reason": "no chat_id configured"}
 
     try:
@@ -198,53 +217,157 @@ def send(
         _last_sent[category] = time.time()
 
         if resp.ok:
-            logger.info("telegram_service: sent [%s] '%s'", category, title)
-            return {"sent": True}
-        else:
-            logger.warning(
-                "telegram_service: send failed [%s] status=%d body=%s",
+            tg_msg_id = resp.json().get("result", {}).get("message_id")
+            log_id = _log_message(
                 category,
-                resp.status_code,
-                resp.text[:200],
+                title,
+                message,
+                source_agent,
+                source_department,
+                source_module,
+                "sent",
+                None,
+                target,
+                tg_msg_id,
+                text,
             )
-            return {"sent": False, "reason": f"HTTP {resp.status_code}: {resp.text[:100]}"}
+            logger.info("telegram_service: sent [%s] '%s' from %s", category, title, source_agent or "system")
+            return {"sent": True, "log_id": log_id}
+        else:
+            reason = f"HTTP {resp.status_code}: {resp.text[:100]}"
+            _log_message(
+                category, title, message, source_agent, source_department, source_module, "failed", reason, target
+            )
+            logger.warning("telegram_service: send failed [%s] %s", category, reason)
+            return {"sent": False, "reason": reason}
 
     except requests.Timeout:
+        _log_message(
+            category,
+            title,
+            message,
+            source_agent,
+            source_department,
+            source_module,
+            "failed",
+            "request timeout",
+            target,
+        )
         logger.error("telegram_service: timeout sending [%s] '%s'", category, title)
         return {"sent": False, "reason": "request timeout"}
     except Exception as exc:
+        _log_message(
+            category, title, message, source_agent, source_department, source_module, "failed", str(exc), target
+        )
         logger.error("telegram_service: error sending [%s] '%s': %s", category, title, exc)
         return {"sent": False, "reason": str(exc)}
+
+
+def _format_archie_voice(cat: dict, title: str, message: str, source_agent: str = None) -> str:
+    """Format message in A.R.C.H.I.E.'s executive voice.
+
+    When source_agent is provided, frames as A.R.C.H.I.E. relaying from that agent.
+    When not provided, A.R.C.H.I.E. speaks directly.
+    """
+    icon = cat["icon"]
+
+    if source_agent:
+        # A.R.C.H.I.E. relaying from another agent
+        text = f"{icon} *{title}*\n\n" f"{source_agent} reports:\n" f"{message}\n\n" f"_— A.R.C.H.I.E._"
+    else:
+        # A.R.C.H.I.E. speaking directly
+        text = f"{icon} *{title}*\n\n" f"{message}\n\n" f"_— A.R.C.H.I.E._"
+
+    return text
+
+
+def _log_message(
+    category,
+    title,
+    message,
+    source_agent=None,
+    source_department=None,
+    source_module=None,
+    status="sent",
+    error_message=None,
+    chat_id=None,
+    telegram_message_id=None,
+    formatted_message=None,
+):
+    """Log message to telegram_message_log table. Returns log ID or None."""
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO telegram_message_log
+                   (category, title, message, formatted_message, source_agent,
+                    source_department, source_module, priority, status,
+                    error_message, chat_id, telegram_message_id)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   RETURNING id""",
+                (
+                    category,
+                    title,
+                    message,
+                    formatted_message,
+                    source_agent,
+                    source_department,
+                    source_module,
+                    CATEGORIES.get(category, CATEGORIES["info"])["priority"],
+                    status,
+                    error_message,
+                    chat_id,
+                    telegram_message_id,
+                ),
+            )
+            row = cur.fetchone()
+            return row["id"] if row else None
+    except Exception as exc:
+        logger.debug("telegram_service: log failed: %s", exc)
+        return None
 
 
 # ---------------------------------------------------------------------------
 # Convenience shortcuts
 # ---------------------------------------------------------------------------
 def send_security(title: str, message: str, **kwargs) -> dict:
-    """Send a critical security alert (never throttled)."""
+    """Send a critical security alert via V.I.G.I.L. (never throttled)."""
+    kwargs.setdefault("source_agent", "V.I.G.I.L.")
+    kwargs.setdefault("source_department", "Security & Compliance")
     return send("security", title, message, force=True, **kwargs)
 
 
 def send_system(title: str, message: str, **kwargs) -> dict:
-    """Send a system/infrastructure alert."""
+    """Send a system/infrastructure alert via B.A.S.E."""
+    kwargs.setdefault("source_agent", "B.A.S.E.")
+    kwargs.setdefault("source_department", "Operations & Infrastructure")
     return send("system", title, message, **kwargs)
 
 
 def send_forge(title: str, message: str, **kwargs) -> dict:
     """Send a F.O.R.G.E. pipeline notification."""
+    kwargs.setdefault("source_agent", "F.O.R.G.E.")
+    kwargs.setdefault("source_department", "Engineering & Technology")
     return send("forge", title, message, **kwargs)
 
 
 def send_agent(title: str, message: str, **kwargs) -> dict:
-    """Send an agent lifecycle notification (escalation, training, welfare)."""
+    """Send an agent lifecycle notification via K.I.N."""
+    kwargs.setdefault("source_agent", "K.I.N.")
+    kwargs.setdefault("source_department", "Human Resources & Culture")
     return send("agent", title, message, **kwargs)
 
 
 def send_sync(title: str, message: str, **kwargs) -> dict:
-    """Send a background sync notification (GitHub, tender, skills)."""
+    """Send a background sync notification via C.O.D.E.X."""
+    kwargs.setdefault("source_agent", "C.O.D.E.X.")
+    kwargs.setdefault("source_department", "Documentation & Knowledge")
     return send("sync", title, message, **kwargs)
 
 
 def send_info(title: str, message: str, **kwargs) -> dict:
-    """Send an informational notification (briefing, reminder, report)."""
+    """Send an informational notification from A.R.C.H.I.E. directly."""
+    kwargs.setdefault("source_agent", "A.R.C.H.I.E.")
+    kwargs.setdefault("source_department", "Executive Office")
     return send("info", title, message, **kwargs)

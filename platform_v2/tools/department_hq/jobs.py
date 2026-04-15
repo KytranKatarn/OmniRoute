@@ -1,9 +1,13 @@
-"""department_hq/jobs.py — Operational platform maintenance jobs.
+"""department_hq/jobs.py — Central job registration hub (Decision #440).
 
-Moved from dev_hq/jobs.py (Decision #433 — Dev HQ merged into Consciousness).
-Registration with APScheduler happens via register_department_hq_jobs().
+register_department_hq_jobs() is the SINGLE entry point called from AgentLoop.
+It registers Department HQ's own jobs and delegates to other module registrars:
+  - tools.consciousness.jobs.register_consciousness_jobs
+  - tools.security_network.jobs.register_security_jobs
+  - services.agent_jobs.register_agent_welfare_jobs
+  - services.fleet_jobs.register_fleet_jobs
 
-Jobs:
+Own jobs (moved from dev_hq — Decision #433):
   - daily_code_metrics_scan (Job #40)
   - pattern_compliance_check (Job #41)
   - automated_module_audit (Job #58)
@@ -86,6 +90,34 @@ def daily_code_metrics_scan():
             len(changed_modules),
         )
         _log_cycle("code_metrics_scan", 1, 0, duration_ms)
+
+        # Auto-audit changed modules via F.O.R.G.E.
+        if changed_modules:
+            from services.code_metrics_service import audit_single_module, log_audit
+
+            audited_count = 0
+            for key in changed_modules:
+                mod_data = metrics.get("modules", {}).get(key, {})
+                try:
+                    issues_found, notes, status, issues_list, profile = audit_single_module(key, module_data=mod_data)
+                    log_audit(
+                        module_name=key,
+                        category=profile.upper(),
+                        files_reviewed=mod_data.get("files", 0),
+                        lines_before=mod_data.get("lines", 0),
+                        lines_after=mod_data.get("lines", 0),
+                        issues_found=issues_found,
+                        notes=notes,
+                        status=status,
+                        audit_profile=profile,
+                        trigger_reason="change_detected",
+                        dispatched_via="F.O.R.G.E.",
+                    )
+                    audited_count += 1
+                except Exception as audit_err:
+                    logger.warning("Change-triggered audit failed for %s: %s", key, audit_err)
+            if audited_count:
+                logger.info("Change-triggered audits: %d/%d modules audited", audited_count, len(changed_modules))
     except Exception as e:
         _log_cycle("code_metrics_scan", 0, 1, int((time.time() - start) * 1000), error_message=str(e))
         logger.warning(f"Failed: {e}")
@@ -176,7 +208,7 @@ def automated_module_audit(flask_app):
         total_proposals = 0
 
         for module_name, stats in per_module.items():
-            issues_found, notes, status, issues_list = audit_single_module(module_name)
+            issues_found, notes, status, issues_list, profile = audit_single_module(module_name, module_data=stats)
 
             # Tally severity breakdown
             for issue in issues_list:
@@ -205,13 +237,16 @@ def automated_module_audit(flask_app):
 
             log_audit(
                 module_name=module_name,
-                category="automated_weekly",
+                category=profile.upper(),
                 files_reviewed=stats.get("files", 0),
                 lines_before=stats.get("lines", 0),
                 lines_after=stats.get("lines", 0),
                 issues_found=issues_found,
                 notes=notes,
                 status=status,
+                audit_profile=profile,
+                trigger_reason="scheduled",
+                dispatched_via="F.O.R.G.E.",
             )
 
             audited += 1
@@ -531,7 +566,51 @@ def competitor_landscape_scan(flask_app):
 
 
 def register_department_hq_jobs(scheduler, flask_app):
-    """Register all Department HQ background jobs with the scheduler."""
+    """Central job registration — ALL department jobs go through here.
+
+    This is the single entry point for job registration, called from AgentLoop.
+    Individual modules still define their job functions, but registration
+    is centralized here for visibility and monitoring (Decision #440).
+    """
+    # 1. Register Department HQ's own jobs
+    _register_own_jobs(scheduler, flask_app)
+
+    # 2. Register other module jobs — centralized here (was in agent_loop.py)
+    try:
+        from tools.consciousness.jobs import register_consciousness_jobs
+
+        register_consciousness_jobs(scheduler, flask_app)
+        logger.info("[DeptHQ] Consciousness jobs registered")
+    except Exception as e:
+        logger.error("[DeptHQ] Failed: consciousness jobs: %s", e)
+
+    try:
+        from tools.security_network.jobs import register_security_jobs
+
+        register_security_jobs(scheduler, flask_app)
+        logger.info("[DeptHQ] Security/network jobs registered")
+    except Exception as e:
+        logger.error("[DeptHQ] Failed: security jobs: %s", e)
+
+    try:
+        from services.agent_jobs import register_agent_welfare_jobs
+
+        register_agent_welfare_jobs(scheduler, flask_app)
+        logger.info("[DeptHQ] Agent welfare jobs registered")
+    except Exception as e:
+        logger.error("[DeptHQ] Failed: welfare jobs: %s", e)
+
+    try:
+        from services.fleet_jobs import register_fleet_jobs
+
+        register_fleet_jobs(scheduler, flask_app)
+        logger.info("[DeptHQ] Fleet jobs registered")
+    except Exception as e:
+        logger.error("[DeptHQ] Failed: fleet jobs: %s", e)
+
+
+def _register_own_jobs(scheduler, flask_app):
+    """Register Department HQ's own background jobs with the scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
     from apscheduler.triggers.cron import CronTrigger
 
@@ -619,4 +698,4 @@ def register_department_hq_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[DevHQ] Registered 6 code health/audit jobs")
+    logger.info("[DeptHQ] Registered 6 code health/audit jobs")

@@ -312,7 +312,14 @@ def process_audit_findings(module_name, issues_list):
             continue
 
         try:
-            file_path = f"platform_v2/tools/{module_name}/{issue['file']}"
+            # Build file path — handle platform modules, standalone, and website products
+            issue_file = issue.get("file", module_name)
+            if module_name.startswith("standalone_") or module_name.startswith("website_"):
+                file_path = f"{module_name}/{issue_file}"
+            elif module_name.startswith("["):
+                file_path = f"{module_name}/{issue_file}"
+            else:
+                file_path = f"platform_v2/tools/{module_name}/{issue_file}"
             issue_code = issue["code"]
 
             if _has_open_audit_proposal(file_path, issue_code):
@@ -370,7 +377,7 @@ def _create_audit_proposal(issue, module_name, file_path):
     fname = issue.get("file", "")
     config = _TIER_CONFIG[severity]
 
-    title = f"[{config['priority'].upper()}] {issue_code}: {fname}"
+    title = f"[{config['priority'].upper()}] {issue_code}: {module_name}/{fname}"
     if detail:
         title = f"{title} ({detail})"
     # Truncate title to reasonable length
@@ -810,7 +817,7 @@ def verify_fix_deployment(module_name, proposal_id, pre_issue_count):
         sys.path.insert(0, "/mnt/archie_brain/platform_v2")
         from services.code_metrics_service import audit_single_module
 
-        _issues_found, _notes, _status, issues_list = audit_single_module(module_name)
+        _issues_found, _notes, _status, issues_list, *_ = audit_single_module(module_name)
     except Exception as e:
         logger.error("verify_fix_deployment: re-audit of %s failed: %s", module_name, e)
         return {"verified": False, "pre_count": pre_issue_count, "post_count": -1, "delta": 0}

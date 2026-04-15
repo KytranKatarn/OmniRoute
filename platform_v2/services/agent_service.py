@@ -247,6 +247,24 @@ def update_agent(agent_id, **fields):
 
     if updated:
         logger.info("Updated agent #%d: %s", agent_id, list(fields.keys()))
+
+        # Sync Modelfile when system_prompt changes
+        if "system_prompt" in fields and fields["system_prompt"]:
+            try:
+                from tools.department_hq.services.modelfile_sync import export_modelfile
+
+                # Fetch agent name and model (may have been updated in same call)
+                with get_db_cursor() as (conn, cur):
+                    cur.execute("SELECT name, model FROM agents WHERE id = %s", (agent_id,))
+                    row = cur.fetchone()
+                if row:
+                    agent_name = row[0]
+                    model = fields.get("model") or row[1] or ""
+                    if model:
+                        export_modelfile(agent_name, model, fields["system_prompt"])
+            except Exception as e:
+                logger.warning("Modelfile sync failed for agent #%d: %s", agent_id, e)
+
     return updated
 
 
@@ -1201,15 +1219,19 @@ def update_welfare_after_task(agent_id, success=True):
         stress = round(min(0.2 + (utilization * 0.4) + (failure_rate * 0.3), 0.9), 2)
         # Energy: drops with utilization
         energy = round(max(0.9 - (utilization * 0.6) - (failure_rate * 0.2), 0.1), 2)
-        # Mood based on performance
-        if failure_rate > 0.5:
+        # Mood state machine (extended per LLM Ecosystem Redesign spec Section 9)
+        if stress > 0.7:
+            mood = "exhausted"  # high stress → winding_down territory
+        elif stress > 0.5:
+            mood = "tense"  # elevated stress → strained
+        elif failure_rate > 0.5:
             mood = "frustrated"
         elif failure_rate > 0.2:
             mood = "concerned"
         elif total == 0:
-            mood = "idle"
+            mood = "relaxed"  # no tasks, no stress → idle/resting
         elif utilization > 0.8:
-            mood = "focused"
+            mood = "focused"  # high throughput, manageable stress
         else:
             mood = "productive"
 
@@ -1243,6 +1265,35 @@ def update_welfare_after_task(agent_id, success=True):
             "energy": energy,
             "mood": mood,
         }
+
+
+def get_department_welfare_summary():
+    """Aggregate welfare metrics per department for K.I.N. monitoring.
+
+    Returns list of dicts: {department, avg_stress, avg_energy, agents_at_risk,
+    total_agents, dominant_mood}. Ordered by avg_stress descending.
+    """
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT a.department,
+                       ROUND(AVG(COALESCE(aes.stress_level, 0.2))::numeric, 2) AS avg_stress,
+                       ROUND(AVG(COALESCE(aes.energy_level, 0.8))::numeric, 2) AS avg_energy,
+                       COUNT(*) FILTER (WHERE aes.stress_level > 0.7) AS agents_at_risk,
+                       COUNT(*) AS total_agents,
+                       MODE() WITHIN GROUP (ORDER BY COALESCE(aes.current_mood, 'idle')) AS dominant_mood
+                FROM agents a
+                LEFT JOIN agent_emotional_state aes ON a.id = aes.agent_id
+                WHERE a.worker_type = 'ai' AND a.shift_state = 'active'
+                GROUP BY a.department
+                ORDER BY avg_stress DESC
+            """
+            )
+            return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        logger.error(f"Department welfare summary failed: {e}")
+        return []
 
 
 def check_shift_transitions():

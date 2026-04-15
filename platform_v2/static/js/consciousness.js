@@ -166,7 +166,9 @@ function loadTabData(tab) {
     if (_knowledgePollTimer) { clearInterval(_knowledgePollTimer); _knowledgePollTimer = null; }
   }
 
-  _cache[tab] = true;
+  // Set cache immediately for sync-loaded tabs to prevent double-loads
+  // Code Health sets its own cache after async data loads
+  if (tab !== "codehealth") _cache[tab] = true;
 
   switch (tab) {
     case "dashboard":   loadDashboard(); break;
@@ -3018,9 +3020,10 @@ function loadCodeHealth() {
     api("/api/code-health/standalone-status").catch(function() { return {standalones: []}; }),
     api("/api/code-health/repair-pipeline").catch(function() { return {success: false, queue: {}, proposals: {}, governance: []}; })
   ]).then(function(results) {
-    // Hide loading bar
+    // Hide loading bar and mark as cached
     var loader = document.getElementById("chLoadingBar");
     if (loader) loader.style.display = "none";
+    _cache["codehealth"] = true;
     var d = results[0];
     var auditData = results[1];
     var statusData = results[2];
@@ -3035,13 +3038,20 @@ function loadCodeHealth() {
       auditedModules[e.module_name] = e.status;
     });
 
-    // Build module status + display name lookups from module-status endpoint
+    // Build module status + display name + proposal count + audit date lookups
     var moduleStatusMap = {};
     var moduleDisplayNames = {};
+    var moduleProposalCounts = {};
+    var moduleAuditDates = {};
     (statusData.modules || []).forEach(function(m) {
       moduleStatusMap[m.module_name] = m.status;
       if (m.display_name) moduleDisplayNames[m.module_name] = m.display_name;
+      if (m.pending_proposals) moduleProposalCounts[m.module_name] = m.pending_proposals;
+      if (m.last_audit_date) moduleAuditDates[m.module_name] = m.last_audit_date;
     });
+    window._chProposalCounts = moduleProposalCounts;
+    window._chAuditDates = moduleAuditDates;
+    window._chStatusMap = moduleStatusMap;
 
     window._chDisplayNames = moduleDisplayNames;
     var allMods = d.modules || {};
@@ -3052,6 +3062,21 @@ function loadCodeHealth() {
     var platformCount = modCount - standaloneCount - websiteCount;
     _renderCodeHealthSummaryBar(statusData.summary || {}, {platform: platformCount, standalone: standaloneCount, websites: websiteCount});
     _renderCodeHealthStats(d);
+    // Show "last scanned" timestamp after stats render
+    if (d.snapshot_age) {
+      var scanEl = document.getElementById("chLastScanned");
+      if (!scanEl) {
+        scanEl = document.createElement("div");
+        scanEl.id = "chLastScanned";
+        scanEl.style.cssText = "text-align:center;font-size:0.65rem;color:rgba(0,229,255,0.5);padding:4px 12px;margin-top:4px;background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.15);border-radius:4px;";
+        var healthScore = document.getElementById("chHealthScore");
+        if (healthScore) healthScore.parentNode.appendChild(scanEl);
+      }
+      var scanDate = new Date(d.snapshot_age);
+      var ago = Math.round((Date.now() - scanDate.getTime()) / 60000);
+      var agoText = ago < 1 ? "just now" : ago < 60 ? ago + "m ago" : Math.round(ago / 60) + "h ago";
+      scanEl.textContent = "Last scanned: " + scanDate.toLocaleTimeString() + " (" + agoText + ")";
+    }
     // Separate standalone products from platform modules
     var allModules = d.modules || {};
     var standaloneModules = {};
@@ -3085,12 +3110,83 @@ function loadCodeHealth() {
         if (s.tier_progress) standaloneTierMap[s.module_key] = s.tier_progress;
     });
     _renderStandaloneTable(standaloneModules, moduleStatusMap, standaloneTierMap);
-    _renderWebsiteTable(websiteModules);
+    _renderWebsiteTable(websiteModules, moduleStatusMap);
     _renderOrphanTable(d.orphans || {});
     _renderAttentionItems(statusData.summary || {}, d.orphans || {}, d);
-    _renderStructuralAudit(d);
+    _renderStructuralAudit(d, statusData.summary || {});
     _renderAuditTable(entries);
     _renderRepairBayPipeline(repairData);
+
+    // Audit button handlers
+    var auditAllBtn = document.getElementById("chAuditAllBtn");
+    if (auditAllBtn && !auditAllBtn._bound) {
+      auditAllBtn._bound = true;
+      auditAllBtn.addEventListener("click", function() {
+        // Audit modules one-by-one to avoid API timeout
+        var moduleKeys = _chModuleData ? Object.keys(_chModuleData) : [];
+        if (moduleKeys.length === 0) return;
+        auditAllBtn.disabled = true;
+        auditAllBtn.style.opacity = "0.6";
+        var done = 0, cleanCount = 0, issueCount = 0, repairCount = 0, total = moduleKeys.length;
+        auditAllBtn.textContent = "Auditing 0/" + total + "...";
+
+        function auditNext(idx) {
+          if (idx >= moduleKeys.length) {
+            var summary = cleanCount + " clean, " + issueCount + " issues";
+            if (repairCount > 0) summary += ", " + repairCount + " sent to repair";
+            auditAllBtn.textContent = summary + " — reloading...";
+            setTimeout(function() {
+              auditAllBtn.disabled = false;
+              auditAllBtn.textContent = "Audit All Modules";
+              auditAllBtn.style.opacity = "1";
+              _cache = {};
+              loadCodeHealth();
+            }, 1500);
+            return;
+          }
+          var key = moduleKeys[idx];
+          api("/api/code-health/audit", {body: {module: key}}).then(function(d) {
+            done++;
+            if (d.success && d.results && d.results[0]) {
+              var r = d.results[0];
+              if (r.status === "completed") cleanCount++; else issueCount++;
+              if (r.proposals_created) repairCount += r.proposals_created;
+            }
+            auditAllBtn.textContent = "Auditing " + done + "/" + total + "...";
+            auditNext(idx + 1);
+          }).catch(function() {
+            done++;
+            issueCount++;
+            auditAllBtn.textContent = "Auditing " + done + "/" + total + "...";
+            auditNext(idx + 1);
+          });
+        }
+        auditNext(0);
+      });
+    }
+
+    var refreshBtn = document.getElementById("chRefreshScanBtn");
+    if (refreshBtn && !refreshBtn._bound) {
+      refreshBtn._bound = true;
+      refreshBtn.addEventListener("click", function() {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = "Scanning...";
+        refreshBtn.style.opacity = "0.6";
+        api("/api/code-health/scan", {method: "POST"}).then(function(d) {
+          refreshBtn.disabled = false;
+          refreshBtn.textContent = "Refresh Scan";
+          refreshBtn.style.opacity = "1";
+          if (d.success) {
+            _cache = {};
+            loadCodeHealth();
+          }
+        }).catch(function() {
+          refreshBtn.disabled = false;
+          refreshBtn.textContent = "Refresh Scan";
+          refreshBtn.style.opacity = "1";
+        });
+      });
+    }
   }).catch(function(err) {
     console.error("Code health load error:", err);
   });
@@ -3115,13 +3211,15 @@ function _renderCodeHealthSummaryBar(summary, counts) {
   if (!el) return;
 
   var g = summary.green || 0;
+  var p = summary.purple || 0;
+  var o = summary.orange || 0;
   var y = summary.yellow || 0;
   var r = summary.red || 0;
   window._chUnauditedCount = r;
-  var total = g + y + r;
+  var total = g + p + o + y + r;
 
   // Build summary bar using safe DOM methods
-  el.style.cssText = "display:flex;gap:1rem;align-items:center;padding:0.6rem 1rem;margin-bottom:1rem;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;";
+  el.style.cssText = "display:flex;gap:1rem;align-items:center;justify-content:center;padding:0.6rem 1rem;margin-bottom:1rem;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;text-align:center;";
   while (el.firstChild) el.removeChild(el.firstChild);
 
   var label = document.createElement("span");
@@ -3131,7 +3229,9 @@ function _renderCodeHealthSummaryBar(summary, counts) {
 
   var items = [
     {color: "#22c55e", count: g, text: "clean"},
-    {color: "#f59e0b", count: y, text: "stale"},
+    {color: "#a78bfa", count: p, text: "in repair"},
+    {color: "#f59e0b", count: o, text: "issues"},
+    {color: "#eab308", count: y, text: "stale"},
     {color: "#ef4444", count: r, text: "unaudited"}
   ];
   items.forEach(function(item) {
@@ -3155,7 +3255,7 @@ function _renderCodeHealthSummaryBar(summary, counts) {
   var trackingText = parts.length ? parts.join(" \u00b7 ") : (total + " modules");
 
   var totalSpan = document.createElement("span");
-  totalSpan.style.cssText = "font-size:0.7rem;color:rgba(255,255,255,0.3);margin-left:auto;";
+  totalSpan.style.cssText = "font-size:0.7rem;color:rgba(255,255,255,0.3);width:100%;text-align:center;margin-top:2px;";
   totalSpan.textContent = trackingText;
   el.appendChild(totalSpan);
 }
@@ -3203,7 +3303,11 @@ function _renderCodeHealthStats(d) {
     {id: "chShellLines", key: "shell"},
     {id: "chJsonLines", key: "json"},
     {id: "chYamlLines", key: "yaml"},
-    {id: "chMarkdownLines", key: "markdown"}
+    {id: "chMarkdownLines", key: "markdown"},
+    {id: "chGoLines", key: "go"},
+    {id: "chSvgLines", key: "svg"},
+    {id: "chConfigLines", key: "config"},
+    {id: "chTextLines", key: "text"}
   ];
   langs.forEach(function(l) {
     var data = d[l.key] || {files: 0, lines: 0};
@@ -3229,26 +3333,51 @@ function _renderAttentionItems(summary, orphans, d) {
 
   var items = [];
   var r = summary.red || 0;
+  var o = summary.orange || 0;
   var y = summary.yellow || 0;
-  if (r > 0) items.push({label: "Unaudited modules", count: r, color: "#ef4444", action: "Scan", actionColor: "#ef4444"});
-  if (y > 0) items.push({label: "Stale audits (needs re-scan)", count: y, color: "#f59e0b", action: "Re-scan", actionColor: "#f59e0b"});
 
-  var orphanTotal = (orphans.templates || 0) + (orphans.js || 0) + (orphans.css || 0);
-  if (orphanTotal > 0) items.push({label: "Orphan files (unmapped)", count: orphanTotal, color: "#f97316", action: "Review", actionColor: "#f97316"});
+  // Hardcoded safe icon names — no user input in data-lucide attributes
+  if (r > 0) items.push({label: "Unaudited modules", count: r, color: "#ef4444", icon: "alert-triangle", severity: "critical", action: "Audit Now", actionFn: function() {
+    var btn = document.getElementById("chAuditAllBtn");
+    if (btn) btn.click();
+  }, repairType: null});
+  if (o > 0) items.push({label: "Modules with issues", count: o, color: "#f59e0b", icon: "alert-circle", severity: "warning", action: "View Repairs", actionFn: function() {
+    window.location.href = "/tools/repair-bay";
+  }, repairType: "modules_with_issues"});
+  if (y > 0) items.push({label: "Stale audits (needs re-scan)", count: y, color: "#eab308", icon: "clock", severity: "info", action: "Re-audit", actionFn: function() {
+    var btn = document.getElementById("chAuditAllBtn");
+    if (btn) btn.click();
+  }, repairType: null});
 
-  // KBS / standalone issues from structural audit
-  var hs = d.health_score || {};
-  var deductions = hs.deductions || [];
-  deductions.forEach(function(ded) {
-    items.push({label: ded.reason || ded, count: "-" + (ded.points || "?"), color: "#ef4444", action: null, actionColor: null});
-  });
+  // Modules changed since last audit
+  var changed = d.modules_changed || [];
+  if (changed.length > 0) items.push({label: "Modules changed since last audit", count: changed.length, color: "#3b82f6", icon: "git-commit", severity: "info", action: "Audit Changed", actionFn: function() {
+    var btn = document.getElementById("chAuditAllBtn");
+    if (btn) btn.click();
+  }, repairType: null});
+
+  // Orphan files
+  var orphanTotal = 0;
+  if (orphans) {
+    Object.keys(orphans).forEach(function(k) {
+      var v = orphans[k];
+      orphanTotal += Array.isArray(v) ? v.length : (typeof v === "number" ? v : 0);
+    });
+  }
+  if (orphanTotal > 0) items.push({label: "Orphan files (unmapped)", count: orphanTotal, color: "#f97316", icon: "file-question", severity: "warning", action: null, actionFn: null, repairType: "orphan_files"});
+
+  // Deductions removed — they appear in the Structural Audit Score Deductions card
 
   if (items.length === 0) {
     var allGood = document.createElement("div");
-    allGood.style.cssText = "padding:1rem;text-align:center;color:#10b981;font-size:0.85rem;font-weight:600;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.15);border-radius:8px;";
-    allGood.textContent = "All clear — no issues detected";
+    allGood.className = "ch-attn-all-clear";
+    var checkIcon = document.createElement("i");
+    checkIcon.setAttribute("data-lucide", "check-circle-2");
+    checkIcon.style.cssText = "width:20px;height:20px;color:#10b981;";
+    allGood.appendChild(checkIcon);
+    allGood.appendChild(document.createTextNode(" All clear \u2014 no issues detected"));
     el.appendChild(allGood);
-    // Hide orphan section if empty
+    if (typeof lucide !== "undefined") lucide.createIcons();
     var orphSec = document.getElementById("chOrphanSection");
     if (orphSec && orphanTotal === 0) orphSec.style.display = "none";
     return;
@@ -3256,36 +3385,84 @@ function _renderAttentionItems(summary, orphans, d) {
 
   items.forEach(function(item) {
     var card = document.createElement("div");
-    card.className = "ch-attention-card";
-    card.style.borderLeftColor = item.color;
-    card.style.borderLeftWidth = "3px";
+    card.className = "ch-attention-card ch-attn-" + item.severity;
 
+    // Severity icon with glow
+    var iconWrap = document.createElement("div");
+    iconWrap.className = "ch-attn-icon";
+    iconWrap.style.color = item.color;
+    var iconEl = document.createElement("i");
+    iconEl.setAttribute("data-lucide", item.icon);
+    iconWrap.appendChild(iconEl);
+    card.appendChild(iconWrap);
+
+    // Label
+    var info = document.createElement("div");
+    info.className = "ch-attn-info";
     var label = document.createElement("span");
     label.className = "ch-attn-label";
     label.textContent = item.label;
-    card.appendChild(label);
+    info.appendChild(label);
+    card.appendChild(info);
 
+    // Count badge
     var count = document.createElement("span");
     count.className = "ch-attn-count";
     count.style.color = item.color;
+    count.style.borderColor = item.color + "40";
+    count.style.background = item.color + "15";
     count.textContent = item.count;
     card.appendChild(count);
 
-    if (item.action) {
+    // Action button
+    if (item.action && item.actionFn) {
       var btn = document.createElement("button");
       btn.className = "ch-attn-action";
-      btn.style.color = item.actionColor;
-      btn.style.borderColor = item.actionColor;
-      btn.style.background = "rgba(255,255,255,0.03)";
+      btn.style.color = item.color;
+      btn.style.borderColor = item.color + "50";
       btn.textContent = item.action;
-      btn.onclick = function() { window.location.href = "/tools/repair-bay"; };
+      btn.onclick = item.actionFn;
       card.appendChild(btn);
+    }
+
+    // Submit to Repair Bay button
+    if (item.repairType) {
+      var repairBtn = document.createElement("button");
+      repairBtn.className = "ch-attn-action ch-attn-repair";
+      repairBtn.textContent = "Repair Bay";
+      repairBtn.onclick = (function(type, lbl, btnEl) {
+        return function() {
+          btnEl.disabled = true;
+          btnEl.textContent = "Submitting...";
+          api("/api/code-health/submit-attention", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({type: type, label: lbl})
+          }).then(function(r) {
+            if (r.success) {
+              btnEl.textContent = r.proposals_created + " submitted";
+              btnEl.style.color = "#10b981";
+              btnEl.style.borderColor = "rgba(16,185,129,0.5)";
+            } else {
+              btnEl.textContent = "Failed";
+              btnEl.style.color = "#ef4444";
+              btnEl.disabled = false;
+            }
+          }).catch(function() {
+            btnEl.textContent = "Error";
+            btnEl.style.color = "#ef4444";
+            btnEl.disabled = false;
+          });
+        };
+      })(item.repairType, item.label, repairBtn);
+      card.appendChild(repairBtn);
     }
 
     el.appendChild(card);
   });
 
-  // Hide orphan section if no orphans (already shown in attention items)
+  if (typeof lucide !== "undefined") lucide.createIcons();
+
   var orphSec = document.getElementById("chOrphanSection");
   if (orphSec && orphanTotal === 0) orphSec.style.display = "none";
 }
@@ -3306,16 +3483,43 @@ function _renderRepairBayPipeline(data) {
   var qStatus = data.queue && data.queue.by_status ? data.queue.by_status : {};
   var qSeverity = data.queue && data.queue.by_severity ? data.queue.by_severity : {};
   var pStatus = data.proposals && data.proposals.by_status ? data.proposals.by_status : {};
+  var pTotal = data.proposals ? data.proposals.total || 0 : 0;
+  var qTotal = data.queue ? data.queue.total || 0 : 0;
+
+  // Quick summary bar
+  var summaryBar = document.createElement("div");
+  summaryBar.style.cssText = "display:flex;justify-content:center;gap:20px;padding:10px;margin-bottom:12px;background:rgba(255,255,255,0.02);border-radius:6px;flex-wrap:wrap;";
+
+  var summaryItems = [
+    {label: "Repair Queue", value: qTotal, color: qTotal > 0 ? "#f59e0b" : "#22c55e"},
+    {label: "Proposals", value: pTotal, color: pTotal > 0 ? "#3b82f6" : "#22c55e"},
+    {label: "Deployed", value: pStatus.deployed || 0, color: "#10b981"},
+    {label: "Pending Review", value: (pStatus.pending || 0) + (pStatus.pending_approval || 0), color: (pStatus.pending || 0) > 0 ? "#f59e0b" : "#22c55e"}
+  ];
+  summaryItems.forEach(function(item) {
+    var wrap = document.createElement("div");
+    wrap.style.cssText = "text-align:center;";
+    var val = document.createElement("div");
+    val.style.cssText = "font-size:1.2rem;font-weight:700;color:" + item.color + ";";
+    val.textContent = item.value;
+    var lbl = document.createElement("div");
+    lbl.style.cssText = "font-size:0.6rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.5px;";
+    lbl.textContent = item.label;
+    wrap.appendChild(val);
+    wrap.appendChild(lbl);
+    summaryBar.appendChild(wrap);
+  });
+  el.appendChild(summaryBar);
 
   // Pipeline flow cards
   var flow = document.createElement("div");
   flow.className = "ch-pipeline-flow";
 
   var stages = [
-    {label: "PENDING", count: qStatus.pending || 0, color: "#f59e0b", detail: _severityDetail(qSeverity)},
-    {label: "TRIAGED", count: qStatus.triaged || 0, color: "#3b82f6", detail: ""},
-    {label: "IN PROGRESS", count: qStatus.in_progress || 0, color: "#8b5cf6", detail: ""},
-    {label: "DEPLOYED", count: qStatus.deployed || 0, color: "#10b981", detail: ""}
+    {label: "PENDING", count: (qStatus.pending || 0) + (pStatus.pending || 0), color: "#f59e0b", detail: _severityDetail(qSeverity)},
+    {label: "IN REVIEW", count: (pStatus.pending_approval || 0) + (pStatus.ready_for_review || 0), color: "#3b82f6", detail: ""},
+    {label: "APPROVED", count: pStatus.approved || 0, color: "#8b5cf6", detail: ""},
+    {label: "DEPLOYED", count: pStatus.deployed || 0, color: "#10b981", detail: ""}
   ];
 
   stages.forEach(function(s) {
@@ -3344,25 +3548,20 @@ function _renderRepairBayPipeline(data) {
   });
   el.appendChild(flow);
 
-  // Proposals summary
-  var pTotal = data.proposals ? data.proposals.total || 0 : 0;
-  if (pTotal > 0 || Object.keys(pStatus).length > 0) {
-    var propRow = document.createElement("div");
-    propRow.style.cssText = "display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1rem;padding:10px 14px;background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.12);border-radius:8px;";
-
-    var propLabel = document.createElement("span");
-    propLabel.style.cssText = "font-size:0.75rem;color:rgba(255,255,255,0.4);font-weight:600;text-transform:uppercase;letter-spacing:0.1em;";
-    propLabel.textContent = "Proposals";
-    propRow.appendChild(propLabel);
-
+  // Status breakdown (compact chips)
+  if (Object.keys(pStatus).length > 0) {
+    var chipRow = document.createElement("div");
+    chipRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem;justify-content:center;";
+    var statusColors = {pending:"#f59e0b",pending_approval:"#f59e0b",ready_for_review:"#3b82f6",approved:"#8b5cf6",deployed:"#10b981",archived:"#64748b",fix_requested:"#ef4444",failed:"#ef4444"};
     Object.keys(pStatus).forEach(function(k) {
+      if (pStatus[k] === 0) return;
       var chip = document.createElement("span");
-      chip.style.cssText = "font-size:0.8rem;color:rgba(255,255,255,0.6);";
-      chip.textContent = pStatus[k] + " " + k;
-      propRow.appendChild(chip);
+      var c = statusColors[k] || "#999";
+      chip.style.cssText = "font-size:0.6rem;padding:2px 8px;border-radius:3px;background:" + c + "15;color:" + c + ";border:1px solid " + c + "33;";
+      chip.textContent = pStatus[k] + " " + k.replace(/_/g, " ");
+      chipRow.appendChild(chip);
     });
-
-    el.appendChild(propRow);
+    el.appendChild(chipRow);
   }
 
   // Governance actions table
@@ -3538,6 +3737,10 @@ function _renderModuleChart(modules, displayNames) {
   var jsonData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.json ? bt.json.lines : 0; });
   var yamlData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.yaml ? bt.yaml.lines : 0; });
   var mdData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.markdown ? bt.markdown.lines : 0; });
+  var goData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.go ? bt.go.lines : 0; });
+  var svgData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.svg ? bt.svg.lines : 0; });
+  var configData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.config ? bt.config.lines : 0; });
+  var textData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.text ? bt.text.lines : 0; });
   var otherData = names.map(function(n) { var bt = modules[n].by_type || {}; return bt.other ? bt.other.lines : 0; });
 
   var rowH = window.innerWidth < 480 ? 24 : 28;
@@ -3563,6 +3766,10 @@ function _renderModuleChart(modules, displayNames) {
         { label: "Shell", data: shellData, backgroundColor: "rgba(239, 68, 68, 0.7)", borderWidth: 0 },
         { label: "YAML", data: yamlData, backgroundColor: "rgba(6, 182, 212, 0.7)", borderWidth: 0 },
         { label: "Markdown", data: mdData, backgroundColor: "rgba(167, 139, 250, 0.7)", borderWidth: 0 },
+        { label: "Go", data: goData, backgroundColor: "rgba(56, 189, 248, 0.7)", borderWidth: 0 },
+        { label: "SVG", data: svgData, backgroundColor: "rgba(251, 146, 60, 0.7)", borderWidth: 0 },
+        { label: "Config", data: configData, backgroundColor: "rgba(148, 163, 184, 0.7)", borderWidth: 0 },
+        { label: "Text", data: textData, backgroundColor: "rgba(100, 116, 139, 0.7)", borderWidth: 0 },
         { label: "Other", data: otherData, backgroundColor: "rgba(168, 162, 255, 0.7)", borderWidth: 0 }
       ]
     },
@@ -3589,12 +3796,56 @@ function _renderModuleChart(modules, displayNames) {
   });
 }
 
+function _auditBtnCell(moduleKey) {
+  var pCount = (window._chProposalCounts || {})[moduleKey] || 0;
+  var auditDate = (window._chAuditDates || {})[moduleKey];
+  var status = (window._chStatusMap || {})[moduleKey] || "red";
+
+  // Freshness stamp for clean/passed modules
+  var freshStamp = "";
+  if (auditDate && (status === "green" || status === "purple")) {
+    var ageMs = Date.now() - new Date(auditDate).getTime();
+    var ageHours = ageMs / 3600000;
+    if (ageHours < 24) {
+      freshStamp = '<span style="font-size:0.5rem;color:#22c55e;margin-right:3px;" title="Audited within 24h">\u2713 today</span>';
+    } else if (ageHours < 168) {
+      freshStamp = '<span style="font-size:0.5rem;color:#3b82f6;margin-right:3px;" title="Audited within 7 days">\u2713 this week</span>';
+    } else {
+      freshStamp = '<span style="font-size:0.5rem;color:rgba(255,255,255,0.3);margin-right:3px;" title="Audit older than 7 days">\u231B old</span>';
+    }
+  }
+
+  if (pCount > 0) {
+    return '<td class="center">' + freshStamp + '<span style="font-size:0.55rem;color:#a78bfa;margin-right:4px;" title="' + pCount + ' proposals in Repair Bay pipeline">' + pCount + ' in repair</span>' +
+      '<button class="ch-audit-row-btn" data-module="' + escHtml(moduleKey) + '" style="background:rgba(245,158,11,0.1);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;">Re-audit</button></td>';
+  }
+  return '<td class="center">' + freshStamp + '<button class="ch-audit-row-btn" data-module="' + escHtml(moduleKey) + '" style="background:rgba(0,229,255,0.1);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;">Audit</button></td>';
+}
+
+function _detectProfile(mod) {
+  var bt = mod.by_type || {};
+  var total = 0;
+  Object.values(bt).forEach(function(v) { total += (v.lines || 0); });
+  if (total === 0) return "python";
+  var web = ((bt.js||{}).lines||0) + ((bt.html||{}).lines||0) + ((bt.css||{}).lines||0) + ((bt.svg||{}).lines||0);
+  var cfg = ((bt.yaml||{}).lines||0) + ((bt.config||{}).lines||0);
+  if (cfg / total >= 0.6) return "config";
+  if (web / total >= 0.6) return "web";
+  return "python";
+}
+
 function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisplayNames) {
   var el = document.getElementById("chModuleTable");
   if (!el) return;
   auditedModules = auditedModules || {};
   moduleStatusMap = moduleStatusMap || {};
   moduleDisplayNames = moduleDisplayNames || {};
+
+  // Build issues map from latest audit per module
+  var issuesMap = {};
+  (window._chAuditEntries || []).forEach(function(e) {
+    if (!issuesMap[e.module_name]) issuesMap[e.module_name] = e.issues_found || 0;
+  });
 
   // Sort: tool modules by lines desc, then infra modules at the bottom (matching chart order)
   var infraKeys = {"[SHARED]":1, "[APP_CORE]":1, "[AI_BRIDGE]":1, "[MIGRATIONS]":1};
@@ -3606,10 +3857,20 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
   });
   var sorted = toolKeys.concat(infraSorted);
 
+  // Search filter
+  var searchHtml = '<div style="display:flex;justify-content:center;margin-bottom:8px;">'
+    + '<input id="chModuleSearch" type="text" placeholder="Search modules..." '
+    + 'style="background:rgba(255,255,255,0.05);border:1px solid rgba(0,229,255,0.2);color:#fff;padding:6px 12px;border-radius:4px;font-size:0.75rem;width:250px;outline:none;" />'
+    + '</div>';
+
+  var langColors = {python:"#8b5cf6",js:"#00ccff",html:"#f59e0b",css:"#22c55e",sql:"#fde047",json:"#2dd4bf",shell:"#ef4444",yaml:"#06b6d4",markdown:"#a78bfa",go:"#38bdf8",svg:"#fb923c",config:"#94a3b8",text:"#64748b"};
+
   var html = '<table class="ch-table"><thead><tr>' +
-    '<th>Module</th><th class="center">Status</th><th class="center">Files</th><th class="center">Lines</th>' +
-    '<th class="center">Python</th><th class="center">JS</th><th class="center">HTML</th><th class="center">CSS</th><th class="center">SQL</th><th class="center">Shell</th><th class="center">JSON</th>' +
+    '<th>Module</th><th class="center">Profile</th><th class="center">Status</th><th class="center">Issues</th><th class="center">Files</th><th class="center">Lines</th>' +
+    '<th>Top Languages</th><th class="center"></th>' +
     '</tr></thead><tbody>';
+
+  var profileColors = {python: "#8b5cf6", web: "#f59e0b", config: "#94a3b8"};
 
   sorted.forEach(function(name) {
     var m = modules[name];
@@ -3618,11 +3879,21 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
     var isCompleted = status === "completed";
     var isAudited = !!status;
 
+    // Profile badge
+    var profile = _detectProfile(m);
+    var profileBadge = '<span style="font-size:0.55rem;padding:1px 5px;border-radius:3px;background:' +
+      profileColors[profile] + '22;color:' + profileColors[profile] + ';border:1px solid ' +
+      profileColors[profile] + '44;text-transform:uppercase;">' + profile + '</span>';
+
     // Status badge from module-status endpoint
     var healthStatus = moduleStatusMap[name] || "red";
     var badgeClass, badgeLabel;
     if (healthStatus === "green") {
       badgeClass = "ch-badge-green"; badgeLabel = "CLEAN";
+    } else if (healthStatus === "purple") {
+      badgeClass = "ch-badge-purple"; badgeLabel = "IN REPAIR";
+    } else if (healthStatus === "orange") {
+      badgeClass = "ch-badge-amber"; badgeLabel = "ISSUES";
     } else if (healthStatus === "yellow") {
       badgeClass = "ch-badge-amber"; badgeLabel = "STALE";
     } else {
@@ -3631,25 +3902,81 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
     var badgeHtml = '<span class="ch-badge ' + badgeClass + '">' +
       '<span class="ch-badge-dot"></span>' + badgeLabel + '</span>';
 
-    var nameClass = "ch-module-name" + (isCompleted ? " ch-name-clean" : isAudited ? " ch-name-amber" : "");
+    // Issues count
+    var issueCount = issuesMap[name] || 0;
+    var issueColor = issueCount === 0 ? "#22c55e" : issueCount <= 5 ? "#f59e0b" : "#ef4444";
+
+    // Top 3 languages by lines
+    var langEntries = [];
+    Object.keys(bt).forEach(function(lang) {
+      if (bt[lang].lines > 0) langEntries.push({lang: lang, lines: bt[lang].lines});
+    });
+    langEntries.sort(function(a, b) { return b.lines - a.lines; });
+    var topLangs = langEntries.slice(0, 3).map(function(l) {
+      return '<span style="font-size:0.6rem;padding:1px 4px;border-radius:3px;background:' + (langColors[l.lang] || '#666') + '22;color:' + (langColors[l.lang] || '#999') + ';margin-right:2px;">' + escHtml(l.lang) + ' ' + l.lines.toLocaleString() + '</span>';
+    }).join('');
+
+    // Module name color: green=clean, purple=in repair, orange=issues, yellow=stale, red=unaudited
+    var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "purple" ? "#a78bfa" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";
+    var nameStyle = "color:" + nameColor + ";font-weight:600;";
 
     html += '<tr>' +
-      '<td><span class="' + nameClass + '">' + escHtml(moduleDisplayNames[name] || name) + '</span>' + (isCompleted ? ' <span style="font-size:0.6rem;opacity:0.5;">&#x2713;</span>' : '') + '</td>' +
+      '<td><span style="' + nameStyle + '">' + escHtml(moduleDisplayNames[name] || name) + '</span>' + (healthStatus === "green" ? ' <span style="font-size:0.6rem;opacity:0.5;">&#x2713;</span>' : '') + '</td>' +
+      '<td class="center">' + profileBadge + '</td>' +
       '<td class="center">' + badgeHtml + '</td>' +
+      '<td class="center" style="color:' + issueColor + ';font-weight:600;">' + issueCount + '</td>' +
       '<td class="center">' + (m.files || 0) + '</td>' +
       '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>' +
-      '<td class="center">' + (bt.python ? bt.python.lines : 0).toLocaleString() + '</td>' +
-      '<td class="center">' + (bt.js ? bt.js.lines : 0).toLocaleString() + '</td>' +
-      '<td class="center">' + (bt.html ? bt.html.lines : 0).toLocaleString() + '</td>' +
-      '<td class="center">' + (bt.css ? bt.css.lines : 0).toLocaleString() + '</td>' +
-      '<td class="center">' + (bt.sql ? bt.sql.lines : 0).toLocaleString() + '</td>' +
-      '<td class="center">' + (bt.shell ? bt.shell.lines : 0).toLocaleString() + '</td>' +
-      '<td class="center">' + (bt.json ? bt.json.lines : 0).toLocaleString() + '</td>' +
+      '<td>' + (topLangs || '<span style="color:rgba(255,255,255,0.2);">\u2014</span>') + '</td>' +
+      _auditBtnCell(name) +
       '</tr>';
   });
 
   html += '</tbody></table>';
-  setHtml(el, html);
+  setHtml(el, searchHtml + html);
+
+  // Search handler
+  var searchInput = document.getElementById("chModuleSearch");
+  if (searchInput) {
+    searchInput.addEventListener("input", function() {
+      var q = searchInput.value.toLowerCase();
+      el.querySelectorAll("tbody tr").forEach(function(row) {
+        var name = (row.cells[0] || {}).textContent || "";
+        row.style.display = name.toLowerCase().indexOf(q) !== -1 ? "" : "none";
+      });
+    });
+  }
+
+  // Audit buttons in each row
+  el.querySelectorAll(".ch-audit-row-btn").forEach(function(btn) {
+    btn.addEventListener("click", function(evt) {
+      evt.stopPropagation();
+      var mod = btn.getAttribute("data-module");
+      var row = btn.closest("tr");
+      btn.disabled = true;
+      btn.textContent = "...";
+      api("/api/code-health/audit", {body: {module: mod}}).then(function(d) {
+        if (d.success && d.results && d.results[0]) {
+          var r = d.results[0];
+          if (r.status === "completed") {
+            btn.textContent = "\u2713 clean";
+            btn.style.background = "rgba(34,197,94,0.2)";
+            btn.style.color = "#22c55e";
+            btn.style.borderColor = "#22c55e";
+          } else {
+            var msg = r.issues + " issues";
+            if (r.proposals_created > 0) msg += ", " + r.proposals_created + " sent to repair";
+            else if (r.proposals_skipped > 0) msg += ", all in repair";
+            btn.textContent = msg;
+            btn.style.background = "rgba(167,139,250,0.2)";
+            btn.style.color = "#a78bfa";
+            btn.style.borderColor = "#a78bfa";
+          }
+          setTimeout(function() { _cache = {}; loadCodeHealth(); }, 2000);
+        }
+      }).catch(function() { btn.disabled = false; btn.textContent = "Audit"; });
+    });
+  });
 }
 
 function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
@@ -3662,103 +3989,178 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
         setHtml(el, '<div class="ch-empty">No standalone products registered.</div>');
         return;
     }
+    // Build issues map from latest audit per module
+    var issuesMap = {};
+    (window._chAuditEntries || []).forEach(function(e) {
+        if (!issuesMap[e.module_name]) issuesMap[e.module_name] = e.issues_found || 0;
+    });
+    var langColors = {python:"#8b5cf6",js:"#00ccff",html:"#f59e0b",css:"#22c55e",sql:"#fde047",json:"#2dd4bf",shell:"#ef4444",yaml:"#06b6d4",markdown:"#a78bfa",go:"#38bdf8",svg:"#fb923c",config:"#94a3b8",text:"#64748b"};
+    var profileColors = {python: "#8b5cf6", web: "#f59e0b", config: "#94a3b8"};
     var rows = keys.map(function(key) {
         var m = modules[key];
         var displayName = key.replace('standalone_', '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
-        var py = (m.by_type && m.by_type.python) || {files: 0, lines: 0};
-        var js = (m.by_type && m.by_type.js) || {files: 0, lines: 0};
-        var ht = (m.by_type && m.by_type.html) || {files: 0, lines: 0};
-        var cs = (m.by_type && m.by_type.css) || {files: 0, lines: 0};
+        var bt = m.by_type || {};
+        // Profile badge
+        var profile = _detectProfile(m);
+        var profileBadge = '<span style="font-size:0.55rem;padding:1px 5px;border-radius:3px;background:' + profileColors[profile] + '22;color:' + profileColors[profile] + ';border:1px solid ' + profileColors[profile] + '44;text-transform:uppercase;">' + profile + '</span>';
         // Audit status badge
         var healthStatus = moduleStatusMap[key] || "red";
         var badgeClass, badgeLabel;
         if (healthStatus === "green") {
             badgeClass = "ch-badge-green"; badgeLabel = "CLEAN";
+        } else if (healthStatus === "purple") {
+            badgeClass = "ch-badge-purple"; badgeLabel = "IN REPAIR";
+        } else if (healthStatus === "orange") {
+            badgeClass = "ch-badge-amber"; badgeLabel = "ISSUES";
         } else if (healthStatus === "yellow") {
             badgeClass = "ch-badge-amber"; badgeLabel = "STALE";
         } else {
             badgeClass = "ch-badge-red"; badgeLabel = "UNAUDITED";
         }
         var badgeHtml = '<span class="ch-badge ' + badgeClass + '"><span class="ch-badge-dot"></span>' + badgeLabel + '</span>';
-        // Dynamic tier progress badge
-        var tierHtml;
-        var tp = tierMap[key];
-        if (tp && tp.total) {
-            var pct = Math.round(tp.completed / tp.total * 100);
-            var barColor = pct >= 75 ? '#22c55e' : pct >= 25 ? '#f59e0b' : '#ef4444';
-            tierHtml = '<div style="text-align:center;">'
-                + '<span style="font-size:10px;font-weight:600;color:' + barColor + ';">TIER ' + (tp.current_tier || 1) + ': ' + tp.completed + '/' + tp.total + '</span>'
-                + '<div style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;margin-top:3px;width:60px;display:inline-block;">'
-                + '<div style="height:100%;width:' + pct + '%;background:' + barColor + ';border-radius:2px;"></div>'
-                + '</div></div>';
-        } else {
-            tierHtml = '<span class="ch-tier-badge">TIER 1</span>';
-        }
+        var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "purple" ? "#a78bfa" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";
+        // Issues count
+        var issueCount = issuesMap[key] || 0;
+        var issueColor = issueCount === 0 ? "#22c55e" : issueCount <= 5 ? "#f59e0b" : "#ef4444";
+        // Top 3 languages by lines
+        var langEntries = [];
+        Object.keys(bt).forEach(function(lang) {
+            if (bt[lang].lines > 0) langEntries.push({lang: lang, lines: bt[lang].lines});
+        });
+        langEntries.sort(function(a, b) { return b.lines - a.lines; });
+        var topLangs = langEntries.slice(0, 3).map(function(l) {
+            return '<span style="font-size:0.6rem;padding:1px 4px;border-radius:3px;background:' + (langColors[l.lang] || '#666') + '22;color:' + (langColors[l.lang] || '#999') + ';margin-right:2px;">' + escHtml(l.lang) + ' ' + l.lines.toLocaleString() + '</span>';
+        }).join('');
         return '<tr>'
-            + '<td><span class="ch-module-name ch-name-gold">' + escHtml(displayName) + '</span></td>'
+            + '<td><span style="color:' + nameColor + ';font-weight:600;">' + escHtml(displayName) + '</span></td>'
+            + '<td class="center">' + profileBadge + '</td>'
             + '<td class="center">' + badgeHtml + '</td>'
+            + '<td class="center" style="color:' + issueColor + ';font-weight:600;">' + issueCount + '</td>'
             + '<td class="center">' + (m.files || 0) + '</td>'
             + '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>'
-            + '<td class="center">' + py.lines.toLocaleString() + '</td>'
-            + '<td class="center">' + js.lines.toLocaleString() + '</td>'
-            + '<td class="center">' + ht.lines.toLocaleString() + '</td>'
-            + '<td class="center">' + cs.lines.toLocaleString() + '</td>'
-            + '<td class="center">' + tierHtml + '</td>'
+            + '<td>' + (topLangs || '<span style="color:rgba(255,255,255,0.2);">\u2014</span>') + '</td>'
+            + _auditBtnCell(key)
             + '</tr>';
     });
     var html = '<table class="ch-table">'
         + '<thead><tr>'
         + '<th>Standalone Product</th>'
+        + '<th class="center">Profile</th>'
         + '<th class="center">Status</th>'
+        + '<th class="center">Issues</th>'
         + '<th class="center">Files</th>'
         + '<th class="center">Lines</th>'
-        + '<th class="center">Python</th>'
-        + '<th class="center">JS</th>'
-        + '<th class="center">HTML</th>'
-        + '<th class="center">CSS</th>'
-        + '<th class="center">Tier</th>'
+        + '<th>Top Languages</th>'
+        + '<th class="center"></th>'
         + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
     setHtml(el, html);
+    // Audit buttons
+    el.querySelectorAll(".ch-audit-row-btn").forEach(function(btn) {
+      btn.addEventListener("click", function(evt) {
+        evt.stopPropagation();
+        var mod = btn.getAttribute("data-module");
+        btn.disabled = true; btn.textContent = "...";
+        api("/api/code-health/audit", {body: {module: mod}}).then(function(d) {
+          if (d.success && d.results && d.results[0]) {
+            var r = d.results[0];
+            btn.textContent = r.status === "completed" ? "\u2713" : r.issues + "";
+            btn.style.background = r.status === "completed" ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)";
+            btn.style.color = r.status === "completed" ? "#22c55e" : "#ef4444";
+            btn.style.borderColor = r.status === "completed" ? "#22c55e" : "#ef4444";
+            setTimeout(function() { _cache = {}; loadCodeHealth(); }, 2000);
+          }
+        }).catch(function() { btn.disabled = false; btn.textContent = "Audit"; });
+      });
+    });
 }
 
-function _renderWebsiteTable(modules) {
+function _renderWebsiteTable(modules, moduleStatusMap) {
     var el = document.getElementById("chWebsiteTable");
     if (!el) return;
+    moduleStatusMap = moduleStatusMap || {};
     var keys = Object.keys(modules);
     if (keys.length === 0) {
         setHtml(el, '<div class="ch-empty">No website products registered.</div>');
         return;
     }
+    // Build issues map from latest audit per module
+    var issuesMap = {};
+    (window._chAuditEntries || []).forEach(function(e) {
+        if (!issuesMap[e.module_name]) issuesMap[e.module_name] = e.issues_found || 0;
+    });
+    var langColors = {python:"#8b5cf6",js:"#00ccff",html:"#f59e0b",css:"#22c55e",sql:"#fde047",json:"#2dd4bf",shell:"#ef4444",yaml:"#06b6d4",markdown:"#a78bfa",go:"#38bdf8",svg:"#fb923c",config:"#94a3b8",text:"#64748b"};
+    var profileColors = {python: "#8b5cf6", web: "#f59e0b", config: "#94a3b8"};
     var rows = keys.map(function(key) {
         var m = modules[key];
         var displayName = key.replace('website_', '').replace(/_/g, '.').replace(/\b\w/g, function(c) { return c; });
-        // Try to use the registered display name
         var dn = (window._chDisplayNames || {})[key] || displayName;
-        var js = (m.by_type && m.by_type.js) || {files: 0, lines: 0};
-        var ht = (m.by_type && m.by_type.html) || {files: 0, lines: 0};
-        var cs = (m.by_type && m.by_type.css) || {files: 0, lines: 0};
-        var jn = (m.by_type && m.by_type.json) || {files: 0, lines: 0};
+        var bt = m.by_type || {};
+        // Profile badge
+        var profile = _detectProfile(m);
+        var profileBadge = '<span style="font-size:0.55rem;padding:1px 5px;border-radius:3px;background:' + profileColors[profile] + '22;color:' + profileColors[profile] + ';border:1px solid ' + profileColors[profile] + '44;text-transform:uppercase;">' + profile + '</span>';
+        // Status badge + name color
+        var healthStatus = moduleStatusMap[key] || "red";
+        var badgeClass, badgeLabel;
+        if (healthStatus === "green") { badgeClass = "ch-badge-green"; badgeLabel = "CLEAN"; }
+        else if (healthStatus === "purple") { badgeClass = "ch-badge-purple"; badgeLabel = "IN REPAIR"; }
+        else if (healthStatus === "orange") { badgeClass = "ch-badge-amber"; badgeLabel = "ISSUES"; }
+        else if (healthStatus === "yellow") { badgeClass = "ch-badge-amber"; badgeLabel = "STALE"; }
+        else { badgeClass = "ch-badge-red"; badgeLabel = "UNAUDITED"; }
+        var badgeHtml = '<span class="ch-badge ' + badgeClass + '"><span class="ch-badge-dot"></span>' + badgeLabel + '</span>';
+        var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "purple" ? "#a78bfa" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";
+        // Issues count
+        var issueCount = issuesMap[key] || 0;
+        var issueColor = issueCount === 0 ? "#22c55e" : issueCount <= 5 ? "#f59e0b" : "#ef4444";
+        // Top 3 languages by lines
+        var langEntries = [];
+        Object.keys(bt).forEach(function(lang) {
+            if (bt[lang].lines > 0) langEntries.push({lang: lang, lines: bt[lang].lines});
+        });
+        langEntries.sort(function(a, b) { return b.lines - a.lines; });
+        var topLangs = langEntries.slice(0, 3).map(function(l) {
+            return '<span style="font-size:0.6rem;padding:1px 4px;border-radius:3px;background:' + (langColors[l.lang] || '#666') + '22;color:' + (langColors[l.lang] || '#999') + ';margin-right:2px;">' + escHtml(l.lang) + ' ' + l.lines.toLocaleString() + '</span>';
+        }).join('');
         return '<tr>'
-            + '<td><span class="ch-module-name" style="color:#00e5ff;">' + escHtml(dn) + '</span></td>'
+            + '<td><span style="color:' + nameColor + ';font-weight:600;">' + escHtml(dn) + '</span></td>'
+            + '<td class="center">' + profileBadge + '</td>'
+            + '<td class="center">' + badgeHtml + '</td>'
+            + '<td class="center" style="color:' + issueColor + ';font-weight:600;">' + issueCount + '</td>'
             + '<td class="center">' + (m.files || 0) + '</td>'
             + '<td class="center"><strong>' + (m.lines || 0).toLocaleString() + '</strong></td>'
-            + '<td class="center">' + ht.lines.toLocaleString() + '</td>'
-            + '<td class="center">' + js.lines.toLocaleString() + '</td>'
-            + '<td class="center">' + cs.lines.toLocaleString() + '</td>'
-            + '<td class="center">' + jn.lines.toLocaleString() + '</td>'
+            + '<td>' + (topLangs || '<span style="color:rgba(255,255,255,0.2);">\u2014</span>') + '</td>'
+            + _auditBtnCell(key)
             + '</tr>';
     });
     var html = '<table class="ch-table">'
         + '<thead><tr>'
         + '<th>Website</th>'
+        + '<th class="center">Profile</th>'
+        + '<th class="center">Status</th>'
+        + '<th class="center">Issues</th>'
         + '<th class="center">Files</th>'
         + '<th class="center">Lines</th>'
-        + '<th class="center">HTML</th>'
-        + '<th class="center">JS</th>'
-        + '<th class="center">CSS</th>'
-        + '<th class="center">JSON</th>'
+        + '<th>Top Languages</th>'
+        + '<th class="center"></th>'
         + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
     setHtml(el, html);
+    // Audit buttons
+    el.querySelectorAll(".ch-audit-row-btn").forEach(function(btn) {
+      btn.addEventListener("click", function(evt) {
+        evt.stopPropagation();
+        var mod = btn.getAttribute("data-module");
+        btn.disabled = true; btn.textContent = "...";
+        api("/api/code-health/audit", {body: {module: mod}}).then(function(d) {
+          if (d.success && d.results && d.results[0]) {
+            var r = d.results[0];
+            btn.textContent = r.status === "completed" ? "\u2713" : r.issues + "";
+            btn.style.background = r.status === "completed" ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)";
+            btn.style.color = r.status === "completed" ? "#22c55e" : "#ef4444";
+            btn.style.borderColor = r.status === "completed" ? "#22c55e" : "#ef4444";
+            setTimeout(function() { _cache = {}; loadCodeHealth(); }, 2000);
+          }
+        }).catch(function() { btn.disabled = false; btn.textContent = "Audit"; });
+      });
+    });
 }
 
 function _renderOrphanTable(orphans) {
@@ -3790,7 +4192,7 @@ function _renderOrphanTable(orphans) {
   setHtml(el, html);
 }
 
-function _renderStructuralAudit(d) {
+function _renderStructuralAudit(d, statusSummary) {
   var el = document.getElementById("chStructuralAudit");
   if (!el) return;
 
@@ -3801,35 +4203,145 @@ function _renderStructuralAudit(d) {
 
   var sections = [];
 
-  // KBS Plugins
-  var kbsColor = kbs.healthy === kbs.total ? "#10b981" : "#f59e0b";
+  // Health Score summary card — radial ring + score breakdown bar
+  var score = hs.score || 0;
+  var grade = hs.grade || "?";
+  var scoreColor = score >= 90 ? "#10b981" : score >= 70 ? "#3b82f6" : score >= 50 ? "#f59e0b" : "#ef4444";
+  var circumference = 2 * Math.PI * 42;
+  var dashOffset = circumference * (1 - score / 100);
+
+  // Build score breakdown bar segments
+  var deductions = hs.deductions || [];
+  var barSegments = '';
+  var legendItems = '';
+  var dedColors = ["#ef4444", "#f59e0b", "#f97316", "#a78bfa"];
+  var remaining = score;
+  barSegments += '<div class="ch-score-bar-fill" style="width:' + score + '%;background:' + scoreColor + ';"></div>';
+  deductions.forEach(function(ded, i) {
+    var dedText = typeof ded === 'string' ? ded : (ded.reason || '');
+    var penaltyMatch = dedText.match(/^-(\d+):/);
+    var pts = penaltyMatch ? parseInt(penaltyMatch[1]) : 0;
+    var col = dedColors[i % dedColors.length];
+    if (pts > 0) {
+      barSegments += '<div class="ch-score-bar-fill" style="width:' + pts + '%;background:' + col + ';"></div>';
+      var desc = penaltyMatch ? dedText.substring(penaltyMatch[0].length).trim() : dedText;
+      legendItems += '<div class="ch-score-legend-item"><span class="ch-score-legend-dot" style="background:' + col + ';"></span>' + escHtml(desc) + ' (-' + pts + ')</div>';
+    }
+  });
+
   sections.push(
-    '<div class="ch-audit-card">' +
-    '<div class="ch-audit-title">KBS Plugins</div>' +
-    '<div class="ch-audit-score" style="color:' + kbsColor + '">' + (kbs.healthy || 0) + '/' + (kbs.total || 0) + ' healthy</div>' +
+    '<div class="ch-audit-card ch-audit-hero" style="text-align:center;">' +
+    '<div class="ch-audit-title">Health Score</div>' +
+    '<div class="ch-score-ring">' +
+    '<svg width="100" height="100" viewBox="0 0 100 100">' +
+    '<circle class="ch-score-ring-bg" cx="50" cy="50" r="42"/>' +
+    '<circle class="ch-score-ring-fg" cx="50" cy="50" r="42" stroke="' + scoreColor + '" stroke-dasharray="' + circumference.toFixed(1) + '" stroke-dashoffset="' + dashOffset.toFixed(1) + '"/>' +
+    '</svg>' +
+    '<div class="ch-score-ring-label">' +
+    '<div class="ch-score-ring-value" style="color:' + scoreColor + ';">' + score + '</div>' +
+    '<div class="ch-score-ring-sub">/ 100</div>' +
+    '</div></div>' +
+    '<div style="font-family:Antonio,sans-serif;font-size:1rem;font-weight:600;color:' + scoreColor + ';letter-spacing:2px;">GRADE: ' + escHtml(grade) + '</div>' +
+    (deductions.length > 0 ? '<div class="ch-score-bar">' + barSegments + '</div><div class="ch-score-legend">' + legendItems + '</div>' : '') +
     '</div>'
   );
 
+  // Audit Summary — breakdown by status
+  statusSummary = statusSummary || {};
+  var totalMods = (statusSummary.green || 0) + (statusSummary.orange || 0) + (statusSummary.yellow || 0) + (statusSummary.red || 0);
+  if (totalMods > 0) {
+    var auditedTotal = totalMods - (statusSummary.red || 0);
+    var summaryItems = [
+      { val: auditedTotal, suffix: '/' + totalMods, label: 'audited', color: '#3b82f6' },
+      { val: statusSummary.green || 0, suffix: '', label: 'clean', color: '#22c55e' },
+      { val: statusSummary.purple || 0, suffix: '', label: 'in repair', color: '#a78bfa' },
+      { val: statusSummary.orange || 0, suffix: '', label: 'issues', color: '#f59e0b' },
+      { val: statusSummary.red || 0, suffix: '', label: 'unaudited', color: '#ef4444' }
+    ];
+    var summaryHtml = summaryItems.map(function(item) {
+      return '<div style="text-align:center;flex:1;min-width:50px;">' +
+        '<div style="width:8px;height:8px;border-radius:50%;background:' + item.color + ';box-shadow:0 0 6px ' + item.color + '40;margin:0 auto 6px;"></div>' +
+        '<div style="font-family:Orbitron,monospace;font-size:1.3rem;font-weight:700;color:' + item.color + ';line-height:1;">' + item.val + '<span style="font-size:0.55rem;color:rgba(255,255,255,0.35);">' + item.suffix + '</span></div>' +
+        '<div style="font-size:0.6rem;color:rgba(255,255,255,0.4);letter-spacing:0.5px;margin-top:4px;text-transform:uppercase;">' + item.label + '</div>' +
+        '</div>';
+    }).join('');
+    sections.push(
+      '<div class="ch-audit-card ch-audit-hero" style="text-align:center;">' +
+      '<div class="ch-audit-title">Audit Summary</div>' +
+      '<div style="display:flex;justify-content:center;gap:8px;margin-top:8px;">' + summaryHtml + '</div>' +
+      '</div>'
+    );
+  }
+
+  // KBS Plugins — show per-plugin checklist
+  if (kbs.total > 0) {
+    var kbsColor = kbs.healthy === kbs.total ? "#10b981" : "#f59e0b";
+    var pluginRows = '';
+    var plugins = kbs.plugins || [];
+    if (plugins.length > 0) {
+      pluginRows = '<div style="margin-top:8px;">';
+      plugins.forEach(function(p) {
+        var checks = [
+          {key: "has_manifest", label: "manifest"},
+          {key: "has_routes", label: "routes"},
+          {key: "has_init", label: "init"},
+          {key: "has_templates", label: "templates"},
+          {key: "has_static", label: "static"}
+        ];
+        var checkHtml = checks.map(function(c) {
+          var pass = p[c.key];
+          return '<span class="ch-plugin-check ' + (pass ? 'pass' : 'fail') + '">' + (pass ? '\u2713' : '\u2717') + '</span>';
+        }).join('');
+        var healthy = !p.issues || p.issues.length === 0;
+        pluginRows += '<div class="ch-plugin-row">' +
+          '<span style="color:' + (healthy ? '#10b981' : '#f59e0b') + ';font-weight:600;min-width:80px;">' + escHtml(p.name) + '</span>' +
+          checkHtml +
+          '</div>';
+      });
+      pluginRows += '</div>';
+    }
+    sections.push(
+      '<div class="ch-audit-card">' +
+      '<div class="ch-audit-title">KBS Plugins</div>' +
+      '<div class="ch-audit-score" style="color:' + kbsColor + '">' + (kbs.healthy || 0) + '/' + (kbs.total || 0) + ' healthy</div>' +
+      pluginRows +
+      '</div>'
+    );
+  }
+
   // Standalone Products
-  var saColor = sa.healthy === sa.total ? "#10b981" : sa.healthy >= sa.total - 2 ? "#3b82f6" : "#f59e0b";
-  var saIssues = (sa.issues || []).map(function(i) { return '<div class="ch-audit-issue">' + escHtml(i) + '</div>'; }).join('');
-  sections.push(
-    '<div class="ch-audit-card">' +
-    '<div class="ch-audit-title">Standalone Products</div>' +
-    '<div class="ch-audit-score" style="color:' + saColor + '">' + (sa.healthy || 0) + '/' + (sa.total || 0) + ' passing Tier 1</div>' +
-    (saIssues ? '<div class="ch-audit-issues">' + saIssues + '</div>' : '') +
-    '</div>'
-  );
+  if (sa.total > 0) {
+    var saColor = sa.healthy === sa.total ? "#10b981" : sa.healthy >= sa.total - 2 ? "#3b82f6" : "#f59e0b";
+    var saIssueHtml = '';
+    if (sa.issues && sa.issues.length > 0) {
+      saIssueHtml = '<div class="ch-audit-issues" style="margin-top:8px;">';
+      sa.issues.forEach(function(issue) {
+        var issueColor = issue.indexOf("missing") !== -1 ? "#f59e0b" : "#ef4444";
+        saIssueHtml += '<div class="ch-audit-issue" style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:0.75rem;">' +
+          '<span style="width:6px;height:6px;border-radius:50%;background:' + issueColor + ';flex-shrink:0;"></span>' +
+          '<span style="color:rgba(255,255,255,0.6);">' + escHtml(issue) + '</span></div>';
+      });
+      saIssueHtml += '</div>';
+    }
+    sections.push(
+      '<div class="ch-audit-card">' +
+      '<div class="ch-audit-title">Standalone Products</div>' +
+      '<div class="ch-audit-score" style="color:' + saColor + '">' + (sa.healthy || 0) + '/' + (sa.total || 0) + ' passing Tier 1</div>' +
+      saIssueHtml +
+      '</div>'
+    );
+  }
 
   // Retired Modules
   if (retired.length > 0) {
     var retiredRows = retired.map(function(m) {
       var badge = m.status === 'retired' ? 'ch-badge-cyan' : 'ch-badge-amber';
-      var target = m.redirect_target ? ' &rarr; ' + escHtml(String(m.redirect_target)) : '';
-      return '<div class="ch-audit-retired-row">' +
-        '<span class="ch-badge ' + badge + '"><span class="ch-badge-dot"></span>' + escHtml(m.status) + '</span> ' +
-        '<span style="margin-left:6px">' + escHtml(m.module) + '</span>' +
-        '<span style="color:rgba(255,255,255,0.35);margin-left:6px;font-size:0.75rem">' + target + '</span>' +
+      var target = m.redirect_target ? ' \u2192 ' + escHtml(String(m.redirect_target)) : '';
+      var linesInfo = m.functional_lines ? ' (' + m.functional_lines.toLocaleString() + ' lines)' : '';
+      return '<div class="ch-audit-retired-row" style="display:flex;align-items:center;gap:8px;margin:4px 0;">' +
+        '<span class="ch-badge ' + badge + '"><span class="ch-badge-dot"></span>' + escHtml(m.status).toUpperCase() + '</span>' +
+        '<span>' + escHtml(m.module) + '</span>' +
+        '<span style="color:rgba(255,255,255,0.3);font-size:0.7rem;">' + linesInfo + target + '</span>' +
         '</div>';
     }).join('');
     sections.push(
@@ -3840,19 +4352,58 @@ function _renderStructuralAudit(d) {
     );
   }
 
-  // Deductions
+  // Score Deductions — severity-colored with penalty badges
   var deductions = hs.deductions || [];
   if (deductions.length > 0) {
-    var dedRows = deductions.map(function(d) { return '<div class="ch-audit-issue">' + escHtml(d) + '</div>'; }).join('');
+    var dedHtml = '<div style="margin-top:4px;">';
+    deductions.forEach(function(ded) {
+      var dedText = typeof ded === 'string' ? ded : (ded.reason || JSON.stringify(ded));
+      var penaltyMatch = dedText.match(/^(-\d+):/);
+      var penalty = penaltyMatch ? parseInt(penaltyMatch[1]) : 0;
+      var dedColor = penalty <= -20 ? '#ef4444' : penalty <= -10 ? '#f59e0b' : '#3b82f6';
+      var badgeText = penaltyMatch ? penaltyMatch[1] : '';
+      var descText = penaltyMatch ? dedText.substring(penaltyMatch[0].length).trim() : dedText;
+      dedHtml += '<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:0.8rem;">';
+      if (badgeText) {
+        dedHtml += '<span style="font-family:Orbitron,monospace;font-size:0.65rem;font-weight:700;color:' + dedColor + ';background:' + dedColor + '15;border:1px solid ' + dedColor + '30;border-radius:4px;padding:2px 6px;min-width:32px;text-align:center;">' + badgeText + '</span>';
+      } else {
+        dedHtml += '<span style="width:6px;height:6px;border-radius:50%;background:' + dedColor + ';flex-shrink:0;"></span>';
+      }
+      dedHtml += '<span style="color:rgba(255,255,255,0.6);">' + escHtml(descText) + '</span></div>';
+    });
+    dedHtml += '</div>';
     sections.push(
       '<div class="ch-audit-card">' +
       '<div class="ch-audit-title">Score Deductions</div>' +
-      dedRows +
+      dedHtml +
       '</div>'
     );
   }
 
-  setHtml(el, sections.join(''));
+  // Last Scanned timestamp — full-width
+  var snapAge = d.snapshot_age || null;
+  if (snapAge) {
+    var scanDate = new Date(snapAge);
+    var now = new Date();
+    var diffMs = now - scanDate;
+    var diffMins = Math.floor(diffMs / 60000);
+    var agoText = '';
+    if (diffMins < 1) agoText = 'just now';
+    else if (diffMins < 60) agoText = diffMins + 'm ago';
+    else if (diffMins < 1440) agoText = Math.floor(diffMins / 60) + 'h ago';
+    else agoText = Math.floor(diffMins / 1440) + 'd ago';
+    sections.push(
+      '<div class="ch-audit-card ch-audit-full" style="text-align:center;">' +
+      '<div class="ch-last-scanned">Last scanned: <strong>' + scanDate.toLocaleString() + '</strong> (' + agoText + ')</div>' +
+      '</div>'
+    );
+  }
+
+  if (sections.length === 0) {
+    setHtml(el, '<div class="ch-empty ch-empty-success">Structural audit clean \u2014 no issues.</div>');
+  } else {
+    setHtml(el, sections.join(''));
+  }
 }
 
 window.chRunScan = function() {
@@ -4138,56 +4689,101 @@ function _renderAuditTable(entries) {
     return;
   }
 
-  // Count unique audited modules (excluding PATTERN_COMPLIANCE meta-audits)
-  var auditedSet = {};
-  var completedSet = {};
+  // Track latest audit entry per module (entries come sorted desc by date)
+  var latestPerModule = {};
   entries.forEach(function(e) {
     if (e.module_name !== "PATTERN_COMPLIANCE") {
-      auditedSet[e.module_name] = true;
-      if (e.status === "completed") completedSet[e.module_name] = true;
+      if (!latestPerModule[e.module_name]) latestPerModule[e.module_name] = e;
     }
   });
-  var auditedCount = Object.keys(auditedSet).length;
-  var completedCount = Object.keys(completedSet).length;
-  // Estimate total from module table if available
-  var totalModules = Object.keys(window._chDisplayNames || {}).length || auditedCount;
-  var pct = totalModules > 0 ? Math.round(completedCount / totalModules * 100) : 0;
-  var barColor = pct >= 75 ? '#22c55e' : pct >= 25 ? '#f59e0b' : '#ef4444';
 
-  var html = '<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;margin-bottom:8px;border-radius:6px;background:rgba(255,255,255,0.02);">'
-    + '<span style="font-size:0.75rem;color:rgba(255,255,255,0.5);">Audit Coverage</span>'
-    + '<div style="flex:1;max-width:200px;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;">'
-    + '<div style="height:100%;width:' + pct + '%;background:' + barColor + ';border-radius:3px;transition:width 0.3s;"></div></div>'
-    + '<span style="font-size:0.75rem;font-weight:600;color:' + barColor + ';">' + completedCount + '/' + totalModules + ' clean (' + pct + '%)</span>'
+  // Count from latest-per-module only, filtered to current snapshot modules
+  var currentModules = _chModuleData ? Object.keys(_chModuleData) : [];
+  var totalModules = currentModules.length || Object.keys(window._chDisplayNames || {}).length;
+  var auditedCount = 0;
+  var cleanCount = 0;
+  Object.keys(latestPerModule).forEach(function(key) {
+    // Only count modules that exist in the current snapshot
+    if (currentModules.length === 0 || currentModules.indexOf(key) !== -1) {
+      auditedCount++;
+      if (latestPerModule[key].status === "completed") cleanCount++;
+    }
+  });
+  var auditPct = totalModules > 0 ? Math.round(auditedCount / totalModules * 100) : 0;
+  var cleanPct = totalModules > 0 ? Math.round(cleanCount / totalModules * 100) : 0;
+  var auditBarColor = auditPct >= 75 ? '#3b82f6' : auditPct >= 25 ? '#f59e0b' : '#ef4444';
+  var cleanBarColor = cleanPct >= 75 ? '#22c55e' : cleanPct >= 25 ? '#f59e0b' : '#ef4444';
+
+  // Centered progress bars
+  var html = '<div style="display:flex;flex-wrap:wrap;gap:16px;padding:10px 16px;margin-bottom:12px;border-radius:6px;background:rgba(255,255,255,0.02);justify-content:center;align-items:center;">'
+    + '<div style="display:flex;align-items:center;gap:8px;">'
+    + '<span style="font-size:0.7rem;color:rgba(255,255,255,0.5);min-width:55px;">Audited</span>'
+    + '<div style="width:140px;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;">'
+    + '<div style="height:100%;width:' + auditPct + '%;background:' + auditBarColor + ';border-radius:4px;transition:width 0.5s;"></div></div>'
+    + '<span style="font-size:0.7rem;font-weight:600;color:' + auditBarColor + ';">' + auditedCount + '/' + totalModules + ' (' + auditPct + '%)</span>'
+    + '</div>'
+    + '<div style="display:flex;align-items:center;gap:8px;">'
+    + '<span style="font-size:0.7rem;color:rgba(255,255,255,0.5);min-width:55px;">Clean</span>'
+    + '<div style="width:140px;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;">'
+    + '<div style="height:100%;width:' + cleanPct + '%;background:' + cleanBarColor + ';border-radius:4px;transition:width 0.5s;"></div></div>'
+    + '<span style="font-size:0.7rem;font-weight:600;color:' + cleanBarColor + ';">' + cleanCount + '/' + totalModules + ' (' + cleanPct + '%)</span>'
+    + '</div>'
     + '</div>';
 
   html += '<table class="ch-table"><thead><tr>' +
-    '<th>Module</th><th>Category</th><th class="center">Files</th>' +
-    '<th class="center">Before</th><th class="center">After</th><th class="center">\u0394</th>' +
-    '<th class="center">Issues</th><th class="center">Fixed</th><th>Status</th><th>Date</th>' +
+    '<th>Module</th><th class="center">Profile</th><th class="center">Trigger</th>' +
+    '<th class="center">Files</th><th class="center">Lines</th>' +
+    '<th class="center">Issues</th><th class="center">Status</th><th class="center">Proposals</th><th class="center"></th><th class="center">Date</th>' +
     '</tr></thead><tbody>';
 
   // Separate PATTERN_COMPLIANCE scans from real module audits
   var patternEntries = entries.filter(function(e) { return e.module_name === "PATTERN_COMPLIANCE"; });
   var moduleEntries = entries.filter(function(e) { return e.module_name !== "PATTERN_COMPLIANCE"; });
 
-  // Render real module audits first
-  moduleEntries.forEach(function(e) {
-    var delta = (e.lines_after || 0) - (e.lines_before || 0);
-    var deltaColor = delta > 0 ? "color:#22c55e" : delta < 0 ? "color:#ef4444" : "";
-    var badgeClass = e.status === "completed" ? "ch-badge-green" : e.status === "in_progress" ? "ch-badge-amber" : e.status === "known_issues" ? "ch-badge-amber" : e.status === "violations_found" ? "ch-badge-purple" : "ch-badge-red";
-    var nameClass = e.status === "completed" ? " ch-name-clean" : "";
+  // Show only latest audit per module by default
+  var latestEntries = Object.values(latestPerModule);
+  latestEntries.sort(function(a, b) { return (b.audited_at || "").localeCompare(a.audited_at || ""); });
+
+  latestEntries.forEach(function(e) {
+    var pCount = (window._chProposalCounts || {})[e.module_name] || 0;
+    var hasProposals = pCount > 0;
+    // 5-status: clean, in repair (purple), issues (orange), stale, unaudited
+    var badgeClass, statusLabel, nameColor;
+    if (e.status === "completed") {
+      badgeClass = "ch-badge-green"; statusLabel = "CLEAN"; nameColor = "#22c55e";
+    } else if (e.status === "violations_found" && hasProposals) {
+      badgeClass = "ch-badge-purple"; statusLabel = "IN REPAIR"; nameColor = "#a78bfa";
+    } else if (e.status === "violations_found") {
+      badgeClass = "ch-badge-amber"; statusLabel = "ISSUES"; nameColor = "#f59e0b";
+    } else {
+      badgeClass = "ch-badge-red"; statusLabel = e.status || "PENDING"; nameColor = "#ef4444";
+    }
+    var issueColor = (e.issues_found || 0) === 0 ? "#22c55e" : (e.issues_found || 0) <= 5 ? "#f59e0b" : "#ef4444";
+    var profileColors = {python: "rgba(139,92,246,0.15)", web: "rgba(245,158,11,0.15)", config: "rgba(148,163,184,0.15)"};
+    var profileTextColors = {python: "#8b5cf6", web: "#f59e0b", config: "#94a3b8"};
+    var prof = e.audit_profile || "python";
+    var profileCell = '<span style="font-size:0.55rem;padding:1px 5px;border-radius:3px;background:' + (profileColors[prof] || profileColors.python) + ';color:' + (profileTextColors[prof] || profileTextColors.python) + ';text-transform:uppercase;">' + escHtml(prof) + '</span>';
+    var triggerCell = e.trigger_reason ? '<span style="font-size:0.55rem;padding:1px 4px;border-radius:3px;background:rgba(0,229,255,0.1);color:rgba(0,229,255,0.6);">' + escHtml(e.trigger_reason) + '</span>' : '\u2014';
+    // Proposals cell
+    var proposalCell;
+    if (pCount > 0) {
+      proposalCell = '<span style="font-size:0.6rem;color:#a78bfa;font-weight:600;">' + pCount + ' in repair</span>';
+    } else if (e.status === "violations_found") {
+      proposalCell = '<span style="font-size:0.6rem;color:rgba(255,255,255,0.3);">not submitted</span>';
+    } else {
+      proposalCell = '<span style="font-size:0.6rem;color:rgba(255,255,255,0.15);">\u2014</span>';
+    }
     html += '<tr data-audit-id="' + e.id + '">' +
-      '<td><span class="ch-module-name' + nameClass + '">' + escHtml(window._chDisplayNames && window._chDisplayNames[e.module_name] || e.module_name) + '</span></td>' +
-      '<td style="font-size:0.7rem;color:rgba(255,255,255,0.4);">' + escHtml(e.category || "") + '</td>' +
+      '<td><span style="color:' + nameColor + ';font-weight:600;">' + escHtml(window._chDisplayNames && window._chDisplayNames[e.module_name] || e.module_name) + '</span></td>' +
+      '<td class="center">' + profileCell + '</td>' +
+      '<td class="center">' + triggerCell + '</td>' +
       '<td class="center">' + (e.files_reviewed || 0) + '</td>' +
       '<td class="center">' + (e.lines_before || 0).toLocaleString() + '</td>' +
-      '<td class="center">' + (e.lines_after || 0).toLocaleString() + '</td>' +
-      '<td class="center" style="' + deltaColor + ';">' + (delta > 0 ? "+" : "") + delta.toLocaleString() + '</td>' +
-      '<td class="center">' + (e.issues_found || 0) + '</td>' +
-      '<td class="center">' + (e.issues_fixed || 0) + '</td>' +
-      '<td><span class="ch-badge ' + badgeClass + ' ch-audit-btn" data-audit-btn="' + e.id + '"><span class="ch-badge-dot"></span>' + escHtml(e.status || "pending") + ' &#9654;</span></td>' +
-      '<td style="font-size:0.7rem;white-space:nowrap;color:rgba(255,255,255,0.5);">' + formatAge(e.audited_at) + '</td>' +
+      '<td class="center" style="color:' + issueColor + ';font-weight:600;">' + (e.issues_found || 0) + '</td>' +
+      '<td class="center"><span class="ch-badge ' + badgeClass + '"><span class="ch-badge-dot"></span>' + statusLabel + '</span></td>' +
+      '<td class="center">' + proposalCell + '</td>' +
+      '<td class="center"><button class="ch-report-btn" data-audit-id="' + e.id + '" style="background:rgba(139,92,246,0.1);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;">Report</button></td>' +
+      '<td class="center" style="font-size:0.7rem;white-space:nowrap;color:rgba(255,255,255,0.5);">' + formatAge(e.audited_at) + '</td>' +
       '</tr>';
   });
 
@@ -4196,98 +4792,237 @@ function _renderAuditTable(entries) {
     var totalIssues = patternEntries.reduce(function(s, e) { return s + (e.issues_found || 0); }, 0);
     var latestPat = patternEntries[0];
     var patBadgeClass = latestPat.status === "completed" ? "ch-badge-green" : "ch-badge-purple";
-    html += '<tr data-audit-id="' + latestPat.id + '">' +
-      '<td><span class="ch-module-name" style="color:rgba(255,255,255,0.4);">PATTERN_COMPLIANCE</span>' +
-      ' <span style="font-size:0.6rem;background:rgba(139,92,246,0.15);color:#a78bfa;padding:1px 6px;border-radius:3px;">' + patternEntries.length + ' scans</span></td>' +
-      '<td style="font-size:0.7rem;color:rgba(255,255,255,0.4);">automated_scan</td>' +
-      '<td class="center" colspan="4" style="font-size:0.7rem;color:rgba(255,255,255,0.35);">automated pattern checks</td>' +
-      '<td class="center">' + totalIssues + '</td>' +
-      '<td class="center">—</td>' +
-      '<td><span class="ch-badge ' + patBadgeClass + ' ch-audit-btn" data-audit-btn="' + latestPat.id + '"><span class="ch-badge-dot"></span>' + escHtml(latestPat.status || "pending") + ' &#9654;</span></td>' +
-      '<td style="font-size:0.7rem;white-space:nowrap;color:rgba(255,255,255,0.5);">' + formatAge(latestPat.audited_at) + '</td>' +
+    var patStatusLabel = latestPat.status === "completed" ? "CLEAN" : "ISSUES";
+    html += '<tr data-audit-id="' + latestPat.id + '" style="border-top:1px solid rgba(255,255,255,0.08);">' +
+      '<td><span style="color:rgba(255,255,255,0.4);font-weight:600;">Pattern Compliance</span>' +
+      ' <span style="font-size:0.55rem;background:rgba(139,92,246,0.15);color:#a78bfa;padding:1px 5px;border-radius:3px;">' + patternEntries.length + ' scans</span></td>' +
+      '<td class="center">\u2014</td>' +
+      '<td class="center"><span style="font-size:0.55rem;padding:1px 4px;border-radius:3px;background:rgba(0,229,255,0.1);color:rgba(0,229,255,0.6);">scheduled</span></td>' +
+      '<td class="center" colspan="2" style="font-size:0.7rem;color:rgba(255,255,255,0.35);">automated</td>' +
+      '<td class="center" style="color:' + (totalIssues > 0 ? '#f59e0b' : '#22c55e') + ';font-weight:600;">' + totalIssues + '</td>' +
+      '<td class="center"><span class="ch-badge ' + patBadgeClass + '"><span class="ch-badge-dot"></span>' + patStatusLabel + '</span></td>' +
+      '<td class="center"><span style="font-size:0.6rem;color:rgba(255,255,255,0.15);">\u2014</span></td>' +
+      '<td class="center"><button class="ch-report-btn" data-audit-id="' + latestPat.id + '" style="background:rgba(139,92,246,0.1);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;text-transform:uppercase;">Report</button></td>' +
+      '<td class="center" style="font-size:0.7rem;color:rgba(255,255,255,0.5);">' + formatAge(latestPat.audited_at) + '</td>' +
       '</tr>';
   }
 
   html += '</tbody></table>';
   setHtml(el, html);
 
-  // Event delegation — badge tap or row click opens audit detail
-  function _auditRowHandler(evt) {
-    // Check badge button first (bigger touch target)
-    var btn = evt.target.closest("[data-audit-btn]");
-    if (btn) {
-      evt.preventDefault();
+  // Report button click handler
+  el.querySelectorAll(".ch-report-btn").forEach(function(btn) {
+    btn.addEventListener("click", function(evt) {
       evt.stopPropagation();
-      showAuditDetail(parseInt(btn.getAttribute("data-audit-btn")));
-      return;
-    }
-    // Row click disabled — only badge button opens audit detail
-  }
-  el.addEventListener("click", _auditRowHandler);
-  el.addEventListener("touchend", _auditRowHandler);
+      showAuditDetail(parseInt(btn.getAttribute("data-audit-id")));
+    });
+  });
 }
 
-window.showAuditDetail = function(id) {
-  var entries = window._chAuditEntries || [];
-  var entry = entries.find(function(e) { return e.id === id; });
-  if (!entry) return;
+window.showAuditDetail = function(auditId) {
+  // Remove existing modal
+  var existing = document.getElementById("chAuditModal");
+  if (existing) existing.remove();
 
-  var modal = document.getElementById("chAuditModal");
-  var title = document.getElementById("chAuditModalTitle");
-  var body = document.getElementById("chAuditModalBody");
-  if (!modal || !body) return;
+  // Create LCARS-style modal overlay
+  var overlay = document.createElement("div");
+  overlay.id = "chAuditModal";
+  overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;";
+  overlay.addEventListener("click", function(e) { if (e.target === overlay) overlay.remove(); });
 
-  var statusColor = entry.status === "completed" ? "#4ade80" : entry.status === "known_issues" ? "#f59e0b" : "#a78bfa";
-  var delta = (entry.lines_after || 0) - (entry.lines_before || 0);
+  var modal = document.createElement("div");
+  modal.style.cssText = "background:#0a1628;border:1px solid rgba(0,229,255,0.3);border-radius:8px;max-width:700px;width:100%;max-height:80vh;overflow-y:auto;padding:24px;box-shadow:0 0 30px rgba(0,229,255,0.1);";
 
-  var displayName = window._chDisplayNames && window._chDisplayNames[entry.module_name] || entry.module_name;
-  title.textContent = displayName + " — AUDIT REPORT";
+  // Loading state
+  modal.textContent = "Loading audit report...";
+  modal.style.color = "rgba(255,255,255,0.5)";
+  modal.style.textAlign = "center";
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
 
-  var h = '<div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">';
-  h += '<div style="background:rgba(139,92,246,0.08); padding:10px; border-radius:6px; border-left:3px solid #8b5cf6;">';
-  h += '<div style="font-size:0.65rem; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1px;">Status</div>';
-  h += '<div style="color:' + statusColor + '; font-weight:600; font-size:1.1rem; text-transform:uppercase;">' + (entry.status || "pending") + '</div></div>';
-  h += '<div style="background:rgba(0,204,255,0.08); padding:10px; border-radius:6px; border-left:3px solid #0cf;">';
-  h += '<div style="font-size:0.65rem; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1px;">Category</div>';
-  h += '<div style="color:#0cf;">' + escHtml(entry.category || "—") + '</div></div>';
-  h += '</div>';
+  // Fetch audit details
+  api("/api/code-health/audit/" + auditId + "/details").then(function(d) {
+    if (!d.success) {
+      modal.textContent = "Failed to load audit: " + (d.error || "unknown error");
+      return;
+    }
 
-  h += '<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:16px;">';
-  h += '<div style="text-align:center; padding:8px; background:rgba(255,255,255,0.03); border-radius:4px;">';
-  h += '<div style="font-size:1.2rem; font-weight:700; color:#8b5cf6;">' + (entry.files_reviewed || 0) + '</div><div style="font-size:0.6rem; color:rgba(255,255,255,0.4);">FILES</div></div>';
-  h += '<div style="text-align:center; padding:8px; background:rgba(255,255,255,0.03); border-radius:4px;">';
-  h += '<div style="font-size:1.2rem; font-weight:700; color:#0cf;">' + (entry.lines_before || 0).toLocaleString() + '</div><div style="font-size:0.6rem; color:rgba(255,255,255,0.4);">BEFORE</div></div>';
-  h += '<div style="text-align:center; padding:8px; background:rgba(255,255,255,0.03); border-radius:4px;">';
-  h += '<div style="font-size:1.2rem; font-weight:700; color:#22c55e;">' + (entry.lines_after || 0).toLocaleString() + '</div><div style="font-size:0.6rem; color:rgba(255,255,255,0.4);">AFTER</div></div>';
-  h += '<div style="text-align:center; padding:8px; background:rgba(255,255,255,0.03); border-radius:4px;">';
-  h += '<div style="font-size:1.2rem; font-weight:700; color:' + (delta < 0 ? "#ef4444" : "#22c55e") + ';">' + (delta > 0 ? "+" : "") + delta.toLocaleString() + '</div><div style="font-size:0.6rem; color:rgba(255,255,255,0.4);">DELTA</div></div>';
-  h += '</div>';
+    var a = d.audit;
+    var findings = d.findings || [];
 
-  h += '<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px;">';
-  h += '<div style="text-align:center; padding:8px; background:rgba(245,158,11,0.06); border-radius:4px; border:1px solid rgba(245,158,11,0.2);">';
-  h += '<div style="font-size:1.4rem; font-weight:700; color:#f59e0b;">' + (entry.issues_found || 0) + '</div><div style="font-size:0.6rem; color:rgba(255,255,255,0.4);">ISSUES FOUND</div></div>';
-  h += '<div style="text-align:center; padding:8px; background:rgba(74,222,128,0.06); border-radius:4px; border:1px solid rgba(74,222,128,0.2);">';
-  h += '<div style="font-size:1.4rem; font-weight:700; color:#4ade80;">' + (entry.issues_fixed || 0) + '</div><div style="font-size:0.6rem; color:rgba(255,255,255,0.4);">ISSUES FIXED</div></div>';
-  h += '</div>';
+    // Build modal content using safe DOM methods
+    modal.textContent = "";
+    modal.style.textAlign = "";
+    modal.style.color = "";
 
-  // Render notes as formatted report
-  var notes = entry.notes || "No detailed report available.";
-  // Convert markdown-style headers and bullets
-  notes = notes.replace(/^## (.+)$/gm, '<div style="color:#8b5cf6; font-weight:700; font-size:0.85rem; margin-top:14px; margin-bottom:6px; text-transform:uppercase; letter-spacing:1px; border-bottom:1px solid rgba(139,92,246,0.2); padding-bottom:4px;">$1</div>');
-  notes = notes.replace(/^- (.+)$/gm, '<div style="padding-left:12px; margin:2px 0;"><span style="color:#8b5cf6;">▸</span> $1</div>');
-  notes = notes.replace(/\n\n/g, '<div style="height:8px;"></div>');
-  notes = notes.replace(/\n/g, '<br>');
+    // Header
+    var header = document.createElement("div");
+    header.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(0,229,255,0.15);";
+    var title = document.createElement("div");
+    var displayName = (window._chDisplayNames || {})[a.module_name] || a.module_name;
+    title.style.cssText = "font-family:'Orbitron',sans-serif;font-size:1rem;font-weight:600;color:#00e5ff;letter-spacing:1px;";
+    title.textContent = displayName;
+    var closeBtn = document.createElement("button");
+    closeBtn.style.cssText = "background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.5);padding:4px 10px;border-radius:4px;cursor:pointer;font-size:0.75rem;";
+    closeBtn.textContent = "Close";
+    closeBtn.onclick = function() { overlay.remove(); };
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    modal.appendChild(header);
 
-  h += '<div style="background:rgba(0,0,0,0.2); padding:12px; border-radius:6px; border:1px solid rgba(139,92,246,0.1);">' + notes + '</div>';
+    // Meta info row
+    var meta = document.createElement("div");
+    meta.style.cssText = "display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;";
+    var metaItems = [
+      {label: "Profile", value: a.audit_profile || "python", color: "#8b5cf6"},
+      {label: "Trigger", value: a.trigger_reason || "unknown", color: "#00e5ff"},
+      {label: "Status", value: a.status === "completed" ? "CLEAN" : "ISSUES", color: a.status === "completed" ? "#22c55e" : "#f59e0b"},
+      {label: "Files", value: a.files_reviewed, color: "#fff"},
+      {label: "Issues", value: a.issues_found, color: a.issues_found > 0 ? "#ef4444" : "#22c55e"}
+    ];
+    metaItems.forEach(function(m) {
+      var chip = document.createElement("div");
+      chip.style.cssText = "text-align:center;padding:6px 12px;background:rgba(255,255,255,0.03);border-radius:4px;border:1px solid rgba(255,255,255,0.06);";
+      var val = document.createElement("div");
+      val.style.cssText = "font-size:0.9rem;font-weight:600;color:" + m.color + ";";
+      val.textContent = m.value;
+      var lbl = document.createElement("div");
+      lbl.style.cssText = "font-size:0.55rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px;";
+      lbl.textContent = m.label;
+      chip.appendChild(val);
+      chip.appendChild(lbl);
+      meta.appendChild(chip);
+    });
+    if (a.dispatched_via) {
+      var agentChip = document.createElement("div");
+      agentChip.style.cssText = "text-align:center;padding:6px 12px;background:rgba(139,92,246,0.05);border-radius:4px;border:1px solid rgba(139,92,246,0.15);";
+      var agentVal = document.createElement("div");
+      agentVal.style.cssText = "font-size:0.9rem;font-weight:600;color:#a78bfa;";
+      agentVal.textContent = a.dispatched_via;
+      var agentLbl = document.createElement("div");
+      agentLbl.style.cssText = "font-size:0.55rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px;";
+      agentLbl.textContent = "Audited By";
+      agentChip.appendChild(agentVal);
+      agentChip.appendChild(agentLbl);
+      meta.appendChild(agentChip);
+    }
+    modal.appendChild(meta);
 
-  h += '<div style="text-align:right; margin-top:12px; font-size:0.65rem; color:rgba(255,255,255,0.3);">Audited: ' + formatAge(entry.audited_at) + '</div>';
+    // Findings section
+    if (findings.length === 0) {
+      var clean = document.createElement("div");
+      clean.style.cssText = "text-align:center;padding:20px;color:#22c55e;font-weight:600;background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.15);border-radius:6px;";
+      clean.textContent = "All checks passed — no issues found";
+      modal.appendChild(clean);
+    } else {
+      var findingsTitle = document.createElement("div");
+      findingsTitle.style.cssText = "font-size:0.75rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-weight:600;";
+      findingsTitle.textContent = "Findings (" + findings.length + ")";
+      modal.appendChild(findingsTitle);
 
-  setHtml(body, h);
-  modal.classList.add("open");
+      findings.forEach(function(f) {
+        var row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:flex-start;gap:8px;padding:8px 10px;margin-bottom:4px;border-radius:4px;background:rgba(255,255,255,0.02);border-left:3px solid " + (f.severity === "red" ? "#ef4444" : f.severity === "yellow" ? "#f59e0b" : "#3b82f6") + ";";
+        var codeBadge = document.createElement("span");
+        var sevColor = f.severity === "red" ? "#ef4444" : f.severity === "yellow" ? "#f59e0b" : "#3b82f6";
+        codeBadge.style.cssText = "font-size:0.6rem;padding:2px 6px;border-radius:3px;background:" + sevColor + "22;color:" + sevColor + ";font-weight:600;flex-shrink:0;font-family:'IBM Plex Mono',monospace;";
+        codeBadge.textContent = f.code;
+        var detail = document.createElement("span");
+        detail.style.cssText = "font-size:0.75rem;color:rgba(255,255,255,0.6);word-break:break-word;";
+        detail.textContent = f.detail || "";
+        row.appendChild(codeBadge);
+        row.appendChild(detail);
+        modal.appendChild(row);
+      });
+    }
+
+    // Proposal status indicator with individual tracking
+    var proposals = d.proposals || {total: 0, by_status: {}, items: []};
+    if (proposals.total > 0) {
+      var propBar = document.createElement("div");
+      propBar.style.cssText = "padding:10px 12px;margin-top:16px;background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.15);border-radius:6px;";
+      var propTitle = document.createElement("div");
+      propTitle.style.cssText = "font-size:0.7rem;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;text-align:center;font-weight:600;";
+      propTitle.textContent = "Repair Bay Proposals (" + proposals.total + " active)";
+      propBar.appendChild(propTitle);
+
+      // Show individual proposals with IDs
+      var propList = document.createElement("div");
+      propList.style.cssText = "max-height:150px;overflow-y:auto;";
+      var statusColors = {pending:"#f59e0b",pending_approval:"#f59e0b",approved:"#8b5cf6",deployed:"#10b981",fix_requested:"#ef4444"};
+      var prioColors = {critical:"#ef4444",high:"#f59e0b",medium:"#3b82f6",low:"#22c55e"};
+      (proposals.items || []).forEach(function(p) {
+        var row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;gap:6px;padding:3px 0;font-size:0.7rem;";
+        var idBadge = document.createElement("span");
+        idBadge.style.cssText = "color:rgba(0,229,255,0.5);font-family:'IBM Plex Mono',monospace;font-size:0.6rem;min-width:35px;";
+        idBadge.textContent = "#" + p.id;
+        var statusBadge = document.createElement("span");
+        var sc = statusColors[p.status] || "#999";
+        statusBadge.style.cssText = "font-size:0.55rem;padding:1px 5px;border-radius:3px;background:" + sc + "15;color:" + sc + ";border:1px solid " + sc + "33;min-width:55px;text-align:center;";
+        statusBadge.textContent = p.status.replace(/_/g, " ");
+        var prioBadge = document.createElement("span");
+        var pc = prioColors[p.priority] || "#999";
+        prioBadge.style.cssText = "font-size:0.55rem;padding:1px 4px;border-radius:3px;background:" + pc + "15;color:" + pc + ";";
+        prioBadge.textContent = p.priority;
+        var titleSpan = document.createElement("span");
+        titleSpan.style.cssText = "color:rgba(255,255,255,0.5);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.65rem;";
+        titleSpan.textContent = p.title;
+        row.appendChild(idBadge);
+        row.appendChild(statusBadge);
+        row.appendChild(prioBadge);
+        row.appendChild(titleSpan);
+        propList.appendChild(row);
+      });
+      propBar.appendChild(propList);
+      modal.appendChild(propBar);
+    }
+
+    // Action buttons
+    var actions = document.createElement("div");
+    actions.style.cssText = "display:flex;gap:10px;justify-content:center;margin-top:12px;padding-top:16px;border-top:1px solid rgba(0,229,255,0.1);";
+
+    if (a.issues_found > 0) {
+      var submitBtn = document.createElement("button");
+      var alreadySubmitted = proposals.total > 0;
+      submitBtn.style.cssText = alreadySubmitted
+        ? "background:rgba(34,197,94,0.1);color:#22c55e;border:1px solid rgba(34,197,94,0.3);padding:8px 20px;border-radius:4px;font-size:0.75rem;cursor:pointer;text-transform:uppercase;letter-spacing:1px;font-weight:600;"
+        : "background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.4);padding:8px 20px;border-radius:4px;font-size:0.75rem;cursor:pointer;text-transform:uppercase;letter-spacing:1px;font-weight:600;";
+      submitBtn.textContent = alreadySubmitted ? "Re-submit to Repair Bay" : "Submit to Repair Bay";
+      submitBtn.onclick = function() {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Submitting...";
+        api("/api/code-health/audit/" + auditId + "/submit-repair", {method: "POST"}).then(function(r) {
+          if (r.success) {
+            var msg = r.proposals_created + " new proposals";
+            if (r.skipped_duplicates > 0) msg += ", " + r.skipped_duplicates + " already in pipeline";
+            submitBtn.textContent = msg;
+            submitBtn.style.background = "rgba(34,197,94,0.15)";
+            submitBtn.style.color = "#22c55e";
+            submitBtn.style.borderColor = "#22c55e";
+          } else {
+            submitBtn.textContent = r.error || "Failed";
+            submitBtn.style.color = "#ef4444";
+            submitBtn.disabled = false;
+          }
+        }).catch(function() {
+          submitBtn.textContent = "Failed — retry";
+          submitBtn.disabled = false;
+        });
+      };
+      actions.appendChild(submitBtn);
+    }
+
+    var closeBtn2 = document.createElement("button");
+    closeBtn2.style.cssText = "background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.5);border:1px solid rgba(255,255,255,0.15);padding:8px 20px;border-radius:4px;font-size:0.75rem;cursor:pointer;text-transform:uppercase;letter-spacing:1px;";
+    closeBtn2.textContent = "Close";
+    closeBtn2.onclick = function() { overlay.remove(); };
+    actions.appendChild(closeBtn2);
+
+    modal.appendChild(actions);
+
+  }).catch(function(err) {
+    modal.textContent = "Error loading audit: " + err.message;
+    modal.style.color = "#ef4444";
+  });
 };
-
-// Close modal on overlay click
-document.addEventListener("click", function(e) {
-  var modal = document.getElementById("chAuditModal");
-  if (modal && e.target === modal) modal.classList.remove("open");
-});

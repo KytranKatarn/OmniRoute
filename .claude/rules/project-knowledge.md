@@ -13,7 +13,7 @@ globs: ["platform_v2/tools/consciousness/devhq_routes.py", "platform_v2/services
 - `unified_projects` — uses `name` NOT `title`, `slug` is NOT NULL
 - `unified_tasks` — `priority` is INTEGER (1-10)
 - `project_decisions` — uses `decision`/`context` NOT `description`/`rationale`
-- `knowledge_base` — 18,000+ entries, `importance_score` (NOT `importance`)
+- `knowledge_base` — 25,700+ entries (99% embedded), `importance_score` (NOT `importance`)
 
 ## Data Ownership
 - `knowledge_base` → owned by Consciousness module

@@ -476,21 +476,23 @@ class AgentLoop:
             replace_existing=True,
         )
 
-        self.scheduler.add_job(
-            with_app_context(self._check_email_inbox),
-            trigger=IntervalTrigger(minutes=5),
-            id="agent_email_inbox",
-            name="Agent Loop: Email Inbox Check",
-            replace_existing=True,
-        )
+        # DISABLED 2026-04-14: 25 fails/day, old email integration — see Project #261
+        # self.scheduler.add_job(
+        #     with_app_context(self._check_email_inbox),
+        #     trigger=IntervalTrigger(minutes=5),
+        #     id="agent_email_inbox",
+        #     name="Agent Loop: Email Inbox Check",
+        #     replace_existing=True,
+        # )
 
-        self.scheduler.add_job(
-            with_app_context(self._auto_analyze_emails),
-            trigger=IntervalTrigger(minutes=10),
-            id="agent_email_analyze",
-            name="Agent Loop: Auto-Analyze Emails",
-            replace_existing=True,
-        )
+        # DISABLED 2026-04-14: depends on email_inbox above — see Project #261
+        # self.scheduler.add_job(
+        #     with_app_context(self._auto_analyze_emails),
+        #     trigger=IntervalTrigger(minutes=10),
+        #     id="agent_email_analyze",
+        #     name="Agent Loop: Auto-Analyze Emails",
+        #     replace_existing=True,
+        # )
 
         self.scheduler.add_job(
             with_app_context(self._forward_notifications_to_telegram),
@@ -1038,14 +1040,14 @@ class AgentLoop:
             replace_existing=True,
         )
 
-        # Health probe (every 15 min)
-        self.scheduler.add_job(
-            with_app_context(self._health_probe),
-            trigger=IntervalTrigger(minutes=15),
-            id="agent_health_probe",
-            name="Agent Loop: Service Health Probe",
-            replace_existing=True,
-        )
+        # DISABLED 2026-04-14: 77 fails/day, "No module named tools.dev_hq" — see Project #261
+        # self.scheduler.add_job(
+        #     with_app_context(self._health_probe),
+        #     trigger=IntervalTrigger(minutes=15),
+        #     id="agent_health_probe",
+        #     name="Agent Loop: Service Health Probe",
+        #     replace_existing=True,
+        # )
 
         # Crew wellness tick (every 5 min)
         self.scheduler.add_job(
@@ -1227,41 +1229,13 @@ class AgentLoop:
             replace_existing=True,
         )
 
-        # Phase 5: Module-owned job registrations
-        try:
-            from tools.consciousness.jobs import register_consciousness_jobs
-            register_consciousness_jobs(self.scheduler, self.flask_app)
-            logger.info("[AgentLoop] Consciousness jobs registered via module")
-        except Exception as e:
-            logger.error("[AgentLoop] Failed to register consciousness jobs: %s", e)
-
+        # All module jobs registered via Department HQ (centralized — Decision #440)
         try:
             from tools.department_hq.jobs import register_department_hq_jobs
             register_department_hq_jobs(self.scheduler, self.flask_app)
-            logger.info("[AgentLoop] Department HQ jobs registered (moved from Dev HQ, Decision #433)")
+            logger.info("[AgentLoop] All department jobs registered via Department HQ")
         except Exception as e:
-            logger.error("[AgentLoop] Failed to register dev_hq jobs: %s", e)
-
-        try:
-            from tools.security_network.jobs import register_security_jobs
-            register_security_jobs(self.scheduler, self.flask_app)
-            logger.info("[AgentLoop] Security/network jobs registered via module")
-        except Exception as e:
-            logger.error("[AgentLoop] Failed to register security_network jobs: %s", e)
-
-        try:
-            from services.agent_jobs import register_agent_welfare_jobs
-            register_agent_welfare_jobs(self.scheduler, self.flask_app)
-            logger.info("[AgentLoop] Agent welfare jobs registered via module")
-        except Exception as e:
-            logger.error("[AgentLoop] Failed to register agent welfare jobs: %s", e)
-
-        try:
-            from services.fleet_jobs import register_fleet_jobs
-            register_fleet_jobs(self.scheduler, self.flask_app)
-            logger.info("[AgentLoop] Fleet jobs registered via module")
-        except Exception as e:
-            logger.error("[AgentLoop] Failed to register fleet jobs: %s", e)
+            logger.error("[AgentLoop] Failed to register department jobs: %s", e)
 
         # Job: Knowledge Quality Review (every 30 min — accelerated backfill)
         self.scheduler.add_job(
@@ -3648,7 +3622,7 @@ class AgentLoop:
     def _reap_stale_jobs(self):
         """Reap orphaned bridge jobs that stopped updating (every 2 min)."""
         try:
-            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
             dispatcher = get_dispatcher()
             reaped = dispatcher.reap_stale_jobs(max_age_minutes=5)
             if reaped:
@@ -3935,7 +3909,7 @@ class AgentLoop:
                             failure_summary["error_patterns"].append(msg[:100])
 
                     if error_texts:
-                        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+                        from tools.department_hq.services.department_dispatcher import get_dispatcher
                         disp = get_dispatcher()
                         if disp:
                             prompt = (
@@ -4225,7 +4199,14 @@ class AgentLoop:
             if items_failed > 0 and items_processed == 0
             else "partial" if items_failed > 0 else "success"
         )
-        department = JOB_DEPARTMENT_MAP.get(job_name, "Operations & Infrastructure")
+        try:
+            from tools.department_hq.services.job_registry import get_department_for_job
+            department = get_department_for_job(job_name)
+            if department == "UNKNOWN":
+                # Fall back to legacy inline map during transition
+                department = JOB_DEPARTMENT_MAP.get(job_name, "UNKNOWN")
+        except Exception:
+            department = JOB_DEPARTMENT_MAP.get(job_name, "UNKNOWN")
         try:
             conn = get_db()
             cur = conn.cursor()
@@ -4539,7 +4520,7 @@ class AgentLoop:
         """Job #48: Process approved improvement proposals by dispatching to coding agents."""
         try:
             from database import get_db_cursor
-            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             if not dispatcher:

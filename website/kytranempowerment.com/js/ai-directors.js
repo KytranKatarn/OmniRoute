@@ -1,4 +1,4 @@
-/* AI Directors — dynamic renderer from directors.json */
+/* AI Directors — live data from A.R.C.H.I.E. public roster API */
 (function () {
   'use strict';
 
@@ -168,24 +168,44 @@
     });
   }
 
+  var API_URL = 'https://archie.kytranempowerment.com/tools/department-hq/api/agents/public-roster';
+  var FALLBACK_URL = 'data/directors.json';
+
   function init() {
-    fetch('data/directors.json')
+    fetch(API_URL)
       .then(function (res) {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.json();
       })
-      .then(render)
+      .then(function (data) {
+        // API returns {success, agents: [...], summary}
+        var agents = data.agents || data;
+        // Filter to directors only
+        var directors = agents.filter(function (a) { return a.is_director; });
+        if (directors.length === 0) directors = agents.filter(function (a) { return !!a.acronym; });
+        render(directors);
+      })
       .catch(function (err) {
-        console.error('[ai-directors] Failed to load directors:', err);
-        var container = document.getElementById('directorsContainer');
-        if (container) {
-          clearChildren(container);
-          var msg = document.createElement('p');
-          msg.style.textAlign = 'center';
-          msg.style.color = '#ef4444';
-          msg.textContent = 'Unable to load directors. Please refresh the page.';
-          container.appendChild(msg);
-        }
+        console.warn('[ai-directors] API unavailable, falling back to static JSON:', err.message);
+        // Fallback to static file if API is unreachable (e.g., local dev)
+        fetch(FALLBACK_URL)
+          .then(function (res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+          })
+          .then(render)
+          .catch(function (err2) {
+            console.error('[ai-directors] Failed to load directors:', err2);
+            var container = document.getElementById('directorsContainer');
+            if (container) {
+              clearChildren(container);
+              var msg = document.createElement('p');
+              msg.style.textAlign = 'center';
+              msg.style.color = '#ef4444';
+              msg.textContent = 'Unable to load directors. Please refresh the page.';
+              container.appendChild(msg);
+            }
+          });
       });
   }
 

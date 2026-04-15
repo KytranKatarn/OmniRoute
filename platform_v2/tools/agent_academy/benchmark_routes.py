@@ -359,6 +359,28 @@ def register_benchmark_routes(bp, admin_required):
             }
         )
 
+    @bp.route("/api/benchmarks/summary")
+    @admin_required
+    def benchmark_summary():
+        """Summary of benchmark results by skill category with best models."""
+        from tools.agent_academy.services.benchmark_service import get_benchmark_summary
+
+        return jsonify({"success": True, **get_benchmark_summary()})
+
+    @bp.route("/api/benchmarks/update-roster", methods=["POST"])
+    @admin_required
+    def benchmark_update_roster():
+        """Update agent model assignments based on benchmark results.
+
+        Body: {dry_run: true} (default true for safety)
+        """
+        from tools.agent_academy.services.benchmark_service import update_roster_models
+
+        data = request.get_json(force=True) if request.is_json else {}
+        dry_run = data.get("dry_run", True)
+        changes = update_roster_models(dry_run=dry_run)
+        return jsonify({"success": True, "dry_run": dry_run, "changes": changes})
+
     @bp.route("/api/ab-test/history")
     @admin_required
     def ab_test_history():

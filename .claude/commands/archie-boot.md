@@ -62,8 +62,10 @@ These standalone products exist:
 | Gov Watch | 8102 | gov.kytranempowerment.com | gov-watch |
 | Business Suite | 8091 | business.kytranempowerment.com | kbs |
 | System Operations | 8085 | server.kytranempowerment.com | kso |
+| C.R.E.E.D. Governance | 8086 | creed.kytranempowerment.com | — |
+| The News | 8103 | thenews.kytranempowerment.com | — |
 
-Ollama runs on the HOST at 192.168.1.200:11434 — NOT in a container.
+Ollama runs on the HOST at 192.168.1.200:11434 — NOT in a container. KEEP_ALIVE=5m.
 
 ## Step 7: Present Boot Summary
 

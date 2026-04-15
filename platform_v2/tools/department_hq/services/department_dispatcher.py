@@ -2060,6 +2060,8 @@ class DepartmentDispatcher:
             node_hw = None
             if node_db_id:
                 try:
+                    import psycopg2.extras
+
                     conn = self._get_db()
                     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                     cur.execute(
@@ -3289,133 +3291,6 @@ class DepartmentDispatcher:
         except Exception as esc_err:
             logger.warning(f"[BridgeDispatcher] Cloud approval request failed: {esc_err}")
         return None  # Always return None — no auto-cloud
-
-        # --- Try free cloud contractors ---
-        for cloud_model in self.FREE_CLOUD_MODELS:
-            logger.info(
-                f"[BridgeDispatcher] Throughput escalation: {agent_name} busy "
-                f"({busy_job['description']}, {busy_job['progress_pct']}%). "
-                f"Trying free cloud: {cloud_model}"
-            )
-            # Create visible bridge_job for 3D bridge view
-            cloud_job_id = self._create_cloud_job(cloud_model, "ollama_cloud", station_code, capability, module_id)
-            llm_result = self._execute_llm(
-                model=cloud_model,
-                prompt=prompt,
-                system_prompt=system_prompt,
-                json_mode=json_mode,
-                timeout=timeout,
-            )
-            if llm_result.get("success"):
-                self._complete_cloud_job(cloud_job_id, success=True)
-                duration_ms = int((time.time() - start) * 1000)
-                self._log_escalation(
-                    original_agent_id=None,
-                    original_model=agent_name,
-                    escalated_model=cloud_model,
-                    escalated_provider="ollama_cloud",
-                    capability=capability,
-                    module_id=module_id,
-                    reason=f"Throughput: {agent_name} busy ({busy_job['description']})",
-                    failure_count=0,
-                    approval_method="auto",
-                    success=True,
-                )
-                # Telegram FYI: notify that free cloud was used
-                self._telegram_dispatch_advisory(
-                    advisory_type="free_cloud",
-                    module_id=module_id,
-                    capability=capability,
-                    home_station=self._resolve_module_department(module_id),
-                    cloud_model=cloud_model,
-                    cloud_provider="ollama_cloud",
-                    reason=f"{agent_name} busy with job #{busy_job.get('id', '?')}",
-                )
-
-                result = DispatchResult(
-                    success=True,
-                    response=llm_result.get("response", ""),
-                    agent_name=f"{agent_name}→{cloud_model}",
-                    agent_id=None,
-                    model_used=cloud_model,
-                    station_code=station_code,
-                    capability=capability,
-                    duration_ms=duration_ms,
-                    prompt_tokens=llm_result.get("prompt_tokens", llm_result.get("prompt_eval_count", 0)),
-                    completion_tokens=llm_result.get("completion_tokens", llm_result.get("eval_count", 0)),
-                    provider="ollama_cloud",
-                    metadata={
-                        "escalation": "throughput_free_cloud",
-                        "original_agent": agent_name,
-                        "is_cloud": True,
-                        "cloud_model": cloud_model,
-                        "cloud_provider": "ollama_cloud",
-                    },
-                )
-                self._log_execution(result, module_id, user_id, job_id=job_id)
-                return result
-            else:
-                self._complete_cloud_job(cloud_job_id, success=False)
-
-        # --- Free cloud unavailable; request paid cloud via Telegram ---
-        if routing_mode == "local_cloud":
-            return None  # Cannot use paid
-
-        logger.info(
-            f"[BridgeDispatcher] Free cloud unavailable. "
-            f"Requesting paid cloud approval for capability='{capability}'"
-        )
-        try:
-            from agent_loop import request_approval
-
-            next_tier = self._get_next_tier(self.FREE_CLOUD_MODELS[-1], capability)
-            if next_tier and next_tier["is_paid"]:
-                display = self._agent_display(agent_name)
-
-                request_approval(
-                    action_type="cloud_throughput_escalation",
-                    action_data={
-                        "original_agent": display,
-                        "busy_job": busy_job,
-                        "escalated_model": next_tier["model"],
-                        "escalated_provider": next_tier["provider"],
-                        "capability": capability,
-                        "module_id": module_id,
-                        "prompt_preview": prompt[:200],
-                    },
-                    reason=(
-                        f"{display} busy ({busy_job['description']}, "
-                        f"{busy_job['progress_pct']}%). Free cloud failed. "
-                        f"Escalate to {next_tier['model']}?"
-                    ),
-                    requested_by="bridge_dispatcher",
-                    tier=2,
-                )
-                self._log_escalation(
-                    original_agent_id=None,
-                    original_model=agent_name,
-                    escalated_model=next_tier["model"],
-                    escalated_provider=next_tier["provider"],
-                    capability=capability,
-                    module_id=module_id,
-                    reason=f"Throughput: awaiting paid cloud approval",
-                    failure_count=0,
-                    approval_method="telegram",
-                    success=None,
-                )
-                # Dashboard notification for paid cloud approval
-                self._telegram_dispatch_advisory(
-                    advisory_type="paid_cloud",
-                    module_id=module_id,
-                    capability=capability,
-                    home_station=self._resolve_module_department(module_id),
-                    cloud_model=next_tier["model"],
-                    cloud_provider=next_tier.get("provider", "external"),
-                )
-        except Exception as esc_err:
-            logger.warning(f"[BridgeDispatcher] Throughput approval request failed: {esc_err}")
-
-        return None  # Caller proceeds with original (busy) agent
 
     def _notify_throughput_escalation(
         self,

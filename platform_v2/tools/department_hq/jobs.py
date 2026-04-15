@@ -1,9 +1,13 @@
-"""department_hq/jobs.py — Operational platform maintenance jobs.
+"""department_hq/jobs.py — Central job registration hub (Decision #440).
 
-Moved from dev_hq/jobs.py (Decision #433 — Dev HQ merged into Consciousness).
-Registration with APScheduler happens via register_department_hq_jobs().
+register_department_hq_jobs() is the SINGLE entry point called from AgentLoop.
+It registers Department HQ's own jobs and delegates to other module registrars:
+  - tools.consciousness.jobs.register_consciousness_jobs
+  - tools.security_network.jobs.register_security_jobs
+  - services.agent_jobs.register_agent_welfare_jobs
+  - services.fleet_jobs.register_fleet_jobs
 
-Jobs:
+Own jobs (moved from dev_hq — Decision #433):
   - daily_code_metrics_scan (Job #40)
   - pattern_compliance_check (Job #41)
   - automated_module_audit (Job #58)
@@ -562,7 +566,51 @@ def competitor_landscape_scan(flask_app):
 
 
 def register_department_hq_jobs(scheduler, flask_app):
-    """Register all Department HQ background jobs with the scheduler."""
+    """Central job registration — ALL department jobs go through here.
+
+    This is the single entry point for job registration, called from AgentLoop.
+    Individual modules still define their job functions, but registration
+    is centralized here for visibility and monitoring (Decision #440).
+    """
+    # 1. Register Department HQ's own jobs
+    _register_own_jobs(scheduler, flask_app)
+
+    # 2. Register other module jobs — centralized here (was in agent_loop.py)
+    try:
+        from tools.consciousness.jobs import register_consciousness_jobs
+
+        register_consciousness_jobs(scheduler, flask_app)
+        logger.info("[DeptHQ] Consciousness jobs registered")
+    except Exception as e:
+        logger.error("[DeptHQ] Failed: consciousness jobs: %s", e)
+
+    try:
+        from tools.security_network.jobs import register_security_jobs
+
+        register_security_jobs(scheduler, flask_app)
+        logger.info("[DeptHQ] Security/network jobs registered")
+    except Exception as e:
+        logger.error("[DeptHQ] Failed: security jobs: %s", e)
+
+    try:
+        from services.agent_jobs import register_agent_welfare_jobs
+
+        register_agent_welfare_jobs(scheduler, flask_app)
+        logger.info("[DeptHQ] Agent welfare jobs registered")
+    except Exception as e:
+        logger.error("[DeptHQ] Failed: welfare jobs: %s", e)
+
+    try:
+        from services.fleet_jobs import register_fleet_jobs
+
+        register_fleet_jobs(scheduler, flask_app)
+        logger.info("[DeptHQ] Fleet jobs registered")
+    except Exception as e:
+        logger.error("[DeptHQ] Failed: fleet jobs: %s", e)
+
+
+def _register_own_jobs(scheduler, flask_app):
+    """Register Department HQ's own background jobs with the scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
     from apscheduler.triggers.cron import CronTrigger
 
@@ -650,4 +698,4 @@ def register_department_hq_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[DevHQ] Registered 6 code health/audit jobs")
+    logger.info("[DeptHQ] Registered 6 code health/audit jobs")

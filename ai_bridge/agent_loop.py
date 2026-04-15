@@ -1229,41 +1229,13 @@ class AgentLoop:
             replace_existing=True,
         )
 
-        # Phase 5: Module-owned job registrations
-        try:
-            from tools.consciousness.jobs import register_consciousness_jobs
-            register_consciousness_jobs(self.scheduler, self.flask_app)
-            logger.info("[AgentLoop] Consciousness jobs registered via module")
-        except Exception as e:
-            logger.error("[AgentLoop] Failed to register consciousness jobs: %s", e)
-
+        # All module jobs registered via Department HQ (centralized — Decision #440)
         try:
             from tools.department_hq.jobs import register_department_hq_jobs
             register_department_hq_jobs(self.scheduler, self.flask_app)
-            logger.info("[AgentLoop] Department HQ jobs registered (moved from Dev HQ, Decision #433)")
+            logger.info("[AgentLoop] All department jobs registered via Department HQ")
         except Exception as e:
-            logger.error("[AgentLoop] Failed to register dev_hq jobs: %s", e)
-
-        try:
-            from tools.security_network.jobs import register_security_jobs
-            register_security_jobs(self.scheduler, self.flask_app)
-            logger.info("[AgentLoop] Security/network jobs registered via module")
-        except Exception as e:
-            logger.error("[AgentLoop] Failed to register security_network jobs: %s", e)
-
-        try:
-            from services.agent_jobs import register_agent_welfare_jobs
-            register_agent_welfare_jobs(self.scheduler, self.flask_app)
-            logger.info("[AgentLoop] Agent welfare jobs registered via module")
-        except Exception as e:
-            logger.error("[AgentLoop] Failed to register agent welfare jobs: %s", e)
-
-        try:
-            from services.fleet_jobs import register_fleet_jobs
-            register_fleet_jobs(self.scheduler, self.flask_app)
-            logger.info("[AgentLoop] Fleet jobs registered via module")
-        except Exception as e:
-            logger.error("[AgentLoop] Failed to register fleet jobs: %s", e)
+            logger.error("[AgentLoop] Failed to register department jobs: %s", e)
 
         # Job: Knowledge Quality Review (every 30 min — accelerated backfill)
         self.scheduler.add_job(

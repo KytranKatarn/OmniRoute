@@ -265,6 +265,13 @@
         });
     });
 
+    // Bridge LCARS header tabs → comms panel switching
+    window.onLcarsTabSwitch = function(tabId) {
+        document.querySelectorAll('.comms-panel').forEach(function(p) {
+            p.classList.toggle('active', p.id === 'panel-' + tabId);
+        });
+    };
+
     newChatBtn.addEventListener('click', function() {
         fetch('/api/chat/new', {
             method: 'POST',

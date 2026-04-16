@@ -186,10 +186,10 @@ def get_categories_info() -> Dict[str, Dict]:
             "description": "Project management and knowledge base",
             "priority": 5,
         },
-        "media_home": {
-            "name": "Media & Home",
-            "icon": "fas fa-film",
-            "description": "Media management and home automation",
+        "applications_concepts": {
+            "name": "Applications & Concepts",
+            "icon": "fas fa-lightbulb",
+            "description": "Applications, media hub, and concept modules",
             "priority": 6,
         },
         "crypto": {
@@ -198,10 +198,10 @@ def get_categories_info() -> Dict[str, Dict]:
             "description": "Cryptocurrency mining and pool management",
             "priority": 7,
         },
-        "applications": {
-            "name": "Applications",
-            "icon": "fas fa-mobile-alt",
-            "description": "Standalone apps — web and Android",
+        "media_outreach": {
+            "name": "Media Outreach",
+            "icon": "fas fa-globe",
+            "description": "External websites and media products",
             "priority": 8,
         },
         "creative_studios": {

@@ -41,9 +41,9 @@ class ModuleCategory(Enum):
     AI_COMMAND = "ai_command"  # consciousness, team_management, bridge, repair_bay
     SAAS_SERVICES = "saas_services"  # crm, website_studio, store_builder, call_center, etc.
     PROJECT_KNOWLEDGE = "project_knowledge"  # project_manager, api_docs
-    MEDIA_HOME = "media_home"  # media_hub
+    APPLICATIONS_CONCEPTS = "applications_concepts"  # media_hub, fitness, therapy, doc, family_tree
     CRYPTO = "crypto"  # archie_pool, pool_management
-    APPLICATIONS = "applications"  # fitness, therapy, doc, stockbot (Android/web apps)
+    MEDIA_OUTREACH = "media_outreach"  # watch products, news, creed
     CREATIVE_STUDIOS = "creative_studios"  # game_studio, media_studio
     PLACEHOLDERS_FUTURE = "placeholders_future"  # future modules
 
@@ -286,7 +286,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="backup_manager",
         name="Backup Manager",
-        description="System backups and restore<br>Automated • Version control • Safety",
+        description="Automated backup and restore<br>Scheduled snapshots • Version history • One-click recovery",
         icon="hard-drive",
         category=ModuleCategory.ADMIN_OPERATIONS,
         route="/tools/backup-manager",
@@ -301,7 +301,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="security_network",
         name="Security & Network",
-        description="Security operations center<br>DNS • Surveillance • Recon • Scanning • Agent",
+        description="Security operations center<br>DNS • Surveillance • Recon • Threat scanning • Compliance",
         icon="shield",
         category=ModuleCategory.ADMIN_OPERATIONS,
         route="/tools/security-network",
@@ -316,7 +316,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="account_center",
         name="Account Center",
-        description="Manage accounts, permissions, subscriptions<br>Activity tracking • Role management",
+        description="User and subscription management<br>Roles • Permissions • Activity tracking • Billing tiers",
         icon="user",
         category=ModuleCategory.ADMIN_OPERATIONS,
         route="/tools/account-center",
@@ -373,7 +373,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="department_hq",
         name="Department HQ",
-        description="Org chart \u2022 Roster \u2022 Work tracking \u2022 Performance<br>16 departments across 5 floors \u2022 C.R.E.E.D. governance",
+        description="Command center for 17 departments<br>Org chart \u2022 Roster \u2022 Dispatch \u2022 Fleet \u2022 Performance \u2022 C.R.E.E.D.",
         icon="building",
         category=ModuleCategory.AI_COMMAND,
         route="/tools/department-hq",
@@ -388,7 +388,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="consciousness",
         name="Consciousness",
-        description="Knowledge analytics • AI processing & embeddings<br>Emotional intelligence • Memory insights",
+        description="Knowledge analytics and AI processing<br>Embeddings • Dev HQ • GitHub • Languages • Memory insights",
         icon="brain",
         category=ModuleCategory.AI_COMMAND,
         route="/tools/consciousness",
@@ -403,7 +403,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="archie_chat",
         name="A.R.C.H.I.E.",
-        description="Private comms channel<br>Chat • Voice • Collaboration • Watchdog",
+        description="Private comms channel<br>Chat • Voice • Vision • Collaboration • Watchdog",
         icon="bot",
         category=ModuleCategory.AI_COMMAND,
         route="/tools/archie-chat",
@@ -420,7 +420,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="repair_bay",
         name="Repair Bay",
-        description="F.O.R.G.E.'s Repair Bay<br>Scan \u2022 Fix \u2022 Test \u2022 PR \u2022 Review \u2022 Deploy",
+        description="Self-healing code pipeline<br>Scan \u2022 Propose \u2022 Sandbox \u2022 Test \u2022 PR review \u2022 Deploy",
         icon="git-branch",
         category=ModuleCategory.AI_COMMAND,
         route="/tools/repair-bay",
@@ -443,7 +443,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="agent_academy",
         name="Agent Academy",
-        description="Training \u2022 Benchmarks \u2022 A/B Testing \u2022 Model Config<br>Skill development and performance optimization",
+        description="Agent training and evaluation<br>Benchmarks \u2022 A/B testing \u2022 Skills \u2022 Competency reports",
         icon="graduation-cap",
         category=ModuleCategory.AI_COMMAND,
         route="/tools/agent-academy",
@@ -562,9 +562,9 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="media_hub",
         name="Media Hub",
-        description="Enhanced media server with Jellyfin support<br>Library • Search • Requests • Calendar • Downloads",
+        description="Unified media server dashboard<br>Library • Smart search • Requests • Calendar • Downloads",
         icon="tv-2",
-        category=ModuleCategory.MEDIA_HOME,
+        category=ModuleCategory.APPLICATIONS_CONCEPTS,
         route="/tools/media-hub",
         blueprint_import="tools.media_hub.routes:media_hub_bp",
         required_permissions=[],
@@ -580,18 +580,18 @@ MODULES: List[ModuleDefinition] = [
             "sonarr",
             "radarr",
             "streaming",
-            "media-home",
+            "applications-concepts",
         ],
     ),
     # ============================================
-    # APPLICATIONS
+    # APPLICATIONS & CONCEPTS
     # ============================================
     ModuleDefinition(
         id="family_tree",
         name="Family Tree",
-        description="AI genealogist<br>Record search • Document OCR • Face matching • Photo restoration",
+        description="AI-powered genealogy research<br>Record search • Document OCR • Face matching • Restoration",
         icon="tree-deciduous",
-        category=ModuleCategory.APPLICATIONS,
+        category=ModuleCategory.APPLICATIONS_CONCEPTS,
         route="/tools/family-tree",
         blueprint_import="tools.family_tree:family_tree_bp",
         required_permissions=[],
@@ -610,9 +610,9 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="fitness",
         name="Fitness",
-        description="AI personal trainer<br>Custom workout plans • Exercise demos • Progress charts",
+        description="AI-powered personal trainer<br>Custom workouts • Exercise library • Progress tracking",
         icon="dumbbell",
-        category=ModuleCategory.APPLICATIONS,
+        category=ModuleCategory.APPLICATIONS_CONCEPTS,
         route="/tools/fitness",
         blueprint_import="tools.fitness.routes:fitness_bp",
         required_permissions=[],
@@ -634,9 +634,9 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="therapy",
         name="Therapy",
-        description="AI mental wellness support<br>Guided conversations • Mood journal • CBT exercises",
+        description="AI-guided mental wellness<br>Structured conversations • Mood journaling • CBT exercises",
         icon="flower-2",
-        category=ModuleCategory.APPLICATIONS,
+        category=ModuleCategory.APPLICATIONS_CONCEPTS,
         route="/tools/therapy",
         blueprint_import="tools.therapy.routes:therapy_bp",
         required_permissions=[],
@@ -658,9 +658,9 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="doc",
         name="DOC",
-        description="Your AI health companion<br>Symptom checker • Photo analysis • Health log",
+        description="AI-powered health companion<br>Symptom analysis • Photo assessment • Health records",
         icon="stethoscope",
-        category=ModuleCategory.APPLICATIONS,
+        category=ModuleCategory.APPLICATIONS_CONCEPTS,
         route="/tools/doc",
         blueprint_import="tools.doc.routes:doc_bp",
         required_permissions=[],
@@ -683,7 +683,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="game_studio",
         name="Game Studio",
-        description="Create 2D & 3D games with AI<br>Mission editor • Asset library • Export to web/mobile",
+        description="AI-assisted game development<br>Mission editor • Asset library • Export to web and mobile",
         icon="gamepad-2",
         category=ModuleCategory.CREATIVE_STUDIOS,
         route="/tools/game-studio",
@@ -699,7 +699,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="archie_pool",
         name="Archie Pool",
-        description="Ravencoin mining pool<br>Real-time hashrate • Earnings dashboard • Auto payouts",
+        description="Ravencoin mining pool dashboard<br>Real-time hashrate • Earnings tracker • Auto payouts",
         icon="pickaxe",
         category=ModuleCategory.CRYPTO,
         route="/tools/archie-pool",
@@ -715,7 +715,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="pool_management",
         name="Pool Management",
-        description="Archie Pool admin controls<br>Miners • Payouts • Conversions • Analytics",
+        description="Mining pool administration<br>Miner management • Payout config • Conversions • Analytics",
         icon="sliders",
         category=ModuleCategory.CRYPTO,
         route="/tools/pool-management",
@@ -748,7 +748,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="media_studio",
         name="Media Studio",
-        description="Generate images, video, and audio with AI<br>Bridge-routed provider selection • Gallery • Queue tracking",
+        description="AI image, video and audio generation<br>GPU-routed models • Gallery • Queue tracking • ComfyUI",
         icon="palette",
         category=ModuleCategory.CREATIVE_STUDIOS,
         route="/tools/media-studio",
@@ -816,7 +816,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="google_work_suite",
         name="Google Work Suite",
-        description="Gmail, Calendar & Drive with AI agents<br>OAuth accounts • Agent email • Smart rules • AI replies",
+        description="Gmail, Calendar and Drive integration<br>OAuth accounts • Agent email • Smart rules • AI replies",
         icon="mail",
         category=ModuleCategory.SAAS_SERVICES,
         route="/tools/google-work-suite",
@@ -849,7 +849,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="kytran_system_ops",
         name="Kytran System Operations",
-        description="Server management dashboard<br>CPU • RAM • Disk • Docker • Network • Firewall • Compliance",
+        description="Server management dashboard<br>CPU • RAM • Docker • Network • Firewall • Compliance badges",
         icon="server",
         category=ModuleCategory.ADMIN_OPERATIONS,
         route="/external/kso",
@@ -860,7 +860,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="kytran_business_suite",
         name="Kytran Business Suite",
-        description="Modular SaaS platform — CRM, invoicing, store, website builder, and 26 plugins",
+        description="Modular SaaS platform<br>CRM • Invoicing • Store • Website builder • 26 industry plugins",
         icon="briefcase",
         category=ModuleCategory.SAAS_SERVICES,
         route="/external/kbs",
@@ -871,9 +871,9 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="kytran_gov_watch",
         name="Kytran Gov Watch",
-        description="Government tender monitoring — P.R.O.C.U.R.E. intelligence, 211 real tenders",
+        description="Government tender intelligence<br>P.R.O.C.U.R.E. agent • Live tenders • Bid analytics",
         icon="landmark",
-        category=ModuleCategory.APPLICATIONS,
+        category=ModuleCategory.MEDIA_OUTREACH,
         route="/external/gov",
         external_url="https://gov.kytranempowerment.com",
         priority=2,
@@ -882,9 +882,9 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="kytran_market_watch",
         name="Kytran Market Watch",
-        description="Market intelligence and autonomous trading — M.A.R.K.E.T. agent",
+        description="Market intelligence platform<br>Autonomous trading • Real-time feeds • Portfolio analytics",
         icon="trending-up",
-        category=ModuleCategory.APPLICATIONS,
+        category=ModuleCategory.MEDIA_OUTREACH,
         route="/external/market",
         external_url="https://market.kytranempowerment.com",
         priority=2,
@@ -893,9 +893,9 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="kytran_news",
         name="Kytran News",
-        description="Global intelligence dashboard — 18 layers, real-time feeds, PWA",
+        description="Global intelligence dashboard<br>18 news layers • Real-time feeds • PWA • Source scoring",
         icon="newspaper",
-        category=ModuleCategory.APPLICATIONS,
+        category=ModuleCategory.MEDIA_OUTREACH,
         route="/external/news",
         external_url="https://news.kytranempowerment.com",
         priority=2,
@@ -904,13 +904,35 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="kytran_legal_watch",
         name="Kytran Legal Watch",
-        description="Legal intelligence and case monitoring",
+        description="Legal intelligence platform<br>Case monitoring • Regulatory alerts • Compliance tracking",
         icon="scale",
-        category=ModuleCategory.APPLICATIONS,
+        category=ModuleCategory.MEDIA_OUTREACH,
         route="/external/legal",
         external_url="https://legal.kytranempowerment.com",
         priority=2,
         tags=["standalone", "product"],
+    ),
+    ModuleDefinition(
+        id="kytran_civic_watch",
+        name="Kytran Civic Watch",
+        description="Civic engagement intelligence<br>Local government • Community alerts • Transparency tracking",
+        icon="building-2",
+        category=ModuleCategory.MEDIA_OUTREACH,
+        route="/external/civic",
+        external_url="https://civic.kytranempowerment.com",
+        priority=2,
+        tags=["standalone", "product"],
+    ),
+    ModuleDefinition(
+        id="creed_institute",
+        name="C.R.E.E.D. Institute",
+        description="AI ethics and governance institute<br>Compliance frameworks • Agent welfare • Public transparency",
+        icon="shield-check",
+        category=ModuleCategory.MEDIA_OUTREACH,
+        route="/external/creed",
+        external_url="https://creed.kytranempowerment.com",
+        priority=3,
+        tags=["standalone", "product", "ethics", "governance", "creed"],
     ),
 ]
 

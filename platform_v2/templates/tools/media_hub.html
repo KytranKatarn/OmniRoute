@@ -5,11 +5,9 @@
 {% block module_name %}media_hub{% endblock %}
 
 {% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="/static/css/lcars-frames.css">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/media-hub.css') }}">
-{% endblock %}
-
-{% block extra_head %}
 <!-- PWA Meta Tags -->
 <meta name="theme-color" content="#E5A00D">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -36,46 +34,31 @@
 
 {% block content %}
 <div class="media-hub-container" data-module="media-hub">
-    {% set cat_accent = '#EF4444' %}
-    {% set cat_accent_rgb = '239,68,68' %}
-    {% set cat_accent_light = '#dc2626' %}
-    {% set cat_label = 'APPS' %}
-    {% set cat_icon = 'heart-pulse' %}
-    {% set cat_modules = [
-        {'url': url_for('doc.index'), 'endpoint_prefix': 'doc', 'icon': 'stethoscope', 'label': 'DOC', 'title': 'DOC'},
-        {'url': url_for('therapy.index'), 'endpoint_prefix': 'therapy', 'icon': 'flower-2', 'label': 'Therapy', 'title': 'Therapy'},
-        {'url': url_for('fitness.index'), 'endpoint_prefix': 'fitness', 'icon': 'dumbbell', 'label': 'Fitness', 'title': 'Fitness'},
-        {'url': url_for('archie_pool.index'), 'endpoint_prefix': 'archie_pool', 'icon': 'pickaxe', 'label': 'Pool', 'title': 'Archie Pool'},
-        {'url': url_for('media_hub.index'), 'endpoint_prefix': 'media_hub', 'icon': 'tv-2', 'label': 'Media', 'title': 'Media Hub'}
+    {# LCARS Header — Media & Home #}
+    {% set cat_accent = '#0ea5e9' %}
+    {% set cat_accent_rgb = '14,165,233' %}
+    {% set cat_accent_dark = '#0284c7' %}
+    {% set cat_label = 'APPLICATIONS & CONCEPTS' %}
+    {% set module_title = 'MEDIA HUB' %}
+    {% set header_shortcuts = [
+        ("DOC", "stethoscope", "/tools/doc"),
+        ("Therapy", "flower-2", "/tools/therapy"),
+        ("Fitness", "dumbbell", "/tools/fitness"),
+        ("Pool", "pickaxe", "/tools/archie-pool"),
+        ("Media", "tv-2", "/tools/media-hub")
     ] %}
-    {% include 'includes/category_nav.html' %}
+    {% set header_tabs = [
+        ("dashboard", "Dashboard", "layout-dashboard"),
+        ("movies", "Movies", "film"),
+        ("shows", "Shows", "tv"),
+        ("requests", "Requests", "message-square"),
+        ("calendar", "Calendar", "calendar"),
+        ("stats", "Stats", "bar-chart-3"),
+        ("settings", "Settings", "settings")
+    ] %}
+    {% include 'includes/lcars-header.html' %}
 
-    <div class="lcars-frame">
-        <!-- LEFT SIDEBAR -->
-        <div class="lcars-sidebar">
-            <div class="lcars-elbow-top"></div>
-            <div class="lcars-seg mh-seg-gold"></div>
-            <div class="lcars-seg mh-seg-amber"></div>
-            <div class="lcars-seg mh-seg-gold"></div>
-            <div class="lcars-seg mh-seg-dark"></div>
-            <div class="lcars-seg-fill"></div>
-            <div class="lcars-elbow-bottom"></div>
-        </div>
-
-        <!-- RIGHT CONTENT -->
-        <div class="lcars-content">
-            <div class="lcars-bar">
-                <span class="lcars-bar-title" data-i18n="media_hub.media_hub">MEDIA HUB</span>
-                <div class="lcars-bar-spacer"></div>
-                <div class="lcars-pips">
-                    <span class="lcars-pip mh-pip-20"></span>
-                    <span class="lcars-pip mh-pip-35"></span>
-                    <span class="lcars-pip mh-pip-14"></span>
-                </div>
-                <span class="lcars-bar-status">STREAMING</span>
-            </div>
-
-            <div class="lcars-body">
+    <div class="media-hub-content">
                 <!-- Service Badges -->
                 <div class="header-services" id="media-service-badges">
                     {% for svc in services %}
@@ -126,53 +109,30 @@
         </div>
     </header>
 
-    <!-- Navigation Tabs -->
-    <nav class="hub-nav">
-        <div class="nav-tabs">
-            <button class="nav-tab active" data-tab="dashboard">
-                <i data-lucide="layout-dashboard"></i>
-                <span><span data-i18n="media_hub.dashboard">Dashboard</span></span>
-                <kbd class="nav-hotkey"><span data-i18n="media_hub.alt_1">Alt+1</span></kbd>
-            </button>
-            <button class="nav-tab" data-tab="movies">
-                <i data-lucide="film"></i>
-                <span><span data-i18n="media_hub.movies">Movies</span></span>
-                <span class="nav-count" id="movieCount">--</span>
-                <kbd class="nav-hotkey"><span data-i18n="media_hub.alt_2">Alt+2</span></kbd>
-            </button>
-            <button class="nav-tab" data-tab="shows">
-                <i data-lucide="tv"></i>
-                <span><span data-i18n="media_hub.tv_shows">TV Shows</span></span>
-                <span class="nav-count" id="showCount">--</span>
-                <kbd class="nav-hotkey"><span data-i18n="media_hub.alt_3">Alt+3</span></kbd>
-            </button>
-            <button class="nav-tab" data-tab="requests">
-                <i data-lucide="inbox"></i>
-                <span><span data-i18n="media_hub.requests">Requests</span></span>
-                <span class="nav-badge mh-hidden" id="requestBadge">0</span>
-                <kbd class="nav-hotkey"><span data-i18n="media_hub.alt_4">Alt+4</span></kbd>
-            </button>
-            <button class="nav-tab" data-tab="calendar">
-                <i data-lucide="calendar-days"></i>
-                <span><span data-i18n="media_hub.calendar">Calendar</span></span>
-                <kbd class="nav-hotkey"><span data-i18n="media_hub.alt_5">Alt+5</span></kbd>
-            </button>
-            <button class="nav-tab" data-tab="stats">
-                <i data-lucide="bar-chart-3"></i>
-                <span><span data-i18n="media_hub.stats">Stats</span></span>
-                <kbd class="nav-hotkey"><span data-i18n="media_hub.alt_6">Alt+6</span></kbd>
-            </button>
-            <button class="nav-tab" data-tab="settings">
-                <i data-lucide="settings-2"></i>
-                <span><span data-i18n="media_hub.settings">Settings</span></span>
-            </button>
-        </div>
-    </nav>
-
     <!-- Tab Content -->
     <main class="hub-content">
         <!-- Dashboard Tab -->
         <section id="tab-dashboard" class="tab-panel active">
+            <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">STREAMING DASHBOARD</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
             <!-- Stats Row -->
             <div class="stats-grid">
                 <div class="stat-card">
@@ -298,10 +258,35 @@
                     </div>
                 </section>
             </div>
+                        </div>
+                        <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <!-- Movies Tab -->
         <section id="tab-movies" class="tab-panel">
+            <div style="--frame-color: #f59e0b; --frame-rgb: 245,158,11; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">MOVIE LIBRARY</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
             <div class="library-controls">
                 <div class="filter-group">
                     <select id="movieSort" class="control-select">
@@ -329,10 +314,35 @@
             <div class="load-more mh-hidden" id="loadMoreMovies">
                 <button class="btn-outline" onclick="loadMoreMovies()"><span data-i18n="media_hub.load_more">Load More</span></button>
             </div>
+                        </div>
+                        <div style="height: 6px !important; background: #f59e0b !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <!-- TV Shows Tab -->
         <section id="tab-shows" class="tab-panel">
+            <div style="--frame-color: #22c55e; --frame-rgb: 34,197,94; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #22c55e !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22c55e !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #16a34a !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(34,197,94,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #22c55e !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #22c55e !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">TV SHOWS</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
             <div class="library-controls">
                 <div class="filter-group">
                     <select id="showSort" class="control-select">
@@ -360,10 +370,35 @@
             <div class="load-more mh-hidden" id="loadMoreShows">
                 <button class="btn-outline" onclick="loadMoreShows()"><span data-i18n="media_hub.load_more_2">Load More</span></button>
             </div>
+                        </div>
+                        <div style="height: 6px !important; background: #22c55e !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <!-- Requests Tab -->
         <section id="tab-requests" class="tab-panel">
+            <div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">MEDIA REQUESTS</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
             <div class="library-controls">
                 <div class="filter-group" id="requestsFilterGroup">
                     <button class="filter-chip active" data-status="active" onclick="filterRequests('active')"><span data-i18n="media_hub.active">Active</span></button>
@@ -387,10 +422,35 @@
                     <p><span data-i18n="media_hub.search_for_movies_or_shows_to_request_them">Search for movies or shows to request them</span></p>
                 </div>
             </div>
+                        </div>
+                        <div style="height: 6px !important; background: #8b5cf6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <!-- Calendar Tab -->
         <section id="tab-calendar" class="tab-panel">
+            <div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #3b82f6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #2563eb !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #3b82f6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #3b82f6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">RELEASE CALENDAR</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
             <div class="calendar-header">
                 <h2><i data-lucide="calendar-days"></i><span data-i18n="media_hub.upcoming_episodes"> Upcoming Episodes</span></h2>
                 <div class="calendar-controls">
@@ -436,10 +496,35 @@
                     <div class="month-grid" id="monthGrid"></div>
                 </div>
             </div>
+                        </div>
+                        <div style="height: 6px !important; background: #3b82f6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <!-- Stats Tab -->
         <section id="tab-stats" class="tab-panel">
+            <div style="--frame-color: #14b8a6; --frame-rgb: 20,184,166; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #14b8a6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #14b8a6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #0d9488 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(20,184,166,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #14b8a6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #14b8a6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">STREAMING STATS</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
             <div class="section-header">
                 <h2><i data-lucide="bar-chart-3"></i><span data-i18n="media_hub.library_statistics"> Library Statistics</span></h2>
                 <button class="btn-ghost" onclick="loadStatistics(true)">
@@ -530,10 +615,35 @@
                     </div>
                 </div>
             </div>
+                        </div>
+                        <div style="height: 6px !important; background: #14b8a6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <!-- Settings Tab -->
         <section id="tab-settings" class="tab-panel">
+            <div style="--frame-color: #f97316; --frame-rgb: 249,115,22; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #f97316 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f97316 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ea580c !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(249,115,22,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #f97316 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #f97316 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SETTINGS</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
             <div class="settings-layout">
                 <!-- Services Configuration -->
                 <div class="settings-section">
@@ -572,14 +682,16 @@
                     </div>
                 </div>
             </div>
+                        </div>
+                        <div style="height: 6px !important; background: #f97316 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
         </section>
     </main>
 </div>
 
-            </div><!-- /lcars-body -->
-            <div class="lcars-footer-bar"></div>
-        </div><!-- /lcars-content -->
-    </div><!-- /lcars-frame -->
+    </div><!-- /media-hub-content -->
 
 <!-- Media Details Modal -->
 <div class="media-modal" id="mediaPanel">
@@ -685,8 +797,12 @@
 <!-- HLS.js for adaptive streaming -->
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
 
+<script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script src="{{ url_for('static', filename='js/media-hub.js') }}"></script>
 <script>
+/* Bridge LCARS header tabs → Media Hub switchTab */
+window.onLcarsTabSwitch = function(tabId) { if (window.switchTab) switchTab(tabId); };
+
 /* LCARS Service Badge Status Updates */
 (function() {
     function updateServiceBadges() {

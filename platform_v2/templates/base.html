@@ -71,31 +71,7 @@
 
 </head>
 <body class="{% if theme_name is defined %}theme-{{ theme_name }}{% else %}theme-lcars-classic{% endif %}" data-module="{% block module_name %}default{% endblock %}">
-    <!-- Global Admin Notification Bar (Admin users only) -->
-    {% if current_user.is_authenticated and current_user.is_admin %}
-    <div id="adminNotificationBar" class="admin-notification-bar" style="display:none">
-        <div class="admin-notification-content">
-            <div class="admin-notification-icon">
-                <i data-lucide="activity"></i>
-            </div>
-            <div class="admin-notification-message">
-                <span class="admin-notification-title" id="adminNotifyTitle"></span>
-                <span class="admin-notification-text" id="adminNotifyText"></span>
-            </div>
-            <span class="admin-notification-timer archie-hidden" id="adminNotifyTimer">0s</span>
-            <button class="admin-notification-close" onclick="dismissAdminNotification()" title="Dismiss">
-                <i data-lucide="x"></i>
-            </button>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Ops Alert Bar (Admin users only) -->
-    {% if current_user.is_authenticated and current_user.is_admin %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/ops-alert-bar.css') }}">
-    <div id="opsAlertBar" class="ops-alert-bar"></div>
-    <script src="{{ url_for('static', filename='js/ops-alert-bar.js') }}"></script>
-    {% endif %}
+    <!-- Admin bars removed — ops data available via LCARS header alerts + dashboard Mission Briefing -->
 
     {% if current_user.is_authenticated %}
     <!-- Global Profile Modal -->
@@ -114,19 +90,11 @@
             <div class="global-profile-modal-body">
                 <a href="/tools/my-profile" class="global-profile-link" onclick="toggleProfileModal()">
                     <span class="global-profile-link-icon">👤</span>
-                    <span>My Profile</span>
-                </a>
-                <a href="/tools/my-profile#themes" class="global-profile-link" onclick="toggleProfileModal()">
-                    <span class="global-profile-link-icon">🎨</span>
-                    <span>Theme Settings</span>
+                    <span>My Profile & Themes</span>
                 </a>
                 <a href="/" class="global-profile-link" onclick="toggleProfileModal()">
                     <span class="global-profile-link-icon">🏠</span>
                     <span>Dashboard</span>
-                </a>
-                <a href="/tools/consciousness/#devhq" class="global-profile-link" onclick="toggleProfileModal()">
-                    <span class="global-profile-link-icon">🛠️</span>
-                    <span>Dev HQ</span>
                 </a>
                 <div class="global-profile-divider"></div>
                 <a href="/logout" class="global-profile-link global-profile-logout">
@@ -166,12 +134,8 @@
     <script src="{{ url_for('static', filename='js/base.js') }}"></script>
 
     <script>
-        // ═══════════════════════════════════════════════════════════════════════
-        // GLOBAL ADMIN NOTIFICATION SYSTEM
-        // Cross-tab, cross-module notification bar for admin alerts
-        // ═══════════════════════════════════════════════════════════════════════
-
-        {% if current_user.is_authenticated and current_user.is_admin %}
+        {# Admin notification system removed — alerts centralized in LCARS header + Mission Briefing #}
+        {% if false %}
         (function() {
             'use strict';
 

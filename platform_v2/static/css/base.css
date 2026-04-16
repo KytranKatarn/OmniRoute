@@ -86,7 +86,7 @@
 .global-profile-modal {
     position: fixed;
     top: 56px;
-    right: 16px;
+    left: 16px;
     z-index: 9991;
 }
 .global-profile-modal-content {

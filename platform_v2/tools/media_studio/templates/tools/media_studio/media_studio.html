@@ -4,6 +4,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/glass-nav.css') }}">
 <link rel="stylesheet" href="{{ url_for('media_studio.static', filename='css/media-studio.css') }}">
 {% endblock %}
@@ -12,16 +13,25 @@
 {% block module_name %}media_studio{% endblock %}
 
 {% block content %}
+{# LCARS Header — Creative Studios #}
 {% set cat_accent = '#ec4899' %}
 {% set cat_accent_rgb = '236,72,153' %}
-{% set cat_accent_light = '#db2777' %}
+{% set cat_accent_dark = '#db2777' %}
 {% set cat_label = 'CREATIVE STUDIOS' %}
-{% set cat_icon = 'palette' %}
-{% set cat_modules = [
-    {'url': url_for('media_studio.index'), 'endpoint_prefix': 'media_studio', 'icon': 'image', 'label': 'Media Studio', 'title': 'Media Studio'},
-    {'url': url_for('game_studio.index'), 'endpoint_prefix': 'game_studio', 'icon': 'gamepad-2', 'label': 'Game Studio', 'title': 'Game Studio'}
+{% set module_title = 'MEDIA STUDIO' %}
+{% set header_shortcuts = [
+    ("Media Studio", "image", "/tools/media-studio"),
+    ("Game Studio", "gamepad-2", "/tools/game-studio")
 ] %}
-{% include 'includes/category_nav.html' %}
+{% set header_tabs = [
+    ("dashboard", "Dashboard", "layout-dashboard"),
+    ("generate", "Generate", "wand-2"),
+    ("gallery", "Gallery", "image"),
+    ("portraits", "Portraits", "users"),
+    ("queue", "Queue", "list-ordered"),
+    ("social-video", "Social Video", "video")
+] %}
+{% include 'includes/lcars-header.html' %}
 
 <style>
     /* Override glass-nav accent for CREATIVE station purple */
@@ -279,39 +289,7 @@
     }
 </style>
 
-<!-- ================================================================
-     GLASS NAV — 5 Tabs
-     ================================================================ -->
-<nav class="glass-nav" id="msNav">
-    <div class="glass-nav-track">
-        <div class="glass-nav-indicator"></div>
-        <button class="glass-nav-item active" data-tab="dashboard">
-            <i data-lucide="layout-dashboard" style="width:16px;height:16px;"></i>
-            <span data-i18n="media_studio.dashboard">Dashboard</span>
-        </button>
-        <button class="glass-nav-item" data-tab="generate">
-            <i data-lucide="wand-2" style="width:16px;height:16px;"></i>
-            <span data-i18n="media_studio.generate">Generate</span>
-        </button>
-        <button class="glass-nav-item" data-tab="gallery">
-            <i data-lucide="image" style="width:16px;height:16px;"></i>
-            <span data-i18n="media_studio.gallery">Gallery</span>
-        </button>
-        <button class="glass-nav-item" data-tab="portraits">
-            <i data-lucide="users" style="width:16px;height:16px;"></i>
-            <span data-i18n="media_studio.portraits">Portraits</span>
-            <span class="ms-layer-badge">Layer 2</span>
-        </button>
-        <button class="glass-nav-item" data-tab="queue">
-            <i data-lucide="list-ordered" style="width:16px;height:16px;"></i>
-            <span data-i18n="media_studio.queue">Queue</span>
-        </button>
-        <button class="glass-nav-item" data-tab="social-video">
-            <i data-lucide="video" style="width:16px;height:16px;"></i>
-            <span>Social Video</span>
-        </button>
-    </div>
-</nav>
+<!-- Glass nav removed — tabs now in LCARS header -->
 
 <div class="ms-page">
 
@@ -319,6 +297,26 @@
          TAB: DASHBOARD
          ================================================================ -->
     <div id="ms-tab-dashboard" class="ms-tab-pane active">
+      <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            </div>
+            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">DASHBOARD</span>
+                    <div style="flex:1"></div>
+                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    </div>
+                </div>
+                <div style="flex: 1 !important; padding: 16px !important;">
 
         <!-- Stats counters -->
         <div class="ms-section-header">
@@ -365,12 +363,38 @@
         <div class="ms-dashboard-grid" id="msDashFleet">
             <!-- Populated by JS -->
         </div>
+
+                </div>
+                <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+            </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================================================================
          TAB: GENERATE
          ================================================================ -->
     <div id="ms-tab-generate" class="ms-tab-pane">
+      <div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
+        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                <div style="height: 52px !important; background: #3b82f6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
+                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #2563eb !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                <div style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                <div style="height: 36px !important; background: #3b82f6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            </div>
+            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                <div style="height: 44px !important; background: #3b82f6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">GENERATE</span>
+                    <div style="flex:1"></div>
+                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    </div>
+                </div>
+                <div style="flex: 1 !important; padding: 16px !important;">
 
         <div class="ms-generate-form">
             <!-- Media type selector -->
@@ -595,12 +619,39 @@
                 </div>
             </div>
         </div>
+
+                </div>
+                <div style="height: 6px !important; background: #3b82f6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+            </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================================================================
          TAB: GALLERY
          ================================================================ -->
     <div id="ms-tab-gallery" class="ms-tab-pane">
+      <div style="--frame-color: #f59e0b; --frame-rgb: 245,158,11; margin-bottom: 20px;">
+        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                <div style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
+                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                <div style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                <div style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            </div>
+            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                <div style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">GALLERY</span>
+                    <div style="flex:1"></div>
+                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    </div>
+                </div>
+                <div style="flex: 1 !important; padding: 16px !important;">
+
         <!-- Search Bar -->
         <div class="ms-gallery-search">
             <div class="ms-search-input-wrap">
@@ -855,12 +906,39 @@
                 </div>
             </div>
         </div>
+
+                </div>
+                <div style="height: 6px !important; background: #f59e0b !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+            </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================================================================
          TAB: PORTRAITS (Disabled / Layer 2)
          ================================================================ -->
     <div id="ms-tab-portraits" class="ms-tab-pane">
+      <div style="--frame-color: #22c55e; --frame-rgb: 34,197,94; margin-bottom: 20px;">
+        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                <div style="height: 52px !important; background: #22c55e !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22c55e !important; flex-shrink: 0 !important;"></div>
+                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #16a34a !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                <div style="flex: 1 !important; background: rgba(34,197,94,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                <div style="height: 36px !important; background: #22c55e !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            </div>
+            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                <div style="height: 44px !important; background: #22c55e !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">PORTRAITS</span>
+                    <div style="flex:1"></div>
+                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    </div>
+                </div>
+                <div style="flex: 1 !important; padding: 16px !important;">
+
         <!-- Agent Grid -->
         <div class="ms-section-header">
             <div class="ms-section-line"></div>
@@ -955,12 +1033,39 @@
                 <button class="ms-btn ms-btn-accent" onclick="generateEnvironment('node')" data-i18n="media_studio.generate_background">Generate</button>
             </div>
         </div>
+
+                </div>
+                <div style="height: 6px !important; background: #22c55e !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+            </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================================================================
          TAB: QUEUE
          ================================================================ -->
     <div id="ms-tab-queue" class="ms-tab-pane">
+      <div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                <div style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                <div style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                <div style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            </div>
+            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                <div style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">QUEUE</span>
+                    <div style="flex:1"></div>
+                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    </div>
+                </div>
+                <div style="flex: 1 !important; padding: 16px !important;">
+
         <div class="ms-section-header">
             <div class="ms-section-cap"></div>
             <span class="ms-section-title" data-i18n="media_studio.generation_queue">Generation Queue</span>
@@ -968,12 +1073,38 @@
         <div class="ms-queue-list" id="msQueueList">
             <div class="ms-queue-empty" data-i18n="media_studio.queue_empty">Queue is empty. Submit a generation to see it here.</div>
         </div>
+
+                </div>
+                <div style="height: 6px !important; background: #8b5cf6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+            </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================================================================
          S06  SOCIAL VIDEO TAB
          ================================================================ -->
     <div id="ms-tab-social-video" class="ms-tab-pane">
+      <div style="--frame-color: #14b8a6; --frame-rgb: 20,184,166; margin-bottom: 20px;">
+        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                <div style="height: 52px !important; background: #14b8a6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #14b8a6 !important; flex-shrink: 0 !important;"></div>
+                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #0d9488 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                <div style="flex: 1 !important; background: rgba(20,184,166,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                <div style="height: 36px !important; background: #14b8a6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            </div>
+            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                <div style="height: 44px !important; background: #14b8a6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SOCIAL VIDEO</span>
+                    <div style="flex:1"></div>
+                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    </div>
+                </div>
+                <div style="flex: 1 !important; padding: 16px !important;">
 
         <!-- Stats Bar -->
         <div class="sv-stats-bar">
@@ -1075,6 +1206,11 @@
             </div>
         </div>
 
+                </div>
+                <div style="height: 6px !important; background: #14b8a6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+            </div>
+        </div>
+      </div>
     </div>
 
 </div><!-- /.ms-page -->
@@ -1244,6 +1380,7 @@
 <!-- ================================================================
      JAVASCRIPT
      ================================================================ -->
+<script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script src="{{ url_for('static', filename='js/glass-nav.js') }}"></script>
 <script>
 (function() {
@@ -2753,21 +2890,17 @@
 
     /* ── Init ─────────────────────────────────────── */
 
-    document.addEventListener("DOMContentLoaded", function() {
-        var navEl = document.getElementById("msNav");
-        if (navEl && typeof GlassNav !== "undefined") {
-            window._msGlassNav = new GlassNav(navEl, {
-                onSwitch: function(tab) {
-                    switchMsTab(tab);
-                }
-            });
-        }
+    /* ── LCARS Header tab bridge ────────────────── */
+    window.onLcarsTabSwitch = function(tabId) {
+        switchMsTab(tabId);
+    };
 
+    document.addEventListener("DOMContentLoaded", function() {
         if (typeof lucide !== "undefined") lucide.createIcons();
 
         var hash = (window.location.hash || "").replace("#", "");
         if (hash && document.getElementById("ms-tab-" + hash)) {
-            if (window._msGlassNav) window._msGlassNav.setActive(hash);
+            if (window.setLcarsActiveTab) window.setLcarsActiveTab(hash);
             switchMsTab(hash);
         } else {
             loadDashboard();

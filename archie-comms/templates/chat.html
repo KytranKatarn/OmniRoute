@@ -6,34 +6,26 @@
     <title>A.R.C.H.I.E. Comms</title>
     <link rel="icon" type="image/png" href="/static/favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;500;700&family=Orbitron:wght@400;700;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/lcars-header.css">
     <link rel="stylesheet" href="/static/css/comms.css">
+    <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 </head>
 <body>
-<!-- ═══════════════════════════════════════════════════════════════
-     LCARS HEADER BAR
-     ═══════════════════════════════════════════════════════════════ -->
-<header class="comms-header">
-    <div class="comms-header-elbow"></div>
-    <div class="comms-header-bar">
-        <img src="/static/favicon.png" alt="A.R.C.H.I.E." style="height:28px;width:28px;border-radius:50%;margin-right:4px;" onerror="this.style.display='none';">
-        <span class="comms-header-title">A.R.C.H.I.E. COMMS</span>
-        <nav class="comms-tabs">
-            <button class="comms-tab active" data-tab="chat">Chat</button>
-            <button class="comms-tab" data-tab="history">History</button>
-            <button class="comms-tab" data-tab="collaboration">Collaboration</button>
-            <button class="comms-tab" data-tab="terminal">Claude TTY</button>
-        </nav>
-        <div class="comms-header-status">
-            <span class="comms-status-dot"></span>
-            <span class="comms-status-text">Online</span>
-        </div>
-        <a href="/" class="comms-header-link" title="Back to status page">Status</a>
-        <a href="https://platform.kytranempowerment.com" class="comms-header-link" title="Platform">Platform</a>
-        <a href="/logout" class="comms-header-link" title="Sign out" style="color:rgba(0,0,0,0.4);">Logout</a>
-    </div>
-    <div class="comms-header-cap"></div>
-</header>
+{% set cat_accent = '#00ffff' %}
+{% set cat_accent_rgb = '0,255,255' %}
+{% set cat_accent_dark = '#00cccc' %}
+{% set cat_label = 'COMMUNICATIONS' %}
+{% set module_title = 'A.R.C.H.I.E. COMMS' %}
+{% set module_back_url = '/' %}
+{% set header_shortcuts = [] %}
+{% set header_tabs = [
+    ("chat", "Chat", "message-square"),
+    ("history", "History", "clock"),
+    ("collaboration", "Collaboration", "users"),
+    ("terminal", "Claude TTY", "terminal")
+] %}
+{% include 'lcars-header.html' %}
 
 <!-- ═══════════════════════════════════════════════════════════════
      TAB: CHAT (default)
@@ -173,30 +165,35 @@
 
 <!-- TAB: CLAUDE TTY -->
 <div id="panel-terminal" class="comms-panel">
-    <div style="display:flex;align-items:center;justify-content:center;height:100%;background:#1a1a2e;">
-        <div style="text-align:center;max-width:500px;padding:2rem;">
-            <div style="font-size:2.5rem;margin-bottom:12px;">&#128433;</div>
-            <div style="font-family:'Orbitron',sans-serif;font-size:0.85rem;color:#a78bfa;letter-spacing:2px;margin-bottom:8px;">CLAUDE CLI TERMINAL</div>
-            <p style="color:#9ca3af;font-size:0.8rem;line-height:1.6;margin-bottom:24px;">
-                Persistent tmux session with Claude Code. Your session survives browser disconnects.
-            </p>
-            <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-                <a href="http://192.168.1.200:7681" target="_blank"
-                   style="display:inline-flex;align-items:center;gap:8px;padding:12px 28px;background:#a78bfa;color:#000;text-decoration:none;font-weight:700;font-size:0.85rem;border-radius:6px;box-shadow:0 4px 20px rgba(167,139,250,0.3);transition:transform 0.2s;">
-                    Launch Terminal
-                </a>
-                <a href="https://claude.kytranempowerment.com" target="_blank"
-                   style="display:inline-flex;align-items:center;gap:8px;padding:12px 28px;background:transparent;border:1px solid rgba(167,139,250,0.3);color:#a78bfa;text-decoration:none;font-weight:600;font-size:0.85rem;border-radius:6px;transition:all 0.2s;">
-                    Claude Portal
-                </a>
-            </div>
-            <p style="color:#4b5563;font-size:0.68rem;margin-top:16px;">Terminal opens in a new window (local network)</p>
-        </div>
+    <div style="display:flex;flex-direction:column;height:100%;background:#000;">
+        <iframe id="ttyd-frame" src="about:blank"
+                style="flex:1;border:none;width:100%;background:#000;"
+                allow="clipboard-read; clipboard-write"
+                title="Claude Terminal"></iframe>
     </div>
 </div>
+<script>
+// Lazy-load TTYd only when terminal tab is activated (saves resources)
+(function() {
+    var ttydLoaded = false;
+    var origSwitch = window.onLcarsTabSwitch;
+    window.onLcarsTabSwitch = function(tabId) {
+        if (tabId === 'terminal' && !ttydLoaded) {
+            ttydLoaded = true;
+            document.getElementById('ttyd-frame').src = 'http://192.168.1.200:7681';
+        }
+        // Call original panel switcher
+        document.querySelectorAll('.comms-panel').forEach(function(p) {
+            p.classList.toggle('active', p.id === 'panel-' + tabId);
+        });
+    };
+})();
+</script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="/static/js/lcars-header.js"></script>
 <script src="/static/js/comms.js"></script>
+<script>if(window.lucide)lucide.createIcons();</script>
 </body>
 </html>

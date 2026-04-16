@@ -92,12 +92,6 @@
                         <button class="cb-icon-btn" data-accent="purple" id="cbLangBtn" title="Language" data-i18n-title="js.nav.language" aria-label="Change language" onclick="toggleLangMenu(this);">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
                         </button>
-                        {% if dashboard_data.user_role in ['ADMIN', 'SUPER_ADMIN'] %}
-                        <!-- Dev HQ — grid -->
-                        <a class="cb-icon-btn" data-accent="green" href="/tools/consciousness/#devhq" title="Dev HQ" data-i18n-title="js.nav.dev_hq" aria-label="Dev HQ">
-                            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
-                        </a>
-                        {% endif %}
                         <!-- Logout — power -->
                         <a class="cb-icon-btn cb-logout" data-accent="red" href="/logout" title="Logout" data-i18n-title="js.nav.logout" aria-label="Logout" id="cbLogoutBtn" onclick="event.preventDefault(); startShutdownSequence();">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="12"/><path d="M18.36 6.64A9 9 0 1 1 5.64 6.64"/></svg>

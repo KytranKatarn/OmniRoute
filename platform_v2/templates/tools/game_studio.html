@@ -3,10 +3,24 @@
 {% block title %}Game Studio — A.R.C.H.I.E.{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/game-studio.css') }}">
 {% endblock %}
 
 {% block content %}
+{# LCARS Header — Creative Studios #}
+{% set cat_accent = '#ec4899' %}
+{% set cat_accent_rgb = '236,72,153' %}
+{% set cat_accent_dark = '#db2777' %}
+{% set cat_label = 'CREATIVE STUDIOS' %}
+{% set module_title = 'GAME STUDIO' %}
+{% set header_shortcuts = [
+    ("Media Studio", "image", "/tools/media-studio"),
+    ("Game Studio", "gamepad-2", "/tools/game-studio")
+] %}
+{% set header_tabs = [] %}
+{% include 'includes/lcars-header.html' %}
+
 <!-- ═══════════════════════════════════════════════════════════
      GAME STUDIO — Three-Panel LCARS Builder
      Dashboard view + Builder view (hidden until project opened)
@@ -21,31 +35,81 @@
   </div>
 
   <!-- Your Games -->
-  <section class="gs-section">
-    <div class="gs-section-header">
-      <h2 class="gs-section-title">Your Games</h2>
-    </div>
-    <div id="gsProjectGrid" class="gs-project-grid">
-      <!-- New Game card -->
-      <div class="gs-card gs-card-new" onclick="GS.openNewGameModal()">
-        <div class="gs-card-new-icon">
-          <i data-lucide="plus-circle"></i>
-        </div>
-        <span class="gs-card-new-label">+ New Game</span>
+  <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+      <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+        <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+        <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+        <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
       </div>
-      <!-- Existing project cards injected by JS -->
+      <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+        <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+          <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">YOUR GAMES</span>
+          <div style="flex:1"></div>
+          <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+            <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+            <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+          </div>
+        </div>
+        <div style="flex: 1 !important; padding: 16px !important;">
+          <section class="gs-section">
+            <div class="gs-section-header">
+              <h2 class="gs-section-title">Your Games</h2>
+            </div>
+            <div id="gsProjectGrid" class="gs-project-grid">
+              <!-- New Game card -->
+              <div class="gs-card gs-card-new" onclick="GS.openNewGameModal()">
+                <div class="gs-card-new-icon">
+                  <i data-lucide="plus-circle"></i>
+                </div>
+                <span class="gs-card-new-label">+ New Game</span>
+              </div>
+              <!-- Existing project cards injected by JS -->
+            </div>
+          </section>
+        </div>
+        <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+      </div>
     </div>
-  </section>
+  </div>
 
   <!-- Templates -->
-  <section class="gs-section">
-    <div class="gs-section-header">
-      <h2 class="gs-section-title">Templates</h2>
+  <div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+      <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+        <div style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+        <div style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+        <div style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+      </div>
+      <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+        <div style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+          <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">TEMPLATES</span>
+          <div style="flex:1"></div>
+          <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+            <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+            <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+          </div>
+        </div>
+        <div style="flex: 1 !important; padding: 16px !important;">
+          <section class="gs-section">
+            <div class="gs-section-header">
+              <h2 class="gs-section-title">Templates</h2>
+            </div>
+            <div id="gsTemplateGrid" class="gs-template-grid">
+              <!-- Template cards injected by JS -->
+            </div>
+          </section>
+        </div>
+        <div style="height: 6px !important; background: #8b5cf6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+      </div>
     </div>
-    <div id="gsTemplateGrid" class="gs-template-grid">
-      <!-- Template cards injected by JS -->
-    </div>
-  </section>
+  </div>
 </div><!-- /#gsDashboard -->
 
 
@@ -420,6 +484,7 @@
 
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <!-- Monaco Editor loader -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
 <!-- Game Studio application JS -->

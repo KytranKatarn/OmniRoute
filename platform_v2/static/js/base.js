@@ -26,17 +26,17 @@ document.addEventListener('DOMContentLoaded', function() {
 window.toggleProfileModal = function() {
     var modal = document.getElementById('globalProfileModal');
     if (modal) {
-        modal.style.display = modal.style.display === 'none' ? '' : 'none';
+        modal.classList.toggle('archie-hidden');
     }
 };
 
 // Close on click outside
 document.addEventListener('click', function(e) {
     var modal = document.getElementById('globalProfileModal');
-    var btn = document.getElementById('globalProfileBtn');
-    if (modal && modal.style.display !== 'none' &&
-        btn && !modal.contains(e.target) && !btn.contains(e.target)) {
-        modal.style.display = 'none';
+    var link = document.querySelector('.dash-profile-link');
+    if (modal && !modal.classList.contains('archie-hidden') &&
+        !modal.contains(e.target) && (!link || !link.contains(e.target))) {
+        modal.classList.add('archie-hidden');
     }
 });
 
@@ -44,6 +44,6 @@ document.addEventListener('click', function(e) {
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         var modal = document.getElementById('globalProfileModal');
-        if (modal) modal.style.display = 'none';
+        if (modal) modal.classList.add('archie-hidden');
     }
 });

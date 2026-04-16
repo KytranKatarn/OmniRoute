@@ -57,38 +57,48 @@ def _unified_to_notif(a):
 
 
 def get_notifications(user_id, is_admin):
-    """Blended notifications — wraps the unified alert service.
+    """User-facing module notifications only (bell icon).
 
-    Flattens critical + all categories into one deduplicated list and converts
-    each item to the legacy notification format.  Falls back to the legacy
-    direct-query implementation on any exception.
+    Returns notifications targeted at the specific user from modules
+    (e.g. email arrived, task completed, calendar reminder).
+    System/ops alerts go to Mission Briefing via /api/alerts/unified instead.
     """
-    try:
-        from services.alert_service import get_unified_alerts
-
-        unified = get_unified_alerts(user_id, is_admin)
-
-        seen_ids = set()
-        merged = []
-
-        # Include critical alerts first, then everything else by category
-        for item in unified.get("critical", []):
-            item_id = item.get("id")
-            if item_id not in seen_ids:
-                seen_ids.add(item_id)
-                merged.append(_unified_to_notif(item))
-
-        for _cat, items in unified.get("categories", {}).items():
-            for item in items:
-                item_id = item.get("id")
-                if item_id not in seen_ids:
-                    seen_ids.add(item_id)
-                    merged.append(_unified_to_notif(item))
-
-        return merged[:20]
-    except Exception:
-        logger.exception("get_notifications: unified alert service failed, falling back to legacy")
-        return _get_notifications_legacy(user_id, is_admin)
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """
+                SELECT sn.id, sn.title, sn.message, sn.source, sn.type,
+                       sn.priority, sn.created_at,
+                       CASE WHEN nr.notification_id IS NOT NULL THEN true ELSE false END as is_read
+                FROM system_notifications sn
+                LEFT JOIN notification_reads nr ON nr.notification_id = sn.id AND nr.user_id = %s
+                WHERE sn.is_archived = FALSE
+                  AND sn.created_at >= NOW() - INTERVAL '30 days'
+                  AND (sn.visibility = 'user' AND sn.target_user_id = %s)
+                ORDER BY sn.created_at DESC
+                LIMIT 20
+                """,
+                [user_id, user_id],
+            )
+            return [
+                {
+                    "id": n["id"],
+                    "type": n["type"] or "info",
+                    "title": n["title"] or "Notification",
+                    "message": n["message"],
+                    "source": n["source"] or "module",
+                    "is_read": n["is_read"],
+                    "priority": n["priority"] or "normal",
+                    "created_at": _ts(n["created_at"]),
+                }
+                for n in cur.fetchall()
+            ]
+        except Exception:
+            logger.exception("get_notifications: query failed")
+            return []
+        finally:
+            cur.close()
 
 
 def _get_notifications_legacy(user_id, is_admin):
@@ -402,34 +412,33 @@ def create_notification(
 # 5. GET /api/notifications/count — unread count
 # ---------------------------------------------------------------------------
 def get_unread_count(user_id, is_admin):
-    """Get unread notification count — only markable system_notifications, per-user.
+    """Get unread notification count — user-targeted module notifications only (bell icon).
 
     Returns dict with 'unread', 'critical', 'errors' counts.
+    System alerts are counted separately in Mission Briefing.
     """
     with get_db_connection() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            vis_sql, vis_params = _visibility_filter(is_admin, user_id)
-
             cur.execute(
-                f"""
+                """
                 SELECT
-                    COUNT(DISTINCT (sn.title, sn.source)) FILTER (WHERE nr.notification_id IS NULL) as unread,
+                    COUNT(*) FILTER (WHERE nr.notification_id IS NULL) as unread,
                     COUNT(*) FILTER (WHERE sn.priority = 'critical' AND nr.notification_id IS NULL) as critical,
                     COUNT(*) FILTER (WHERE sn.type = 'error' AND nr.notification_id IS NULL) as errors
                 FROM system_notifications sn
                 LEFT JOIN notification_reads nr ON nr.notification_id = sn.id AND nr.user_id = %s
                 WHERE sn.is_archived = FALSE
-                  AND sn.created_at >= NOW() - INTERVAL '7 days'
-                  {vis_sql}
+                  AND sn.created_at >= NOW() - INTERVAL '30 days'
+                  AND sn.visibility = 'user' AND sn.target_user_id = %s
             """,
-                [user_id] + vis_params,
+                [user_id, user_id],
             )
             counts = cur.fetchone()
             return {
-                "unread": counts["unread"],
-                "critical": counts["critical"],
-                "errors": counts["errors"],
+                "unread": counts["unread"] or 0,
+                "critical": counts["critical"] or 0,
+                "errors": counts["errors"] or 0,
             }
         finally:
             cur.close()

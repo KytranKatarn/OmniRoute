@@ -2007,6 +2007,7 @@ body.light-mode .briefing-activity-item:hover {
 .featured-card {
     display: flex;
     flex-direction: column;
+    align-items: center;
     padding: 24px;
     background: rgba(10, 10, 26, 0.45);
     backdrop-filter: blur(8px);
@@ -2058,8 +2059,12 @@ body.light-mode .briefing-activity-item:hover {
     --feat-accent: #00aa33;
 }
 
-.featured-card[data-category="media_home"] {
-    --feat-accent: #db2777;
+.featured-card[data-category="applications_concepts"] {
+    --feat-accent: #0ea5e9;
+}
+
+.featured-card[data-category="media_outreach"] {
+    --feat-accent: #10b981;
 }
 
 .featured-card-icon {
@@ -2071,6 +2076,8 @@ body.light-mode .briefing-activity-item:hover {
     border-radius: 12px;
     background: rgba(255, 255, 255, 0.05);
     margin-bottom: 16px;
+    margin-left: auto;
+    margin-right: auto;
     color: var(--feat-accent, rgba(245, 158, 11, 0.7));
 }
 
@@ -2087,6 +2094,7 @@ body.light-mode .briefing-activity-item:hover {
     text-transform: uppercase;
     color: var(--archie-text-primary);
     margin-bottom: 8px;
+    text-align: center;
 }
 
 .featured-card-desc {
@@ -2095,12 +2103,13 @@ body.light-mode .briefing-activity-item:hover {
     color: rgba(255, 255, 255, 0.55);
     line-height: 1.6;
     flex: 1;
+    text-align: center;
 }
 
 .featured-card-footer {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     margin-top: 16px;
     padding-top: 12px;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -2274,9 +2283,9 @@ body.light-mode .featured-pin-btn.pinned {
 .category-frame--ai_command        { --frame-color: #00ffff; --frame-rgb: 0,255,255; --cat-accent: #00ffff; }
 .category-frame--saas_services     { --frame-color: #f59e0b; --frame-rgb: 245,158,11; --cat-accent: #f59e0b; }
 .category-frame--project_knowledge { --frame-color: #00ff41; --frame-rgb: 0,255,65; --cat-accent: #00ff41; }
-.category-frame--media_home        { --frame-color: #0ea5e9; --frame-rgb: 14,165,233; --cat-accent: #0ea5e9; }
+.category-frame--applications_concepts { --frame-color: #0ea5e9; --frame-rgb: 14,165,233; --cat-accent: #0ea5e9; }
 .category-frame--crypto            { --frame-color: #eab308; --frame-rgb: 234,179,8; --cat-accent: #eab308; }
-.category-frame--applications      { --frame-color: #10b981; --frame-rgb: 16,185,129; --cat-accent: #10b981; }
+.category-frame--media_outreach    { --frame-color: #10b981; --frame-rgb: 16,185,129; --cat-accent: #10b981; }
 .category-frame--creative_studios  { --frame-color: #ec4899; --frame-rgb: 236,72,153; --cat-accent: #ec4899; }
 .category-frame--placeholders_future { --frame-color: #6b7280; --frame-rgb: 107,114,128; --cat-accent: #6b7280; }
 
@@ -2448,8 +2457,8 @@ body.light-mode .featured-pin-btn.pinned {
     top: 50%;
     right: 8px;
     transform: translateY(-50%);
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2460,6 +2469,8 @@ body.light-mode .featured-pin-btn.pinned {
     transition: color 0.2s ease, transform 0.2s ease;
     padding: 0;
     opacity: 0;
+    z-index: 10;
+    pointer-events: auto;
 }
 .module-card:hover .module-pin-btn {
     opacity: 1;

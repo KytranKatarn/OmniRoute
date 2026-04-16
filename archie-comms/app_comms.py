@@ -25,10 +25,40 @@ app.config["SESSION_COOKIE_DOMAIN"] = ".kytranempowerment.com"
 app.config["SESSION_COOKIE_NAME"] = "archie_comms_session"
 
 # SSO — "Connect with Kytran Empowerment"
+# Two OAuth clients: archie-comms (archie subdomain) + claude-terminal (claude subdomain)
 from kytran_auth import KytranAuth
 
 kytran_auth = KytranAuth()
 kytran_auth.init_app(app)
+
+# Override redirect URI based on hostname at request time
+_original_kytran_login = None
+
+
+def _setup_dynamic_oauth():
+    """Patch the SSO login route to use the correct OAuth client per subdomain."""
+    global _original_kytran_login
+
+    @app.before_request
+    def _set_oauth_client():
+        host = request.host.lower()
+        if "claude" in host:
+            kytran_auth.client_id = os.getenv("CLAUDE_CLIENT_ID", "claude-terminal")
+            kytran_auth.client_secret = os.getenv("CLAUDE_CLIENT_SECRET", "")
+            kytran_auth.redirect_uri = os.getenv(
+                "CLAUDE_REDIRECT_URI",
+                "https://claude.kytranempowerment.com/auth/kytran/callback",
+            )
+        else:
+            kytran_auth.client_id = os.getenv("KYTRAN_CLIENT_ID", "archie-comms")
+            kytran_auth.client_secret = os.getenv("KYTRAN_CLIENT_SECRET", "")
+            kytran_auth.redirect_uri = os.getenv(
+                "KYTRAN_REDIRECT_URI",
+                "https://archie.kytranempowerment.com/auth/kytran/callback",
+            )
+
+
+_setup_dynamic_oauth()
 
 
 @kytran_auth.on_login
@@ -126,7 +156,7 @@ def login():
     # Show login page — detect hostname for branding
     host = request.host.lower()
     if "claude" in host:
-        return render_template("login.html", next_url=next_url, brand="claude")
+        return render_template("claude_login.html", next_url=next_url)
     return render_template("login.html", next_url=next_url)
 
     return render_template("login.html")

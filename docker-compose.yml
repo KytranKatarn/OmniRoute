@@ -248,6 +248,9 @@ services:
       - KYTRAN_CLIENT_SECRET=2e718ace8add43c8a1054b3d80f885bc108074e11be1c43e7bb9747676860dfb
       - KYTRAN_AUTH_URL=http://192.168.1.200:3000
       - KYTRAN_REDIRECT_URI=https://archie.kytranempowerment.com/auth/kytran/callback
+      - CLAUDE_CLIENT_ID=claude-terminal
+      - CLAUDE_CLIENT_SECRET=717303c1e78251250c8509245b7e1ac385a5b2bbc684208d328a4423628651e3
+      - CLAUDE_REDIRECT_URI=https://claude.kytranempowerment.com/auth/kytran/callback
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

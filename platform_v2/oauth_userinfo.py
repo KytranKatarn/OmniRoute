@@ -53,6 +53,7 @@ def userinfo():
             "kso",
             "kbs",
             "archie-comms",
+            "claude-terminal",
             "civic-watch",
             "legal-watch",
             "gov-watch",

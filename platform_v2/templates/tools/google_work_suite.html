@@ -15,15 +15,14 @@
 {% set cat_label = 'BUSINESS' %}
 {% set cat_icon = 'briefcase' %}
 {% set cat_modules = [
-    {'url': url_for('social_media.index'), 'endpoint_prefix': 'social_media', 'icon': 'share-2', 'label': 'Social', 'title': 'Social Media'},
-    {'url': url_for('website_studio.index'), 'endpoint_prefix': 'website_studio', 'icon': 'globe', 'label': 'Website', 'title': 'Website Studio'},
-    {'url': url_for('call_center.index'), 'endpoint_prefix': 'call_center', 'icon': 'phone', 'label': 'Calls', 'title': 'Call Center'},
-    {'url': url_for('crm.index'), 'endpoint_prefix': 'crm', 'icon': 'users', 'label': 'CRM', 'title': 'CRM'},
-    {'url': url_for('google_work_suite.index'), 'endpoint_prefix': 'google_work_suite', 'icon': 'mail', 'label': 'Email', 'title': 'Google Work Suite'},
-    {'url': url_for('store_builder.index'), 'endpoint_prefix': 'store_builder', 'icon': 'shopping-cart', 'label': 'Store', 'title': 'Store Builder'},
-    {'url': url_for('invoicing.index'), 'endpoint_prefix': 'invoicing', 'icon': 'receipt', 'label': 'Invoice', 'title': 'Invoicing'},
-    {'url': url_for('automations.index'), 'endpoint_prefix': 'automations', 'icon': 'settings', 'label': 'Automate', 'title': 'Automations'},
-    {'url': url_for('task_planner.index'), 'endpoint_prefix': 'task_planner', 'icon': 'list-checks', 'label': 'Tasks', 'title': 'Task Planner'}
+    {'url': '/tools/social-media', 'endpoint_prefix': 'social_media', 'icon': 'share-2', 'label': 'Social', 'title': 'Social Media'},
+    {'url': '/tools/website-studio', 'endpoint_prefix': 'website_studio', 'icon': 'globe', 'label': 'Website', 'title': 'Website Studio'},
+    {'url': '/tools/call-center', 'endpoint_prefix': 'call_center', 'icon': 'phone', 'label': 'Calls', 'title': 'Call Center'},
+    {'url': '/tools/crm', 'endpoint_prefix': 'crm', 'icon': 'users', 'label': 'CRM', 'title': 'CRM'},
+    {'url': '/tools/google-work-suite', 'endpoint_prefix': 'google_work_suite', 'icon': 'mail', 'label': 'Email', 'title': 'Google Work Suite'},
+    {'url': '/tools/store-builder', 'endpoint_prefix': 'store_builder', 'icon': 'shopping-cart', 'label': 'Store', 'title': 'Store Builder'},
+    {'url': '/tools/invoicing', 'endpoint_prefix': 'invoicing', 'icon': 'receipt', 'label': 'Invoice', 'title': 'Invoicing'},
+    {'url': '/tools/content-studio', 'endpoint_prefix': 'content_studio', 'icon': 'pen-tool', 'label': 'Content', 'title': 'Content Studio'}
 ] %}
 {% include 'includes/category_nav.html' %}
 <div class="gws-wrapper" data-user-id="{{ current_user.id if current_user else '' }}">

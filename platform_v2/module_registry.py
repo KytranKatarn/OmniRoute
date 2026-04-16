@@ -679,20 +679,7 @@ MODULES: List[ModuleDefinition] = [
             "placeholder",
         ],
     ),
-    ModuleDefinition(
-        id="market_watch",
-        name="Market Watch",
-        description="AI-powered autonomous trading dashboard<br>Market Data \u2022 Analysis \u2022 Strategy",
-        icon="trending-up",
-        category=ModuleCategory.SAAS_SERVICES,
-        route="/tools/market-watch-redirect",
-        required_permissions=[],
-        minimum_role="USER",
-        enabled=True,
-        coming_soon=False,
-        priority=4,
-        tags=["market-watch", "trading", "finance", "ai"],
-    ),
+    # market_watch removed — duplicate of kytran_market_watch in APPLICATIONS (line 896)
     ModuleDefinition(
         id="game_studio",
         name="Game Studio",

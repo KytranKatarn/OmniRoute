@@ -1225,11 +1225,28 @@ def signup():
                 return render_template("signup.html")
 
             password_hash = generate_password_hash(password)
-            create_inactive_user(username, email, password_hash)
+            user_id = create_inactive_user(username, email, password_hash)
             log_signup_audit(username, request.remote_addr)
 
+            # Auto-activate Explorer accounts (free tier, instant access)
+            if user_id:
+                try:
+                    from database import get_db_cursor
+
+                    with get_db_cursor() as (conn, cur):
+                        cur.execute(
+                            """UPDATE users
+                               SET is_active = TRUE,
+                                   subscription_tier = 'explorer',
+                                   is_approved = TRUE
+                               WHERE id = %s""",
+                            (user_id,),
+                        )
+                except Exception:
+                    logger.warning("Auto-activate failed for user %s", user_id)
+
             flash(
-                "Registration successful! Your account is pending admin approval.",
+                "Welcome to A.R.C.H.I.E.! Your Explorer account is ready — log in to get started.",
                 "success",
             )
             return redirect(url_for("login"))

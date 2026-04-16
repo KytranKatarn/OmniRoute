@@ -2479,8 +2479,31 @@ try:
 except Exception:
     pass
 
+# Memory pre-flight: don't stack warmup work onto a host already thrashing.
+# Project #240 task #1759 — prevents 2026-04-11-style cascade (load avg 330
+# hit when platform restart piled model warmup onto a swap-pinned host).
+_skip_warmup_reason = None
+try:
+    import psutil as _preflight_psutil
+
+    _avail_gb = _preflight_psutil.virtual_memory().available / (1024**3)
+    _swap = _preflight_psutil.swap_memory()
+    _swap_free_gb = (_swap.total - _swap.used) / (1024**3)
+    if _avail_gb < 5:
+        _skip_warmup_reason = f"MemAvailable={_avail_gb:.1f}GB < 5GB critical threshold"
+    elif _swap_free_gb < 0.3:
+        _skip_warmup_reason = f"SwapFree={_swap_free_gb:.2f}GB < 0.3GB — host is swap-pinned"
+    elif _avail_gb < 15:
+        logger.warning(f"Startup pre-flight: MemAvailable={_avail_gb:.1f}GB marginal; warmup may stop early.")
+    else:
+        logger.info(f"Startup pre-flight OK: MemAvailable={_avail_gb:.1f}GB, SwapFree={_swap_free_gb:.2f}GB")
+except Exception as _preflight_err:
+    logger.warning(f"Startup pre-flight check failed (continuing): {_preflight_err}")
+
 if _fleet_mode == "weekend":
     logger.info("Fleet mode: WEEKEND — skipping Ollama + ComfyUI warmup (models stay unloaded)")
+elif _skip_warmup_reason:
+    logger.error(f"Startup pre-flight: SKIPPING warmup — {_skip_warmup_reason}")
 else:
     _warmup_ollama_models()
 

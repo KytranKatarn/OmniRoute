@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block title %}Subscribe - {{ product.name }} | A.R.C.H.I.E.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/subscribe.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sub-page">
+
+    <!-- LCARS Header Bar -->
+    <div class="sub-header">
+        <a href="/dashboard" class="sub-header-back">
+            <i data-lucide="arrow-left" style="width:16px;height:16px"></i>
+            Dashboard
+        </a>
+        <div class="sub-header-bar"></div>
+        <div class="sub-header-tier">{{ user_tier | upper }}</div>
+    </div>
+
+    <!-- Hero Section -->
+    <div class="sub-hero">
+        <div class="sub-hero-icon">
+            <i data-lucide="{{ module.icon }}"></i>
+        </div>
+        <h1>{{ product.name }}</h1>
+        <p class="sub-hero-tagline">{{ product.tagline }}</p>
+        <span class="sub-hero-badge sub-badge-{{ product.min_tier|default('starter') }}">
+            Requires {{ tier_info.get(product.min_tier|default('starter'), {}).get('name', product.min_tier|default('Starter')|title) }}
+        </span>
+    </div>
+
+    <!-- Features Grid -->
+    {% if product.features %}
+    <div class="sub-features">
+        <h2>What You Get</h2>
+        <div class="sub-features-grid">
+            {% for feature in product.features %}
+            <div class="sub-feature-card">
+                <div class="sub-feature-icon">
+                    <i data-lucide="check-circle-2"></i>
+                </div>
+                <div class="sub-feature-text">{{ feature }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tier Comparison Cards -->
+    <div class="sub-tiers">
+        <h2>Choose Your Plan</h2>
+        <div class="sub-tier-cards">
+            {% set tier_rank = {'explorer': 0, 'viewer': 0, 'starter': 1, 'professional': 2, 'enterprise': 3, 'vip': 4, 'staff': 5} %}
+            {% set user_rank = tier_rank.get(user_tier, 0) %}
+            {% set min_rank = tier_rank.get(product.min_tier|default('starter'), 1) %}
+            {% for tier_key in tier_order %}
+            {% set tier = tier_info[tier_key] %}
+            {% set card_rank = tier_rank.get(tier_key, 0) %}
+            {% set is_current = (user_tier == tier_key) %}
+
+            <div class="sub-tier-card {% if card_rank == min_rank and not is_current %}sub-tier-highlight{% endif %} {% if is_current %}sub-tier-current{% endif %}">
+
+                {% if is_current %}
+                <div class="sub-tier-current-badge">Current Plan</div>
+                {% endif %}
+                {% if card_rank == min_rank and not is_current %}
+                <div class="sub-tier-recommended">Recommended</div>
+                {% endif %}
+
+                <p class="sub-tier-label sub-tier-label-{{ tier_key }}">{{ tier.name }}</p>
+                <p class="sub-tier-price">{{ tier.price.split('/')[0] }}</p>
+                <p class="sub-tier-period">per month</p>
+
+                <ul class="sub-tier-features sub-feat-{{ tier_key }}">
+                    <li>{{ tier.agents }} AI Agents</li>
+                    <li>{{ tier.watches }} Watch Product{{ 's' if tier.watches != '1' else '' }}</li>
+                    {% if tier_key == 'starter' %}
+                    <li>Core SaaS modules</li>
+                    <li>Email support</li>
+                    <li>5 GB storage</li>
+                    {% elif tier_key == 'professional' %}
+                    <li>All modules unlocked</li>
+                    <li>Priority support</li>
+                    <li>50 GB storage</li>
+                    <li>GPU-accelerated AI</li>
+                    {% elif tier_key == 'enterprise' %}
+                    <li>All modules unlocked</li>
+                    <li>Dedicated support</li>
+                    <li>Unlimited storage</li>
+                    <li>GPU-accelerated AI</li>
+                    <li>Custom integrations</li>
+                    <li>SLA guarantee</li>
+                    {% endif %}
+                </ul>
+
+                {% if user_rank >= card_rank %}
+                <button class="sub-cta-btn sub-cta-disabled" disabled>
+                    {% if is_current %}Current Plan{% else %}Included{% endif %}
+                </button>
+                {% else %}
+                <button class="sub-cta-btn {% if card_rank == min_rank %}sub-cta-primary{% else %}sub-cta-secondary{% endif %}"
+                        onclick="openUpsell('{{ tier_key }}')">
+                    Subscribe to {{ tier.name }}
+                </button>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+
+<!-- Upsell Interstitial Modal -->
+<div class="sub-upsell-overlay" id="upsellOverlay" onclick="closeUpsellOutside(event)">
+    <div class="sub-upsell-shell" style="position:relative;">
+        <!-- LCARS sidebar frame -->
+        <div class="sub-upsell-frame">
+            <div class="sub-upsell-elbow-top"></div>
+            <div class="sub-upsell-frame-mid"></div>
+            <div class="sub-upsell-elbow-bottom"></div>
+        </div>
+        <!-- Content -->
+        <div class="sub-upsell-content">
+            <button class="sub-upsell-close" onclick="closeUpsell()" aria-label="Close">&times;</button>
+            <h3 class="sub-upsell-title">Confirm Your Plan</h3>
+            <p class="sub-upsell-subtitle" id="upsellSubtitle"></p>
+
+            <div class="sub-upsell-selected">
+                <p class="sub-upsell-selected-label" id="upsellSelectedLabel"></p>
+                <p class="sub-upsell-selected-price" id="upsellSelectedPrice"></p>
+            </div>
+
+            <div class="sub-upsell-upgrade" id="upsellUpgradeBox" style="display:none;">
+                <p class="sub-upsell-upgrade-label">Upgrade Available</p>
+                <p class="sub-upsell-upgrade-text" id="upsellUpgradeText"></p>
+            </div>
+
+            <div class="sub-upsell-actions" id="upsellActions"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+/* Subscribe landing page — upsell interstitial logic.
+   All data comes from server-side constants (no user input in DOM writes). */
+(function() {
+    var TIERS = {{ tier_info | tojson }};
+    var TIER_ORDER = {{ tier_order | tojson }};
+    var MODULE_ID = {{ module_id | tojson }};
+    var BASE_URL = 'https://business.kytranempowerment.com/billing/checkout';
+    var RETURN_URL = 'https://platform.kytranempowerment.com/dashboard';
+
+    function buildCheckoutUrl(tier) {
+        return BASE_URL + '?product=' + encodeURIComponent(MODULE_ID) +
+               '&tier=' + encodeURIComponent(tier) +
+               '&return_url=' + encodeURIComponent(RETURN_URL);
+    }
+
+    function getNextTier(tier) {
+        var idx = TIER_ORDER.indexOf(tier);
+        if (idx >= 0 && idx < TIER_ORDER.length - 1) {
+            return TIER_ORDER[idx + 1];
+        }
+        return null;
+    }
+
+    /* Upsell text descriptions keyed by next tier — server-controlled, safe for textContent */
+    var UPSELL_EXTRAS = {
+        'professional': '20 AI agents, all modules, and 2 Watch products',
+        'enterprise': 'unlimited AI agents, all Watch products, custom integrations, and SLA guarantee'
+    };
+
+    function createBtn(href, text, isPrimary) {
+        var a = document.createElement('a');
+        a.href = href;
+        a.className = 'sub-cta-btn ' + (isPrimary ? 'sub-cta-primary' : 'sub-cta-secondary');
+        a.textContent = text;
+        return a;
+    }
+
+    window.openUpsell = function(selectedTier) {
+        var tier = TIERS[selectedTier];
+        if (!tier) return;
+
+        var overlay = document.getElementById('upsellOverlay');
+
+        document.getElementById('upsellSubtitle').textContent =
+            'You selected ' + tier.name + ' for ' + tier.price;
+        document.getElementById('upsellSelectedLabel').textContent = tier.name;
+        document.getElementById('upsellSelectedPrice').textContent = tier.price;
+
+        var upgradeBox = document.getElementById('upsellUpgradeBox');
+        var actions = document.getElementById('upsellActions');
+        actions.textContent = '';
+
+        var nextTierKey = getNextTier(selectedTier);
+
+        if (nextTierKey) {
+            var nextTier = TIERS[nextTierKey];
+            var diff = nextTier.price_num - tier.price_num;
+            upgradeBox.style.display = 'block';
+
+            var upgradeText = document.getElementById('upsellUpgradeText');
+            upgradeText.textContent = 'For just $' + diff + ' more, get ' +
+                nextTier.name + ' with ' + (UPSELL_EXTRAS[nextTierKey] || 'additional features') + '.';
+
+            actions.appendChild(
+                createBtn(buildCheckoutUrl(nextTierKey),
+                    'Upgrade to ' + nextTier.name + ' \u2014 ' + nextTier.price, true)
+            );
+            actions.appendChild(
+                createBtn(buildCheckoutUrl(selectedTier),
+                    'Continue with ' + tier.name + ' \u2014 ' + tier.price, false)
+            );
+        } else {
+            upgradeBox.style.display = 'none';
+            actions.appendChild(
+                createBtn(buildCheckoutUrl(selectedTier),
+                    'Subscribe to ' + tier.name + ' \u2014 ' + tier.price, true)
+            );
+        }
+
+        overlay.classList.add('active');
+    };
+
+    window.closeUpsell = function() {
+        document.getElementById('upsellOverlay').classList.remove('active');
+    };
+
+    window.closeUpsellOutside = function(e) {
+        if (e.target === document.getElementById('upsellOverlay')) {
+            closeUpsell();
+        }
+    };
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeUpsell();
+    });
+})();
+</script>
+{% endblock %}

@@ -12,6 +12,17 @@ from module_registry import get_enabled_modules
 from rbac import can_access_module, get_user_role
 
 
+# Tier hierarchy — higher index = more access
+TIER_ORDER = ["explorer", "starter", "professional", "enterprise", "vip", "staff"]
+
+
+def _user_meets_tier(user_tier: str, required_tier: str) -> bool:
+    """Check if user's subscription tier meets the minimum requirement."""
+    user_idx = TIER_ORDER.index(user_tier) if user_tier in TIER_ORDER else 0
+    req_idx = TIER_ORDER.index(required_tier) if required_tier in TIER_ORDER else 0
+    return user_idx >= req_idx
+
+
 def get_featured_modules(user, pinned_ids: Optional[List[str]] = None) -> list:
     """Get featured/pinned modules for dashboard hero section.
 
@@ -76,67 +87,99 @@ def get_user_dashboard_data(user) -> Dict:
     """
     enabled_modules = get_enabled_modules()
 
-    # Filter modules by user access
+    # Get user role and subscription tier
+    user_role = get_user_role(user)
+    is_admin = user_role.name in ("ADMIN", "SUPER_ADMIN")
+
+    # Determine subscription tier — admins map to "staff"
+    if is_admin:
+        subscription_tier = "admin"
+        effective_tier = "staff"
+    elif hasattr(user, "subscription_tier") and user.subscription_tier:
+        subscription_tier = user.subscription_tier.lower()
+        effective_tier = subscription_tier if subscription_tier in TIER_ORDER else "explorer"
+    else:
+        subscription_tier = "free"
+        effective_tier = "explorer"
+
+    # Categorize modules: accessible, tier-locked, or hidden
     accessible = []
     locked = []
+    modules_by_category = {}
 
     for module in enabled_modules:
         if not module.show_on_dashboard:
             continue
-        if can_access_module(module.id, user):
-            accessible.append(module)
-        else:
-            locked.append(module)
 
-    # Group accessible modules by category
-    modules_by_category = {}
-    for module in accessible:
+        has_role = can_access_module(module.id, user)
+        has_tier = _user_meets_tier(effective_tier, module.minimum_tier)
+
+        # Staff-only modules are HIDDEN entirely for non-admin users
+        if module.minimum_tier == "staff" and not is_admin:
+            continue
+
         category = module.category.value
         if category not in modules_by_category:
             modules_by_category[category] = []
-        modules_by_category[category].append(
-            {
-                "id": module.id,
-                "name": module.name,
-                "description": module.description,
-                "icon": module.icon,
-                "route": module.route,
-                "beta": module.beta,
-                "coming_soon": module.coming_soon,
-                "priority": module.priority,
-                "accessible": True,
-                "external_url": module.external_url,
-            }
-        )
+
+        if has_role and has_tier:
+            # Fully accessible
+            accessible.append(module)
+            modules_by_category[category].append(
+                {
+                    "id": module.id,
+                    "name": module.name,
+                    "description": module.description,
+                    "icon": module.icon,
+                    "route": module.route,
+                    "beta": module.beta,
+                    "coming_soon": module.coming_soon,
+                    "priority": module.priority,
+                    "accessible": True,
+                    "locked": False,
+                    "required_tier": None,
+                    "external_url": module.external_url,
+                }
+            )
+        else:
+            # Tier-locked — show with blur overlay
+            locked.append(module)
+            modules_by_category[category].append(
+                {
+                    "id": module.id,
+                    "name": module.name,
+                    "description": module.description,
+                    "icon": module.icon,
+                    "route": module.route,
+                    "beta": module.beta,
+                    "coming_soon": module.coming_soon,
+                    "priority": module.priority,
+                    "accessible": False,
+                    "locked": True,
+                    "required_tier": module.minimum_tier,
+                    "external_url": module.external_url,
+                }
+            )
 
     # Sort modules within each category by priority
     for category in modules_by_category:
         modules_by_category[category].sort(key=lambda m: m["priority"])
 
-    # Get locked modules info (for upgrade prompts)
-    locked_modules = []
-    for module in locked:
-        locked_modules.append(
-            {
-                "id": module.id,
-                "name": module.name,
-                "description": module.description,
-                "icon": module.icon,
-                "minimum_role": module.minimum_role,
-                "category": module.category.value,
-            }
-        )
+    # Remove empty categories
+    modules_by_category = {k: v for k, v in modules_by_category.items() if v}
 
-    # Get user role and subscription
-    user_role = get_user_role(user)
-
-    # Determine subscription tier - ADMIN users get "admin" tier display
-    if user_role.name == "ADMIN" or user_role.name == "SUPER_ADMIN":
-        subscription_tier = "admin"
-    elif hasattr(user, "subscription_tier") and user.subscription_tier:
-        subscription_tier = user.subscription_tier.lower()
-    else:
-        subscription_tier = "free"
+    # Legacy locked_modules list (for upgrade prompt text)
+    locked_modules = [
+        {
+            "id": module.id,
+            "name": module.name,
+            "description": module.description,
+            "icon": module.icon,
+            "minimum_role": module.minimum_role,
+            "category": module.category.value,
+        }
+        for module in locked
+    ]
 
     return {
         "modules_by_category": modules_by_category,
@@ -146,6 +189,7 @@ def get_user_dashboard_data(user) -> Dict:
         "subscription_tier": subscription_tier,
         "coming_soon_count": len([m for m in enabled_modules if m.coming_soon]),
         "locked_modules": locked_modules,
+        "locked_count": len(locked),
         "categories": get_categories_info(),
         "featured_modules": get_featured_modules(user),
     }

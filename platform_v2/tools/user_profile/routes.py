@@ -552,10 +552,171 @@ def get_activity():
                             "reason": row["reason"],
                         }
                     )
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).error("Activity API error for user %s: %s", current_user.id, e)
 
     return jsonify({"success": True, "activity": activity})
+
+
+# ============================================================================
+# SUBSCRIPTION API (Task #882)
+# ============================================================================
+
+
+@user_profile_bp.route("/api/subscriptions")
+@login_required
+def get_subscriptions():
+    """Return membership tier, active subscriptions, and entitlements for current user."""
+    try:
+        from services.subscription_service import (
+            get_user_subscriptions,
+            get_user_entitlements,
+            get_user_membership_tier,
+        )
+
+        user_id = current_user.id
+        role = getattr(current_user, "role", "") or ""
+
+        tier = get_user_membership_tier(user_id, user_role=role)
+        subs = get_user_subscriptions(user_id)
+        entitlements = get_user_entitlements(user_id, user_role=role)
+
+        return jsonify(
+            {
+                "success": True,
+                "membership_tier": tier,
+                "subscriptions": subs,
+                "entitlements": entitlements,
+            }
+        )
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).warning("Subscriptions query failed: %s", e)
+        return (
+            jsonify({"success": False, "error": "Failed to load subscriptions"}),
+            500,
+        )
+
+
+# ============================================================================
+# CONNECTIONS API (Task #883)
+# ============================================================================
+
+
+@user_profile_bp.route("/api/connections")
+@login_required
+def get_connections():
+    """Return OAuth providers, product connections, and API keys for current user."""
+    user_id = current_user.id
+    result = {"oauth": [], "products": [], "api_keys": []}
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # OAuth connections
+        cur.execute(
+            """SELECT provider, email, display_name, connected_at, disconnected_at
+               FROM user_oauth_connections
+               WHERE user_id = %s
+               ORDER BY connected_at DESC""",
+            (user_id,),
+        )
+        for row in cur.fetchall():
+            result["oauth"].append(
+                {
+                    "provider": row["provider"],
+                    "email": row.get("email"),
+                    "display_name": row.get("display_name"),
+                    "connected_at": (row["connected_at"].isoformat() if row.get("connected_at") else None),
+                    "disconnected_at": (row["disconnected_at"].isoformat() if row.get("disconnected_at") else None),
+                    "active": row.get("disconnected_at") is None,
+                }
+            )
+
+        # API keys
+        cur.execute(
+            """SELECT id, key_prefix, product, name, created_at, last_used_at, revoked_at
+               FROM user_api_keys
+               WHERE user_id = %s
+               ORDER BY created_at DESC""",
+            (user_id,),
+        )
+        for row in cur.fetchall():
+            result["api_keys"].append(
+                {
+                    "id": row["id"],
+                    "key_prefix": row.get("key_prefix"),
+                    "product": row.get("product"),
+                    "name": row.get("name"),
+                    "created_at": (row["created_at"].isoformat() if row.get("created_at") else None),
+                    "last_used_at": (row["last_used_at"].isoformat() if row.get("last_used_at") else None),
+                    "active": row.get("revoked_at") is None,
+                }
+            )
+
+        # Product connections — check billing_subscriptions for active modules
+        products = [
+            {
+                "id": "legal-watch",
+                "name": "Legal Watch",
+                "url": "https://legal.kytranempowerment.com",
+            },
+            {
+                "id": "civic-watch",
+                "name": "Civic Watch",
+                "url": "https://civic.kytranempowerment.com",
+            },
+            {
+                "id": "market-watch-viewer",
+                "name": "Market Watch",
+                "url": "https://market.kytranempowerment.com",
+            },
+            {
+                "id": "gov-watch",
+                "name": "Gov Watch",
+                "url": "https://gov.kytranempowerment.com",
+            },
+            {
+                "id": "kso",
+                "name": "System Operations",
+                "url": "https://server.kytranempowerment.com",
+            },
+            {
+                "id": "kbs",
+                "name": "Business Suite",
+                "url": "https://business.kytranempowerment.com",
+            },
+        ]
+
+        cur.execute(
+            """SELECT module FROM billing_subscriptions
+               WHERE user_id = %s AND status = 'active'""",
+            (user_id,),
+        )
+        active_modules = {row["module"] for row in cur.fetchall()}
+
+        for p in products:
+            p["connected"] = p["id"] in active_modules
+        result["products"] = products
+
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).warning("Connections query failed: %s", e)
+        return (
+            jsonify({"success": False, "error": "Failed to load connections"}),
+            500,
+        )
+    finally:
+        if conn:
+            conn.close()
+
+    return jsonify({"success": True, **result})
 
 
 def _shorten_ua(ua):

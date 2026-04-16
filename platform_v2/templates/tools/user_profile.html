@@ -720,7 +720,8 @@
     ("connections", "Connections", "link"),
     ("notifications", "Notifications", "bell"),
     ("preferences", "Preferences", "settings"),
-    ("activity", "Activity", "activity")
+    ("activity", "Activity", "activity"),
+    ("subscription", "Subscription", "credit-card")
 ] %}
 {% include 'includes/lcars-header.html' %}
 <div class="profile-container">
@@ -821,6 +822,23 @@
                                             </div>
                                         </div>
                                     </div>
+
+                                    <!-- Your Plan card -->
+                                    <div class="profile-section" style="margin-top: 16px;">
+                                        <div class="profile-section-title">Your Plan</div>
+                                        <div class="profile-info-card" style="border-left-color: #f59e0b;">
+                                            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                                                <div>
+                                                    <div class="profile-info-label">Membership Tier</div>
+                                                    <div class="profile-info-value" style="display: flex; align-items: center; gap: 8px;">
+                                                        <span id="overviewTierBadge" class="role-badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3);">---</span>
+                                                        <span id="overviewProductCount" style="color: rgba(255,255,255,0.4); font-size: 0.75rem;">Loading...</span>
+                                                    </div>
+                                                </div>
+                                                <button class="lcars-btn" style="font-size: 0.72rem; padding: 6px 14px;" onclick="switchProfileTab('subscription')">View Plan &rarr;</button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                             </div>
@@ -901,20 +919,20 @@
                                 </div>
                                 <div style="flex: 1 !important; padding: 16px !important;">
                                     <div class="profile-section">
-                                        <div class="profile-section-title">Google Account</div>
-                                        <div id="googleAccountSection">
+                                        <div class="profile-section-title">OAuth Providers</div>
+                                        <div id="oauthProvidersSection">
                                             <div class="notif-empty">Loading...</div>
                                         </div>
                                     </div>
                                     <div class="profile-section">
-                                        <div class="profile-section-title">Connected Services</div>
-                                        <div class="profile-info-grid" id="servicesGrid">
-                                            <div class="notif-empty" style="grid-column:1/-1;">Loading...</div>
+                                        <div class="profile-section-title">Product Connections</div>
+                                        <div id="productConnectionsSection">
+                                            <div class="notif-empty">Loading...</div>
                                         </div>
                                     </div>
                                     <div class="profile-section">
-                                        <div class="profile-section-title">Telegram</div>
-                                        <div id="telegramSection">
+                                        <div class="profile-section-title">API Keys</div>
+                                        <div id="apiKeysSection">
                                             <div class="notif-empty">Loading...</div>
                                         </div>
                                     </div>
@@ -1054,6 +1072,59 @@
                     </div>
                 </div>
 
+                <!-- ═══ TAB: Subscription ═══ -->
+                <div class="profile-tab" id="tab-subscription">
+                    <div style="--frame-color: #f59e0b; --frame-rgb: 245,158,11; margin-bottom: 20px;">
+                        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                                <div style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
+                                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                                <div style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                                <div style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                            </div>
+                            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                                <div style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SUBSCRIPTION</span>
+                                    <div style="flex:1"></div>
+                                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                    </div>
+                                </div>
+                                <div style="flex: 1 !important; padding: 16px !important;">
+                                    <div class="profile-section">
+                                        <div class="profile-section-title">Membership Tier</div>
+                                        <div class="profile-info-card" style="border-left-color: #f59e0b;">
+                                            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                                                <div>
+                                                    <span id="subTierBadge" class="role-badge" style="font-size: 0.85rem; padding: 4px 14px; background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3);">---</span>
+                                                    <div id="subTierDesc" style="color: rgba(255,255,255,0.4); font-size: 0.75rem; margin-top: 8px;">Loading...</div>
+                                                </div>
+                                                <a href="https://business.kytranempowerment.com/billing" target="_blank" class="lcars-btn" style="font-size: 0.72rem; padding: 6px 14px; text-decoration: none;">Manage Billing &rarr;</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="profile-section">
+                                        <div class="profile-section-title">Product Entitlements</div>
+                                        <div class="profile-info-grid" id="subEntitlementsGrid">
+                                            <div class="notif-empty" style="grid-column:1/-1;">Loading...</div>
+                                        </div>
+                                    </div>
+                                    <div class="profile-section">
+                                        <div class="profile-section-title">Subscription Details</div>
+                                        <div id="subDetailsList">
+                                            <div class="notif-empty">Loading...</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="height: 6px !important; background: #f59e0b !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div><!-- /lcars-body -->
             <div class="lcars-footer-bar"></div>
         </div><!-- /lcars-content -->
@@ -1101,7 +1172,11 @@
         });
     };
 
-    window.onLcarsTabSwitch = function(tabId) { switchProfileTab(tabId); };
+    window.onLcarsTabSwitch = function(tabId) {
+        switchProfileTab(tabId);
+        if (tabId === 'subscription') loadSubscriptions();
+        if (tabId === 'connections') loadConnections();
+    };
 
     // ── Avatar Upload ─────────────────────────────────
     function setAvatarDisplay(pictureUrl) {
@@ -1451,139 +1526,236 @@
         });
     };
 
-    // ── Connected Services ────────────────────────────
-    function loadConnectedServices() {
-        fetch('/tools/my-profile/api/profile/connected-services')
+    // ── Subscriptions ────────────────────────────────
+    var _subscriptionsLoaded = false;
+    var _connectionsLoaded = false;
+
+    var TIER_COLORS = {
+        staff: { bg: 'rgba(239,68,68,0.15)', fg: '#ef4444', border: 'rgba(239,68,68,0.3)' },
+        explorer: { bg: 'rgba(156,163,175,0.15)', fg: '#9ca3af', border: 'rgba(156,163,175,0.3)' },
+        starter: { bg: 'rgba(59,130,246,0.15)', fg: '#3b82f6', border: 'rgba(59,130,246,0.3)' },
+        professional: { bg: 'rgba(168,85,247,0.15)', fg: '#a855f7', border: 'rgba(168,85,247,0.3)' },
+        enterprise: { bg: 'rgba(245,158,11,0.15)', fg: '#f59e0b', border: 'rgba(245,158,11,0.3)' },
+        vip: { bg: 'rgba(239,68,68,0.15)', fg: '#ef4444', border: 'rgba(239,68,68,0.3)' }
+    };
+
+    function getTierStyle(tier) {
+        return TIER_COLORS[tier] || TIER_COLORS.explorer;
+    }
+
+    function loadSubscriptions() {
+        if (_subscriptionsLoaded) return;
+        _subscriptionsLoaded = true;
+
+        fetch('/tools/my-profile/api/subscriptions')
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                renderGoogleAccount(data.google_accounts || []);
-                renderServices(data.google_accounts || []);
-                renderTelegram(data.telegram || {});
+                if (!data.success) return;
+                var tier = data.membership_tier || 'explorer';
+                var style = getTierStyle(tier);
+                var tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1);
+
+                // Subscription tab — tier badge
+                var tierBadge = document.getElementById('subTierBadge');
+                tierBadge.textContent = tierLabel;
+                tierBadge.style.background = style.bg;
+                tierBadge.style.color = style.fg;
+                tierBadge.style.borderColor = style.border;
+
+                // Tier description
+                var desc = document.getElementById('subTierDesc');
+                var subs = data.subscriptions || [];
+                desc.textContent = subs.length ? subs.length + ' active subscription' + (subs.length > 1 ? 's' : '') : 'No active subscriptions';
+
+                // Overview tab — "Your Plan" card
+                var oBadge = document.getElementById('overviewTierBadge');
+                if (oBadge) {
+                    oBadge.textContent = tierLabel;
+                    oBadge.style.background = style.bg;
+                    oBadge.style.color = style.fg;
+                    oBadge.style.borderColor = style.border;
+                }
+                var oCount = document.getElementById('overviewProductCount');
+                if (oCount) {
+                    var entitlements = data.entitlements || {};
+                    var modules = entitlements.modules || [];
+                    oCount.textContent = modules.length ? modules.length + ' product' + (modules.length > 1 ? 's' : '') + ' included' : 'Free tier';
+                }
+
+                // Entitlements grid
+                var grid = document.getElementById('subEntitlementsGrid');
+                grid.textContent = '';
+                var ent = data.entitlements || {};
+                var mods = ent.modules || [];
+
+                if (!mods.length) {
+                    grid.appendChild(el('div', 'notif-empty', 'No product entitlements'));
+                } else {
+                    mods.forEach(function(mod) {
+                        var card = el('div', 'profile-info-card');
+                        card.style.borderLeftColor = '#10b981';
+                        var name = el('div', 'profile-info-value', mod.replace(/-/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }));
+                        card.appendChild(name);
+                        var badge = el('span', 'conn-service-badge connected', 'Active');
+                        badge.style.marginTop = '4px';
+                        card.appendChild(badge);
+                        grid.appendChild(card);
+                    });
+                }
+
+                // Subscription details
+                var detailList = document.getElementById('subDetailsList');
+                detailList.textContent = '';
+
+                if (!subs.length) {
+                    var emptyMsg = el('div', 'notif-empty');
+                    emptyMsg.appendChild(document.createTextNode('No active subscriptions. '));
+                    var exploreLink = document.createElement('a');
+                    exploreLink.href = 'https://business.kytranempowerment.com/billing';
+                    exploreLink.target = '_blank';
+                    exploreLink.style.color = '#f59e0b';
+                    exploreLink.textContent = 'Explore plans';
+                    emptyMsg.appendChild(exploreLink);
+                    detailList.appendChild(emptyMsg);
+                } else {
+                    subs.forEach(function(sub) {
+                        var row = el('div', 'act-item');
+                        var icon = el('div', 'act-icon session');
+                        var iconI = document.createElement('i');
+                        iconI.setAttribute('data-lucide', 'credit-card');
+                        icon.appendChild(iconI);
+                        row.appendChild(icon);
+                        var details = el('div', 'act-details');
+                        details.appendChild(el('div', 'act-primary', (sub.module || 'Unknown').replace(/-/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); })));
+                        var meta = (sub.status || 'active') + (sub.current_period_end ? ' \u2022 Renews ' + formatDate(sub.current_period_end) : '');
+                        details.appendChild(el('div', 'act-secondary', meta));
+                        row.appendChild(details);
+                        var statusBadge = el('span', 'conn-service-badge ' + (sub.status === 'active' ? 'connected' : 'disconnected'), sub.status || 'active');
+                        row.appendChild(statusBadge);
+                        detailList.appendChild(row);
+                    });
+                }
+
+                if (window.lucide) lucide.createIcons();
             })
             .catch(function(e) {
-                console.error('[Profile] Connected services failed:', e);
+                console.error('[Profile] Subscriptions failed:', e);
             });
     }
 
-    function renderGoogleAccount(accounts) {
-        var section = document.getElementById('googleAccountSection');
-        section.textContent = '';
+    // ── Connections (new API) ────────────────────────────
+    function loadConnections() {
+        if (_connectionsLoaded) return;
+        _connectionsLoaded = true;
 
-        if (!accounts.length) {
-            var wrap = el('div', 'conn-not-connected', 'No Google account connected');
-            section.appendChild(wrap);
-            var link = document.createElement('a');
-            link.className = 'conn-manage-link';
-            link.href = '/tools/google-work-suite/';
-            link.style.cssText = 'display:block; text-align:center; margin-top:8px;';
-            var linkIcon = document.createElement('i');
-            linkIcon.setAttribute('data-lucide', 'plus-circle');
-            linkIcon.style.cssText = 'width:14px;height:14px;';
-            link.appendChild(linkIcon);
-            link.appendChild(document.createTextNode(' Connect Google Account'));
-            section.appendChild(link);
-            if (window.lucide) lucide.createIcons();
-            return;
-        }
+        fetch('/tools/my-profile/api/connections')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) return;
 
-        accounts.forEach(function(acct) {
-            var card = el('div', 'conn-account-card');
+                // OAuth Providers
+                var oauthSection = document.getElementById('oauthProvidersSection');
+                oauthSection.textContent = '';
+                var oauthList = data.oauth || [];
 
-            var icon = el('div', 'conn-account-icon google');
-            var iconI = document.createElement('i');
-            iconI.setAttribute('data-lucide', 'mail');
-            iconI.style.cssText = 'width:18px;height:18px;';
-            icon.appendChild(iconI);
-            card.appendChild(icon);
+                if (!oauthList.length) {
+                    oauthSection.appendChild(el('div', 'conn-not-connected', 'No OAuth providers connected'));
+                } else {
+                    oauthList.forEach(function(o) {
+                        var card = el('div', 'conn-account-card');
+                        var icon = el('div', 'conn-account-icon google');
+                        var iconI = document.createElement('i');
+                        iconI.setAttribute('data-lucide', o.provider === 'google' ? 'mail' : 'key');
+                        iconI.style.cssText = 'width:18px;height:18px;';
+                        icon.appendChild(iconI);
+                        card.appendChild(icon);
 
-            var details = el('div', 'conn-account-details');
-            details.appendChild(el('div', 'conn-account-email', acct.email));
-            details.appendChild(el('div', 'conn-account-meta', 'Connected ' + formatDate(acct.connected_at) + (acct.last_sync ? ' \u2022 Last sync ' + formatDate(acct.last_sync) : '')));
-            card.appendChild(details);
+                        var details = el('div', 'conn-account-details');
+                        details.appendChild(el('div', 'conn-account-email', o.email || o.display_name || o.provider));
+                        details.appendChild(el('div', 'conn-account-meta', o.provider.charAt(0).toUpperCase() + o.provider.slice(1) + (o.connected_at ? ' \u2022 Connected ' + formatDate(o.connected_at) : '')));
+                        card.appendChild(details);
 
-            section.appendChild(card);
-        });
+                        var badge = el('span', 'conn-service-badge ' + (o.active ? 'connected' : 'disconnected'), o.active ? 'Active' : 'Disconnected');
+                        card.appendChild(badge);
+                        oauthSection.appendChild(card);
+                    });
+                }
 
-        var manageLink = document.createElement('a');
-        manageLink.className = 'conn-manage-link';
-        manageLink.href = '/tools/google-work-suite/';
-        var mIcon = document.createElement('i');
-        mIcon.setAttribute('data-lucide', 'settings');
-        mIcon.style.cssText = 'width:14px;height:14px;';
-        manageLink.appendChild(mIcon);
-        manageLink.appendChild(document.createTextNode(' Manage in Google Work Suite'));
-        section.appendChild(manageLink);
+                // Product Connections
+                var prodSection = document.getElementById('productConnectionsSection');
+                prodSection.textContent = '';
+                var products = data.products || [];
 
-        if (window.lucide) lucide.createIcons();
-    }
+                if (!products.length) {
+                    prodSection.appendChild(el('div', 'conn-not-connected', 'No products available'));
+                } else {
+                    var prodGrid = el('div', 'profile-info-grid');
+                    products.forEach(function(p) {
+                        var card = el('div', 'profile-info-card');
+                        card.style.display = 'flex';
+                        card.style.alignItems = 'center';
+                        card.style.justifyContent = 'space-between';
+                        card.style.borderLeftColor = p.connected ? '#10b981' : '#6b7280';
 
-    function renderServices(accounts) {
-        var grid = document.getElementById('servicesGrid');
-        grid.textContent = '';
+                        var left = el('div');
+                        left.style.cssText = 'display:flex;align-items:center;gap:10px;';
+                        var svcIcon = document.createElement('i');
+                        svcIcon.setAttribute('data-lucide', 'globe');
+                        svcIcon.style.cssText = 'width:16px;height:16px;color:rgba(59,130,246,0.6);';
+                        left.appendChild(svcIcon);
 
-        var hasAny = accounts.length > 0;
-        var hasGmail = hasAny && accounts.some(function(a) { return a.has_gmail; });
-        var hasCal = hasAny && accounts.some(function(a) { return a.has_calendar; });
-        var hasDrive = hasAny && accounts.some(function(a) { return a.has_drive; });
+                        var nameLink = document.createElement('a');
+                        nameLink.href = p.url;
+                        nameLink.target = '_blank';
+                        nameLink.className = 'profile-info-value';
+                        nameLink.style.cssText = 'color: inherit; text-decoration: none;';
+                        nameLink.textContent = p.name;
+                        left.appendChild(nameLink);
+                        card.appendChild(left);
 
-        var services = [
-            { name: 'Gmail', icon: 'mail', connected: hasGmail },
-            { name: 'Calendar', icon: 'calendar', connected: hasCal },
-            { name: 'Drive', icon: 'hard-drive', connected: hasDrive }
-        ];
+                        var badge = el('span', 'conn-service-badge ' + (p.connected ? 'connected' : 'disconnected'), p.connected ? 'Connected' : 'Not Connected');
+                        card.appendChild(badge);
+                        prodGrid.appendChild(card);
+                    });
+                    prodSection.appendChild(prodGrid);
+                }
 
-        services.forEach(function(svc) {
-            var card = el('div', 'profile-info-card');
-            card.style.display = 'flex';
-            card.style.alignItems = 'center';
-            card.style.justifyContent = 'space-between';
+                // API Keys
+                var keysSection = document.getElementById('apiKeysSection');
+                keysSection.textContent = '';
+                var keys = data.api_keys || [];
 
-            var left = el('div');
-            left.style.cssText = 'display:flex;align-items:center;gap:10px;';
-            var svcIcon = document.createElement('i');
-            svcIcon.setAttribute('data-lucide', svc.icon);
-            svcIcon.style.cssText = 'width:16px;height:16px;color:rgba(59,130,246,0.6);';
-            left.appendChild(svcIcon);
-            left.appendChild(el('span', 'profile-info-value', svc.name));
-            card.appendChild(left);
+                if (!keys.length) {
+                    keysSection.appendChild(el('div', 'conn-not-connected', 'No API keys created'));
+                } else {
+                    keys.forEach(function(k) {
+                        var card = el('div', 'conn-account-card');
+                        var icon = el('div', 'conn-account-icon');
+                        icon.style.background = 'rgba(16,185,129,0.15)';
+                        icon.style.color = '#10b981';
+                        var iconI = document.createElement('i');
+                        iconI.setAttribute('data-lucide', 'key');
+                        iconI.style.cssText = 'width:18px;height:18px;';
+                        icon.appendChild(iconI);
+                        card.appendChild(icon);
 
-            var badge = el('span', 'conn-service-badge ' + (svc.connected ? 'connected' : 'disconnected'), svc.connected ? 'Connected' : 'Not Connected');
-            card.appendChild(badge);
+                        var details = el('div', 'conn-account-details');
+                        details.appendChild(el('div', 'conn-account-email', (k.name || k.product || 'API Key') + (k.key_prefix ? ' (' + k.key_prefix + '...)' : '')));
+                        var meta = 'Created ' + formatDate(k.created_at) + (k.last_used_at ? ' \u2022 Last used ' + formatDate(k.last_used_at) : ' \u2022 Never used');
+                        details.appendChild(el('div', 'conn-account-meta', meta));
+                        card.appendChild(details);
 
-            grid.appendChild(card);
-        });
+                        var badge = el('span', 'conn-service-badge ' + (k.active ? 'connected' : 'disconnected'), k.active ? 'Active' : 'Revoked');
+                        card.appendChild(badge);
+                        keysSection.appendChild(card);
+                    });
+                }
 
-        if (window.lucide) lucide.createIcons();
-    }
-
-    function renderTelegram(tg) {
-        var section = document.getElementById('telegramSection');
-        section.textContent = '';
-
-        if (tg.connected) {
-            var card = el('div', 'conn-account-card');
-
-            var icon = el('div', 'conn-account-icon telegram');
-            var iconI = document.createElement('i');
-            iconI.setAttribute('data-lucide', 'send');
-            iconI.style.cssText = 'width:18px;height:18px;';
-            icon.appendChild(iconI);
-            card.appendChild(icon);
-
-            var details = el('div', 'conn-account-details');
-            details.appendChild(el('div', 'conn-account-email', '@' + (tg.username || 'connected')));
-            details.appendChild(el('div', 'conn-account-meta', 'Authorized'));
-            card.appendChild(details);
-
-            var badge = el('span', 'conn-service-badge connected', 'Connected');
-            card.appendChild(badge);
-
-            section.appendChild(card);
-        } else {
-            section.appendChild(el('div', 'conn-not-connected', 'No Telegram account linked'));
-        }
-
-        if (window.lucide) lucide.createIcons();
+                if (window.lucide) lucide.createIcons();
+            })
+            .catch(function(e) {
+                console.error('[Profile] Connections failed:', e);
+            });
     }
 
     // ── Load Preferences (Task #880) ────────────────────
@@ -1745,7 +1917,7 @@
     // ── Init ──────────────────────────────────────────
     loadProfile();
     loadNotifications();
-    loadConnectedServices();
+    loadSubscriptions();  // needed for Overview "Your Plan" card
     loadActiveTheme();
     loadPreferences();
     loadActivity();

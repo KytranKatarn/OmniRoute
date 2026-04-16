@@ -108,8 +108,9 @@ body {
 /* ═══════════════════════════════════════════
    PANELS (tabs)
    ═══════════════════════════════════════════ */
-.comms-panel { display: none; height: calc(100vh - 48px); }
+.comms-panel { display: none; height: calc(100vh - 48px); overflow: hidden; }
 .comms-panel.active { display: flex; }
+.comms-frame { height: 100%; }
 .comms-placeholder {
     flex: 1;
     display: flex;
@@ -136,12 +137,77 @@ body {
 }
 
 /* ═══════════════════════════════════════════
+   LCARS FRAME — vertical sidebar + bottom bar
+   ═══════════════════════════════════════════ */
+.comms-frame {
+    display: flex;
+    height: calc(100vh - 48px);
+}
+.comms-frame-sidebar {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    width: 56px;
+    gap: 4px;
+    padding-top: 4px;
+}
+.comms-frame-elbow-top {
+    height: 0;
+}
+.comms-frame-seg1 {
+    height: 28px;
+    border-radius: 0 8px 8px 0;
+    background: var(--accent);
+    flex-shrink: 0;
+}
+.comms-frame-seg2 {
+    height: 28px;
+    border-radius: 0 8px 8px 0;
+    background: var(--accent-dark);
+    opacity: 0.6;
+    flex-shrink: 0;
+}
+.comms-frame-seg3 {
+    height: 20px;
+    border-radius: 0 8px 8px 0;
+    background: var(--accent);
+    opacity: 0.3;
+    flex-shrink: 0;
+}
+.comms-frame-seg-fill {
+    flex: 1;
+    background: rgba(0,212,255,0.12);
+    border-radius: 0 8px 8px 0;
+    min-height: 20px;
+}
+.comms-frame-elbow-bottom {
+    height: 36px;
+    background: var(--accent);
+    border-radius: 0 0 0 20px;
+    flex-shrink: 0;
+}
+.comms-frame-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.comms-frame-bottom {
+    height: 6px;
+    background: var(--accent);
+    border-radius: 0 0 20px 0;
+    flex-shrink: 0;
+    margin-left: 4px;
+}
+
+/* ═══════════════════════════════════════════
    CHAT APP — 3-column layout
    ═══════════════════════════════════════════ */
 .ac-app {
     display: flex;
-    height: calc(100vh - 48px);
+    flex: 1;
     width: 100%;
+    min-height: 0;
 }
 
 /* SIDEBAR */

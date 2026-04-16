@@ -136,14 +136,15 @@ def login():
                 )
                 user = cur.fetchone()
                 if user:
-                    import hashlib
+                    from werkzeug.security import check_password_hash
 
                     cur.execute(
                         "SELECT password_hash FROM users WHERE id = %s",
                         (user["id"],),
                     )
                     row = cur.fetchone()
-                    if row:
+                    pw_hash = row["password_hash"] if isinstance(row, dict) else row[0] if row else None
+                    if pw_hash and check_password_hash(pw_hash, password):
                         session["user_id"] = user["id"]
                         session["username"] = user["username"]
                         session["role"] = user["role"]

@@ -156,18 +156,25 @@
 
 <!-- TAB: CLAUDE TTY -->
 <div id="panel-terminal" class="comms-panel">
-    <div style="display:flex;flex-direction:column;height:100%;background:#1a1a2e;">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:#111827;border-bottom:1px solid #1f2937;">
-            <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-family:'Orbitron',sans-serif;font-size:0.7rem;color:#00d4ff;letter-spacing:2px;">CLAUDE TTY</span>
-                <span id="ttyd-status" style="font-size:0.65rem;color:#4b5563;">Checking...</span>
+    <div style="display:flex;align-items:center;justify-content:center;height:100%;background:#1a1a2e;">
+        <div style="text-align:center;max-width:500px;padding:2rem;">
+            <div style="font-size:2.5rem;margin-bottom:12px;">&#128433;</div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:0.85rem;color:#a78bfa;letter-spacing:2px;margin-bottom:8px;">CLAUDE CLI TERMINAL</div>
+            <p style="color:#9ca3af;font-size:0.8rem;line-height:1.6;margin-bottom:24px;">
+                Persistent tmux session with Claude Code. Your session survives browser disconnects.
+            </p>
+            <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                <a href="http://192.168.1.200:7681" target="_blank"
+                   style="display:inline-flex;align-items:center;gap:8px;padding:12px 28px;background:#a78bfa;color:#000;text-decoration:none;font-weight:700;font-size:0.85rem;border-radius:6px;box-shadow:0 4px 20px rgba(167,139,250,0.3);transition:transform 0.2s;">
+                    Launch Terminal
+                </a>
+                <a href="https://claude.kytranempowerment.com" target="_blank"
+                   style="display:inline-flex;align-items:center;gap:8px;padding:12px 28px;background:transparent;border:1px solid rgba(167,139,250,0.3);color:#a78bfa;text-decoration:none;font-weight:600;font-size:0.85rem;border-radius:6px;transition:all 0.2s;">
+                    Claude Portal
+                </a>
             </div>
-            <div style="display:flex;gap:8px;">
-                <button onclick="document.getElementById('ttyd-frame').src=document.getElementById('ttyd-frame').src" style="padding:4px 12px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);border-radius:4px;color:#00d4ff;font-size:0.7rem;cursor:pointer;font-family:'IBM Plex Mono',monospace;">Reconnect</button>
-                <a href="https://claude.kytranempowerment.com" target="_blank" style="padding:4px 12px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);border-radius:4px;color:#9ca3af;font-size:0.7rem;text-decoration:none;font-family:'IBM Plex Mono',monospace;">Open Full Window</a>
-            </div>
+            <p style="color:#4b5563;font-size:0.68rem;margin-top:16px;">Terminal opens in a new window (local network)</p>
         </div>
-        <iframe id="ttyd-frame" src="https://claude.kytranempowerment.com" style="flex:1;border:none;width:100%;background:#1a1a2e;" allow="clipboard-read; clipboard-write"></iframe>
     </div>
 </div>
 

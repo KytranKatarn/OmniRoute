@@ -367,225 +367,110 @@
     <main data-barba="container" data-barba-namespace="tips">
         <section class="hero">
             <div class="hero__content container">
-                <h1 class="hero__title gradient-text">Tips &amp; Tricks</h1>
-                <p class="tips-intro">Hard-won lessons from building A.R.C.H.I.E. &mdash; a 75+ agent, 17-department AI platform.</p>
+                <h1 class="hero__title gradient-text">Community Tips &amp; Resources</h1>
+                <p class="tips-intro">Free resources for Explorer members and the Kytran community.</p>
             </div>
         </section>
 
-        <!-- Category 1: Claude Code -->
+        <!-- Getting Started -->
         <section class="section">
             <div class="container">
-                <div class="tip-category cat-claude" data-stagger>
+                <div class="tip-category" data-stagger>
+                    <div class="tip-category-header">
+                        <div class="tip-category-icon">&#x1F680;</div>
+                        <div>
+                            <h3>Getting Started</h3>
+                            <p>Everything you need to hit the ground running with the Kytran platform.</p>
+                        </div>
+                    </div>
+                    <div class="tip-grid">
+                        <div class="glass-panel tip-card">
+                            <h4>Create Your Free Account</h4>
+                            <p>Sign up as an Explorer — no credit card required. Access the platform dashboard, AI Directors directory, and Trust Center from day one.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Explore the Products</h4>
+                            <p>Start with one Watch product that fits your business. Market, Civic, Legal, and Gov Watch are all available to Explorer members to preview.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Meet the AI Directors</h4>
+                            <p>17 departments, each led by a specialized AI Director. Browse the full roster to understand which agents will be working for your business.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Platform Tips -->
+        <section class="section">
+            <div class="container">
+                <div class="tip-category" data-stagger>
+                    <div class="tip-category-header">
+                        <div class="tip-category-icon">&#x1F4A1;</div>
+                        <div>
+                            <h3>Platform Tips</h3>
+                            <p>Get more out of your A.R.C.H.I.E. subscription with these practical tips.</p>
+                        </div>
+                    </div>
+                    <div class="tip-grid">
+                        <div class="glass-panel tip-card">
+                            <h4>Use Department HQ for Agent Tasks</h4>
+                            <p>All agent assignments flow through Department HQ. Dispatch tasks to the right department and let the agents handle execution autonomously.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Check the Knowledge Base</h4>
+                            <p>The platform maintains 25,700+ knowledge entries. Search before asking an agent to build something — the answer may already exist.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4>Monitor with C.R.E.E.D.</h4>
+                            <p>Every agent action is governed by the C.R.E.E.D. ethics layer. Review the governance audit log to see every decision and its rationale.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- AI Best Practices -->
+        <section class="section">
+            <div class="container">
+                <div class="tip-category" data-stagger>
                     <div class="tip-category-header">
                         <div class="tip-category-icon">&#x1F9E0;</div>
                         <div>
-                            <h3>Claude Code Tips</h3>
-                            <p>Maximize your productivity with Claude Code's project memory and context system.</p>
+                            <h3>AI Best Practices</h3>
+                            <p>Lessons from running a 131-agent, 17-department AI platform in production.</p>
                         </div>
                     </div>
                     <div class="tip-grid">
-                        <div class="glass-panel tip-card">
-                            <h4>CLAUDE.md Is Your Project Memory</h4>
-                            <p>Put architecture decisions, patterns, and conventions in <code>CLAUDE.md</code>. Claude reads it every session. Think of it as your project's brain &mdash; the more precise it is, the better Claude performs.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Split Rules by Domain</h4>
-                            <p>Use <code>.claude/rules/</code> for domain-specific knowledge. We have <code>database.md</code>, <code>frontend.md</code>, <code>ai-bridge.md</code>, <code>starbase.md</code>, and more. Each file loads focused context for its area.</p>
-                        </div>
                         <div class="glass-panel tip-card">
                             <h4>Search Before Building</h4>
-                            <p>With 18,000+ knowledge base entries, we never reinvent the wheel. Always search what exists first. Past decisions, mistakes, and patterns are all indexed and searchable.</p>
+                            <p>Always query your knowledge base before asking an AI to create something from scratch. Past decisions, patterns, and mistakes are all searchable.</p>
                         </div>
                         <div class="glass-panel tip-card">
-                            <h4>Plan Mode for 3+ Steps</h4>
-                            <p>Break complex work into phases. Get alignment before coding. Our rule: if a task touches 3+ files or involves architectural decisions, enter plan mode first.</p>
+                            <h4>Two Strikes and Escalate</h4>
+                            <p>If an agent fails twice on the same task, escalate to a human. Don't let AI spiral through endless retries — know when to take over.</p>
                         </div>
                         <div class="glass-panel tip-card">
-                            <h4>Two Strikes and Ask</h4>
-                            <p>If two attempts fail, stop and ask. Don't spiral through 20 tries. This single rule has saved us more time than any other. Know when to escalate.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Verify Everything</h4>
-                            <p>Never claim done without live proof. Our workflow: Edit, Commit, Deploy, Test, then Claim. Screenshots or it didn't happen. Anti-rationalization is a real pattern.</p>
+                            <h4>Verify, Don't Trust</h4>
+                            <p>Never accept "done" without live proof. Every completed task should have a verifiable output — a screenshot, a log entry, a measurable result.</p>
                         </div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- Category 2: .md File Conventions -->
-        <section class="section">
-            <div class="container">
-                <div class="tip-category cat-md" data-stagger>
-                    <div class="tip-category-header">
-                        <div class="tip-category-icon">&#x1F4DD;</div>
-                        <div>
-                            <h3>.md File Conventions</h3>
-                            <p>Structure your project knowledge for maximum AI comprehension and cross-session persistence.</p>
-                        </div>
-                    </div>
-                    <div class="tip-grid">
-                        <div class="glass-panel tip-card">
-                            <h4>CLAUDE.md &mdash; Project Level</h4>
-                            <p>Architecture overview, key patterns, file locations, common errors, and deployment commands. This is the single source of truth for how your project works.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>.claude/rules/*.md &mdash; Domain Rules</h4>
-                            <p>Loaded per-session based on context. Database gotchas, frontend patterns, API conventions, deployment rules. Each file is a specialist's handbook.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Memory Files &mdash; Cross-Session</h4>
-                            <p>User preferences, project state, behavioral feedback, reference data. These persist across conversations and keep Claude aligned with your working style.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Spec Docs &mdash; Before Building</h4>
-                            <p>Design specs before implementation. Reviewed and approved before any code is written. Saves rework and ensures alignment on requirements.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Decision Logs &mdash; ADRs</h4>
-                            <p>Log every architectural decision with context. Six months later, you'll know why you chose PostgreSQL over SQLite, or why agents are 1-per-station.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Mistake Logs &mdash; Learn Once</h4>
-                            <p>Store mistakes with <code>knowledge_type='mistake_learned'</code>. These get 1.3x search weight. The system actively prevents repeating costly errors.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Category 3: Agent Coordination -->
-        <section class="section">
-            <div class="container">
-                <div class="tip-category cat-agent" data-stagger>
-                    <div class="tip-category-header">
-                        <div class="tip-category-icon">&#x1F916;</div>
-                        <div>
-                            <h3>Agent Coordination Patterns</h3>
-                            <p>Patterns for orchestrating multi-agent AI systems at scale.</p>
-                        </div>
-                    </div>
-                    <div class="tip-grid">
-                        <div class="glass-panel tip-card">
-                            <h4>Central Dispatch, Always</h4>
-                            <p>All LLM calls route through a central Bridge dispatcher. Never call models directly from modules. This gives you logging, routing, fallback, and governance in one place.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Department-Based Routing</h4>
-                            <p>Organize agents by business function, not abstract categories. Analytics, Creative, Engineering, Security &mdash; each department has specialists with relevant skills.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Warm Boot Priority</h4>
-                            <p>Keep critical models loaded in GPU/RAM. Share LLMs across agents in the same department. Cold-loading a 55GB model takes 9 minutes &mdash; warm boot is instant.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Escalation Chains</h4>
-                            <p>Local department &rarr; same floor &rarr; cross-department &rarr; fleet node &rarr; cloud fallback. Each level adds latency but widens capability. Most tasks resolve at tier 1.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Agent Welfare Matters</h4>
-                            <p>Track agent workload, rest cycles, and stress. It sounds whimsical, but it enforces real constraints: max 3 concurrent jobs, mandatory cooldowns, shift rotations.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Approval Tiers</h4>
-                            <p>Tier 1 (auto): notifications, KB updates, internal logs. Tier 2 (human): cloud escalation, agent creation, cost-sensitive ops. Autonomous doesn't mean uncontrolled.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Category 4: Ops & Infrastructure -->
-        <section class="section">
-            <div class="container">
-                <div class="tip-category cat-ops" data-stagger>
-                    <div class="tip-category-header">
-                        <div class="tip-category-icon">&#x2699;&#xFE0F;</div>
-                        <div>
-                            <h3>Operations &amp; Infrastructure</h3>
-                            <p>Production lessons from running a self-hosted AI platform 24/7.</p>
-                        </div>
-                    </div>
-                    <div class="tip-grid">
-                        <div class="glass-panel tip-card">
-                            <h4>Self-Host Everything</h4>
-                            <p>Full data sovereignty. No vendor lock-in. Our entire platform runs on a single server with 128GB RAM and a GPU. Cloud is a fallback, not a dependency.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Docker for Isolation</h4>
-                            <p>Platform, database, and ComfyUI each run in separate containers. One restart doesn't take down everything. Compose files make the whole stack reproducible.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Model Tiers: GPU &gt; CPU &gt; Cold</h4>
-                            <p>Three-tier model management. GPU for fast inference, CPU for capacity, cold storage on SSD. Auto-promote on demand, auto-demote on idle. VRAM is precious.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Background Jobs, Not Blocking</h4>
-                            <p>57 scheduled background jobs handle monitoring, scanning, training, and maintenance. Users never wait. Return a job ID immediately, process asynchronously.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Idempotent Migrations</h4>
-                            <p>Every database migration uses <code>IF NOT EXISTS</code> and <code>ON CONFLICT DO UPDATE</code>. Run them twice, ten times &mdash; same result. No fear of re-running.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Monitor Model VRAM, Not Just Disk</h4>
-                            <p>A 2GB model on disk can use 5.5GB in VRAM with context. Always account for <code>num_ctx</code> inflation. Runtime size is roughly 1.3x disk size.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Category 5: Open Source Skills & Tools -->
-        <section class="section">
-            <div class="container">
-                <div class="tip-category cat-github" data-stagger>
-                    <div class="tip-category-header">
-                        <div class="tip-category-icon">&#x1F310;</div>
-                        <div>
-                            <h3>Open Source Skills &amp; Tools</h3>
-                            <p>Skills we've built and shared on GitHub &mdash; use them in your own projects.</p>
-                        </div>
-                    </div>
-                    <div class="tip-grid">
-                        <div class="glass-panel tip-card">
-                            <h4>A.R.C.H.I.E. Code CLI</h4>
-                            <p>Open-source CLI for AI-powered development. 75+ agents, session memory, knowledge base search. GitHub: <a href="https://github.com/KytranKatarn/archie-code" target="_blank" rel="noopener" style="color:#34d399;">KytranKatarn/archie-code</a></p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Claude Code Skills</h4>
-                            <p>Custom skills for Claude Code: brainstorming, TDD, code review, plan execution. Install them in any project.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>MCP Server Integration</h4>
-                            <p>Model Context Protocol servers for platform integration. Connect any AI tool to A.R.C.H.I.E.'s knowledge base.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Session Persistence Hooks</h4>
-                            <p>Hook system for cross-session memory. Never lose context between conversations. Auto-saves decisions, mistakes, preferences.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Self-Healing Pipeline</h4>
-                            <p>Automated code scanning, proposal generation, and sandboxed fixes. The platform improves itself daily.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Compliance Rule Packs</h4>
-                            <p>JSON-driven compliance scanning: STIG, HIPAA, SOC 2, CIS. Add rules without code changes.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- GitHub CTA -->
+        <!-- Explorer CTA -->
         <section class="section" style="text-align:center;">
-            <div class="container" style="max-width:700px;">
-                <h2 class="section__title gradient-text">Want to See the Code?</h2>
-                <p style="color:var(--color-text-muted);margin-bottom:1.5rem;">Everything we build is designed to be shared. Check out our open-source tools and contribute to the community.</p>
-                <a href="https://github.com/KytranKatarn" class="btn btn--primary btn--lg magnetic" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+            <div class="container" style="max-width:600px;">
+                <div class="glass-panel" style="padding:3rem 2rem;">
+                    <h2 class="section__title gradient-text" style="margin-bottom:1rem;">Join as Explorer &mdash; it's free</h2>
+                    <p style="color:var(--text-secondary,#8892a4);line-height:1.8;margin-bottom:2rem;">Get access to the platform dashboard, AI Directors, Trust Center, and community resources. No credit card required.</p>
+                    <a href="https://platform.kytranempowerment.com/signup" class="btn btn--primary btn--lg magnetic">Get Started Free &rarr;</a>
+                </div>
             </div>
         </section>
     </main>
+
 
     <!-- Footer -->
     <footer class="footer">

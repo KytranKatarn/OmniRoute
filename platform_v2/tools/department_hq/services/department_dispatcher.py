@@ -2132,6 +2132,15 @@ class DepartmentDispatcher:
         except Exception as e:
             logger.error(f"[BridgeDispatcher] Failed to create bridge_job: {e}")
 
+        # --- Ensure ComfyUI container is running (idle-stop may have stopped it) ---
+        # Project #240 task #2019 — lifecycle policy parallel to Ollama keep_alive.
+        try:
+            from services.comfyui_lifecycle import ensure_running
+
+            ensure_running()
+        except Exception as e:
+            logger.warning(f"[BridgeDispatcher] ComfyUI ensure_running failed: {e}")
+
         # --- VRAM swap: unload Ollama GPU models if SDXL needs full GPU ---
         ollama_models_unloaded = []
         is_xl = "xl" in image_model.lower()
@@ -2162,6 +2171,14 @@ class DepartmentDispatcher:
         # --- Reload Ollama GPU models after SDXL ---
         if ollama_models_unloaded:
             self._vram_restore_after_comfyui(ollama_models_unloaded, node_db_id)
+
+        # --- Record ComfyUI use so the idle-stop job knows the container is active ---
+        try:
+            from services.comfyui_lifecycle import record_last_used
+
+            record_last_used()
+        except Exception as e:
+            logger.warning(f"[BridgeDispatcher] ComfyUI record_last_used failed: {e}")
 
         # --- Complete bridge_job ---
         if bridge_job_id:

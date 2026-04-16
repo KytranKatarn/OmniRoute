@@ -585,6 +585,14 @@ class AgentLoop:
         )
 
         self.scheduler.add_job(
+            with_app_context(self._comfyui_idle_stop),
+            trigger=IntervalTrigger(minutes=5),
+            id="comfyui_idle_stop",
+            name="Agent Loop: ComfyUI Idle Stop (30min)",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
             with_app_context(self._run_qa_scheduled),
             trigger=IntervalTrigger(hours=6),
             id="qa_scheduled_run",
@@ -3664,6 +3672,25 @@ class AgentLoop:
         except Exception as e:
             duration_ms = int((time.time() - start) * 1000)
             self._log_cycle("platform_watchdog", 0, 1, duration_ms, error_message=str(e))
+
+    def _comfyui_idle_stop(self):
+        """Stop ComfyUI container after 30 min idle (Project #240 task #2019).
+
+        Parallel to Ollama KEEP_ALIVE=5m. Keeps kernel from paging out
+        ComfyUI's 165GB virtual alloc — that polluted swap with 6.5GB
+        on 2026-04-16.
+        """
+        start = time.time()
+        try:
+            from services.comfyui_lifecycle import idle_stop_if_needed
+
+            result = idle_stop_if_needed(max_idle_seconds=1800)
+            duration_ms = int((time.time() - start) * 1000)
+            items = 1 if result.get("action") == "stopped" else 0
+            self._log_cycle("comfyui_idle_stop", items, 0, duration_ms, details=result)
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("comfyui_idle_stop", 0, 1, duration_ms, error_message=str(e))
 
     def _media_queue_cleanup(self):
         """Media queue cleanup every 1h — migrated from app.py."""

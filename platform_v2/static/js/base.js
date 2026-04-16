@@ -23,19 +23,25 @@ document.addEventListener('DOMContentLoaded', function() {
 // ═══════════════════════════════════════════════════════════════════════
 // GLOBAL PROFILE MODAL
 // ═══════════════════════════════════════════════════════════════════════
+var _profileJustOpened = false;
 window.toggleProfileModal = function() {
     var modal = document.getElementById('globalProfileModal');
     if (modal) {
+        var wasHidden = modal.classList.contains('archie-hidden');
         modal.classList.toggle('archie-hidden');
+        if (wasHidden) {
+            _profileJustOpened = true;
+            setTimeout(function() { _profileJustOpened = false; }, 100);
+        }
     }
 };
 
 // Close on click outside
 document.addEventListener('click', function(e) {
+    if (_profileJustOpened) return;
     var modal = document.getElementById('globalProfileModal');
-    var link = document.querySelector('.dash-profile-link');
     if (modal && !modal.classList.contains('archie-hidden') &&
-        !modal.contains(e.target) && (!link || !link.contains(e.target))) {
+        !modal.contains(e.target)) {
         modal.classList.add('archie-hidden');
     }
 });

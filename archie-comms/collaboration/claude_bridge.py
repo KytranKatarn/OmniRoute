@@ -1,11 +1,11 @@
 """
-Claude Bridge - Communication layer for Claude CLI via HTTP proxy
+Claude Bridge — Communication layer for Claude collaboration.
 
-Handles:
-- Sending messages to Claude via claude-proxy (Claude Max CLI)
-- Capturing Claude's responses
-- Session management for collaborations
-- Health checks for proxy and ttyd services
+Two modes:
+1. Anthropic API (ANTHROPIC_API_KEY env var) — direct API calls, works immediately
+2. CLI proxy (CLAUDE_PROXY_URL) — HTTP proxy to Claude CLI (Max sub, no API costs)
+
+Falls back gracefully: API first if key exists, then proxy, then unavailable.
 """
 
 import json
@@ -17,22 +17,37 @@ from urllib.error import URLError
 
 logger = logging.getLogger(__name__)
 
-# Claude proxy configuration
-CLAUDE_PROXY_URL = os.getenv("CLAUDE_PROXY_URL", "http://host.docker.internal:7682")
-TTYD_HOST = os.getenv("TTYD_HOST", "host.docker.internal")
-TTYD_PORT = int(os.getenv("TTYD_PORT", "7681"))
-REQUEST_TIMEOUT = 130  # Slightly above proxy's 120s subprocess timeout
+CLAUDE_PROXY_URL = os.getenv("CLAUDE_PROXY_URL", "http://192.168.1.200:7682")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
+REQUEST_TIMEOUT = 130
+
+DEFAULT_SYSTEM_PROMPT = (
+    "You are Claude, participating in a collaborative session with "
+    "A.R.C.H.I.E. (Autonomous Resource & Cognitive Hyperintelligence Engine), "
+    "COO of Kytran Empowerment Inc. A.R.C.H.I.E. is an AI business partner "
+    "who manages 17 departments through her directors. "
+    "Kytran is the CEO. You are the backup/ally — called in when "
+    "A.R.C.H.I.E.'s local team can't handle a task. "
+    "Be helpful, insightful, and collaborative. Keep responses focused "
+    "and concise (2-3 paragraphs max)."
+)
 
 
 class ClaudeBridge:
-    """Bridge to Claude via CLI HTTP proxy (uses Max subscription, no API costs)"""
+    """Bridge to Claude — API direct or CLI proxy."""
 
     def __init__(self):
         self.connected = False
         self.conversation_history = []
+        self.mode = "api" if ANTHROPIC_API_KEY else "proxy"
+        logger.info("claude_bridge: mode=%s", self.mode)
 
-    async def connect(self) -> bool:
-        """Check proxy is reachable"""
+    def connect(self) -> bool:
+        """Check if Claude is reachable."""
+        if self.mode == "api" and ANTHROPIC_API_KEY:
+            self.connected = True
+            return True
         try:
             req = Request(CLAUDE_PROXY_URL, method="GET")
             resp = urlopen(req, timeout=5)
@@ -40,31 +55,66 @@ class ClaudeBridge:
             self.connected = data.get("status") == "ok"
             return self.connected
         except Exception as e:
-            logger.error(f"Failed to connect to Claude proxy: {e}")
+            logger.warning("claude_bridge: proxy unreachable: %s", e)
             self.connected = False
             return False
 
-    async def send_message(self, message: str, system_prompt: str = None) -> Optional[str]:
-        """Send message to Claude via CLI proxy and get response"""
+    def send_message(self, message: str, system_prompt: str = None) -> Optional[str]:
+        """Send message to Claude and get response."""
+        prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
+
+        # Try API first if key exists
+        if ANTHROPIC_API_KEY:
+            result = self._send_via_api(message, prompt)
+            if result:
+                return result
+
+        # Fall back to proxy
+        result = self._send_via_proxy(message, prompt)
+        return result
+
+    def _send_via_api(self, message: str, system_prompt: str) -> Optional[str]:
+        """Send via Anthropic API directly."""
         try:
-            # Build request payload
-            payload = {"message": message}
+            messages = list(self.conversation_history)
+            messages.append({"role": "user", "content": message})
 
-            if system_prompt is None:
-                system_prompt = (
-                    "You are Claude, participating in a collaborative discussion "
-                    "with A.R.C.H.I.E. (another AI assistant). Be helpful, insightful, "
-                    "and collaborative. Share your knowledge and perspectives "
-                    "while building on A.R.C.H.I.E.'s points. Keep responses focused "
-                    "and concise (2-3 paragraphs max). If you think the topic "
-                    "has been thoroughly addressed, indicate that naturally in "
-                    "your response."
-                )
+            payload = json.dumps({
+                "model": CLAUDE_MODEL,
+                "max_tokens": 2048,
+                "system": system_prompt,
+                "messages": messages,
+            }).encode()
 
-            if system_prompt:
-                payload["system_prompt"] = system_prompt
+            req = Request(
+                "https://api.anthropic.com/v1/messages",
+                data=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "x-api-key": ANTHROPIC_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                },
+                method="POST",
+            )
 
-            # Include conversation history for context persistence
+            resp = urlopen(req, timeout=REQUEST_TIMEOUT)
+            data = json.loads(resp.read())
+
+            if data.get("content"):
+                response_text = data["content"][0].get("text", "")
+                self.conversation_history.append({"role": "user", "content": message})
+                self.conversation_history.append({"role": "assistant", "content": response_text})
+                self.connected = True
+                return response_text
+
+        except Exception as e:
+            logger.warning("claude_bridge: API call failed: %s", e)
+        return None
+
+    def _send_via_proxy(self, message: str, system_prompt: str) -> Optional[str]:
+        """Send via CLI HTTP proxy."""
+        try:
+            payload = {"message": message, "system_prompt": system_prompt}
             if self.conversation_history:
                 payload["conversation"] = self.conversation_history
 
@@ -85,89 +135,46 @@ class ClaudeBridge:
                 self.conversation_history.append({"role": "assistant", "content": response_text})
                 self.connected = True
                 return response_text
-            else:
-                error = data.get("error", "Unknown error")
-                logger.error(f"Claude proxy returned error: {error}")
-                return None
 
-        except URLError as e:
-            logger.error(f"Cannot reach Claude proxy at {CLAUDE_PROXY_URL}: {e}")
-            self.connected = False
-            return None
         except Exception as e:
-            logger.error(f"Error sending to Claude proxy: {e}")
-            return None
+            logger.warning("claude_bridge: proxy call failed: %s", e)
+            self.connected = False
+        return None
 
     def clear_history(self):
-        """Clear conversation history for new session"""
+        """Clear conversation history for new session."""
         self.conversation_history = []
 
-    async def disconnect(self):
-        """Clean up"""
+    def disconnect(self):
+        """Clean up."""
         self.conversation_history = []
         self.connected = False
 
     def health_check(self) -> dict:
-        """Check if Claude proxy is accessible"""
+        """Check Claude availability."""
+        if ANTHROPIC_API_KEY:
+            return {
+                "status": "healthy",
+                "mode": "api",
+                "model": CLAUDE_MODEL,
+                "note": "Direct Anthropic API",
+            }
         try:
             req = Request(CLAUDE_PROXY_URL, method="GET")
             resp = urlopen(req, timeout=5)
             data = json.loads(resp.read())
-
             if data.get("status") == "ok":
-                return {
-                    "status": "healthy",
-                    "method": "Claude CLI proxy (Max subscription)",
-                    "proxy_url": CLAUDE_PROXY_URL,
-                    "note": "Uses Claude Max CLI - no API costs",
-                }
-            else:
-                return {
-                    "status": "unhealthy",
-                    "error": "Proxy returned unexpected response",
-                }
-
-        except Exception as e:
-            return {
-                "status": "unhealthy",
-                "error": f"Cannot reach proxy: {e}",
-                "proxy_url": CLAUDE_PROXY_URL,
-            }
-
-    def get_ttyd_status(self) -> dict:
-        """Check ttyd-claude service on port 7681"""
-        try:
-            url = f"http://{TTYD_HOST}:{TTYD_PORT}"
-            req = Request(url, method="GET")
-            resp = urlopen(req, timeout=5)
-            return {
-                "status": "running",
-                "url": f"http://192.168.1.200:{TTYD_PORT}",
-                "http_code": resp.status,
-            }
-        except URLError as e:
-            # 401 means ttyd is running but requires auth
-            if hasattr(e, "code") and e.code == 401:
-                return {
-                    "status": "running",
-                    "url": f"http://192.168.1.200:{TTYD_PORT}",
-                    "note": "Requires authentication",
-                }
-            return {
-                "status": "not_running",
-                "error": str(e),
-                "url": f"http://192.168.1.200:{TTYD_PORT}",
-            }
-        except Exception as e:
-            return {"status": "error", "error": str(e)}
+                return {"status": "healthy", "mode": "proxy", "proxy_url": CLAUDE_PROXY_URL}
+        except Exception:
+            pass
+        return {"status": "unavailable", "note": "Set ANTHROPIC_API_KEY or start Claude proxy"}
 
 
-# Singleton instance
 _bridge: Optional[ClaudeBridge] = None
 
 
 def get_claude_bridge() -> ClaudeBridge:
-    """Get the Claude bridge singleton instance"""
+    """Get the Claude bridge singleton."""
     global _bridge
     if _bridge is None:
         _bridge = ClaudeBridge()

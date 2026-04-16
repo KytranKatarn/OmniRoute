@@ -235,13 +235,21 @@ services:
       - DB_HOST=archie_database
       - DB_NAME=archie
       - DB_USER=archie
-      - OLLAMA_HOST=host.docker.internal:11434
+      - OLLAMA_HOST=192.168.1.200:11434
       - ARCHIE_VOICE_MODEL=dolphin3-8k:latest
       - PLATFORM_URL=http://archie_platform:3000
       - CLAUDE_PROXY_URL=http://host.docker.internal:7682
       - COMMS_PORT=3002
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - CLAUDE_MODEL=claude-sonnet-4-20250514
+      - KYTRAN_CLIENT_ID=archie-comms
+      - KYTRAN_CLIENT_SECRET=2e718ace8add43c8a1054b3d80f885bc108074e11be1c43e7bb9747676860dfb
+      - KYTRAN_AUTH_URL=http://192.168.1.200:3000
+      - KYTRAN_REDIRECT_URI=https://archie.kytranempowerment.com/auth/kytran/callback
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "3002:3002"
     networks:

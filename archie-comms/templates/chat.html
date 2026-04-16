@@ -1,313 +1,178 @@
-{% extends "base.html" %}
-{% block title %}A.R.C.H.I.E. Chat{% endblock %}
-{% block module_name %}archie_chat{% endblock %}
-
-{% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/archie-chat.css') }}">
-{% endblock %}
-
-{% block content %}
-{% set cat_accent = '#00ffff' %}
-{% set cat_accent_rgb = '0,255,255' %}
-{% set cat_accent_dark = '#00cccc' %}
-{% set cat_label = 'AI COMMAND' %}
-{% set module_title = 'A.R.C.H.I.E. CHAT' %}
-{% set header_tabs = [
-    ("chat", "Chat", "message-circle"),
-    ("history", "History", "clock"),
-    ("collaboration", "Collaboration", "users"),
-    ("terminal", "Claude TTY", "terminal"),
-    ("settings", "Settings", "settings")
-] %}
-{% set header_shortcuts = [
-    ("A.R.C.H.I.E.", "bot", "/tools/archie-chat"),
-    ("Consciousness", "brain", "/tools/consciousness"),
-    ("Dept HQ", "building", "/tools/department-hq"),
-    ("Academy", "graduation-cap", "/tools/agent-academy"),
-    ("Repair Bay", "wrench", "/tools/repair-bay")
-] %}
-{% include 'includes/lcars-header.html' %}
-
-<!-- Tab: Chat (default) -->
-<div id="panel-chat" class="ac-tab-panel active">
-<div id="ac-app" class="ac-app">
-
-  <!-- ═══════════════════════════════════════════════════════════════
-       LEFT PANEL — Conversation Sidebar (240px)
-       ═══════════════════════════════════════════════════════════════ -->
-  <aside id="ac-sidebar" class="ac-sidebar">
-    <div class="ac-sidebar-header">
-      <button id="ac-new-chat-btn" class="ac-new-chat-btn" title="New Conversation">
-        <span class="ac-btn-icon">+</span> New Chat
-      </button>
-    </div>
-
-    <div id="ac-conversation-list" class="ac-conversation-list">
-      <!-- Conversation items injected by JS:
-        <div class="ac-conversation-item ac-conversation-active" data-conversation-id="...">
-          <span class="ac-conversation-title">...</span>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A.R.C.H.I.E. Comms</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;500;700&family=Orbitron:wght@400;700;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/comms.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+</head>
+<body>
+<!-- ═══════════════════════════════════════════════════════════════
+     LCARS HEADER BAR
+     ═══════════════════════════════════════════════════════════════ -->
+<header class="comms-header">
+    <div class="comms-header-elbow"></div>
+    <div class="comms-header-bar">
+        <span class="comms-header-title">A.R.C.H.I.E. COMMS</span>
+        <nav class="comms-tabs">
+            <button class="comms-tab active" data-tab="chat">Chat</button>
+            <button class="comms-tab" data-tab="history">History</button>
+            <button class="comms-tab" data-tab="collaboration">Collaboration</button>
+            <button class="comms-tab" data-tab="terminal">Claude TTY</button>
+        </nav>
+        <div class="comms-header-status">
+            <span class="comms-status-dot"></span>
+            <span class="comms-status-text">Online</span>
         </div>
-      -->
+        <a href="/" class="comms-header-link" title="Back to status page">Status</a>
     </div>
+    <div class="comms-header-cap"></div>
+</header>
 
-    <div class="ac-sidebar-footer">
-      <label class="ac-target-label" for="ac-target-select">Route to</label>
-      <select id="ac-target-select" class="ac-target-select">
-        <option value="auto">Auto-route</option>
-        <optgroup label="Stations">
-          <option value="COMMAND">COMMAND</option>
-          <option value="ANALYTICS">ANALYTICS</option>
-          <option value="CREATIVE">CREATIVE</option>
-          <option value="ENGINEERING">ENGINEERING</option>
-          <option value="COMMUNICATIONS">COMMUNICATIONS</option>
-          <option value="RESEARCH">RESEARCH</option>
-          <option value="SECURITY">SECURITY</option>
-          <option value="LOGISTICS">LOGISTICS</option>
-          <option value="DIPLOMATIC">DIPLOMATIC</option>
-          <option value="OPERATIONS">OPERATIONS</option>
-        </optgroup>
-      </select>
-    </div>
-  </aside>
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB: CHAT (default)
+     ═══════════════════════════════════════════════════════════════ -->
+<div id="panel-chat" class="comms-panel active">
+<div class="ac-app">
 
-  <!-- ═══════════════════════════════════════════════════════════════
-       CENTER PANEL — Chat Area (flex:1)
-       ═══════════════════════════════════════════════════════════════ -->
-  <main id="ac-chat-area" class="ac-chat-area">
-    <div id="ac-messages" class="ac-messages">
-      <!-- Messages injected by JS:
-
-        User message:
-        <div class="ac-message ac-message-user">
-          <div class="ac-message-bubble">
-            <div class="ac-message-text">...</div>
-          </div>
+    <!-- LEFT — Conversation Sidebar -->
+    <aside id="ac-sidebar" class="ac-sidebar">
+        <div class="ac-sidebar-header">
+            <button id="ac-new-chat-btn" class="ac-new-chat-btn" title="New Conversation">
+                <span>+</span> New Chat
+            </button>
         </div>
 
-        Assistant message:
-        <div class="ac-message ac-message-assistant">
-          <div class="ac-agent-avatar" data-station="COMMAND">
-            <span class="ac-avatar-initials">AR</span>
-          </div>
-          <div class="ac-message-bubble">
-            <div class="ac-message-meta">
-              <span class="ac-agent-name">A.R.C.H.I.E.</span>
-              <span class="ac-station-badge" data-station="COMMAND">COMMAND</span>
+        <div class="ac-sidebar-section">
+            <div class="ac-sidebar-label">STATUS</div>
+            <div class="ac-status-row">
+                <span class="ac-status-dot online"></span>
+                <span class="ac-status-val" id="archie-mood">Online — Focused</span>
             </div>
-            <div class="ac-message-text">...</div>
-          </div>
+            <div class="ac-status-row dim">
+                <span>Agents:</span>
+                <span class="ac-status-val" id="agent-count">47 active</span>
+            </div>
+            <div class="ac-status-row dim">
+                <span>Watchdog:</span>
+                <span class="ac-status-val online" id="watchdog-val">Healthy</span>
+            </div>
         </div>
 
-        Thinking indicator:
-        <div id="ac-thinking-indicator" class="ac-thinking-indicator" style="display:none;">
-          <div class="ac-thinking-dots">
-            <span></span><span></span><span></span>
-          </div>
-          <span class="ac-thinking-label">Thinking...</span>
+        <div class="ac-sidebar-label">CONVERSATIONS</div>
+        <div id="ac-conversation-list" class="ac-conversation-list">
+            <!-- Injected by JS -->
         </div>
-      -->
-    </div>
 
-    <div id="ac-input-area" class="ac-input-area">
-      <div class="ac-input-row">
-        <button id="ac-sidebar-toggle" class="ac-sidebar-toggle" title="Conversations">
-          <span class="ac-sidebar-toggle-icon">&#9776;</span>
-        </button>
-        <textarea
-          id="ac-message-input"
-          class="ac-message-input"
-          placeholder="Send a message to A.R.C.H.I.E...."
-          rows="1"
-          autocomplete="off"
-        ></textarea>
-        <button id="ac-send-btn" class="ac-send-btn" title="Send" disabled>
-          <span class="ac-send-icon">&#9654;</span>
-        </button>
-        <button id="ac-voice-btn" class="ac-voice-btn" title="Toggle concise mode (shorter responses)">
-          <span class="ac-voice-icon">💬</span>
-        </button>
-      </div>
-    </div>
-  </main>
-
-  <!-- ═══════════════════════════════════════════════════════════════
-       RIGHT PANEL — Flight Deck (260px, collapsible)
-       ═══════════════════════════════════════════════════════════════ -->
-  <aside id="ac-flight-deck" class="ac-flight-deck">
-    <div class="ac-flight-deck-header">
-      <span class="ac-flight-deck-title">FLIGHT DECK</span>
-      <button id="ac-flight-deck-close" class="ac-flight-deck-close" title="Close Flight Deck">&times;</button>
-    </div>
-
-    <div id="ac-flight-deck-steps" class="ac-flight-deck-steps">
-      <!-- Step cards injected by JS:
-        <div class="ac-step-card" data-station="COMMAND">
-          <div class="ac-step-border"></div>
-          <div class="ac-step-content">
-            <div class="ac-step-name">Intent Classification</div>
-            <div class="ac-step-data">station: COMMAND, confidence: 0.95</div>
-            <div class="ac-step-duration">12ms</div>
-          </div>
+        <div class="ac-sidebar-footer">
+            <label class="ac-target-label" for="ac-target-select">Route to</label>
+            <select id="ac-target-select" class="ac-target-select">
+                <option value="auto">Auto (A.R.C.H.I.E. decides)</option>
+                <optgroup label="Departments">
+                    <option value="executive">Executive Office</option>
+                    <option value="engineering">Engineering & Technology</option>
+                    <option value="security">Security & Compliance</option>
+                    <option value="operations">Operations & Infrastructure</option>
+                    <option value="creative">Creative & Design</option>
+                    <option value="research">Research & Development</option>
+                    <option value="analytics">Analytics & Intelligence</option>
+                </optgroup>
+            </select>
         </div>
-      -->
-    </div>
+    </aside>
 
-    <div id="ac-flight-deck-total" class="ac-flight-deck-total">
-      <!-- Total duration injected by JS:
-        <span class="ac-total-label">Total</span>
-        <span class="ac-total-duration">245ms</span>
-      -->
-    </div>
-  </aside>
+    <!-- CENTER — Chat Area -->
+    <main id="ac-chat-area" class="ac-chat-area">
+        <div id="ac-messages" class="ac-messages">
+            <!-- Welcome message -->
+            <div class="ac-message ac-message-assistant">
+                <div class="ac-agent-avatar">
+                    <span class="ac-avatar-initials">A</span>
+                </div>
+                <div class="ac-message-bubble">
+                    <div class="ac-message-meta">
+                        <span class="ac-agent-name">A.R.C.H.I.E.</span>
+                        <span class="ac-dept-badge">Executive Office</span>
+                    </div>
+                    <div class="ac-message-text">Good to see you, Kytran. I'm here and ready. What are we working on?</div>
+                </div>
+            </div>
+        </div>
 
-  <!-- Flight Deck toggle (visible when panel is collapsed) -->
-  <button id="ac-flight-deck-toggle" class="ac-flight-deck-toggle" title="Show Flight Deck">
-    <span class="ac-toggle-icon">&#9776;</span>
-  </button>
+        <div id="ac-thinking" class="ac-thinking" style="display:none;">
+            <div class="ac-thinking-dots"><span></span><span></span><span></span></div>
+            <span class="ac-thinking-label">A.R.C.H.I.E. is thinking...</span>
+        </div>
+
+        <div class="ac-input-area">
+            <div class="ac-input-row">
+                <button id="ac-sidebar-toggle" class="ac-sidebar-toggle" title="Toggle sidebar">&#9776;</button>
+                <textarea id="ac-message-input" class="ac-message-input"
+                    placeholder="Talk to A.R.C.H.I.E...." rows="1" autocomplete="off"></textarea>
+                <button id="ac-send-btn" class="ac-send-btn" title="Send" disabled>
+                    <span>&#9654;</span>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- RIGHT — Flight Deck (collapsible) -->
+    <aside id="ac-flight-deck" class="ac-flight-deck">
+        <div class="ac-fd-header">
+            <span class="ac-fd-title">FLIGHT DECK</span>
+            <button id="ac-fd-close" class="ac-fd-close">&times;</button>
+        </div>
+        <div id="ac-fd-steps" class="ac-fd-steps">
+            <!-- Pipeline steps injected by JS -->
+        </div>
+        <div id="ac-fd-total" class="ac-fd-total"></div>
+    </aside>
+
+    <button id="ac-fd-toggle" class="ac-fd-toggle" title="Show Flight Deck">&#9881;</button>
 
 </div>
 </div><!-- /panel-chat -->
 
-<!-- Tab: History -->
-<div id="panel-history" class="ac-tab-panel" style="display:none;">
-  <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:16px !important;">
-    <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
-      <div class="lcars-elbow-top" style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
-      <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
-      <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
-      <div class="lcars-seg-fill" style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
-      <div class="lcars-elbow-bottom" style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+<!-- TAB: HISTORY -->
+<div id="panel-history" class="comms-panel">
+    <div class="comms-placeholder">
+        <div class="comms-placeholder-title">CONVERSATION HISTORY</div>
+        <p>Full conversation archive. Search, filter, and revisit past sessions.</p>
+        <span class="comms-placeholder-badge">COMING SOON</span>
     </div>
-    <div class="lcars-content" style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
-      <div class="lcars-bar" style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
-        <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">CONVERSATION HISTORY</span>
-        <div style="flex:1"></div>
-        <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">ARCHIVE</span>
-        <div style="display:flex !important;align-items:center !important;gap:4px !important;">
-          <span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
-          <span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span>
-          <span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
-        </div>
-      </div>
-      <div style="flex:1 !important;padding:40px !important;text-align:center;">
-        <div style="color:#64748b;font-size:0.85rem;max-width:500px;margin:0 auto;line-height:1.6;">
-          Full conversation archive. Search, filter, and revisit past sessions with agents across all stations.
-        </div>
-        <div style="margin-top:24px;font-family:'Antonio',sans-serif;font-size:0.7rem;letter-spacing:1px;color:#475569;">COMING SOON</div>
-      </div>
-      <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
-    </div>
-  </div>
 </div>
 
-<!-- Tab: Collaboration -->
-<div id="panel-collaboration" class="ac-tab-panel" style="display:none;">
-  <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:16px !important;">
-    <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
-      <div class="lcars-elbow-top" style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
-      <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
-      <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
-      <div class="lcars-seg-fill" style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
-      <div class="lcars-elbow-bottom" style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+<!-- TAB: COLLABORATION -->
+<div id="panel-collaboration" class="comms-panel">
+    <div class="comms-placeholder">
+        <div class="comms-placeholder-title">COLLABORATION</div>
+        <p>Trio sessions — Kytran + A.R.C.H.I.E. + Claude working together in real-time.</p>
+        <span class="comms-placeholder-badge">COMING SOON</span>
     </div>
-    <div class="lcars-content" style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
-      <div class="lcars-bar" style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
-        <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">COLLABORATION</span>
-        <div style="flex:1"></div>
-        <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">CO-PILOT</span>
-        <div style="display:flex !important;align-items:center !important;gap:4px !important;">
-          <span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
-          <span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span>
-          <span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
-        </div>
-      </div>
-      <div style="flex:1 !important;padding:40px !important;text-align:center;">
-        <div style="color:#64748b;font-size:0.85rem;max-width:500px;margin:0 auto;line-height:1.6;">
-          Multi-user collaboration workspace. Share chat sessions, co-pilot with agents, and work together in real-time.
-        </div>
-        <div style="margin-top:24px;font-family:'Antonio',sans-serif;font-size:0.7rem;letter-spacing:1px;color:#475569;">COMING SOON</div>
-      </div>
-      <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
-    </div>
-  </div>
 </div>
 
-<!-- Tab: Claude TTY -->
-<div id="panel-terminal" class="ac-tab-panel" style="display:none;">
-  <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:16px !important;">
-    <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
-      <div class="lcars-elbow-top" style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
-      <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
-      <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
-      <div class="lcars-seg-fill" style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
-      <div class="lcars-elbow-bottom" style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
-    </div>
-    <div class="lcars-content" style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
-      <div class="lcars-bar" style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
-        <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">CLAUDE TTY</span>
-        <div style="flex:1"></div>
-        <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">TERMINAL</span>
-        <div style="display:flex !important;align-items:center !important;gap:4px !important;">
-          <span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
-          <span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span>
-          <span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
+<!-- TAB: CLAUDE TTY -->
+<div id="panel-terminal" class="comms-panel">
+    <div style="display:flex;flex-direction:column;height:100%;background:#1a1a2e;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:#111827;border-bottom:1px solid #1f2937;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-family:'Orbitron',sans-serif;font-size:0.7rem;color:#00d4ff;letter-spacing:2px;">CLAUDE TTY</span>
+                <span id="ttyd-status" style="font-size:0.65rem;color:#4b5563;">Checking...</span>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button onclick="document.getElementById('ttyd-frame').src=document.getElementById('ttyd-frame').src" style="padding:4px 12px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);border-radius:4px;color:#00d4ff;font-size:0.7rem;cursor:pointer;font-family:'IBM Plex Mono',monospace;">Reconnect</button>
+                <a href="https://claude.kytranempowerment.com" target="_blank" style="padding:4px 12px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);border-radius:4px;color:#9ca3af;font-size:0.7rem;text-decoration:none;font-family:'IBM Plex Mono',monospace;">Open Full Window</a>
+            </div>
         </div>
-      </div>
-      <div style="flex:1 !important;padding:40px !important;text-align:center;">
-        <div style="color:#64748b;font-size:0.85rem;max-width:500px;margin:0 auto;line-height:1.6;">
-          Direct terminal interface to Claude Code. Execute commands, run scripts, and interact with the AI bridge via command line.
-        </div>
-        <div style="margin-top:24px;font-family:'Antonio',sans-serif;font-size:0.7rem;letter-spacing:1px;color:#475569;">COMING SOON</div>
-      </div>
-      <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        <iframe id="ttyd-frame" src="https://claude.kytranempowerment.com" style="flex:1;border:none;width:100%;background:#1a1a2e;" allow="clipboard-read; clipboard-write"></iframe>
     </div>
-  </div>
 </div>
 
-<!-- Tab: Settings -->
-<div id="panel-settings" class="ac-tab-panel" style="display:none;">
-  <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:16px !important;">
-    <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
-      <div class="lcars-elbow-top" style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
-      <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
-      <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
-      <div class="lcars-seg-fill" style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
-      <div class="lcars-elbow-bottom" style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
-    </div>
-    <div class="lcars-content" style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
-      <div class="lcars-bar" style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
-        <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">CHAT SETTINGS</span>
-        <div style="flex:1"></div>
-        <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">CONFIG</span>
-        <div style="display:flex !important;align-items:center !important;gap:4px !important;">
-          <span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
-          <span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span>
-          <span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
-        </div>
-      </div>
-      <div style="flex:1 !important;padding:40px !important;text-align:center;">
-        <div style="color:#64748b;font-size:0.85rem;max-width:500px;margin:0 auto;line-height:1.6;">
-          Configure model routing, default station targets, context window size, and conversation preferences.
-        </div>
-        <div style="margin-top:24px;font-family:'Antonio',sans-serif;font-size:0.7rem;letter-spacing:1px;color:#475569;">COMING SOON</div>
-      </div>
-      <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
-    </div>
-  </div>
-</div>
-
-{% endblock %}
-
-{% block extra_js %}
-<script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
-<script src="{{ url_for('static', filename='js/archie-chat.js') }}"></script>
-<script>
-  window.onLcarsTabSwitch = function(tabId) {
-    document.querySelectorAll('.ac-tab-panel').forEach(function(p) {
-      p.style.display = p.id === 'panel-' + tabId ? '' : 'none';
-      p.classList.toggle('active', p.id === 'panel-' + tabId);
-    });
-  };
-</script>
-{% endblock %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="/static/js/comms.js"></script>
+</body>
+</html>

@@ -403,7 +403,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="archie_chat",
         name="A.R.C.H.I.E.",
-        description="Direct AI command interface<br>Text & voice chat • Image analysis • Long-term memory",
+        description="Private comms channel<br>Chat • Voice • Collaboration • Watchdog",
         icon="bot",
         category=ModuleCategory.AI_COMMAND,
         route="/tools/archie-chat",
@@ -412,6 +412,7 @@ MODULES: List[ModuleDefinition] = [
         minimum_role="ADMIN",
         enabled=True,
         health_check=archie_chat_health_check,
+        external_url="https://archie.kytranempowerment.com",
         priority=1,
         tags=["ai", "assistant", "chat", "voice", "vision", "ai-command"],
     ),

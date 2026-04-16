@@ -1,6 +1,6 @@
 """A.R.C.H.I.E. Comms — Independent Communication Layer.
 
-Runs as archie_comms container on :3001. Provides:
+Runs as archie_comms container on :3002. Provides:
 - Chat UI and API
 - Telegram send/receive with personality voice
 - Platform health watchdog
@@ -21,6 +21,29 @@ logger = logging.getLogger("archie_comms")
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = os.getenv("SECRET_KEY", os.urandom(32).hex())
+app.config["SESSION_COOKIE_DOMAIN"] = ".kytranempowerment.com"
+app.config["SESSION_COOKIE_NAME"] = "archie_comms_session"
+
+# SSO — "Connect with Kytran Empowerment"
+from kytran_auth import KytranAuth
+
+kytran_auth = KytranAuth()
+kytran_auth.init_app(app)
+
+
+@kytran_auth.on_login
+def on_sso_login(user_data):
+    """SSO callback — only allow admin users."""
+    from flask import session
+
+    role = user_data.get("role", "")
+    if role != "admin":
+        session.pop("kytran_user", None)
+        return
+    session["user_id"] = user_data.get("sub")
+    session["username"] = user_data.get("username")
+    session["role"] = role
+    logger.info(f"SSO login: {user_data.get('username')} (admin)")
 
 
 @app.route("/api/health")
@@ -48,31 +71,215 @@ def api_send():
 
 @app.route("/")
 def index():
-    """A.R.C.H.I.E. Comms landing page."""
-    return """<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>A.R.C.H.I.E. Comms</title>
-<style>
-body{background:#0a0a1a;color:#e0e0e0;font-family:system-ui,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0}
-.card{background:#0f0f24;border:2px solid #f060f0;border-radius:16px;padding:40px;text-align:center;max-width:500px}
-h1{color:#f060f0;font-size:24px;letter-spacing:2px;margin:0 0 8px}
-.status{color:#60dd60;font-size:14px;margin:12px 0}
-.dot{display:inline-block;width:8px;height:8px;background:#60dd60;border-radius:50%;margin-right:6px;animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-p{color:#888;font-size:13px;line-height:1.6;margin:16px 0 0}
-a{color:#00d4ff;text-decoration:none}
-</style></head><body>
-<div class="card">
-<h1>A.R.C.H.I.E.</h1>
-<div>Autonomous Resource & Cognitive Hyperintelligence Engine</div>
-<div class="status"><span class="dot"></span>Online — Independent Comms Layer</div>
-<p>I'm running independently from the platform.<br>
-Watchdog active. Telegram connected. Voice ready.</p>
-<p style="margin-top:24px"><a href="/api/health">Health API</a> &middot;
-<a href="https://platform.kytranempowerment.com">Platform Dashboard</a></p>
-</div></body></html>"""
+    """Route based on subdomain — archie.* gets comms, claude.* gets terminal."""
+    from flask import render_template
+
+    host = request.host.lower()
+    if "claude" in host:
+        return render_template("claude_landing.html")
+    return render_template("landing.html")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    """Admin-only login page. Respects ?next= param for redirect after login."""
+    from flask import render_template, request, redirect, session
+
+    next_url = request.args.get("next", "/chat")
+
+    # Already logged in — redirect
+    if "user_id" in session or "kytran_user" in session:
+        return redirect(next_url)
+
+    if request.method == "POST":
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
+        next_url = request.form.get("next", "/chat")
+        # Admin-only auth — verify against platform DB
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT id, username, role FROM users WHERE username = %s AND role = 'admin'",
+                    (username,),
+                )
+                user = cur.fetchone()
+                if user:
+                    import hashlib
+
+                    cur.execute(
+                        "SELECT password_hash FROM users WHERE id = %s",
+                        (user["id"],),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        session["user_id"] = user["id"]
+                        session["username"] = user["username"]
+                        session["role"] = user["role"]
+                        return redirect(next_url)
+        except Exception as e:
+            logger.error(f"Login error: {e}")
+
+        return render_template("login.html", error="Invalid credentials or not an admin user", next_url=next_url)
+
+    # Show login page — detect hostname for branding
+    host = request.host.lower()
+    if "claude" in host:
+        return render_template("login.html", next_url=next_url, brand="claude")
+    return render_template("login.html", next_url=next_url)
+
+    return render_template("login.html")
+
+
+@app.route("/chat")
+def chat():
+    """A.R.C.H.I.E. chat interface — admin only."""
+    from flask import render_template, session, redirect
+
+    if "user_id" not in session and "kytran_user" not in session:
+        return redirect("/login")
+    return render_template("chat.html")
+
+
+@app.route("/api/director/report", methods=["POST"])
+def api_director_report():
+    """Agent loop jobs call this to submit director reports UP the hierarchy."""
+    from services.briefing_service import submit_director_report
+
+    data = request.get_json() or {}
+    required = ["department", "director_agent", "severity", "category", "title", "summary"]
+    missing = [f for f in required if not data.get(f)]
+    if missing:
+        return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
+
+    report_id = submit_director_report(
+        department=data["department"],
+        director_agent=data["director_agent"],
+        severity=data["severity"],
+        category=data["category"],
+        title=data["title"],
+        summary=data["summary"],
+        details=data.get("details"),
+    )
+
+    if report_id:
+        return jsonify({"success": True, "report_id": report_id})
+    return jsonify({"error": "Failed to submit report"}), 500
+
+
+@app.route("/api/chat/send_message", methods=["POST"])
+def api_chat_send():
+    """Chat endpoint — routes through unified conversation service.
+
+    All messages persisted to unified_conversations/unified_messages.
+    Script match for instant responses, LLM for full personality.
+    Conversation context carried across messages.
+    """
+    from flask import session
+
+    if "user_id" not in session and "kytran_user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json() or {}
+    message = data.get("message", "").strip()
+    if not message:
+        return jsonify({"error": "Empty message"}), 400
+
+    user_id = session.get("user_id", 2)  # default to Kytran
+    agent_target = data.get("agent_target")
+
+    from services.conversation_service import send_message
+
+    result = send_message(
+        user_id=user_id,
+        message=message,
+        channel="platform",
+        agent_target=agent_target,
+    )
+    return jsonify(result)
+
+
+@app.route("/api/chat/escalate", methods=["POST"])
+def api_chat_escalate():
+    """Escalate to Claude — A.R.C.H.I.E. brings him in when her team can't handle it."""
+    from flask import session
+
+    if "user_id" not in session and "kytran_user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json() or {}
+    message = data.get("message", "").strip()
+    if not message:
+        return jsonify({"error": "Empty message"}), 400
+
+    user_id = session.get("user_id", 2)
+    from services.conversation_service import escalate_to_claude
+
+    result = escalate_to_claude(user_id=user_id, message=message)
+    return jsonify(result)
+
+
+@app.route("/api/claude/health")
+def api_claude_health():
+    """Check Claude bridge availability."""
+    from collaboration.claude_bridge import get_claude_bridge
+
+    bridge = get_claude_bridge()
+    return jsonify(bridge.health_check())
+
+
+@app.route("/claude")
+def claude_landing():
+    """Claude TTY landing page — protected terminal access."""
+    from flask import render_template
+
+    return render_template("claude_landing.html")
+
+
+@app.route("/claude/terminal")
+def claude_terminal():
+    """Claude TTY terminal — admin only, embeds TTYd."""
+    from flask import render_template, session, redirect
+
+    if "user_id" not in session and "kytran_user" not in session:
+        return redirect("/claude")
+    return render_template("claude_terminal.html")
+
+
+@app.route("/api/chat/conversations", methods=["GET"])
+def api_chat_conversations():
+    """List conversations for the current user."""
+    from flask import session
+
+    if "user_id" not in session and "kytran_user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    user_id = session.get("user_id", 2)
+    from services.conversation_service import get_conversations
+
+    convs = get_conversations(user_id)
+    return jsonify({"conversations": [dict(c) if hasattr(c, 'keys') else c for c in convs]})
+
+
+@app.route("/api/chat/new", methods=["POST"])
+def api_chat_new():
+    """Start a new conversation."""
+    from flask import session
+
+    if "user_id" not in session and "kytran_user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    user_id = session.get("user_id", 2)
+    data = request.get_json() or {}
+    from services.conversation_service import new_conversation
+
+    conv_id = new_conversation(user_id, topic=data.get("topic"))
+    return jsonify({"conversation_id": conv_id})
 
 
 def start_background_services():
+    import threading
     from services.watchdog_service import PlatformWatchdog
     from services.queue_service import QueueProcessor
 
@@ -82,7 +289,48 @@ def start_background_services():
     queue = QueueProcessor()
     queue.start()
 
-    logger.info("Background services started (watchdog + queue)")
+    # Director triage — every 5 minutes
+    def _triage_loop():
+        import time as _t
+
+        _t.sleep(30)  # wait for startup
+        while True:
+            try:
+                from services.briefing_service import run_triage
+
+                run_triage()
+            except Exception as e:
+                logger.error("triage loop error: %s", e)
+            _t.sleep(300)  # 5 minutes
+
+    triage_thread = threading.Thread(target=_triage_loop, daemon=True, name="archie-triage")
+    triage_thread.start()
+
+    # Morning briefing — runs at configured hour (default 7:00 AM)
+    def _briefing_loop():
+        import time as _t
+        from datetime import datetime
+
+        _t.sleep(60)  # wait for startup
+        briefing_hour = int(os.getenv("BRIEFING_HOUR", "7"))
+        last_briefing_date = None
+        while True:
+            try:
+                now = datetime.now()
+                if now.hour == briefing_hour and now.date() != last_briefing_date:
+                    from services.briefing_service import run_morning_briefing
+
+                    run_morning_briefing()
+                    last_briefing_date = now.date()
+                    logger.info("Morning briefing sent for %s", now.date())
+            except Exception as e:
+                logger.error("briefing loop error: %s", e)
+            _t.sleep(60)  # check every minute
+
+    briefing_thread = threading.Thread(target=_briefing_loop, daemon=True, name="archie-briefing")
+    briefing_thread.start()
+
+    logger.info("Background services started (watchdog + queue + triage + briefing)")
 
 
 start_background_services()

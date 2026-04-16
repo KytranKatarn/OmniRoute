@@ -52,6 +52,7 @@ def userinfo():
         entitlements = [
             "kso",
             "kbs",
+            "archie-comms",
             "civic-watch",
             "legal-watch",
             "gov-watch",

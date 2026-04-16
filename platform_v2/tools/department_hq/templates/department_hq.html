@@ -33,6 +33,7 @@
     ("dispatch", "Dispatch", "send"),
     ("fleet", "Fleet", "rocket"),
     ("contractors", "Contractors", "hard-hat"),
+    ("coms", "COMs", "message-circle"),
     ("approvals", "Approvals", "check-circle")
 ] %}
 {% include 'includes/lcars-header.html' %}
@@ -369,6 +370,50 @@
       <div id="contractors-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;padding:8px 0;"></div>
       <div id="contractorProvidersContent"></div>
       <div id="contractorDefinitionsContent"></div>
+          </div>
+          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMS TAB — A.R.C.H.I.E.'s cross-channel conversation feed -->
+    <div class="dhq-panel" id="panel-coms">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;"><div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div><div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div><div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div></div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;"><span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">COMMUNICATIONS</span><div style="flex:1"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">CROSS-CHANNEL</span><div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div></div>
+          <div style="flex:1 !important;padding:16px !important;">
+            <div style="display:flex;gap:16px;margin-bottom:16px;">
+              <div style="flex:1;background:#111827;border:1px solid #1f2937;border-radius:8px;padding:16px;text-align:center;">
+                <div style="font-family:'Orbitron',sans-serif;font-size:1.4rem;color:#00d4ff;" id="coms-stat-total">—</div>
+                <div style="font-size:0.7rem;color:#9ca3af;margin-top:4px;">TOTAL MESSAGES</div>
+              </div>
+              <div style="flex:1;background:#111827;border:1px solid #1f2937;border-radius:8px;padding:16px;text-align:center;">
+                <div style="font-family:'Orbitron',sans-serif;font-size:1.4rem;color:#60dd60;" id="coms-stat-telegram">—</div>
+                <div style="font-size:0.7rem;color:#9ca3af;margin-top:4px;">TELEGRAM</div>
+              </div>
+              <div style="flex:1;background:#111827;border:1px solid #1f2937;border-radius:8px;padding:16px;text-align:center;">
+                <div style="font-family:'Orbitron',sans-serif;font-size:1.4rem;color:#00d4ff;" id="coms-stat-platform">—</div>
+                <div style="font-size:0.7rem;color:#9ca3af;margin-top:4px;">PLATFORM CHAT</div>
+              </div>
+              <div style="flex:1;background:#111827;border:1px solid #1f2937;border-radius:8px;padding:16px;text-align:center;">
+                <div style="font-family:'Orbitron',sans-serif;font-size:1.4rem;color:#fbbf24;" id="coms-stat-reports">—</div>
+                <div style="font-size:0.7rem;color:#9ca3af;margin-top:4px;">DIRECTOR REPORTS</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:16px;">
+              <div style="flex:2;">
+                <h3 style="color:#00d4ff;font-family:'Orbitron',sans-serif;font-size:0.75rem;letter-spacing:2px;margin-bottom:12px;">RECENT MESSAGES</h3>
+                <div id="coms-feed" style="max-height:500px;overflow-y:auto;"></div>
+              </div>
+              <div style="flex:1;">
+                <h3 style="color:#fbbf24;font-family:'Orbitron',sans-serif;font-size:0.75rem;letter-spacing:2px;margin-bottom:12px;">DIRECTOR REPORTS</h3>
+                <div id="coms-reports" style="max-height:500px;overflow-y:auto;"></div>
+              </div>
+            </div>
+            <div style="margin-top:16px;text-align:center;">
+              <a href="https://archie.kytranempowerment.com" target="_blank" style="display:inline-flex;align-items:center;gap:8px;padding:10px 24px;background:rgba(0,212,255,0.15);border:1px solid rgba(0,212,255,0.3);border-radius:6px;color:#00d4ff;text-decoration:none;font-size:0.8rem;font-weight:600;transition:all 0.2s;">Open A.R.C.H.I.E. Comms Channel</a>
+            </div>
           </div>
           <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
         </div>
@@ -782,6 +827,126 @@ async function _dhqDenyApproval(approvalId, btn) {
             _updateApprovalsBadge();
         }
     });
+})();
+</script>
+
+<script>
+// COMs tab — load conversation feed + director reports
+(function() {
+    var comsLoaded = false;
+
+    window.onLcarsTabSwitch = window.onLcarsTabSwitch || function(){};
+    var _origSwitch = window.onLcarsTabSwitch;
+    window.onLcarsTabSwitch = function(tabId) {
+        _origSwitch(tabId);
+        if (tabId === 'coms' && !comsLoaded) {
+            loadComsFeed();
+            loadComsReports();
+            comsLoaded = true;
+        }
+    };
+
+    async function loadComsFeed() {
+        try {
+            var resp = await fetch('/api/department-hq/api/coms/messages?limit=30');
+            if (!resp.ok) return;
+            var data = await resp.json();
+            var feed = document.getElementById('coms-feed');
+            if (!feed) return;
+            var msgs = data.messages || [];
+            if (msgs.length === 0) {
+                feed.textContent = 'No messages yet. Conversations will appear here.';
+                feed.style.color = '#4b5563';
+                feed.style.fontStyle = 'italic';
+                feed.style.padding = '24px';
+                return;
+            }
+            feed.textContent = '';
+            msgs.forEach(function(m) {
+                var div = document.createElement('div');
+                div.style.cssText = 'padding:10px 12px;border-left:2px solid #00d4ff;background:#111827;border-radius:0 6px 6px 0;margin-bottom:6px;';
+                var meta = document.createElement('div');
+                meta.style.cssText = 'display:flex;justify-content:space-between;font-size:0.68rem;color:#9ca3af;margin-bottom:4px;';
+                var sender = document.createElement('span');
+                sender.style.color = m.direction === 'outbound' ? '#00d4ff' : '#e0e0e0';
+                sender.textContent = m.source_agent || m.sender || 'A.R.C.H.I.E.';
+                var ch = document.createElement('span');
+                ch.textContent = (m.channel || 'telegram').toUpperCase();
+                meta.appendChild(sender);
+                meta.appendChild(ch);
+                var text = document.createElement('div');
+                text.style.cssText = 'font-size:0.78rem;color:#e0e0e0;line-height:1.5;';
+                text.textContent = (m.formatted_text || m.content || m.message || '').substring(0, 200);
+                div.appendChild(meta);
+                div.appendChild(text);
+                feed.appendChild(div);
+            });
+            // Stats
+            var el = document.getElementById('coms-stat-total');
+            if (el) el.textContent = data.total || msgs.length;
+            var tg = document.getElementById('coms-stat-telegram');
+            if (tg) tg.textContent = msgs.filter(function(m){return (m.channel||'telegram')==='telegram'}).length;
+            var pl = document.getElementById('coms-stat-platform');
+            if (pl) pl.textContent = msgs.filter(function(m){return m.channel==='platform'}).length;
+        } catch(e) {
+            var feed = document.getElementById('coms-feed');
+            if (feed) { feed.textContent = 'Failed to load messages.'; feed.style.color = '#ef4444'; }
+        }
+    }
+
+    async function loadComsReports() {
+        try {
+            var resp = await fetch('/api/department-hq/api/coms/director-reports?hours=24&limit=20');
+            if (!resp.ok) {
+                // Fallback — try direct DB query via a simpler endpoint
+                var el = document.getElementById('coms-reports');
+                if (el) { el.textContent = 'Director reports feed coming soon.'; el.style.color = '#4b5563'; el.style.fontStyle = 'italic'; el.style.padding = '24px'; }
+                return;
+            }
+            var data = await resp.json();
+            var container = document.getElementById('coms-reports');
+            if (!container) return;
+            var reports = data.reports || [];
+            if (reports.length === 0) {
+                container.textContent = 'No reports in last 24h.';
+                container.style.color = '#4b5563';
+                container.style.fontStyle = 'italic';
+                container.style.padding = '24px';
+                return;
+            }
+            container.textContent = '';
+            reports.forEach(function(r) {
+                var sevColors = {critical:'#ef4444',high:'#f59e0b',medium:'#00d4ff',low:'#4b5563'};
+                var div = document.createElement('div');
+                div.style.cssText = 'padding:8px 10px;border-left:2px solid '+(sevColors[r.severity]||'#4b5563')+';background:#111827;border-radius:0 6px 6px 0;margin-bottom:6px;';
+                var hdr = document.createElement('div');
+                hdr.style.cssText = 'display:flex;justify-content:space-between;font-size:0.65rem;margin-bottom:2px;';
+                var agent = document.createElement('span');
+                agent.style.color = sevColors[r.severity] || '#9ca3af';
+                agent.textContent = (r.director_agent || '') + ' [' + (r.severity||'').toUpperCase() + ']';
+                var esc = document.createElement('span');
+                esc.style.color = r.escalated ? '#60dd60' : '#4b5563';
+                esc.textContent = r.escalated ? 'ESCALATED' : 'PENDING';
+                hdr.appendChild(agent);
+                hdr.appendChild(esc);
+                var title = document.createElement('div');
+                title.style.cssText = 'font-size:0.75rem;color:#e0e0e0;font-weight:500;';
+                title.textContent = r.title || '';
+                var sum = document.createElement('div');
+                sum.style.cssText = 'font-size:0.7rem;color:#9ca3af;margin-top:2px;';
+                sum.textContent = (r.summary || '').substring(0, 120);
+                div.appendChild(hdr);
+                div.appendChild(title);
+                div.appendChild(sum);
+                container.appendChild(div);
+            });
+            var el = document.getElementById('coms-stat-reports');
+            if (el) el.textContent = reports.length;
+        } catch(e) {
+            var el = document.getElementById('coms-reports');
+            if (el) { el.textContent = 'Reports unavailable.'; el.style.color = '#4b5563'; }
+        }
+    }
 })();
 </script>
 

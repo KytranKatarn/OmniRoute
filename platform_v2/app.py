@@ -1202,6 +1202,64 @@ def api_dashboard_system_stats():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+_public_stats_cache = {"data": None, "timestamp": 0}
+
+
+@app.route("/api/public/stats", methods=["GET"])
+def api_public_stats():
+    """Public platform stats for website integration. Cached 5 minutes. No auth."""
+    now = time.time()
+    if _public_stats_cache["data"] and (now - _public_stats_cache["timestamp"]) < 300:
+        return jsonify(_public_stats_cache["data"])
+
+    try:
+        from database import get_db_cursor
+        from module_registry import get_enabled_modules
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT worker_type, COUNT(*)
+                FROM agents
+                WHERE status != 'decommissioned'
+                GROUP BY worker_type
+                """
+            )
+            agent_counts = {r["worker_type"]: r["count"] for r in cur.fetchall()}
+            total_agents = sum(agent_counts.values())
+
+            cur.execute("SELECT COUNT(DISTINCT department) FROM agents WHERE status != 'decommissioned'")
+            dept_count = cur.fetchone()["count"]
+
+            cur.execute("SELECT COUNT(*) FROM knowledge_base")
+            kb_count = cur.fetchone()["count"]
+
+        module_count = len(get_enabled_modules())
+
+        stats = {
+            "agents": {
+                "total": total_agents,
+                "ai": agent_counts.get("ai", 0),
+                "internal": agent_counts.get("internal", 0),
+                "contractor": agent_counts.get("contractor", 0),
+                "departments": dept_count,
+            },
+            "platform": {
+                "modules": module_count,
+                "knowledge_entries": kb_count,
+                "languages": 8,
+            },
+            "updated_at": datetime.utcnow().isoformat() + "Z",
+        }
+
+        _public_stats_cache["data"] = stats
+        _public_stats_cache["timestamp"] = now
+        return jsonify(stats)
+    except Exception as e:
+        logger.error("Stats API error: %s", str(e))
+        return jsonify({"error": "Stats temporarily unavailable"}), 503
+
+
 @app.route("/api/dashboard/ai-status")
 @login_required
 def api_dashboard_ai_status():

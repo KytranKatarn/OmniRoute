@@ -361,6 +361,232 @@ def fleet_compat_redirect(subpath):
     return redirect(new_url, code=307)
 
 
+# ============================================================================
+# SUBSCRIBE LANDING PAGES — Product pages with upsell interstitial
+# ============================================================================
+
+PRODUCT_INFO = {
+    "crm": {
+        "name": "CRM & Contact Management",
+        "tagline": "Manage customers, segments, and interactions with AI assistance",
+        "min_tier": "starter",
+        "features": [
+            "Contact management & segmentation",
+            "Interaction tracking & notes",
+            "AI-powered customer insights",
+            "Import/export (CSV)",
+            "Custom fields & tags",
+        ],
+    },
+    "invoicing": {
+        "name": "Invoicing & Payments",
+        "tagline": "Create, send, and track invoices with automated reminders",
+        "min_tier": "starter",
+        "features": [
+            "Invoice creation & templates",
+            "Payment tracking",
+            "Recurring invoices",
+            "PDF export",
+            "Client portal",
+        ],
+    },
+    "store_builder": {
+        "name": "Store Builder",
+        "tagline": "Launch your online store with print-on-demand and Printful integration",
+        "min_tier": "starter",
+        "features": [
+            "Product catalog management",
+            "Printful integration",
+            "Order tracking & fulfillment",
+            "Custom storefront themes",
+            "Inventory management",
+        ],
+    },
+    "content_studio": {
+        "name": "Content Studio",
+        "tagline": "AI-powered content creation for blogs, social, and marketing",
+        "min_tier": "starter",
+        "features": [
+            "AI writing assistant",
+            "Blog post generation",
+            "Social media content",
+            "SEO optimization",
+            "Content calendar",
+        ],
+    },
+    "website_studio": {
+        "name": "Website Designer",
+        "tagline": "Design and deploy professional websites with AI assistance",
+        "min_tier": "starter",
+        "features": [
+            "Visual website builder",
+            "Custom domain support",
+            "Responsive templates",
+            "SEO tools",
+            "Hosting integration",
+        ],
+    },
+    "social_media": {
+        "name": "Social Media Manager",
+        "tagline": "Schedule, publish, and analyze your social media presence",
+        "min_tier": "starter",
+        "features": [
+            "Multi-platform publishing",
+            "Post scheduling",
+            "Analytics dashboard",
+            "OAuth account linking",
+            "Content queue management",
+        ],
+    },
+    "call_center": {
+        "name": "Call Center",
+        "tagline": "Manage customer calls, queues, and support workflows",
+        "min_tier": "professional",
+        "features": [
+            "Call queue management",
+            "Agent routing",
+            "Call recording & transcripts",
+            "Performance analytics",
+            "IVR configuration",
+        ],
+    },
+    "google_work_suite": {
+        "name": "Google Work Suite",
+        "tagline": "Integrate Gmail, Calendar, and Drive into your workflow",
+        "min_tier": "starter",
+        "features": [
+            "Gmail integration",
+            "Calendar sync",
+            "Drive file management",
+            "Contact sync",
+            "Workspace analytics",
+        ],
+    },
+    "stockbot": {
+        "name": "StockBot AI",
+        "tagline": "AI-powered stock analysis with five specialized trading agents",
+        "min_tier": "professional",
+        "features": [
+            "5 AI trading agents (Quant, Value, Pulse, Shield, Oracle)",
+            "Real-time market data",
+            "Portfolio tracking",
+            "Price alerts & watchlists",
+            "AI-generated trade signals",
+        ],
+    },
+    "media_studio": {
+        "name": "Media Studio",
+        "tagline": "Generate images, audio, and video with GPU-accelerated AI",
+        "min_tier": "professional",
+        "features": [
+            "AI image generation (SDXL)",
+            "Audio generation",
+            "Video creation tools",
+            "ComfyUI workflow integration",
+            "Asset library management",
+        ],
+    },
+    "game_studio": {
+        "name": "Game Studio",
+        "tagline": "Design and develop games with AI-assisted tools",
+        "min_tier": "professional",
+        "features": [
+            "Game design workspace",
+            "Asset generation",
+            "Multiplayer support",
+            "Level editor",
+            "Playtesting tools",
+        ],
+    },
+    "family_tree": {
+        "name": "Family Tree",
+        "tagline": "Build and explore your family history with AI research assistance",
+        "min_tier": "starter",
+        "features": [
+            "Interactive family tree builder",
+            "Record & document management",
+            "AI ancestry research",
+            "Photo gallery",
+            "Export & sharing",
+        ],
+    },
+    "archie_pool": {
+        "name": "Archie Pool",
+        "tagline": "Monitor and manage cryptocurrency mining operations",
+        "min_tier": "enterprise",
+        "features": [
+            "Mining pool dashboard",
+            "Hashrate monitoring",
+            "Payout tracking",
+            "Worker management",
+            "Performance analytics",
+        ],
+    },
+    "pool_management": {
+        "name": "Pool Management",
+        "tagline": "Advanced mining pool administration and configuration",
+        "min_tier": "enterprise",
+        "features": [
+            "Pool configuration",
+            "Miner administration",
+            "Fee management",
+            "Network statistics",
+            "Alert configuration",
+        ],
+    },
+}
+
+TIER_INFO = {
+    "starter": {"name": "Starter", "price": "$299/mo", "price_num": 299, "agents": "5", "watches": "1"},
+    "professional": {"name": "Professional", "price": "$799/mo", "price_num": 799, "agents": "20", "watches": "2"},
+    "enterprise": {
+        "name": "Enterprise",
+        "price": "$1,499/mo",
+        "price_num": 1499,
+        "agents": "Unlimited",
+        "watches": "All",
+    },
+}
+
+TIER_ORDER = ["starter", "professional", "enterprise"]
+
+
+@app.route("/subscribe/<module_id>")
+@login_required
+def subscribe_landing(module_id):
+    """Product landing page for a gated module with upsell interstitial."""
+    from module_registry import get_module_by_id
+    from services.subscription_service import get_user_membership_tier
+
+    module = get_module_by_id(module_id)
+    if not module:
+        from flask import abort
+
+        abort(404)
+
+    product = PRODUCT_INFO.get(
+        module_id,
+        {
+            "name": module.name,
+            "tagline": module.description,
+            "min_tier": module.minimum_tier,
+            "features": [],
+        },
+    )
+
+    user_tier = get_user_membership_tier(current_user.id, getattr(current_user, "role", None))
+
+    return render_template(
+        "subscribe.html",
+        module=module,
+        product=product,
+        user_tier=user_tier,
+        tier_info=TIER_INFO,
+        tier_order=TIER_ORDER,
+        module_id=module_id,
+    )
+
+
 @app.route("/tools/stockbot")
 @app.route("/tools/stockbot/")
 @app.route("/tools/stockbot/<path:subpath>")

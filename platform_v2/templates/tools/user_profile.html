@@ -717,7 +717,6 @@
 {% set header_tabs = [
     ("overview", "Overview", "user"),
     ("security", "Security", "shield"),
-    ("appearance", "Appearance", "palette"),
     ("connections", "Connections", "link"),
     ("notifications", "Notifications", "bell"),
     ("preferences", "Preferences", "settings"),
@@ -877,129 +876,7 @@
                     </div>
                 </div>
 
-                <!-- ═══ TAB: Appearance ═══ -->
-                <div class="profile-tab" id="tab-appearance">
-                    <div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
-                        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
-                            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                                <div style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
-                                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                                <div style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                                <div style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
-                            </div>
-                            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                                <div style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
-                                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">APPEARANCE & THEMES</span>
-                                    <div style="flex:1"></div>
-                                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
-                                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
-                                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
-                                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
-                                    </div>
-                                </div>
-                                <div style="flex: 1 !important; padding: 16px !important;">
-                    <div class="profile-section">
-                        <div class="profile-section-title">Theme Selection</div>
-                        <div class="theme-grid" id="themeGrid">
-                            <!-- LCARS Classic -->
-                            <div class="theme-card" data-theme="lcars-classic" onclick="selectTheme('lcars-classic')">
-                                <div class="theme-swatches">
-                                    <div style="flex:3; background:#010409;"></div>
-                                    <div style="flex:1; background:#00ff41;"></div>
-                                    <div style="flex:1; background:#00ffff;"></div>
-                                    <div style="flex:1; background:#ffaa00;"></div>
-                                </div>
-                                <div class="theme-name">LCARS Classic</div>
-                                <div class="theme-check">&#10003;</div>
-                            </div>
-                            <!-- Corporate Blue -->
-                            <div class="theme-card" data-theme="corporate-blue" onclick="selectTheme('corporate-blue')">
-                                <div class="theme-swatches">
-                                    <div style="flex:3; background:#0f172a;"></div>
-                                    <div style="flex:1; background:#3b82f6;"></div>
-                                    <div style="flex:1; background:#60a5fa;"></div>
-                                    <div style="flex:1; background:#f59e0b;"></div>
-                                </div>
-                                <div class="theme-name">Corporate Blue</div>
-                                <div class="theme-check">&#10003;</div>
-                            </div>
-                            <!-- Midnight Purple -->
-                            <div class="theme-card" data-theme="midnight-purple" onclick="selectTheme('midnight-purple')">
-                                <div class="theme-swatches">
-                                    <div style="flex:3; background:#0f0a1a;"></div>
-                                    <div style="flex:1; background:#8b5cf6;"></div>
-                                    <div style="flex:1; background:#a78bfa;"></div>
-                                    <div style="flex:1; background:#f59e0b;"></div>
-                                </div>
-                                <div class="theme-name">Midnight Purple</div>
-                                <div class="theme-check">&#10003;</div>
-                            </div>
-                            <!-- Warm Minimal -->
-                            <div class="theme-card" data-theme="warm-minimal" onclick="selectTheme('warm-minimal')">
-                                <div class="theme-swatches">
-                                    <div style="flex:3; background:#1a1408;"></div>
-                                    <div style="flex:1; background:#f59e0b;"></div>
-                                    <div style="flex:1; background:#fbbf24;"></div>
-                                    <div style="flex:1; background:#78716c;"></div>
-                                </div>
-                                <div class="theme-name">Warm Minimal</div>
-                                <div class="theme-check">&#10003;</div>
-                            </div>
-                            <!-- Arctic Light -->
-                            <div class="theme-card" data-theme="arctic-light" onclick="selectTheme('arctic-light')">
-                                <div class="theme-swatches">
-                                    <div style="flex:3; background:#0a1929;"></div>
-                                    <div style="flex:1; background:#06b6d4;"></div>
-                                    <div style="flex:1; background:#22d3ee;"></div>
-                                    <div style="flex:1; background:#f59e0b;"></div>
-                                </div>
-                                <div class="theme-name">Arctic Light</div>
-                                <div class="theme-check">&#10003;</div>
-                            </div>
-                            <!-- Rose Gold -->
-                            <div class="theme-card" data-theme="rose-gold" onclick="selectTheme('rose-gold')">
-                                <div class="theme-swatches">
-                                    <div style="flex:3; background:#1a0a10;"></div>
-                                    <div style="flex:1; background:#f43f5e;"></div>
-                                    <div style="flex:1; background:#fb7185;"></div>
-                                    <div style="flex:1; background:#f59e0b;"></div>
-                                </div>
-                                <div class="theme-name">Rose Gold</div>
-                                <div class="theme-check">&#10003;</div>
-                            </div>
-                            <!-- Forest -->
-                            <div class="theme-card" data-theme="forest" onclick="selectTheme('forest')">
-                                <div class="theme-swatches">
-                                    <div style="flex:3; background:#0a1a0e;"></div>
-                                    <div style="flex:1; background:#22c55e;"></div>
-                                    <div style="flex:1; background:#4ade80;"></div>
-                                    <div style="flex:1; background:#f59e0b;"></div>
-                                </div>
-                                <div class="theme-name">Forest</div>
-                                <div class="theme-check">&#10003;</div>
-                            </div>
-                            <!-- Slate Pro -->
-                            <div class="theme-card" data-theme="slate-pro" onclick="selectTheme('slate-pro')">
-                                <div class="theme-swatches">
-                                    <div style="flex:3; background:#0f1218;"></div>
-                                    <div style="flex:1; background:#64748b;"></div>
-                                    <div style="flex:1; background:#94a3b8;"></div>
-                                    <div style="flex:1; background:#f59e0b;"></div>
-                                </div>
-                                <div class="theme-name">Slate Pro</div>
-                                <div class="theme-check">&#10003;</div>
-                            </div>
-                        </div>
-                        <div class="theme-scope-note">Themes apply to SaaS Services and Dashboard. Admin modules always use LCARS Classic.</div>
-                    </div>
-                                </div>
-                                <div style="height: 6px !important; background: #8b5cf6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
+                <!-- Appearance tab removed — LCARS is the branded theme -->
 
                 <!-- ═══ TAB: Connected Services ═══ -->
                 <div class="profile-tab" id="tab-connections">

@@ -3574,7 +3574,21 @@ def init_consciousness_scheduler(flask_app):
         # (agent_loop.py) for centralized department-based tracking.
         # This scheduler is kept as a shell — the AgentLoop attaches to it.
 
-        scheduler = BackgroundScheduler(timezone="America/Toronto")
+        # job_defaults: prevent 2026-04-11-style replay storms.
+        # - misfire_grace_time=300: a job missed by <5min still runs; beyond that, drop.
+        # - coalesce=True: if multiple fires were missed, collapse into one run.
+        # - max_instances=1: a job can't stack concurrent runs on recovery.
+        # 154 of 157 add_job() calls relied on APScheduler defaults
+        # (grace=1s, coalesce=False) — pure storm vector on hot restart.
+        # Project #240 audit (task #1762) → config fix.
+        scheduler = BackgroundScheduler(
+            timezone="America/Toronto",
+            job_defaults={
+                "misfire_grace_time": 300,
+                "coalesce": True,
+                "max_instances": 1,
+            },
+        )
         scheduler.start()
         flask_app.config["CONSCIOUSNESS_SCHEDULER"] = scheduler
         logger.info("Base scheduler started — all jobs managed by Autonomy Agent Loop")

@@ -16,7 +16,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>System Operations — Kytran Empowerment</title>
-    <meta name="description" content="Kytran System Operations — server monitoring, Docker management, compliance scanning, and infrastructure control. Self-hosted, open-source core.">
+    <meta name="description" content="Server management and compliance platform. Monitor, manage, and secure your infrastructure.">
     <meta name="theme-color" content="#0a0a1a">
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="icon" href="favicon.ico" sizes="32x32">
@@ -27,12 +27,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/base.css?v=20260407q">
     <link rel="stylesheet" href="css/components.css?v=20260407q">
-    <link rel="stylesheet" href="css/pages/watch.css?v=20260407q">
     <link rel="stylesheet" href="css/responsive.css?v=20260407q">
     <link rel="stylesheet" href="css/reduced-motion.css?v=20260407q">
+    <link rel="stylesheet" href="css/pages/watch.css?v=20260407q">
     <link rel="canonical" href="https://kytranempowerment.com/system-operations.html">
     <meta property="og:title" content="System Operations — Kytran Empowerment">
-    <meta property="og:description" content="Kytran System Operations — server monitoring, Docker management, compliance scanning, and infrastructure control.">
+    <meta property="og:description" content="Server management and compliance platform. Monitor, manage, and secure your infrastructure.">
     <meta property="og:url" content="https://kytranempowerment.com/system-operations.html">
     <meta property="og:image" content="https://kytranempowerment.com/assets/og-default.png">
     <meta property="og:type" content="website">
@@ -45,7 +45,9 @@
     <div class="noise-overlay"></div>
     <div class="cursor-glow" id="cursorGlow"></div>
 
-    <!-- Navigation (will be replaced by _replace_nav.py) -->
+
+
+
 
 
 
@@ -224,148 +226,155 @@
     </div>
 
 
+
+    <!-- Page content -->
     <main data-barba="container" data-barba-namespace="system-operations">
       <div class="watch-page" style="--watch-accent: #10b981">
 
         <section class="watch-hero">
-            <span class="watch-hero__badge">Infrastructure</span>
+            <span class="watch-hero__badge">Server Management &amp; Compliance Platform</span>
             <h1 class="watch-hero__title">System Operations</h1>
-            <p class="watch-hero__subtitle">Your server, under control — from anywhere. KSO gives you a single dashboard to monitor system health, manage containers, enforce security policies, and prove compliance. No SSH required.</p>
+            <p class="watch-hero__subtitle">Your server, under control — from anywhere. Monitor system health, manage containers, enforce security policies, and prove compliance. No SSH required.</p>
+            <div class="watch-cta" style="margin-top:2rem;">
+                <a href="https://server.kytranempowerment.com" class="watch-cta__primary">Launch System Operations</a>
+                <a href="membership.html" class="watch-cta__secondary">See Plans</a>
+            </div>
+        </section>
+
+        <section class="watch-stats" style="display:flex;justify-content:center;gap:3rem;padding:2.5rem 1rem;border-top:1px solid rgba(255,255,255,0.06);border-bottom:1px solid rgba(255,255,255,0.06);">
+            <div class="watch-stat"><div class="watch-stat__value">9</div><div class="watch-stat__label">Management Tabs</div></div>
+<div class="watch-stat"><div class="watch-stat__value">178</div><div class="watch-stat__label">Compliance Rules</div></div>
+<div class="watch-stat"><div class="watch-stat__value">5</div><div class="watch-stat__label">Security Frameworks</div></div>
+<div class="watch-stat"><div class="watch-stat__value">24/7</div><div class="watch-stat__label">Monitoring</div></div>
+
         </section>
 
         <section class="watch-features">
-            <h2 class="watch-features__heading">One Dashboard. Full Visibility.</h2>
-            <p style="text-align:center; color: var(--text-secondary, #9ca3af); margin-bottom: 2rem; font-size: 0.95rem;">Nine purpose-built modules that replace dozens of CLI tools with a clean, real-time interface.</p>
+            <h2 class="watch-features__heading">Features</h2>
             <div class="watch-features__grid">
                 <div class="watch-feature">
-                    <div class="watch-feature__icon">&#9881;</div>
+                    <div class="watch-feature__icon">&#128200;</div>
                     <h3 class="watch-feature__title">System Overview</h3>
-                    <p class="watch-feature__text">Live CPU, memory, disk, and network utilization in one view. Spot bottlenecks instantly without juggling terminal windows.</p>
+                    <p class="watch-feature__text">Live CPU, memory, disk, and network utilization in one view. Spot bottlenecks instantly.</p>
                 </div>
-                <div class="watch-feature">
-                    <div class="watch-feature__icon">&#9635;</div>
-                    <h3 class="watch-feature__title">Storage Management</h3>
-                    <p class="watch-feature__text">Visualize disk usage across all volumes and partitions. Track SMART health, mount points, and get alerts before you run out of space.</p>
-                </div>
-                <div class="watch-feature">
-                    <div class="watch-feature__icon">&#9889;</div>
-                    <h3 class="watch-feature__title">Process Control</h3>
-                    <p class="watch-feature__text">See every running process sorted by resource consumption. Kill runaway tasks, restart services, and manage systemd units with one click.</p>
-                </div>
-                <div class="watch-feature">
-                    <div class="watch-feature__icon">&#9898;</div>
+<div class="watch-feature">
+                    <div class="watch-feature__icon">&#128230;</div>
                     <h3 class="watch-feature__title">Docker Management</h3>
-                    <p class="watch-feature__text">Start, stop, restart, and inspect containers without touching the CLI. View logs, manage stacks, and monitor resource limits per container.</p>
+                    <p class="watch-feature__text">Start, stop, restart, and inspect containers without the CLI. View logs and monitor resource limits.</p>
                 </div>
-                <div class="watch-feature">
-                    <div class="watch-feature__icon">&#9672;</div>
-                    <h3 class="watch-feature__title">Network Intelligence</h3>
-                    <p class="watch-feature__text">Active connections, bandwidth usage, port mapping, and routing tables. Know exactly what's talking to your server and where traffic flows.</p>
-                </div>
-                <div class="watch-feature">
-                    <div class="watch-feature__icon">&#128737;</div>
+<div class="watch-feature">
+                    <div class="watch-feature__icon">&#128274;</div>
                     <h3 class="watch-feature__title">Firewall Control</h3>
-                    <p class="watch-feature__text">Manage UFW rules visually — allow, deny, and rate-limit with precision. See active rules at a glance and lock down access in seconds.</p>
+                    <p class="watch-feature__text">Manage UFW rules visually — allow, deny, and rate-limit with precision.</p>
                 </div>
-                <div class="watch-feature">
+<div class="watch-feature">
                     <div class="watch-feature__icon">&#127760;</div>
                     <h3 class="watch-feature__title">Reverse Proxy</h3>
-                    <p class="watch-feature__text">Configure Nginx Proxy Manager hosts, SSL certificates, and routing rules. Map subdomains to services without editing config files.</p>
+                    <p class="watch-feature__text">Configure Nginx Proxy Manager hosts, SSL certificates, and routing rules.</p>
                 </div>
-                <div class="watch-feature">
-                    <div class="watch-feature__icon">&#128230;</div>
-                    <h3 class="watch-feature__title">App Catalog</h3>
-                    <p class="watch-feature__text">Browse and deploy pre-configured applications with one click. Automatic Docker stack setup, health monitoring, and updates built in.</p>
+<div class="watch-feature">
+                    <div class="watch-feature__icon">&#128225;</div>
+                    <h3 class="watch-feature__title">Network Intelligence</h3>
+                    <p class="watch-feature__text">Active connections, bandwidth usage, port mapping, and routing tables.</p>
                 </div>
-                <div class="watch-feature">
-                    <div class="watch-feature__icon">&#9670;</div>
+<div class="watch-feature">
+                    <div class="watch-feature__icon">&#9989;</div>
                     <h3 class="watch-feature__title">Compliance Scanner</h3>
-                    <p class="watch-feature__text">Automated security audits against STIG, CIS, HIPAA, and SOC 2 frameworks. Get actionable findings with one-click remediation and PDF reports.</p>
+                    <p class="watch-feature__text">Automated audits against STIG, CIS, HIPAA, and SOC 2 with one-click remediation.</p>
                 </div>
+
+            </div>
+        </section>
+
+        <section class="watch-agent" style="max-width:720px;margin:0 auto;padding:3rem 1.5rem;text-align:center;">
+            <h2 class="watch-features__heading">Your AI Director</h2>
+            <div style="background:linear-gradient(135deg,rgba(17,24,39,1) 0%,#10b98122 100%);border:1px solid #10b98144;border-radius:12px;padding:2.5rem;margin-top:1.5rem;">
+                <div style="font-family:'Orbitron',sans-serif;font-size:1.1rem;color:#10b981;letter-spacing:3px;margin-bottom:0.3rem;">V.I.G.I.L.</div>
+                <div style="font-size:0.78rem;color:#fbbf24;margin-bottom:1rem;">Vigilant Intelligence for Governance, Integrity &amp; Liability</div>
+                <div style="color:#9ca3af;font-size:0.8rem;line-height:1.7;max-width:500px;margin:0 auto;">V.I.G.I.L. monitors your infrastructure for security vulnerabilities, compliance drift, and configuration anomalies — alerting you before problems become incidents.</div>
+            </div>
+        </section>
+
+        <section class="watch-pricing-section" style="max-width:960px;margin:0 auto;padding:3rem 1.5rem;">
+            <h2 class="watch-features__heading">Pricing</h2>
+            <p style="text-align:center;color:#9ca3af;font-size:0.82rem;margin-bottom:2rem;">Choose the plan that fits your needs</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.5rem;">
+                <div class="watch-pricing-card">
+
+                    <div class="watch-pricing-card__tier">Free</div>
+                    <div class="watch-pricing-card__price">$0<span>/mo</span></div>
+                    <div class="watch-pricing-card__desc">Read-only monitoring</div>
+                    <ul class="watch-pricing-card__list"><li class="watch-pricing-card__item">System health dashboard</li><li class="watch-pricing-card__item">Process viewer</li><li class="watch-pricing-card__item">1 compliance scan pack</li><li class="watch-pricing-card__item">Default theme</li><li class="watch-pricing-card__item">Community support</li><li class="watch-pricing-card__item watch-pricing-card__item--disabled">Actions (start/stop/restart)</li><li class="watch-pricing-card__item watch-pricing-card__item--disabled">PDF reports</li><li class="watch-pricing-card__item watch-pricing-card__item--disabled">AI monitoring</li></ul>
+                    <a href="https://server.kytranempowerment.com" class="watch-pricing-card__cta">Get Started</a>
+                </div>
+<div class="watch-pricing-card watch-pricing-card--featured">
+                    <div class="watch-pricing-card__badge">POPULAR</div>
+                    <div class="watch-pricing-card__tier">Pro</div>
+                    <div class="watch-pricing-card__price">$29<span>/mo</span></div>
+                    <div class="watch-pricing-card__desc">Full control for professionals</div>
+                    <ul class="watch-pricing-card__list"><li class="watch-pricing-card__item">Everything in Free</li><li class="watch-pricing-card__item">All 9 management tabs</li><li class="watch-pricing-card__item">Actions enabled</li><li class="watch-pricing-card__item">3 compliance packs</li><li class="watch-pricing-card__item">3 themes</li><li class="watch-pricing-card__item">Email support</li><li class="watch-pricing-card__item watch-pricing-card__item--disabled">PDF reports</li><li class="watch-pricing-card__item watch-pricing-card__item--disabled">AI monitoring</li></ul>
+                    <a href="https://server.kytranempowerment.com" class="watch-pricing-card__cta">Start Free Trial</a>
+                </div>
+<div class="watch-pricing-card">
+
+                    <div class="watch-pricing-card__tier">Business</div>
+                    <div class="watch-pricing-card__price">$49<span>/mo</span></div>
+                    <div class="watch-pricing-card__desc">Advanced compliance for teams</div>
+                    <ul class="watch-pricing-card__list"><li class="watch-pricing-card__item">Everything in Pro</li><li class="watch-pricing-card__item">All 5 compliance packs</li><li class="watch-pricing-card__item">PDF compliance reports</li><li class="watch-pricing-card__item">All 5 themes</li><li class="watch-pricing-card__item">A.R.C.H.I.E. AI integration</li><li class="watch-pricing-card__item">Real-time alerts</li><li class="watch-pricing-card__item">Priority support</li></ul>
+                    <a href="https://server.kytranempowerment.com" class="watch-pricing-card__cta">Contact Sales</a>
+                </div>
+
+            </div>
+        </section>
+
+        <section class="watch-coming" style="max-width:960px;margin:0 auto;padding:3rem 1.5rem;">
+            <h2 class="watch-features__heading">Coming Soon</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem;margin-top:1.5rem;">
+                <div class="watch-coming__card">
+                    <span class="watch-coming__badge">Q2 2026</span>
+                    <div><h4 class="watch-coming__title">Real-Time Alerting</h4><p class="watch-coming__text">Telegram, email, and webhook alerts for CPU spikes, disk full, and container crashes.</p></div>
+                </div>
+<div class="watch-coming__card">
+                    <span class="watch-coming__badge">Q2 2026</span>
+                    <div><h4 class="watch-coming__title">Multi-Server Fleet</h4><p class="watch-coming__text">Manage multiple servers from one dashboard.</p></div>
+                </div>
+<div class="watch-coming__card">
+                    <span class="watch-coming__badge">Q3 2026</span>
+                    <div><h4 class="watch-coming__title">AI-Powered Diagnostics</h4><p class="watch-coming__text">V.I.G.I.L. analyzes logs and auto-remediates common issues.</p></div>
+                </div>
+<div class="watch-coming__card">
+                    <span class="watch-coming__badge">Q3 2026</span>
+                    <div><h4 class="watch-coming__title">Backup Management</h4><p class="watch-coming__text">Schedule, run, and verify backups with integrity checks.</p></div>
+                </div>
+<div class="watch-coming__card">
+                    <span class="watch-coming__badge">Q4 2026</span>
+                    <div><h4 class="watch-coming__title">SOC 2 Evidence Collection</h4><p class="watch-coming__text">Automated evidence gathering with PDF reports.</p></div>
+                </div>
+<div class="watch-coming__card">
+                    <span class="watch-coming__badge">Q4 2026</span>
+                    <div><h4 class="watch-coming__title">API Access</h4><p class="watch-coming__text">RESTful API for CI/CD integration and DevOps workflows.</p></div>
+                </div>
+
             </div>
         </section>
 
         <section class="watch-demo">
             <div class="watch-demo__panel">
-                <h2 class="watch-demo__heading">See It In Action</h2>
-                <p class="watch-demo__text">One dashboard replaces dozens of CLI tools. Monitor, manage, and secure your entire infrastructure from any browser.</p>
-                <img src="assets/kso-dashboard-preview.png" alt="KSO Dashboard — live server monitoring" style="max-width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 60px rgba(0,0,0,0.5); margin: 1.5rem 0;">
-                <a href="https://server.kytranempowerment.com" class="watch-demo__link">Try It Now</a>
+                <h2 class="watch-demo__heading">Ready to take control of your server?</h2>
+                <p class="watch-demo__text">Join System Operations and let V.I.G.I.L. watch your infrastructure.</p>
+                <a href="https://server.kytranempowerment.com" class="watch-demo__link">Launch System Operations</a>
             </div>
-        </section>
-
-        <!-- How It Works -->
-        <section class="watch-features" style="border-top: 1px solid rgba(255,255,255,0.06);">
-            <h2 class="watch-features__heading">Up and Running in Minutes</h2>
-            <p style="text-align:center; color: var(--text-secondary, #9ca3af); margin-bottom: 2rem; font-size: 0.95rem;">Deploy KSO on any Linux server with Docker. No agents, no dependencies, no complexity.</p>
-            <div class="watch-features__grid" style="max-width: 900px; margin: 0 auto;">
-                <div class="watch-feature">
-                    <div class="watch-feature__icon" style="font-size: 2rem; color: var(--watch-accent);">1</div>
-                    <h3 class="watch-feature__title">Install</h3>
-                    <p class="watch-feature__text">Pull the Docker image and run <code>docker compose up</code>. KSO auto-discovers your system hardware, containers, and network configuration.</p>
-                </div>
-                <div class="watch-feature">
-                    <div class="watch-feature__icon" style="font-size: 2rem; color: var(--watch-accent);">2</div>
-                    <h3 class="watch-feature__title">Connect</h3>
-                    <p class="watch-feature__text">Open your browser and log in. Optionally link your Kytran Empowerment account for SSO, subscription management, and AI features.</p>
-                </div>
-                <div class="watch-feature">
-                    <div class="watch-feature__icon" style="font-size: 2rem; color: var(--watch-accent);">3</div>
-                    <h3 class="watch-feature__title">Manage</h3>
-                    <p class="watch-feature__text">Monitor health, control containers, enforce firewall rules, and run compliance scans — all from one interface. No SSH required.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Compliance Badges -->
-        <section class="watch-features" style="border-top: 1px solid rgba(255,255,255,0.06);">
-            <h2 class="watch-features__heading">Built-In Compliance Scanning</h2>
-            <p style="text-align:center; color: var(--text-secondary, #9ca3af); margin-bottom: 2rem; font-size: 0.95rem;">Automated security audits against industry-standard frameworks. Know your posture in seconds.</p>
-            <div class="watch-features__grid" style="max-width: 900px; margin: 0 auto;">
-                <div class="watch-feature">
-                    <div class="watch-feature__icon">&#128737;</div>
-                    <h3 class="watch-feature__title">Ubuntu STIG</h3>
-                    <p class="watch-feature__text">51 security rules</p>
-                </div>
-                <div class="watch-feature">
-                    <div class="watch-feature__icon">&#128737;</div>
-                    <h3 class="watch-feature__title">Docker STIG</h3>
-                    <p class="watch-feature__text">30 container rules</p>
-                </div>
-                <div class="watch-feature">
-                    <div class="watch-feature__icon">&#128737;</div>
-                    <h3 class="watch-feature__title">HIPAA</h3>
-                    <p class="watch-feature__text">30 healthcare rules</p>
-                </div>
-                <div class="watch-feature">
-                    <div class="watch-feature__icon">&#128737;</div>
-                    <h3 class="watch-feature__title">Network STIG</h3>
-                    <p class="watch-feature__text">27 network rules</p>
-                </div>
-                <div class="watch-feature">
-                    <div class="watch-feature__icon">&#128737;</div>
-                    <h3 class="watch-feature__title">CIS Ubuntu</h3>
-                    <p class="watch-feature__text">40 benchmark rules</p>
-                </div>
-            </div>
-            <p style="text-align:center; color: var(--text-muted, #6b7280); font-size: 0.85rem; margin-top: 1.5rem;">178 total rules across 5 frameworks. Scans run automatically every 6 hours with one-click remediation and PDF export.</p>
-        </section>
-
-        <section class="watch-pricing">
-            <p class="watch-pricing__text" style="margin-bottom: 0.5rem;">Open-source core available on GitHub — download, install, and run the free version on your own server in minutes.</p>
-            <p class="watch-pricing__text">Unlock all 9 tabs, 5 themes, full compliance scanning, and AI-powered management with a standalone subscription or a Kytran Empowerment membership.</p>
         </section>
 
         <div class="watch-cta">
-            <a href="https://github.com/KytranKatarn/kytran-system-operations" class="watch-cta__primary">Download from GitHub</a>
-            <a href="https://server.kytranempowerment.com" class="watch-cta__secondary">Try Live Demo</a>
-            <a href="membership.html" class="watch-cta__secondary">See Membership Plans</a>
+            <a href="https://server.kytranempowerment.com" class="watch-cta__primary">Open System Operations</a>
+            <a href="membership.html" class="watch-cta__secondary">See Plans</a>
         </div>
 
       </div>
     </main>
 
-    <!-- Footer -->
+<!-- Footer -->
     <footer class="footer">
         <div class="footer__inner container">
             <div class="footer__brand">

@@ -266,54 +266,59 @@ def get_connected_services():
         "total_connected": 0,
     }
 
-    with get_db_connection(cursor_factory=RealDictCursor) as conn:
-        with conn.cursor() as cur:
-            # Google accounts
-            cur.execute(
-                """SELECT id, email, scopes, created_at, last_sync_at
-                   FROM google_accounts
-                   WHERE owner_type = 'user' AND owner_id = %s
-                   ORDER BY created_at DESC""",
-                (user_id,),
-            )
-            for row in cur.fetchall():
-                scopes = row.get("scopes") or []
-                if isinstance(scopes, str):
-                    scopes = [s.strip() for s in scopes.split(",") if s.strip()]
-                result["google_accounts"].append(
-                    {
-                        "email": row["email"],
-                        "connected_at": row["created_at"].isoformat() if row["created_at"] else None,
-                        "last_sync": row["last_sync_at"].isoformat() if row.get("last_sync_at") else None,
-                        "scopes": scopes,
-                        "has_gmail": any("gmail" in s or "mail" in s for s in scopes),
-                        "has_calendar": any("calendar" in s for s in scopes),
-                        "has_drive": any("drive" in s for s in scopes),
-                    }
+    try:
+        with get_db_connection(cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                # Google accounts
+                cur.execute(
+                    """SELECT id, email, scopes, created_at, last_sync_at
+                       FROM google_accounts
+                       WHERE owner_type = 'user' AND owner_id = %s
+                       ORDER BY created_at DESC""",
+                    (user_id,),
                 )
+                for row in cur.fetchall():
+                    scopes = row.get("scopes") or []
+                    if isinstance(scopes, str):
+                        scopes = [s.strip() for s in scopes.split(",") if s.strip()]
+                    result["google_accounts"].append(
+                        {
+                            "email": row["email"],
+                            "connected_at": row["created_at"].isoformat() if row["created_at"] else None,
+                            "last_sync": row["last_sync_at"].isoformat() if row.get("last_sync_at") else None,
+                            "scopes": scopes,
+                            "has_gmail": any("gmail" in s or "mail" in s for s in scopes),
+                            "has_calendar": any("calendar" in s for s in scopes),
+                            "has_drive": any("drive" in s for s in scopes),
+                        }
+                    )
 
-            # Telegram
-            cur.execute(
-                """SELECT telegram_username, first_name, is_authorized
-                   FROM telegram_users
-                   WHERE user_id = %s
-                   LIMIT 1""",
-                (user_id,),
-            )
-            tg_row = cur.fetchone()
-            if tg_row and tg_row.get("is_authorized"):
-                result["telegram"] = {
-                    "connected": True,
-                    "username": tg_row.get("telegram_username") or tg_row.get("first_name"),
-                }
+                # Telegram
+                cur.execute(
+                    """SELECT telegram_username, first_name, is_authorized
+                       FROM telegram_users
+                       WHERE user_id = %s
+                       LIMIT 1""",
+                    (user_id,),
+                )
+                tg_row = cur.fetchone()
+                if tg_row and tg_row.get("is_authorized"):
+                    result["telegram"] = {
+                        "connected": True,
+                        "username": tg_row.get("telegram_username") or tg_row.get("first_name"),
+                    }
 
-    # Count total connected services
-    total = 0
-    if result["google_accounts"]:
-        total += 1  # Google counts as one service
-    if result["telegram"]["connected"]:
-        total += 1
-    result["total_connected"] = total
+        # Count total connected services
+        total = 0
+        if result["google_accounts"]:
+            total += 1  # Google counts as one service
+        if result["telegram"]["connected"]:
+            total += 1
+        result["total_connected"] = total
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).warning("Connected services query failed: %s", e)
 
     return jsonify(result)
 

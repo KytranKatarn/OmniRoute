@@ -111,39 +111,87 @@ Same codebase, same features. The billing system is transparent to internal user
 
 ## Product Catalog
 
+### A. Membership Tiers (Platform-Wide Bundles)
+
+Memberships are the primary offering — each tier unlocks a bundle of products and AI agents.
+KBS manages membership subscriptions. Members get access to bundled products without separate per-product subscriptions.
+
+| Tier | Monthly | Includes | AI Agents | Stripe Product |
+|------|---------|----------|-----------|----------------|
+| Explorer | $0 | Platform demo, Trust Center, community resources | 0 | — |
+| Starter | $299 | CRM, Invoicing, Store Builder, Content Studio, 1 Watch product | 5 | prod_membership_starter |
+| Professional | $799 | All Starter + Website Designer, Social Media, Call Center, Google Suite, 2 Watch products | 20 | prod_membership_pro |
+| Enterprise | $1,499 | All Professional + All Watch products, Fleet compute, Custom AI Directors, Compliance, Media/Game Studios | Unlimited | prod_membership_enterprise |
+| VIP | By invitation | Full unrestricted access, all current + future products, direct engineering line, custom integrations | Unlimited | prod_membership_vip |
+
+### B. Individual Product Subscriptions (Standalone)
+
+For users who want a single product without a full membership. These are billed separately through KBS.
+
 | Product | OAuth Client ID | Tiers | Monthly Price | Stripe Product |
 |---------|----------------|-------|---------------|----------------|
 | Legal Watch | legal-watch | Free / Viewer / Pro | $0 / $29 / $79 | prod_legal_watch |
 | Civic Watch | civic-watch | Free / Viewer / Pro | $0 / $19 / $49 | prod_civic_watch |
 | Market Watch | market-watch-viewer | Free / Viewer / AI Trader | $0 / $29 / $99 | prod_market_watch |
 | Gov Watch | gov-watch | Free / Viewer / Pro | $0 / $29 / $79 | prod_gov_watch |
-| System Operations | kso | Free / Pro / Business | $0 / $19 / $49 | prod_kso |
-| A.R.C.H.I.E. Platform | archie-platform | Free / Pro | $0 / TBD | prod_platform |
-| Shop | shop | Per-product pricing | Varies | Multiple |
+| System Operations | kso | Free / Pro / Business | $0 / $29 / $49 | prod_kso |
+| Business Suite | kbs | Free / Starter / Pro | $0 / $299 / $799 | prod_kbs |
+
+### C. Professional Services (One-Time & Recurring)
+
+Sold through KBS as invoiced services. Not subscription-gated — available to any customer.
+
+| Service | Type | Price | Stripe Product | AI Director |
+|---------|------|-------|----------------|-------------|
+| Managed Compliance Assessment | One-time | $499 | prod_svc_compliance_assess | V.I.G.I.L. |
+| Continuous Compliance Monitoring | Monthly | $299/mo | prod_svc_compliance_monitor | S.H.I.E.L.D. |
+| Full Compliance Program | Annual | $4,999/yr | prod_svc_compliance_full | V.I.G.I.L. |
+| Website Design & Development | One-time (quote) | From $2,000 | prod_svc_website | M.U.S.E. |
+| Penetration Testing | One-time (quote) | From $1,500 | prod_svc_pentest | V.I.G.I.L. |
+| Custom AI Agent Development | One-time (quote) | From $3,000 | prod_svc_custom_agent | D.A.R.W.I.N. |
+| Business Automation Consulting | One-time (quote) | From $1,000 | prod_svc_automation | B.A.S.E. |
+
+### D. Shop (shop.kytranempowerment.com)
+
+Physical and digital products sold through the KBS storefront. Per-product pricing, managed via Store Builder module.
+
+| Category | Examples | Stripe Product |
+|----------|----------|----------------|
+| Digital Downloads | Templates, rule packs, Modelfiles | Multiple |
+| Branded Merchandise | Apparel, accessories | Multiple |
+| Training Materials | Courses, certifications | Multiple |
+
+### Entitlement Resolution
+
+When OAuth userinfo builds the entitlements list:
+1. **Admin role** → all products (staff tier)
+2. **Membership tier** → resolve included products from membership level
+3. **Individual subscriptions** → add any standalone product subscriptions
+4. **Merge** → user gets the highest tier across membership + individual for each product
+
+Example: User has Starter membership (includes 1 Watch) + individual Legal Watch Pro subscription → Legal Watch = Pro (from individual), Civic Watch = Viewer (from membership choice), CRM = included (from membership).
 
 ---
 
-## KBS Prerequisites (Phase 0)
+## KBS Prerequisites (Phase 0) — COMPLETED
 
-Before billing can work, KBS itself must be operational:
+KBS SSO is now operational (fixed 2026-04-15 Session 3):
 
-### 0.1 Fix KBS SSO
-- Move `KytranAuth.init_app()` from `app.py` to `auth.py` inside a `register_kytran_auth(app)` function
-- Add `on_login` callback that creates/updates local user in KBS PostgreSQL
-- Create tenant for SSO users (or assign to default tenant)
-- Call `login_user()` and set `session["tenant_id"]`
-- Reference: KSO `auth.py:357-400`
+### 0.1 Fix KBS SSO — DONE
+- `register_kytran_auth(app)` in `auth.py` with `on_login` callback
+- Case-insensitive email lookup, auto-creates tenant for new SSO users
+- DB host fixed: `archie_database` (container name, not host IP)
+- `index` route added to PUBLIC_ROUTES in tenant.py
 
-### 0.2 Fix KBS Source Management
-- Decide: ungitignore `kytran-business-suite/` OR create separate git repo
-- Ensure source changes persist across rebuilds
-- Current state: code extracted via `docker cp`, changes only in running image
+### 0.2 Fix KBS Source Management — PENDING
+- `kytran-business-suite/` still gitignored — needs ungitignore or separate repo
+- Changes persist in Docker image + local disk but not in git
 
-### 0.3 Fix KBS Login Template
-- Match KSO login design: local form + "or" divider + "Connect with Kytran Empowerment" with ram logo
-- Remove broken service worker
+### 0.3 Fix KBS Login Template — DONE
+- Standalone dark theme login matching landing page (blue accent, grid background)
+- "Connect with Kytran Empowerment" SSO button + back-to-landing link
 
-### 0.4 Verify KBS Health
+### 0.4 Verify KBS Health — DONE
 - Container starts clean (gunicorn, 4 workers)
 - Health endpoint responds
 - Database connectivity (shared ARCHIE PostgreSQL)

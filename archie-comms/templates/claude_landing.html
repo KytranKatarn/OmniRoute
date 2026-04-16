@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Terminal — Kytran Empowerment Inc.</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --accent:#a78bfa; --accent-dim:rgba(167,139,250,0.15); --accent-glow:rgba(167,139,250,0.3); --bg:#0a0a1a; --panel:#111827; --border:#1f2937; --text:#e0e0e0; --muted:#9ca3af; --green:#60dd60; }
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;min-height:100vh;overflow-x:hidden;}
+        body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(167,139,250,0.06) 1px,transparent 1px),linear-gradient(90deg,rgba(167,139,250,0.06) 1px,transparent 1px);background-size:60px 60px;pointer-events:none;z-index:0;}
+        .page{position:relative;z-index:1;}
+        .nav{display:flex;justify-content:space-between;align-items:center;padding:16px 2rem;border-bottom:1px solid var(--border);backdrop-filter:blur(10px);position:sticky;top:0;z-index:10;background:rgba(10,10,26,0.85);}
+        .nav-brand{font-family:'Orbitron',sans-serif;color:var(--accent);font-size:0.85rem;font-weight:700;text-decoration:none;letter-spacing:2px;}
+        .nav-links{display:flex;align-items:center;gap:4px;}
+        .nav-links a{color:var(--muted);text-decoration:none;font-size:0.78rem;padding:4px 12px;border-radius:14px;border:1px solid transparent;transition:all 0.2s;}
+        .nav-links a:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim);}
+        .hero{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:5rem 2rem 3rem;position:relative;}
+        .hero::after{content:'';position:absolute;width:400px;height:400px;background:radial-gradient(circle,var(--accent-glow) 0%,transparent 70%);top:10%;left:50%;transform:translateX(-50%);pointer-events:none;z-index:-1;}
+        .hero-icon{font-size:4rem;margin-bottom:1.5rem;filter:drop-shadow(0 0 24px var(--accent-glow));animation:pg 3s ease-in-out infinite;}
+        @keyframes pg{0%,100%{filter:drop-shadow(0 0 20px var(--accent-glow));}50%{filter:drop-shadow(0 0 35px var(--accent-glow));}}
+        .hero h1{font-family:'Orbitron',sans-serif;font-size:2.5rem;font-weight:900;color:#fff;margin-bottom:0.3rem;line-height:1.1;}
+        .hero h1 span{color:var(--accent);}
+        .hero .subtitle{font-size:0.88rem;color:var(--muted);max-width:480px;line-height:1.7;margin-bottom:0.8rem;}
+        .hero .role{font-size:0.72rem;color:var(--accent);letter-spacing:2px;text-transform:uppercase;margin-bottom:2rem;opacity:0.8;}
+        .status-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 18px;background:rgba(96,221,96,0.1);border:1px solid rgba(96,221,96,0.3);border-radius:20px;font-size:0.75rem;color:var(--green);margin-bottom:2.5rem;}
+        .status-badge .dot{width:8px;height:8px;background:var(--green);border-radius:50%;animation:pulse 2s infinite;}
+        @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+        .features{max-width:700px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.2rem;padding:0 2rem 3rem;}
+        .feature-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:1.5rem;text-align:center;transition:border-color 0.3s;}
+        .feature-card:hover{border-color:var(--accent);}
+        .feature-icon{font-size:1.5rem;margin-bottom:0.6rem;}
+        .feature-card h3{font-family:'Orbitron',sans-serif;color:#fff;font-size:0.72rem;margin-bottom:0.4rem;letter-spacing:1px;}
+        .feature-card p{color:var(--muted);font-size:0.72rem;line-height:1.5;}
+        .cta-section{text-align:center;padding:3rem 2rem;border-top:1px solid var(--border);}
+        .cta-section p{color:var(--muted);font-size:0.82rem;margin-bottom:1.5rem;}
+        .login-badge{display:inline-block;padding:4px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:20px;font-size:0.6rem;color:#ef4444;letter-spacing:2px;text-transform:uppercase;margin-bottom:1.5rem;}
+        .hero-cta{display:inline-flex;align-items:center;gap:10px;padding:15px 40px;background:var(--accent);color:#000;text-decoration:none;font-weight:700;font-size:0.9rem;border-radius:6px;transition:transform 0.2s,box-shadow 0.2s;box-shadow:0 4px 25px var(--accent-glow);}
+        .hero-cta:hover{transform:translateY(-2px);box-shadow:0 6px 35px var(--accent-glow);}
+        .footer{text-align:center;padding:2rem;border-top:1px solid var(--border);color:#4b5563;font-size:0.72rem;}
+        .footer a{color:var(--accent);text-decoration:none;}
+        .footer-products{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+        .footer-products a{padding:5px 14px;border:1px solid var(--border);border-radius:20px;font-size:0.7rem;transition:border-color 0.2s,color 0.2s;}
+        .footer-products a:hover,.footer-products a.active{border-color:var(--accent);color:var(--accent);}
+        @media(max-width:768px){.hero h1{font-size:1.8rem;}.features{grid-template-columns:1fr;}}
+    </style>
+</head>
+<body>
+<div class="page">
+    <nav class="nav">
+        <a href="/claude" class="nav-brand">CLAUDE TERMINAL</a>
+        <div class="nav-links">
+            <a href="https://archie.kytranempowerment.com">A.R.C.H.I.E.</a>
+            <a href="https://platform.kytranempowerment.com">Platform</a>
+            <a href="https://kytranempowerment.com">Home</a>
+        </div>
+    </nav>
+
+    <div class="hero">
+        <div class="hero-icon">&#128433;</div>
+        <h1>CLAUDE <span>TERMINAL</span></h1>
+        <div class="role">Direct CLI Access — Kytran Empowerment</div>
+        <div class="status-badge">
+            <span class="dot"></span>
+            <span>TTYd Online — Claude CLI Ready</span>
+        </div>
+    </div>
+
+    <div class="features">
+        <div class="feature-card">
+            <div class="feature-icon">&#128187;</div>
+            <h3>Full Claude CLI</h3>
+            <p>Direct terminal access to Claude Code. Run commands, edit files, build features.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">&#128274;</div>
+            <h3>Persistent Session</h3>
+            <p>tmux-backed session. Disconnect and reconnect without losing context.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">&#129309;</div>
+            <h3>Trio Collaboration</h3>
+            <p>Work alongside A.R.C.H.I.E. and Claude together. She escalates when her team needs backup.</p>
+        </div>
+    </div>
+
+    <div class="cta-section">
+        <div class="login-badge">Admin Access Only</div>
+        <p>Authenticate to access the Claude terminal.</p>
+        <a href="/login?next=/claude/terminal" class="hero-cta">
+            Connect with Kytran Empowerment
+        </a>
+    </div>
+
+    <div class="footer">
+        <div class="footer-products">
+            <a href="https://archie.kytranempowerment.com">A.R.C.H.I.E.</a>
+            <a href="https://claude.kytranempowerment.com" class="active">Claude Terminal</a>
+            <a href="https://platform.kytranempowerment.com">Platform</a>
+            <a href="https://business.kytranempowerment.com">Business Suite</a>
+            <a href="https://server.kytranempowerment.com">System Ops</a>
+        </div>
+        &copy; 2026 Kytran Empowerment Inc. &mdash; Connect with <a href="https://kytranempowerment.com">Kytran Empowerment</a>
+    </div>
+</div>
+</body>
+</html>

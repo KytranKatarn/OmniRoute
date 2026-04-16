@@ -4,6 +4,7 @@
 {% block module_name %}my-profile{% endblock %}
 
 {% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-panels.css') }}">
 {% endblock %}
@@ -109,6 +110,7 @@
         display: flex;
         gap: 6px;
         margin-top: 6px;
+        justify-content: center;
     }
 
     .avatar-remove-btn {
@@ -704,6 +706,23 @@
 {% endblock %}
 
 {% block content %}
+{# LCARS Header — Profile (standalone, no category) #}
+{% set cat_accent = '#3b82f6' %}
+{% set cat_accent_rgb = '59,130,246' %}
+{% set cat_accent_dark = '#2563eb' %}
+{% set cat_label = 'PROFILE' %}
+{% set module_title = 'MY PROFILE' %}
+{% set module_back_url = '/dashboard' %}
+{% set header_shortcuts = [] %}
+{% set header_tabs = [
+    ("overview", "Overview", "user"),
+    ("security", "Security", "shield"),
+    ("connections", "Connections", "link"),
+    ("notifications", "Notifications", "bell"),
+    ("preferences", "Preferences", "settings"),
+    ("activity", "Activity", "activity")
+] %}
+{% include 'includes/lcars-header.html' %}
 <div class="profile-container">
     <div class="lcars-frame frame-build">
         <!-- LEFT SIDEBAR -->
@@ -757,54 +776,53 @@
                     </div>
                 </div>
 
-                <!-- Tab Navigation -->
-                <div class="profile-nav">
-                    <button class="profile-nav-btn active" data-tab="overview" onclick="switchProfileTab('overview')">
-                        <i data-lucide="user" style="width:14px;height:14px"></i> Overview
-                    </button>
-                    <button class="profile-nav-btn" data-tab="security" onclick="switchProfileTab('security')">
-                        <i data-lucide="lock" style="width:14px;height:14px"></i> Security
-                    </button>
-                    <button class="profile-nav-btn" data-tab="appearance" onclick="switchProfileTab('appearance')">
-                        <i data-lucide="palette" style="width:14px;height:14px"></i> Appearance
-                    </button>
-                    <button class="profile-nav-btn" data-tab="modules" onclick="switchProfileTab('modules')">
-                        <i data-lucide="grid-3x3" style="width:14px;height:14px"></i> Modules
-                    </button>
-                    <button class="profile-nav-btn" data-tab="connections" onclick="switchProfileTab('connections')">
-                        <i data-lucide="link" style="width:14px;height:14px"></i> Connected Services
-                    </button>
-                    <button class="profile-nav-btn" data-tab="notifications" onclick="switchProfileTab('notifications')">
-                        <i data-lucide="bell" style="width:14px;height:14px"></i> Notifications
-                    </button>
-                    <button class="profile-nav-btn" data-tab="preferences" onclick="switchProfileTab('preferences')">
-                        <i data-lucide="sliders-horizontal" style="width:14px;height:14px"></i> Preferences
-                    </button>
-                    <button class="profile-nav-btn" data-tab="activity" onclick="switchProfileTab('activity')">
-                        <i data-lucide="history" style="width:14px;height:14px"></i> Activity
-                    </button>
-                </div>
+                <!-- Tab Navigation now handled by LCARS header tabs -->
 
                 <!-- ═══ TAB: Overview ═══ -->
                 <div class="profile-tab active" id="tab-overview">
-                    <div class="profile-section">
-                        <div class="profile-section-title">Account Details</div>
-                        <div class="profile-info-grid">
-                            <div class="profile-info-card">
-                                <div class="profile-info-label">Username</div>
-                                <div class="profile-info-value" id="profileUsername">---</div>
+                    <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+                        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                                <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+                                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                                <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                                <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                             </div>
-                            <div class="profile-info-card">
-                                <div class="profile-info-label">Email</div>
-                                <div class="profile-info-value" id="profileEmail">---</div>
-                            </div>
-                            <div class="profile-info-card">
-                                <div class="profile-info-label">Member Since</div>
-                                <div class="profile-info-value" id="profileCreated">---</div>
-                            </div>
-                            <div class="profile-info-card">
-                                <div class="profile-info-label">Subscription Tier</div>
-                                <div class="profile-info-value" id="profileTierText">---</div>
+                            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                                <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">PROFILE OVERVIEW</span>
+                                    <div style="flex:1"></div>
+                                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                    </div>
+                                </div>
+                                <div style="flex: 1 !important; padding: 16px !important;">
+                                    <div class="profile-section">
+                                        <div class="profile-section-title">Account Details</div>
+                                        <div class="profile-info-grid">
+                                            <div class="profile-info-card">
+                                                <div class="profile-info-label">Username</div>
+                                                <div class="profile-info-value" id="profileUsername">---</div>
+                                            </div>
+                                            <div class="profile-info-card">
+                                                <div class="profile-info-label">Email</div>
+                                                <div class="profile-info-value" id="profileEmail">---</div>
+                                            </div>
+                                            <div class="profile-info-card">
+                                                <div class="profile-info-label">Member Since</div>
+                                                <div class="profile-info-value" id="profileCreated">---</div>
+                                            </div>
+                                            <div class="profile-info-card">
+                                                <div class="profile-info-label">Subscription Tier</div>
+                                                <div class="profile-info-value" id="profileTierText">---</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                             </div>
                         </div>
                     </div>
@@ -812,207 +830,226 @@
 
                 <!-- ═══ TAB: Security ═══ -->
                 <div class="profile-tab" id="tab-security">
-                    <div class="profile-section">
-                        <div class="profile-section-title">Change Password</div>
-                        <form class="password-form" id="passwordForm" onsubmit="return changePassword(event)">
-                            <div id="passwordMsg" class="form-msg"></div>
-                            <div class="form-group">
-                                <label class="lcars-label" for="currentPassword">Current Password</label>
-                                <input type="password" class="lcars-input" id="currentPassword" required autocomplete="current-password">
+                    <div style="--frame-color: #ec4899; --frame-rgb: 236,72,153; margin-bottom: 20px;">
+                        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                                <div style="height: 52px !important; background: #ec4899 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ec4899 !important; flex-shrink: 0 !important;"></div>
+                                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #db2777 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                                <div style="flex: 1 !important; background: rgba(236,72,153,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                                <div style="height: 36px !important; background: #ec4899 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                             </div>
-                            <div class="form-group">
-                                <label class="lcars-label" for="newPassword">New Password</label>
-                                <input type="password" class="lcars-input" id="newPassword" required minlength="8" autocomplete="new-password">
-                            </div>
-                            <div class="form-group">
-                                <label class="lcars-label" for="confirmPassword">Confirm Password</label>
-                                <input type="password" class="lcars-input" id="confirmPassword" required minlength="8" autocomplete="new-password">
-                            </div>
-                            <button type="submit" class="lcars-btn" id="passwordBtn">Update Password</button>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- ═══ TAB: Appearance ═══ -->
-                <div class="profile-tab" id="tab-appearance">
-                    <div class="profile-section">
-                        <div class="profile-section-title">Theme Selection</div>
-                        <div class="theme-grid" id="themeGrid">
-                            <!-- LCARS Classic -->
-                            <div class="theme-card" data-theme="lcars-classic" onclick="selectTheme('lcars-classic')">
-                                <div class="theme-swatches">
-                                    <div style="flex:3; background:#010409;"></div>
-                                    <div style="flex:1; background:#00ff41;"></div>
-                                    <div style="flex:1; background:#00ffff;"></div>
-                                    <div style="flex:1; background:#ffaa00;"></div>
+                            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                                <div style="height: 44px !important; background: #ec4899 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SECURITY</span>
+                                    <div style="flex:1"></div>
+                                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                    </div>
                                 </div>
-                                <div class="theme-name">LCARS Classic</div>
-                                <div class="theme-check">&#10003;</div>
-                            </div>
-                            <!-- Corporate Blue -->
-                            <div class="theme-card" data-theme="corporate-blue" onclick="selectTheme('corporate-blue')">
-                                <div class="theme-swatches">
-                                    <div style="flex:3; background:#0f172a;"></div>
-                                    <div style="flex:1; background:#3b82f6;"></div>
-                                    <div style="flex:1; background:#60a5fa;"></div>
-                                    <div style="flex:1; background:#f59e0b;"></div>
+                                <div style="flex: 1 !important; padding: 16px !important;">
+                                    <div class="profile-section">
+                                        <div class="profile-section-title">Change Password</div>
+                                        <form class="password-form" id="passwordForm" onsubmit="return changePassword(event)">
+                                            <div id="passwordMsg" class="form-msg"></div>
+                                            <div class="form-group">
+                                                <label class="lcars-label" for="currentPassword">Current Password</label>
+                                                <input type="password" class="lcars-input" id="currentPassword" required autocomplete="current-password">
+                                            </div>
+                                            <div class="form-group">
+                                                <label class="lcars-label" for="newPassword">New Password</label>
+                                                <input type="password" class="lcars-input" id="newPassword" required minlength="8" autocomplete="new-password">
+                                            </div>
+                                            <div class="form-group">
+                                                <label class="lcars-label" for="confirmPassword">Confirm Password</label>
+                                                <input type="password" class="lcars-input" id="confirmPassword" required minlength="8" autocomplete="new-password">
+                                            </div>
+                                            <button type="submit" class="lcars-btn" id="passwordBtn">Update Password</button>
+                                        </form>
+                                    </div>
                                 </div>
-                                <div class="theme-name">Corporate Blue</div>
-                                <div class="theme-check">&#10003;</div>
+                                <div style="height: 6px !important; background: #ec4899 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                             </div>
-                            <!-- Midnight Purple -->
-                            <div class="theme-card" data-theme="midnight-purple" onclick="selectTheme('midnight-purple')">
-                                <div class="theme-swatches">
-                                    <div style="flex:3; background:#0f0a1a;"></div>
-                                    <div style="flex:1; background:#8b5cf6;"></div>
-                                    <div style="flex:1; background:#a78bfa;"></div>
-                                    <div style="flex:1; background:#f59e0b;"></div>
-                                </div>
-                                <div class="theme-name">Midnight Purple</div>
-                                <div class="theme-check">&#10003;</div>
-                            </div>
-                            <!-- Warm Minimal -->
-                            <div class="theme-card" data-theme="warm-minimal" onclick="selectTheme('warm-minimal')">
-                                <div class="theme-swatches">
-                                    <div style="flex:3; background:#1a1408;"></div>
-                                    <div style="flex:1; background:#f59e0b;"></div>
-                                    <div style="flex:1; background:#fbbf24;"></div>
-                                    <div style="flex:1; background:#78716c;"></div>
-                                </div>
-                                <div class="theme-name">Warm Minimal</div>
-                                <div class="theme-check">&#10003;</div>
-                            </div>
-                            <!-- Arctic Light -->
-                            <div class="theme-card" data-theme="arctic-light" onclick="selectTheme('arctic-light')">
-                                <div class="theme-swatches">
-                                    <div style="flex:3; background:#0a1929;"></div>
-                                    <div style="flex:1; background:#06b6d4;"></div>
-                                    <div style="flex:1; background:#22d3ee;"></div>
-                                    <div style="flex:1; background:#f59e0b;"></div>
-                                </div>
-                                <div class="theme-name">Arctic Light</div>
-                                <div class="theme-check">&#10003;</div>
-                            </div>
-                            <!-- Rose Gold -->
-                            <div class="theme-card" data-theme="rose-gold" onclick="selectTheme('rose-gold')">
-                                <div class="theme-swatches">
-                                    <div style="flex:3; background:#1a0a10;"></div>
-                                    <div style="flex:1; background:#f43f5e;"></div>
-                                    <div style="flex:1; background:#fb7185;"></div>
-                                    <div style="flex:1; background:#f59e0b;"></div>
-                                </div>
-                                <div class="theme-name">Rose Gold</div>
-                                <div class="theme-check">&#10003;</div>
-                            </div>
-                            <!-- Forest -->
-                            <div class="theme-card" data-theme="forest" onclick="selectTheme('forest')">
-                                <div class="theme-swatches">
-                                    <div style="flex:3; background:#0a1a0e;"></div>
-                                    <div style="flex:1; background:#22c55e;"></div>
-                                    <div style="flex:1; background:#4ade80;"></div>
-                                    <div style="flex:1; background:#f59e0b;"></div>
-                                </div>
-                                <div class="theme-name">Forest</div>
-                                <div class="theme-check">&#10003;</div>
-                            </div>
-                            <!-- Slate Pro -->
-                            <div class="theme-card" data-theme="slate-pro" onclick="selectTheme('slate-pro')">
-                                <div class="theme-swatches">
-                                    <div style="flex:3; background:#0f1218;"></div>
-                                    <div style="flex:1; background:#64748b;"></div>
-                                    <div style="flex:1; background:#94a3b8;"></div>
-                                    <div style="flex:1; background:#f59e0b;"></div>
-                                </div>
-                                <div class="theme-name">Slate Pro</div>
-                                <div class="theme-check">&#10003;</div>
-                            </div>
-                        </div>
-                        <div class="theme-scope-note">Themes apply to SaaS Services and Dashboard. Admin modules always use LCARS Classic.</div>
-                    </div>
-                </div>
-
-                <!-- ═══ TAB: Modules ═══ -->
-                <div class="profile-tab" id="tab-modules">
-                    <div class="profile-section">
-                        <div class="profile-section-title">Accessible Modules <span id="modulesCount" style="color: rgba(255,255,255,0.3); font-size: 0.65rem; letter-spacing: 0.5px;"></span></div>
-                        <div class="modules-grid" id="modulesGrid">
-                            <div class="notif-empty">Loading modules...</div>
                         </div>
                     </div>
                 </div>
+
+                <!-- Appearance tab removed — LCARS is the branded theme -->
 
                 <!-- ═══ TAB: Connected Services ═══ -->
                 <div class="profile-tab" id="tab-connections">
-                    <div class="profile-section">
-                        <div class="profile-section-title">Google Account</div>
-                        <div id="googleAccountSection">
-                            <div class="notif-empty">Loading...</div>
-                        </div>
-                    </div>
-                    <div class="profile-section">
-                        <div class="profile-section-title">Connected Services</div>
-                        <div class="profile-info-grid" id="servicesGrid">
-                            <div class="notif-empty" style="grid-column:1/-1;">Loading...</div>
-                        </div>
-                    </div>
-                    <div class="profile-section">
-                        <div class="profile-section-title">Telegram</div>
-                        <div id="telegramSection">
-                            <div class="notif-empty">Loading...</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ═══ TAB: Notifications ═══ -->
-                <div class="profile-tab" id="tab-notifications">
-                    <div class="profile-section">
-                        <div class="profile-section-title">Recent Notifications <span id="notifCount" style="color: rgba(255,255,255,0.3); font-size: 0.65rem; letter-spacing: 0.5px;"></span></div>
-                        <div id="notifList">
-                            <div class="notif-empty">Loading notifications...</div>
+                    <div style="--frame-color: #f59e0b; --frame-rgb: 245,158,11; margin-bottom: 20px;">
+                        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                                <div style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
+                                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                                <div style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                                <div style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                            </div>
+                            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                                <div style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">CONNECTIONS</span>
+                                    <div style="flex:1"></div>
+                                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                    </div>
+                                </div>
+                                <div style="flex: 1 !important; padding: 16px !important;">
+                                    <div class="profile-section">
+                                        <div class="profile-section-title">Google Account</div>
+                                        <div id="googleAccountSection">
+                                            <div class="notif-empty">Loading...</div>
+                                        </div>
+                                    </div>
+                                    <div class="profile-section">
+                                        <div class="profile-section-title">Connected Services</div>
+                                        <div class="profile-info-grid" id="servicesGrid">
+                                            <div class="notif-empty" style="grid-column:1/-1;">Loading...</div>
+                                        </div>
+                                    </div>
+                                    <div class="profile-section">
+                                        <div class="profile-section-title">Telegram</div>
+                                        <div id="telegramSection">
+                                            <div class="notif-empty">Loading...</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="height: 6px !important; background: #f59e0b !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- ═══ TAB: Preferences ═══ -->
                 <div class="profile-tab" id="tab-preferences">
-                    <div class="profile-section">
-                        <div class="profile-section-title">Notification Preferences</div>
-                        <div id="prefsForm" class="prefs-form">
-                            <div class="notif-empty">Loading preferences...</div>
+                    <div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
+                        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                                <div style="height: 52px !important; background: #3b82f6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
+                                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #2563eb !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                                <div style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                                <div style="height: 36px !important; background: #3b82f6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                            </div>
+                            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                                <div style="height: 44px !important; background: #3b82f6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">NOTIFICATION SETTINGS</span>
+                                    <div style="flex:1"></div>
+                                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                    </div>
+                                </div>
+                                <div style="flex: 1 !important; padding: 16px !important;">
+                                    <div class="profile-section">
+                                        <div class="profile-section-title">Recent Notifications <span id="notifCount" style="color: rgba(255,255,255,0.3); font-size: 0.65rem; letter-spacing: 0.5px;"></span></div>
+                                        <div id="notifList">
+                                            <div class="notif-empty">Loading notifications...</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="height: 6px !important; background: #3b82f6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                            </div>
                         </div>
                     </div>
-                    <div class="profile-section">
-                        <div class="profile-section-title">Language</div>
-                        <div id="prefsLang" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+                </div>
+
+                <!-- ═══ TAB: Notifications ═══ -->
+                <div class="profile-tab" id="tab-notifications">
+                    <div style="--frame-color: #14b8a6; --frame-rgb: 20,184,166; margin-bottom: 20px;">
+                        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                                <div style="height: 52px !important; background: #14b8a6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #14b8a6 !important; flex-shrink: 0 !important;"></div>
+                                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #0d9488 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                                <div style="flex: 1 !important; background: rgba(20,184,166,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                                <div style="height: 36px !important; background: #14b8a6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                            </div>
+                            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                                <div style="height: 44px !important; background: #14b8a6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">PREFERENCES</span>
+                                    <div style="flex:1"></div>
+                                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                    </div>
+                                </div>
+                                <div style="flex: 1 !important; padding: 16px !important;">
+                                    <div class="profile-section">
+                                        <div class="profile-section-title">Notification Preferences</div>
+                                        <div id="prefsForm" class="prefs-form">
+                                            <div class="notif-empty">Loading preferences...</div>
+                                        </div>
+                                    </div>
+                                    <div class="profile-section">
+                                        <div class="profile-section-title">Language</div>
+                                        <div id="prefsLang" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+                                    </div>
+                                    <div id="prefsMsg" class="form-msg" style="margin-top:12px;"></div>
+                                </div>
+                                <div style="height: 6px !important; background: #14b8a6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                            </div>
+                        </div>
                     </div>
-                    <div id="prefsMsg" class="form-msg" style="margin-top:12px;"></div>
                 </div>
 
                 <!-- ═══ TAB: Activity ═══ -->
                 <div class="profile-tab" id="tab-activity">
-                    <div class="profile-section">
-                        <div class="profile-section-title">Last Login</div>
-                        <div class="profile-info-grid" id="activityLastLogin">
-                            <div class="profile-info-card">
-                                <div class="profile-info-label">Time</div>
-                                <div class="profile-info-value" id="actLastLoginTime">---</div>
+                    <div style="--frame-color: #f97316; --frame-rgb: 249,115,22; margin-bottom: 20px;">
+                        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                                <div style="height: 52px !important; background: #f97316 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f97316 !important; flex-shrink: 0 !important;"></div>
+                                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ea580c !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                                <div style="flex: 1 !important; background: rgba(249,115,22,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                                <div style="height: 36px !important; background: #f97316 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                             </div>
-                            <div class="profile-info-card">
-                                <div class="profile-info-label">IP Address</div>
-                                <div class="profile-info-value" id="actLastLoginIp">---</div>
+                            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                                <div style="height: 44px !important; background: #f97316 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">ACTIVITY LOG</span>
+                                    <div style="flex:1"></div>
+                                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                    </div>
+                                </div>
+                                <div style="flex: 1 !important; padding: 16px !important;">
+                                    <div class="profile-section">
+                                        <div class="profile-section-title">Last Login</div>
+                                        <div class="profile-info-grid" id="activityLastLogin">
+                                            <div class="profile-info-card">
+                                                <div class="profile-info-label">Time</div>
+                                                <div class="profile-info-value" id="actLastLoginTime">---</div>
+                                            </div>
+                                            <div class="profile-info-card">
+                                                <div class="profile-info-label">IP Address</div>
+                                                <div class="profile-info-value" id="actLastLoginIp">---</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="profile-section">
+                                        <div class="profile-section-title">Active Sessions</div>
+                                        <div id="actSessionsList">
+                                            <div class="notif-empty">Loading sessions...</div>
+                                        </div>
+                                    </div>
+                                    <div class="profile-section">
+                                        <div class="profile-section-title">Failed Login Attempts</div>
+                                        <div id="actFailedList">
+                                            <div class="notif-empty">Loading...</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="height: 6px !important; background: #f97316 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                             </div>
-                        </div>
-                    </div>
-                    <div class="profile-section">
-                        <div class="profile-section-title">Active Sessions</div>
-                        <div id="actSessionsList">
-                            <div class="notif-empty">Loading sessions...</div>
-                        </div>
-                    </div>
-                    <div class="profile-section">
-                        <div class="profile-section-title">Failed Login Attempts</div>
-                        <div id="actFailedList">
-                            <div class="notif-empty">Loading...</div>
                         </div>
                     </div>
                 </div>
@@ -1025,6 +1062,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script>
 (function() {
     'use strict';
@@ -1062,6 +1100,8 @@
             b.classList.toggle('active', b.dataset.tab === tabId);
         });
     };
+
+    window.onLcarsTabSwitch = function(tabId) { switchProfileTab(tabId); };
 
     // ── Avatar Upload ─────────────────────────────────
     function setAvatarDisplay(pictureUrl) {

@@ -4,6 +4,7 @@
 {% block module_name %}security-network{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
 <link rel="stylesheet" href="/static/css/lcars-frames.css">
 <link rel="stylesheet" href="/static/css/security-network-theme-vars.css">
@@ -11,6 +12,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/lcars-header.js') }}" defer></script>
 <script src="/static/js/security-network.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
@@ -20,108 +22,95 @@
 
 {% block content %}
 <div class="security-container" data-module="security-network">
-    {% set cat_accent = '#f97316' %}
-    {% set cat_accent_rgb = '249,115,22' %}
-    {% set cat_accent_light = '#ea580c' %}
+    {# LCARS Header — Admin Tools #}
+    {% set cat_accent = '#ef4444' %}
+    {% set cat_accent_rgb = '239,68,68' %}
+    {% set cat_accent_dark = '#dc2626' %}
     {% set cat_label = 'ADMIN TOOLS' %}
-    {% set cat_icon = 'settings-2' %}
-    {% set cat_modules = [
-        {'url': url_for('account_center.index'), 'endpoint_prefix': 'account_center', 'icon': 'user', 'label': 'Accounts', 'title': 'Account Center'},
-        {'url': 'https://server.kytranempowerment.com', 'endpoint_prefix': 'kso_external', 'icon': 'server', 'label': 'System Ops', 'title': 'Kytran System Operations'},
-        {'url': url_for('backup_manager.index'), 'endpoint_prefix': 'backup_manager', 'icon': 'hard-drive', 'label': 'Backups', 'title': 'Backup Manager'},
-        {'url': url_for('security_network.index'), 'endpoint_prefix': 'security_network', 'icon': 'shield', 'label': 'Security', 'title': 'Security & Network'}
+    {% set module_title = 'SECURITY & NETWORK' %}
+    {% set header_shortcuts = [
+        ("Accounts", "user", "/tools/account-center"),
+        ("System Ops", "server", "https://server.kytranempowerment.com"),
+        ("Backups", "hard-drive", "/tools/backup-manager"),
+        ("Security", "shield", "/tools/security-network")
     ] %}
-    {% include 'includes/category_nav.html' %}
+    {% set header_tabs = [
+        ("overview", "Overview", "layout-dashboard"),
+        ("traffic", "Traffic", "activity"),
+        ("dns", "DNS", "globe"),
+        ("devices", "Devices", "monitor"),
+        ("defense", "Defense", "shield-check"),
+        ("scanners", "Scanners", "scan"),
+        ("compliance", "Compliance", "check-circle"),
+        ("reports", "Reports", "file-text"),
+        ("topology", "Topology", "network"),
+        ("supervision", "Supervision", "eye"),
+        ("intel", "Intel", "search")
+    ] %}
+    {% include 'includes/lcars-header.html' %}
 
-    <div class="lcars-frame">
-        <!-- LEFT SIDEBAR -->
-        <div class="lcars-sidebar">
-            <div class="lcars-elbow-top"></div>
-            <div class="lcars-seg" style="--seg-color: #ef4444"></div>
-            <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
-            <div class="lcars-seg" style="--seg-color: #ef4444"></div>
-            <div class="lcars-seg" style="--seg-color: #dc2626"></div>
-            <div class="lcars-seg-fill"></div>
-            <div class="lcars-elbow-bottom"></div>
-        </div>
-
-        <!-- RIGHT CONTENT -->
-        <div class="lcars-content">
-            <div class="lcars-bar">
-                <span class="lcars-bar-title" data-i18n="security_network.security_network">SECURITY & NETWORK</span>
-                <div class="lcars-bar-spacer"></div>
-                <div class="lcars-pips">
-                    <span class="lcars-pip" style="width:20px"></span>
-                    <span class="lcars-pip" style="width:35px"></span>
-                    <span class="lcars-pip" style="width:14px"></span>
-                </div>
-                <span class="lcars-bar-status">SEC OPS</span>
-            </div>
-
-            <div class="lcars-body">
+    <div class="security-network-content">
                 <!-- Service Badges -->
-                <div class="header-services" id="service-badges">
-                    <span class="svc-badge" id="svc-adguard"><span class="dot"></span> AdGuard</span>
-                    <span class="svc-badge" id="svc-hostinger"><span class="dot"></span> Hostinger</span>
-                    <span class="svc-badge" id="svc-surveillance"><span class="dot"></span> Cameras</span>
-                    <span class="svc-badge" id="svc-npm"><span class="dot"></span> NPM</span>
-                    <span class="svc-badge" id="svc-ssh"><span class="dot"></span> SSH</span>
-                    <span class="svc-badge" id="svc-fail2ban"><span class="dot"></span> fail2ban</span>
-                    <span class="svc-badge" id="svc-ddns"><span class="dot"></span> DDNS</span>
-                    <span class="svc-badge" id="svc-argus"><span class="dot"></span> Argus</span>
-                    <span class="svc-badge" id="svc-agent"><span class="dot"></span> Agent</span>
+                <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+                    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                            <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                            <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                        </div>
+                        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                            <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SERVICE STATUS</span>
+                                <div style="flex:1"></div>
+                                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                </div>
+                            </div>
+                            <div style="flex: 1 !important; padding: 16px !important;">
+                                <div class="header-services" id="service-badges">
+                                    <span class="svc-badge" id="svc-adguard"><span class="dot"></span> AdGuard</span>
+                                    <span class="svc-badge" id="svc-hostinger"><span class="dot"></span> Hostinger</span>
+                                    <span class="svc-badge" id="svc-surveillance"><span class="dot"></span> Cameras</span>
+                                    <span class="svc-badge" id="svc-npm"><span class="dot"></span> NPM</span>
+                                    <span class="svc-badge" id="svc-ssh"><span class="dot"></span> SSH</span>
+                                    <span class="svc-badge" id="svc-fail2ban"><span class="dot"></span> fail2ban</span>
+                                    <span class="svc-badge" id="svc-ddns"><span class="dot"></span> DDNS</span>
+                                    <span class="svc-badge" id="svc-argus"><span class="dot"></span> Argus</span>
+                                    <span class="svc-badge" id="svc-agent"><span class="dot"></span> Agent</span>
+                                </div>
+                            </div>
+                            <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Tab Navigation — 8-Tab NOC Layout -->
-    <div class="tab-nav">
-        <button class="tab-btn active" data-tab="overview">
-            <i data-lucide="layout-dashboard" style="width:16px;height:16px"></i>
-            Overview
-        </button>
-        <button class="tab-btn" data-tab="traffic">
-            <i data-lucide="activity" style="width:16px;height:16px"></i>
-            Traffic
-        </button>
-        <button class="tab-btn" data-tab="dns">
-            <i data-lucide="shield-check" style="width:16px;height:16px"></i>
-            DNS
-        </button>
-        <button class="tab-btn" data-tab="devices">
-            <i data-lucide="monitor" style="width:16px;height:16px"></i>
-            Devices
-        </button>
-        <button class="tab-btn" data-tab="defense">
-            <i data-lucide="shield" style="width:16px;height:16px"></i>
-            Defense
-        </button>
-        <button class="tab-btn" data-tab="scanners">
-            <i data-lucide="scan" style="width:16px;height:16px"></i>
-            Scanners
-        </button>
-        <button class="tab-btn" data-tab="compliance">
-            <i data-lucide="check-square" style="width:16px;height:16px"></i>
-            Compliance
-        </button>
-        <button class="tab-btn" data-tab="reports">
-            <i data-lucide="file-text" style="width:16px;height:16px"></i>
-            Reports
-        </button>
-        <button class="tab-btn" data-tab="topology">
-            <i data-lucide="network" style="width:16px;height:16px"></i>
-            Topology
-        </button>
-        <button class="tab-btn" data-tab="supervision">
-            <i data-lucide="eye" style="width:16px;height:16px"></i>
-            Supervision
-        </button>
-        <button class="tab-btn" data-tab="intel">
-            <i data-lucide="radar" style="width:16px;height:16px"></i>
-            Intel
-        </button>
-    </div>
 
     <!-- ==================== TAB: OVERVIEW (NOC) ==================== -->
     <div id="tab-overview" class="tab-content active">
+<div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+            <div style="height: 52px !important; background: #3b82f6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #2563eb !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #3b82f6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+            <div style="height: 44px !important; background: #3b82f6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SECURITY OVERVIEW</span>
+                <div style="flex:1"></div>
+                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                </div>
+            </div>
+            <div style="flex: 1 !important; padding: 16px !important;">
 
         <!-- V.I.G.I.L. Station Panel -->
         <div class="stn-ops-terminal cs-ops-terminal" id="secOpsTerminal">
@@ -254,11 +243,36 @@
                 </div>
             </div>
         </div>
+            </div>
+            <div style="height: 6px !important; background: var(--frame-color) !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+    </div>
+</div>
     </div>
 
 
     <!-- ==================== TAB: TRAFFIC ==================== -->
     <div id="tab-traffic" class="tab-content">
+<div style="--frame-color: #22c55e; --frame-rgb: 34,197,94; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+            <div style="height: 52px !important; background: #22c55e !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22c55e !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #16a34a !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(34,197,94,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #22c55e !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+            <div style="height: 44px !important; background: #22c55e !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">NETWORK TRAFFIC</span>
+                <div style="flex:1"></div>
+                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                </div>
+            </div>
+            <div style="flex: 1 !important; padding: 16px !important;">
 
         <!-- Traffic Hero Stats -->
         <div class="traffic-hero-grid">
@@ -354,10 +368,35 @@
                 <div class="loading-state"><span class="spinner"></span> Loading services...</div>
             </div>
         </div>
+            </div>
+            <div style="height: 6px !important; background: var(--frame-color) !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+    </div>
+</div>
     </div>
 
     <!-- ==================== TAB: DNS MANAGEMENT ==================== -->
     <div id="tab-dns" class="tab-content">
+<div style="--frame-color: #14b8a6; --frame-rgb: 20,184,166; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+            <div style="height: 52px !important; background: #14b8a6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #14b8a6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #0d9488 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(20,184,166,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #14b8a6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+            <div style="height: 44px !important; background: #14b8a6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">DNS MANAGEMENT</span>
+                <div style="flex:1"></div>
+                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                </div>
+            </div>
+            <div style="flex: 1 !important; padding: 16px !important;">
         <div class="subtab-nav">
             <button class="subtab-btn active" data-subtab="dns-overview"><span data-i18n="security_network.overview">Overview</span></button>
             <button class="subtab-btn" data-subtab="dns-querylog"><span data-i18n="security_network.query_log">Query Log</span></button>
@@ -848,11 +887,36 @@
                 <svg id="dns-trend-chart" width="100%" height="100%" preserveAspectRatio="none"></svg>
             </div>
         </div>
+            </div>
+            <div style="height: 6px !important; background: var(--frame-color) !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+    </div>
+</div>
     </div>
 
 
     <!-- ==================== TAB: DEVICES ==================== -->
     <div id="tab-devices" class="tab-content">
+<div style="--frame-color: #f59e0b; --frame-rgb: 245,158,11; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+            <div style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+            <div style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">DEVICE REGISTRY</span>
+                <div style="flex:1"></div>
+                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                </div>
+            </div>
+            <div style="flex: 1 !important; padding: 16px !important;">
 
         <!-- Add Device Mapping Form -->
         <div class="card" style="margin-bottom:16px">
@@ -925,11 +989,36 @@
                 <div class="loading-state"><span class="spinner"></span> Loading...</div>
             </div>
         </div>
+            </div>
+            <div style="height: 6px !important; background: var(--frame-color) !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+    </div>
+</div>
     </div>
 
 
     <!-- ==================== TAB: DEFENSE ==================== -->
     <div id="tab-defense" class="tab-content">
+<div style="--frame-color: #ec4899; --frame-rgb: 236,72,153; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+            <div style="height: 52px !important; background: #ec4899 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ec4899 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #db2777 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(236,72,153,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #ec4899 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+            <div style="height: 44px !important; background: #ec4899 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">DEFENSE SYSTEMS</span>
+                <div style="flex:1"></div>
+                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                </div>
+            </div>
+            <div style="flex: 1 !important; padding: 16px !important;">
 
         <!-- fail2ban + DDNS row -->
         <div class="defense-grid">
@@ -1069,11 +1158,36 @@
                 <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_connections"> Loading connections...</span></div>
             </div>
         </div>
+            </div>
+            <div style="height: 6px !important; background: var(--frame-color) !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+    </div>
+</div>
     </div>
 
 
     <!-- ==================== TAB: SCANNERS ==================== -->
     <div id="tab-scanners" class="tab-content">
+<div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+            <div style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+            <div style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SECURITY SCANNERS</span>
+                <div style="flex:1"></div>
+                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                </div>
+            </div>
+            <div style="flex: 1 !important; padding: 16px !important;">
         <div class="subtab-nav">
             <button class="subtab-btn active" data-subtab="scanners-surv">
                 <i data-lucide="camera" style="width:14px;height:14px"></i> Surveillance
@@ -1485,10 +1599,35 @@
         </div>
 
         </div>
+            </div>
+            <div style="height: 6px !important; background: var(--frame-color) !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+    </div>
+</div>
     </div>
 
     <!-- Compliance -->
     <div id="tab-compliance" class="tab-content">
+<div style="--frame-color: #f97316; --frame-rgb: 249,115,22; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+            <div style="height: 52px !important; background: #f97316 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f97316 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ea580c !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(249,115,22,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #f97316 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+            <div style="height: 44px !important; background: #f97316 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">COMPLIANCE AUDIT</span>
+                <div style="flex:1"></div>
+                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                </div>
+            </div>
+            <div style="flex: 1 !important; padding: 16px !important;">
 
         <div class="comp-dash">
             <!-- Header -->
@@ -1605,12 +1744,37 @@
             </div>
         </div>
     </div>
+            </div>
+            <div style="height: 6px !important; background: var(--frame-color) !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+    </div>
+</div>
     </div><!-- /tab-compliance -->
 
 
 
     <!-- ==================== TAB: REPORTS ==================== -->
     <div id="tab-reports" class="tab-content">
+<div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+            <div style="height: 52px !important; background: #3b82f6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #2563eb !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #3b82f6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+            <div style="height: 44px !important; background: #3b82f6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SECURITY REPORTS</span>
+                <div style="flex:1"></div>
+                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                </div>
+            </div>
+            <div style="flex: 1 !important; padding: 16px !important;">
 
         <!-- DNS Stats Dashboard -->
         <div class="card" style="margin-bottom:16px">
@@ -1723,12 +1887,14 @@
 
     </div>
 
+            </div>
+            <div style="height: 6px !important; background: var(--frame-color) !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+    </div>
+</div>
     </div>
 
-            </div><!-- /lcars-body -->
-            <div class="lcars-footer-bar"></div>
-        </div><!-- /lcars-content -->
-    </div><!-- /lcars-frame -->
+    </div><!-- /security-network-content -->
 
     <!-- ==================== BLOCK DOMAIN MODAL ==================== -->
     <div class="bm-overlay" id="block-domain-modal" style="--bm-accent:#ef4444;--bm-accent-rgb:239,68,68;">
@@ -2042,6 +2208,26 @@
 
     <!-- ==================== TAB: TOPOLOGY ==================== -->
     <div id="tab-topology" class="tab-content">
+<div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+            <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+            <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">NETWORK TOPOLOGY</span>
+                <div style="flex:1"></div>
+                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                </div>
+            </div>
+            <div style="flex: 1 !important; padding: 16px !important;">
         <div class="card" style="margin-bottom:16px">
             <div class="card-header">
                 <span class="card-title">Network Topology</span>
@@ -2058,10 +2244,35 @@
                 <svg id="topo-svg" width="100%" height="100%"></svg>
             </div>
         </div>
+            </div>
+            <div style="height: 6px !important; background: var(--frame-color) !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+    </div>
+</div>
     </div>
 
     <!-- ==================== TAB: SUPERVISION ==================== -->
     <div id="tab-supervision" class="tab-content">
+<div style="--frame-color: #f59e0b; --frame-rgb: 245,158,11; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+            <div style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+            <div style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SUPERVISION</span>
+                <div style="flex:1"></div>
+                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                </div>
+            </div>
+            <div style="flex: 1 !important; padding: 16px !important;">
         <!-- Schedule Management -->
         <div class="card" style="margin-bottom:16px">
             <div class="card-header">
@@ -2112,10 +2323,35 @@
                 <div class="loading-state"><span class="spinner"></span> Loading...</div>
             </div>
         </div>
+            </div>
+            <div style="height: 6px !important; background: var(--frame-color) !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+    </div>
+</div>
     </div>
 
     <!-- ==================== TAB: INTEL ==================== -->
     <div id="tab-intel" class="tab-content">
+<div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+            <div style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+            <div style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">THREAT INTELLIGENCE</span>
+                <div style="flex:1"></div>
+                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                </div>
+            </div>
+            <div style="flex: 1 !important; padding: 16px !important;">
         <!-- Threat Intel Summary -->
         <div class="noc-hero-grid" style="margin-bottom:16px">
             <div class="noc-hero-card" style="--noc-accent:#ef4444">
@@ -2275,6 +2511,11 @@
                 <div class="loading-state"><span class="spinner"></span> Loading...</div>
             </div>
         </div>
+            </div>
+            <div style="height: 6px !important; background: var(--frame-color) !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+    </div>
+</div>
     </div>
 
     <!-- ==================== AGENT AUTOMATION PANEL ==================== -->

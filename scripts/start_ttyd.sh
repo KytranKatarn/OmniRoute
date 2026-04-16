@@ -29,7 +29,7 @@ tmux send-keys -t "$TMUX_SESSION" '/home/kytran/.local/bin/claude' Enter
 # tmux attach: reconnects to the persistent claude session
 exec ttyd \
     -p "$TTYD_PORT" \
-    -i lo \
+    -i 0.0.0.0 \
     -W \
     -t fontSize=14 \
     -t fontFamily="JetBrains Mono, Consolas, monospace" \

@@ -4,6 +4,7 @@
 {% block module_name %}pool_management{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <style>
 :root {
   --pm-accent: #ff4444;
@@ -17,7 +18,7 @@
   --pm-orange: #ffaa00;
   --pm-yellow: #ffee44;
 }
-.pm-container { max-width: 1500px; margin: 0 auto; padding: 80px 24px 40px; }
+.pm-container { max-width: 1500px; margin: 0 auto; padding: 20px 24px 40px; }
 .pm-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 22px; }
 .pm-title { font-family: 'Orbitron', sans-serif; font-size: 1.7rem; font-weight: 700; color: var(--pm-accent); letter-spacing: 0.1em; display: flex; align-items: center; gap: 10px; margin: 0; }
 .pm-subtitle { font-family: 'JetBrains Mono', monospace; font-size: 0.77rem; color: var(--pm-muted); margin: 4px 0 0; }
@@ -75,7 +76,7 @@
 .pm-modal-title { font-family: 'Orbitron', sans-serif; font-size: 0.9rem; color: var(--pm-accent); margin: 0 0 16px; }
 .pm-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
 @media (max-width: 768px) {
-  .pm-container { padding: 76px 14px 30px; }
+  .pm-container { padding: 16px 14px 30px; }
   .pm-stats { grid-template-columns: repeat(2, 1fr); }
   .pm-title { font-size: 1.2rem; }
 }
@@ -83,19 +84,26 @@
 {% endblock %}
 
 {% block content %}
-{% set cat_accent = '#EF4444' %}
-{% set cat_accent_rgb = '239,68,68' %}
-{% set cat_accent_light = '#dc2626' %}
-{% set cat_label = 'APPS' %}
-{% set cat_icon = 'heart-pulse' %}
-{% set cat_modules = [
-    {'url': url_for('doc.index'), 'endpoint_prefix': 'doc', 'icon': 'stethoscope', 'label': 'DOC', 'title': 'DOC'},
-    {'url': url_for('therapy.index'), 'endpoint_prefix': 'therapy', 'icon': 'flower-2', 'label': 'Therapy', 'title': 'Therapy'},
-    {'url': url_for('fitness.index'), 'endpoint_prefix': 'fitness', 'icon': 'dumbbell', 'label': 'Fitness', 'title': 'Fitness'},
-    {'url': url_for('archie_pool.index'), 'endpoint_prefix': 'archie_pool', 'icon': 'pickaxe', 'label': 'Pool', 'title': 'Archie Pool'},
-    {'url': url_for('media_hub.index'), 'endpoint_prefix': 'media_hub', 'icon': 'tv-2', 'label': 'Media', 'title': 'Media Hub'}
+{# LCARS Header — Crypto #}
+{% set cat_accent = '#eab308' %}
+{% set cat_accent_rgb = '234,179,8' %}
+{% set cat_accent_dark = '#ca8a04' %}
+{% set cat_label = 'CRYPTO' %}
+{% set module_title = 'POOL MANAGEMENT' %}
+{% set header_shortcuts = [
+    ("Pool", "pickaxe", "/tools/archie-pool"),
+    ("Management", "settings", "/tools/pool-management")
 ] %}
-{% include 'includes/category_nav.html' %}
+{% set header_tabs = [
+    ("dashboard", "Dashboard", "layout-dashboard"),
+    ("miners", "Miners", "cpu"),
+    ("blocks", "Blocks", "box"),
+    ("payouts", "Payouts", "wallet"),
+    ("conversions", "Conversions", "repeat"),
+    ("settings", "Settings", "settings"),
+    ("services", "Services", "server")
+] %}
+{% include 'includes/lcars-header.html' %}
 
 <div class="pm-container">
 
@@ -107,142 +115,333 @@
     <div class="pm-admin-badge"><i data-lucide="lock" style="width:13px;height:13px"></i> ADMIN ONLY</div>
   </header>
 
-  <section class="pm-stats">
-    <div class="pm-stat-card"><div class="pm-stat-label">Total Miners</div><div class="pm-stat-value" id="pmStatMiners">—</div></div>
-    <div class="pm-stat-card"><div class="pm-stat-label">Total Hashrate</div><div class="pm-stat-value" id="pmStatHash" style="font-size:0.9rem">—</div></div>
-    <div class="pm-stat-card"><div class="pm-stat-label">Pending Payouts</div><div class="pm-stat-value" id="pmStatPending">—</div><div class="pm-stat-sub">RVN</div></div>
-    <div class="pm-stat-card"><div class="pm-stat-label">24h Blocks</div><div class="pm-stat-value" id="pmStatBlocks">—</div></div>
-    <div class="pm-stat-card"><div class="pm-stat-label">24h Revenue</div><div class="pm-stat-value" id="pmStatRevenue" style="font-size:0.9rem">—</div><div class="pm-stat-sub">RVN</div></div>
-  </section>
+  <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+      <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+        <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+        <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+        <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+      </div>
+      <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+        <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+          <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">POOL OVERVIEW</span>
+          <div style="flex:1"></div>
+          <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+            <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+            <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+          </div>
+        </div>
+        <div style="flex: 1 !important; padding: 16px !important;">
+          <section class="pm-stats">
+            <div class="pm-stat-card"><div class="pm-stat-label">Total Miners</div><div class="pm-stat-value" id="pmStatMiners">—</div></div>
+            <div class="pm-stat-card"><div class="pm-stat-label">Total Hashrate</div><div class="pm-stat-value" id="pmStatHash" style="font-size:0.9rem">—</div></div>
+            <div class="pm-stat-card"><div class="pm-stat-label">Pending Payouts</div><div class="pm-stat-value" id="pmStatPending">—</div><div class="pm-stat-sub">RVN</div></div>
+            <div class="pm-stat-card"><div class="pm-stat-label">24h Blocks</div><div class="pm-stat-value" id="pmStatBlocks">—</div></div>
+            <div class="pm-stat-card"><div class="pm-stat-label">24h Revenue</div><div class="pm-stat-value" id="pmStatRevenue" style="font-size:0.9rem">—</div><div class="pm-stat-sub">RVN</div></div>
+          </section>
+        </div>
+        <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+      </div>
+    </div>
+  </div>
 
-  <nav class="pm-tabs">
-    <button class="pm-tab active" onclick="pmSetTab('dashboard')">Dashboard</button>
-    <button class="pm-tab" onclick="pmSetTab('miners')">Miners</button>
-    <button class="pm-tab" onclick="pmSetTab('blocks')">Blocks</button>
-    <button class="pm-tab" onclick="pmSetTab('payouts')">Payouts</button>
-    <button class="pm-tab" onclick="pmSetTab('conversions')">Conversions</button>
-    <button class="pm-tab" onclick="pmSetTab('settings')">Settings</button>
-    <button class="pm-tab" onclick="pmSetTab('services')">Services</button>
-  </nav>
 
   <!-- DASHBOARD -->
   <div class="pm-panel active" id="pm-panel-dashboard">
-    <div class="pm-card">
-      <h3 class="pm-card-title"><span>Admin Overview</span></h3>
-      <div class="pm-stats" style="margin-bottom:0">
-        <div class="pm-stat-card"><div class="pm-stat-label">Active Workers</div><div class="pm-stat-value" id="pmDashWorkers">—</div></div>
-        <div class="pm-stat-card"><div class="pm-stat-label">Banned Miners</div><div class="pm-stat-value" id="pmDashBanned">—</div></div>
-        <div class="pm-stat-card"><div class="pm-stat-label">Completed Payouts (24h)</div><div class="pm-stat-value" id="pmDashPaidOut" style="font-size:0.85rem">—</div></div>
-        <div class="pm-stat-card"><div class="pm-stat-label">Failed Payouts</div><div class="pm-stat-value" id="pmDashFailed">—</div></div>
+    <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+      <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+          <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+          <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+          <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+          <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">ADMIN DASHBOARD</span>
+            <div style="flex:1"></div>
+            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+              <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+              <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+              <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            </div>
+          </div>
+          <div style="flex: 1 !important; padding: 16px !important;">
+            <div class="pm-card">
+              <h3 class="pm-card-title"><span>Admin Overview</span></h3>
+              <div class="pm-stats" style="margin-bottom:0">
+                <div class="pm-stat-card"><div class="pm-stat-label">Active Workers</div><div class="pm-stat-value" id="pmDashWorkers">—</div></div>
+                <div class="pm-stat-card"><div class="pm-stat-label">Banned Miners</div><div class="pm-stat-value" id="pmDashBanned">—</div></div>
+                <div class="pm-stat-card"><div class="pm-stat-label">Completed Payouts (24h)</div><div class="pm-stat-value" id="pmDashPaidOut" style="font-size:0.85rem">—</div></div>
+                <div class="pm-stat-card"><div class="pm-stat-label">Failed Payouts</div><div class="pm-stat-value" id="pmDashFailed">—</div></div>
+              </div>
+            </div>
+            <div class="pm-card">
+              <h3 class="pm-card-title"><span>Analytics</span></h3>
+              <div class="pm-chart-ph">[ Analytics chart — live data ]</div>
+            </div>
+          </div>
+          <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
       </div>
-    </div>
-    <div class="pm-card">
-      <h3 class="pm-card-title"><span>Analytics</span></h3>
-      <div class="pm-chart-ph">[ Analytics chart — live data ]</div>
     </div>
   </div>
 
   <!-- MINERS -->
   <div class="pm-panel" id="pm-panel-miners">
-    <div class="pm-card">
-      <h3 class="pm-card-title">
-        <span>Miner List</span>
-        <button class="pm-btn pm-btn-sm" onclick="pmLoadMiners()"><i data-lucide="refresh-cw" style="width:13px;height:13px"></i> Refresh</button>
-      </h3>
-      <div class="pm-table-wrap">
-        <table class="pm-table">
-          <thead><tr><th>Wallet</th><th>Hashrate</th><th>Shares</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="pmMinersBody"><tr><td colspan="5" class="pm-empty">Loading miners…</td></tr></tbody>
-        </table>
+    <div style="--frame-color: #f59e0b; --frame-rgb: 245,158,11; margin-bottom: 20px;">
+      <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+          <div style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+          <div style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+          <div style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+          <div style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">MINER MANAGEMENT</span>
+            <div style="flex:1"></div>
+            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+              <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+              <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+              <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            </div>
+          </div>
+          <div style="flex: 1 !important; padding: 16px !important;">
+            <div class="pm-card">
+              <h3 class="pm-card-title">
+                <span>Miner List</span>
+                <button class="pm-btn pm-btn-sm" onclick="pmLoadMiners()"><i data-lucide="refresh-cw" style="width:13px;height:13px"></i> Refresh</button>
+              </h3>
+              <div class="pm-table-wrap">
+                <table class="pm-table">
+                  <thead><tr><th>Wallet</th><th>Hashrate</th><th>Shares</th><th>Status</th><th>Actions</th></tr></thead>
+                  <tbody id="pmMinersBody"><tr><td colspan="5" class="pm-empty">Loading miners…</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div style="height: 6px !important; background: #f59e0b !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- BLOCKS -->
   <div class="pm-panel" id="pm-panel-blocks">
-    <div class="pm-card">
-      <h3 class="pm-card-title">
-        <span>All Blocks</span>
-        <button class="pm-btn pm-btn-sm" onclick="pmLoadBlocks()"><i data-lucide="refresh-cw" style="width:13px;height:13px"></i> Refresh</button>
-      </h3>
-      <div class="pm-table-wrap">
-        <table class="pm-table">
-          <thead><tr><th>Height</th><th>Hash</th><th>Reward (RVN)</th><th>Confirmations</th><th>Time</th><th>Finder</th></tr></thead>
-          <tbody id="pmBlocksBody"><tr><td colspan="6" class="pm-empty">Loading blocks…</td></tr></tbody>
-        </table>
+    <div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
+      <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+          <div style="height: 52px !important; background: #3b82f6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #2563eb !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+          <div style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+          <div style="height: 36px !important; background: #3b82f6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+          <div style="height: 44px !important; background: #3b82f6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">BLOCK HISTORY</span>
+            <div style="flex:1"></div>
+            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+              <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+              <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+              <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            </div>
+          </div>
+          <div style="flex: 1 !important; padding: 16px !important;">
+            <div class="pm-card">
+              <h3 class="pm-card-title">
+                <span>All Blocks</span>
+                <button class="pm-btn pm-btn-sm" onclick="pmLoadBlocks()"><i data-lucide="refresh-cw" style="width:13px;height:13px"></i> Refresh</button>
+              </h3>
+              <div class="pm-table-wrap">
+                <table class="pm-table">
+                  <thead><tr><th>Height</th><th>Hash</th><th>Reward (RVN)</th><th>Confirmations</th><th>Time</th><th>Finder</th></tr></thead>
+                  <tbody id="pmBlocksBody"><tr><td colspan="6" class="pm-empty">Loading blocks…</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div style="height: 6px !important; background: #3b82f6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- PAYOUTS -->
   <div class="pm-panel" id="pm-panel-payouts">
-    <div class="pm-card">
-      <h3 class="pm-card-title">
-        <span>Pending Payouts</span>
-        <button class="pm-btn" onclick="pmProcessPayouts()" id="pmBtnProcess"><i data-lucide="send" style="width:14px;height:14px"></i> Process Payouts</button>
-      </h3>
-      <div class="pm-table-wrap">
-        <table class="pm-table">
-          <thead><tr><th>Wallet</th><th>Amount (RVN)</th><th>Status</th></tr></thead>
-          <tbody id="pmPayoutsBody"><tr><td colspan="3" class="pm-empty">Loading payouts…</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="pm-card">
-      <h3 class="pm-card-title"><span>Failed Payouts</span></h3>
-      <div class="pm-table-wrap">
-        <table class="pm-table">
-          <thead><tr><th>ID</th><th>Wallet</th><th>Amount (RVN)</th><th>Error</th><th>Action</th></tr></thead>
-          <tbody id="pmFailedBody"><tr><td colspan="5" class="pm-empty">Loading…</td></tr></tbody>
-        </table>
+    <div style="--frame-color: #22c55e; --frame-rgb: 34,197,94; margin-bottom: 20px;">
+      <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+          <div style="height: 52px !important; background: #22c55e !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22c55e !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #16a34a !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+          <div style="flex: 1 !important; background: rgba(34,197,94,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+          <div style="height: 36px !important; background: #22c55e !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+          <div style="height: 44px !important; background: #22c55e !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">PAYOUT RECORDS</span>
+            <div style="flex:1"></div>
+            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+              <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+              <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+              <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            </div>
+          </div>
+          <div style="flex: 1 !important; padding: 16px !important;">
+            <div class="pm-card">
+              <h3 class="pm-card-title">
+                <span>Pending Payouts</span>
+                <button class="pm-btn" onclick="pmProcessPayouts()" id="pmBtnProcess"><i data-lucide="send" style="width:14px;height:14px"></i> Process Payouts</button>
+              </h3>
+              <div class="pm-table-wrap">
+                <table class="pm-table">
+                  <thead><tr><th>Wallet</th><th>Amount (RVN)</th><th>Status</th></tr></thead>
+                  <tbody id="pmPayoutsBody"><tr><td colspan="3" class="pm-empty">Loading payouts…</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="pm-card">
+              <h3 class="pm-card-title"><span>Failed Payouts</span></h3>
+              <div class="pm-table-wrap">
+                <table class="pm-table">
+                  <thead><tr><th>ID</th><th>Wallet</th><th>Amount (RVN)</th><th>Error</th><th>Action</th></tr></thead>
+                  <tbody id="pmFailedBody"><tr><td colspan="5" class="pm-empty">Loading…</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div style="height: 6px !important; background: #22c55e !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- CONVERSIONS -->
   <div class="pm-panel" id="pm-panel-conversions">
-    <div class="pm-card">
-      <h3 class="pm-card-title">
-        <span>RVN Conversion Status</span>
-        <button class="pm-btn pm-btn-warn" onclick="pmProcessConversions()"><i data-lucide="arrow-right-left" style="width:14px;height:14px"></i> Process Conversions</button>
-      </h3>
-      <div class="pm-table-wrap">
-        <table class="pm-table">
-          <thead><tr><th>ID</th><th>Wallet</th><th>RVN Amount</th><th>Target</th><th>Rate</th><th>Status</th></tr></thead>
-          <tbody id="pmConvBody"><tr><td colspan="6" class="pm-empty">Loading conversions…</td></tr></tbody>
-        </table>
+    <div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+      <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+          <div style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+          <div style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+          <div style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+          <div style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">CONVERSIONS</span>
+            <div style="flex:1"></div>
+            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+              <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+              <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+              <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            </div>
+          </div>
+          <div style="flex: 1 !important; padding: 16px !important;">
+            <div class="pm-card">
+              <h3 class="pm-card-title">
+                <span>RVN Conversion Status</span>
+                <button class="pm-btn pm-btn-warn" onclick="pmProcessConversions()"><i data-lucide="arrow-right-left" style="width:14px;height:14px"></i> Process Conversions</button>
+              </h3>
+              <div class="pm-table-wrap">
+                <table class="pm-table">
+                  <thead><tr><th>ID</th><th>Wallet</th><th>RVN Amount</th><th>Target</th><th>Rate</th><th>Status</th></tr></thead>
+                  <tbody id="pmConvBody"><tr><td colspan="6" class="pm-empty">Loading conversions…</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div style="height: 6px !important; background: #8b5cf6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- SETTINGS -->
   <div class="pm-panel" id="pm-panel-settings">
-    <div class="pm-card">
-      <h3 class="pm-card-title">
-        <span>Pool Settings</span>
-        <button class="pm-btn pm-btn-green" onclick="pmSaveSettings()"><i data-lucide="save" style="width:14px;height:14px"></i> Save Settings</button>
-      </h3>
-      <div class="pm-form-grid">
-        <div class="pm-field"><label>Min Payout (RVN)</label><input class="pm-input" id="pmSetMinPay" type="number" step="0.1" /></div>
-        <div class="pm-field"><label>Pool Fee (%)</label><input class="pm-input" id="pmSetFee" type="number" step="0.1" /></div>
-        <div class="pm-field"><label>Conversion Fee (%)</label><input class="pm-input" id="pmSetConvFee" type="number" step="0.1" /></div>
-        <div class="pm-field"><label>Payout Interval (hours)</label><input class="pm-input" id="pmSetPayInt" type="number" /></div>
-        <div class="pm-field"><label>PPLNS Window (blocks)</label><input class="pm-input" id="pmSetPplns" type="number" /></div>
-        <div class="pm-field"><label>Block Confirmations</label><input class="pm-input" id="pmSetConfs" type="number" /></div>
+    <div style="--frame-color: #f97316; --frame-rgb: 249,115,22; margin-bottom: 20px;">
+      <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+          <div style="height: 52px !important; background: #f97316 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f97316 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ea580c !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+          <div style="flex: 1 !important; background: rgba(249,115,22,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+          <div style="height: 36px !important; background: #f97316 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+          <div style="height: 44px !important; background: #f97316 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">POOL SETTINGS</span>
+            <div style="flex:1"></div>
+            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+              <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+              <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+              <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            </div>
+          </div>
+          <div style="flex: 1 !important; padding: 16px !important;">
+            <div class="pm-card">
+              <h3 class="pm-card-title">
+                <span>Pool Settings</span>
+                <button class="pm-btn pm-btn-green" onclick="pmSaveSettings()"><i data-lucide="save" style="width:14px;height:14px"></i> Save Settings</button>
+              </h3>
+              <div class="pm-form-grid">
+                <div class="pm-field"><label>Min Payout (RVN)</label><input class="pm-input" id="pmSetMinPay" type="number" step="0.1" /></div>
+                <div class="pm-field"><label>Pool Fee (%)</label><input class="pm-input" id="pmSetFee" type="number" step="0.1" /></div>
+                <div class="pm-field"><label>Conversion Fee (%)</label><input class="pm-input" id="pmSetConvFee" type="number" step="0.1" /></div>
+                <div class="pm-field"><label>Payout Interval (hours)</label><input class="pm-input" id="pmSetPayInt" type="number" /></div>
+                <div class="pm-field"><label>PPLNS Window (blocks)</label><input class="pm-input" id="pmSetPplns" type="number" /></div>
+                <div class="pm-field"><label>Block Confirmations</label><input class="pm-input" id="pmSetConfs" type="number" /></div>
+              </div>
+              <div id="pmSettingsMsg" style="margin-top:12px;font-family:'JetBrains Mono',monospace;font-size:0.78rem;display:none"></div>
+            </div>
+          </div>
+          <div style="height: 6px !important; background: #f97316 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
       </div>
-      <div id="pmSettingsMsg" style="margin-top:12px;font-family:'JetBrains Mono',monospace;font-size:0.78rem;display:none"></div>
     </div>
   </div>
 
   <!-- SERVICES -->
   <div class="pm-panel" id="pm-panel-services">
-    <div class="pm-card">
-      <h3 class="pm-card-title">
-        <span>Service Status</span>
-        <button class="pm-btn pm-btn-sm" onclick="pmLoadServices()"><i data-lucide="refresh-cw" style="width:13px;height:13px"></i> Refresh</button>
-      </h3>
-      <div class="pm-services-grid" id="pmServicesGrid">
-        <div class="pm-empty">Loading services…</div>
+    <div style="--frame-color: #14b8a6; --frame-rgb: 20,184,166; margin-bottom: 20px;">
+      <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+          <div style="height: 52px !important; background: #14b8a6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #14b8a6 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #0d9488 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+          <div style="flex: 1 !important; background: rgba(20,184,166,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+          <div style="height: 36px !important; background: #14b8a6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+          <div style="height: 44px !important; background: #14b8a6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SERVICE STATUS</span>
+            <div style="flex:1"></div>
+            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+              <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+              <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+              <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            </div>
+          </div>
+          <div style="flex: 1 !important; padding: 16px !important;">
+            <div class="pm-card">
+              <h3 class="pm-card-title">
+                <span>Service Status</span>
+                <button class="pm-btn pm-btn-sm" onclick="pmLoadServices()"><i data-lucide="refresh-cw" style="width:13px;height:13px"></i> Refresh</button>
+              </h3>
+              <div class="pm-services-grid" id="pmServicesGrid">
+                <div class="pm-empty">Loading services…</div>
+              </div>
+            </div>
+          </div>
+          <div style="height: 6px !important; background: #14b8a6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -268,6 +467,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script>
 (function () {
   'use strict';
@@ -318,6 +518,8 @@
     if (name === 'settings')    pmLoadSettings();
     if (name === 'services')    pmLoadServices();
   };
+
+  window.onLcarsTabSwitch = function(tabId) { pmSetTab(tabId); };
 
   // DASHBOARD
   function pmLoadDashboard() {

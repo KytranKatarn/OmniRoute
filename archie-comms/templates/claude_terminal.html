@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Terminal — Kytran Empowerment Inc.</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --accent:#a78bfa; --accent-dim:rgba(167,139,250,0.15); --bg:#0a0a1a; --panel:#111827; --border:#1f2937; --text:#e0e0e0; --muted:#9ca3af; --green:#60dd60; }
+        *{margin:0;padding:0;box-sizing:border-box;}
+        html,body{height:100%;overflow:hidden;}
+        body{background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;}
+        .terminal-header{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--border);height:44px;}
+        .terminal-brand{display:flex;align-items:center;gap:10px;}
+        .terminal-title{font-family:'Orbitron',sans-serif;font-size:0.75rem;color:var(--accent);letter-spacing:2px;}
+        .terminal-status{display:flex;align-items:center;gap:6px;font-size:0.68rem;color:var(--green);}
+        .terminal-status .dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s infinite;}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+        .terminal-actions{display:flex;gap:8px;}
+        .terminal-btn{padding:5px 14px;background:var(--accent-dim);border:1px solid rgba(167,139,250,0.3);border-radius:4px;color:var(--accent);font-size:0.7rem;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-decoration:none;transition:all 0.2s;}
+        .terminal-btn:hover{background:rgba(167,139,250,0.25);}
+        .terminal-btn.muted{color:var(--muted);border-color:var(--border);}
+        .terminal-frame{height:calc(100vh - 44px);width:100%;border:none;background:#1a1a2e;}
+    </style>
+</head>
+<body>
+    <div class="terminal-header">
+        <div class="terminal-brand">
+            <span class="terminal-title">CLAUDE TERMINAL</span>
+            <div class="terminal-status">
+                <span class="dot"></span>
+                <span>Connected</span>
+            </div>
+        </div>
+        <div class="terminal-actions">
+            <button class="terminal-btn" onclick="document.getElementById('tty').src=document.getElementById('tty').src">Reconnect</button>
+            <a href="https://archie.kytranempowerment.com/chat" class="terminal-btn">A.R.C.H.I.E. Chat</a>
+            <a href="/claude" class="terminal-btn muted">Back</a>
+        </div>
+    </div>
+    <div class="terminal-frame" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;">
+        <div style="text-align:center;max-width:500px;">
+            <div style="font-size:2.5rem;margin-bottom:12px;">&#128433;</div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:0.85rem;color:#a78bfa;letter-spacing:2px;margin-bottom:8px;">CLAUDE CLI TERMINAL</div>
+            <p style="color:#9ca3af;font-size:0.8rem;line-height:1.6;margin-bottom:24px;">
+                Persistent tmux session with Claude Code. Your session survives browser disconnects.
+            </p>
+            <a href="http://192.168.1.200:7681" target="_blank"
+               style="display:inline-flex;align-items:center;gap:10px;padding:14px 36px;background:#a78bfa;color:#000;text-decoration:none;font-weight:700;font-size:0.9rem;border-radius:6px;box-shadow:0 4px 25px rgba(167,139,250,0.3);transition:transform 0.2s;">
+                Launch Terminal
+            </a>
+            <p style="color:#4b5563;font-size:0.68rem;margin-top:16px;">Opens in a new window at 192.168.1.200:7681 (local network)</p>
+        </div>
+    </div>
+</body>
+</html>

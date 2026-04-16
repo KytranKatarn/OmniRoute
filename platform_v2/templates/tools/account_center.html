@@ -5,6 +5,7 @@
 {% block module_name %}account-center{% endblock %}
 
 {% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="/static/css/lcars-panels.css">
 <link rel="stylesheet" href="/static/css/lcars-frames.css">
 <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -14,51 +15,54 @@
 
 {% block content %}
 <div class="account-center-container" data-module="account-center">
-    {% set cat_accent = '#f97316' %}
-    {% set cat_accent_rgb = '249,115,22' %}
-    {% set cat_accent_light = '#ea580c' %}
+    {# LCARS Header — Admin Tools #}
+    {% set cat_accent = '#ef4444' %}
+    {% set cat_accent_rgb = '239,68,68' %}
+    {% set cat_accent_dark = '#dc2626' %}
     {% set cat_label = 'ADMIN TOOLS' %}
-    {% set cat_icon = 'settings-2' %}
-    {% set cat_modules = [
-        {'url': url_for('account_center.index'), 'endpoint_prefix': 'account_center', 'icon': 'user', 'label': 'Accounts', 'title': 'Account Center'},
-        {'url': 'https://server.kytranempowerment.com', 'endpoint_prefix': 'kso_external', 'icon': 'server', 'label': 'System Ops', 'title': 'Kytran System Operations'},
-        {'url': url_for('backup_manager.index'), 'endpoint_prefix': 'backup_manager', 'icon': 'hard-drive', 'label': 'Backups', 'title': 'Backup Manager'},
-        {'url': url_for('security_network.index'), 'endpoint_prefix': 'security_network', 'icon': 'shield', 'label': 'Security', 'title': 'Security & Network'}
+    {% set module_title = 'ACCOUNT CENTER' %}
+    {% set header_shortcuts = [
+        ("Accounts", "user", "/tools/account-center"),
+        ("System Ops", "server", "https://server.kytranempowerment.com"),
+        ("Backups", "hard-drive", "/tools/backup-manager"),
+        ("Security", "shield", "/tools/security-network")
     ] %}
-    {% include 'includes/category_nav.html' %}
+    {% set header_tabs = [
+        ("list", "Users", "users"),
+        ("pending", "Pending", "clock"),
+        ("permissions", "Permissions", "lock"),
+        ("subscriptions", "Subscriptions", "credit-card"),
+        ("security", "Security", "shield"),
+        ("sessions", "Sessions", "monitor"),
+        ("api-keys", "API Keys", "key"),
+        ("bulk", "Bulk Ops", "layers"),
+        ("activity", "Activity", "activity"),
+        ("organizations", "Orgs", "building-2")
+    ] %}
+    {% include 'includes/lcars-header.html' %}
 
     <div class="account-center-content">
-        <div class="lcars-frame">
-            <!-- LEFT SIDEBAR -->
-            <div class="lcars-sidebar">
-                <div class="lcars-elbow-top"></div>
-                <div class="lcars-seg" style="--seg-color: #ff6b6b"></div>
-                <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
-                <div class="lcars-seg" style="--seg-color: #ff6b6b"></div>
-                <div class="lcars-seg" style="--seg-color: #ef4444"></div>
-                <div class="lcars-seg-fill"></div>
-                <div class="lcars-elbow-bottom"></div>
-            </div>
-
-            <!-- RIGHT CONTENT -->
-            <div class="lcars-content">
-                <div class="lcars-bar">
-                    <span class="lcars-bar-title" data-i18n="account_center.account_center">ACCOUNT CENTER</span>
-                    <div class="lcars-bar-spacer"></div>
-                    <div class="lcars-pips">
-                        <span class="lcars-pip" style="width:20px"></span>
-                        <span class="lcars-pip" style="width:35px"></span>
-                        <span class="lcars-pip" style="width:14px"></span>
-                    </div>
-                    <span class="lcars-bar-status">ADMIN OPS</span>
-                </div>
-
-                <div class="lcars-body">
             <!-- Stats Overview -->
-            <div class="lcars-section-label" style="margin-top: 0;">
-                <div class="lcars-section-cap" style="--lcars-accent-rgb: 255, 107, 107;"></div>
-                <div class="lcars-section-title" style="--lcars-accent-rgb: 255, 107, 107;">SYSTEM METRICS</div>
-            </div>
+            <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SYSTEM METRICS</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.total_users">TOTAL USERS</span></div>
@@ -97,23 +101,35 @@
                     <div class="stat-value" id="stat-pending" style="color: rgb(255, 193, 7);">{{ stats.pending_approval }}</div>
                 </div>
             </div>
-
-            <!-- Tabs -->
-            <div class="tab-nav" style="margin-bottom: var(--archie-space-4);">
-                <button class="tab-btn active" data-tab="list"><span data-i18n="account_center.users">USERS</span></button>
-                <button class="tab-btn" data-tab="pending" id="pending-tab-btn" style="{% if stats.pending_approval == 0 %}display: none;{% endif %}"><span data-i18n="account_center.pending">PENDING</span> <span class="badge badge-warning" id="pending-tab-badge" style="margin-left: 4px; font-size: 0.7em;">{{ stats.pending_approval }}</span></button>
-                <button class="tab-btn" data-tab="permissions"><span data-i18n="account_center.permissions">PERMISSIONS</span></button>
-                <button class="tab-btn" data-tab="subscriptions"><span data-i18n="account_center.subscriptions">SUBSCRIPTIONS</span></button>
-                <button class="tab-btn" data-tab="security"><span data-i18n="account_center.security">SECURITY</span></button>
-                <button class="tab-btn" data-tab="sessions"><span data-i18n="account_center.sessions_2">SESSIONS</span></button>
-                <button class="tab-btn" data-tab="api-keys"><span data-i18n="account_center.api_keys_2">API KEYS</span></button>
-                <button class="tab-btn" data-tab="bulk"><span data-i18n="account_center.bulk_ops">BULK OPS</span></button>
-                <button class="tab-btn" data-tab="activity"><span data-i18n="account_center.activity">ACTIVITY</span></button>
-                <button class="tab-btn" data-tab="organizations"><span data-i18n="account_center.orgs_2">ORGS</span></button>
+                        </div>
+                        <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
             </div>
+
 
             <!-- LIST Tab -->
             <div class="tab-content active" id="tab-list">
+<div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #3b82f6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #2563eb !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #3b82f6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #3b82f6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">USER MANAGEMENT</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
                 <div class="lcars-section-label">
                     <div class="lcars-section-cap"></div>
                     <div class="lcars-section-title">USER DIRECTORY</div>
@@ -184,10 +200,36 @@
                         <button class="btn btn-sm" onclick="changePage(1)" id="next-page-btn" disabled><span data-i18n="account_center.next">Next</span></button>
                     </div>
                 </div>
+                        </div>
+                        <div style="height: 6px !important; background: #3b82f6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
+
             </div>
 
             <!-- PENDING APPROVAL Tab -->
             <div class="tab-content" id="tab-pending">
+<div style="--frame-color: #f59e0b; --frame-rgb: 245,158,11; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">PENDING APPROVAL</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
                 <div class="lcars-section-label">
                     <div class="lcars-section-cap"></div>
                     <div class="lcars-section-title">PENDING USER APPROVALS</div>
@@ -220,10 +262,36 @@
                     <p style="font-size: var(--archie-text-lg);">No pending registrations</p>
                     <p>All user signups have been reviewed.</p>
                 </div>
+                        </div>
+                        <div style="height: 6px !important; background: #f59e0b !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
+
             </div>
 
             <!-- PERMISSIONS Tab -->
             <div class="tab-content" id="tab-permissions">
+<div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">ACCESS CONTROL MATRIX</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
                 <div class="lcars-section-label">
                     <div class="lcars-section-cap"></div>
                     <div class="lcars-section-title">ACCESS CONTROL MATRIX</div>
@@ -263,10 +331,36 @@
                         </div>
                     </div>
                 </div>
+                        </div>
+                        <div style="height: 6px !important; background: #8b5cf6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
+
             </div>
 
             <!-- SUBSCRIPTIONS Tab -->
             <div class="tab-content" id="tab-subscriptions">
+<div style="--frame-color: #22c55e; --frame-rgb: 34,197,94; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #22c55e !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22c55e !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #16a34a !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(34,197,94,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #22c55e !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #22c55e !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SUBSCRIPTION TIERS</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
                 <div class="lcars-section-label">
                     <div class="lcars-section-cap"></div>
                     <div class="lcars-section-title">SUBSCRIPTION TIERS</div>
@@ -329,10 +423,36 @@
                         </div>
                     </div>
                 </div>
+                        </div>
+                        <div style="height: 6px !important; background: #22c55e !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
+
             </div>
 
             <!-- SECURITY Tab -->
             <div class="tab-content" id="tab-security">
+<div style="--frame-color: #ec4899; --frame-rgb: 236,72,153; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #ec4899 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ec4899 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #db2777 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(236,72,153,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #ec4899 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #ec4899 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SECURITY SETTINGS</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
                 <div class="lcars-section-label">
                     <div class="lcars-section-cap" style="--lcars-accent-rgb: 239, 68, 68;"></div>
                     <div class="lcars-section-title" style="--lcars-accent-rgb: 239, 68, 68;">SECURITY OVERVIEW</div>
@@ -496,10 +616,36 @@
                         </div>
                     </div>
                 </div>
+                        </div>
+                        <div style="height: 6px !important; background: #ec4899 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
+
             </div>
 
             <!-- SESSIONS Tab -->
             <div class="tab-content" id="tab-sessions">
+<div style="--frame-color: #14b8a6; --frame-rgb: 20,184,166; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #14b8a6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #14b8a6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #0d9488 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(20,184,166,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #14b8a6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #14b8a6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">ACTIVE SESSIONS</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
                 <div class="lcars-section-label">
                     <div class="lcars-section-cap" style="--lcars-accent-rgb: 0, 255, 65;"></div>
                     <div class="lcars-section-title" style="--lcars-accent-rgb: 0, 255, 65;"><span class="sessions-live-dot"></span>ACTIVE SESSIONS</div>
@@ -565,10 +711,36 @@
                         </div>
                     </div>
                 </div>
+                        </div>
+                        <div style="height: 6px !important; background: #14b8a6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
+
             </div>
 
             <!-- API KEYS Tab -->
             <div class="tab-content" id="tab-api-keys">
+<div style="--frame-color: #f97316; --frame-rgb: 249,115,22; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #f97316 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f97316 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ea580c !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(249,115,22,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #f97316 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #f97316 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">API KEY MANAGEMENT</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
                 <div class="lcars-section-label">
                     <div class="lcars-section-cap" style="--lcars-accent-rgb: 139, 92, 246;"></div>
                     <div class="lcars-section-title" style="--lcars-accent-rgb: 139, 92, 246;">API KEY MANAGEMENT</div>
@@ -633,10 +805,36 @@
                         </div>
                     </div>
                 </div>
+                        </div>
+                        <div style="height: 6px !important; background: #f97316 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
+
             </div>
 
             <!-- BULK OPS Tab -->
             <div class="tab-content" id="tab-bulk">
+<div style="--frame-color: #f59e0b; --frame-rgb: 245,158,11; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">BULK OPERATIONS</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
                 <div class="lcars-section-label">
                     <div class="lcars-section-cap"></div>
                     <div class="lcars-section-title">BULK OPERATIONS</div>
@@ -752,10 +950,36 @@
                         </div>
                     </div>
                 </div>
+                        </div>
+                        <div style="height: 6px !important; background: #f59e0b !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
+
             </div>
 
             <!-- ACTIVITY Tab -->
             <div class="tab-content" id="tab-activity">
+<div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #3b82f6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #2563eb !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #3b82f6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #3b82f6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">ACTIVITY LOG</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
                 <div class="lcars-section-label">
                     <div class="lcars-section-cap"></div>
                     <div class="lcars-section-title">ACTIVITY LOG</div>
@@ -832,10 +1056,36 @@
                         </div>
                     </div>
                 </div>
+                        </div>
+                        <div style="height: 6px !important; background: #3b82f6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
+
             </div>
 
             <!-- ORGANIZATIONS Tab (SaaS Manager) -->
             <div class="tab-content" id="tab-organizations">
+<div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                        <div style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">ORGANIZATIONS</span>
+                            <div style="flex:1"></div>
+                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div style="flex: 1 !important; padding: 16px !important;">
                 <div class="lcars-section-label">
                     <div class="lcars-section-cap"></div>
                     <div class="lcars-section-title">ORGANIZATION MANAGEMENT</div>
@@ -1007,12 +1257,13 @@
                         </div>
                     </div>
                 </div>
+                        </div>
+                        <div style="height: 6px !important; background: #8b5cf6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
             </div>
-                </div><!-- /lcars-body -->
 
-                <div class="lcars-footer-bar"></div>
-            </div><!-- /lcars-content -->
-        </div><!-- /lcars-frame -->
+            </div>
     </div><!-- /account-center-content -->
 </div><!-- /account-center-container -->
 
@@ -1323,6 +1574,7 @@
     </div>
 </div>
 
+<script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script>
 // Global state
 let users = [];
@@ -1384,35 +1636,35 @@ function updateRefreshRing() {
 }
 
 // Tab switching
-document.querySelectorAll('.tab-btn').forEach(tab => {
-    tab.addEventListener('click', () => {
-        document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        tab.classList.add('active');
-        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+function switchAccountTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    var panel = document.getElementById('tab-' + tabId);
+    if (panel) panel.classList.add('active');
 
-        // Stop auto-refresh when leaving tabs
-        stopSessionsAutoRefresh();
-        stopActivityAutoRefresh();
+    // Stop auto-refresh when leaving tabs
+    stopSessionsAutoRefresh();
+    stopActivityAutoRefresh();
 
-        if (tab.dataset.tab === 'pending') loadPendingUsers();
-        if (tab.dataset.tab === 'permissions') loadPermissions();
-        if (tab.dataset.tab === 'subscriptions') loadTiers();
-        if (tab.dataset.tab === 'security') loadSecurityData();
-        if (tab.dataset.tab === 'sessions') { loadSessions(); startSessionsAutoRefresh(); }
-        if (tab.dataset.tab === 'api-keys') loadApiKeys();
-        if (tab.dataset.tab === 'activity') { loadActivity(); startActivityAutoRefresh(); }
-        if (tab.dataset.tab === 'organizations') saasLoadOrgs();
-    });
-});
+    if (tabId === 'pending') loadPendingUsers();
+    if (tabId === 'permissions') loadPermissions();
+    if (tabId === 'subscriptions') loadTiers();
+    if (tabId === 'security') loadSecurityData();
+    if (tabId === 'sessions') { loadSessions(); startSessionsAutoRefresh(); }
+    if (tabId === 'api-keys') loadApiKeys();
+    if (tabId === 'activity') { loadActivity(); startActivityAutoRefresh(); }
+    if (tabId === 'organizations') saasLoadOrgs();
+}
+
+// Bridge LCARS header tabs → module tab switching
+window.onLcarsTabSwitch = function(tabId) { switchAccountTab(tabId); };
 
 document.addEventListener('DOMContentLoaded', () => {
     // Deep-link support: ?tab=organizations
     const params = new URLSearchParams(window.location.search);
     const startTab = params.get('tab');
     if (startTab) {
-        const btn = document.querySelector('[data-tab="' + startTab + '"]');
-        if (btn) btn.click();
+        switchAccountTab(startTab);
+        if (window.lcarsHeaderSwitchTab) lcarsHeaderSwitchTab(startTab);
     }
 
     loadUsers();

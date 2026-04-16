@@ -239,6 +239,9 @@ function initTabs() {
             switchSecurityTab(btn.dataset.tab);
         });
     });
+
+    // Bridge LCARS header tabs → module switchSecurityTab
+    window.onLcarsTabSwitch = function(tabId) { switchSecurityTab(tabId); };
 }
 
 function initSubtabs() {

@@ -48,9 +48,9 @@ def _fetch_platform_features():
         "ai_command": "AI Command",
         "saas_services": "SaaS Services",
         "project_knowledge": "Project & Knowledge",
-        "media_home": "Media & Home",
+        "applications_concepts": "Applications & Concepts",
         "crypto": "Crypto",
-        "applications": "Applications",
+        "media_outreach": "Media Outreach",
         "creative_studios": "Creative Studios",
         "placeholders_future": "Coming Soon",
     }

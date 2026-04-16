@@ -4,6 +4,7 @@
 {% block module_name %}archie_pool{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <style>
 :root {
   --ap-accent: #ffaa00;
@@ -16,7 +17,7 @@
   --ap-green: #44ff88;
   --ap-red: #ff4444;
 }
-.ap-container { max-width: 1400px; margin: 0 auto; padding: 80px 24px 40px; }
+.ap-container { max-width: 1400px; margin: 0 auto; padding: 20px 24px 40px; }
 .ap-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
 .ap-title { font-family: 'Orbitron', sans-serif; font-size: 1.8rem; font-weight: 700; color: var(--ap-accent); letter-spacing: 0.12em; display: flex; align-items: center; gap: 10px; margin: 0; }
 .ap-subtitle { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--ap-muted); margin: 4px 0 0; }
@@ -75,7 +76,7 @@
 .ap-err { color: var(--ap-red); font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
 .ap-pre { background: rgba(0,0,0,0.4); border: 1px solid var(--ap-border); border-radius: 4px; padding: 14px; font-family: 'JetBrains Mono', monospace; font-size: 0.77rem; color: var(--ap-text); overflow-x: auto; white-space: pre; }
 @media (max-width: 768px) {
-  .ap-container { padding: 76px 14px 30px; }
+  .ap-container { padding: 20px 14px 30px; }
   .ap-stats { grid-template-columns: repeat(2, 1fr); }
   .ap-calc-grid { grid-template-columns: 1fr; }
   .ap-title { font-size: 1.3rem; }
@@ -84,19 +85,24 @@
 {% endblock %}
 
 {% block content %}
-{% set cat_accent = '#EF4444' %}
-{% set cat_accent_rgb = '239,68,68' %}
-{% set cat_accent_light = '#dc2626' %}
-{% set cat_label = 'APPS' %}
-{% set cat_icon = 'heart-pulse' %}
-{% set cat_modules = [
-    {'url': url_for('doc.index'), 'endpoint_prefix': 'doc', 'icon': 'stethoscope', 'label': 'DOC', 'title': 'DOC'},
-    {'url': url_for('therapy.index'), 'endpoint_prefix': 'therapy', 'icon': 'flower-2', 'label': 'Therapy', 'title': 'Therapy'},
-    {'url': url_for('fitness.index'), 'endpoint_prefix': 'fitness', 'icon': 'dumbbell', 'label': 'Fitness', 'title': 'Fitness'},
-    {'url': url_for('archie_pool.index'), 'endpoint_prefix': 'archie_pool', 'icon': 'pickaxe', 'label': 'Pool', 'title': 'Archie Pool'},
-    {'url': url_for('media_hub.index'), 'endpoint_prefix': 'media_hub', 'icon': 'tv-2', 'label': 'Media', 'title': 'Media Hub'}
+{# LCARS Header — Crypto #}
+{% set cat_accent = '#eab308' %}
+{% set cat_accent_rgb = '234,179,8' %}
+{% set cat_accent_dark = '#ca8a04' %}
+{% set cat_label = 'CRYPTO' %}
+{% set module_title = 'ARCHIE POOL' %}
+{% set header_shortcuts = [
+    ("Pool", "pickaxe", "/tools/archie-pool"),
+    ("Management", "settings", "/tools/pool-management")
 ] %}
-{% include 'includes/category_nav.html' %}
+{% set header_tabs = [
+    ("dashboard", "Dashboard", "layout-dashboard"),
+    ("myminer", "My Miner", "cpu"),
+    ("blocks", "Blocks", "box"),
+    ("network", "Network", "network"),
+    ("guide", "Getting Started", "book-open")
+] %}
+{% include 'includes/lcars-header.html' %}
 
 <div class="ap-container">
 
@@ -111,96 +117,163 @@
     </div>
   </header>
 
-  <div class="ap-banner">
-    <div class="ap-banner-item">
-      <span class="ap-banner-label">STRATUM</span>
-      <code class="ap-banner-val" id="apStratum">stratum+tcp://pool.kytranempowerment.com:3333</code>
-      <button class="ap-copy-btn" onclick="apCopy(document.getElementById('apStratum').textContent)" title="Copy">
-        <i data-lucide="copy" style="width:14px;height:14px"></i>
-      </button>
+  <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+      <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+        <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+        <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+        <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+      </div>
+      <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+        <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+          <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">POOL OVERVIEW</span>
+          <div style="flex:1"></div>
+          <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+            <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+            <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+          </div>
+        </div>
+        <div style="flex: 1 !important; padding: 16px !important;">
+          <div class="ap-banner">
+            <div class="ap-banner-item">
+              <span class="ap-banner-label">STRATUM</span>
+              <code class="ap-banner-val" id="apStratum">stratum+tcp://pool.kytranempowerment.com:3333</code>
+              <button class="ap-copy-btn" onclick="apCopy(document.getElementById('apStratum').textContent)" title="Copy">
+                <i data-lucide="copy" style="width:14px;height:14px"></i>
+              </button>
+            </div>
+            <div class="ap-banner-item"><span class="ap-banner-label">ALGO</span><span class="ap-banner-val">KawPow</span></div>
+            <div class="ap-banner-item"><span class="ap-banner-label">FEE</span><span class="ap-banner-val" id="apBannerFee">1.0%</span></div>
+            <div class="ap-banner-item"><span class="ap-banner-label">MIN PAYOUT</span><span class="ap-banner-val" id="apBannerMinPay">10 RVN</span></div>
+          </div>
+          <section class="ap-stats">
+            <div class="ap-stat-card"><div class="ap-stat-label">Pool Hashrate</div><div class="ap-stat-value" id="apStatHash" style="font-size:1rem">—</div></div>
+            <div class="ap-stat-card"><div class="ap-stat-label">Miners Online</div><div class="ap-stat-value" id="apStatMiners">—</div></div>
+            <div class="ap-stat-card"><div class="ap-stat-label">Blocks Found</div><div class="ap-stat-value" id="apStatBlocks">—</div></div>
+            <div class="ap-stat-card"><div class="ap-stat-label">Last Block</div><div class="ap-stat-value" id="apStatLastBlock" style="font-size:0.78rem">—</div></div>
+            <div class="ap-stat-card"><div class="ap-stat-label">Net Difficulty</div><div class="ap-stat-value" id="apStatDiff" style="font-size:0.92rem">—</div></div>
+            <div class="ap-stat-card"><div class="ap-stat-label">Block Height</div><div class="ap-stat-value" id="apStatHeight" style="font-size:0.92rem">—</div></div>
+          </section>
+        </div>
+        <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+      </div>
     </div>
-    <div class="ap-banner-item"><span class="ap-banner-label">ALGO</span><span class="ap-banner-val">KawPow</span></div>
-    <div class="ap-banner-item"><span class="ap-banner-label">FEE</span><span class="ap-banner-val" id="apBannerFee">1.0%</span></div>
-    <div class="ap-banner-item"><span class="ap-banner-label">MIN PAYOUT</span><span class="ap-banner-val" id="apBannerMinPay">10 RVN</span></div>
   </div>
 
-  <section class="ap-stats">
-    <div class="ap-stat-card"><div class="ap-stat-label">Pool Hashrate</div><div class="ap-stat-value" id="apStatHash" style="font-size:1rem">—</div></div>
-    <div class="ap-stat-card"><div class="ap-stat-label">Miners Online</div><div class="ap-stat-value" id="apStatMiners">—</div></div>
-    <div class="ap-stat-card"><div class="ap-stat-label">Blocks Found</div><div class="ap-stat-value" id="apStatBlocks">—</div></div>
-    <div class="ap-stat-card"><div class="ap-stat-label">Last Block</div><div class="ap-stat-value" id="apStatLastBlock" style="font-size:0.78rem">—</div></div>
-    <div class="ap-stat-card"><div class="ap-stat-label">Net Difficulty</div><div class="ap-stat-value" id="apStatDiff" style="font-size:0.92rem">—</div></div>
-    <div class="ap-stat-card"><div class="ap-stat-label">Block Height</div><div class="ap-stat-value" id="apStatHeight" style="font-size:0.92rem">—</div></div>
-  </section>
-
-  <nav class="ap-tabs">
-    <button class="ap-tab active" onclick="apSetTab('dashboard')">Dashboard</button>
-    <button class="ap-tab" onclick="apSetTab('myminer')">My Miner</button>
-    <button class="ap-tab" onclick="apSetTab('blocks')">Blocks</button>
-    <button class="ap-tab" onclick="apSetTab('network')">Network</button>
-    <button class="ap-tab" onclick="apSetTab('guide')">Getting Started</button>
-  </nav>
 
   <!-- DASHBOARD -->
   <div class="ap-panel active" id="ap-panel-dashboard">
-    <div class="ap-card">
-      <h3 class="ap-card-title">Pool Statistics</h3>
-      <div class="ap-stats" style="margin-bottom:0">
-        <div class="ap-stat-card"><div class="ap-stat-label">Workers</div><div class="ap-stat-value" id="apDashWorkers">—</div></div>
-        <div class="ap-stat-card"><div class="ap-stat-label">Pool Fee</div><div class="ap-stat-value" id="apDashFee">—</div></div>
-        <div class="ap-stat-card"><div class="ap-stat-label">Payout Interval</div><div class="ap-stat-value" id="apDashInterval" style="font-size:0.82rem">—</div></div>
-      </div>
-    </div>
-    <div class="ap-card">
-      <h3 class="ap-card-title">Hashrate Trend</h3>
-      <div class="ap-chart-ph">[ Hashrate chart — live data ]</div>
-    </div>
-    <div class="ap-card">
-      <h3 class="ap-card-title">Network Overview</h3>
-      <div class="ap-stats" style="margin-bottom:0">
-        <div class="ap-stat-card"><div class="ap-stat-label">Net Hashrate</div><div class="ap-stat-value" id="apDashNetHash" style="font-size:0.9rem">—</div></div>
-        <div class="ap-stat-card"><div class="ap-stat-label">Avg Block Time</div><div class="ap-stat-value" id="apDashBlockTime" style="font-size:0.9rem">—</div></div>
-        <div class="ap-stat-card"><div class="ap-stat-label">Coin Price</div><div class="ap-stat-value" id="apDashPrice" style="font-size:0.9rem">—</div></div>
+    <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+      <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+          <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+          <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+          <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+          <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">POOL DASHBOARD</span>
+            <div style="flex:1"></div>
+            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+              <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+              <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+              <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            </div>
+          </div>
+          <div style="flex: 1 !important; padding: 16px !important;">
+            <div class="ap-card">
+              <h3 class="ap-card-title">Pool Statistics</h3>
+              <div class="ap-stats" style="margin-bottom:0">
+                <div class="ap-stat-card"><div class="ap-stat-label">Workers</div><div class="ap-stat-value" id="apDashWorkers">—</div></div>
+                <div class="ap-stat-card"><div class="ap-stat-label">Pool Fee</div><div class="ap-stat-value" id="apDashFee">—</div></div>
+                <div class="ap-stat-card"><div class="ap-stat-label">Payout Interval</div><div class="ap-stat-value" id="apDashInterval" style="font-size:0.82rem">—</div></div>
+              </div>
+            </div>
+            <div class="ap-card">
+              <h3 class="ap-card-title">Hashrate Trend</h3>
+              <div class="ap-chart-ph">[ Hashrate chart — live data ]</div>
+            </div>
+            <div class="ap-card">
+              <h3 class="ap-card-title">Network Overview</h3>
+              <div class="ap-stats" style="margin-bottom:0">
+                <div class="ap-stat-card"><div class="ap-stat-label">Net Hashrate</div><div class="ap-stat-value" id="apDashNetHash" style="font-size:0.9rem">—</div></div>
+                <div class="ap-stat-card"><div class="ap-stat-label">Avg Block Time</div><div class="ap-stat-value" id="apDashBlockTime" style="font-size:0.9rem">—</div></div>
+                <div class="ap-stat-card"><div class="ap-stat-label">Coin Price</div><div class="ap-stat-value" id="apDashPrice" style="font-size:0.9rem">—</div></div>
+              </div>
+            </div>
+          </div>
+          <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- MY MINER -->
   <div class="ap-panel" id="ap-panel-myminer">
-    <div class="ap-card">
-      <h3 class="ap-card-title">Miner Lookup</h3>
-      <div class="ap-lookup-form">
-        <input class="ap-input" id="apWalletIn" type="text" placeholder="Enter your RVN wallet address…" />
-        <button class="ap-btn" onclick="apLookupMiner()"><i data-lucide="search" style="width:15px;height:15px"></i> Look Up</button>
-      </div>
-      <div id="apMinerErr" class="ap-err" style="display:none;margin-top:10px"></div>
-    </div>
-    <div id="apMinerResults" style="display:none">
-      <div class="ap-card">
-        <h3 class="ap-card-title">Miner Stats</h3>
-        <div class="ap-stats" style="margin-bottom:0">
-          <div class="ap-stat-card"><div class="ap-stat-label">Hashrate</div><div class="ap-stat-value" id="apMHash" style="font-size:0.95rem">—</div></div>
-          <div class="ap-stat-card"><div class="ap-stat-label">Valid Shares</div><div class="ap-stat-value" id="apMShares">—</div></div>
-          <div class="ap-stat-card"><div class="ap-stat-label">Balance</div><div class="ap-stat-value" id="apMBalance">—</div><div class="ap-stat-sub">RVN</div></div>
-          <div class="ap-stat-card"><div class="ap-stat-label">Total Paid</div><div class="ap-stat-value" id="apMPaid">—</div><div class="ap-stat-sub">RVN</div></div>
+    <div style="--frame-color: #f59e0b; --frame-rgb: 245,158,11; margin-bottom: 20px;">
+      <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+          <div style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+          <div style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+          <div style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
         </div>
-      </div>
-      <div class="ap-card">
-        <h3 class="ap-card-title">Workers</h3>
-        <div class="ap-table-wrap">
-          <table class="ap-table">
-            <thead><tr><th>Worker</th><th>Hashrate</th><th>Shares</th><th>Last Seen</th></tr></thead>
-            <tbody id="apWorkersBody"><tr><td colspan="4" class="ap-empty">Loading…</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="ap-card">
-        <h3 class="ap-card-title">Payment History</h3>
-        <div class="ap-table-wrap">
-          <table class="ap-table">
-            <thead><tr><th>Amount (RVN)</th><th>TX Hash</th><th>Date</th></tr></thead>
-            <tbody id="apPayBody"><tr><td colspan="3" class="ap-empty">Loading…</td></tr></tbody>
-          </table>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+          <div style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">MY MINER</span>
+            <div style="flex:1"></div>
+            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+              <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+              <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+              <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            </div>
+          </div>
+          <div style="flex: 1 !important; padding: 16px !important;">
+            <div class="ap-card">
+              <h3 class="ap-card-title">Miner Lookup</h3>
+              <div class="ap-lookup-form">
+                <input class="ap-input" id="apWalletIn" type="text" placeholder="Enter your RVN wallet address…" />
+                <button class="ap-btn" onclick="apLookupMiner()"><i data-lucide="search" style="width:15px;height:15px"></i> Look Up</button>
+              </div>
+              <div id="apMinerErr" class="ap-err" style="display:none;margin-top:10px"></div>
+            </div>
+            <div id="apMinerResults" style="display:none">
+              <div class="ap-card">
+                <h3 class="ap-card-title">Miner Stats</h3>
+                <div class="ap-stats" style="margin-bottom:0">
+                  <div class="ap-stat-card"><div class="ap-stat-label">Hashrate</div><div class="ap-stat-value" id="apMHash" style="font-size:0.95rem">—</div></div>
+                  <div class="ap-stat-card"><div class="ap-stat-label">Valid Shares</div><div class="ap-stat-value" id="apMShares">—</div></div>
+                  <div class="ap-stat-card"><div class="ap-stat-label">Balance</div><div class="ap-stat-value" id="apMBalance">—</div><div class="ap-stat-sub">RVN</div></div>
+                  <div class="ap-stat-card"><div class="ap-stat-label">Total Paid</div><div class="ap-stat-value" id="apMPaid">—</div><div class="ap-stat-sub">RVN</div></div>
+                </div>
+              </div>
+              <div class="ap-card">
+                <h3 class="ap-card-title">Workers</h3>
+                <div class="ap-table-wrap">
+                  <table class="ap-table">
+                    <thead><tr><th>Worker</th><th>Hashrate</th><th>Shares</th><th>Last Seen</th></tr></thead>
+                    <tbody id="apWorkersBody"><tr><td colspan="4" class="ap-empty">Loading…</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="ap-card">
+                <h3 class="ap-card-title">Payment History</h3>
+                <div class="ap-table-wrap">
+                  <table class="ap-table">
+                    <thead><tr><th>Amount (RVN)</th><th>TX Hash</th><th>Date</th></tr></thead>
+                    <tbody id="apPayBody"><tr><td colspan="3" class="ap-empty">Loading…</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="height: 6px !important; background: #f59e0b !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
         </div>
       </div>
     </div>
@@ -208,76 +281,151 @@
 
   <!-- BLOCKS -->
   <div class="ap-panel" id="ap-panel-blocks">
-    <div class="ap-card">
-      <h3 class="ap-card-title">Recent Blocks</h3>
-      <div class="ap-table-wrap">
-        <table class="ap-table">
-          <thead><tr><th>Height</th><th>Hash</th><th>Reward (RVN)</th><th>Time</th><th>Finder</th></tr></thead>
-          <tbody id="apBlocksBody"><tr><td colspan="5" class="ap-empty">Loading blocks…</td></tr></tbody>
-        </table>
+    <div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
+      <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+          <div style="height: 52px !important; background: #3b82f6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #2563eb !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+          <div style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+          <div style="height: 36px !important; background: #3b82f6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+          <div style="height: 44px !important; background: #3b82f6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">BLOCK HISTORY</span>
+            <div style="flex:1"></div>
+            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+              <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+              <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+              <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            </div>
+          </div>
+          <div style="flex: 1 !important; padding: 16px !important;">
+            <div class="ap-card">
+              <h3 class="ap-card-title">Recent Blocks</h3>
+              <div class="ap-table-wrap">
+                <table class="ap-table">
+                  <thead><tr><th>Height</th><th>Hash</th><th>Reward (RVN)</th><th>Time</th><th>Finder</th></tr></thead>
+                  <tbody id="apBlocksBody"><tr><td colspan="5" class="ap-empty">Loading blocks…</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div style="height: 6px !important; background: #3b82f6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- NETWORK -->
   <div class="ap-panel" id="ap-panel-network">
-    <div class="ap-card">
-      <h3 class="ap-card-title">Network Statistics</h3>
-      <div class="ap-stats" style="margin-bottom:0">
-        <div class="ap-stat-card"><div class="ap-stat-label">Difficulty</div><div class="ap-stat-value" id="apNetDiff2" style="font-size:0.88rem">—</div></div>
-        <div class="ap-stat-card"><div class="ap-stat-label">Network Hashrate</div><div class="ap-stat-value" id="apNetHash2" style="font-size:0.88rem">—</div></div>
-        <div class="ap-stat-card"><div class="ap-stat-label">Block Time</div><div class="ap-stat-value" id="apNetBT">—</div></div>
-        <div class="ap-stat-card"><div class="ap-stat-label">Algorithm</div><div class="ap-stat-value" id="apNetAlgo" style="font-size:0.88rem">KawPow</div></div>
-      </div>
-    </div>
-    <div class="ap-card">
-      <h3 class="ap-card-title">Mining Calculator</h3>
-      <div class="ap-calc-grid">
-        <div class="ap-field"><label>Your Hashrate</label><input class="ap-input" id="apCalcHr" type="number" value="30" min="0" style="width:100%" /></div>
-        <div class="ap-field"><label>Unit</label>
-          <select class="ap-input" id="apCalcUnit" style="width:100%">
-            <option value="1">MH/s</option>
-            <option value="1000">GH/s</option>
-            <option value="1000000">TH/s</option>
-          </select>
+    <div style="--frame-color: #22c55e; --frame-rgb: 34,197,94; margin-bottom: 20px;">
+      <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+          <div style="height: 52px !important; background: #22c55e !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22c55e !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #16a34a !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+          <div style="flex: 1 !important; background: rgba(34,197,94,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+          <div style="height: 36px !important; background: #22c55e !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
         </div>
-      </div>
-      <button class="ap-btn" style="margin-top:12px" onclick="apCalculate()"><i data-lucide="calculator" style="width:15px;height:15px"></i> Calculate Earnings</button>
-      <div class="ap-result-grid" id="apCalcOut" style="display:none">
-        <div class="ap-result-card"><div class="ap-result-label">Daily</div><div class="ap-result-value" id="apCalcD">—</div></div>
-        <div class="ap-result-card"><div class="ap-result-label">Weekly</div><div class="ap-result-value" id="apCalcW">—</div></div>
-        <div class="ap-result-card"><div class="ap-result-label">Monthly</div><div class="ap-result-value" id="apCalcM">—</div></div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+          <div style="height: 44px !important; background: #22c55e !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">NETWORK STATUS</span>
+            <div style="flex:1"></div>
+            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+              <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+              <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+              <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            </div>
+          </div>
+          <div style="flex: 1 !important; padding: 16px !important;">
+            <div class="ap-card">
+              <h3 class="ap-card-title">Network Statistics</h3>
+              <div class="ap-stats" style="margin-bottom:0">
+                <div class="ap-stat-card"><div class="ap-stat-label">Difficulty</div><div class="ap-stat-value" id="apNetDiff2" style="font-size:0.88rem">—</div></div>
+                <div class="ap-stat-card"><div class="ap-stat-label">Network Hashrate</div><div class="ap-stat-value" id="apNetHash2" style="font-size:0.88rem">—</div></div>
+                <div class="ap-stat-card"><div class="ap-stat-label">Block Time</div><div class="ap-stat-value" id="apNetBT">—</div></div>
+                <div class="ap-stat-card"><div class="ap-stat-label">Algorithm</div><div class="ap-stat-value" id="apNetAlgo" style="font-size:0.88rem">KawPow</div></div>
+              </div>
+            </div>
+            <div class="ap-card">
+              <h3 class="ap-card-title">Mining Calculator</h3>
+              <div class="ap-calc-grid">
+                <div class="ap-field"><label>Your Hashrate</label><input class="ap-input" id="apCalcHr" type="number" value="30" min="0" style="width:100%" /></div>
+                <div class="ap-field"><label>Unit</label>
+                  <select class="ap-input" id="apCalcUnit" style="width:100%">
+                    <option value="1">MH/s</option>
+                    <option value="1000">GH/s</option>
+                    <option value="1000000">TH/s</option>
+                  </select>
+                </div>
+              </div>
+              <button class="ap-btn" style="margin-top:12px" onclick="apCalculate()"><i data-lucide="calculator" style="width:15px;height:15px"></i> Calculate Earnings</button>
+              <div class="ap-result-grid" id="apCalcOut" style="display:none">
+                <div class="ap-result-card"><div class="ap-result-label">Daily</div><div class="ap-result-value" id="apCalcD">—</div></div>
+                <div class="ap-result-card"><div class="ap-result-label">Weekly</div><div class="ap-result-value" id="apCalcW">—</div></div>
+                <div class="ap-result-card"><div class="ap-result-label">Monthly</div><div class="ap-result-value" id="apCalcM">—</div></div>
+              </div>
+            </div>
+          </div>
+          <div style="height: 6px !important; background: #22c55e !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- GETTING STARTED -->
   <div class="ap-panel" id="ap-panel-guide">
-    <div class="ap-card">
-      <h3 class="ap-card-title">Pool Connection Details</h3>
-      <div class="ap-info-grid">
-        <div class="ap-info-item"><div class="ap-info-label">Pool Address</div><div class="ap-info-value" id="apGuideAddr">pool.kytranempowerment.com</div></div>
-        <div class="ap-info-item"><div class="ap-info-label">Port</div><div class="ap-info-value" id="apGuidePort">3333</div></div>
-        <div class="ap-info-item"><div class="ap-info-label">Algorithm</div><div class="ap-info-value">KawPow</div></div>
-        <div class="ap-info-item"><div class="ap-info-label">Coin</div><div class="ap-info-value">Ravencoin (RVN)</div></div>
-      </div>
-    </div>
-    <div class="ap-card">
-      <h3 class="ap-card-title">Quick Start Guide</h3>
-      <ul class="ap-guide-steps">
-        <li><span class="ap-step-n">1</span><span>Download a KawPow-compatible miner such as T-Rex, NBMiner, or lolMiner.</span></li>
-        <li><span class="ap-step-n">2</span><span>Configure your miner with the stratum URL above and your RVN wallet as the username.</span></li>
-        <li><span class="ap-step-n">3</span><span>Append your worker name after a dot: <code style="color:var(--ap-accent)">WALLET.rig1</code></span></li>
-        <li><span class="ap-step-n">4</span><span>Start mining and check your stats in the My Miner tab.</span></li>
-        <li><span class="ap-step-n">5</span><span>Payouts are automatic once your balance reaches the minimum threshold.</span></li>
-      </ul>
-    </div>
-    <div class="ap-card">
-      <h3 class="ap-card-title">Example Config (T-Rex)</h3>
-      <pre class="ap-pre">t-rex -a kawpow \
+    <div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+      <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+          <div style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+          <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+          <div style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+          <div style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+          <div style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">GETTING STARTED</span>
+            <div style="flex:1"></div>
+            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+              <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+              <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+              <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            </div>
+          </div>
+          <div style="flex: 1 !important; padding: 16px !important;">
+            <div class="ap-card">
+              <h3 class="ap-card-title">Pool Connection Details</h3>
+              <div class="ap-info-grid">
+                <div class="ap-info-item"><div class="ap-info-label">Pool Address</div><div class="ap-info-value" id="apGuideAddr">pool.kytranempowerment.com</div></div>
+                <div class="ap-info-item"><div class="ap-info-label">Port</div><div class="ap-info-value" id="apGuidePort">3333</div></div>
+                <div class="ap-info-item"><div class="ap-info-label">Algorithm</div><div class="ap-info-value">KawPow</div></div>
+                <div class="ap-info-item"><div class="ap-info-label">Coin</div><div class="ap-info-value">Ravencoin (RVN)</div></div>
+              </div>
+            </div>
+            <div class="ap-card">
+              <h3 class="ap-card-title">Quick Start Guide</h3>
+              <ul class="ap-guide-steps">
+                <li><span class="ap-step-n">1</span><span>Download a KawPow-compatible miner such as T-Rex, NBMiner, or lolMiner.</span></li>
+                <li><span class="ap-step-n">2</span><span>Configure your miner with the stratum URL above and your RVN wallet as the username.</span></li>
+                <li><span class="ap-step-n">3</span><span>Append your worker name after a dot: <code style="color:var(--ap-accent)">WALLET.rig1</code></span></li>
+                <li><span class="ap-step-n">4</span><span>Start mining and check your stats in the My Miner tab.</span></li>
+                <li><span class="ap-step-n">5</span><span>Payouts are automatic once your balance reaches the minimum threshold.</span></li>
+              </ul>
+            </div>
+            <div class="ap-card">
+              <h3 class="ap-card-title">Example Config (T-Rex)</h3>
+              <pre class="ap-pre">t-rex -a kawpow \
   -o stratum+tcp://pool.kytranempowerment.com:3333 \
   -u YOUR_RVN_WALLET.worker1 \
   -p x</pre>
+            </div>
+          </div>
+          <div style="height: 6px !important; background: #8b5cf6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -285,6 +433,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script>
 (function () {
   'use strict';
@@ -312,6 +461,8 @@
     if (name === 'network') loadNetworkStats();
     if (name === 'guide')   loadGuide();
   };
+
+  window.onLcarsTabSwitch = function(tabId) { apSetTab(tabId); };
 
   function loadPoolStats() {
     fetch('/tools/archie-pool/api/pool/stats')

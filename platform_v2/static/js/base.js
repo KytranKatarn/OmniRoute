@@ -23,20 +23,26 @@ document.addEventListener('DOMContentLoaded', function() {
 // ═══════════════════════════════════════════════════════════════════════
 // GLOBAL PROFILE MODAL
 // ═══════════════════════════════════════════════════════════════════════
+var _profileJustOpened = false;
 window.toggleProfileModal = function() {
     var modal = document.getElementById('globalProfileModal');
     if (modal) {
-        modal.style.display = modal.style.display === 'none' ? '' : 'none';
+        var wasHidden = modal.classList.contains('archie-hidden');
+        modal.classList.toggle('archie-hidden');
+        if (wasHidden) {
+            _profileJustOpened = true;
+            setTimeout(function() { _profileJustOpened = false; }, 100);
+        }
     }
 };
 
 // Close on click outside
 document.addEventListener('click', function(e) {
+    if (_profileJustOpened) return;
     var modal = document.getElementById('globalProfileModal');
-    var btn = document.getElementById('globalProfileBtn');
-    if (modal && modal.style.display !== 'none' &&
-        btn && !modal.contains(e.target) && !btn.contains(e.target)) {
-        modal.style.display = 'none';
+    if (modal && !modal.classList.contains('archie-hidden') &&
+        !modal.contains(e.target)) {
+        modal.classList.add('archie-hidden');
     }
 });
 
@@ -44,6 +50,6 @@ document.addEventListener('click', function(e) {
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         var modal = document.getElementById('globalProfileModal');
-        if (modal) modal.style.display = 'none';
+        if (modal) modal.classList.add('archie-hidden');
     }
 });

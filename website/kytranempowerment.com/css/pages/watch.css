@@ -226,6 +226,174 @@
     transform: scale(1.04);
 }
 
+/* Stats Bar */
+.watch-stat {
+    text-align: center;
+}
+.watch-stat__value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: var(--watch-accent);
+}
+.watch-stat__label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+}
+
+/* Pricing Cards */
+.watch-pricing-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 2rem;
+    text-align: center;
+    backdrop-filter: blur(12px);
+    position: relative;
+    transition: border-color 0.3s, transform 0.3s;
+}
+.watch-pricing-card:hover {
+    border-color: var(--watch-accent);
+    transform: translateY(-4px);
+}
+.watch-pricing-card--featured {
+    border-color: var(--watch-accent);
+    box-shadow: 0 0 24px rgba(255,255,255,0.05);
+}
+.watch-pricing-card__badge {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--watch-accent);
+    color: #0a0a1a;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 3px 14px;
+    border-radius: 20px;
+    letter-spacing: 1px;
+}
+.watch-pricing-card__tier {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    color: var(--watch-accent);
+    letter-spacing: 2px;
+    margin-bottom: 0.5rem;
+}
+.watch-pricing-card__price {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+    font-weight: 900;
+    color: #fff;
+    margin-bottom: 0.3rem;
+}
+.watch-pricing-card__price span {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.5);
+    font-weight: 400;
+}
+.watch-pricing-card__desc {
+    font-family: 'IBM Plex Mono', monospace;
+    color: rgba(255,255,255,0.5);
+    font-size: 0.75rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.watch-pricing-card__list {
+    list-style: none;
+    text-align: left;
+    margin-bottom: 1.5rem;
+    padding: 0;
+}
+.watch-pricing-card__item {
+    font-family: 'IBM Plex Mono', monospace;
+    color: rgba(255,255,255,0.6);
+    font-size: 0.75rem;
+    padding: 4px 0 4px 20px;
+    position: relative;
+}
+.watch-pricing-card__item::before {
+    content: '\2713';
+    position: absolute;
+    left: 0;
+    color: var(--watch-accent);
+    font-weight: 700;
+}
+.watch-pricing-card__item--disabled {
+    opacity: 0.4;
+}
+.watch-pricing-card__item--disabled::before {
+    content: '\2717';
+    color: rgba(255,255,255,0.3);
+}
+.watch-pricing-card__cta {
+    display: inline-block;
+    padding: 10px 28px;
+    border: 1px solid var(--watch-accent);
+    border-radius: 999px;
+    color: var(--watch-accent);
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: all 0.3s;
+}
+.watch-pricing-card__cta:hover {
+    background: var(--watch-accent);
+    color: #0a0a1a;
+}
+.watch-pricing-card--featured .watch-pricing-card__cta {
+    background: var(--watch-accent);
+    color: #0a0a1a;
+}
+
+/* Coming Soon */
+.watch-coming__card {
+    background: rgba(255,255,255,0.04);
+    border: 1px dashed rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    opacity: 0.8;
+    transition: opacity 0.3s;
+}
+.watch-coming__card:hover {
+    opacity: 1;
+}
+.watch-coming__badge {
+    flex-shrink: 0;
+    padding: 3px 10px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--watch-accent);
+    border-radius: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--watch-accent);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.watch-coming__title {
+    font-family: 'Antonio', sans-serif;
+    color: #fff;
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+}
+.watch-coming__text {
+    font-family: 'IBM Plex Mono', monospace;
+    color: rgba(255,255,255,0.5);
+    font-size: 0.75rem;
+    line-height: 1.5;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .watch-features__grid {

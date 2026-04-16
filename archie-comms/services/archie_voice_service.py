@@ -41,7 +41,8 @@ _CATEGORY_SEVERITY = {
 
 
 def _get_system_prompt():
-    """Load voice system prompt from archie_personality table, with TTL cache."""
+    """Load voice system prompt from archie_personality table, enriched with
+    relationship context and personality traits. Cached with TTL."""
     now = time.time()
     if _prompt_cache["text"] and (now - _prompt_cache["loaded_at"]) < _PROMPT_TTL:
         return _prompt_cache["text"]
@@ -50,15 +51,75 @@ def _get_system_prompt():
         from database import get_db_cursor
 
         with get_db_cursor() as (conn, cur):
+            # Base voice prompt
             cur.execute("SELECT trait_value FROM archie_personality WHERE trait_name = 'voice_system_prompt'")
             row = cur.fetchone()
-            if row:
-                _prompt_cache["text"] = row["trait_value"] if isinstance(row, dict) else row[0]
-                _prompt_cache["loaded_at"] = now
-                return _prompt_cache["text"]
+            if not row:
+                return None
+            base_prompt = row["trait_value"] if isinstance(row, dict) else row[0]
+
+            # Enrich with relationship context (Kytran's preferred name, trust level)
+            enrichment = ""
+            cur.execute(
+                "SELECT preferred_name, trust_level, notes FROM archie_relationships WHERE user_id = 2 LIMIT 1"
+            )
+            rel = cur.fetchone()
+            if rel:
+                name = rel["preferred_name"] if isinstance(rel, dict) else rel[0]
+                notes = rel["notes"] if isinstance(rel, dict) else rel[2]
+                if name:
+                    enrichment += f"\nAddress the user as '{name}' when appropriate (not every message)."
+                if notes:
+                    enrichment += f"\nRelationship context: {notes}"
+
+            # Add personality traits for richer voice
+            cur.execute(
+                "SELECT trait_name, trait_value FROM archie_personality "
+                "WHERE trait_name IN ('humor_level', 'greeting_style', 'communication_style', 'formality')"
+            )
+            traits = cur.fetchall()
+            if traits:
+                trait_lines = []
+                for t in traits:
+                    tn = t["trait_name"] if isinstance(t, dict) else t[0]
+                    tv = t["trait_value"] if isinstance(t, dict) else t[1]
+                    trait_lines.append(f"- {tn}: {tv}")
+                if trait_lines:
+                    enrichment += "\n\nPersonality traits:\n" + "\n".join(trait_lines)
+
+            full_prompt = base_prompt + enrichment
+            _prompt_cache["text"] = full_prompt
+            _prompt_cache["loaded_at"] = now
+            return full_prompt
+
     except Exception as e:
         logger.warning("archie_voice: failed to load system prompt: %s", e)
 
+    return None
+
+
+def get_script_response(user_message):
+    """Check if user message matches any archie_scripts trigger pattern.
+    Returns the response template if matched, None otherwise.
+    Used by chat service for quick scripted responses (greetings, farewells).
+    """
+    try:
+        import re
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT trigger_pattern, response_template FROM archie_scripts "
+                "WHERE active = TRUE ORDER BY priority DESC"
+            )
+            scripts = cur.fetchall()
+            for script in scripts:
+                pattern = script["trigger_pattern"] if isinstance(script, dict) else script[0]
+                response = script["response_template"] if isinstance(script, dict) else script[1]
+                if pattern and re.search(pattern, user_message.strip(), re.IGNORECASE):
+                    return response
+    except Exception as e:
+        logger.warning("archie_voice: script lookup failed: %s", e)
     return None
 
 
@@ -153,7 +214,7 @@ def _call_ollama(system_prompt, user_prompt):
         headers={"Content-Type": "application/json"},
     )
 
-    with urllib.request.urlopen(req, timeout=60) as resp:
+    with urllib.request.urlopen(req, timeout=120) as resp:
         result = json.loads(resp.read())
         return result.get("response", "").strip() or None
 

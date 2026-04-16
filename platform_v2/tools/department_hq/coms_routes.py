@@ -307,3 +307,30 @@ def register_coms_routes(bp, admin_required):
             force=True,
         )
         return jsonify({"success": result.get("sent", False), "result": result})
+
+    # ── Director Reports Feed ────────────────────────────────────────
+
+    @bp.route("/api/coms/director-reports")
+    @admin_required
+    def coms_director_reports():
+        """Get recent director reports for the COMs tab."""
+        hours = request.args.get("hours", 24, type=int)
+        limit = request.args.get("limit", 20, type=int)
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT id, department, director_agent, severity, category,
+                              title, summary, escalated, created_at
+                       FROM director_reports
+                       WHERE created_at > NOW() - INTERVAL '%s hours'
+                       ORDER BY created_at DESC
+                       LIMIT %s""",
+                    (hours, limit),
+                )
+                reports = cur.fetchall()
+
+            return jsonify({"reports": reports, "count": len(reports)})
+        except Exception as e:
+            logger.warning("coms_director_reports: %s", e)
+            return jsonify({"reports": [], "count": 0, "error": str(e)})

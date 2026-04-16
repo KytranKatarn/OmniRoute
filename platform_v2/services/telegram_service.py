@@ -161,6 +161,43 @@ def send(
     Returns:
         dict: {sent: bool, reason: str (if not sent), log_id: int (if logged)}
     """
+    # Route through A.R.C.H.I.E.'s director reports hierarchy when possible.
+    # archie_comms triages, applies personality voice, and sends via Telegram.
+    # Falls back to direct send if comms container is unreachable.
+    if source_agent and not chat_id:
+        try:
+            import requests as _req
+
+            _comms_url = os.getenv("ARCHIE_COMMS_URL", "http://192.168.1.200:3002")
+            _resp = _req.post(
+                f"{_comms_url}/api/director/report",
+                json={
+                    "department": source_department or "Unknown",
+                    "director_agent": source_agent,
+                    "severity": {"critical": "critical", "high": "high", "medium": "medium", "low": "low"}.get(
+                        CATEGORIES.get(category, {}).get("priority", "medium"), "medium"
+                    ),
+                    "category": category,
+                    "title": title,
+                    "summary": message,
+                },
+                timeout=5,
+            )
+            if _resp.ok:
+                logger.info(
+                    "telegram_service: routed [%s] '%s' through director reports (agent=%s)",
+                    category,
+                    title,
+                    source_agent,
+                )
+                return {
+                    "sent": True,
+                    "reason": "routed via director reports",
+                    "report_id": _resp.json().get("report_id"),
+                }
+        except Exception as _e:
+            logger.debug("telegram_service: comms unreachable (%s), falling back to direct send", _e)
+
     token = _get_token()
     if not token:
         _log_message(

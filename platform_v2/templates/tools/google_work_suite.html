@@ -4,29 +4,49 @@
 {% block module_name %}google-work-suite{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/google-work-suite.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/department-ops.css') }}">
 {% endblock %}
 
 {% block content %}
-{% set cat_accent = '#FF69B4' %}
-{% set cat_accent_rgb = '255,105,180' %}
-{% set cat_accent_light = '#db2777' %}
-{% set cat_label = 'BUSINESS' %}
-{% set cat_icon = 'briefcase' %}
-{% set cat_modules = [
-    {'url': url_for('social_media.index'), 'endpoint_prefix': 'social_media', 'icon': 'share-2', 'label': 'Social', 'title': 'Social Media'},
-    {'url': url_for('website_studio.index'), 'endpoint_prefix': 'website_studio', 'icon': 'globe', 'label': 'Website', 'title': 'Website Studio'},
-    {'url': url_for('call_center.index'), 'endpoint_prefix': 'call_center', 'icon': 'phone', 'label': 'Calls', 'title': 'Call Center'},
-    {'url': url_for('crm.index'), 'endpoint_prefix': 'crm', 'icon': 'users', 'label': 'CRM', 'title': 'CRM'},
-    {'url': url_for('google_work_suite.index'), 'endpoint_prefix': 'google_work_suite', 'icon': 'mail', 'label': 'Email', 'title': 'Google Work Suite'},
-    {'url': url_for('store_builder.index'), 'endpoint_prefix': 'store_builder', 'icon': 'shopping-cart', 'label': 'Store', 'title': 'Store Builder'},
-    {'url': url_for('invoicing.index'), 'endpoint_prefix': 'invoicing', 'icon': 'receipt', 'label': 'Invoice', 'title': 'Invoicing'},
-    {'url': url_for('automations.index'), 'endpoint_prefix': 'automations', 'icon': 'settings', 'label': 'Automate', 'title': 'Automations'},
-    {'url': url_for('task_planner.index'), 'endpoint_prefix': 'task_planner', 'icon': 'list-checks', 'label': 'Tasks', 'title': 'Task Planner'}
+{# LCARS Header — SaaS Services #}
+{% set cat_accent = '#f59e0b' %}
+{% set cat_accent_rgb = '245,158,11' %}
+{% set cat_accent_dark = '#d97706' %}
+{% set cat_label = 'SAAS SERVICES' %}
+{% set module_title = 'GOOGLE WORK SUITE' %}
+{% set header_shortcuts = [] %}
+{% set header_tabs = [
+    ("inbox", "Inbox", "inbox"),
+    ("calendar", "Calendar", "calendar"),
+    ("drive", "Drive", "hard-drive"),
+    ("rules", "Rules", "filter")
 ] %}
-{% include 'includes/category_nav.html' %}
+{% include 'includes/lcars-header.html' %}
 <div class="gws-wrapper" data-user-id="{{ current_user.id if current_user else '' }}">
+
+  <!-- Station + Account Controls — LCARS Frame (cyan) -->
+  <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+            <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+            <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">EMAIL OPERATIONS</span>
+                <div style="flex:1"></div>
+                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                </div>
+            </div>
+            <div style="flex: 1 !important; padding: 16px !important;">
 
   <!-- Station Operations Terminal (same pattern as Consciousness) -->
   <div class="cs-ops-terminal" id="gwsOpsTerminal">
@@ -62,28 +82,34 @@
     </div>
   </div>
 
-  <!-- Tab Bar -->
-  <div class="gws-tabs" role="tablist">
-    <button class="gws-tab active" id="gwsTabInbox" role="tab" aria-selected="true"
-            onclick="setTab('inbox')">
-      <i data-lucide="inbox"></i> Inbox
-    </button>
-    <button class="gws-tab" id="gwsTabCalendar" role="tab" aria-selected="false"
-            onclick="setTab('calendar')">
-      <i data-lucide="calendar"></i> Calendar
-    </button>
-    <button class="gws-tab" id="gwsTabDrive" role="tab" aria-selected="false"
-            onclick="setTab('drive')">
-      <i data-lucide="hard-drive"></i> Drive
-    </button>
-    <button class="gws-tab" id="gwsTabRules" role="tab" aria-selected="false"
-            onclick="setTab('rules')">
-      <i data-lucide="filter"></i> Rules
-    </button>
-  </div>
+            </div><!-- /frame body -->
+            <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+    </div>
+  </div><!-- /cyan frame -->
 
-  <!-- Inbox Tab -->
+  <!-- Inbox Tab — LCARS Frame (blue) -->
   <div id="gwsInboxTab" class="gws-tab-panel">
+  <div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+            <div style="height: 52px !important; background: #3b82f6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #2563eb !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #3b82f6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+            <div style="height: 44px !important; background: #3b82f6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">INBOX</span>
+                <div style="flex:1"></div>
+                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                </div>
+            </div>
+            <div style="flex: 1 !important; padding: 16px !important;">
     <div class="gws-inbox-toolbar">
       <button class="gws-btn gws-btn-primary" onclick="openCompose(null)">
         <i data-lucide="pencil"></i> Compose
@@ -148,12 +174,36 @@
         </div>
       </div>
     </div>
-  </div>
+            </div><!-- /inbox frame body -->
+            <div style="height: 6px !important; background: #3b82f6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+    </div>
+  </div><!-- /inbox blue frame -->
+  </div><!-- /gwsInboxTab -->
 
-  <!-- Rules Tab -->
+  <!-- Rules Tab — LCARS Frame (purple) -->
   <div id="gwsRulesTab" class="gws-tab-panel" style="display:none;">
+  <div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+            <div style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+            <div style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">AUTOMATION RULES</span>
+                <div style="flex:1"></div>
+                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                </div>
+            </div>
+            <div style="flex: 1 !important; padding: 16px !important;">
     <div class="gws-rules-toolbar">
-      <h2 class="gws-section-title">Automation Rules</h2>
       <button class="gws-btn gws-btn-primary" onclick="openRuleModal()">
         <i data-lucide="plus"></i> New Rule
       </button>
@@ -164,10 +214,35 @@
         <p>No rules yet. Create one to automate email handling.</p>
       </div>
     </div>
+            </div>
+            <div style="height: 6px !important; background: #8b5cf6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+    </div>
+  </div>
   </div>
 
-  <!-- Calendar Tab -->
+  <!-- Calendar Tab — LCARS Frame (green) -->
   <div id="gwsCalendarTab" class="gws-tab-panel" style="display:none;">
+  <div style="--frame-color: #22c55e; --frame-rgb: 34,197,94; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+            <div style="height: 52px !important; background: #22c55e !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22c55e !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #16a34a !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(34,197,94,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #22c55e !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+            <div style="height: 44px !important; background: #22c55e !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">CALENDAR</span>
+                <div style="flex:1"></div>
+                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                </div>
+            </div>
+            <div style="flex: 1 !important; padding: 16px !important;">
     <div class="gws-calendar-nav">
       <button class="gws-btn-sm" onclick="navigateWeek(-1)">&larr;</button>
       <span id="gwsCalendarWeekLabel"></span>
@@ -178,10 +253,35 @@
       </button>
     </div>
     <div id="gwsCalendarGrid" class="gws-calendar-grid"></div>
+            </div>
+            <div style="height: 6px !important; background: #22c55e !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+    </div>
+  </div>
   </div>
 
-  <!-- Drive Tab -->
+  <!-- Drive Tab — LCARS Frame (amber) -->
   <div id="gwsDriveTab" class="gws-tab-panel" style="display:none;">
+  <div style="--frame-color: #f59e0b; --frame-rgb: 245,158,11; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+            <div style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        </div>
+        <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+            <div style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">GOOGLE DRIVE</span>
+                <div style="flex:1"></div>
+                <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                    <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                    <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+                    <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                </div>
+            </div>
+            <div style="flex: 1 !important; padding: 16px !important;">
     <div class="gws-drive-toolbar">
       <div id="gwsDriveBreadcrumb" class="gws-drive-breadcrumb"></div>
       <button class="gws-btn-sm" onclick="document.getElementById('gwsFileUpload').click()">
@@ -204,6 +304,11 @@
         </div>
       </div>
     </div>
+            </div>
+            <div style="height: 6px !important; background: #f59e0b !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        </div>
+    </div>
+  </div>
   </div>
 
 </div><!-- /.gws-wrapper -->
@@ -407,10 +512,14 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script src="{{ url_for('static', filename='js/department-ops.js') }}"></script>
 <script src="{{ url_for('static', filename='js/google-work-suite.js') }}"></script>
 <script>
   if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+
+  // Bridge LCARS header tabs → GWS setTab
+  window.onLcarsTabSwitch = function(tabId) { if (window.setTab) setTab(tabId); };
 
   // ── Station Operations (follows Consciousness pattern exactly) ──
   var _gwsOps = null;

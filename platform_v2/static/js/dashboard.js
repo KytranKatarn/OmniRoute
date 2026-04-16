@@ -190,8 +190,8 @@ window.timeAgo = function timeAgo(isoString) {
         var catAccents = {
             admin_operations: '#ef4444', ai_command: '#00ffff',
             saas_services: '#f59e0b', project_knowledge: '#00ff41',
-            media_home: '#0ea5e9', crypto: '#eab308',
-            applications: '#10b981', creative_studios: '#ec4899',
+            applications_concepts: '#0ea5e9', crypto: '#eab308',
+            media_outreach: '#10b981', creative_studios: '#ec4899',
             placeholder_future: '#6b7280', core_services: '#00808f'
         };
 
@@ -199,8 +199,8 @@ window.timeAgo = function timeAgo(isoString) {
         var catNames = {
             admin_operations: 'Admin Operations', ai_command: 'AI Command',
             saas_services: 'SaaS Services',
-            project_knowledge: 'Project & Knowledge', media_home: 'Media & Home',
-            crypto: 'Crypto', applications: 'Applications',
+            project_knowledge: 'Project & Knowledge', applications_concepts: 'Applications & Concepts',
+            crypto: 'Crypto', media_outreach: 'Media Outreach',
             creative_studios: 'Creative Studios',
             placeholder_future: 'Coming Soon', core_services: 'Core Services'
         };
@@ -1528,6 +1528,18 @@ window.timeAgo = function timeAgo(isoString) {
 
     // Keep old togglePin working for featured card stars
     window.togglePin = window.toggleGridPin;
+
+    // ── Capture-phase handler: prevent <a> navigation when clicking pin stars ──
+    document.addEventListener('click', function(e) {
+        var pinBtn = e.target.closest('.module-pin-btn, .featured-pin-btn');
+        if (pinBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            var moduleId = pinBtn.getAttribute('data-pin-id');
+            if (moduleId) toggleGridPin(pinBtn, moduleId);
+        }
+    }, true);  // true = capture phase, fires before <a> click
 
     // ── Fetch module health and update featured status dots ──
     function fetchModuleHealth() {

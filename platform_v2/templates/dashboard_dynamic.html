@@ -386,6 +386,30 @@
                 <div class="lcars-body" id="cat-{{ cat_key }}">
                     <div class="module-grid">
                         {% for module in dashboard_data.modules_by_category[cat_key] %}
+                        {% if module.locked %}
+                        {# ── Locked module: blurred card with UPGRADE banner ── #}
+                        <a href="/subscribe/{{ module.id }}"
+                           class="module-card locked"
+                           data-tier-required="{{ module.required_tier }}"
+                           data-module-id="{{ module.id }}"
+                           data-module-name="{{ module.name }}"
+                           data-module-icon="{{ module.icon }}"
+                           data-module-desc="{{ module.description | replace('<br>', ' • ') | replace('<br/>', ' • ') | replace('<br />', ' • ') | striptags | truncate(120) }}"
+                           data-module-category="{{ cat_key }}">
+                            <div class="module-card-lock-overlay">
+                                <div class="module-card-lock-banner">UPGRADE</div>
+                                <div class="module-card-lock-tier">{{ module.required_tier | title }}+</div>
+                            </div>
+                            <div class="module-card-accent"></div>
+                            <div class="module-card-icon">
+                                <i data-lucide="{{ module.icon }}"></i>
+                            </div>
+                            <div class="module-card-info">
+                                <div class="module-card-name" data-i18n="module.{{ module.id }}.name">{{ module.name }}</div>
+                            </div>
+                        </a>
+                        {% else %}
+                        {# ── Accessible module: normal card ── #}
                         <a href="{{ module.external_url if module.external_url else module.route }}"
                            class="module-card{% if module.coming_soon %} coming-soon{% endif %}{% if module.external_url %} external-product{% endif %}"
                            {% if module.external_url %}target="_blank" rel="noopener"{% endif %}
@@ -414,6 +438,7 @@
                                 <i data-lucide="star"></i>
                             </button>
                         </a>
+                        {% endif %}
                         {% endfor %}
                     </div>
                 </div>

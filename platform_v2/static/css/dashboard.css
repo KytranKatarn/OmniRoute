@@ -2809,3 +2809,79 @@ body.light-mode .module-card-accent {
 }
 .dash-notif-wrapper { position: relative; }
 .dash-hidden { display: none; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   LOCKED MODULE GATING — Blur + Diagonal UPGRADE Banner
+   ───────────────────────────────────────────────────────────────────────────── */
+.module-card.locked {
+    position: relative;
+    cursor: pointer;
+    overflow: hidden;
+}
+.module-card.locked .module-card-accent,
+.module-card.locked .module-card-icon,
+.module-card.locked .module-card-info {
+    filter: blur(2px);
+    opacity: 0.3;
+}
+.module-card-lock-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(2px);
+}
+.module-card-lock-banner {
+    position: absolute;
+    top: 14px;
+    right: -32px;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #000;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 36px;
+    transform: rotate(45deg);
+    letter-spacing: 1px;
+    font-family: 'Orbitron', sans-serif;
+}
+.module-card-lock-tier {
+    font-size: 0.75rem;
+    color: #f59e0b;
+    font-family: 'Antonio', sans-serif;
+    letter-spacing: 0.5px;
+    margin-top: 8px;
+}
+/* Enterprise tier: purple accent */
+.module-card.locked[data-tier-required="enterprise"] .module-card-lock-banner {
+    background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+    color: #fff;
+}
+.module-card.locked[data-tier-required="enterprise"] .module-card-lock-tier {
+    color: #8b5cf6;
+}
+/* Professional tier: teal accent */
+.module-card.locked[data-tier-required="professional"] .module-card-lock-banner {
+    background: linear-gradient(135deg, #14b8a6, #0d9488);
+    color: #fff;
+}
+.module-card.locked[data-tier-required="professional"] .module-card-lock-tier {
+    color: #14b8a6;
+}
+.module-card.locked:hover {
+    border-color: rgba(245, 158, 11, 0.4);
+}
+.module-card.locked[data-tier-required="enterprise"]:hover {
+    border-color: rgba(139, 92, 246, 0.4);
+}
+.module-card.locked[data-tier-required="professional"]:hover {
+    border-color: rgba(20, 184, 166, 0.4);
+}
+/* Light mode locked cards */
+[data-theme="light"] .module-card-lock-overlay,
+body.light-mode .module-card-lock-overlay {
+    background: rgba(255, 255, 255, 0.5);
+}

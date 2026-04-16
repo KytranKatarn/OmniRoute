@@ -577,6 +577,14 @@ class AgentLoop:
         )
 
         self.scheduler.add_job(
+            with_app_context(self._platform_watchdog),
+            trigger=IntervalTrigger(minutes=2),
+            id="platform_watchdog",
+            name="Agent Loop: Platform Watchdog (load/mem/swap)",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
             with_app_context(self._run_qa_scheduled),
             trigger=IntervalTrigger(hours=6),
             id="qa_scheduled_run",
@@ -3594,6 +3602,68 @@ class AgentLoop:
         except Exception as e:
             duration_ms = int((time.time() - start) * 1000)
             self._log_cycle("ollama_model_health", 0, 1, duration_ms, error_message=str(e))
+
+    def _platform_watchdog(self):
+        """Alert when host is under memory/CPU pressure.
+
+        Project #240 task #1760 — fires every 2 min.
+        Thresholds: load1 > 30, MemAvailable < 5GB, SwapFree < 500MB.
+        Dedup: one alert per category per 15 min.
+        """
+        start = time.time()
+        try:
+            import psutil
+
+            with open("/proc/loadavg") as f:
+                load1 = float(f.read().split()[0])
+            vm = psutil.virtual_memory()
+            sw = psutil.swap_memory()
+            mem_avail_gb = vm.available / (1024**3)
+            swap_free_gb = (sw.total - sw.used) / (1024**3)
+
+            now = time.time()
+            if not hasattr(self, "_watchdog_last_alert"):
+                self._watchdog_last_alert = {}
+            dedup_s = 15 * 60
+
+            triggered = []
+            if load1 > 30 and now - self._watchdog_last_alert.get("load", 0) > dedup_s:
+                triggered.append(("load", f"load1={load1:.1f} (threshold 30)"))
+                self._watchdog_last_alert["load"] = now
+            if mem_avail_gb < 5 and now - self._watchdog_last_alert.get("mem", 0) > dedup_s:
+                triggered.append(("mem", f"MemAvailable={mem_avail_gb:.1f}GB (threshold 5GB)"))
+                self._watchdog_last_alert["mem"] = now
+            if swap_free_gb < 0.5 and now - self._watchdog_last_alert.get("swap", 0) > dedup_s:
+                triggered.append(("swap", f"SwapFree={swap_free_gb:.2f}GB (threshold 0.5GB)"))
+                self._watchdog_last_alert["swap"] = now
+
+            for category, msg in triggered:
+                try:
+                    from services.telegram_service import send_system
+
+                    send_system(
+                        title=f"Platform Watchdog: {category.upper()} pressure",
+                        message=f"{msg}\nload1={load1:.1f} mem_avail={mem_avail_gb:.1f}GB swap_free={swap_free_gb:.2f}GB",
+                    )
+                except Exception as e:
+                    logger.warning(f"watchdog telegram failed: {e}")
+
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle(
+                "platform_watchdog",
+                len(triggered),
+                0,
+                duration_ms,
+                details={
+                    "load1": round(load1, 2),
+                    "mem_avail_gb": round(mem_avail_gb, 2),
+                    "swap_free_gb": round(swap_free_gb, 2),
+                    "alerts_fired": [c for c, _ in triggered],
+                },
+            )
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("platform_watchdog", 0, 1, duration_ms, error_message=str(e))
 
     def _media_queue_cleanup(self):
         """Media queue cleanup every 1h — migrated from app.py."""

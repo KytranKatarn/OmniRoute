@@ -162,6 +162,18 @@ def login():
     return render_template("login.html")
 
 
+@app.route("/logout")
+def logout():
+    """Clear session and redirect to landing page."""
+    from flask import session, redirect
+
+    session.clear()
+    host = request.host.lower()
+    if "claude" in host:
+        return redirect("/claude")
+    return redirect("/")
+
+
 @app.route("/chat")
 def chat():
     """A.R.C.H.I.E. chat interface — admin only."""
@@ -290,6 +302,24 @@ def api_chat_conversations():
 
     convs = get_conversations(user_id)
     return jsonify({"conversations": [dict(c) if hasattr(c, 'keys') else c for c in convs]})
+
+
+@app.route("/api/chat/messages")
+def api_chat_messages():
+    """Get messages for a conversation."""
+    from flask import session
+
+    if "user_id" not in session and "kytran_user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    conv_id = request.args.get("conversation_id", type=int)
+    if not conv_id:
+        return jsonify({"messages": []})
+
+    from services.conversation_service import get_conversation_messages
+
+    msgs = get_conversation_messages(conv_id)
+    return jsonify({"messages": [dict(m) if hasattr(m, 'keys') else m for m in msgs]})
 
 
 @app.route("/api/chat/new", methods=["POST"])

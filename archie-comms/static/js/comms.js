@@ -266,10 +266,96 @@
     });
 
     newChatBtn.addEventListener('click', function() {
-        sessionId = null;
-        messagesEl.textContent = '';
-        appendMessage('assistant', 'New conversation started. What shall we work on?', 'A.R.C.H.I.E.', 'Executive Office');
+        fetch('/api/chat/new', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            sessionId = null;
+            messagesEl.textContent = '';
+            appendMessage('assistant', 'New conversation started. What shall we work on?', 'A.R.C.H.I.E.', 'Executive Office');
+            loadConversations();
+        });
     });
+
+    // ─── Conversation history ─────────────────────────────
+    function loadConversations() {
+        var convList = document.getElementById('ac-conversation-list');
+        if (!convList) return;
+
+        fetch('/api/chat/conversations').then(function(r) {
+            return r.json();
+        }).then(function(data) {
+            var convs = data.conversations || [];
+            convList.textContent = '';
+            if (convs.length === 0) {
+                var empty = document.createElement('div');
+                empty.style.cssText = 'padding:12px;color:#4b5563;font-size:0.72rem;font-style:italic;';
+                empty.textContent = 'No conversations yet';
+                convList.appendChild(empty);
+                return;
+            }
+            convs.forEach(function(c) {
+                var id = c.id || c[0];
+                var topic = c.topic || c[1] || 'Conversation';
+                var msgCount = c.msg_count || c[5] || 0;
+                var item = document.createElement('div');
+                item.className = 'ac-conversation-item';
+                item.setAttribute('data-conv-id', id);
+                var title = document.createElement('div');
+                title.textContent = topic;
+                var meta = document.createElement('div');
+                meta.className = 'ac-conversation-time';
+                meta.textContent = msgCount + ' messages';
+                item.appendChild(title);
+                item.appendChild(meta);
+                item.addEventListener('click', function() {
+                    loadConversation(id);
+                    convList.querySelectorAll('.ac-conversation-item').forEach(function(el) {
+                        el.classList.remove('active');
+                    });
+                    item.classList.add('active');
+                });
+                convList.appendChild(item);
+            });
+        }).catch(function() {});
+    }
+
+    function loadConversation(convId) {
+        fetch('/api/chat/messages?conversation_id=' + convId).then(function(r) {
+            return r.json();
+        }).then(function(data) {
+            var msgs = data.messages || [];
+            messagesEl.textContent = '';
+            msgs.forEach(function(m) {
+                var sender = m.sender || m[3] || '';
+                var content = m.content || m[4] || '';
+                var metadata = m.metadata || m[5] || {};
+                if (sender === 'kytran') {
+                    appendMessage('user', content);
+                } else {
+                    var dept = (typeof metadata === 'object' ? metadata.department : '') || 'Executive Office';
+                    appendMessage('assistant', content, 'A.R.C.H.I.E.', dept);
+                }
+            });
+        }).catch(function() {});
+    }
+
+    // Load conversations on startup
+    loadConversations();
+
+    // ─── Live sidebar status ──────────────────────────────
+    function updateSidebarStatus() {
+        fetch('/api/health').then(function(r) { return r.json(); }).then(function(d) {
+            var mood = document.getElementById('archie-mood');
+            if (mood && d.status === 'ok') mood.textContent = 'Online — Ready';
+        }).catch(function() {
+            var mood = document.getElementById('archie-mood');
+            if (mood) mood.textContent = 'Offline';
+        });
+    }
+    updateSidebarStatus();
+    setInterval(updateSidebarStatus, 30000);
 
     msgInput.focus();
 })();

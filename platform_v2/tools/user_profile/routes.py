@@ -552,8 +552,10 @@ def get_activity():
                             "reason": row["reason"],
                         }
                     )
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).error("Activity API error for user %s: %s", current_user.id, e)
 
     return jsonify({"success": True, "activity": activity})
 

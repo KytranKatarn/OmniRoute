@@ -2400,6 +2400,316 @@ function buildSubscriptionTab(container, user, subscription, usage, availableTie
         openSubMgmtModal(user.id, user.username);
     });
     container.appendChild(fullMgmtBtn);
+
+    // ── Admin Entitlements + Trial Management ──
+    const adminSection = document.createElement('div');
+    adminSection.className = 'sub-mgmt-section';
+    adminSection.style.marginTop = 'var(--archie-space-5)';
+    adminSection.id = 'admin-entitlements-section-' + user.id;
+
+    const adminTitle = document.createElement('div');
+    adminTitle.className = 'profile-section-title';
+    adminTitle.style.cssText = 'color: #f59e0b; border-bottom: 1px solid rgba(245,158,11,0.3); padding-bottom: var(--archie-space-2); margin-bottom: var(--archie-space-3);';
+    adminTitle.textContent = 'Admin: Entitlements & Trials';
+    adminSection.appendChild(adminTitle);
+
+    const entLoadingDiv = document.createElement('div');
+    entLoadingDiv.className = 'loading';
+    entLoadingDiv.textContent = 'Loading entitlements...';
+    entLoadingDiv.id = 'ent-loading-' + user.id;
+    adminSection.appendChild(entLoadingDiv);
+
+    const entContentDiv = document.createElement('div');
+    entContentDiv.id = 'ent-content-' + user.id;
+    entContentDiv.style.display = 'none';
+    adminSection.appendChild(entContentDiv);
+
+    container.appendChild(adminSection);
+
+    // Fetch entitlements asynchronously
+    loadUserEntitlements(user.id);
+}
+
+const TRIAL_PRODUCTS = [
+    {id: 'crm', name: 'CRM'},
+    {id: 'invoicing', name: 'Invoicing'},
+    {id: 'store_builder', name: 'Store Builder'},
+    {id: 'content_studio', name: 'Content Studio'},
+    {id: 'website_studio', name: 'Website Designer'},
+    {id: 'social_media', name: 'Social Media'},
+    {id: 'call_center', name: 'Call Center'},
+    {id: 'google_work_suite', name: 'Google Work Suite'},
+    {id: 'stockbot', name: 'StockBot'},
+    {id: 'media_studio', name: 'Media Studio'},
+    {id: 'game_studio', name: 'Game Studio'},
+    {id: 'family_tree', name: 'Family Tree'},
+    {id: 'legal-watch', name: 'Legal Watch'},
+    {id: 'civic-watch', name: 'Civic Watch'},
+    {id: 'market-watch-viewer', name: 'Market Watch'},
+    {id: 'gov-watch', name: 'Gov Watch'},
+    {id: 'membership_starter', name: 'Membership: Starter'},
+    {id: 'membership_pro', name: 'Membership: Professional'},
+    {id: 'membership_enterprise', name: 'Membership: Enterprise'},
+];
+
+function _createHeaderCell(text) {
+    const th = document.createElement('th');
+    th.style.cssText = 'text-align:left;padding:6px 8px;color:var(--archie-text-tertiary);';
+    th.textContent = text;
+    return th;
+}
+
+async function loadUserEntitlements(userId) {
+    const loadingEl = document.getElementById('ent-loading-' + userId);
+    const contentEl = document.getElementById('ent-content-' + userId);
+    if (!contentEl) return;
+
+    try {
+        const res = await fetch('/tools/account-center/api/users/' + userId + '/entitlements');
+        const data = await res.json();
+        if (loadingEl) loadingEl.style.display = 'none';
+        contentEl.style.display = 'block';
+        contentEl.textContent = '';
+
+        if (!data.success) {
+            contentEl.textContent = 'Error: ' + (data.error || 'Unknown');
+            return;
+        }
+
+        // Membership tier badge
+        const tierRow = document.createElement('div');
+        tierRow.style.cssText = 'display: flex; align-items: center; gap: var(--archie-space-3); margin-bottom: var(--archie-space-3);';
+        const tierLabel = document.createElement('span');
+        tierLabel.style.cssText = 'color: var(--archie-text-secondary); font-size: var(--archie-text-sm);';
+        tierLabel.textContent = 'Membership Tier:';
+        const tierBadge = document.createElement('span');
+        tierBadge.className = 'badge';
+        const tierColors = {staff:'#f59e0b', vip:'#a855f7', enterprise:'#3b82f6', professional:'#22c55e', starter:'#06b6d4', explorer:'#6b7280'};
+        const tc = tierColors[data.membership_tier] || '#6b7280';
+        tierBadge.style.cssText = 'border: 1px solid ' + tc + '; color: ' + tc + '; font-weight: 600;';
+        tierBadge.textContent = (data.membership_tier || 'explorer').toUpperCase();
+        tierRow.appendChild(tierLabel);
+        tierRow.appendChild(tierBadge);
+        contentEl.appendChild(tierRow);
+
+        // Admin bypass note
+        if (data.entitlements && data.entitlements._admin) {
+            const adminNote = document.createElement('div');
+            adminNote.style.cssText = 'background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); border-radius: 6px; padding: var(--archie-space-3); margin-bottom: var(--archie-space-3); font-size: var(--archie-text-sm); color: #f59e0b;';
+            adminNote.textContent = 'Admin/Staff bypass — full access to all modules.';
+            contentEl.appendChild(adminNote);
+        }
+
+        // Active subscriptions table
+        const subs = data.subscriptions || [];
+        if (subs.length > 0) {
+            const subsTitle = document.createElement('div');
+            subsTitle.style.cssText = 'font-size: var(--archie-text-sm); color: var(--archie-text-secondary); margin-bottom: var(--archie-space-2); font-weight: 600;';
+            subsTitle.textContent = 'Active Subscriptions (' + subs.length + ')';
+            contentEl.appendChild(subsTitle);
+
+            const table = document.createElement('table');
+            table.style.cssText = 'width: 100%; border-collapse: collapse; font-size: var(--archie-text-xs); margin-bottom: var(--archie-space-4);';
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            headerRow.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+            ['Module', 'Status', 'Source', 'Expires'].forEach(text => headerRow.appendChild(_createHeaderCell(text)));
+            const actionsHeader = _createHeaderCell('Actions');
+            actionsHeader.style.textAlign = 'right';
+            headerRow.appendChild(actionsHeader);
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            subs.forEach(sub => {
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+
+                const tdModule = document.createElement('td');
+                tdModule.style.cssText = 'padding: 6px 8px; color: var(--archie-text-primary);';
+                const product = TRIAL_PRODUCTS.find(p => p.id === sub.module);
+                tdModule.textContent = product ? product.name : sub.module;
+                tr.appendChild(tdModule);
+
+                const tdStatus = document.createElement('td');
+                tdStatus.style.cssText = 'padding: 6px 8px;';
+                const statusSpan = document.createElement('span');
+                const sColor = sub.status === 'active' ? '#22c55e' : sub.status === 'trialing' ? '#f59e0b' : '#ef4444';
+                statusSpan.style.cssText = 'color: ' + sColor + '; font-weight: 500;';
+                statusSpan.textContent = sub.status;
+                tdStatus.appendChild(statusSpan);
+                tr.appendChild(tdStatus);
+
+                const tdSource = document.createElement('td');
+                tdSource.style.cssText = 'padding: 6px 8px; color: var(--archie-text-secondary);';
+                tdSource.textContent = sub.source || 'stripe';
+                tr.appendChild(tdSource);
+
+                const tdExpires = document.createElement('td');
+                tdExpires.style.cssText = 'padding: 6px 8px; color: var(--archie-text-secondary);';
+                tdExpires.textContent = sub.expires_at ? ArchieTime.date(sub.expires_at) : 'Never';
+                tr.appendChild(tdExpires);
+
+                const tdActions = document.createElement('td');
+                tdActions.style.cssText = 'padding: 6px 8px; text-align: right;';
+                if (sub.source === 'trial' || sub.source === 'admin_override') {
+                    const revokeBtn = document.createElement('button');
+                    revokeBtn.className = 'btn';
+                    revokeBtn.style.cssText = 'font-size: 0.65rem; padding: 2px 8px; border: 1px solid #ef4444; color: #ef4444; background: transparent; cursor: pointer; border-radius: 4px;';
+                    revokeBtn.textContent = 'Revoke';
+                    revokeBtn.addEventListener('click', () => revokeUserSubscription(userId, sub.id));
+                    tdActions.appendChild(revokeBtn);
+                }
+                tr.appendChild(tdActions);
+
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            contentEl.appendChild(table);
+        } else if (!data.entitlements || !data.entitlements._admin) {
+            const noSubs = document.createElement('div');
+            noSubs.style.cssText = 'color: var(--archie-text-tertiary); font-size: var(--archie-text-sm); margin-bottom: var(--archie-space-3);';
+            noSubs.textContent = 'No active subscriptions.';
+            contentEl.appendChild(noSubs);
+        }
+
+        // Grant Trial form
+        const formTitle = document.createElement('div');
+        formTitle.style.cssText = 'font-size: var(--archie-text-sm); color: #f59e0b; margin-bottom: var(--archie-space-2); font-weight: 600; margin-top: var(--archie-space-3);';
+        formTitle.textContent = 'Grant Trial';
+        contentEl.appendChild(formTitle);
+
+        const formRow = document.createElement('div');
+        formRow.style.cssText = 'display: flex; gap: var(--archie-space-2); flex-wrap: wrap; align-items: flex-end;';
+
+        // Module dropdown
+        const moduleWrap = document.createElement('div');
+        moduleWrap.style.cssText = 'flex: 1; min-width: 140px;';
+        const moduleLabel = document.createElement('label');
+        moduleLabel.style.cssText = 'display: block; font-size: var(--archie-text-xs); color: var(--archie-text-tertiary); margin-bottom: 2px;';
+        moduleLabel.textContent = 'Product';
+        const moduleSelect = document.createElement('select');
+        moduleSelect.id = 'trial-module-' + userId;
+        moduleSelect.style.cssText = 'width: 100%; padding: 6px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; color: var(--archie-text-primary); font-size: var(--archie-text-xs);';
+        TRIAL_PRODUCTS.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = p.name;
+            moduleSelect.appendChild(opt);
+        });
+        moduleWrap.appendChild(moduleLabel);
+        moduleWrap.appendChild(moduleSelect);
+        formRow.appendChild(moduleWrap);
+
+        // Tier dropdown
+        const tierWrap = document.createElement('div');
+        tierWrap.style.cssText = 'min-width: 110px;';
+        const tierLabelEl = document.createElement('label');
+        tierLabelEl.style.cssText = 'display: block; font-size: var(--archie-text-xs); color: var(--archie-text-tertiary); margin-bottom: 2px;';
+        tierLabelEl.textContent = 'Tier';
+        const tierSelect = document.createElement('select');
+        tierSelect.id = 'trial-tier-' + userId;
+        tierSelect.style.cssText = 'width: 100%; padding: 6px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; color: var(--archie-text-primary); font-size: var(--archie-text-xs);';
+        [{v: 'viewer', n: 'Viewer'}, {v: 'starter', n: 'Starter'}, {v: 'pro', n: 'Professional'}, {v: 'enterprise', n: 'Enterprise'}].forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.v;
+            opt.textContent = t.n;
+            tierSelect.appendChild(opt);
+        });
+        tierWrap.appendChild(tierLabelEl);
+        tierWrap.appendChild(tierSelect);
+        formRow.appendChild(tierWrap);
+
+        // Duration dropdown
+        const durWrap = document.createElement('div');
+        durWrap.style.cssText = 'min-width: 90px;';
+        const durLabel = document.createElement('label');
+        durLabel.style.cssText = 'display: block; font-size: var(--archie-text-xs); color: var(--archie-text-tertiary); margin-bottom: 2px;';
+        durLabel.textContent = 'Duration';
+        const durSelect = document.createElement('select');
+        durSelect.id = 'trial-duration-' + userId;
+        durSelect.style.cssText = 'width: 100%; padding: 6px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; color: var(--archie-text-primary); font-size: var(--archie-text-xs);';
+        [{v: 7, n: '7 days'}, {v: 14, n: '14 days'}, {v: 30, n: '30 days'}, {v: 60, n: '60 days'}, {v: 90, n: '90 days'}].forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.v;
+            opt.textContent = d.n;
+            durSelect.appendChild(opt);
+        });
+        durWrap.appendChild(durLabel);
+        durWrap.appendChild(durSelect);
+        formRow.appendChild(durWrap);
+
+        // Grant button
+        const grantBtn = document.createElement('button');
+        grantBtn.className = 'btn';
+        grantBtn.style.cssText = 'padding: 6px 14px; border: 1px solid #f59e0b; color: #f59e0b; background: rgba(245,158,11,0.1); cursor: pointer; border-radius: 4px; font-size: var(--archie-text-xs); font-weight: 600; white-space: nowrap;';
+        grantBtn.textContent = 'Grant Trial';
+        grantBtn.addEventListener('click', () => grantUserTrial(userId));
+        formRow.appendChild(grantBtn);
+
+        contentEl.appendChild(formRow);
+
+    } catch (err) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (contentEl) {
+            contentEl.style.display = 'block';
+            contentEl.textContent = 'Error loading entitlements.';
+        }
+        console.error('Error loading entitlements:', err);
+    }
+}
+
+async function grantUserTrial(userId) {
+    const module = document.getElementById('trial-module-' + userId);
+    const tier = document.getElementById('trial-tier-' + userId);
+    const duration = document.getElementById('trial-duration-' + userId);
+    if (!module || !tier || !duration) return;
+
+    if (!confirm('Grant ' + duration.value + '-day trial of ' + module.options[module.selectedIndex].text + ' to this user?')) return;
+
+    try {
+        const res = await fetch('/tools/account-center/api/users/' + userId + '/trial', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                module: module.value,
+                tier_price_id: tier.value,
+                duration_days: parseInt(duration.value)
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('Trial granted successfully. Expires: ' + (data.trial.expires_at || 'N/A'));
+            loadUserEntitlements(userId);
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (err) {
+        console.error('Error granting trial:', err);
+        alert('Error granting trial');
+    }
+}
+
+async function revokeUserSubscription(userId, subscriptionId) {
+    if (!confirm('Revoke this subscription? This cannot be undone.')) return;
+
+    try {
+        const res = await fetch('/tools/account-center/api/users/' + userId + '/revoke-subscription', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({subscription_id: subscriptionId})
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('Subscription revoked.');
+            loadUserEntitlements(userId);
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (err) {
+        console.error('Error revoking subscription:', err);
+        alert('Error revoking subscription');
+    }
 }
 
 function buildSecurityTab(container, user, failedLogins) {

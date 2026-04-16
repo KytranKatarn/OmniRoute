@@ -1841,7 +1841,8 @@ app.config["MODULE_REGISTRY_FAILED"] = failed_modules
 # Import additional blueprints not yet in module registry
 # NOTE: consciousness_bp and backup_manager_bp are now loaded via module_registry
 # NOTE: archie_api_bp removed — endpoints migrated directly into app.py above
-from tools.github_integration.github_routes import github_bp  # noqa: E402
+# Disabled — consolidating into Consciousness GitHub tab (Task #1986)
+# from tools.github_integration.github_routes import github_bp  # noqa: E402
 from tools.repair_bay.services.sandbox_routes import sandbox_bp  # noqa: E402
 
 from tools.repair_bay.services.cursor_api import cursor_bp  # noqa: E402
@@ -1883,7 +1884,7 @@ register_ksm_billing_handlers()
 
 # Register additional blueprints
 # Note: app_builder_bp, archie_chat_bp, consciousness_bp, backup_manager_bp, repair_bay_bp loaded via module_registry
-app.register_blueprint(github_bp)
+# app.register_blueprint(github_bp)  # Disabled — Task #1986
 app.register_blueprint(sandbox_bp)  # Sandbox environment for testing proposals
 app.register_blueprint(cursor_bp)  # Cursor IDE integration API
 app.register_blueprint(triage_bp)  # Phase 42: Conversation triage pipeline
@@ -1895,10 +1896,9 @@ from tools.creed import creed_public_bp, creed_admin_bp  # noqa: E402
 app.register_blueprint(creed_public_bp)
 app.register_blueprint(creed_admin_bp)
 
-# Products Showcase (public — no login required)
-from tools.products.routes import products_bp  # noqa: E402
-
-app.register_blueprint(products_bp)
+# Products Showcase — migrating to KBS storefront (Task #1987)
+# from tools.products.routes import products_bp  # noqa: E402
+# app.register_blueprint(products_bp)
 
 # Compliance Badge API (public — no login required)
 from tools.security_network.badge_routes import badge_bp as compliance_badge_bp  # noqa: E402
@@ -1912,10 +1912,9 @@ app.register_blueprint(public_api_bp)
 
 # HR Management Module (Phase 51) - Registered via module_registry
 
-# API Documentation (OpenAPI/Swagger)
-from tools.api_docs import api_docs_bp  # noqa: E402
-
-app.register_blueprint(api_docs_bp)
+# API Documentation — consolidating into Consciousness (Task #1985)
+# from tools.api_docs import api_docs_bp  # noqa: E402
+# app.register_blueprint(api_docs_bp)
 
 # Dev HQ merged into Consciousness module (Decision #433)
 # Routes now at /tools/consciousness/api/devhq/*

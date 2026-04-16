@@ -1237,8 +1237,7 @@ def signup():
                         cur.execute(
                             """UPDATE users
                                SET is_active = TRUE,
-                                   subscription_tier = 'explorer',
-                                   is_approved = TRUE
+                                   subscription_tier = 'explorer'
                                WHERE id = %s""",
                             (user_id,),
                         )

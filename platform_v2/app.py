@@ -2374,17 +2374,37 @@ def _warmup_ollama_models():
         if not ollama_host.startswith("http"):
             ollama_host = f"http://{ollama_host}"
 
-        # Check what's currently on GPU
+        # Check what's currently on GPU AND capture all loaded models for eviction.
+        # Project #240 task #1761 — even after PR #33 fixed KEEP_ALIVE to 5m,
+        # models already loaded from before retain their previous (often infinite)
+        # keep_alive and never drain. Startup is the clean moment to force-unload,
+        # then warmup reloads fresh with the correct keep_alive.
         gpu_models = set()
+        loaded_before = []
         try:
             ps_resp = req.get(f"{ollama_host}/api/ps", timeout=10)
             if ps_resp.status_code == 200:
                 for m in ps_resp.json().get("models", []):
+                    loaded_before.append(m["name"])
                     if m.get("size_vram", 0) > 0:
                         gpu_models.add(m["name"])
                         gpu_models.add(m["name"].replace(":latest", ""))
         except Exception:
             pass
+
+        # Force-evict stale loaded models (keep_alive=0 tells Ollama to drop on return).
+        for model_name in loaded_before:
+            try:
+                req.post(
+                    f"{ollama_host}/api/generate",
+                    json={"model": model_name, "prompt": "", "keep_alive": 0, "stream": False},
+                    timeout=30,
+                )
+                logger.info(f"Ollama evict: unloaded stale {model_name}")
+            except Exception as e:
+                logger.warning(f"Ollama evict: {model_name} failed: {e}")
+        if loaded_before:
+            time.sleep(3)  # let Ollama release RAM before warmup begins
 
         models_to_load = _get_agent_models()
 

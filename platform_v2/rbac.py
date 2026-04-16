@@ -17,7 +17,7 @@ from typing import List, Set
 from functools import wraps
 
 try:
-    from flask import abort
+    from flask import abort, redirect, url_for, request
     from flask_login import current_user
 
     FLASK_AVAILABLE = True
@@ -393,6 +393,53 @@ def require_role(role: Role, status_code: int = 403):
             if not has_role(role):
                 abort(status_code)
             return f(*args, **kwargs)
+
+        return decorated_function
+
+    return decorator
+
+
+def tier_required(minimum_tier):
+    """Decorator to gate routes by subscription tier.
+
+    Usage: @tier_required("starter") on a route.
+    Tiers in order: explorer, starter, professional, enterprise, vip, staff
+    Admin users bypass (they have 'staff' tier).
+    """
+
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not current_user.is_authenticated:
+                return redirect(url_for("login"))
+
+            # Admin bypass
+            if getattr(current_user, "is_admin", False):
+                return f(*args, **kwargs)
+
+            # Get user's tier
+            from services.subscription_service import get_user_membership_tier
+
+            user_role = getattr(current_user, "role", "") or ""
+            user_tier = get_user_membership_tier(current_user.id, user_role)
+
+            tier_order = ["explorer", "starter", "professional", "enterprise", "vip", "staff"]
+            user_idx = tier_order.index(user_tier) if user_tier in tier_order else 0
+            req_idx = tier_order.index(minimum_tier) if minimum_tier in tier_order else 0
+
+            if user_idx >= req_idx:
+                return f(*args, **kwargs)
+
+            # Redirect to subscribe page for the module
+            module_id = request.view_args.get("module_id", "")
+            if not module_id:
+                parts = request.path.strip("/").split("/")
+                if len(parts) >= 2 and parts[0] == "tools":
+                    module_id = parts[1]
+
+            if module_id:
+                return redirect(f"/subscribe/{module_id}")
+            return redirect("/dashboard")
 
         return decorated_function
 

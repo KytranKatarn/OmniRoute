@@ -2412,3 +2412,209 @@ def api_unlock_user(user_id):
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# SUBSCRIPTION MANAGEMENT (Phase 2 — entitlements, trials, revoke)
+# ============================================================================
+
+
+@account_center_bp.route("/api/users/<int:user_id>/entitlements")
+@login_required
+@admin_required
+def api_get_entitlements(user_id):
+    """Get computed entitlements for a user via subscription_service"""
+    try:
+        from services.subscription_service import (
+            get_user_subscriptions,
+            get_user_entitlements,
+            get_user_membership_tier,
+        )
+
+        # Get user role from DB
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute("SELECT role FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "User not found"}), 404
+            user_role = row["role"]
+
+        membership_tier = get_user_membership_tier(user_id, user_role)
+        subscriptions = get_user_subscriptions(user_id)
+        entitlements = get_user_entitlements(user_id, user_role)
+
+        # Serialize datetimes in subscriptions
+        for sub in subscriptions:
+            for key in ("expires_at", "created_at"):
+                if sub.get(key) and hasattr(sub[key], "isoformat"):
+                    sub[key] = sub[key].isoformat()
+
+        # Serialize datetimes in entitlements
+        for module_key, ent in entitlements.items():
+            if isinstance(ent, dict) and ent.get("expires_at"):
+                if hasattr(ent["expires_at"], "isoformat"):
+                    ent["expires_at"] = ent["expires_at"].isoformat()
+
+        return jsonify(
+            {
+                "success": True,
+                "user_id": user_id,
+                "membership_tier": membership_tier,
+                "subscriptions": subscriptions,
+                "entitlements": entitlements,
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@account_center_bp.route("/api/users/<int:user_id>/trial", methods=["POST"])
+@login_required
+@admin_required
+def api_grant_trial(user_id):
+    """Grant a time-limited trial subscription to a user"""
+    try:
+        from services.subscription_service import grant_trial
+
+        data = request.get_json(silent=True) or {}
+        module = data.get("module")
+        tier_price_id = data.get("tier_price_id", "")
+        duration_days = data.get("duration_days")
+
+        if not module:
+            return (
+                jsonify({"success": False, "error": "module is required"}),
+                400,
+            )
+        if not duration_days:
+            return (
+                jsonify({"success": False, "error": "duration_days is required"}),
+                400,
+            )
+
+        try:
+            duration_days = int(duration_days)
+        except (TypeError, ValueError):
+            return (
+                jsonify({"success": False, "error": "duration_days must be an integer"}),
+                400,
+            )
+
+        if duration_days < 1 or duration_days > 90:
+            return (
+                jsonify({"success": False, "error": "duration_days must be between 1 and 90"}),
+                400,
+            )
+
+        result = grant_trial(user_id, module, tier_price_id, duration_days, current_user.id)
+        if not result:
+            return (
+                jsonify({"success": False, "error": "Failed to grant trial"}),
+                500,
+            )
+
+        # Audit log
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO audit_log (user_id, action, details, ip_address, created_at)
+                VALUES (%s, 'grant_trial', %s, %s, NOW())
+                """,
+                (
+                    current_user.id,
+                    PgJson(
+                        {
+                            "target_user_id": user_id,
+                            "module": module,
+                            "tier_price_id": tier_price_id,
+                            "duration_days": duration_days,
+                        }
+                    ),
+                    request.remote_addr,
+                ),
+            )
+
+        log_activity(
+            current_user.id,
+            "grant_trial",
+            details={
+                "target_user_id": user_id,
+                "module": module,
+                "duration_days": duration_days,
+            },
+        )
+
+        # Serialize expires_at
+        expires_at = result.get("expires_at")
+        if expires_at and hasattr(expires_at, "isoformat"):
+            expires_at = expires_at.isoformat()
+
+        return jsonify(
+            {
+                "success": True,
+                "trial": {"id": result["id"], "expires_at": expires_at},
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@account_center_bp.route("/api/users/<int:user_id>/revoke-subscription", methods=["POST"])
+@login_required
+@admin_required
+def api_revoke_subscription(user_id):
+    """Revoke a trial or admin-override subscription"""
+    try:
+        from services.subscription_service import revoke_subscription
+
+        data = request.get_json(silent=True) or {}
+        subscription_id = data.get("subscription_id")
+        if not subscription_id:
+            return (
+                jsonify({"success": False, "error": "subscription_id is required"}),
+                400,
+            )
+
+        success = revoke_subscription(subscription_id, current_user.id)
+        if not success:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Could not revoke. Only trial/override subscriptions can be revoked.",
+                    }
+                ),
+                400,
+            )
+
+        # Audit log
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO audit_log (user_id, action, details, ip_address, created_at)
+                VALUES (%s, 'revoke_subscription', %s, %s, NOW())
+                """,
+                (
+                    current_user.id,
+                    PgJson(
+                        {
+                            "target_user_id": user_id,
+                            "subscription_id": subscription_id,
+                        }
+                    ),
+                    request.remote_addr,
+                ),
+            )
+
+        log_activity(
+            current_user.id,
+            "revoke_subscription",
+            details={
+                "target_user_id": user_id,
+                "subscription_id": subscription_id,
+            },
+        )
+
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

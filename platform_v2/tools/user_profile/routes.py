@@ -390,6 +390,9 @@ def set_user_theme():
 # ============================================================================
 
 
+VALID_LANGUAGES = ["en", "fr", "es", "pt", "de", "zh", "ar", "he"]
+
+
 @user_profile_bp.route("/api/preferences")
 @login_required
 def get_preferences():
@@ -415,14 +418,14 @@ def get_preferences():
                 if row:
                     prefs.update(row)
 
-                # Language preference
+                # Language preference — canonical source is users.language_preference
                 cur.execute(
-                    "SELECT language_code FROM user_language_preferences WHERE user_id = %s",
+                    "SELECT language_preference FROM users WHERE id = %s",
                     (current_user.id,),
                 )
-                lang_row = cur.fetchone()
-                if lang_row:
-                    prefs["language"] = lang_row["language_code"]
+                user_row = cur.fetchone()
+                if user_row and user_row["language_preference"]:
+                    prefs["language"] = user_row["language_preference"]
     except Exception:
         pass
 
@@ -468,14 +471,22 @@ def update_preferences():
                             [current_user.id] + list(notif_data.values()),
                         )
 
-                # Language preference — upsert
+                # Language preference — persist to users.language_preference (canonical)
                 if "language" in data:
                     lang = data["language"]
+                    if lang not in VALID_LANGUAGES:
+                        return (
+                            jsonify(
+                                {
+                                    "success": False,
+                                    "error": f"Invalid language. Must be one of: {', '.join(VALID_LANGUAGES)}",
+                                }
+                            ),
+                            400,
+                        )
                     cur.execute(
-                        """INSERT INTO user_language_preferences (user_id, language_code)
-                           VALUES (%s, %s)
-                           ON CONFLICT (user_id) DO UPDATE SET language_code = EXCLUDED.language_code""",
-                        (current_user.id, lang),
+                        "UPDATE users SET language_preference = %s WHERE id = %s",
+                        (lang, current_user.id),
                     )
 
                 conn.commit()

@@ -30,7 +30,7 @@ def userinfo():
 
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            "SELECT id, username, email, role FROM users WHERE id = %s AND is_active = TRUE",
+            "SELECT id, username, email, role, language_preference FROM users WHERE id = %s AND is_active = TRUE",
             (user_id,),
         )
         user = cur.fetchone()
@@ -109,6 +109,7 @@ def userinfo():
             "email": user["email"] or "",
             "name": user["username"],
             "role": user["role"],
+            "language_preference": user.get("language_preference") or "en",
             "entitlements": entitlements,
             "product_tiers": product_tiers,
             "stripe_customer_id": stripe_customer_id,

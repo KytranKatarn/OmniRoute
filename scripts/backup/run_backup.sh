@@ -146,51 +146,30 @@ log_to_db "run_backup" "primary" \
     "$([[ $FAILED -eq 0 ]] && echo success || echo failed)" \
     "$RUN_DIR" "$SIZE" "$DUR_MS"
 
-# Refresh metadata.json with final size/duration numbers (post tier-sync).
-# First write happened pre-sync so USB got it; this just updates the primary copy.
+# Refresh metadata.json with final size/duration AFTER tier sync. We MERGE
+# onto the pre-sync write rather than overwriting, so build_number,
+# backup_type=full, and run_mode established pre-sync survive. (Previously
+# this block blindly rewrote metadata with build_number=None + backup_type=<mode>,
+# which put every fresh backup back into the UI's LEGACY bucket.)
 if (( FAILED == 0 )); then
-    python3 - "$RUN_DIR" "$MODE" "$TS" "$SIZE" "$DUR_MS" <<'PYEOF'
+    python3 - "$RUN_DIR" "$SIZE" "$DUR_MS" <<'PYEOF'
 import json, os, sys
-from datetime import datetime
-run_dir, mode, ts, size, dur_ms = sys.argv[1:]
+run_dir, size, dur_ms = sys.argv[1:]
 size = int(size)
-components = {
-    name: True
-    for name in os.listdir(run_dir)
-    if os.path.isdir(os.path.join(run_dir, name))
-}
-# Find the DB dump (varies: archie_<ts>.dump)
-db_file = None
-db_dir = os.path.join(run_dir, "database")
-if os.path.isdir(db_dir):
-    dumps = sorted(f for f in os.listdir(db_dir) if f.endswith(".dump"))
-    if dumps:
-        db_file = f"database/{dumps[-1]}"
-meta = {
-    "name": os.path.basename(run_dir),
-    "timestamp": ts,
-    "description": mode,
-    "created_by": "scripts/backup/run_backup.sh",
-    "created_at": datetime.utcnow().isoformat() + "Z",
-    "platform_version": "phase-1-6",
-    "build_number": None,
-    "backup_type": mode,
-    "proposal_id": None,
-    "compression": "pg_dump-Fc",
-    "database_file": db_file,
-    "total_size_bytes": size,
-    "total_size_mb": round(size / (1024 * 1024), 2),
-    "external_copy": False,
-    "external_path": None,
-    "pipeline": "phase-1-6",
-    "components": components,
-    "duration_ms": int(dur_ms),
-    "hook_results": {"pre": [], "post": []},
-}
-with open(os.path.join(run_dir, "metadata.json"), "w") as f:
+meta_path = os.path.join(run_dir, "metadata.json")
+if os.path.exists(meta_path):
+    with open(meta_path) as f:
+        meta = json.load(f)
+else:
+    meta = {}
+# Only the numbers that can change between pre-sync and post-sync.
+meta["total_size_bytes"] = size
+meta["total_size_mb"] = round(size / (1024 * 1024), 2)
+meta["duration_ms"] = int(dur_ms)
+with open(meta_path, "w") as f:
     json.dump(meta, f, indent=2)
 PYEOF
-    log_info "wrote metadata.json for UI visibility"
+    log_info "refreshed metadata.json with final size/duration (pre-sync values preserved)"
 fi
 
 log_info "=== run_backup.sh DONE mode=$MODE failed=$FAILED size=$SIZE dur_ms=$DUR_MS ==="

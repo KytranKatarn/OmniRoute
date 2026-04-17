@@ -20,13 +20,19 @@ else
     BUNDLE_KIND="incremental"
 fi
 
-# Repos to bundle. server-manager confirmed missing .git on hub (2026-04-16 triage); skip gracefully.
-REPOS=(
-    "archie_brain:/mnt/archie_brain"
-    "business_suite:/mnt/archie_brain/kytran-business-suite"
-    "server_manager:/mnt/archie_brain/kytran-server-manager"
-    "creed:/mnt/archie_brain/kytran-creed"
-)
+# Repos to bundle. The main platform repo is always /mnt/archie_brain; every
+# other local subdir is auto-discovered by the presence of a .git dir. This
+# stops us from missing newly-cloned standalones (archie-code was missed in
+# the original hardcoded list — task #2077).
+REPOS=( "archie_brain:/mnt/archie_brain" )
+for sub in /mnt/archie_brain/*/; do
+    [[ -d "${sub}.git" ]] || continue
+    base="$(basename "${sub%/}")"
+    [[ "$base" == ".git" ]] && continue
+    # Normalize name: kytran-business-suite -> kytran_business_suite
+    name="${base//-/_}"
+    REPOS+=( "${name}:${sub%/}" )
+done
 
 TOTAL_SIZE=0
 FAILED=0

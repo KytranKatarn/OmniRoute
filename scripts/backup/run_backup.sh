@@ -98,11 +98,25 @@ if os.path.isdir(db_dir):
     dumps = sorted(f for f in os.listdir(db_dir) if f.endswith(".dump"))
     if dumps:
         db_file = f"database/{dumps[-1]}"
+# Compute next build number from existing metadata (max + 1). Keeps the UI's
+# "Build #N" column monotonic across the legacy → phase-1-6 transition.
+parent_dir = os.path.dirname(run_dir)
+max_build = 0
+for sib in os.listdir(parent_dir):
+    mp = os.path.join(parent_dir, sib, "metadata.json")
+    if os.path.exists(mp):
+        try:
+            with open(mp) as _f:
+                bn = json.load(_f).get("build_number")
+            if isinstance(bn, int):
+                max_build = max(max_build, bn)
+        except Exception:
+            pass
 meta = {
     "name": os.path.basename(run_dir), "timestamp": ts, "description": mode,
     "created_by": "scripts/backup/run_backup.sh",
     "created_at": datetime.utcnow().isoformat() + "Z",
-    "platform_version": "phase-1-6", "build_number": None,
+    "platform_version": "phase-1-6", "build_number": max_build + 1,
     "backup_type": "full", "run_mode": mode, "proposal_id": None,
     "compression": "pg_dump-Fc", "database_file": db_file,
     "total_size_bytes": size, "total_size_mb": round(size / (1024 * 1024), 2),

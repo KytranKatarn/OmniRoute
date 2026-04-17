@@ -82,6 +82,40 @@ case "$MODE" in
 esac
 
 if (( FAILED == 0 )); then
+    # Write metadata.json BEFORE tier sync so USB/GDrive/VPS copies include it
+    # (the UI scanner on each tier filters on metadata.json existence).
+    PRE_SYNC_SIZE=$(dir_size_bytes "$RUN_DIR")
+    PRE_SYNC_DUR=$(( ( $(date +%s) - START_EPOCH ) * 1000 ))
+    python3 - "$RUN_DIR" "$MODE" "$TS" "$PRE_SYNC_SIZE" "$PRE_SYNC_DUR" <<'PYEOF_PRESYNC'
+import json, os, sys
+from datetime import datetime
+run_dir, mode, ts, size, dur_ms = sys.argv[1:]
+size = int(size)
+components = {n: True for n in os.listdir(run_dir) if os.path.isdir(os.path.join(run_dir, n))}
+db_file = None
+db_dir = os.path.join(run_dir, "database")
+if os.path.isdir(db_dir):
+    dumps = sorted(f for f in os.listdir(db_dir) if f.endswith(".dump"))
+    if dumps:
+        db_file = f"database/{dumps[-1]}"
+meta = {
+    "name": os.path.basename(run_dir), "timestamp": ts, "description": mode,
+    "created_by": "scripts/backup/run_backup.sh",
+    "created_at": datetime.utcnow().isoformat() + "Z",
+    "platform_version": "phase-1-6", "build_number": None,
+    "backup_type": mode, "proposal_id": None,
+    "compression": "pg_dump-Fc", "database_file": db_file,
+    "total_size_bytes": size, "total_size_mb": round(size / (1024 * 1024), 2),
+    "external_copy": False, "external_path": None,
+    "pipeline": "phase-1-6", "components": components,
+    "duration_ms": int(dur_ms),
+    "hook_results": {"pre": [], "post": []},
+}
+with open(os.path.join(run_dir, "metadata.json"), "w") as f:
+    json.dump(meta, f, indent=2)
+PYEOF_PRESYNC
+    log_info "wrote metadata.json pre-sync"
+
     log_info "All components OK — starting tier sync"
     "$SCRIPT_DIR/tier_sync_usb.py"    "$RUN_DIR"        || log_warn "USB tier sync had errors"
     "$SCRIPT_DIR/tier_sync_gdrive.py" "$RUN_DIR" "$MODE" || log_warn "GDrive tier sync had errors"
@@ -98,9 +132,8 @@ log_to_db "run_backup" "primary" \
     "$([[ $FAILED -eq 0 ]] && echo success || echo failed)" \
     "$RUN_DIR" "$SIZE" "$DUR_MS"
 
-# Write metadata.json so the Backup Manager UI's list scanner sees this run
-# (Bug #2075 — UI filters on metadata.json existence; without this file new
-# pipeline dirs are invisible in /tools/backup-manager/ even when successful).
+# Refresh metadata.json with final size/duration numbers (post tier-sync).
+# First write happened pre-sync so USB got it; this just updates the primary copy.
 if (( FAILED == 0 )); then
     python3 - "$RUN_DIR" "$MODE" "$TS" "$SIZE" "$DUR_MS" <<'PYEOF'
 import json, os, sys

@@ -3968,12 +3968,16 @@ def list_external_backups():
                     try:
                         with open(metadata_file, "r") as f:
                             metadata = json.load(f)
-                        # Calculate size
-                        total_size = sum(
-                            os.path.getsize(os.path.join(root, f))
-                            for root, _, files in os.walk(item_path)
-                            for f in files
-                        )
+                        # Prefer cached size — os.walk on a 727 MB USB dir is slow.
+                        cached = metadata.get("total_size_bytes") or metadata.get("size")
+                        if cached:
+                            total_size = cached
+                        else:
+                            total_size = sum(
+                                os.path.getsize(os.path.join(root, f))
+                                for root, _, files in os.walk(item_path)
+                                for f in files
+                            )
                         metadata["size"] = total_size
                         metadata["size_mb"] = round(total_size / (1024 * 1024), 2)
                         backups.append(metadata)

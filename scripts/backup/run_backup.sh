@@ -170,6 +170,55 @@ with open(meta_path, "w") as f:
     json.dump(meta, f, indent=2)
 PYEOF
     log_info "refreshed metadata.json with final size/duration (pre-sync values preserved)"
+
+    # Emit a self-contained rollback.sh so an operator can restore this specific
+    # backup with a single ./rollback.sh invocation. Mirrors the convenience
+    # script the legacy pipeline had (observed in build #10 review 2026-04-17).
+    DUMP_BASENAME=$(ls "$RUN_DIR/database/" 2>/dev/null | grep '\.dump$' | head -1)
+    CODE_BASENAME=$(ls "$RUN_DIR/code/" 2>/dev/null | grep '\.tar' | head -1)
+    cat > "$RUN_DIR/rollback.sh" <<ROLLBACK_EOF
+#!/usr/bin/env bash
+# A.R.C.H.I.E. rollback script — restores backup $(basename "$RUN_DIR").
+# Created $(date -u +%FT%TZ) by scripts/backup/run_backup.sh.
+#
+# Usage:  sudo bash rollback.sh
+#
+# Prerequisites on target host:
+#   - docker + docker compose installed
+#   - archie_database container using pgvector/pgvector:pg16 image
+#   - This backup dir accessible at the path below
+set -euo pipefail
+
+BACKUP_DIR="\${BACKUP_DIR:-$RUN_DIR}"
+echo "Rolling back to: \$BACKUP_DIR"
+
+cd /mnt/archie_brain
+echo "Stopping platform..."
+docker compose stop archie_platform || true
+
+echo "Restoring PostgreSQL (pg_dump -Fc custom format)..."
+docker exec -i archie_database psql -U archie -c "DROP DATABASE IF EXISTS archie;"
+docker exec -i archie_database psql -U archie -c "CREATE DATABASE archie;"
+cat "\$BACKUP_DIR/database/$DUMP_BASENAME" | docker exec -i archie_database pg_restore -U archie -d archie --no-owner --no-privileges
+
+if [ -n "$CODE_BASENAME" ] && [ -f "\$BACKUP_DIR/code/$CODE_BASENAME" ]; then
+    echo "Restoring platform code from \$BACKUP_DIR/code/$CODE_BASENAME..."
+    tar -xzf "\$BACKUP_DIR/code/$CODE_BASENAME" -C /mnt/archie_brain
+fi
+
+echo "Restarting platform..."
+docker compose up -d archie_platform
+
+echo ""
+echo "Optional next steps (not automated):"
+echo "  - Decrypt config tier: scripts/backup/decrypt_restore.sh <config>.enc BACKUP_CONFIG_PASSPHRASE"
+echo "  - Restore KBS + Stalwart from volumes/: docker run --rm -v <vol>:/target -v \$BACKUP_DIR/volumes:/src alpine tar -xzf /src/<vol>.tar.gz -C /target"
+echo "  - Restore git bundles: git clone \$BACKUP_DIR/gitbundles/<repo>.bundle <repo>"
+echo ""
+echo "✓ Core rollback complete. Verify: curl -s http://localhost:3000/api/health | jq"
+ROLLBACK_EOF
+    chmod +x "$RUN_DIR/rollback.sh"
+    log_info "emitted rollback.sh for this backup"
 fi
 
 log_info "=== run_backup.sh DONE mode=$MODE failed=$FAILED size=$SIZE dur_ms=$DUR_MS ==="

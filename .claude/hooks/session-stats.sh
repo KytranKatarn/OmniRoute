@@ -135,19 +135,24 @@ session_reset_mins = 300  # 5 hours
 session_elapsed_pct = min(99, round((total_mins / session_reset_mins) * 100))
 session_remaining_mins = max(0, session_reset_mins - total_mins)
 
-# Recommendation — 50% is the REAL limit (model degrades beyond this)
-usable_pct = round((est_total / 500000) * 100, 1)  # 500K usable, not 1M
+# Recommendation — context-budget phases (calibrated from session 14, 2026-04-17):
+# 0-70%  : design + build mode (creative/architectural work)
+# 70-80% : slow down + polish + fix mode (no new design)
+# 80-90% : ship mode (PRs, pushes, commits only — wrap up)
+# 90%+   : emergency close
+# Prior thresholds (50% CRITICAL) were overcautious and cut sessions short.
+usable_pct = round((est_total / 500000) * 100, 1)  # legacy metric kept for display
 
-if est_pct >= 50:
-    recommendation = "CONTEXT CRITICAL — quality degrading. /archie-save and start fresh NOW"
-elif est_pct >= 40:
-    recommendation = "Context heavy — wrap up current task, then /archie-save"
-elif est_pct >= 30:
-    recommendation = "Context building — plan remaining work carefully"
+if est_pct >= 90:
+    recommendation = "🔴🔴 CONTEXT EMERGENCY — /archie-end immediately. No more work."
+elif est_pct >= 80:
+    recommendation = "🔴 CONTEXT HIGH (ship mode) — PRs, pushes, commits only. No new design."
+elif est_pct >= 70:
+    recommendation = "🟡 CONTEXT BUILDING (slow-down mode) — patch/polish/fix. Stop new design. Prepare to ship."
+elif est_pct >= 50:
+    recommendation = f"🟢 Active session — {commit_count} commits shipped. Still in design/build."
 elif hours >= 4 or msg_count > 80:
     recommendation = "Extended session — consider /archie-save checkpoint"
-elif hours >= 2 or msg_count > 40:
-    recommendation = f"Active session — {commit_count} commits shipped"
 elif msg_count < 10:
     recommendation = "Fresh session — plenty of room for work"
 else:

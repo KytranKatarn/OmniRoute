@@ -34,12 +34,15 @@ Quick-save your current session state without closing out. Like a game save poin
    **Next:** <what to do next>
    ```
 
-   **If context_pct ≥ 50 %:** add a banner and recommend closing instead of continuing:
-   ```
-   ⚠️  CONTEXT OVER 50% — quality degrades past this point.
-   Recommend /archie-end to close cleanly and resume in a fresh session.
-   ```
+   **Context-budget phases** (calibrated from session 14, 2026-04-17):
 
-   If context_pct < 40 %: just continue — plenty of room.
+   | Range | Mode | Banner |
+   |-------|------|--------|
+   | 0-70 % | Design + build | none — keep going |
+   | 70-80 % | Slow-down (patch, polish, fix) | 🟡 Stop new design. Prepare to ship. |
+   | 80-90 % | Ship (PRs, pushes, commits only) | 🔴 Wrap up. No new design. |
+   | 90 %+ | Emergency | 🔴🔴 /archie-end NOW |
 
-5. **Continue working** — If context is healthy. If context_pct ≥ 50 %, STOP and let the user decide whether to push through or close.
+   Print the banner matching the current band. Session 14 demonstrated that high-quality work continues well into the 60s — the old "50 % CRITICAL" rule cut sessions short.
+
+5. **Continue working** — Under 70 %: freely. 70-80 %: only finishing/patching work already in flight; no new architecture. 80-90 %: ship what you have and close. 90 %+: stop.

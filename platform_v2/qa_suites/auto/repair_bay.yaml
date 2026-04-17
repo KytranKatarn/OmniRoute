@@ -1,0 +1,250 @@
+# Auto-generated P.R.O.B.E. suite — Task #1729.
+# Re-run platform_v2/scripts/generate_module_qa_suites.py to refresh.
+suite:
+  name: AI Command — Repair Bay (auto)
+  description: Auto-generated baseline coverage — 40 GET routes.
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: repair_bay-tools-repair-bay
+    type: page_load
+    path: /tools/repair-bay/
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-deploy-history
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/deploy/history
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-deploy-ready
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/deploy/ready
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-forge-health
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/forge/health
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-forge-prs
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/forge/prs
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-forge-self-heal-stats
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/forge/self-heal/stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-forge-stats
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/forge/stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-proposals
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/proposals
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-proposals-stats
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/proposals/stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-proposals-stuck
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/proposals/stuck
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-pushes-summary
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/pushes/summary
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-qa-runs
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/qa/runs
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-qa-suites
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/qa/suites
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-repair-manifests
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/repair/manifests
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-repair-queue
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/repair/queue
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-repair-stats
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/repair/stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-sandbox-config
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/sandbox/config
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-sandbox-deployments
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/sandbox/deployments
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-sandbox-discover
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/sandbox/discover
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-sandbox-history
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/sandbox/history
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-sandbox-list
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/sandbox/list
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-sandbox-module-status
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/sandbox/module-status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-sandbox-suites
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/sandbox/suites
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-sandbox-test-results
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/sandbox/test-results
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-sandbox-trends
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/sandbox/trends
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-scan-changed
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/scan/changed
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-scan-directory
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/scan/directory
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-scan-files
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/scan/files
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-scan-fixes
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/scan/fixes
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-scan-history
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/scan/history
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-scan-issues
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/scan/issues
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-scan-modules
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/scan/modules
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-scan-multi-agent-agents
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/scan/multi-agent/agents
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-scan-multi-agent-nodes
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/scan/multi-agent/nodes
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-scan-report
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/scan/report
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-scan-rescan
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/scan/rescan
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-scan-stats
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/scan/stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-scan-status
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/scan/status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-station-crew
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/station/crew
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: repair_bay-tools-repair-bay-api-station-jobs
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/station/jobs
+    expect:
+      status: [200, 301, 302, 304, 401]

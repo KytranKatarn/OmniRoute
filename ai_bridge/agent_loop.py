@@ -3645,6 +3645,51 @@ class AgentLoop:
                 triggered.append(("swap", f"SwapFree={swap_free_gb:.2f}GB (threshold 0.5GB)"))
                 self._watchdog_last_alert["swap"] = now
 
+            # Backup freshness (Phase 5 / Task 19 of backup system redesign).
+            # Alert if no successful primary backup in the last 36h.
+            try:
+                from database import get_db_cursor
+                from datetime import datetime as _dt, timedelta as _td
+
+                with get_db_cursor() as (_c, _cur):
+                    _cur.execute(
+                        "SELECT MAX(created_at) AS latest FROM backup_log WHERE status='success' AND tier='primary'"
+                    )
+                    _row = _cur.fetchone()
+                latest = _row["latest"] if _row else None
+                if latest is None:
+                    if now - self._watchdog_last_alert.get("backup_missing", 0) > dedup_s:
+                        triggered.append(("backup_missing", "No successful primary backups recorded (empty backup_log)"))
+                        self._watchdog_last_alert["backup_missing"] = now
+                else:
+                    latest_naive = latest.replace(tzinfo=None) if hasattr(latest, "tzinfo") and latest.tzinfo else latest
+                    age_h = (_dt.utcnow() - latest_naive).total_seconds() / 3600
+                    if age_h > 36 and now - self._watchdog_last_alert.get("backup_stale", 0) > dedup_s:
+                        triggered.append(("backup_stale", f"Last primary backup {age_h:.1f}h ago (threshold 36h)"))
+                        self._watchdog_last_alert["backup_stale"] = now
+            except Exception as _be:
+                logger.warning(f"watchdog backup-freshness check failed: {_be}")
+
+            # Backup-tier disk free (<20% alerts).
+            try:
+                import shutil as _sh
+
+                for _name, _path in [("primary", "/mnt/data2"), ("usb", "/mnt/external-backup")]:
+                    try:
+                        _u = _sh.disk_usage(_path)
+                        _pct_free = 100.0 * _u.free / _u.total
+                        _key = f"disk_{_name}"
+                        if _pct_free < 20 and now - self._watchdog_last_alert.get(_key, 0) > dedup_s:
+                            triggered.append((_key, f"Backup disk {_name} ({_path}) {_pct_free:.1f}% free (<20%)"))
+                            self._watchdog_last_alert[_key] = now
+                    except FileNotFoundError:
+                        _key = f"disk_{_name}_missing"
+                        if now - self._watchdog_last_alert.get(_key, 0) > dedup_s:
+                            triggered.append((_key, f"Backup mount missing: {_path}"))
+                            self._watchdog_last_alert[_key] = now
+            except Exception as _de:
+                logger.warning(f"watchdog disk-free check failed: {_de}")
+
             for category, msg in triggered:
                 try:
                     from services.telegram_service import send_system

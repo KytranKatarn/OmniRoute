@@ -1,0 +1,133 @@
+/* kytran-paywall — drop-in upgrade overlay for Watch products.
+ *
+ * Activates via plugins.billing (KBS) — button redirects to the KBS
+ * checkout endpoint with current URL as return_url.
+ *
+ * Usage: include paywall.css + paywall.js, call KytranPaywall.show({...}).
+ * See /static/billing/README.md for integration details.
+ */
+
+.kp-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 12, 24, 0.72);
+    backdrop-filter: blur(6px) saturate(140%);
+    -webkit-backdrop-filter: blur(6px) saturate(140%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 24px;
+    animation: kp-fade-in 0.18s ease-out;
+}
+
+@keyframes kp-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.kp-card {
+    max-width: 720px;
+    width: 100%;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border: 1px solid rgba(59, 130, 246, 0.4);
+    border-radius: 16px;
+    padding: 32px;
+    color: #e5e7eb;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.kp-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #22c55e;
+    margin-bottom: 8px;
+}
+
+.kp-title {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    color: #fafafa;
+}
+
+.kp-body {
+    color: #94a3b8;
+    font-size: 14px;
+    line-height: 1.55;
+    margin-bottom: 20px;
+}
+
+.kp-tier-compare {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 13px;
+}
+
+.kp-tier-compare th,
+.kp-tier-compare td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.kp-tier-compare th {
+    font-weight: 600;
+    color: #cbd5e1;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 12px;
+}
+
+.kp-tier-compare td.kp-check-yes { color: #22c55e; }
+.kp-tier-compare td.kp-check-no  { color: #475569; }
+
+.kp-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+.kp-btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    transition: background-color 0.12s, transform 0.12s;
+}
+
+.kp-btn-primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.kp-btn-primary:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+}
+
+.kp-btn-secondary {
+    background: transparent;
+    color: #94a3b8;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.kp-btn-secondary:hover {
+    color: #fafafa;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 540px) {
+    .kp-card { padding: 20px; }
+    .kp-title { font-size: 20px; }
+    .kp-tier-compare { font-size: 12px; }
+    .kp-tier-compare th, .kp-tier-compare td { padding: 6px; }
+}

@@ -1,0 +1,142 @@
+# Auto-generated P.R.O.B.E. suite — Task #1729.
+# Re-run platform_v2/scripts/generate_module_qa_suites.py to refresh.
+suite:
+  name: Media Home — Media Hub (auto)
+  description: Auto-generated baseline coverage — 22 GET routes.
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: media_hub-tools-media-hub
+    type: page_load
+    path: /tools/media-hub/
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-cache-status
+    type: api
+    method: GET
+    path: /tools/media-hub/api/cache/status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-calendar-upcoming
+    type: api
+    method: GET
+    path: /tools/media-hub/api/calendar/upcoming
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-downloads
+    type: api
+    method: GET
+    path: /tools/media-hub/api/downloads
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-health
+    type: api
+    method: GET
+    path: /tools/media-hub/api/health
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-library-collections
+    type: api
+    method: GET
+    path: /tools/media-hub/api/library/collections
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-library-continue-watching
+    type: api
+    method: GET
+    path: /tools/media-hub/api/library/continue-watching
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-library-history
+    type: api
+    method: GET
+    path: /tools/media-hub/api/library/history
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-library-movies
+    type: api
+    method: GET
+    path: /tools/media-hub/api/library/movies
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-library-recent
+    type: api
+    method: GET
+    path: /tools/media-hub/api/library/recent
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-library-recent-activity
+    type: api
+    method: GET
+    path: /tools/media-hub/api/library/recent-activity
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-library-shows
+    type: api
+    method: GET
+    path: /tools/media-hub/api/library/shows
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-library-stats
+    type: api
+    method: GET
+    path: /tools/media-hub/api/library/stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-library-top-rated
+    type: api
+    method: GET
+    path: /tools/media-hub/api/library/top-rated
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-requests
+    type: api
+    method: GET
+    path: /tools/media-hub/api/requests
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-search
+    type: api
+    method: GET
+    path: /tools/media-hub/api/search
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-settings
+    type: api
+    method: GET
+    path: /tools/media-hub/api/settings
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-stats
+    type: api
+    method: GET
+    path: /tools/media-hub/api/stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-status
+    type: api
+    method: GET
+    path: /tools/media-hub/api/status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-tmdb-search
+    type: api
+    method: GET
+    path: /tools/media-hub/api/tmdb/search
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-tmdb-status
+    type: api
+    method: GET
+    path: /tools/media-hub/api/tmdb/status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_hub-tools-media-hub-api-tmdb-trending
+    type: api
+    method: GET
+    path: /tools/media-hub/api/tmdb/trending
+    expect:
+      status: [200, 301, 302, 304, 401]

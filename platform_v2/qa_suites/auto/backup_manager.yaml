@@ -1,0 +1,110 @@
+# Auto-generated P.R.O.B.E. suite — Task #1729.
+# Re-run platform_v2/scripts/generate_module_qa_suites.py to refresh.
+suite:
+  name: Admin Ops — Backup Manager (auto)
+  description: Auto-generated baseline coverage — 19 GET routes.
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: backup_manager-tools-backup-manager
+    type: page_load
+    path: /tools/backup-manager/
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-api-deployment-backups
+    type: api
+    method: GET
+    path: /tools/backup-manager/api/deployment-backups
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-api-deployment-packages
+    type: api
+    method: GET
+    path: /tools/backup-manager/api/deployment-packages
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-api-hooks
+    type: api
+    method: GET
+    path: /tools/backup-manager/api/hooks
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-api-webhooks
+    type: api
+    method: GET
+    path: /tools/backup-manager/api/webhooks
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-cloud-list
+    type: page_load
+    path: /tools/backup-manager/cloud/list
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-cloud-progress
+    type: page_load
+    path: /tools/backup-manager/cloud/progress
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-cloud-status
+    type: page_load
+    path: /tools/backup-manager/cloud/status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-current-build
+    type: page_load
+    path: /tools/backup-manager/current-build
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-external-list
+    type: page_load
+    path: /tools/backup-manager/external-list
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-external-status
+    type: page_load
+    path: /tools/backup-manager/external-status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-health
+    type: page_load
+    path: /tools/backup-manager/health
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-list
+    type: page_load
+    path: /tools/backup-manager/list
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-lock-status
+    type: page_load
+    path: /tools/backup-manager/lock-status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-modules-available
+    type: page_load
+    path: /tools/backup-manager/modules/available
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-modules-list
+    type: page_load
+    path: /tools/backup-manager/modules/list
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-retention-status
+    type: page_load
+    path: /tools/backup-manager/retention-status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-storage-stats
+    type: page_load
+    path: /tools/backup-manager/storage-stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: backup_manager-tools-backup-manager-verify-modules
+    type: page_load
+    path: /tools/backup-manager/verify-modules
+    expect:
+      status: [200, 301, 302, 304, 401]

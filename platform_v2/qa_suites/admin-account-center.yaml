@@ -1,0 +1,217 @@
+suite:
+  name: "Admin Ops — Account Center"
+  description: "Critical paths for Account Center: all 10 tabs + APIs (users, pending, permissions, subscriptions, security, sessions, api-keys, bulk, activity, organizations)"
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: "ac-page-loads"
+    type: api
+    method: GET
+    path: /tools/account-center/
+    expect:
+      status: [200, 302]
+
+  # Tab 1: User List
+  - name: "ac-users-list"
+    type: api
+    method: GET
+    path: /tools/account-center/api/users
+    expect:
+      status: [200, 302]
+
+  # Tab 2: Pending Approvals
+  - name: "ac-users-pending"
+    type: api
+    method: GET
+    path: /tools/account-center/api/users/pending
+    expect:
+      status: [200, 302]
+
+  # Tab 3: Roles & Permissions
+  - name: "ac-roles"
+    type: api
+    method: GET
+    path: /tools/account-center/api/roles
+    expect:
+      status: [200, 302]
+
+  - name: "ac-permissions"
+    type: api
+    method: GET
+    path: /tools/account-center/api/permissions
+    expect:
+      status: [200, 302]
+
+  # Tab 4: Subscriptions
+  - name: "ac-tiers"
+    type: api
+    method: GET
+    path: /tools/account-center/api/tiers
+    expect:
+      status: [200, 302]
+
+  - name: "ac-my-subscription"
+    type: api
+    method: GET
+    path: /tools/account-center/api/my/subscription
+    expect:
+      status: [200, 302]
+
+  - name: "ac-my-payment-methods"
+    type: api
+    method: GET
+    path: /tools/account-center/api/my/payment-methods
+    expect:
+      status: [200, 302]
+
+  # Tab 5: Security
+  - name: "ac-security-overview"
+    type: api
+    method: GET
+    path: /tools/account-center/api/security/overview
+    expect:
+      status: [200, 302]
+
+  - name: "ac-security-failed-logins"
+    type: api
+    method: GET
+    path: /tools/account-center/api/security/failed-logins
+    expect:
+      status: [200, 302]
+
+  - name: "ac-security-2fa"
+    type: api
+    method: GET
+    path: /tools/account-center/api/security/2fa
+    expect:
+      status: [200, 302]
+
+  # Tab 6: Sessions
+  - name: "ac-sessions"
+    type: api
+    method: GET
+    path: /tools/account-center/api/sessions
+    expect:
+      status: [200, 302]
+
+  # Tab 7: API Keys
+  - name: "ac-api-keys"
+    type: api
+    method: GET
+    path: /tools/account-center/api/api-keys
+    expect:
+      status: [200, 302]
+
+  # Tab 8: Bulk Operations
+  - name: "ac-bulk-export"
+    type: api
+    method: GET
+    path: /tools/account-center/api/bulk/export
+    expect:
+      status: [200, 302]
+
+  # Tab 9: Activity
+  - name: "ac-activity"
+    type: api
+    method: GET
+    path: /tools/account-center/api/activity
+    expect:
+      status: [200, 302]
+
+  - name: "ac-activity-modules"
+    type: api
+    method: GET
+    path: /tools/account-center/api/activity/modules
+    expect:
+      status: [200, 302]
+
+  - name: "ac-activity-summary"
+    type: api
+    method: GET
+    path: /tools/account-center/api/activity/summary
+    expect:
+      status: [200, 302]
+
+  # Preferences (cross-tab)
+  - name: "ac-preferences"
+    type: api
+    method: GET
+    path: /tools/account-center/api/preferences
+    expect:
+      status: [200, 302]
+
+  # Visual consistency — computed-style + selector snapshot at 3 breakpoints.
+  # First run produces 'skip' + stored current snapshot; POST
+  # /api/qa/baselines/<suite_id>/accept with run_id to promote into baseline.
+  # Subsequent runs diff against baseline.
+  - name: "ac-visual-consistency"
+    type: visual_snapshot
+    path: /tools/account-center/
+    breakpoints: [480, 768, 1024]
+    selectors:
+      - ":root"
+      - "body"
+      - ".bm-frame"
+    snapshot_name: "account-center-v1"
+
+  # Template health — static scan: inline CSS/JS line counts + duplicate-block
+  # detection. Static analyzer (BeautifulSoup), no HTTP/browser. Expects
+  # account_center.html to stay extraction-clean after commit ba37e4e3.
+  - name: "ac-template-health"
+    type: template_analysis
+    targets:
+      - "templates/tools/account_center.html"
+    thresholds:
+      max_inline_css_lines: 50
+      max_inline_js_lines: 50
+      max_duplicate_block_members: 1
+
+  # Tab interaction — clicks through every Account Center tab and asserts
+  # no console errors accumulate and no "Loading..." state gets stuck.
+  # Encodes what a human reviewer does in a manual UX tour (task #2013).
+  - name: "ac-tab-interaction"
+    type: tab_interaction
+    path: /tools/account-center/
+    settle_ms: 500
+    loading_text: "Loading..."
+    tabs:
+      - name: users
+        selector: 'button:has-text("Users")'
+      - name: pending
+        selector: 'button:has-text("Pending")'
+      - name: permissions
+        selector: 'button:has-text("Permissions")'
+      - name: subscriptions
+        selector: 'button:has-text("Subscriptions")'
+      - name: security
+        selector: 'button:has-text("Security")'
+      - name: sessions
+        selector: 'button:has-text("Sessions")'
+      - name: api-keys
+        selector: 'button:has-text("API Keys")'
+      - name: bulk-ops
+        selector: 'button:has-text("Bulk Ops")'
+      - name: activity
+        selector: 'button:has-text("Activity")'
+      - name: orgs
+        selector: 'button:has-text("Orgs")'
+
+  # UX score — DISABLED for v1.
+  # The qa_ux_scorer + Department HQ vision plumbing work end-to-end
+  # (tested against tiny images returning the correct color), but running
+  # qwen2.5vl:7b on CPU against a 512x512 LCARS page takes >6 minutes and
+  # blows the timeout. Re-enable after one of:
+  #   - Switching to a smaller vision model (moondream 1.7B, minicpm-v:2b)
+  #   - GPU inference for qwen2.5vl:7b (currently size_vram=0MB)
+  #   - Cloud vision fallback tier wired into the dispatcher
+  # Tracked as follow-up task under project #236.
+  #
+  # - name: "ac-ux-score"
+  #   type: ux_score
+  #   path: /tools/account-center/
+  #   breakpoints: [1024]
+  #   rubric: probe-ux-rubric-v1
+  #   min_score: 2.5

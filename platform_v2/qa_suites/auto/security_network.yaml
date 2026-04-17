@@ -1,0 +1,250 @@
+# Auto-generated P.R.O.B.E. suite — Task #1729.
+# Re-run platform_v2/scripts/generate_module_qa_suites.py to refresh.
+suite:
+  name: "Admin Ops — Security & Network (auto)"
+  description: Auto-generated baseline coverage — 40 GET routes.
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: security_network-tools-security-network
+    type: page_load
+    path: /tools/security-network/
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-agent-actions
+    type: api
+    method: GET
+    path: /tools/security-network/api/agent/actions
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-agent-config
+    type: api
+    method: GET
+    path: /tools/security-network/api/agent/config
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-agent-suggestions
+    type: api
+    method: GET
+    path: /tools/security-network/api/agent/suggestions
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-analytics-blocked-domains
+    type: api
+    method: GET
+    path: /tools/security-network/api/analytics/blocked-domains
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-analytics-device-categories
+    type: api
+    method: GET
+    path: /tools/security-network/api/analytics/device-categories
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-analytics-hourly-patterns
+    type: api
+    method: GET
+    path: /tools/security-network/api/analytics/hourly-patterns
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-analytics-noisy-devices
+    type: api
+    method: GET
+    path: /tools/security-network/api/analytics/noisy-devices
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-analytics-threat-summary
+    type: api
+    method: GET
+    path: /tools/security-network/api/analytics/threat-summary
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-audit-log
+    type: api
+    method: GET
+    path: /tools/security-network/api/audit-log
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-auto-block-analyze
+    type: api
+    method: GET
+    path: /tools/security-network/api/auto-block/analyze
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-auto-block-settings
+    type: api
+    method: GET
+    path: /tools/security-network/api/auto-block/settings
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-compliance-blocklist
+    type: api
+    method: GET
+    path: /tools/security-network/api/compliance/blocklist
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-compliance-evidence
+    type: api
+    method: GET
+    path: /tools/security-network/api/compliance/evidence
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-compliance-export-ckl
+    type: api
+    method: GET
+    path: /tools/security-network/api/compliance/export/ckl
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-compliance-export-evidence
+    type: api
+    method: GET
+    path: /tools/security-network/api/compliance/export/evidence
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-compliance-file-history
+    type: api
+    method: GET
+    path: /tools/security-network/api/compliance/file-history
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-compliance-packs
+    type: api
+    method: GET
+    path: /tools/security-network/api/compliance/packs
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-compliance-pending-fixes
+    type: api
+    method: GET
+    path: /tools/security-network/api/compliance/pending-fixes
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-compliance-plans
+    type: api
+    method: GET
+    path: /tools/security-network/api/compliance/plans
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-compliance-rule-packs
+    type: api
+    method: GET
+    path: /tools/security-network/api/compliance/rule-packs
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-compliance-scans
+    type: api
+    method: GET
+    path: /tools/security-network/api/compliance/scans
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-compliance-scores
+    type: api
+    method: GET
+    path: /tools/security-network/api/compliance/scores
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-compliance-soc2
+    type: api
+    method: GET
+    path: /tools/security-network/api/compliance/soc2
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-connections-active
+    type: api
+    method: GET
+    path: /tools/security-network/api/connections/active
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-dashboard-stats
+    type: api
+    method: GET
+    path: /tools/security-network/api/dashboard/stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-ddns-history
+    type: api
+    method: GET
+    path: /tools/security-network/api/ddns/history
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-ddns-status
+    type: api
+    method: GET
+    path: /tools/security-network/api/ddns/status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-devices
+    type: api
+    method: GET
+    path: /tools/security-network/api/devices
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-devices-bandwidth-history-by-user
+    type: api
+    method: GET
+    path: /tools/security-network/api/devices/bandwidth-history/by-user
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-devices-consumption
+    type: api
+    method: GET
+    path: /tools/security-network/api/devices/consumption
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-devices-consumption-by-user
+    type: api
+    method: GET
+    path: /tools/security-network/api/devices/consumption/by-user
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-devices-list
+    type: api
+    method: GET
+    path: /tools/security-network/api/devices/list
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-devices-port-changes
+    type: api
+    method: GET
+    path: /tools/security-network/api/devices/port-changes
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-devices-stats
+    type: api
+    method: GET
+    path: /tools/security-network/api/devices/stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-devices-unregistered
+    type: api
+    method: GET
+    path: /tools/security-network/api/devices/unregistered
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-devices-users
+    type: api
+    method: GET
+    path: /tools/security-network/api/devices/users
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-dns-adguard-clients
+    type: api
+    method: GET
+    path: /tools/security-network/api/dns/adguard/clients
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-dns-adguard-filters
+    type: api
+    method: GET
+    path: /tools/security-network/api/dns/adguard/filters
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: security_network-tools-security-network-api-dns-adguard-querylog
+    type: api
+    method: GET
+    path: /tools/security-network/api/dns/adguard/querylog
+    expect:
+      status: [200, 301, 302, 304, 401]

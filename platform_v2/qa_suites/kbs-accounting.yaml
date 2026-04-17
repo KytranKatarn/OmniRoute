@@ -1,0 +1,36 @@
+suite:
+  name: "Finance — KBS Accounting"
+  description: "Critical paths for kbs_accounting skeleton: page load, list entries, entry detail, chart of accounts"
+  base_url: "http://192.168.1.200:8091"
+  auth:
+    username: "${KBS_TEST_USERNAME}"
+    password: "${KBS_TEST_PASSWORD}"
+
+tests:
+  - name: "acc-page-loads"
+    type: api
+    method: GET
+    path: /plugins/accounting/
+    expect:
+      status: [200, 302]
+
+  - name: "acc-entries-list"
+    type: api
+    method: GET
+    path: /plugins/accounting/api/entries
+    expect:
+      status: [200, 302]
+
+  - name: "acc-entries-list-filtered"
+    type: api
+    method: GET
+    path: /plugins/accounting/api/entries?source_plugin=kbs_invoicing
+    expect:
+      status: [200, 302]
+
+  - name: "acc-chart-of-accounts"
+    type: api
+    method: GET
+    path: /plugins/accounting/api/chart-of-accounts
+    expect:
+      status: [200, 302]

@@ -1,0 +1,250 @@
+# Auto-generated P.R.O.B.E. suite — Task #1729.
+# Re-run platform_v2/scripts/generate_module_qa_suites.py to refresh.
+suite:
+  name: AI Command — Department HQ (auto)
+  description: Auto-generated baseline coverage — 40 GET routes.
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: department_hq-tools-department-hq
+    type: page_load
+    path: /tools/department-hq/
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-agent-utilization
+    type: api
+    method: GET
+    path: /tools/department-hq/api/agent-utilization
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-agents-public-roster
+    type: api
+    method: GET
+    path: /tools/department-hq/api/agents/public-roster
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-agents-welfare
+    type: api
+    method: GET
+    path: /tools/department-hq/api/agents/welfare
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-agents-workload
+    type: api
+    method: GET
+    path: /tools/department-hq/api/agents/workload
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-approvals-history
+    type: api
+    method: GET
+    path: /tools/department-hq/api/approvals/history
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-approvals-pending
+    type: api
+    method: GET
+    path: /tools/department-hq/api/approvals/pending
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-archie-status
+    type: api
+    method: GET
+    path: /tools/department-hq/api/archie/status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-auth-devices
+    type: api
+    method: GET
+    path: /tools/department-hq/api/auth/devices
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-bridge-comfyui-models
+    type: api
+    method: GET
+    path: /tools/department-hq/api/bridge/comfyui/models
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-bridge-dispatch-history
+    type: api
+    method: GET
+    path: /tools/department-hq/api/bridge/dispatch-history
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-bridge-dispatch-overview
+    type: api
+    method: GET
+    path: /tools/department-hq/api/bridge/dispatch-overview
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-bridge-dispatch-status
+    type: api
+    method: GET
+    path: /tools/department-hq/api/bridge/dispatch-status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-bridge-jobs
+    type: api
+    method: GET
+    path: /tools/department-hq/api/bridge/jobs
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-bridge-models
+    type: api
+    method: GET
+    path: /tools/department-hq/api/bridge/models
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-cloud-providers
+    type: api
+    method: GET
+    path: /tools/department-hq/api/cloud-providers
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-coms-config
+    type: api
+    method: GET
+    path: /tools/department-hq/api/coms/config
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-coms-director-reports
+    type: api
+    method: GET
+    path: /tools/department-hq/api/coms/director-reports
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-coms-messages
+    type: api
+    method: GET
+    path: /tools/department-hq/api/coms/messages
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-coms-migration
+    type: api
+    method: GET
+    path: /tools/department-hq/api/coms/migration
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-coms-stats
+    type: api
+    method: GET
+    path: /tools/department-hq/api/coms/stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-contractor-providers
+    type: api
+    method: GET
+    path: /tools/department-hq/api/contractor-providers
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-contractors-definitions
+    type: api
+    method: GET
+    path: /tools/department-hq/api/contractors/definitions
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-contractors-providers
+    type: api
+    method: GET
+    path: /tools/department-hq/api/contractors/providers
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-coordinator-status
+    type: api
+    method: GET
+    path: /tools/department-hq/api/coordinator/status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-creed
+    type: api
+    method: GET
+    path: /tools/department-hq/api/creed
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-creed-enforcement-log
+    type: api
+    method: GET
+    path: /tools/department-hq/api/creed/enforcement-log
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-creed-enforcement-log-full
+    type: api
+    method: GET
+    path: /tools/department-hq/api/creed/enforcement-log-full
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-creed-overview
+    type: api
+    method: GET
+    path: /tools/department-hq/api/creed/overview
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-creed-public-stats
+    type: api
+    method: GET
+    path: /tools/department-hq/api/creed/public-stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-creed-workload-scores
+    type: api
+    method: GET
+    path: /tools/department-hq/api/creed/workload-scores
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-crew-manifest
+    type: api
+    method: GET
+    path: /tools/department-hq/api/crew/manifest
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-dispatch-activity-history
+    type: api
+    method: GET
+    path: /tools/department-hq/api/dispatch/activity-history
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-dispatch-approvals
+    type: api
+    method: GET
+    path: /tools/department-hq/api/dispatch/approvals
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-dispatch-components
+    type: api
+    method: GET
+    path: /tools/department-hq/api/dispatch/components
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-dispatch-config
+    type: api
+    method: GET
+    path: /tools/department-hq/api/dispatch/config
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-dispatch-cross-station-analytics
+    type: api
+    method: GET
+    path: /tools/department-hq/api/dispatch/cross-station-analytics
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-dispatch-history
+    type: api
+    method: GET
+    path: /tools/department-hq/api/dispatch/history
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-dispatch-loops
+    type: api
+    method: GET
+    path: /tools/department-hq/api/dispatch/loops
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: department_hq-tools-department-hq-api-dispatch-ops-summary
+    type: api
+    method: GET
+    path: /tools/department-hq/api/dispatch/ops-summary
+    expect:
+      status: [200, 301, 302, 304, 401]

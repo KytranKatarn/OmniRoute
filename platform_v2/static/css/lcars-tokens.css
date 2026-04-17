@@ -46,6 +46,31 @@
 
 
     /* ─────────────────────────────────────────────────────────────────────────
+       Colors: Palette (Tailwind-aligned accent set for per-tab LCARS frames
+       and tier/status chips across modules). Follow-up from #2031 —
+       replaces raw hex usage in account_center.html and others.
+       ───────────────────────────────────────────────────────────────────────── */
+
+    --archie-palette-blue-500:    #3b82f6;
+    --archie-palette-blue-600:    #2563eb;
+    --archie-palette-amber-500:   #f59e0b;
+    --archie-palette-amber-600:   #d97706;
+    --archie-palette-green-500:   #22c55e;
+    --archie-palette-green-600:   #16a34a;
+    --archie-palette-pink-500:    #ec4899;
+    --archie-palette-pink-600:    #db2777;
+    --archie-palette-teal-500:    #14b8a6;
+    --archie-palette-teal-600:    #0d9488;
+    --archie-palette-orange-500:  #f97316;
+    --archie-palette-orange-600:  #ea580c;
+    --archie-palette-red-500:     #ef4444;
+    --archie-palette-red-600:     #dc2626;
+    --archie-palette-purple-600:  #7c3aed;
+    --archie-palette-cyan-400:    #00d4ff;
+    --archie-palette-emerald-500: #10b981;
+
+
+    /* ─────────────────────────────────────────────────────────────────────────
        Colors: Alpha Variants (for rgba overlays)
        ───────────────────────────────────────────────────────────────────────── */
 

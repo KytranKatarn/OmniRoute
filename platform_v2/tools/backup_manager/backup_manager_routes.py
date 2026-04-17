@@ -1918,6 +1918,34 @@ def backup_health():
                 }
             )
 
+        # Phase 5 / Task 20: per-tier freshness from backup_log.
+        # Newest row per (component, tier) — feeds the LCARS tier-health card.
+        tiers: dict = {}
+        try:
+            with get_backup_db_cursor(commit=False) as (_tconn, _tcur):
+                _tcur.execute(
+                    """
+                    SELECT DISTINCT ON (component, tier)
+                           component, tier, status, created_at, size_bytes,
+                           verification_status
+                      FROM backup_log
+                     WHERE component IS NOT NULL AND tier IS NOT NULL
+                     ORDER BY component, tier, created_at DESC
+                    """
+                )
+                for row in _tcur.fetchall():
+                    tiers.setdefault(row["tier"], []).append(
+                        {
+                            "component": row["component"],
+                            "status": row["status"],
+                            "created_at": (row["created_at"].isoformat() if row["created_at"] else None),
+                            "size_bytes": row["size_bytes"] or 0,
+                            "verification_status": row["verification_status"],
+                        }
+                    )
+        except Exception as _tier_err:
+            tiers = {"_error": str(_tier_err)}
+
         return jsonify(
             {
                 "healthy": healthy,
@@ -1929,6 +1957,7 @@ def backup_health():
                 "platform_version": get_platform_version(),
                 "current_build": get_current_build(),
                 "alerts": alerts,
+                "tiers": tiers,
             }
         )
 
@@ -4729,10 +4758,16 @@ def cloud_download(file_id):
 @backup_manager_bp.route("/cloud/list", methods=["GET"])
 @admin_required
 def cloud_list():
-    """List all cloud backups."""
+    """List all cloud backups.
+
+    Returns 200 with ``enabled=false`` if Google Drive integration isn't
+    configured, and 200 with ``oauth_valid=false`` if OAuth credentials are
+    stale (``invalid_grant``) so the UI can render a "reconnect" prompt
+    instead of a 500. Other exceptions still return 500 for real bugs.
+    """
     config = _get_cloud_config()
     if not config["enabled"]:
-        return jsonify({"success": False, "error": "Google Drive not enabled"}), 400
+        return jsonify({"success": True, "enabled": False, "backups": [], "reason": "Google Drive not enabled"})
 
     try:
         from tools.backup_manager.gdrive_service import (
@@ -4744,9 +4779,20 @@ def cloud_list():
         svc = get_drive_service(config["service_account_path"])
         folder_id = ensure_backup_folder(svc, config["folder_id"])
         backups = list_backups(svc, folder_id)
-        return jsonify({"success": True, "backups": backups})
+        return jsonify({"success": True, "enabled": True, "oauth_valid": True, "backups": backups})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        err = str(e)
+        if "invalid_grant" in err.lower():
+            return jsonify(
+                {
+                    "success": False,
+                    "enabled": True,
+                    "oauth_valid": False,
+                    "backups": [],
+                    "error": "Google Drive OAuth credentials are stale — reconnect required.",
+                }
+            )
+        return jsonify({"success": False, "error": err}), 500
 
 
 @backup_manager_bp.route("/cloud/delete/<file_id>", methods=["DELETE"])
@@ -4770,8 +4816,16 @@ def cloud_delete(file_id):
 @backup_manager_bp.route("/cloud/progress", methods=["GET"])
 @admin_required
 def cloud_progress():
-    """Poll endpoint for cloud operation progress."""
+    """Poll endpoint for cloud operation progress.
+
+    Called with no ``operation_id`` (e.g. from a dashboard widget checking
+    "anything in flight?") returns 200 + ``idle=true`` instead of 404 so
+    health pollers don't false-alarm. An explicit-but-unknown id still
+    returns 404 (real client error).
+    """
     op_id = request.args.get("operation_id", "")
+    if not op_id:
+        return jsonify({"success": True, "idle": True})
     if op_id not in _cloud_progress:
         return jsonify({"success": False, "error": "Operation not found"}), 404
 

@@ -55,6 +55,14 @@ CAPABILITY_DEPARTMENT_MAP = {
     "embedding": "Documentation & Knowledge",
     "creative": "Creative & Design",
     "image": "Creative & Design",
+    "image_generation": "Creative & Design",
+    "visual_design": "Creative & Design",
+    # Vision / multimodal analysis belongs with the creative agents who own
+    # the image model. Pixel's capabilities.primary now includes "vision"
+    # and "ux_scoring" so agent selection resolves to him within the dept.
+    "vision": "Creative & Design",
+    "multimodal": "Creative & Design",
+    "ux_scoring": "Creative & Design",
     "security": "Security & Compliance",
     "compliance": "Security & Compliance",
     "support": "Customer Success & Support",
@@ -246,7 +254,7 @@ class DepartmentCoordinator:
         if recommended_tier:
             agent_model = agent_info.get("model", "")
             try:
-                from ai_bridge.smart_router import get_router
+                from tools.department_hq.services.smart_router import get_router
 
                 router = get_router()
                 configs = router._get_model_configs()

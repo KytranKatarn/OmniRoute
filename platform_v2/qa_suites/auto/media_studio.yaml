@@ -1,0 +1,190 @@
+# Auto-generated P.R.O.B.E. suite — Task #1729.
+# Re-run platform_v2/scripts/generate_module_qa_suites.py to refresh.
+suite:
+  name: Creative Studios — Media Studio (auto)
+  description: Auto-generated baseline coverage — 30 GET routes.
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: media_studio-tools-media-studio
+    type: page_load
+    path: /tools/media-studio/
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-agent-config
+    type: api
+    method: GET
+    path: /tools/media-studio/api/agent-config
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-audio-providers
+    type: api
+    method: GET
+    path: /tools/media-studio/api/audio/providers
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-audio-voices
+    type: api
+    method: GET
+    path: /tools/media-studio/api/audio/voices
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-batches
+    type: api
+    method: GET
+    path: /tools/media-studio/api/batches
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-collections
+    type: api
+    method: GET
+    path: /tools/media-studio/api/collections
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-comfyui-status
+    type: api
+    method: GET
+    path: /tools/media-studio/api/comfyui/status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-dashboard
+    type: api
+    method: GET
+    path: /tools/media-studio/api/dashboard
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-environments-prompts
+    type: api
+    method: GET
+    path: /tools/media-studio/api/environments/prompts
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-gallery
+    type: api
+    method: GET
+    path: /tools/media-studio/api/gallery
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-media-studio-analytics-cost-rates
+    type: api
+    method: GET
+    path: /tools/media-studio/api/media-studio/analytics/cost-rates
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-media-studio-analytics-costs
+    type: api
+    method: GET
+    path: /tools/media-studio/api/media-studio/analytics/costs
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-media-studio-analytics-models
+    type: api
+    method: GET
+    path: /tools/media-studio/api/media-studio/analytics/models
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-media-studio-analytics-realtime
+    type: api
+    method: GET
+    path: /tools/media-studio/api/media-studio/analytics/realtime
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-media-studio-analytics-trends
+    type: api
+    method: GET
+    path: /tools/media-studio/api/media-studio/analytics/trends
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-media-studio-templates
+    type: api
+    method: GET
+    path: /tools/media-studio/api/media-studio/templates
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-models
+    type: api
+    method: GET
+    path: /tools/media-studio/api/models
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-portraits
+    type: api
+    method: GET
+    path: /tools/media-studio/api/portraits
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-queue
+    type: api
+    method: GET
+    path: /tools/media-studio/api/queue
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-queue-stats
+    type: api
+    method: GET
+    path: /tools/media-studio/api/queue/stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-search
+    type: api
+    method: GET
+    path: /tools/media-studio/api/search
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-search-facets
+    type: api
+    method: GET
+    path: /tools/media-studio/api/search/facets
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-smart-collections
+    type: api
+    method: GET
+    path: /tools/media-studio/api/smart-collections
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-social-video-agents
+    type: api
+    method: GET
+    path: /tools/media-studio/api/social-video/agents
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-social-video-budget
+    type: api
+    method: GET
+    path: /tools/media-studio/api/social-video/budget
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-social-video-queue
+    type: api
+    method: GET
+    path: /tools/media-studio/api/social-video/queue
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-social-video-stats
+    type: api
+    method: GET
+    path: /tools/media-studio/api/social-video/stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-social-video-templates
+    type: api
+    method: GET
+    path: /tools/media-studio/api/social-video/templates
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-tags
+    type: api
+    method: GET
+    path: /tools/media-studio/api/tags
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: media_studio-tools-media-studio-api-video-providers
+    type: api
+    method: GET
+    path: /tools/media-studio/api/video/providers
+    expect:
+      status: [200, 301, 302, 304, 401]

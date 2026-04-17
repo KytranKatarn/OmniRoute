@@ -23,7 +23,7 @@ import os
 from db import _get_db_password
 import requests
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
 # Phase 2: Agent lifecycle delegated to agent_service
@@ -85,7 +85,6 @@ CAPABILITY_DEPARTMENT_MAP = {
     "anomaly_detection": "Analytics & Intelligence",
     "pattern_recognition": "Analytics & Intelligence",
     "embedding": "Analytics & Intelligence",
-    "vision": "Analytics & Intelligence",
     "translate": "Analytics & Intelligence",
     "detect_language": "Analytics & Intelligence",
     "analysis": "Analytics & Intelligence",
@@ -136,6 +135,12 @@ CAPABILITY_DEPARTMENT_MAP = {
     "audio_tts": "Creative & Design",
     "audio_music": "Creative & Design",
     "media_editing": "Creative & Design",
+    # Vision / multimodal analysis: routed here so Pixel (who owns the
+    # image model) is picked. Was previously misrouted to Analytics.
+    "vision": "Creative & Design",
+    "multimodal": "Creative & Design",
+    "ux_scoring": "Creative & Design",
+    "visual_design": "Creative & Design",
     # Research & Development
     "knowledge_analysis": "Research & Development",
     "summarize": "Research & Development",
@@ -240,6 +245,51 @@ WINDING_DOWN_STRESS = 0.70  # stress >= 0.7 -> winding down
 COOLDOWN_BUDGET_PCT = 0.95  # 95% budget -> cooldown
 COOLDOWN_STRESS = 0.85  # stress >= 0.85 -> cooldown
 WINDING_DOWN_SCORE_PENALTY = 0.30  # 30% score penalty when winding down
+
+
+# Module-level cache so we only hit Ollama /api/tags once per process.
+_INSTALLED_MODELS_CACHE = {"names": None, "fetched_at": 0}
+
+
+def _resolve_installed_vision_model(preferred: str, fallback_chain: list) -> str:
+    """Pick a vision model that's actually installed in Ollama.
+
+    Checks the ``preferred`` first; if not installed, walks ``fallback_chain``;
+    if none match, returns the first installed model whose name contains a
+    known vision marker; if still nothing, returns ``preferred`` as a last
+    resort so the caller gets a predictable error downstream.
+    """
+    import time as _time
+
+    cache_ttl = 60
+    now = _time.time()
+    if _INSTALLED_MODELS_CACHE["names"] is None or (now - _INSTALLED_MODELS_CACHE["fetched_at"]) > cache_ttl:
+        try:
+            import requests as _req
+
+            ollama_host = os.getenv("OLLAMA_HOST", "http://192.168.1.200:11434")
+            if not ollama_host.startswith("http"):
+                ollama_host = f"http://{ollama_host}"
+            resp = _req.get(f"{ollama_host}/api/tags", timeout=5)
+            if resp.status_code == 200:
+                _INSTALLED_MODELS_CACHE["names"] = {m["name"] for m in (resp.json().get("models") or [])}
+                _INSTALLED_MODELS_CACHE["fetched_at"] = now
+        except Exception:
+            _INSTALLED_MODELS_CACHE["names"] = _INSTALLED_MODELS_CACHE["names"] or set()
+
+    installed = _INSTALLED_MODELS_CACHE["names"] or set()
+
+    if preferred in installed:
+        return preferred
+    for candidate in fallback_chain or []:
+        if candidate in installed:
+            return candidate
+    # Last resort: any installed model that looks vision-capable
+    markers = ("vl", "vision", "llava", "minicpm")
+    for name in sorted(installed):
+        if any(m in name.lower() for m in markers):
+            return name
+    return preferred
 
 
 @dataclass
@@ -2344,6 +2394,7 @@ class DepartmentDispatcher:
         agent_name: Optional[str] = None,
         capability: Optional[str] = None,
         module_id: Optional[str] = None,
+        images: Optional[List[str]] = None,
     ) -> Dict:
         """Execute an LLM call using the existing archie_bridge functions.
 
@@ -2351,7 +2402,81 @@ class DepartmentDispatcher:
         external (``call_external``) dispatches route through the Phase 7
         Telegram approval gate whenever the estimated cost exceeds the agent's
         ``auto_approve_threshold``.
+
+        When ``images`` is non-empty this routes through ``analyze_image`` so
+        callers can use the canonical Department HQ entry point for vision
+        work. Agent selection, welfare/cost logging, and node routing still
+        flow through ``request_work`` — only the final model-call step branches
+        on whether images are present.
         """
+        # Vision short-circuit. Uses the first image (single-image per call
+        # for v1); the existing helper handles Ollama /api/generate payload
+        # construction and node routing for vision models.
+        #
+        # If the caller-selected model isn't vision-capable (e.g. smart_router
+        # picked a code agent for capability='vision' — a routing bug tracked
+        # separately), substitute the configured vision primary so the call
+        # still works. The wrong-agent selection will self-correct when the
+        # smart_router vision capability routing is fixed.
+        if images:
+            # Vision on CPU is impractical (6+ min for 1024x1024 screenshots
+            # with qwen2.5vl:7b). Demand-driven VRAM swap: unload resident
+            # GPU text models so the vision model has room to load on the
+            # M4000, then restore after. Mirrors the ComfyUI SDXL pattern.
+            # Task #2032.
+            ollama_models_unloaded = self._vram_swap_for_vision()
+            try:
+                from ai_bridge.archie_bridge import analyze_image
+
+                vision_model = model
+                known_vision_markers = ("vl:", "vl-", "vl_", "vision", "llava", "minicpm", "-vl", "moondream")
+                if not any(m in (model or "").lower() for m in known_vision_markers):
+                    # Resolve against actually-installed vision models so we
+                    # don't substitute a model that isn't pulled. Default to
+                    # moondream (1.8B, fits on 8GB M4000 VRAM, ~11s/512px) —
+                    # qwen2.5vl:7b needs >8GB VRAM so falls to CPU (~2 min+)
+                    # on the hub. See Task #2032 benchmarks.
+                    vision_model = _resolve_installed_vision_model(
+                        preferred=os.getenv("VISION_MODEL_PRIMARY", "moondream:latest"),
+                        fallback_chain=[
+                            os.getenv("VISION_MODEL_FALLBACK", "qwen2.5vl:7b"),
+                            "moondream:latest",
+                            "minicpm-v:8b",
+                            "llava:7b",
+                        ],
+                    )
+                    logger.info(
+                        "[DepartmentDispatcher] Vision request received a non-vision " "model=%s — substituting %s.",
+                        model,
+                        vision_model,
+                    )
+                full_prompt = prompt
+                if system_prompt:
+                    full_prompt = f"{system_prompt}\n\n{prompt}"
+                # With VRAM swap above, qwen2.5vl:7b should now fit on M4000.
+                # GPU inference is ~10-20x faster than CPU; 300s timeout
+                # still generous for a 1024x1024 page.
+                vision_result = analyze_image(
+                    image_base64=images[0],
+                    prompt=full_prompt,
+                    model=vision_model,
+                    timeout=max(timeout or 120, 300),
+                )
+                # analyze_image returns {success, response, model, provider, cost?}
+                # — same shape _execute_llm callers expect. Pass through.
+                return vision_result
+            except Exception as ve:
+                logger.exception("[DepartmentDispatcher] Vision _execute_llm failed")
+                return {
+                    "success": False,
+                    "error": f"Vision execution failed: {ve}",
+                    "model": model,
+                    "provider": "ollama_vision",
+                }
+            finally:
+                if ollama_models_unloaded:
+                    self._vram_restore_after_vision(ollama_models_unloaded)
+
         try:
             from ai_bridge.archie_bridge import call_ollama, call_ollama_json, call_ollama_cloud
 
@@ -2997,7 +3122,11 @@ class DepartmentDispatcher:
 
         try:
             if contractor.get("is_cloud_proxy"):
-                # Cloud proxy (e.g. minimax, qwen3) — route through Ollama
+                # Cloud proxy (e.g. minimax, qwen3) — route through Ollama.
+                # Vision passes `images` through request_work → _execute_llm
+                # but contractor/cloud-proxy paths don't support vision yet
+                # (each provider has a different image payload shape); left
+                # unthreaded on purpose until that work lands.
                 llm_result = self._execute_llm(
                     model=model or provider_key,
                     prompt=prompt,
@@ -4023,6 +4152,7 @@ class DepartmentDispatcher:
         prefer_agent: Optional[str] = None,
         local_only: bool = False,
         project_id: Optional[int] = None,
+        images: Optional[List[str]] = None,
     ) -> DispatchResult:
         """
         Main entry point — request AI work by capability.
@@ -4748,6 +4878,7 @@ class DepartmentDispatcher:
             agent_name=agent.get("name") if agent else None,
             capability=capability,
             module_id=module_id,
+            images=images,
         )
 
         duration_ms = int((time.time() - start) * 1000)
@@ -4774,6 +4905,7 @@ class DepartmentDispatcher:
                         agent_name=agent.get("name") if agent else None,
                         capability=capability,
                         module_id=module_id,
+                        images=images,
                     )
                     if escalated_result.get("success"):
                         self._reset_failure(agent.get("id", 0), capability)
@@ -4925,6 +5057,7 @@ class DepartmentDispatcher:
         user_id: Optional[int] = None,
         timeout: int = 120,
         project_id: Optional[int] = None,
+        images: Optional[List[str]] = None,
     ) -> Dict:
         """
         Convenience method for JSON-mode requests.
@@ -4939,6 +5072,7 @@ class DepartmentDispatcher:
             json_mode=True,
             timeout=timeout,
             project_id=project_id,
+            images=images,
         )
         if result.success:
             try:
@@ -7129,6 +7263,48 @@ class DepartmentDispatcher:
                 logger.info(f"[BridgeDispatcher] VRAM swap: reloaded {mname} on {target}")
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] VRAM restore failed: {e}")
+
+    # --------------------------------------------------------------------
+    # Vision VRAM swap — same eviction mechanism as ComfyUI, but purposed
+    # for qwen2.5vl:7b / other 7B vision models that need GPU to finish
+    # full-page screenshot inference under a reasonable timeout (Task #2032).
+    # --------------------------------------------------------------------
+
+    def _vram_swap_for_vision(self, node_db_id=None):
+        """Unload GPU-resident Ollama text models to free VRAM for a vision model.
+
+        Returns list of unloaded model names so the caller can restore them
+        via ``_vram_restore_after_vision`` in a finally block.
+        """
+        return self._vram_swap_for_comfyui(node_db_id)
+
+    def _vram_restore_after_vision(self, model_names, node_db_id=None):
+        """Reload text models after a vision inference completes.
+
+        Unlike the ComfyUI path there's no external service whose VRAM needs
+        freeing — Ollama's own keep_alive expires the vision model as soon
+        as the text reloads claim VRAM. Kept as a named method so the
+        vision caller's try/finally reads symmetrically with the ComfyUI one.
+        """
+        try:
+            import requests as _req
+
+            if node_db_id:
+                cap = self._get_node_capacity(node_db_id)
+            else:
+                cap = self._get_hub_capacity()
+            ollama_url = f"http://{cap['hostname']}:{cap['port']}"
+            target = "node " + str(node_db_id) if node_db_id else "hub"
+
+            for mname in model_names:
+                _req.post(
+                    f"{ollama_url}/api/generate",
+                    json={"model": mname, "prompt": "", "keep_alive": "5m"},
+                    timeout=30,
+                )
+                logger.info(f"[BridgeDispatcher] Vision restore: reloaded {mname} on {target}")
+        except Exception as e:
+            logger.warning(f"[BridgeDispatcher] Vision VRAM restore failed: {e}")
 
     # ========================================================================
     # FLEET HEALTH — Node offline/online protocol

@@ -1164,6 +1164,7 @@ def analyze_image(
     image_base64=None,
     prompt="Describe this image in detail",
     model=None,
+    timeout=120,
 ):
     """
     Analyze image using Ollama vision model.
@@ -1248,7 +1249,7 @@ def analyze_image(
         start_time = datetime.now()
 
         response = requests.post(
-            f"{ollama_host}/api/generate", json=payload, timeout=120
+            f"{ollama_host}/api/generate", json=payload, timeout=timeout
         )
 
         end_time = datetime.now()
@@ -1337,7 +1338,7 @@ def analyze_image(
             )
         return {
             "success": False,
-            "error": "Vision analysis timed out (120s limit)",
+            "error": f"Vision analysis timed out ({timeout}s limit)",
             "model": model,
             "provider": "ollama_vision",
             "node_id": node_id,

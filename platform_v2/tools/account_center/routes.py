@@ -1012,8 +1012,11 @@ def api_list_tiers():
             cur.execute(
                 """
                 SELECT id, name, display_name, description, price_monthly, price_yearly,
-                       features, limits, role_level, color, enabled
+                       features, limits, role_level, color, enabled, currency,
+                       stripe_product_id, stripe_price_id_monthly, stripe_price_id_yearly,
+                       kbs_product_slug
                 FROM subscription_tiers
+                WHERE enabled = TRUE
                 ORDER BY sort_order
             """
             )
@@ -1372,10 +1375,14 @@ def api_my_payment_methods():
         if not customer:
             return jsonify({"success": True, "payment_methods": []})
 
-        methods = stripe.PaymentMethod.list(
-            customer=customer["stripe_customer_id"],
-            type="card",
-        )
+        try:
+            methods = stripe.PaymentMethod.list(
+                customer=customer["stripe_customer_id"],
+                type="card",
+            )
+        except stripe.error.StripeError as e:
+            current_app.logger.warning("[AccountCenter] Stripe payment-methods fetch failed: %s", e)
+            return jsonify({"success": True, "payment_methods": []})
 
         return jsonify(
             {
@@ -1393,6 +1400,7 @@ def api_my_payment_methods():
             }
         )
     except Exception as e:
+        current_app.logger.exception("[AccountCenter] payment-methods unexpected error")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

@@ -1,0 +1,245 @@
+# Auto-generated P.R.O.B.E. suite — Task #1729.
+# Re-run platform_v2/scripts/generate_module_qa_suites.py to refresh.
+suite:
+  name: AI Command — Consciousness (auto)
+  description: Auto-generated baseline coverage — 40 GET routes.
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: consciousness-tools-consciousness
+    type: page_load
+    path: /tools/consciousness/
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-activity-feed
+    type: page_load
+    path: /tools/consciousness/activity-feed
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-activity-stats
+    type: page_load
+    path: /tools/consciousness/activity-stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-agent-skills
+    type: page_load
+    path: /tools/consciousness/agent-skills
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-analytics
+    type: page_load
+    path: /tools/consciousness/analytics
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-analytics-knowledge-growth
+    type: page_load
+    path: /tools/consciousness/analytics/knowledge-growth
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-agent-memory
+    type: api
+    method: GET
+    path: /tools/consciousness/api/agent-memory
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-agent-memory-stats
+    type: api
+    method: GET
+    path: /tools/consciousness/api/agent-memory/stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-chat-volume
+    type: api
+    method: GET
+    path: /tools/consciousness/api/chat-volume
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-chat-history
+    type: api
+    method: GET
+    path: /tools/consciousness/api/chat/history
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-claude-status
+    type: api
+    method: GET
+    path: /tools/consciousness/api/claude/status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-code-health-audit-log
+    type: api
+    method: GET
+    path: /tools/consciousness/api/code-health/audit-log
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-code-health-current
+    type: api
+    method: GET
+    path: /tools/consciousness/api/code-health/current
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-code-health-governance-log
+    type: api
+    method: GET
+    path: /tools/consciousness/api/code-health/governance-log
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-code-health-module-status
+    type: api
+    method: GET
+    path: /tools/consciousness/api/code-health/module-status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-code-health-repair-pipeline
+    type: api
+    method: GET
+    path: /tools/consciousness/api/code-health/repair-pipeline
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-code-health-severity-summary
+    type: api
+    method: GET
+    path: /tools/consciousness/api/code-health/severity-summary
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-code-health-snapshots
+    type: api
+    method: GET
+    path: /tools/consciousness/api/code-health/snapshots
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-code-health-standalone-status
+    type: api
+    method: GET
+    path: /tools/consciousness/api/code-health/standalone-status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-code-health-structural-audit
+    type: api
+    method: GET
+    path: /tools/consciousness/api/code-health/structural-audit
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-code-health-website-status
+    type: api
+    method: GET
+    path: /tools/consciousness/api/code-health/website-status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-collab-history
+    type: api
+    method: GET
+    path: /tools/consciousness/api/collab/history
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-collab-learnings
+    type: api
+    method: GET
+    path: /tools/consciousness/api/collab/learnings
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-collab-sessions
+    type: api
+    method: GET
+    path: /tools/consciousness/api/collab/sessions
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-collections
+    type: api
+    method: GET
+    path: /tools/consciousness/api/collections
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-conversations
+    type: api
+    method: GET
+    path: /tools/consciousness/api/conversations
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-dashboard-agent-expertise
+    type: api
+    method: GET
+    path: /tools/consciousness/api/dashboard/agent-expertise
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-dashboard-knowledge-gaps
+    type: api
+    method: GET
+    path: /tools/consciousness/api/dashboard/knowledge-gaps
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-dashboard-knowledge-graph
+    type: api
+    method: GET
+    path: /tools/consciousness/api/dashboard/knowledge-graph
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-dashboard-summary
+    type: api
+    method: GET
+    path: /tools/consciousness/api/dashboard/summary
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-devhq-activity
+    type: api
+    method: GET
+    path: /tools/consciousness/api/devhq/activity
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-devhq-decisions
+    type: api
+    method: GET
+    path: /tools/consciousness/api/devhq/decisions
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-devhq-docs
+    type: api
+    method: GET
+    path: /tools/consciousness/api/devhq/docs
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-devhq-docs-list
+    type: api
+    method: GET
+    path: /tools/consciousness/api/devhq/docs/list
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-devhq-docs-modules
+    type: api
+    method: GET
+    path: /tools/consciousness/api/devhq/docs/modules
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-devhq-ideas
+    type: api
+    method: GET
+    path: /tools/consciousness/api/devhq/ideas
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-devhq-integrations-claude
+    type: api
+    method: GET
+    path: /tools/consciousness/api/devhq/integrations/claude
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-devhq-integrations-health
+    type: api
+    method: GET
+    path: /tools/consciousness/api/devhq/integrations/health
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-devhq-integrations-health-history
+    type: api
+    method: GET
+    path: /tools/consciousness/api/devhq/integrations/health/history
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: consciousness-tools-consciousness-api-devhq-integrations-mcp
+    type: api
+    method: GET
+    path: /tools/consciousness/api/devhq/integrations/mcp
+    expect:
+      status: [200, 301, 302, 304, 401]

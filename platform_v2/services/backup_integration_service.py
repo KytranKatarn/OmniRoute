@@ -12,8 +12,12 @@ from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
 
-PRECHANGE_DIR = "/mnt/data2/backups/pre-change"
-PRIMARY_DIR = "/mnt/data2/backups"
+# Inside the archie_platform container, /mnt/data2 is not writable. The `./backups:/backups`
+# compose mount points at /mnt/archie_brain/backups on the host, which is a symlink to
+# /mnt/data2/backups. So the host sees /mnt/data2/backups while the container writes to /backups.
+# Same physical location, two address spaces.
+PRECHANGE_DIR = "/backups/pre-change"
+PRIMARY_DIR = "/backups"
 USB_DIR = "/mnt/external-backup"
 RETENTION_PRECHANGE = 20
 RETENTION_DAILY = 30
@@ -58,12 +62,30 @@ def create_prechange_snapshot(description=""):
 
         # Log to DB
         with get_db_cursor(commit=True) as (conn, cur):
+            # Phase 5 / Task 21 — write canonical (component, tier, size_bytes)
+            # columns so watchdog freshness + UI tier-health queries see pre-change
+            # snapshots. Keep legacy columns populated for backward compat with
+            # older dashboards reading backup_type/file_size_bytes.
+            snap_size = 0
+            try:
+                for root, _dirs, files in os.walk(snapshot_dir):
+                    for fn in files:
+                        try:
+                            snap_size += os.path.getsize(os.path.join(root, fn))
+                        except OSError:
+                            pass
+            except Exception:
+                pass
             cur.execute(
                 """
-                INSERT INTO backup_log (backup_type, file_path, status, notes, created_at)
-                VALUES ('pre_change', %s, 'completed', %s, NOW())
-            """,
-                (snapshot_dir, description),
+                INSERT INTO backup_log
+                    (component, tier, status, file_path, size_bytes,
+                     backup_type, file_size_bytes, notes, completed_at, created_at)
+                VALUES
+                    ('pre-change', 'primary', 'success', %s, %s,
+                     'pre_change', %s, %s, NOW(), NOW())
+                """,
+                (snapshot_dir, snap_size, snap_size, description),
             )
 
         # Cleanup old snapshots

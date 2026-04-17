@@ -1,0 +1,118 @@
+# Auto-generated P.R.O.B.E. suite — Task #1729.
+# Re-run platform_v2/scripts/generate_module_qa_suites.py to refresh.
+suite:
+  name: Admin Ops — Account Center (auto)
+  description: Auto-generated baseline coverage — 18 GET routes.
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: account_center-tools-account-center
+    type: page_load
+    path: /tools/account-center/
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-activity
+    type: api
+    method: GET
+    path: /tools/account-center/api/activity
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-activity-modules
+    type: api
+    method: GET
+    path: /tools/account-center/api/activity/modules
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-activity-summary
+    type: api
+    method: GET
+    path: /tools/account-center/api/activity/summary
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-api-keys
+    type: api
+    method: GET
+    path: /tools/account-center/api/api-keys
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-bulk-export
+    type: api
+    method: GET
+    path: /tools/account-center/api/bulk/export
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-my-payment-methods
+    type: api
+    method: GET
+    path: /tools/account-center/api/my/payment-methods
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-my-subscription
+    type: api
+    method: GET
+    path: /tools/account-center/api/my/subscription
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-permissions
+    type: api
+    method: GET
+    path: /tools/account-center/api/permissions
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-preferences
+    type: api
+    method: GET
+    path: /tools/account-center/api/preferences
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-roles
+    type: api
+    method: GET
+    path: /tools/account-center/api/roles
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-security-2fa
+    type: api
+    method: GET
+    path: /tools/account-center/api/security/2fa
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-security-failed-logins
+    type: api
+    method: GET
+    path: /tools/account-center/api/security/failed-logins
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-security-overview
+    type: api
+    method: GET
+    path: /tools/account-center/api/security/overview
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-sessions
+    type: api
+    method: GET
+    path: /tools/account-center/api/sessions
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-tiers
+    type: api
+    method: GET
+    path: /tools/account-center/api/tiers
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-users
+    type: api
+    method: GET
+    path: /tools/account-center/api/users
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: account_center-tools-account-center-api-users-pending
+    type: api
+    method: GET
+    path: /tools/account-center/api/users/pending
+    expect:
+      status: [200, 301, 302, 304, 401]

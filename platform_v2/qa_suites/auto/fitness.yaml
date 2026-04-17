@@ -1,0 +1,52 @@
+# Auto-generated P.R.O.B.E. suite — Task #1729.
+# Re-run platform_v2/scripts/generate_module_qa_suites.py to refresh.
+suite:
+  name: Applications — Fitness (auto)
+  description: Auto-generated baseline coverage — 7 GET routes.
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: fitness-tools-fitness
+    type: page_load
+    path: /tools/fitness/
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: fitness-tools-fitness-api-exercises
+    type: api
+    method: GET
+    path: /tools/fitness/api/exercises
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: fitness-tools-fitness-api-goals
+    type: api
+    method: GET
+    path: /tools/fitness/api/goals
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: fitness-tools-fitness-api-models
+    type: api
+    method: GET
+    path: /tools/fitness/api/models
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: fitness-tools-fitness-api-stats
+    type: api
+    method: GET
+    path: /tools/fitness/api/stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: fitness-tools-fitness-api-status
+    type: api
+    method: GET
+    path: /tools/fitness/api/status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: fitness-tools-fitness-api-workout-history
+    type: api
+    method: GET
+    path: /tools/fitness/api/workout/history
+    expect:
+      status: [200, 301, 302, 304, 401]

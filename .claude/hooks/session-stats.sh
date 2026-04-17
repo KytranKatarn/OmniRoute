@@ -89,12 +89,14 @@ total_output_session = 0
 tool_use_count = 0
 assistant_turns = 0
 
-# Find current session JSONL
+# Find current session JSONL — strict match on session_id only.
+# At SessionStart the file may not exist yet; in that case, report zeros
+# and let the estimation formula below provide a rough context estimate.
+# Do NOT fall back to most-recent-JSONL — that reports the PRIOR session's
+# totals against the new session_id and produces false CONTEXT CRITICAL alarms.
 jsonl_dir = Path(home) / ".claude" / "projects" / "-mnt-archie-brain"
-jsonl_files = list(jsonl_dir.glob(f"{session_id}*.jsonl"))
-if not jsonl_files:
-    # Try partial match
-    jsonl_files = sorted(jsonl_dir.glob("*.jsonl"), key=os.path.getmtime, reverse=True)[:1]
+jsonl_files = [p for p in jsonl_dir.glob(f"{session_id}*.jsonl")
+               if p.stem.startswith(session_id)]
 
 if jsonl_files:
     try:

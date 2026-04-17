@@ -1,0 +1,58 @@
+# Auto-generated P.R.O.B.E. suite — Task #1729.
+# Re-run platform_v2/scripts/generate_module_qa_suites.py to refresh.
+suite:
+  name: Admin Ops — User Profile (auto)
+  description: Auto-generated baseline coverage — 8 GET routes.
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: user_profile-tools-my-profile
+    type: page_load
+    path: /tools/my-profile/
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: user_profile-tools-my-profile-api-activity
+    type: api
+    method: GET
+    path: /tools/my-profile/api/activity
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: user_profile-tools-my-profile-api-connections
+    type: api
+    method: GET
+    path: /tools/my-profile/api/connections
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: user_profile-tools-my-profile-api-preferences
+    type: api
+    method: GET
+    path: /tools/my-profile/api/preferences
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: user_profile-tools-my-profile-api-profile
+    type: api
+    method: GET
+    path: /tools/my-profile/api/profile
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: user_profile-tools-my-profile-api-profile-connected-services
+    type: api
+    method: GET
+    path: /tools/my-profile/api/profile/connected-services
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: user_profile-tools-my-profile-api-subscriptions
+    type: api
+    method: GET
+    path: /tools/my-profile/api/subscriptions
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: user_profile-tools-my-profile-api-user-theme
+    type: api
+    method: GET
+    path: /tools/my-profile/api/user/theme
+    expect:
+      status: [200, 301, 302, 304, 401]

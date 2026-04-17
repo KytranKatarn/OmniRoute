@@ -26,7 +26,8 @@
     ("scan", "Diagnose", "shield-check"),
     ("sandbox", "Test Bay", "test-tube-2"),
     ("deploy", "Ship", "rocket"),
-    ("qa", "QA", "check-circle")
+    ("qa", "QA", "check-circle"),
+    ("pushes", "Pushes", "git-branch")
 ] %}
 {% include 'includes/lcars-header.html' %}
 
@@ -557,7 +558,141 @@
         </div>
       </div>
     </div>
+
+    <!-- Pushes Tab: branches waiting for GitHub push freeze to lift -->
+    <div id="tab-pushes" class="tab-content">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+          <div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+          <div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+          <div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+        </div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+            <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">PENDING PUSH QUEUE</span>
+            <div style="flex:1"></div>
+            <span id="pushesFreezeBadge" style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;padding:2px 8px;border-radius:4px;letter-spacing:1px;"></span>
+            <button class="dp-filter" onclick="loadPendingPushes()" style="background:rgba(139,92,246,0.15); border-color:#8b5cf6; color:#8b5cf6;">
+              <i data-lucide="refresh-cw" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Refresh
+            </button>
+          </div>
+          <div style="flex:1 !important;padding:16px !important;">
+            <div id="pushesSummary" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;color:#94a3b8;font-size:0.85rem;">
+              <span>Loading…</span>
+            </div>
+            <div id="pushesTable" class="dp-proposal-list"></div>
+          </div>
+          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
+    </div>
 </div>
+
+<script>
+(function() {
+  // Tiny DOM helper: h(tag, attrs, children) — safe by construction (text nodes only).
+  function h(tag, attrs, children) {
+    var el = document.createElement(tag);
+    if (attrs) {
+      for (var k in attrs) {
+        if (!Object.prototype.hasOwnProperty.call(attrs, k)) continue;
+        var v = attrs[k];
+        if (k === 'style') el.style.cssText = v;
+        else if (k === 'className') el.className = v;
+        else if (v != null) el.setAttribute(k, v);
+      }
+    }
+    (children || []).forEach(function(c) {
+      if (c == null || c === false) return;
+      if (typeof c === 'string') el.appendChild(document.createTextNode(c));
+      else if (typeof c === 'number') el.appendChild(document.createTextNode(String(c)));
+      else el.appendChild(c);
+    });
+    return el;
+  }
+  function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+
+  async function loadPendingPushes() {
+    var badge = document.getElementById('pushesFreezeBadge');
+    var summary = document.getElementById('pushesSummary');
+    var table = document.getElementById('pushesTable');
+    try {
+      var res = await fetch('/tools/repair-bay/api/pushes/summary');
+      var data = await res.json();
+      if (!data.success) throw new Error(data.error || 'fetch failed');
+
+      // Freeze badge
+      if (data.freeze_active) {
+        badge.textContent = '🚫 FREEZE ACTIVE — lifts ' + data.freeze_lift_date;
+        badge.style.background = 'rgba(255,107,107,0.15)';
+        badge.style.color = '#ff6b6b';
+      } else {
+        badge.textContent = '✅ READY TO SHIP';
+        badge.style.background = 'rgba(0,255,65,0.15)';
+        badge.style.color = '#00ff41';
+      }
+
+      // Summary row
+      clear(summary);
+      [
+        ['Pending branches: ', String(data.pending_branches)],
+        ['Commits queued: ', String(data.total_commits_queued)],
+        ['Total branches: ', String(data.total_branches)],
+        ['Scanned: ', data.scanned_at || ''],
+      ].forEach(function(pair) {
+        summary.appendChild(h('span', null, [pair[0], h('strong', null, [pair[1]])]));
+      });
+
+      // Table
+      clear(table);
+      if (!data.branches.length) {
+        table.appendChild(h('div', { className: 'dp-empty', style: 'padding:40px;' }, [
+          h('div', { className: 'dp-empty-desc' }, ['No local branches found.'])
+        ]));
+        return;
+      }
+      var headers = ['Branch', 'Ahead', 'Behind', 'Tip', 'Last commit', 'Subject'];
+      var thead = h('thead', null, [
+        h('tr', { style: 'border-bottom:1px solid rgba(255,255,255,0.12);text-align:left;' },
+          headers.map(function(txt, i) {
+            var align = (i === 1 || i === 2) ? 'text-align:right;' : '';
+            return h('th', { style: 'padding:8px;' + align }, [txt]);
+          }))
+      ]);
+      var tbody = h('tbody');
+      data.branches.forEach(function(b) {
+        var pending = b.commits_ahead > 0;
+        var dot = h('span', { style: pending ? 'color:#ff6b6b;' : 'color:#00ff41;opacity:.5;' },
+          [pending ? '● ' : '○ ']);
+        tbody.appendChild(h('tr', {
+          style: 'border-bottom:1px solid rgba(255,255,255,0.05);' + (pending ? 'background:rgba(255,107,107,0.04);' : '')
+        }, [
+          h('td', { style: 'padding:8px;font-family:IBM Plex Mono,monospace;' }, [dot, b.branch || '']),
+          h('td', { style: 'padding:8px;text-align:right;' + (pending ? 'color:#ff6b6b;font-weight:bold;' : 'color:#94a3b8;') }, [String(b.commits_ahead)]),
+          h('td', { style: 'padding:8px;text-align:right;color:#94a3b8;' }, [String(b.commits_behind)]),
+          h('td', { style: 'padding:8px;font-family:IBM Plex Mono,monospace;color:#8b5cf6;' }, [b.local_sha || '—']),
+          h('td', { style: 'padding:8px;color:#94a3b8;' }, [(b.last_touched || '').slice(0, 16).replace('T', ' ')]),
+          h('td', { style: 'padding:8px;color:#e5e7eb;' }, [b.last_commit_subject || '']),
+        ]));
+      });
+      table.appendChild(h('table', { style: 'width:100%;border-collapse:collapse;font-size:0.85rem;' }, [thead, tbody]));
+    } catch (err) {
+      clear(table);
+      table.appendChild(h('div', { className: 'dp-empty', style: 'padding:40px;color:#ff6b6b;' }, [
+        h('div', { className: 'dp-empty-desc' }, ['Error: ' + err.message])
+      ]));
+    }
+  }
+  window.loadPendingPushes = loadPendingPushes;
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest && e.target.closest('[data-tab="pushes"]');
+    if (btn) setTimeout(loadPendingPushes, 50);
+  });
+  if (location.hash === '#pushes') setTimeout(loadPendingPushes, 300);
+})();
+</script>
 
 <script src="{{ url_for('static', filename='js/department-ops.js') }}"></script>
 <script src="{{ url_for('static', filename='js/repair-bay-qa.js') }}"></script>

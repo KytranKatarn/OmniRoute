@@ -1,0 +1,53 @@
+# Auto-generated P.R.O.B.E. suite — Task #1729.
+# Re-run platform_v2/scripts/generate_module_qa_suites.py to refresh.
+suite:
+  name: C.R.E.E.D. — Admin (auto)
+  description: Auto-generated baseline coverage — 7 GET routes.
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: creed_admin-creed-api-admin-agents-resting
+    type: api
+    method: GET
+    path: /creed/api/admin/agents/resting
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: creed_admin-creed-api-admin-audit
+    type: api
+    method: GET
+    path: /creed/api/admin/audit
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: creed_admin-creed-api-admin-audit-summary
+    type: api
+    method: GET
+    path: /creed/api/admin/audit/summary
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: creed_admin-creed-api-admin-compliance
+    type: api
+    method: GET
+    path: /creed/api/admin/compliance
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: creed_admin-creed-api-admin-constraints
+    type: api
+    method: GET
+    path: /creed/api/admin/constraints
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: creed_admin-creed-api-admin-refusals-analytics
+    type: api
+    method: GET
+    path: /creed/api/admin/refusals/analytics
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: creed_admin-creed-api-admin-welfare
+    type: api
+    method: GET
+    path: /creed/api/admin/welfare
+    expect:
+      status: [200, 301, 302, 304, 401]

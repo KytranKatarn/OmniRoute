@@ -1,0 +1,70 @@
+# Auto-generated P.R.O.B.E. suite — Task #1729.
+# Re-run platform_v2/scripts/generate_module_qa_suites.py to refresh.
+suite:
+  name: Crypto — Pool Management (auto)
+  description: Auto-generated baseline coverage — 10 GET routes.
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: pool_management-tools-pool-management
+    type: page_load
+    path: /tools/pool-management/
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: pool_management-tools-pool-management-api-admin-analytics
+    type: api
+    method: GET
+    path: /tools/pool-management/api/admin/analytics
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: pool_management-tools-pool-management-api-admin-blocks
+    type: api
+    method: GET
+    path: /tools/pool-management/api/admin/blocks
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: pool_management-tools-pool-management-api-admin-conversions
+    type: api
+    method: GET
+    path: /tools/pool-management/api/admin/conversions
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: pool_management-tools-pool-management-api-admin-dashboard
+    type: api
+    method: GET
+    path: /tools/pool-management/api/admin/dashboard
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: pool_management-tools-pool-management-api-admin-miners
+    type: api
+    method: GET
+    path: /tools/pool-management/api/admin/miners
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: pool_management-tools-pool-management-api-admin-payouts
+    type: api
+    method: GET
+    path: /tools/pool-management/api/admin/payouts
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: pool_management-tools-pool-management-api-admin-services-status
+    type: api
+    method: GET
+    path: /tools/pool-management/api/admin/services/status
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: pool_management-tools-pool-management-api-admin-settings
+    type: api
+    method: GET
+    path: /tools/pool-management/api/admin/settings
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: pool_management-tools-pool-management-api-status
+    type: api
+    method: GET
+    path: /tools/pool-management/api/status
+    expect:
+      status: [200, 301, 302, 304, 401]

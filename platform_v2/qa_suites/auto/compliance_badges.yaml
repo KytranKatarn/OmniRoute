@@ -1,0 +1,59 @@
+# Auto-generated P.R.O.B.E. suite — Task #1729.
+# Re-run platform_v2/scripts/generate_module_qa_suites.py to refresh.
+suite:
+  name: Compliance — Public Badges (auto)
+  description: Auto-generated baseline coverage — 8 GET routes.
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: compliance_badges-api-public-compliance-badge-cis-svg
+    type: api
+    method: GET
+    path: /api/public/compliance/badge/cis.svg
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: compliance_badges-api-public-compliance-badge-docker-svg
+    type: api
+    method: GET
+    path: /api/public/compliance/badge/docker.svg
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: compliance_badges-api-public-compliance-badge-hipaa-svg
+    type: api
+    method: GET
+    path: /api/public/compliance/badge/hipaa.svg
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: compliance_badges-api-public-compliance-badge-network-svg
+    type: api
+    method: GET
+    path: /api/public/compliance/badge/network.svg
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: compliance_badges-api-public-compliance-badge-soc2-svg
+    type: api
+    method: GET
+    path: /api/public/compliance/badge/soc2.svg
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: compliance_badges-api-public-compliance-badge-stig-svg
+    type: api
+    method: GET
+    path: /api/public/compliance/badge/stig.svg
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: compliance_badges-api-public-compliance-badge-ubuntu-svg
+    type: api
+    method: GET
+    path: /api/public/compliance/badge/ubuntu.svg
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: compliance_badges-api-public-compliance-badges
+    type: api
+    method: GET
+    path: /api/public/compliance/badges
+    expect:
+      status: [200, 301, 302, 304, 401]

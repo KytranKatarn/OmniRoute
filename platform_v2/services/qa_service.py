@@ -70,7 +70,7 @@ def run_suite(suite_id, triggered_by="manual"):
     start_time = time.time()
 
     try:
-        results = execute_spec(spec_data)
+        results = execute_spec(spec_data, suite_id=suite_id, run_id=run_id)
     except Exception as exc:
         logger.error("Suite %s execution failed: %s", suite_id, exc)
         results = [

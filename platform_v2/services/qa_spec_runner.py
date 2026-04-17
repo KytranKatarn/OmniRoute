@@ -53,13 +53,18 @@ def _resolve_env_vars(obj):
     return obj
 
 
-def execute_spec(spec, session=None):
+def execute_spec(spec, session=None, suite_id=None, run_id=None):
     """
     Execute all tests in a parsed spec.
 
     Args:
         spec: Parsed YAML spec dict with 'suite' and 'tests' keys.
         session: Optional requests.Session (created if not provided).
+        suite_id: Parent suite id — required for visual_snapshot tests so
+            baselines can be loaded from qa_visual_baselines, and for
+            ux_score so scores can be keyed by suite.
+        run_id: Parent run id — used by ux_score to write to
+            qa_ux_rubric_scores keyed by run.
 
     Returns:
         List of result dicts.
@@ -109,33 +114,369 @@ def execute_spec(spec, session=None):
                     "error_message": f"Batch execution failed: {e}",
                 }
 
+    # Batch all visual_snapshot tests into one subprocess call (shared browser).
+    # Each spec test explodes into N results (one per breakpoint), so we track
+    # mapping by id(test) → list[result].
+    visual_tests = [t for t in tests if t.get("type") == "visual_snapshot"]
+    visual_results_map = {}
+    if visual_tests:
+        baselines = _fetch_visual_baselines(suite_id, visual_tests) if suite_id else []
+        try:
+            batch_results = _run_visual_snapshot_batch(visual_tests, base_url, auth, baselines)
+            # Group results by the original test they came from (by name prefix).
+            for t in visual_tests:
+                name = t.get("name", "")
+                visual_results_map[id(t)] = [r for r in batch_results if r.get("test_name", "").startswith(name)]
+        except Exception as e:
+            logger.error("Visual snapshot batch failed: %s", e)
+            for t in visual_tests:
+                visual_results_map[id(t)] = [
+                    {
+                        "test_name": t.get("name", "unknown"),
+                        "test_type": "visual_snapshot",
+                        "status": "error",
+                        "error_message": f"Batch execution failed: {e}",
+                    }
+                ]
+
+    # Batch all ux_score tests. Each explodes into N results (one per
+    # breakpoint). Shared subprocess runs Playwright + vision dispatch.
+    ux_tests = [t for t in tests if t.get("type") == "ux_score"]
+    ux_results_map = {}
+    if ux_tests:
+        try:
+            batch_results = _run_ux_score_batch(ux_tests, base_url, auth, suite_id, run_id)
+            for t in ux_tests:
+                name = t.get("name", "")
+                ux_results_map[id(t)] = [r for r in batch_results if r.get("test_name", "").startswith(name)]
+        except Exception as e:
+            logger.error("UX score batch failed: %s", e)
+            for t in ux_tests:
+                ux_results_map[id(t)] = [
+                    {
+                        "test_name": t.get("name", "unknown"),
+                        "test_type": "ux_score",
+                        "status": "error",
+                        "error_message": f"Batch execution failed: {e}",
+                    }
+                ]
+
+    # Batch all tab_interaction tests into one subprocess call. Each explodes
+    # into N results (page-load + one per tab), so we track by id(test) → list.
+    tab_tests = [t for t in tests if t.get("type") == "tab_interaction"]
+    tab_results_map = {}
+    if tab_tests:
+        try:
+            batch_results = _run_tab_interaction_batch(tab_tests, base_url, auth)
+            for t in tab_tests:
+                name = t.get("name", "")
+                tab_results_map[id(t)] = [r for r in batch_results if r.get("test_name", "").startswith(name)]
+        except Exception as e:
+            logger.error("Tab interaction batch failed: %s", e)
+            for t in tab_tests:
+                tab_results_map[id(t)] = [
+                    {
+                        "test_name": t.get("name", "unknown"),
+                        "test_type": "tab_interaction",
+                        "status": "error",
+                        "error_message": f"Batch execution failed: {e}",
+                    }
+                ]
+
     results = []
     for test in tests:
         test_type = test.get("type", "api")
         try:
             if test_type == "api":
                 result = _run_api_test(test, base_url, session, auth)
+                results.append(result)
             elif test_type == "page_load":
                 result = _run_page_load_test(test, base_url, session)
+                results.append(result)
             elif test_type == "e2e":
                 result = e2e_results_map.get(id(test)) or _run_e2e_test(test, base_url, auth)
+                results.append(result)
+            elif test_type == "visual_snapshot":
+                # May produce multiple results (one per breakpoint).
+                sub_results = visual_results_map.get(id(test)) or [
+                    {
+                        "test_name": test.get("name", "unknown"),
+                        "test_type": "visual_snapshot",
+                        "status": "error",
+                        "error_message": "Visual batch produced no results for this test.",
+                    }
+                ]
+                results.extend(sub_results)
+            elif test_type == "template_analysis":
+                # Sync static scan — BeautifulSoup reads files directly from disk.
+                from services.qa_template_analyzer import run_template_analysis_test
+
+                sub_results = run_template_analysis_test(test)
+                results.extend(sub_results)
+            elif test_type == "ux_score":
+                sub_results = ux_results_map.get(id(test)) or [
+                    {
+                        "test_name": test.get("name", "unknown"),
+                        "test_type": "ux_score",
+                        "status": "error",
+                        "error_message": "UX batch produced no results for this test.",
+                    }
+                ]
+                results.extend(sub_results)
+            elif test_type == "tab_interaction":
+                sub_results = tab_results_map.get(id(test)) or [
+                    {
+                        "test_name": test.get("name", "unknown"),
+                        "test_type": "tab_interaction",
+                        "status": "error",
+                        "error_message": "Tab batch produced no results for this test.",
+                    }
+                ]
+                results.extend(sub_results)
             else:
-                result = {
+                results.append(
+                    {
+                        "test_name": test.get("name", "unknown"),
+                        "test_type": test_type,
+                        "status": "error",
+                        "error_message": f"Unknown test type: {test_type}",
+                    }
+                )
+        except Exception as e:
+            results.append(
+                {
                     "test_name": test.get("name", "unknown"),
                     "test_type": test_type,
                     "status": "error",
-                    "error_message": f"Unknown test type: {test_type}",
+                    "error_message": str(e),
                 }
-        except Exception as e:
-            result = {
-                "test_name": test.get("name", "unknown"),
-                "test_type": test_type,
-                "status": "error",
-                "error_message": str(e),
-            }
-        results.append(result)
+            )
 
     return results
+
+
+def _fetch_visual_baselines(suite_id, visual_tests):
+    """Return list of baseline records matching the snapshot_names used by tests.
+
+    Keeps the runner pure (no DB) — parent process fetches, subprocess receives
+    the list via the base64 spec blob.
+    """
+    if not suite_id or not visual_tests:
+        return []
+    snapshot_names = list({t.get("snapshot_name") or t.get("name") for t in visual_tests})
+    try:
+        # Lazy import — database module isn't importable outside Flask/Docker.
+        from database import get_db_cursor  # type: ignore
+    except ImportError:
+        try:
+            from platform_v2.database import get_db_cursor  # type: ignore
+        except ImportError:
+            logger.warning("Could not import database module for baseline fetch.")
+            return []
+
+    try:
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                """SELECT snapshot_name, breakpoint, baseline
+                   FROM qa_visual_baselines
+                   WHERE suite_id = %s AND snapshot_name = ANY(%s)""",
+                (suite_id, snapshot_names),
+            )
+            rows = cur.fetchall() or []
+            return [
+                {
+                    "snapshot_name": r["snapshot_name"],
+                    "breakpoint": int(r["breakpoint"]),
+                    "baseline": r["baseline"],
+                }
+                for r in rows
+            ]
+    except Exception as e:
+        logger.warning("Failed to fetch visual baselines for suite %s: %s", suite_id, e)
+        return []
+
+
+def _run_visual_snapshot_batch(tests, base_url, auth, baselines):
+    """Run all visual_snapshot tests in one Playwright subprocess.
+
+    Mirrors the docker-exec-subprocess pattern used by _run_e2e_batch so that
+    the Flask worker stays sync while Playwright runs async with its own loop.
+    """
+    import subprocess
+    import json
+    import base64
+
+    spec = {
+        "tests": tests,
+        "base_url": base_url,
+        "auth": auth,
+        "baselines": baselines,
+    }
+    spec_b64 = base64.b64encode(json.dumps(spec).encode()).decode()
+
+    # Budget: ~8s per test × breakpoints + a browser-start floor.
+    total_bp = sum(len(t.get("breakpoints") or [1024]) for t in tests)
+    timeout_s = max(90, total_bp * 12)
+
+    result = subprocess.run(
+        [
+            "docker",
+            "exec",
+            "archie_platform",
+            "python3",
+            "-c",
+            f"""
+import asyncio, json, sys, base64
+sys.path.insert(0, '/app')
+from services.qa_visual_runner import execute_batch
+
+spec = json.loads(base64.b64decode('{spec_b64}'))
+baselines = {{(b['snapshot_name'], int(b['breakpoint'])): b['baseline'] for b in spec.get('baselines', [])}}
+
+results = asyncio.run(execute_batch(spec['tests'], spec['base_url'], spec.get('auth'), baselines))
+print(json.dumps(results))
+""",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=timeout_s,
+    )
+
+    if result.returncode == 0 and result.stdout.strip():
+        return json.loads(result.stdout.strip().split("\n")[-1])
+    err = (result.stderr or "Visual batch subprocess failed")[:500]
+    # Return one error result per test (breakpoints lost in failure case).
+    return [
+        {
+            "test_name": t.get("name", "unnamed_visual"),
+            "test_type": "visual_snapshot",
+            "url": f"{base_url}{t.get('path', '/')}",
+            "status": "error",
+            "error_message": err,
+        }
+        for t in tests
+    ]
+
+
+def _run_tab_interaction_batch(tests, base_url, auth):
+    """Run all tab_interaction tests in one Playwright subprocess.
+
+    Mirrors _run_visual_snapshot_batch so Flask stays sync while Playwright
+    drives a single browser across every tab_interaction spec in the suite.
+    """
+    import subprocess
+    import json
+    import base64
+
+    spec = {"tests": tests, "base_url": base_url, "auth": auth}
+    spec_b64 = base64.b64encode(json.dumps(spec).encode()).decode()
+
+    # Budget: ~5s per tab + 10s browser-start floor.
+    total_tabs = sum(len(t.get("tabs") or []) for t in tests)
+    timeout_s = max(60, total_tabs * 8 + 20)
+
+    result = subprocess.run(
+        [
+            "docker",
+            "exec",
+            "archie_platform",
+            "python3",
+            "-c",
+            f"""
+import asyncio, json, sys, base64
+sys.path.insert(0, '/app')
+from services.qa_tab_interaction_runner import execute_batch
+
+spec = json.loads(base64.b64decode('{spec_b64}'))
+results = asyncio.run(execute_batch(spec['tests'], spec['base_url'], spec.get('auth')))
+print(json.dumps(results))
+""",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=timeout_s,
+    )
+
+    if result.returncode == 0 and result.stdout.strip():
+        return json.loads(result.stdout.strip().split("\n")[-1])
+    err = (result.stderr or "Tab interaction batch subprocess failed")[:500]
+    return [
+        {
+            "test_name": t.get("name", "unnamed_tab_interaction"),
+            "test_type": "tab_interaction",
+            "url": f"{base_url}{t.get('path', '/')}",
+            "status": "error",
+            "error_message": err,
+        }
+        for t in tests
+    ]
+
+
+def _run_ux_score_batch(tests, base_url, auth, suite_id, run_id):
+    """Run all ux_score tests in one subprocess: Playwright + vision dispatch.
+
+    Mirrors the _run_visual_snapshot_batch pattern — subprocess keeps the
+    Flask worker sync while the scorer runs Playwright + vision calls
+    asynchronously. The subprocess has DB access, so scores are written
+    to qa_ux_rubric_scores directly from the scorer.
+    """
+    import subprocess
+    import json
+    import base64
+
+    spec = {
+        "tests": tests,
+        "base_url": base_url,
+        "auth": auth,
+        "suite_id": suite_id,
+        "run_id": run_id,
+    }
+    spec_b64 = base64.b64encode(json.dumps(spec).encode()).decode()
+
+    # Budget: vision calls take 10-20s each on CPU-only vision model.
+    total_calls = sum(len(t.get("breakpoints") or [1024]) for t in tests)
+    timeout_s = max(180, total_calls * 60)
+
+    result = subprocess.run(
+        [
+            "docker",
+            "exec",
+            "archie_platform",
+            "python3",
+            "-c",
+            f"""
+import asyncio, json, sys, base64
+sys.path.insert(0, '/app')
+sys.path.insert(0, '/mnt/archie_brain/ai_bridge')
+sys.path.insert(0, '/mnt/archie_brain')
+from services.qa_ux_scorer import execute_batch
+
+spec = json.loads(base64.b64decode('{spec_b64}'))
+results = asyncio.run(execute_batch(
+    spec['tests'], spec['base_url'], spec.get('auth'),
+    spec.get('suite_id'), spec.get('run_id'),
+))
+print(json.dumps(results))
+""",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=timeout_s,
+    )
+
+    if result.returncode == 0 and result.stdout.strip():
+        return json.loads(result.stdout.strip().split("\n")[-1])
+    err = (result.stderr or "UX score batch subprocess failed")[:500]
+    return [
+        {
+            "test_name": t.get("name", "unnamed_ux"),
+            "test_type": "ux_score",
+            "url": f"{base_url}{t.get('path', '/')}",
+            "status": "error",
+            "error_message": err,
+        }
+        for t in tests
+    ]
 
 
 def _authenticate(session, base_url, auth):

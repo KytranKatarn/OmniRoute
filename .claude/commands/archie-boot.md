@@ -2,6 +2,17 @@
 
 You are starting a new work session on the A.R.C.H.I.E. platform. Execute these steps IN ORDER before doing any work.
 
+## 🚫 GitHub Push Freeze (Check FIRST, every session)
+
+**If today is on or before 2026-04-30:** `git push` and `gh pr create` are FORBIDDEN — even with the Pro account. Minutes cap is blown and every push risks metered overage.
+
+- Commit freely locally. Do NOT push to origin.
+- Track pending branches in Repair Bay (module at `/tools/repair-bay`) — the branches / pending push queue is the source of truth for "what's waiting to ship." If Repair Bay has no panel for this yet, log a project task to add one and use the inventory table in `feedback_github-actions-minutes.md` as the temporary ledger.
+- If the user says "push" or "ship" while the freeze is active, STOP and reconfirm. They may have forgotten.
+- On 2026-05-01 the freeze lifts: re-enable workflows (`gh workflow enable "ARCHIE CI"`, `gh workflow enable "Agent Single-Writer Guardrail"`) and push the Repair Bay queue in the listed order, one PR at a time so CI doesn't queue up.
+
+Full rationale + running inventory: `~/.claude/projects/-mnt-archie-brain/memory/feedback_github-actions-minutes.md`.
+
 ## Step 1: Load Knowledge Context
 
 Call `mcp__archie__session_briefing` with the topic extracted from the user's first message (or "platform status" if no specific topic).

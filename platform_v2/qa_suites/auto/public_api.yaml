@@ -1,0 +1,47 @@
+# Auto-generated P.R.O.B.E. suite — Task #1729.
+# Re-run platform_v2/scripts/generate_module_qa_suites.py to refresh.
+suite:
+  name: Infra — Public API (auto)
+  description: Auto-generated baseline coverage — 6 GET routes.
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: public_api-api-public-competitors
+    type: api
+    method: GET
+    path: /api/public/competitors
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: public_api-api-public-compliance-frameworks
+    type: api
+    method: GET
+    path: /api/public/compliance/frameworks
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: public_api-api-public-creed-stats
+    type: api
+    method: GET
+    path: /api/public/creed/stats
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: public_api-api-public-directory
+    type: api
+    method: GET
+    path: /api/public/directory
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: public_api-api-public-directory-live
+    type: api
+    method: GET
+    path: /api/public/directory/live
+    expect:
+      status: [200, 301, 302, 304, 401]
+  - name: public_api-api-public-platform-features
+    type: api
+    method: GET
+    path: /api/public/platform-features
+    expect:
+      status: [200, 301, 302, 304, 401]

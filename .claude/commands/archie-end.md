@@ -1,13 +1,21 @@
 # A.R.C.H.I.E. Session End — Full Close-Out Protocol
 
-Complete end-of-session ritual. Saves everything, commits, pushes, and provides a clean handoff.
+Complete end-of-session ritual. Saves everything, commits, provides a clean handoff. **Pushes are GATED on the GitHub Push Freeze** — see Step 0.
 
-## Step 1: Commit & Push All Work
+## Step 0: Check the GitHub Push Freeze
+
+**If today is on or before 2026-04-30:** do NOT push, do NOT open PRs. Minutes cap is blown (even with Pro). Commit locally, register the branch in Repair Bay's Pending Push Queue (or the inventory table in `feedback_github-actions-minutes.md` if the panel isn't live yet), and hand off for May.
+
+If today is on or after 2026-05-01, verify workflows are re-enabled (`gh workflow list --all`) before pushing. Push Repair Bay's queue in the listed order, one PR at a time.
+
+## Step 1: Commit All Work (push-gated)
 
 ```
 1. Run `git status` — check for uncommitted changes
-2. If changes exist: stage, commit with descriptive message, push to current branch
-3. If on a feature branch with a PR: note the PR number and status
+2. If changes exist: stage, commit with descriptive message
+3. If freeze is ACTIVE (≤2026-04-30): DO NOT push. Add/update the branch row in Repair Bay's Pending Push Queue.
+4. If freeze is LIFTED (≥2026-05-01): push to current branch, open PR if applicable.
+5. If on a feature branch with a PR: note the PR number and status.
 ```
 
 ## Step 2: Complete Dev HQ Tasks

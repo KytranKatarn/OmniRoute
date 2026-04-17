@@ -17,20 +17,42 @@ source "$SCRIPT_DIR/lib_common.sh"
 load_backup_env
 
 : "${BACKUP_VPS_PASSPHRASE:?BACKUP_VPS_PASSPHRASE missing from .env}"
-VPS_HOST="${BACKUP_VPS_HOST:-100.64.0.1}"
 VPS_USER="${BACKUP_VPS_USER:-kytran}"
-VPS_REMOTE_ROOT="${BACKUP_VPS_REMOTE_ROOT:-/var/backups/archie}"
+# Default to user home — kytran can't write to /var/backups on a stock Ubuntu.
+# Override via BACKUP_VPS_REMOTE_ROOT in .env if the VPS admin has created
+# /var/backups/archie with kytran:kytran ownership.
+VPS_REMOTE_ROOT="${BACKUP_VPS_REMOTE_ROOT:-/home/kytran/backups/archie}"
+
+# Host preference: try mesh first (faster, avoids public SSH hits), fall back
+# to public IP when mesh is dark. BACKUP_VPS_HOST in .env forces a specific
+# host (useful when debugging).
+if [[ -n "${BACKUP_VPS_HOST:-}" ]]; then
+    VPS_HOSTS=( "$BACKUP_VPS_HOST" )
+else
+    VPS_HOSTS=( "100.64.0.1" "76.13.107.109" )
+fi
 
 RUN_DIR="${1:?run_dir required}"
 VPS_COMPONENTS=(database gitbundles config)
 
 START=$(date +%s)
+
+# Pick first reachable host.
+VPS_HOST=""
+for candidate in "${VPS_HOSTS[@]}"; do
+    if ssh -o BatchMode=yes -o ConnectTimeout=5 "${VPS_USER}@${candidate}" 'exit 0' 2>/dev/null; then
+        VPS_HOST="$candidate"
+        log_info "VPS tier using ${VPS_HOST}"
+        break
+    fi
+done
+
 REMOTE_DIR="${VPS_REMOTE_ROOT}/$(basename "$RUN_DIR")"
 
-# Fast-fail if mesh unreachable.
-if ! ssh -o BatchMode=yes -o ConnectTimeout=5 "${VPS_USER}@${VPS_HOST}" 'echo ok' >/dev/null 2>&1; then
-    log_warn "VPS ${VPS_HOST} not reachable — skipping VPS tier"
-    log_to_db "vps" "vps" "skipped" "$REMOTE_DIR" "0" "0" "mesh/ssh unreachable"
+# Fast-fail if no host reachable.
+if [[ -z "$VPS_HOST" ]]; then
+    log_warn "VPS unreachable on all candidates (${VPS_HOSTS[*]}) — skipping VPS tier"
+    log_to_db "vps" "vps" "skipped" "$REMOTE_DIR" "0" "0" "no reachable host"
     exit 0
 fi
 

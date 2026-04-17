@@ -6,7 +6,7 @@ set -u
 MESH_IP="${MESH_IP:-100.64.0.1}"
 PUB_IP="${PUB_IP:-76.13.107.109}"
 VPS_USER="${VPS_USER:-kytran}"
-REMOTE_DIR="${VPS_BACKUP_DIR:-/var/backups/archie}"
+REMOTE_DIR="${VPS_BACKUP_DIR:-/home/kytran/backups/archie}"
 
 check() {
     local host="$1" label="$2"

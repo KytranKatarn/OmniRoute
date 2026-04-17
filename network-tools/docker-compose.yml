@@ -23,7 +23,11 @@ services:
     cap_add:
       - NET_ADMIN
       - NET_RAW
-    command: --redis 127.0.0.1:6379 -i eno1 -w 3001 --community
+    # -m flag adds trusted local networks: LAN + Docker bridge range so the
+    # archie_platform container (172.x.x.x) can authenticate against ntopng
+    # the same way host LAN traffic can. Without this, ntopng returns
+    # wrong-credentials for any request from a non-LAN source IP.
+    command: --redis 127.0.0.1:6379 -i eno1 -w 3001 --community -m "192.168.1.0/24,172.16.0.0/12"
     volumes:
       - network_ntopng_data:/var/lib/ntopng
     deploy:

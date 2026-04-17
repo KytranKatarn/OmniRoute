@@ -2,16 +2,17 @@
 
 You are starting a new work session on the A.R.C.H.I.E. platform. Execute these steps IN ORDER before doing any work.
 
-## 🚫 GitHub Push Freeze (Check FIRST, every session)
+## GitHub Rate Hygiene (not a freeze — verified 2026-04-17)
 
-**If today is on or before 2026-04-30:** `git push` and `gh pr create` are FORBIDDEN — even with the Pro account. Minutes cap is blown and every push risks metered overage.
+Pushes, PRs, and merges are FINE as long as we respect published rate limits.
 
-- Commit freely locally. Do NOT push to origin.
-- Track pending branches in Repair Bay (module at `/tools/repair-bay`) — the branches / pending push queue is the source of truth for "what's waiting to ship." If Repair Bay has no panel for this yet, log a project task to add one and use the inventory table in `feedback_github-actions-minutes.md` as the temporary ledger.
-- If the user says "push" or "ship" while the freeze is active, STOP and reconfirm. They may have forgotten.
-- On 2026-05-01 the freeze lifts: re-enable workflows (`gh workflow enable "ARCHIE CI"`, `gh workflow enable "Agent Single-Writer Guardrail"`) and push the Repair Bay queue in the listed order, one PR at a time so CI doesn't queue up.
+- **Quick check:** `gh api /rate_limit` — `core` remaining > 4,000 of 5,000 → push freely.
+- **Batch commits** into meaningful PRs (3–5 related commits each). Don't open a PR for every micro-fix.
+- **Squash-merge via `gh pr merge --squash --delete-branch`.**
+- **On 403 "secondary rate limit"** → stop for 60 min; it's the abuse detector.
+- **Bot/agent writes** to GitHub (Repair Bay auto-PRs, Backup Manager bundle pushes, F.O.R.G.E., agent_loop jobs) must check rate limit before each write. Shared helper is under development (see tasks in Platform Audit project).
 
-Full rationale + running inventory: `~/.claude/projects/-mnt-archie-brain/memory/feedback_github-actions-minutes.md`.
+Full policy + historical context: `~/.claude/projects/-mnt-archie-brain/memory/feedback_github-actions-minutes.md`.
 
 ## Step 1: Load Knowledge Context
 

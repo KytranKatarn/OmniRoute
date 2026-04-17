@@ -1,21 +1,20 @@
 # A.R.C.H.I.E. Session End — Full Close-Out Protocol
 
-Complete end-of-session ritual. Saves everything, commits, provides a clean handoff. **Pushes are GATED on the GitHub Push Freeze** — see Step 0.
+Complete end-of-session ritual. Saves everything, commits, provides a clean handoff. Pushes follow the rate-respect policy — not a blanket freeze.
 
-## Step 0: Check the GitHub Push Freeze
+## Step 0: GitHub Rate Check
 
-**If today is on or before 2026-04-30:** do NOT push, do NOT open PRs. Minutes cap is blown (even with Pro). Commit locally, register the branch in Repair Bay's Pending Push Queue (or the inventory table in `feedback_github-actions-minutes.md` if the panel isn't live yet), and hand off for May.
+Run `gh api /rate_limit` before any push. `core` remaining > 4,000 = safe. If below 1,000 or you see a 403 secondary-rate-limit today, hold pushes for 60 min.
 
-If today is on or after 2026-05-01, verify workflows are re-enabled (`gh workflow list --all`) before pushing. Push Repair Bay's queue in the listed order, one PR at a time.
-
-## Step 1: Commit All Work (push-gated)
+## Step 1: Commit All Work + Push
 
 ```
 1. Run `git status` — check for uncommitted changes
 2. If changes exist: stage, commit with descriptive message
-3. If freeze is ACTIVE (≤2026-04-30): DO NOT push. Add/update the branch row in Repair Bay's Pending Push Queue.
-4. If freeze is LIFTED (≥2026-05-01): push to current branch, open PR if applicable.
-5. If on a feature branch with a PR: note the PR number and status.
+3. Push to current branch (respect rate-check from Step 0)
+4. If the branch is ready for review, open a PR with gh pr create
+5. If on a feature branch with a PR: note the PR number and status
+6. Prefer batching several branches into a single PR where they share a theme
 ```
 
 ## Step 2: Complete Dev HQ Tasks

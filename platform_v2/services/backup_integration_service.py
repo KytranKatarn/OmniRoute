@@ -25,26 +25,74 @@ RETENTION_WEEKLY = 12
 
 
 def create_prechange_snapshot(description=""):
-    """Create a lightweight snapshot before code changes."""
+    """Create a lightweight snapshot before code changes.
+
+    Hardened 2026-04-17 (task #2054):
+    - pg_dump uses -Fc custom format (compressed, matches Phase 1-6 pipeline)
+    - Output streams directly to file via stdout pipe (no 2+ GB in-memory buffer
+      that the old capture_output=True, text=True approach required)
+    - Timeout extended from 120s → 600s to match production pg_dump size
+    - --no-owner --no-privileges so the dump restores cleanly into a fresh
+      postgres instance (e.g. DR drill sandbox)
+    - Failed dump now logs a 'failed' row to backup_log and returns error
+      instead of silently writing an empty file
+    """
     os.makedirs(PRECHANGE_DIR, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     snapshot_name = f"{timestamp}_pre_change"
     snapshot_dir = os.path.join(PRECHANGE_DIR, snapshot_name)
 
     try:
-        # Snapshot the database
-        db_file = os.path.join(snapshot_dir, "db_snapshot.sql")
         os.makedirs(snapshot_dir, exist_ok=True)
 
-        result = subprocess.run(
-            ["docker", "exec", "archie_database", "pg_dump", "-U", "archie", "archie"],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        if result.returncode == 0:
-            with open(db_file, "w") as f:
-                f.write(result.stdout)
+        # Snapshot the database — streaming pg_dump -Fc directly to file.
+        db_file = os.path.join(snapshot_dir, f"archie_{timestamp}.dump")
+        try:
+            with open(db_file, "wb") as f:
+                result = subprocess.run(
+                    [
+                        "docker",
+                        "exec",
+                        "-i",
+                        "archie_database",
+                        "pg_dump",
+                        "-U",
+                        "archie",
+                        "-d",
+                        "archie",
+                        "-Fc",
+                        "-Z",
+                        "6",
+                        "--no-owner",
+                        "--no-privileges",
+                    ],
+                    stdout=f,
+                    stderr=subprocess.PIPE,
+                    timeout=600,
+                )
+            if result.returncode != 0:
+                err = (result.stderr or b"").decode("utf-8", errors="replace")[:500]
+                logger.error("[Backup] pg_dump failed rc=%s err=%s", result.returncode, err)
+                # Clean up the partial file so we don't mislead downstream scans.
+                try:
+                    os.remove(db_file)
+                except OSError:
+                    pass
+                with get_db_cursor(commit=True) as (_, cur):
+                    cur.execute(
+                        """INSERT INTO backup_log
+                            (component, tier, status, file_path, size_bytes,
+                             backup_type, file_size_bytes, notes, error_message,
+                             completed_at, created_at)
+                           VALUES
+                            ('pre-change', 'primary', 'failed', %s, 0,
+                             'pre_change', 0, %s, %s, NOW(), NOW())""",
+                        (snapshot_dir, description, f"pg_dump rc={result.returncode}: {err}"),
+                    )
+                return {"error": f"pg_dump failed (rc={result.returncode})"}
+        except subprocess.TimeoutExpired:
+            logger.error("[Backup] pg_dump timed out after 600s")
+            return {"error": "pg_dump timed out after 600s"}
 
         # Snapshot git state
         git_file = os.path.join(snapshot_dir, "git_state.txt")

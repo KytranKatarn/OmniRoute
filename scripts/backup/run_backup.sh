@@ -103,7 +103,7 @@ meta = {
     "created_by": "scripts/backup/run_backup.sh",
     "created_at": datetime.utcnow().isoformat() + "Z",
     "platform_version": "phase-1-6", "build_number": None,
-    "backup_type": mode, "proposal_id": None,
+    "backup_type": "full", "run_mode": mode, "proposal_id": None,
     "compression": "pg_dump-Fc", "database_file": db_file,
     "total_size_bytes": size, "total_size_mb": round(size / (1024 * 1024), 2),
     "external_copy": False, "external_path": None,

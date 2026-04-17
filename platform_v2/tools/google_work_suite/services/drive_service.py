@@ -390,24 +390,50 @@ def backup_get_drive_service(service_account_path: str = None):
     """
     Build an authenticated Google Drive API v3 client for backups.
 
-    Prefers OAuth credentials (user-owned files with real storage quota).
-    Falls back to service account if OAuth is not configured.
+    Credential source priority:
+      1. Work Suite user OAuth (get_google_client) — unified with Gmail/Calendar;
+         one reconnect covers both systems. Uses the first google_accounts row
+         with `scopes` containing 'drive'. This is the preferred path.
+      2. Dedicated backup OAuth token file — legacy per-service install flow.
+      3. Service account JSON — blocked by Google policy for personal Drive
+         (quota=0) but still works for Workspace Shared Drives.
 
     Returns:
         Google Drive API service resource
     """
     from googleapiclient.discovery import build
 
+    # (1) Borrow Work Suite credentials if available.
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (_, cur):
+            cur.execute(
+                "SELECT id FROM google_accounts "
+                "WHERE (scopes IS NULL OR scopes ILIKE %s) AND refresh_token IS NOT NULL "
+                "ORDER BY is_primary DESC, id ASC LIMIT 1",
+                ("%drive%",),
+            )
+            row = cur.fetchone()
+        if row:
+            account_id = row["id"]
+            from .google_api_service import get_google_client
+
+            return get_google_client(account_id, "drive", "v3")
+    except Exception as e:
+        logger.warning("Work Suite Drive creds unavailable, falling through: %s", e)
+
+    # (2) Legacy backup-dedicated OAuth token file.
     creds = _load_backup_credentials()
     if creds:
         return build("drive", "v3", credentials=creds)
 
+    # (3) Service account — works only for Workspace Shared Drives.
     if not service_account_path:
         service_account_path = os.environ.get(
             "GDRIVE_SERVICE_ACCOUNT_PATH",
             "/app/credentials/gdrive-service-account.json",
         )
-
     if os.path.exists(service_account_path):
         from google.oauth2 import service_account as sa
 
@@ -415,8 +441,9 @@ def backup_get_drive_service(service_account_path: str = None):
         return build("drive", "v3", credentials=credentials)
 
     raise RuntimeError(
-        "No Google Drive credentials configured. "
-        "Set up OAuth via Backup Manager -> Cloud Backup -> Connect Google Drive."
+        "No Google Drive credentials configured. Connect via "
+        "/tools/google-work-suite (preferred — one auth for Gmail + Calendar + Drive) "
+        "or Backup Manager -> Cloud Backup -> Connect Google Drive."
     )
 
 

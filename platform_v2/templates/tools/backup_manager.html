@@ -2376,7 +2376,7 @@
     }
 
     async function setupCloudDrive() {
-        showToast('Connecting to Google Drive...', 'info');
+        showToast('Checking Google Drive status...', 'info');
         try {
             const response = await fetch('/tools/backup-manager/cloud/setup', {
                 method: 'POST',
@@ -2387,6 +2387,20 @@
             if (data.success) {
                 showToast('Connected to Google Drive!', 'success');
                 loadCloudStatus();
+                return;
+            }
+            // Policy errors (invalid_grant / storage quota) → unified fix is to
+            // reconnect via Work Suite, which covers Gmail + Calendar + Drive.
+            const msg = (data.error || '').toLowerCase();
+            if (msg.includes('invalid_grant') || msg.includes('storage quota') || msg.includes('no google drive credentials')) {
+                showToast('Reconnect your Google account in Work Suite…', 'info');
+                const go = confirm(
+                    "Google Drive credentials need to be refreshed.\n\n" +
+                    "Click OK to go to the Work Suite page where you reconnect " +
+                    "your Google account. After you sign in there, come back " +
+                    "here and the backup tier will start working automatically."
+                );
+                if (go) window.open('/tools/google-work-suite', '_blank');
             } else {
                 showToast('Connection failed: ' + data.error, 'error');
             }

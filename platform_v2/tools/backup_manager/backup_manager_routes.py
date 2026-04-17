@@ -2424,8 +2424,12 @@ def download_backup(backup_name):
         if not os.path.exists(backup_path):
             return jsonify({"success": False, "error": "Backup not found"}), 404
 
-        # Create tar.gz archive using tempfile for proper cleanup
-        with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp:
+        # Stage the archive on the persistent backups volume — /tmp is a 512 MB
+        # tmpfs inside the container and backups of 700 MB+ overflow it with
+        # "No space left on device". BACKUP_DIR lives on /mnt/data2 (~361 GB free).
+        staging_dir = os.path.join(BACKUP_DIR, ".downloads")
+        os.makedirs(staging_dir, exist_ok=True)
+        with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False, dir=staging_dir) as tmp:
             archive_path = tmp.name
 
         try:

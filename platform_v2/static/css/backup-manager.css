@@ -210,16 +210,22 @@
 }
 
 .backup-type-btn {
-    padding: var(--archie-space-4) var(--archie-space-3);
-    border-radius: var(--archie-radius-lg);
+    padding: var(--archie-space-2) var(--archie-space-3);
+    border-radius: var(--archie-radius-md);
     cursor: pointer;
     font-weight: 600;
-    font-size: var(--archie-text-sm);
+    font-size: var(--archie-text-xs);
     transition: transform 0.15s, box-shadow 0.2s, border-color 0.2s;
     border: 1px solid;
     font-family: var(--archie-font-mono);
     text-align: center;
     letter-spacing: 0.04em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--archie-space-2);
+    min-height: 40px;
+    line-height: 1.2;
 }
 
 .backup-type-btn:hover {
@@ -227,8 +233,9 @@
     box-shadow: 0 4px 16px rgba(0,0,0,0.4);
 }
 
-.backup-type-btn .icon { font-size: 1.4rem; margin-bottom: var(--archie-space-2); }
-.backup-type-btn .size { font-size: var(--archie-text-xs); opacity: 0.7; margin-top: var(--archie-space-1); }
+/* Icon is inline with label now — no vertical stacking. */
+.backup-type-btn .icon { font-size: 1rem; margin: 0; }
+.backup-type-btn .size { font-size: var(--archie-text-xs); opacity: 0.65; margin: 0 0 0 var(--archie-space-1); font-weight: 400; }
 
 .btn-full {
     background: var(--archie-purple-alpha-10);
@@ -654,9 +661,12 @@
         padding: var(--archie-space-3);
     }
     .backup-type-btn {
-        padding: var(--archie-space-3) var(--archie-space-2);
+        padding: var(--archie-space-2) var(--archie-space-2);
+        min-height: 36px;
     }
-    .backup-type-btn .icon { font-size: 1.1rem; }
+    .backup-type-btn .icon { font-size: 0.9rem; }
+    /* Hide the size estimate on narrow screens to keep a single line */
+    .backup-type-btn .size { display: none; }
     .backup-item {
         padding: var(--archie-space-3);
     }

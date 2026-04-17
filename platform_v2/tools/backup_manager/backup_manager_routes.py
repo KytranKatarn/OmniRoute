@@ -1328,7 +1328,12 @@ def trigger_webhooks(event_type, payload):
 
 
 def preview_restore(backup_name):
-    """Preview what would change during restore (dry-run)"""
+    """Preview what would change during restore (dry-run).
+
+    Supports two layouts:
+    - Phase 1-6 pipeline: database/<ts>.dump + code/ + gitbundle(s)/ + config/ + volumes/
+    - Legacy: database.sql.gz + platform_v2/ + ai_bridge/ + docs/ + scripts/ + nginx/ + n8n_workflows/
+    """
     backup_path = os.path.join(BACKUP_DIR, backup_name)
 
     if not os.path.exists(backup_path):
@@ -1343,12 +1348,62 @@ def preview_restore(backup_name):
         "total_size_bytes": 0,
     }
 
-    # Check database
-    db_file = os.path.join(backup_path, "database.sql.gz")
-    if not os.path.exists(db_file):
-        db_file = os.path.join(backup_path, "database.sql")
+    # Detect pipeline — new pipeline has database/ subdir with .dump files.
+    new_db_dir = os.path.join(backup_path, "database")
+    is_new_pipeline = os.path.isdir(new_db_dir) and any(
+        f.endswith(".dump") for f in (os.listdir(new_db_dir) if os.path.isdir(new_db_dir) else [])
+    )
 
-    if os.path.exists(db_file):
+    if is_new_pipeline:
+        # ---------- Phase 1-6 layout ----------
+        # Database: pg_dump -Fc custom format. We report size + dump filename;
+        # exact table count requires pg_restore --list which isn't available
+        # in the app container. Metadata.json can tell us more if present.
+        dumps = [f for f in os.listdir(new_db_dir) if f.endswith(".dump")]
+        if dumps:
+            dump_file = sorted(dumps)[-1]
+            dump_path = os.path.join(new_db_dir, dump_file)
+            dump_size = os.path.getsize(dump_path)
+            preview["components"].append(
+                {
+                    "name": "database",
+                    "file": f"database/{dump_file}",
+                    "size_bytes": dump_size,
+                    "compressed": True,
+                    "format": "pg_dump custom (-Fc)",
+                    "note": "Full DB dump; restore via pg_restore against a pgvector-capable postgres.",
+                }
+            )
+            preview["total_size_bytes"] += dump_size
+            preview["database_tables"] = "pg_dump archive (see metadata.json for table count)"
+
+        # Code: everything in code/ subdir (platform_v2 + ai_bridge + scripts + migrations)
+        for comp_name in ("code", "gitbundles", "gitbundle", "config", "volumes"):
+            comp_path = os.path.join(backup_path, comp_name)
+            if not os.path.isdir(comp_path):
+                continue
+            file_count = sum(len(files) for _, _, files in os.walk(comp_path))
+            size = sum(os.path.getsize(os.path.join(root, f)) for root, _, files in os.walk(comp_path) for f in files)
+            entry = {
+                "name": comp_name,
+                "file_count": file_count,
+                "size_bytes": size,
+            }
+            if comp_name == "config":
+                entry["note"] = "Encrypted (AES-256-CBC) — restore with decrypt_restore.sh"
+            preview["components"].append(entry)
+            preview["files_to_restore"] += file_count
+            preview["total_size_bytes"] += size
+
+        # No legacy scan — skip straight to the metadata/version block.
+        db_file = None
+    else:
+        # ---------- Legacy layout ----------
+        db_file = os.path.join(backup_path, "database.sql.gz")
+        if not os.path.exists(db_file):
+            db_file = os.path.join(backup_path, "database.sql")
+
+    if db_file and os.path.exists(db_file):
         preview["components"].append(
             {
                 "name": "database",
@@ -1426,9 +1481,13 @@ def preview_restore(backup_name):
                 "total_backup_size_mb": metadata.get("total_size_mb", 0),
             }
 
-            # Add info about non-restorable components (for user understanding)
+            # Add info about non-restorable components (for user understanding).
+            # Both pipelines' layouts are supported — restorable = everything
+            # produced by either create_backup_programmatic (legacy) or
+            # scripts/backup/run_backup.sh (phase-1-6).
             all_components = metadata.get("components", {})
             restorable = {
+                # Legacy
                 "database",
                 "platform_v2",
                 "ai_bridge",
@@ -1436,6 +1495,20 @@ def preview_restore(backup_name):
                 "scripts",
                 "nginx",
                 "n8n_workflows",
+                "database_migrations",
+                "n8n_persistence",
+                "environment",
+                "conversation_logs",
+                # Phase 1-6
+                "code",
+                "gitbundle",
+                "gitbundles",
+                "config",
+                "volumes",
+                "convlogs",
+                "kb_export",
+                "vps_pull",
+                "monthly_full",
             }
             non_restorable = [k for k, v in all_components.items() if v and k not in restorable]
             if non_restorable:

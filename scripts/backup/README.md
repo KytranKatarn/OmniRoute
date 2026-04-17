@@ -8,6 +8,8 @@
 
 ## TL;DR — Full Rebuild After Catastrophic Loss
 
+**⚠️ Schema prerequisite:** A.R.C.H.I.E. uses the `pgvector` extension for `knowledge_base` embeddings. The restore target MUST be a postgres with pgvector installed — generic `postgres:16` will fail with 149+ errors during restore. Use `pgvector/pgvector:pg16` (that's what production and `dr_drill.sh` use).
+
 1. Fresh Ubuntu 22.04+ host. Install: `docker docker-compose postgresql-client openssl git rsync`
 2. Clone repo: `git clone git@github.com:KytranKatarn/archie-platform.git /mnt/archie_brain`
 3. Retrieve 3 passphrases from paper safe:

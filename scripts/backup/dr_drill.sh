@@ -30,7 +30,7 @@ prod_rows=$(docker exec archie_database psql -U archie -d archie -At -c \
 docker run -d --rm --name "$CONTAINER" \
     -e POSTGRES_PASSWORD=drilldrill \
     -v "$latest_dump:/tmp/dump.dump:ro" \
-    postgres:16-alpine > /dev/null
+    pgvector/pgvector:pg16 > /dev/null
 
 # Wait for the drill postgres to accept connections (psql lives inside the container).
 for _ in $(seq 1 30); do

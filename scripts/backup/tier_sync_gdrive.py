@@ -58,25 +58,54 @@ END $$;
     )
 
 
-def is_oauth_ready() -> bool:
-    """Check that Work Suite OAuth is connected in the platform container."""
+def is_drive_ready() -> bool:
+    """Check that SOME Drive auth path works — OAuth OR service account.
+
+    backup_get_drive_service falls back to the service account JSON when
+    OAuth isn't usable. We just try to build the service; success means
+    at least one path works. Previous is_oauth_ready() was OAuth-only
+    and so skipped the tier even when a service account was configured.
+    """
     r = subprocess.run(
         ["docker", "exec", "archie_platform", "python3", "-c",
-         "from tools.google_work_suite.services.drive_service import backup_is_oauth_configured; "
-         "print('1' if backup_is_oauth_configured() else '0')"],
+         "from tools.google_work_suite.services.drive_service import backup_get_drive_service; "
+         "backup_get_drive_service(); print('ready')"],
         capture_output=True, text=True,
     )
-    return r.returncode == 0 and r.stdout.strip().endswith("1")
+    return r.returncode == 0 and "ready" in r.stdout
+
+# Back-compat alias.
+is_oauth_ready = is_drive_ready
+
+
+def _host_to_container_path(host_path: str) -> str:
+    """Translate a host path to its container-side equivalent.
+
+    The archie_platform container bind-mounts /mnt/archie_brain/backups to
+    /backups. Staging our encrypted temp files inside that dir means a
+    single path works on both sides — with a simple prefix rewrite.
+    """
+    if host_path.startswith("/mnt/archie_brain/backups/"):
+        return "/backups/" + host_path[len("/mnt/archie_brain/backups/"):]
+    if host_path.startswith("/mnt/data2/backups/"):
+        # Same physical disk as /mnt/archie_brain/backups (symlink).
+        return "/backups/" + host_path[len("/mnt/data2/backups/"):]
+    return host_path
 
 
 def upload_via_platform(local_path: str, remote_name: str) -> tuple[bool, str]:
-    """Delegate the upload to archie_platform (owns OAuth token)."""
+    """Delegate the upload to archie_platform (it owns the Drive creds).
+
+    local_path is a HOST path; translate to the container path before the
+    platform container tries to read it.
+    """
+    container_path = _host_to_container_path(local_path)
     py = (
         "from tools.google_work_suite.services.drive_service import ("
         " backup_get_drive_service, backup_ensure_folder, backup_upload_file)\n"
         "svc = backup_get_drive_service()\n"
         "fid = backup_ensure_folder(svc)\n"
-        f"r = backup_upload_file(svc, {local_path!r}, fid, filename={remote_name!r})\n"
+        f"r = backup_upload_file(svc, {container_path!r}, fid, filename={remote_name!r})\n"
         "print(r)\n"
     )
     r = subprocess.run(
@@ -136,8 +165,15 @@ def main() -> None:
             if not f.is_file():
                 continue
             start = time.time()
-            # Stage an encrypted temp file (unless already .enc from config tier).
-            with tempfile.NamedTemporaryFile(suffix=".enc", delete=False) as tf:
+            # Stage encrypted temp file in a directory that BOTH the host and
+            # the archie_platform container can see (/mnt/archie_brain/backups
+            # = /backups mount). Default /tmp fails because container /tmp is
+            # a 512 MB tmpfs separate from host /tmp.
+            staging_dir = "/mnt/archie_brain/backups/.gdrive_staging"
+            os.makedirs(staging_dir, exist_ok=True)
+            with tempfile.NamedTemporaryFile(
+                suffix=".enc", delete=False, dir=staging_dir
+            ) as tf:
                 enc_path = tf.name
             up_src = enc_path
             try:

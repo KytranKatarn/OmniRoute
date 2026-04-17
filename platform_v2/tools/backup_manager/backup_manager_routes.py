@@ -4496,8 +4496,12 @@ def cloud_status():
         if "invalid_grant" in err.lower():
             result["reconnect_required"] = True
 
-    # Live connection probe (only when enabled — no point dialing out otherwise).
-    if config["enabled"] and result["oauth_valid"]:
+    # Live connection probe. Try as long as ANY auth path is plausible —
+    # backup_get_drive_service falls back to service account when OAuth is
+    # missing/invalid, so gating purely on oauth_valid missed service-
+    # account-only setups (observed 2026-04-17 after stale OAuth token
+    # was moved aside and the service account turned out to be working).
+    if config["enabled"] and (result["oauth_valid"] or result["has_service_account"]):
         try:
             from tools.backup_manager.gdrive_service import (
                 get_drive_service,

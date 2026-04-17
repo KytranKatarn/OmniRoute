@@ -1,31 +1,31 @@
 # ==============================================================================
 # A.R.C.H.I.E. Crontab Configuration
 # ==============================================================================
-# Install with: crontab /mnt/archie_brain/scripts/archie_crontab.txt
-# Or add entries manually: crontab -e
+# Install with: sudo /mnt/archie_brain/scripts/install_backup_cron.sh
+# (Installer converts this file to /etc/cron.d/archie-backup and reloads cron.)
+#
+# Backups route through the new Phase 1-5 pipeline at scripts/backup/:
+#   run_backup.sh daily|weekly|monthly  →  per-component scripts
+#                                        →  tier_sync_usb + tier_sync_gdrive + tier_sync_vps
+#                                        →  retention_prune (covers pre-change cleanup)
 #
 # Log locations:
 #   - Backups: /var/log/archie_backup.log
-#   - Memory: /var/log/archie_memory.log
+#   - Memory:  /var/log/archie_memory.log
+# Spec: docs/superpowers/specs/2026-04-16-backup-system-design.md
 # ==============================================================================
 
-# Daily backup at 2:00 AM — primary storage /mnt/data2/backups/
-0 2 * * * docker exec archie_platform python3 -c "from tools.backup_manager.backup_manager_routes import create_backup_programmatic; create_backup_programmatic('Daily_Scheduled', '/mnt/data2/backups')" >> /var/log/archie_backup.log 2>&1
+# Daily backup at 02:00 — DB, code, gitbundle, config, volumes + USB/GDrive/VPS tier sync
+0 2 * * * /mnt/archie_brain/scripts/backup/run_backup.sh daily >> /var/log/archie_backup.log 2>&1
 
-# Weekly cleanup (Sunday at 3:00 AM)
-0 3 * * 0 /mnt/archie_brain/scripts/weekly_cleanup.sh >> /var/log/archie_backup.log 2>&1
+# Weekly backup (Sunday at 03:00) — adds convlogs, kb_export, vps_pull
+0 3 * * 0 /mnt/archie_brain/scripts/backup/run_backup.sh weekly >> /var/log/archie_backup.log 2>&1
 
-# Weekly memory decay (Sunday at 4:00 AM)
+# Weekly integrity verification (Sunday at 05:00) — after retention prune settles
+0 5 * * 0 /mnt/archie_brain/scripts/backup/verify_backups.sh >> /var/log/archie_backup.log 2>&1
+
+# Monthly full backup (1st of month at 01:00) — includes monthly_full tarball
+0 1 1 * * /mnt/archie_brain/scripts/backup/run_backup.sh monthly >> /var/log/archie_backup.log 2>&1
+
+# Weekly memory decay (Sunday at 04:00) — agent emotional state decay, not backup-related
 0 4 * * 0 /mnt/archie_brain/scripts/weekly_memory_decay.sh >> /var/log/archie_memory.log 2>&1
-
-# Weekly USB copy (Sundays at 04:30) — copies latest daily to USB
-30 4 * * 0 cp -r /mnt/data2/backups/$(ls -t /mnt/data2/backups/ | head -1) /mnt/external-backup/ 2>/dev/null
-
-# Weekly USB cleanup (Sundays at 05:00) — keep only 12 weekly snapshots
-0 5 * * 0 docker exec archie_platform python3 -c "from services.backup_integration_service import cleanup_usb_to_weekly; cleanup_usb_to_weekly()" >> /var/log/archie_backup.log 2>&1
-
-# Monthly full backup (1st of month at 01:00)
-0 1 1 * * docker exec archie_platform python3 -c "from tools.backup_manager.backup_manager_routes import create_backup_programmatic; create_backup_programmatic('Monthly_Full', '/mnt/data2/backups')" >> /var/log/archie_backup.log 2>&1
-
-# Daily pre-change snapshot cleanup at 06:00 (keep 20)
-0 6 * * * docker exec archie_platform python3 -c "from services.backup_integration_service import cleanup_old_snapshots; cleanup_old_snapshots('/mnt/data2/backups/pre-change', 20)" >> /var/log/archie_backup.log 2>&1

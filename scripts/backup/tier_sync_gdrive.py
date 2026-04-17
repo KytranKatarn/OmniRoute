@@ -72,10 +72,11 @@ def is_oauth_ready() -> bool:
 def upload_via_platform(local_path: str, remote_name: str) -> tuple[bool, str]:
     """Delegate the upload to archie_platform (owns OAuth token)."""
     py = (
-        "from tools.google_work_suite.services.drive_service "
-        "import backup_ensure_folder, backup_upload_file\n"
-        f"fid = backup_ensure_folder('{GDRIVE_FOLDER_NAME}')\n"
-        f"r = backup_upload_file(fid, '{local_path}', '{remote_name}')\n"
+        "from tools.google_work_suite.services.drive_service import ("
+        " backup_get_drive_service, backup_ensure_folder, backup_upload_file)\n"
+        "svc = backup_get_drive_service()\n"
+        "fid = backup_ensure_folder(svc)\n"
+        f"r = backup_upload_file(svc, {local_path!r}, fid, filename={remote_name!r})\n"
         "print(r)\n"
     )
     r = subprocess.run(

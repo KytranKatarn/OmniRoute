@@ -3690,6 +3690,39 @@ class AgentLoop:
             except Exception as _de:
                 logger.warning(f"watchdog disk-free check failed: {_de}")
 
+            # Backup tier health — warn if any offsite tier has no successful sync in >14 days
+            # (Phase 6 / Task 4 of backup completion plan).
+            try:
+                from database import get_db_cursor
+
+                with get_db_cursor() as (_c, _cur):
+                    _cur.execute(
+                        "SELECT tier, "
+                        "       EXTRACT(EPOCH FROM (NOW() - MAX(CASE WHEN status='success' "
+                        "                                            THEN created_at END))) / 86400.0 "
+                        "       AS days_since_success "
+                        "FROM backup_log "
+                        "WHERE tier IN ('usb', 'gdrive', 'vps') "
+                        "GROUP BY tier"
+                    )
+                    _rows = _cur.fetchall()
+                _stale_tiers = [
+                    (r["tier"], r["days_since_success"])
+                    for r in _rows
+                    if r["days_since_success"] is None or r["days_since_success"] > 14
+                ]
+                if _stale_tiers:
+                    _key = "backup_tier_health"
+                    if now - self._watchdog_last_alert.get(_key, 0) > dedup_s:
+                        _details = ", ".join(
+                            f"{_t}={'never' if _d is None else f'{_d:.1f}d'}"
+                            for _t, _d in _stale_tiers
+                        )
+                        triggered.append((_key, f"Backup tiers stale (>14d): {_details}"))
+                        self._watchdog_last_alert[_key] = now
+            except Exception as _te:
+                logger.warning(f"watchdog tier-health check failed: {_te}")
+
             for category, msg in triggered:
                 try:
                     from services.telegram_service import send_system

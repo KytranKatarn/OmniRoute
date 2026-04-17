@@ -31,9 +31,10 @@ Search for plan files matching the project:
 ```
 Glob: docs/superpowers/plans/*{project-slug}*.md
 Glob: docs/superpowers/plans/*{keywords-from-project-name}*.md
+Glob: docs/superpowers/plans/*{YYYY-MM-DD}*.md     # date-prefix, useful when plan was written recently
 ```
 
-If multiple plans found, select the one matching the current phase (e.g., "phase2" or "phase3" in filename).
+If the session handoff (Step 5) explicitly names the "active plan file" for the current work, use that path directly — it's more reliable than inferring from project slug. If multiple plans found via glob, select the one matching the current phase (e.g., "phase2" or "phase3" in filename).
 
 If a plan is found, read it to extract the current phase's tasks with their step-by-step instructions.
 
@@ -46,9 +47,13 @@ Extract the "What To Do Next" and "Key Context" sections.
 
 ## Step 6: Search Knowledge Base
 
-Call `mcp__archie__search_knowledge` with the project name + current phase, types: ["mistake_learned"], limit: 5.
+Two searches:
 
-Load any mistakes related to this project/phase to avoid repeating them.
+1. **Project-scoped mistakes** — `mcp__archie__search_knowledge` with project name + current phase, types: ["mistake_learned"], limit: 5. Past failures on THIS project.
+
+2. **Recent general corrections (always)** — `mcp__archie__search_knowledge` with query "correction mistake failure lesson learned", types: ["mistake_learned"], limit: 10. Cross-cutting patterns Claude has learned recently, regardless of project. Highest-value mistakes (like subagent audit failures, rules drift) apply everywhere.
+
+Read both sets. Mention any that relate to today's task before starting work.
 
 ## Step 7: Present Resume Summary
 

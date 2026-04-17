@@ -17,14 +17,29 @@ Quick-save your current session state without closing out. Like a game save poin
    - `mcp__archie__log_decision` for architectural choices
    - `mcp__archie__complete_task` for finished tasks
 
-4. **Show session summary** — Print a compact summary:
-   ```
-   ## Session Checkpoint
-   **Branch:** [current branch]
-   **Commits this session:** [count]
-   **Files changed:** [count]
-   **Status:** [what's in progress]
-   **Next:** [what to do next]
+4. **Show session summary with context check** — Pull stats from the hook + check the context budget:
+
+   ```bash
+   bash /mnt/archie_brain/.claude/hooks/session-stats.sh | python3 -m json.tool
    ```
 
-5. **Continue working** — This is NOT a session close. Keep going.
+   Print:
+   ```
+   ## Session Checkpoint
+   **Branch:** <current branch>
+   **Commits this session:** <count>
+   **Files changed:** <count>
+   **Context:** <context_pct> % (<context_k> K / 1000 K)
+   **Status:** <what's in progress>
+   **Next:** <what to do next>
+   ```
+
+   **If context_pct ≥ 50 %:** add a banner and recommend closing instead of continuing:
+   ```
+   ⚠️  CONTEXT OVER 50% — quality degrades past this point.
+   Recommend /archie-end to close cleanly and resume in a fresh session.
+   ```
+
+   If context_pct < 40 %: just continue — plenty of room.
+
+5. **Continue working** — If context is healthy. If context_pct ≥ 50 %, STOP and let the user decide whether to push through or close.

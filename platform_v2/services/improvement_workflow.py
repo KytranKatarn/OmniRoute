@@ -350,7 +350,7 @@ class ImprovementWorkflow:
                     created_date = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
                     if datetime.now().astimezone() - created_date < timedelta(days=30):
                         entry_score += 0.05
-                except:
+                except Exception:
                     pass
 
             score += entry_score

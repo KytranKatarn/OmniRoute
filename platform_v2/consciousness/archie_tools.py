@@ -946,7 +946,7 @@ def search_documentation(search_term, doc_type=None):
                                         "excerpt": content[:200] + "...",
                                     }
                                 )
-                    except:
+                    except Exception:
                         continue
 
         return {

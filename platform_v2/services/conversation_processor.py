@@ -80,7 +80,7 @@ class ConversationProcessor:
             # Parse timestamp
             try:
                 compact_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-            except:
+            except Exception:
                 compact_time = datetime.now()
 
             # Check if already processed
@@ -1008,7 +1008,7 @@ class ConversationProcessor:
                     )
                     self.db.commit()
                     cur.close()
-                except:
+                except Exception:
                     pass
             return {"success": False, "error": str(e)}
 

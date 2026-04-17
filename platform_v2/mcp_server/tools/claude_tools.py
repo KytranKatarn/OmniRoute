@@ -295,7 +295,7 @@ async def get_roadmap_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any
             response = requests.get(f"{PLATFORM_URL}/api/health", timeout=5)
             if response.status_code == 200:
                 return {"success": True, "roadmap": response.json()}
-        except:
+        except Exception:
             pass
         return {"success": False, "error": "Could not fetch roadmap"}
 
@@ -577,7 +577,7 @@ async def get_module_info_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                             "description": m.get("description"),
                         }
                         break
-        except:
+        except Exception:
             pass
 
         return {"success": True, "module": info}
@@ -668,7 +668,7 @@ async def check_platform_health_handler(arguments: Dict[str, Any]) -> Dict[str, 
                         "models": len(r.json().get("models", [])),
                     }
                     break
-            except:
+            except Exception:
                 continue
 
         if "ollama" not in health["services"]:
@@ -678,7 +678,7 @@ async def check_platform_health_handler(arguments: Dict[str, Any]) -> Dict[str, 
         try:
             r = requests.get("http://localhost:5678/healthz", timeout=2)
             health["services"]["n8n"] = {"status": "healthy" if r.status_code == 200 else "unhealthy"}
-        except:
+        except Exception:
             health["services"]["n8n"] = {"status": "offline"}
 
     # Overall status
@@ -727,7 +727,7 @@ async def get_quick_summary_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
                 summary.append("Platform: OK")
             else:
                 summary.append(f"Platform: ERROR ({r.status_code})")
-        except:
+        except Exception:
             summary.append("Platform: OFFLINE")
 
         # DB status (one line)

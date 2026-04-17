@@ -156,7 +156,7 @@ class TestRetryHandler:
         if isinstance(previous_context, str):
             try:
                 previous_context = json.loads(previous_context)
-            except:
+            except Exception:
                 previous_context = {"attempts": []}
 
         # Extract failure details from current results

@@ -214,7 +214,7 @@ def get_user_rate_limit() -> int:
     try:
         role = get_user_role(current_user)
         return RATE_LIMITS.get(role.name, RATE_LIMITS["USER"])
-    except:
+    except Exception:
         return RATE_LIMITS["USER"]
 
 

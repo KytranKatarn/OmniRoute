@@ -304,7 +304,7 @@ class StepGuidanceGenerator:
                     conn.close()
                 except Exception:
                     pass
-        except:
+        except Exception:
             return None
 
     def _get_db(self):

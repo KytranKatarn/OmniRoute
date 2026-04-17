@@ -497,7 +497,7 @@ def execute_with_delegation(
                 cur.execute("SELECT id FROM users WHERE id = %s", (user_id,))
                 if cur.fetchone():
                     validated_user_id = user_id
-            except:
+            except Exception:
                 pass  # Use NULL if validation fails
 
         cur.execute(
@@ -552,7 +552,7 @@ def execute_with_delegation(
 
             tools_enabled = True
             available_tools = list_available_tools()
-        except:
+        except Exception:
             tools_enabled = False
             available_tools = {}
 

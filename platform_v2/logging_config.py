@@ -113,7 +113,7 @@ class JSONFormatter(logging.Formatter):
                         "id": current_user.id if hasattr(current_user, "id") else None,
                         "username": (current_user.username if hasattr(current_user, "username") else None),
                     }
-            except:
+            except Exception:
                 # Don't fail logging if context extraction fails
                 pass
 

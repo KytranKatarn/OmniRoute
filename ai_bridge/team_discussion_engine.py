@@ -7,6 +7,7 @@ Date: 2026-01-01
 Purpose: Enable agents to collaborate, share insights, and reach consensus on proposals
 """
 
+import json
 import os
 import sys
 from datetime import datetime

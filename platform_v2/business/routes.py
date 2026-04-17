@@ -107,7 +107,7 @@ def api_directory():
                     else:
                         caps = member_dict["capabilities"]
                     member_dict["specialties"] = caps.get("specialties", [])[:5]
-                except:
+                except Exception:
                     member_dict["specialties"] = []
             else:
                 member_dict["specialties"] = []
@@ -195,7 +195,7 @@ def get_employee(employee_id):
                     caps = employee_dict["capabilities"]
                 employee_dict["specialties"] = caps.get("specialties", [])
                 employee_dict["tools"] = caps.get("tools", [])
-            except:
+            except Exception:
                 employee_dict["specialties"] = []
                 employee_dict["tools"] = []
 

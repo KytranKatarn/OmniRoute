@@ -66,10 +66,7 @@ def register_skill_routes(bp, admin_required):
 
         # Dispatch via Bridge
         try:
-            import sys
-
-            sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-            from bridge_dispatcher import get_dispatcher
+            from .services.department_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             result = dispatcher.request_work(

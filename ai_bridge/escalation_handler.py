@@ -167,7 +167,7 @@ class EscalationHandler:
                             f"Proposal #{proposal_id} has been escalated. Reason: {reason}",
                         ),
                     )
-                except:
+                except Exception:
                     pass  # Notifications table might not exist
 
                 conn.commit()

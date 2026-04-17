@@ -4,6 +4,7 @@ Intelligently routes requests to the best available AI model
 WITH MEMORY INTEGRATION - She remembers everything!
 """
 
+import logging
 import os
 import sys
 import requests
@@ -11,6 +12,8 @@ import json
 from datetime import datetime
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
+logger = logging.getLogger(__name__)
 
 # Add platform directory to path for imports
 sys.path.insert(0, "/app")
@@ -818,7 +821,7 @@ def generate_image(
                         conn.close()
                     except Exception:
                         pass
-            except:
+            except Exception:
                 pass
 
             return {
@@ -1025,7 +1028,7 @@ def generate_image_local(
                 error_data = response.json()
                 if "detail" in error_data:
                     error_msg = error_data["detail"]
-            except:
+            except Exception:
                 pass
 
             return {

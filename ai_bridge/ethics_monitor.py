@@ -253,7 +253,7 @@ class EthicsMonitor:
                         (str(e), run_id),
                     )
                     conn.commit()
-                except:
+                except Exception:
                     pass
                 finally:
                     try:

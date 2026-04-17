@@ -1243,7 +1243,7 @@ async def get_service_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any
         try:
             result = sock.connect_ex(("localhost", port))
             return result == 0
-        except:
+        except Exception:
             return False
         finally:
             sock.close()

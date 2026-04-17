@@ -1808,14 +1808,20 @@ def list_backups():
                         with open(metadata_file, "r") as f:
                             metadata = json.load(f)
 
-                            # Calculate size
-                            total_size = 0
-                            for root, dirs, files in os.walk(backup_path):
-                                for file in files:
-                                    filepath = os.path.join(root, file)
-                                    total_size += os.path.getsize(filepath)
-
-                            metadata["size"] = total_size
+                            # Prefer the cached size from metadata.json — walking
+                            # 14+ backup dirs each cycle turned a <1s endpoint into
+                            # a 4s+ endpoint as retention grew. Fall back to os.walk
+                            # only when metadata is missing a size field.
+                            cached = metadata.get("total_size_bytes") or metadata.get("size")
+                            if cached:
+                                metadata["size"] = cached
+                            else:
+                                total_size = 0
+                                for root, dirs, files in os.walk(backup_path):
+                                    for file in files:
+                                        filepath = os.path.join(root, file)
+                                        total_size += os.path.getsize(filepath)
+                                metadata["size"] = total_size
                             backups.append(metadata)
 
         # Sort by timestamp descending
@@ -2945,14 +2951,20 @@ def list_module_backups():
                         with open(metadata_file, "r") as f:
                             metadata = json.load(f)
 
-                            # Calculate size
-                            total_size = 0
-                            for root, dirs, files in os.walk(backup_path):
-                                for file in files:
-                                    filepath = os.path.join(root, file)
-                                    total_size += os.path.getsize(filepath)
-
-                            metadata["size"] = total_size
+                            # Prefer the cached size from metadata.json — walking
+                            # 14+ backup dirs each cycle turned a <1s endpoint into
+                            # a 4s+ endpoint as retention grew. Fall back to os.walk
+                            # only when metadata is missing a size field.
+                            cached = metadata.get("total_size_bytes") or metadata.get("size")
+                            if cached:
+                                metadata["size"] = cached
+                            else:
+                                total_size = 0
+                                for root, dirs, files in os.walk(backup_path):
+                                    for file in files:
+                                        filepath = os.path.join(root, file)
+                                        total_size += os.path.getsize(filepath)
+                                metadata["size"] = total_size
                             backups.append(metadata)
 
         # Sort by timestamp descending
@@ -4365,15 +4377,20 @@ def _update_env_var(key, value):
 @backup_manager_bp.route("/cloud/status", methods=["GET"])
 @admin_required
 def cloud_status():
-    """Get Google Drive cloud backup status."""
-    config = _get_cloud_config()
+    """Get Google Drive cloud backup status.
 
-    from tools.backup_manager.gdrive_service import is_oauth_configured
+    Every call that touches the OAuth token layer is wrapped so a stale
+    refresh token ("invalid_grant") degrades to ``oauth_valid=false`` instead
+    of bubbling up to the global exception handler (which redirects to
+    /dashboard and strands the UI).
+    """
+    config = _get_cloud_config()
 
     result = {
         "enabled": config["enabled"],
         "has_service_account": os.path.exists(config["service_account_path"]),
-        "has_oauth": is_oauth_configured(),
+        "has_oauth": False,
+        "oauth_valid": False,
         "has_folder_id": bool(config["folder_id"]),
         "has_passphrase": bool(config["passphrase_hash"]),
         "connected": False,
@@ -4382,7 +4399,24 @@ def cloud_status():
         "auth_type": None,
     }
 
-    if config["enabled"]:
+    # OAuth presence + validity. If the stored refresh token is revoked,
+    # is_oauth_configured() raises RefreshError — catch it so the UI can
+    # render a "reconnect required" prompt instead of being redirected away.
+    try:
+        from tools.backup_manager.gdrive_service import is_oauth_configured
+
+        result["has_oauth"] = is_oauth_configured()
+        result["oauth_valid"] = result["has_oauth"]
+    except Exception as e:  # noqa: BLE001 — includes google.auth RefreshError
+        err = str(e)
+        result["has_oauth"] = True  # token exists but can't refresh
+        result["oauth_valid"] = False
+        result["oauth_error"] = err
+        if "invalid_grant" in err.lower():
+            result["reconnect_required"] = True
+
+    # Live connection probe (only when enabled — no point dialing out otherwise).
+    if config["enabled"] and result["oauth_valid"]:
         try:
             from tools.backup_manager.gdrive_service import (
                 get_drive_service,
@@ -4397,7 +4431,7 @@ def cloud_status():
                 result["email"] = conn.get("email")
                 result["auth_type"] = conn.get("auth_type")
                 result["storage"] = get_storage_quota(svc)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             result["connection_error"] = str(e)
 
     return jsonify({"success": True, **result})

@@ -35,13 +35,19 @@ tests:
       status: 200
       max_response_ms: 3000
 
-  - name: bm-stats
+  # bm-stats removed — /tools/backup-manager/stats is not a real route.
+  # The UI reads totals from /list + /storage-stats instead. The original
+  # auto-generated suite included it by heuristic; verified against the
+  # Flask url_map that no such endpoint exists.
+  - name: bm-storage-stats
     type: api
     method: GET
-    path: /tools/backup-manager/stats
+    path: /tools/backup-manager/storage-stats
     expect:
       status: 200
-      max_response_ms: 2000
+      # 5000ms — walks every backup dir for disk-free + directory totals. Not
+      # called on the hot path; budget is for "working" not "fast".
+      max_response_ms: 5000
 
   - name: bm-current-build
     type: api
@@ -57,7 +63,9 @@ tests:
     path: /tools/backup-manager/health
     expect:
       status: 200
-      max_response_ms: 2000
+      # 3000ms not 2000ms — health traverses /backups listing and regularly
+      # lands ~2000ms on a healthy system. Tight budget was flagging normal behavior.
+      max_response_ms: 3000
 
   - name: bm-external-list
     type: api

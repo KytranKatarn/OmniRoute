@@ -4641,9 +4641,16 @@ def cloud_oauth_exchange():
 @backup_manager_bp.route("/cloud/set-passphrase", methods=["POST"])
 @admin_required
 def cloud_set_passphrase():
-    """Set or update the encryption passphrase."""
-    data = request.get_json()
-    passphrase = data.get("passphrase", "").strip() if data else ""
+    """Set or update the encryption passphrase.
+
+    Overwriting an existing passphrase requires proving the caller knows the
+    current one via `current_passphrase` in the request body. Without this
+    guard, a typo-by-typo overwrite silently locks the user out of every
+    existing encrypted backup — which happened once in practice 2026-04-17.
+    """
+    data = request.get_json() or {}
+    passphrase = (data.get("passphrase") or "").strip()
+    current = (data.get("current_passphrase") or "").strip()
 
     if len(passphrase) < 8:
         return (
@@ -4651,7 +4658,26 @@ def cloud_set_passphrase():
             400,
         )
 
-    from tools.backup_manager.gdrive_crypto import hash_passphrase
+    from tools.backup_manager.gdrive_crypto import hash_passphrase, verify_passphrase
+
+    existing_hash = _get_cloud_config()["passphrase_hash"]
+    if existing_hash:
+        # A passphrase is already set — confirm the caller knows it.
+        if not current:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "A passphrase is already set. Provide current_passphrase to overwrite it.",
+                    }
+                ),
+                400,
+            )
+        if not verify_passphrase(current, existing_hash):
+            return (
+                jsonify({"success": False, "error": "Current passphrase incorrect — cannot overwrite."}),
+                401,
+            )
 
     ph = hash_passphrase(passphrase)
     _update_env_var("GDRIVE_ENCRYPTION_PASSPHRASE_HASH", ph)

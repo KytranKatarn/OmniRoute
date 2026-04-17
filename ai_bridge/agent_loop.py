@@ -871,14 +871,20 @@ class AgentLoop:
             replace_existing=True,
         )
 
-        # Job #47 — Chat memory extraction (every 2 minutes)
-        self.scheduler.add_job(
-            _process_chat_memories,
-            trigger=IntervalTrigger(minutes=2),
-            id="job_47_chat_memories",
-            name="Chat memory extraction",
-            replace_existing=True,
-        )
+        # Job #47 — Chat memory extraction
+        # DISABLED 2026-04-17: depends on `directory_agent_memories` table that
+        # was dropped when the `directory` (Employee Directory) module was
+        # disabled in module_registry. Leaving it on spams
+        # "relation directory_agent_memories does not exist" every 2 min.
+        # Re-enable after the module is restored OR port the logic to
+        # archie_chat's conversation_history table.
+        # self.scheduler.add_job(
+        #     _process_chat_memories,
+        #     trigger=IntervalTrigger(minutes=2),
+        #     id="job_47_chat_memories",
+        #     name="Chat memory extraction",
+        #     replace_existing=True,
+        # )
 
         # Job #48 — Auto-execute approved dev pipeline proposals
         self.scheduler.add_job(
@@ -3255,7 +3261,18 @@ class AgentLoop:
             if fr.status_code != 200:
                 return
 
-            raw = fr.json()
+            # ntopng returns HTML (login page) when session auth silently fails;
+            # guard JSON decode so the job logs one "auth failed" debug line
+            # instead of a JSONDecodeError traceback every 5 min.
+            ct = fr.headers.get("content-type", "")
+            if "json" not in ct.lower():
+                logger.debug("V.I.G.I.L. VPN scan: ntopng returned non-JSON (%s) — session auth likely failed", ct)
+                return
+            try:
+                raw = fr.json()
+            except ValueError:
+                logger.debug("V.I.G.I.L. VPN scan: ntopng response not valid JSON, skipping")
+                return
             flows = raw.get("rsp", {})
             if isinstance(flows, dict):
                 flows = flows.get("data", [])

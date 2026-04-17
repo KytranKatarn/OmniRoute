@@ -36,6 +36,50 @@ Deploy stays manual. The loop runs "up to ready-to-ship" only.
 
 These are updates to the mental model only — no change to phase ordering.
 
+## 2b. Two Entry Points — Scan Leg + PR Leg (added 2026-04-17)
+
+The pipeline has **two entry points that converge at the sandbox stage**:
+
+1. **Scan Leg** (covered by Section 3 diagram below): Code Health scans → findings → `improvement_proposals` → sandbox → decision service → deploy.
+2. **PR Leg** (Project #268, tasks #1799–#1803): GitHub PR lands → F.O.R.G.E. reviews diff → same sandbox → same decision service → auto-merge or escalate.
+
+Both legs share every downstream stage: sandbox mechanics, pre-deploy gate, A+D+B authority model, ARCHIE Decision Service, Telegram escalation, and manual deploy. Only the **entry mechanism** differs.
+
+This unification matters because:
+- Repair Bay becomes the single admin surface for *every* code-change-review flow, whether it originated from a scan or from someone opening a pull request.
+- F.O.R.G.E. agent (Full-cycle Optimization & Regenerative GitHub Engine) is the counterpart to the internal agents that author scan-leg fixes — same Bridge dispatch, same decision authority.
+- The loop truly closes: agent-authored fixes (scan leg) create PRs (PR leg) that F.O.R.G.E. reviews, and safe-category reviews auto-merge without user touch.
+
+See Section 6a for PR Leg phases and Section 8a for the unified data model.
+
+## 2c. Code Health Reports → Repair Bay (added 2026-04-17)
+
+Consciousness Code Health currently owns report generation:
+- `daily_code_health_scan` at 02:00 UTC (full codebase scan)
+- `daily_code_health_digest` at 08:00 UTC (rollup + summary)
+- Per-module audit loop (`tools/department_hq/jobs.py:103/160/238/642/651`)
+- On-demand `POST /api/code-health/scan`
+- Consciousness module UI has a "report option" surface that today renders reports inside Consciousness.
+
+**These reports should feed into Repair Bay** as the centralized admin mission-control:
+
+1. **Actionable items in a report** → auto-become (or get linked to) `improvement_proposals` visible in Repair Bay's Repairs tab.
+2. **The report document itself** → becomes a first-class artifact in a new Repair Bay "Reports" tab — so you never wonder "did the 08:00 digest run? Is anything actionable?" You see both in one place.
+3. **Report status** (scanned/acknowledged/acted-on) flows through the same state machine as proposals.
+4. **No duplicate display** — the Consciousness Code Health surface becomes the *producer* (scans + generates reports), and Repair Bay becomes the *consumer/review surface* (Diagnose + Reports + Repairs + PRs + Test Bay + Ship + Pushes).
+
+This closes a seam where reports today stop at Consciousness's UI. Once integrated, Repair Bay is the single place an admin looks for all code-change-review work:
+
+| Tab | Source | Status |
+|-----|--------|--------|
+| Diagnose | Scan runs + findings | exists |
+| **Reports** | Code Health digests + scheduled reports | **NEW (#1985 adjacent — API/docs consolidation rhymes)** |
+| Repairs | `improvement_proposals` | exists |
+| **PRs** | `pr_reviews` (Project #268 Phase 3) | **NEW (#1801)** |
+| Test Bay | Sandbox runs | exists |
+| Ship | Manual deploy queue | exists |
+| Pushes | Held branch inventory | exists |
+
 ## 2. Guiding Principles
 
 1. **Evaluate before building.** Much of this is already wired. Phase 0 traces a real finding through the real code to identify genuine gaps vs audit uncertainty.
@@ -50,43 +94,61 @@ These are updates to the mental model only — no change to phase ordering.
 ## 3. Architecture (End State)
 
 ```
+  ═══════════════════════════ SCAN LEG ═══════════════════════════
   ┌─────────────────────────────────┐
-  │ ① Consciousness · Code Health   │   scans → code_audit_log (+ code_metrics_snapshots)
-  └───────────────┬─────────────────┘
-                  │ poller (every N min)
+  │ ① Consciousness · Code Health   │   scans → code_audit_log
+  │     + reports (02:00, 08:00)    │   + code_metrics_snapshots
+  └───────────────┬─────────────────┘   + digests
+                  │ poller + report bridge
                   ▼
   ┌─────────────────────────────────┐
-  │ ② CH→RB bridge (Phase 1)        │   reads new findings ≥ medium,
-  │                                 │   creates improvement_proposals,
-  │                                 │   dedup via _has_open_proposal()
+  │ ② CH→RB bridge (Phase 1)        │   findings ≥ medium → proposals
+  │     + reports ingestion         │   digests → Reports tab
   └───────────────┬─────────────────┘
+
+  ═══════════════════════════ PR LEG (Project #268) ═══════════════════════════
+  ┌─────────────────────────────────┐
+  │ ①' GitHub PR landed / updated   │   external OR agent-authored
+  └───────────────┬─────────────────┘
+                  │ polling + webhooks (#1799)
                   ▼
   ┌─────────────────────────────────┐
-  │ ③ Repair Bay · proposal+sandbox │   Docker or schema-isolation,
-  │                                 │   tests, pre-deploy health gate
+  │ ②' PR Review Service            │   writes pr_reviews
+  │     + F.O.R.G.E. diff analysis  │   Bridge dispatch → F.O.R.G.E.
+  │     via rate-guard (#2070)      │   posts comment (#1800)
+  └───────────────┬─────────────────┘
+
+  ═══════════════════════════ CONVERGENCE ═══════════════════════════
+                  └───────────┬───────────┘
+                              ▼
+  ┌─────────────────────────────────┐
+  │ ③ Repair Bay · sandbox + gate   │   shared: Docker / schema-iso,
+  │     (Repairs OR PRs tab)        │   tests, ADR-013 pre-deploy gate
   └───────────────┬─────────────────┘
                   │
         ┌─────────┴────────┐
         ▼                  ▼
   ┌───────────┐   ┌───────────────────────────────┐
   │ ④ DHQ     │   │ ⑤ A.R.C.H.I.E. Decision      │
-  │ safe-cat  │   │    Service (Phase 3)          │
-  │ auto-     │   │    reviews via A+D+B policy   │
-  │ dispatch  │   │    approve | deny | hold |    │
-  │ (Phase 2) │   │    escalate-to-user           │
+  │ safe-cat  │   │    Service                    │
+  │ auto-     │   │    A+D+B policy               │
+  │ dispatch  │   │    approve|deny|hold|escalate │
   └─────┬─────┘   └──────────────┬────────────────┘
         │                        │ (only user-gated)
         │                        ▼
         │              ┌──────────────────────┐
-        │              │ ⑥ Telegram (Phase 3) │   unified telegram_service,
-        │              │    ARCHIE voice only │   source_agent logged
+        │              │ ⑥ Telegram           │   unified telegram_service,
+        │              │   ARCHIE voice only  │   source_agent logged,
+        │              │   + PR approval btns │   PR approve/deny inline (#1802)
         │              └──────────┬───────────┘
         │                         │
         └────────────┬────────────┘
                      ▼
-             ┌──────────────────┐
-             │ ⑦ Manual deploy  │   human-gated, unchanged
-             └──────────────────┘
+             ┌──────────────────────┐
+             │ ⑦ Deploy             │   scan leg: manual (unchanged)
+             │   scan=manual        │   PR leg: auto-merge for
+             │   PR=auto for safe   │   whitelist + clean F.O.R.G.E.
+             └──────────────────────┘   review
 ```
 
 ---
@@ -345,3 +407,92 @@ Each plan references back to this spec for the "why" and success criteria.
 - Rewriting any of: Code Health scanner logic, Repair Bay sandbox mechanics, dispatcher routing algorithms, Telegram bot infrastructure. We wire what's there.
 - Self-deploying. Deploy stays manual.
 - Replacing ARCHIE's judgment with a rules engine. A+D+B is a policy floor; ARCHIE can always override with rationale.
+
+---
+
+## Appendix A — PR Leg Integration (Added 2026-04-17)
+
+Adds the "PR Leg" entry point + Code Health Reports centralization announced in Sections 2b/2c. The content below extends Phases 1–4 and cross-cutting sections without renumbering them.
+
+### A.1 PR Leg Phases (Project #268, tasks #1799–#1803)
+
+**PR Leg Phase 1 — Task #1799: PR Review Service + data model**
+- New service polls `gh api /repos/<org>/<repo>/pulls` for every repo in scope (archie-platform, kytran-business-suite, kytran-system-operations, kytran-creed, watch products)
+- New table `pr_reviews` — id, pipeline_run_id, repo, pr_number, state (open/closed/merged), head_sha, first_seen_at, last_polled_at, forge_review_status, archie_decision_id (nullable)
+- Rate-safe: uses shared guard from task #2070 for all API calls (read-only, low transaction cost)
+- **Dependencies:** task #2070 shared rate guard (prerequisite before write-side phases; for Phase 1 nice-to-have but not blocking since only reads)
+
+**PR Leg Phase 2 — Task #1800: F.O.R.G.E. AI review via Bridge dispatch**
+- When a new PR or a new head_sha is seen, F.O.R.G.E. is dispatched via `tools.department_hq.services.department_dispatcher.dispatch(capability="pr_review", ...)` with the diff as context
+- F.O.R.G.E. posts a review comment on the PR — this is a **content-creation operation**, must go through the rate-guard
+- Review output written to `pr_reviews.forge_review_status` + a new `forge_review_comments` table (one row per finding in the review)
+- **Dependencies:** task #2070 shared rate guard is a HARD blocker here. Do not ship Phase 2 without it.
+
+**PR Leg Phase 3 — Task #1801: Repair Bay UI "PRs" tab**
+- New tab in Repair Bay alongside Repairs, Test Bay, Ship, Pushes (see Section 2c table)
+- Shows: list of open PRs, F.O.R.G.E.'s review per PR, diff viewer, approve/reject buttons
+- Links each PR to its `archie_decision_id` when one exists (Phase 4 convergence)
+- **Dependencies:** Phase 1 + Phase 2 (needs data + reviews to display)
+
+**PR Leg Phase 4 — Task #1802: Telegram approval buttons for PRs**
+- Integrates with ARCHIE Decision Service from Section 7.2 — PR-leg decisions use the same `archie_decisions` queue
+- Telegram notification sends when ARCHIE escalates a PR decision to user (same pattern as contractor dispatch)
+- Approve/deny/defer buttons inline
+- **Dependencies:** Section 7.2 ARCHIE Decision Service must exist; Phase 3.1 Telegram unification complete
+
+**PR Leg Phase 5 — Task #1803: Multi-repo + public presence audit**
+- Extends polling to all standalone product repos
+- Audits public-facing GitHub surfaces: README hygiene, security tab status, topic tags, license files
+- Findings flow back into the Code Health report mechanism from Section 2c
+
+### A.2 Unified Data Model (Scan Leg + PR Leg)
+
+Both legs converge at the sandbox stage. Shared surface:
+
+| Concept | Scan Leg artifact | PR Leg artifact | Shared |
+|---------|-------------------|-----------------|--------|
+| Origin | `code_audit_log` / `code_metrics_snapshots` | `pr_reviews` | — |
+| Fix candidate | `improvement_proposals` | the PR's head_sha + diff | — |
+| Review record | Proposal's `risk_score` + F.O.R.G.E. analysis (if dispatched) | `forge_review_comments` | — |
+| Sandbox | `sandbox_runs` | `sandbox_runs` | ✓ |
+| Pre-deploy gate | `sandbox_test_results` | `sandbox_test_results` | ✓ |
+| Decision | `archie_decisions` | `archie_decisions` | ✓ |
+| Trace | `pipeline_run_id` | `pipeline_run_id` | ✓ |
+| Telegram escalation | unified `telegram_service` | unified `telegram_service` | ✓ |
+| Deploy | manual | auto-merge (safe) or manual | scan = manual, PR = conditional |
+
+**Important convergence rule:** when a scan-leg proposal results in an agent-authored PR (self-healing Phase 2 auto-dispatch), the `improvement_proposals.id` is stored on the matching `pr_reviews` row. This prevents F.O.R.G.E. from re-reviewing work its sibling agent just authored — the scan-leg proposal's risk score + review already established safety, and Phase 2's job is only to verify the PR cleanly implements the proposal.
+
+### A.3 Success Criteria (additions to Section 12)
+
+8. A planted scan-leg finding that produces an auto-dispatched PR is F.O.R.G.E.-reviewed, passes sandbox, and auto-merges without user touch — full end-to-end autonomy for whitelist categories.
+9. An externally opened PR (from collaborator or manual branch) is indexed within 5 min of opening, has a F.O.R.G.E. review posted within 15 min, and surfaces in Repair Bay's PRs tab.
+10. F.O.R.G.E.'s PR comments are attributed to the agent with `source_agent` logging (same pattern as Telegram).
+11. No F.O.R.G.E. review triggers a GitHub secondary-rate-limit 403 response in a 30-day window (observable via Nagios on the rate guard).
+
+### A.4 Open Questions (additions to Section 13)
+
+- Do scan-leg and PR-leg share a single `improvement_proposals` row (with PR attached as the fix), or stay separate with a foreign key? Recommendation: separate tables linked by `archie_decision_id` + optional `improvement_proposal_id` on `pr_reviews` when scan-originated.
+- Does F.O.R.G.E. review every PR or only ones above a file-count threshold (e.g., ≤ 50 files, ≤ 500 LOC)? Larger PRs cost more tokens + risk rate-guard pressure.
+- When a PR's head_sha changes (force-push), does F.O.R.G.E. re-review from scratch or incremental?
+- Auto-merge safety net: require 0 F.O.R.G.E. critical findings + passing CI + passing sandbox + whitelist category — all four must agree. Is there a fifth gate worth adding (e.g., "no files in auth/billing paths")?
+
+### A.5 Implementation Planning Guidance (additions to Section 14)
+
+- **PR Leg Phase 1 (task #1799)** → own plan. Read-only, unblocked by task #2070 but should use the rate guard from day one.
+- **PR Leg Phase 2 (task #1800)** → own plan. **HARD blocker:** task #2070 shared rate guard must exist first. Otherwise F.O.R.G.E. will flood content-creation transactions on first multi-repo scan.
+- **PR Leg Phase 3 (task #1801)** → own plan. UI only, can run in parallel with Phase 2 of the scan leg.
+- **PR Leg Phase 4 (task #1802)** → own plan. Depends on Section 7.2 ARCHIE Decision Service existing.
+- **PR Leg Phase 5 (task #1803)** → own plan, last. Low urgency.
+- **Code Health Reports integration (Section 2c)** → add to Phase 1 of the scan leg's plan. The poller doing findings → proposals should also handle digests → Reports tab; same job, different surface.
+
+### A.6 Repair Bay as Mission Control (consolidation call-out)
+
+Repair Bay becomes the single admin surface for all code-change-review work once Appendix A phases ship:
+
+- Reports tab absorbs Code Health digests (was Consciousness-only before).
+- PRs tab absorbs GitHub PR review (was external CodeRabbit or browser-based before).
+- Repairs tab (existing) continues to show internal proposals.
+- All three feed the same sandbox + decision + deploy pipeline.
+
+This closes the "pushes centralized" gap the user called out: a single admin dashboard where every pending code change — whether scan-originated, PR-originated, or report-flagged — converges for review, with F.O.R.G.E.'s AI analysis attached and ARCHIE's decision layer gating everything.

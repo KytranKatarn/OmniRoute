@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 
 import requests
+import psycopg2
 from psycopg2.extras import RealDictCursor, Json
 
 from database import get_db_cursor
@@ -512,13 +513,52 @@ class DeviceRegistryService:
                         existing = cur.fetchone()
                         if existing and str(existing["ip_address"]) != ip:
                             old_ip = str(existing["ip_address"])
+
+                            # Clear any stale UNREGISTERED row that currently
+                            # holds the new IP. Registered rows are never
+                            # auto-deleted. Without this, the UPDATE below
+                            # would collide on idx_network_devices_ip and log
+                            # a duplicate-key error (#2077).
                             cur.execute(
-                                """UPDATE network_devices SET
-                                    ip_address = %s, last_seen_at = NOW(), updated_at = NOW()
-                                   WHERE id = %s RETURNING *""",
+                                """DELETE FROM network_devices
+                                   WHERE ip_address = %s AND id != %s
+                                     AND is_registered = false""",
                                 (ip, existing["id"]),
                             )
-                            updated = cur.fetchone()
+
+                            # If a REGISTERED row still owns the new IP,
+                            # we can't re-point our MAC there — fall through
+                            # to Phase 2 upsert which handles it gracefully.
+                            cur.execute(
+                                """SELECT id FROM network_devices
+                                   WHERE ip_address = %s AND id != %s""",
+                                (ip, existing["id"]),
+                            )
+                            if cur.fetchone():
+                                logger.debug(
+                                    "device_registry: IP %s claimed by another registered device; "
+                                    "skipping Phase 1 MAC-follow for MAC %s",
+                                    ip,
+                                    mac,
+                                )
+                                continue
+
+                            try:
+                                cur.execute(
+                                    """UPDATE network_devices SET
+                                        ip_address = %s, last_seen_at = NOW(), updated_at = NOW()
+                                       WHERE id = %s RETURNING *""",
+                                    (ip, existing["id"]),
+                                )
+                                updated = cur.fetchone()
+                            except psycopg2.IntegrityError as e:
+                                logger.debug(
+                                    "device_registry: Phase 1 UPDATE collided on IP %s: %s",
+                                    ip,
+                                    e,
+                                )
+                                conn.rollback()
+                                continue
                             if updated and updated.get("is_registered"):
                                 self._log_ip_change(self._serialize_device(updated), old_ip, ip)
                                 # Re-sync AdGuard with new IP

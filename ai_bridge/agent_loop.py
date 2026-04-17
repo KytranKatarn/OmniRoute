@@ -4423,7 +4423,13 @@ class AgentLoop:
             cur.close()
             conn.close()
         except Exception as e:
-            logger.error(f"Failed to log agent cycle: {e}")
+            # Include stack trace so we can pinpoint WHICH caller triggered
+            # the "can't adapt type 'dict'" class of errors. Temporary — can
+            # remove exc_info once the offending call site is fixed.
+            logger.error(
+                f"Failed to log agent cycle '{job_name}': {e}",
+                exc_info=True,
+            )
 
     def _log_autonomy_action(self, action_type: str, details: dict = None, success: bool = True):
         """Log an autonomous action to governance audit log."""

@@ -11,7 +11,7 @@ moved from `ai_bridge/` to `platform_v2/tools/department_hq/services/`.
 
 | File | Role |
 |------|------|
-| `services/bridge_dispatcher.py` | Dispatch entry point. `dispatch()`, `dispatch_json()`, `get_dispatcher()`, capability matching, welfare gating, replacement hunt, tier escalation. |
+| `services/department_dispatcher.py` | Dispatch entry point (renamed from `bridge_dispatcher`, Decision #441). `dispatch()`, `dispatch_json()`, `get_dispatcher()`, capability matching, welfare gating, replacement hunt, tier escalation. |
 | `services/orchestration_engine.py` | 8-step pipeline: intent → IAAE → welfare → route → agent → GPU → execute → log. |
 | `services/smart_router.py` | GPU-aware 11-tier escalation. `get_router()`, `classify_task()`, `TIER_ORDER`, `CAPABILITY_ROUTING`. |
 
@@ -33,15 +33,16 @@ caller → dispatch() → BridgeDispatcher.request_work()
 
 **Canonical (new code):**
 ```python
-from tools.department_hq.services.bridge_dispatcher import dispatch, dispatch_json, get_dispatcher
+from tools.department_hq.services.department_dispatcher import dispatch, dispatch_json, get_dispatcher
 from tools.department_hq.services.orchestration_engine import OrchestrationEngine
 from tools.department_hq.services.smart_router import get_router, TIER_ORDER
 ```
 
-**Inside `department_hq/services/` itself (relative):**
+**Inside `department_hq/` package (relative):**
 ```python
-from .bridge_dispatcher import get_dispatcher
-from .smart_router import get_router, TIER_ORDER
+from .services.department_dispatcher import get_dispatcher     # from routes at tools/department_hq/
+from .department_dispatcher import get_dispatcher              # from siblings inside services/
+from .smart_router import get_router, TIER_ORDER               # from siblings inside services/
 ```
 
 **Forbidden in new code** (enforced by `scripts/check_agent_single_writer.py`):

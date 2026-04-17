@@ -1,9 +1,37 @@
 """
-A.R.C.H.I.E. Platform - Backup Manager Routes
-==============================================
+A.R.C.H.I.E. Platform - Backup Manager Routes (UI layer)
+========================================================
 
-Provides comprehensive backup, restore, and disaster recovery functionality
-for the A.R.C.H.I.E. platform. Uses psycopg2 for database backup (no pg_dump needed).
+UI + OAuth + history surface for the 4-tier backup pipeline. The ACTUAL
+backup work is done by shell/Python scripts in /mnt/archie_brain/scripts/backup/
+(Phase 1-6 of project #270). This module does NOT produce dumps — it READS
+``backup_log`` and exposes controls.
+
+Pipeline entry point: ``scripts/backup/run_backup.sh daily|weekly|monthly``
+    → component_db.sh (pg_dump -Fc via docker exec archie_database)
+    → component_code.sh, component_gitbundle.sh, component_config.sh (AES-256),
+      component_volumes.sh, component_convlogs.sh, component_kb_export.sh,
+      component_vps_pull.sh, component_monthly_full.sh
+    → tier_sync_usb.py, tier_sync_gdrive.py, tier_sync_vps.sh
+    → retention_prune.py + verify_backups.sh (weekly)
+
+Cron schedule: ``/etc/cron.d/archie-backup`` (installed by
+``scripts/install_backup_cron.sh``). Runbook: ``scripts/backup/README.md``.
+Quarterly DR drill: ``scripts/backup/dr_drill.sh`` (uses pgvector/pgvector:pg16
+to match the production schema extension).
+
+This Flask module surfaces:
+- Dashboard/history view backed by the ``backup_log`` table (single source of
+  truth — every component run + tier sync writes a row there).
+- Google Drive OAuth connect flow (delegated to
+  ``tools.google_work_suite.services.drive_service`` via gdrive_service.py shim).
+- Retention configuration and manual triggers.
+- Pre-change snapshot hook used by Repair Bay deploys.
+
+Historical note: older legacy paths in this file (create_backup_programmatic,
+backup_integration_service) were the broken pipeline that silently failed
+from 2026-03-26 until Phase 1-5. They are kept only for pre-change snapshot
+compatibility — all scheduled backups now flow through scripts/backup/.
 
 FEATURES:
 ---------

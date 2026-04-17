@@ -37,6 +37,15 @@ chown root:root "$DST.tmp"
 chmod 0644 "$DST.tmp"
 mv "$DST.tmp" "$DST"
 
+# Ensure log targets exist and are writable by the cron user.
+# Without this, '>> /var/log/archie_backup.log 2>&1' fails silently at cron
+# invocation time and the backup never runs.
+for LOG in /var/log/archie_backup.log /var/log/archie_memory.log; do
+    [[ -f "$LOG" ]] || touch "$LOG"
+    chown "$USER_FOR_CRON:$USER_FOR_CRON" "$LOG"
+    chmod 0664 "$LOG"
+done
+
 # Tell cron to reload (most distros watch /etc/cron.d, but a restart is safer).
 # Fail loudly if neither works — silent reload failure defeats idempotency.
 if ! systemctl reload cron 2>/dev/null && ! systemctl restart cron; then

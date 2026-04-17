@@ -7,6 +7,17 @@ This module handles:
 - Analytics (knowledge growth metrics)
 
 All routes require admin authentication.
+
+Data protection
+---------------
+The ``knowledge_base`` table this module owns is backed up by the 4-tier
+pipeline at ``/mnt/archie_brain/scripts/backup/``:
+- Daily: ``component_db.sh`` (pg_dump -Fc) → primary + USB + GDrive
+- Weekly: ``component_kb_export.sh`` (data-only -t knowledge_base) → primary + GDrive
+Restoring knowledge_base requires a postgres with the pgvector extension
+(use ``pgvector/pgvector:pg16`` image or install the extension first) —
+the ``embedding`` column is of type ``vector``. See
+``scripts/backup/README.md`` for the full recovery runbook and RTO table.
 """
 
 from flask import render_template, request, jsonify, flash, redirect, url_for

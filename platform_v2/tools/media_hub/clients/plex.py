@@ -44,14 +44,49 @@ class PlexClient(MediaServerInterface):
             logger.error(f"Plex API request failed: {e}")
             return None
 
-    def test_connection(self) -> bool:
-        """Test connection to Plex server"""
+    def probe(self) -> tuple[bool, str]:
+        """Two-stage reachability + auth probe.
+
+        Returns (is_healthy, message). `/identity` needs no token so it
+        tells us server-up vs server-down. Then `/` with token tells us
+        token-valid vs token-expired — without that split, an expired
+        token looks identical to a dead server.
+        """
+        identity_url = urljoin(self.base_url, "/identity")
         try:
-            result = self._request("/")
-            return result is not None and "MediaContainer" in result
-        except Exception as e:
-            logger.error(f"Plex connection test failed: {e}")
-            return False
+            resp = requests.get(identity_url, timeout=self.timeout)
+            if resp.status_code != 200:
+                return False, f"Plex unreachable: /identity returned HTTP {resp.status_code}"
+        except requests.RequestException as e:
+            return False, f"Plex unreachable at {self.base_url}: {e}"
+
+        if not self.token:
+            return False, "Plex reachable but no API token configured"
+
+        try:
+            resp = requests.get(
+                urljoin(self.base_url, "/"),
+                headers={"X-Plex-Token": self.token, "Accept": "application/json"},
+                timeout=self.timeout,
+            )
+        except requests.RequestException as e:
+            return False, f"Plex root request failed: {e}"
+
+        if resp.status_code == 401:
+            return False, "Plex token invalid or expired — re-paste token in Media Hub settings"
+        if resp.status_code != 200:
+            return False, f"Plex root returned HTTP {resp.status_code}"
+        try:
+            if "MediaContainer" not in resp.json():
+                return False, "Plex responded but payload missing MediaContainer"
+        except ValueError:
+            return False, "Plex responded with non-JSON body"
+        return True, "Connection successful"
+
+    def test_connection(self) -> bool:
+        """Backward-compatible boolean check. Use probe() for detail."""
+        ok, _ = self.probe()
+        return ok
 
     def _get_libraries(self) -> List[Dict]:
         """Get all library sections"""

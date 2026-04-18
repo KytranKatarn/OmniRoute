@@ -360,7 +360,10 @@ def api_status():
                     config["api_key"],
                     config["use_ssl"],
                 )
-                status["online"] = client.test_connection()
+                if hasattr(client, "probe"):
+                    status["online"], status["health_message"] = client.probe()
+                else:
+                    status["online"] = client.test_connection()
                 status["health_status"] = "healthy" if status["online"] else "unhealthy"
             except Exception as e:
                 logger.error(f"Error testing {service_type}: {e}")
@@ -1497,9 +1500,13 @@ def api_test_service(service_id):
         if not api_key:
             return jsonify({"success": False, "error": "No API key configured"})
 
-        # Test connection
+        # Test connection — prefer probe() for a real error message
         client = get_service_client(service_type, host, port, api_key, use_ssl)
-        is_healthy = client.test_connection()
+        if hasattr(client, "probe"):
+            is_healthy, health_message = client.probe()
+        else:
+            is_healthy = client.test_connection()
+            health_message = "Connection successful" if is_healthy else "Connection failed"
 
         # Update health status in database
         with get_db_cursor(cursor_factory=None, commit=True) as (conn, cur):
@@ -1513,7 +1520,7 @@ def api_test_service(service_id):
             """,
                 (
                     "healthy" if is_healthy else "unhealthy",
-                    "Connection successful" if is_healthy else "Connection failed",
+                    health_message,
                     service_id,
                 ),
             )

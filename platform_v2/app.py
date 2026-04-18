@@ -2227,10 +2227,9 @@ from api_gateway import api_gateway_bp  # noqa: E402
 
 app.register_blueprint(api_gateway_bp)
 
-# Fleet Proxy — routes *.fleet.kytranempowerment.com to node BEACON dashboards
-from fleet_proxy import register_fleet_proxy  # noqa: E402
-
-register_fleet_proxy(app)
+# NOTE: fleet_proxy (B.E.A.C.O.N. dashboard routing via *.fleet.kytranempowerment.com)
+# was removed 2026-04-18 — project #173 cancelled, DNS cleaned up 2026-04-13,
+# see task #2144 for the full fleet observability triad context.
 
 # NOTE: System Operations (Phase 78) loaded via module_registry
 

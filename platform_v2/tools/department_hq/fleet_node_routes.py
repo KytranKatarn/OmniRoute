@@ -895,40 +895,10 @@ def register_node_routes(bp, login_required, admin_required):
                     response["headscale_authkey"] = headscale_authkey
                     response["headscale_url"] = headscale_url
 
-                # Auto-create fleet subdomain for BEACON dashboard
-                fleet_subdomain = None
-                try:
-                    import re as _re
-
-                    raw_name = data.get("node_name", "node")
-                    # Sanitize: lowercase, replace spaces/underscores with hyphens, strip non-alnum
-                    slug = _re.sub(r"[^a-z0-9\-]", "", raw_name.lower().replace(" ", "-").replace("_", "-"))
-                    slug = _re.sub(r"-+", "-", slug).strip("-")[:30]
-                    if slug:
-                        fleet_subdomain = f"{slug}.fleet.kytranempowerment.com"
-                        # Register in org_domains
-                        cur.execute(
-                            """INSERT INTO org_domains
-                               (org_id, domain, subdomain, root_domain, target_module, target_port,
-                                dns_status, ssl_status, dns_provider)
-                               VALUES (1, %s, %s, 'kytranempowerment.com', 'beacon', 3001,
-                                       'verified', 'pending', 'hostinger')
-                               ON CONFLICT DO NOTHING""",
-                            (fleet_subdomain, f"{slug}.fleet"),
-                        )
-                        conn.commit()
-                        # Add AdGuard internal rewrite
-                        try:
-                            from tools.security_network.adguard_service import AdGuardService
-
-                            ag = AdGuardService()
-                            ag.add_rewrite(fleet_subdomain, "192.168.1.200")
-                        except Exception:
-                            pass  # Non-critical
-                        logger.info("Fleet subdomain created: %s", fleet_subdomain)
-                        response["fleet_url"] = f"http://{fleet_subdomain}"
-                except Exception as sub_err:
-                    logger.warning("Fleet subdomain creation failed: %s", sub_err)
+                # Note: BEACON per-node dashboard subdomain auto-creation
+                # (*.fleet.kytranempowerment.com + AdGuard rewrite + org_domains)
+                # removed 2026-04-18 — project #173 cancelled, DNS cleaned 2026-04-13,
+                # fleet_proxy.py deleted. See task #2144.
 
                 return jsonify(response)
 

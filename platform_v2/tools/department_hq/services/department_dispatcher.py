@@ -188,6 +188,16 @@ CAPABILITY_REQUIRES_SKILL = {
     "image_generation",  # ComfyUI skill — only Pixel has this
 }
 
+# Per-capability request timeout overrides (task #2130, 2026-04-18).
+# S.P.E.C.T.R.A. audit: F.O.R.G.E. hit HTTPConnectionPool timeouts on the
+# default 300s for every code_analysis call — the model completes but runs
+# long on CPU nodes. Applies when request_work is called with the default
+# timeout (300); explicit caller timeouts are preserved.
+CAPABILITY_TIMEOUTS = {
+    "code_analysis": 600,
+    "knowledge_analysis": 600,
+}
+
 # Specialized agent selection within departments
 # When a department has multiple agents, pick by sub-capability
 AGENT_SPECIALIZATION = {
@@ -4178,6 +4188,12 @@ class DepartmentDispatcher:
             DispatchResult with response, agent info, and metrics
         """
         start = time.time()
+
+        # Per-capability timeout override (task #2130). When caller uses the
+        # default (300), bump it for slow analytical capabilities. Explicit
+        # caller timeouts (e.g., 120 for email_composition) are preserved.
+        if timeout == 300 and capability in CAPABILITY_TIMEOUTS:
+            timeout = CAPABILITY_TIMEOUTS[capability]
 
         # Force-refresh busy agents list (bypass 30s welfare cache TTL)
         try:

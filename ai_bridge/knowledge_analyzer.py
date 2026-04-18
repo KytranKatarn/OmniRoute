@@ -218,7 +218,7 @@ class KnowledgeAnalyzer:
     def health_check(self) -> dict:
         """Check if analyzer is ready via Bridge dispatcher."""
         try:
-            from ai_bridge.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             if dispatcher:
@@ -288,7 +288,7 @@ class KnowledgeAnalyzer:
             tuple: (response_text, input_tokens, output_tokens, elapsed_ms)
         """
         import time
-        from ai_bridge.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         start = time.time()
         dispatcher = get_dispatcher()
@@ -297,7 +297,8 @@ class KnowledgeAnalyzer:
             prompt,
             "consciousness",
             json_mode=True,
-            timeout=300,
+            # timeout defaults to 300 but dispatcher overrides to 600 for
+            # knowledge_analysis via CAPABILITY_TIMEOUTS (task #2130).
             job_id=job_id,
             local_only=local_only,
         )

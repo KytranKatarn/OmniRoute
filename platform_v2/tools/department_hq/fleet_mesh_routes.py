@@ -1184,7 +1184,7 @@ def register_mesh_routes(bp, auth_decorator):
 
     @bp.route("/api/mesh/saas-modules")
     def get_saas_modules():
-        """Return available SaaS modules for fleet node BEACON dashboards."""
+        """Return available SaaS modules for fleet nodes."""
         try:
             from module_registry import MODULES, ModuleCategory
 

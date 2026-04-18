@@ -407,6 +407,7 @@ JOB_DEPARTMENT_MAP = {
     "weekly_dependency_scan": "Security & Compliance",
     "health_probe": "Operations & Infrastructure",
     "vps_health": "Operations & Infrastructure",
+    "hub_containers_health": "Operations & Infrastructure",
     "translation_coverage_scan": "Documentation & Knowledge",
     "crew_wellness_tick": "Human Resources & Culture",
     "ollama_model_health": "Operations & Infrastructure",

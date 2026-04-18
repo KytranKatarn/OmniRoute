@@ -509,6 +509,101 @@ def check_vps_health():
 
 
 # ---------------------------------------------------------------------------
+# Hub Container Observer (task #2144)
+# ---------------------------------------------------------------------------
+# Caught 2026-04-18: archie_headscale + archie_tailscale had been missing
+# from the hub for ~20h with zero alerts. check_vps_health() covers remote
+# VPS but has no hub-side peer. This observer runs `docker ps` every 5min
+# and fires an edge-triggered alert (exactly once per transition) when a
+# CRITICAL container goes from running -> missing. Conservative list: add
+# entries here as platform surfaces stabilize, don't try to cover every
+# container from day 1.
+
+_HUB_CRITICAL_CONTAINERS = [
+    "archie_platform",
+    "archie_database",
+    "archie_comms",
+    "archie_headscale",
+    "archie_tailscale",
+    "nginx_proxy_manager",
+]
+
+_hub_containers_last_status = {}
+
+
+def _running_hub_containers() -> set[str]:
+    """Return set of running container names on the hub.
+
+    Uses docker CLI via subprocess — matches the style of other fleet_jobs
+    probes and avoids adding a docker-py dependency.
+    """
+    import subprocess
+
+    try:
+        r = subprocess.run(
+            ["docker", "ps", "--format", "{{.Names}}"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return set(line.strip() for line in r.stdout.splitlines() if line.strip())
+    except Exception as e:
+        logger.error(f"[Hub Observer] docker ps failed: {e}")
+        return set()
+
+
+def check_hub_containers():
+    """Task #2144: verify critical hub containers every 5 min.
+
+    Edge-triggered: fires one alert per running -> missing transition.
+    Logs recovery at INFO when a missing container comes back.
+    """
+    start = time.time()
+    running = _running_hub_containers()
+    missing = [name for name in _HUB_CRITICAL_CONTAINERS if name not in running]
+
+    for name in _HUB_CRITICAL_CONTAINERS:
+        prev = _hub_containers_last_status.get(name)
+        curr = "missing" if name in missing else "running"
+        _hub_containers_last_status[name] = curr
+
+        if prev == "running" and curr == "missing":
+            try:
+                from database import get_db_cursor
+
+                msg = (
+                    f"Critical hub container '{name}' is not running. "
+                    f"Check `docker ps` + `docker compose up -d --no-deps {name}`."
+                )
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        """INSERT INTO system_notifications
+                           (type, title, message, source, priority, visibility, is_read, created_at)
+                           VALUES ('error', 'Hub Container Missing', %s,
+                                   'agent_loop', 'high', 'admin', FALSE, NOW())""",
+                        (msg,),
+                    )
+                logger.warning(f"[Hub Observer] ALERT — {name} missing")
+            except Exception as e:
+                logger.error(f"[Hub Observer] failed to insert alert: {e}")
+        elif prev == "missing" and curr == "running":
+            logger.info(f"[Hub Observer] {name} recovered")
+
+    duration_ms = int((time.time() - start) * 1000)
+    _log_cycle(
+        "hub_containers_health",
+        items_processed=len(_HUB_CRITICAL_CONTAINERS) - len(missing),
+        items_failed=len(missing),
+        duration_ms=duration_ms,
+        details={
+            "total_critical": len(_HUB_CRITICAL_CONTAINERS),
+            "missing": missing,
+            "running_count": len(running),
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Translation Coverage Scan
 # ---------------------------------------------------------------------------
 
@@ -592,6 +687,14 @@ def register_fleet_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(minutes=5),
         id="agent_vps_health",
         name="Agent Loop: VPS Health Monitor",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        with_ctx(check_hub_containers),
+        trigger=IntervalTrigger(minutes=5),
+        id="agent_hub_containers",
+        name="Agent Loop: Hub Container Observer",
         replace_existing=True,
     )
 

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}What The Fact — Tech{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="wtf-header">
+    <a href="/" class="wtf-brand">What The Fact · Tech</a>
+    <nav><a href="https://what-the-fact.com">← Consumer site</a></nav>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+  <footer class="wtf-footer">
+    <span>Radical transparency in AI news. <a href="https://github.com/KytranKatarn/archie-platform">Source →</a></span>
+  </footer>
+</body>
+</html>

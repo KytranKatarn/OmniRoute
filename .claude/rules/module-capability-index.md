@@ -208,8 +208,10 @@ These are standalone products surfaced as modules with `/external/` routes. All 
 - **Deployment**: VPS, port 8101, market.kytranempowerment.com
 - **Note**: StockBot was migrated here (project_stockbot-migrated.md)
 
-### Kytran News — `kytran_news` · `/external/news` · ✅
-- **Deployment**: VPS, port 8103, thenews.kytranempowerment.com
+### What The Fact — `what_the_fact` · `/external/wtf` · ✅
+- **Deployment**: VPS, 3 containers — wtf-consumer (port 8103, what-the-fact.com), wtf-tech (port 8104, what-the-fact.tech), wtf-ingest (internal). Supersedes TheNews (retired 2026-04-18).
+- **Capability**: AI-powered transparent news with bias scoring, fact-check summaries, audit trails. MVP source: CBC English RSS. Kytran SSO on the tech dev portal.
+- **Source**: `/mnt/archie_brain/what-the-fact/` · schema `wtf` on hub Postgres
 
 ### Kytran Legal Watch — `kytran_legal_watch` · `/external/legal` · ✅
 - **Deployment**: VPS, port 8100, legal.kytranempowerment.com

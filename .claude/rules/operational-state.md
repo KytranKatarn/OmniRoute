@@ -10,7 +10,9 @@
 | Civic Watch | 8099 | civic.kytranempowerment.com | kytran_watch_api | VPS |
 | Legal Watch | 8100 | legal.kytranempowerment.com | kytran_legal_api | VPS |
 | Gov Watch | 8102 | gov.kytranempowerment.com | kytran_gov_watch | VPS |
-| The News | 8103 | thenews.kytranempowerment.com | kytran_news | VPS |
+| What The Fact Consumer | 8103 | what-the-fact.com | wtf-consumer | VPS |
+| What The Fact Tech     | 8104 | what-the-fact.tech | wtf-tech | VPS |
+| WTF Ingest             | internal | — | wtf-ingest | VPS |
 | Business Suite | 8091 | business.kytranempowerment.com | kbs_app | Hub |
 | System Operations | 8085 | server.kytranempowerment.com | kytran-system-operations | Hub |
 | Stalwart Mail | 25/465/587/993 | mail.kytranempowerment.com | stalwart_mail | Hub |
@@ -33,7 +35,7 @@
 | Node | IP | Mesh IP | Role | Containers |
 |------|-----|---------|------|------------|
 | Hub | 192.168.1.200 | 100.79.11.3 | Primary server | All above |
-| US Outpost | 76.13.107.109 | 100.64.0.1 | Fleet node | Caddy, KSO, SMTP relay, Market/Civic/Legal/Gov Watch, The News |
+| US Outpost | 76.13.107.109 | 100.64.0.1 | Fleet node | Caddy, KSO, SMTP relay, Market/Civic/Legal/Gov Watch, WTF (consumer+tech+ingest) |
 | Node .246 | 192.168.1.246 | — | Offline | RTX 3070, 32GB RAM, awaiting Docker |
 | Node .245 | 192.168.1.245 | — | Offline | RTX 3070, fresh machine |
 
@@ -41,7 +43,8 @@
 
 - Root (@) → Hostinger CDN (cdn.hstgr.net)
 - 22 subdomains pointing to hub (153.68.195.85) — NPM reverse proxy active, SSL on all proxy hosts
-- 7 subdomains pointing to VPS (76.13.107.109): market, civic, legal, gov, thenews, outpost-us, relay — ALL LIVE
+- 6 subdomains pointing to VPS (76.13.107.109): market, civic, legal, gov, outpost-us, relay — ALL LIVE (thenews retired 2026-04-18)
+- `what-the-fact.com` and `what-the-fact.tech` are separate apex domains pointing to VPS (76.13.107.109) — WTF replaces TheNews
 - Hub public IP: 153.68.195.85
 - NPM: 17 proxy hosts, all SSL forced (cleaned 2026-04-13 — removed portainer, mdm, code, devhq, *.fleet DNS + 7 dead proxy hosts)
 - `creed-ai.org` → Hostinger shared hosting (separate domain)

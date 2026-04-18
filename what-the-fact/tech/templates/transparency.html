@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<article class="wtf-transparency">
+  <h1>{{ a.title }}</h1>
+  <p><a href="{{ a.url }}">Source article</a></p>
+  <section>
+    <h2>Bias score</h2>
+    <p><span class="wtf-bias wtf-bias-{{ a.band }}">{{ a.band }}</span>
+       score: {{ "%.2f"|format(a.score) }} · heuristic: {{ a.heuristic_version }}</p>
+    <blockquote>{{ a.rationale }}</blockquote>
+  </section>
+  <section>
+    <h2>Audit trail</h2>
+    <ol>
+    {% for e in trail %}
+      <li><time>{{ e.created_at.isoformat() }}</time>
+          <strong>{{ e.event_type }}</strong>
+          <pre>{{ e.payload|tojson(indent=2) }}</pre></li>
+    {% endfor %}
+    </ol>
+  </section>
+</article>
+{% endblock %}

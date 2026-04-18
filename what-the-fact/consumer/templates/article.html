@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ a.title }} — What The Fact{% endblock %}
+{% block content %}
+<article class="wtf-article">
+  <h1>{{ a.title }}</h1>
+  <p class="wtf-meta">
+    <span class="wtf-source">{{ a.source }}</span> ·
+    <time>{{ a.published_at.strftime('%Y-%m-%d %H:%M') }}</time> ·
+    {% if a.band %}
+      <span class="wtf-bias wtf-bias-{{ a.band }}">{{ a.band }}</span>
+      ({{ "%.2f"|format(a.score) }})
+    {% endif %}
+  </p>
+  <div class="wtf-body">{{ a.body }}</div>
+  {% if a.rationale %}
+    <aside class="wtf-transparency">
+      <strong>Why this bias band?</strong> {{ a.rationale }}
+      <a href="https://what-the-fact.tech/transparency/{{ a.id }}">Full audit trail →</a>
+    </aside>
+  {% endif %}
+  <p class="wtf-source-link"><a href="{{ a.url }}" rel="noopener" target="_blank">Read at source →</a></p>
+</article>
+{% endblock %}

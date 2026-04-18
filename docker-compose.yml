@@ -161,6 +161,11 @@ services:
       - ./node_client:/mnt/archie_brain/node_client:ro
       # Website and standalone product sources (Code Health scanning)
       - ./website:/mnt/archie_brain/website:ro
+      # Translation bundle export (#2089) — nested :rw overrides on data/
+      # only so _export_bundle can write translations.json while the rest of
+      # each site stays :ro for Code Health scan boundary integrity.
+      - ./website/kytranempowerment.com/data:/mnt/archie_brain/website/kytranempowerment.com/data:rw
+      - ./website/creed-ai.org/data:/mnt/archie_brain/website/creed-ai.org/data:rw
       - ./kytran-server-manager:/mnt/archie_brain/kytran-server-manager:ro
       # Host command queue (shared with host_monitor.py for storage operations)
       - ./host_commands:/mnt/archie_brain/host_commands:rw
@@ -198,6 +203,9 @@ services:
       - ./platform_v2/static/screenshots:/app/static/screenshots:rw
       # ── Standalone Products + Websites (read-only for Code Health scanner) ──
       - /mnt/standalone:/mnt/standalone:ro
+      # Translation bundle export (#2089) — nested :rw overrides on data/ only
+      # so _export_bundle can write translations.json for standalone sites.
+      - /mnt/standalone/websites/what-the-fact.com/data:/mnt/standalone/websites/what-the-fact.com/data:rw
       - ./stalwart-mail:/mnt/archie_brain/stalwart-mail:ro
     ports:
       - "3000:3000"

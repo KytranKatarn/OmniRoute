@@ -401,8 +401,8 @@ _VPS_HOSTS = [
         "ssh_host": "76.13.107.109",
         "ssh_port": 22,
         "http_urls": [
-            "https://thenews.kytranempowerment.com/",
-            "https://wtf.kytranempowerment.com/",
+            "https://what-the-fact.com/",
+            "https://what-the-fact.tech/",
             "https://civic.kytranempowerment.com/",
             "https://legal.kytranempowerment.com/",
             "https://gov.kytranempowerment.com/",

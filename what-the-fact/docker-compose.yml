@@ -1,0 +1,35 @@
+services:
+  wtf-ingest:
+    build: { context: ., dockerfile: Dockerfile.ingest }
+    image: ghcr.io/kytrankatarn/wtf-ingest:0.1.0
+    restart: unless-stopped
+    env_file: [.env]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    mem_limit: 512m
+    cpus: 0.5
+
+  wtf-consumer:
+    build: { context: ., dockerfile: Dockerfile.consumer }
+    image: ghcr.io/kytrankatarn/wtf-consumer:0.1.0
+    restart: unless-stopped
+    env_file: [.env]
+    ports: ["8103:8103"]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    mem_limit: 512m
+    cpus: 0.5
+
+  wtf-tech:
+    build: { context: ., dockerfile: Dockerfile.tech }
+    image: ghcr.io/kytrankatarn/wtf-tech:0.1.0
+    restart: unless-stopped
+    env_file: [.env]
+    ports: ["8104:8104"]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    mem_limit: 512m
+    cpus: 0.5

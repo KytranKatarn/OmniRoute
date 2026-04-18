@@ -24,7 +24,7 @@ TARGET_PAGES = {
 BASE_URLS = {
     "website_kytranempowerment": "https://www.kytranempowerment.com",
     "website_what_the_fact": "https://wtf.kytranempowerment.com",
-    "website_thenews": "https://thenews.kytranempowerment.com",
+    "product_what_the_fact": "https://what-the-fact.com",
 }
 
 LANGS = ["fr", "es", "pt", "de", "zh", "ar", "he"]

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<ul class="wtf-list">
+{% for a in articles %}
+  <li>
+    <a href="/article/{{ a.id }}">{{ a.title }}</a>
+    <span class="wtf-source">{{ a.source }}</span>
+    <span class="wtf-bias wtf-bias-{{ a.band }}">{{ a.band }}</span>
+    <time>{{ a.published_at.strftime('%Y-%m-%d') }}</time>
+  </li>
+{% endfor %}
+</ul>
+{% endblock %}

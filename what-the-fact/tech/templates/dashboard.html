@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Developer Dashboard</h1>
+<p>Welcome, {{ user.name or user.username }}.</p>
+<h2>Read-only API</h2>
+<pre>GET /api/v1/articles?limit=50
+GET /api/v1/articles/&lt;id&gt;
+GET /api/v1/articles/&lt;id&gt;/audit</pre>
+{% endblock %}

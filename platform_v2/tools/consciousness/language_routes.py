@@ -64,12 +64,7 @@ EXTERNAL_SCAN_SOURCES = [
         "/mnt/standalone/websites/what-the-fact.com",
         "/mnt/standalone/websites/what-the-fact.com/data/translations.json",
     ),
-    (
-        "website_thenews",
-        "/mnt/standalone/websites/thenews.kytranempowerment.com",
-        "/mnt/standalone/websites/thenews.kytranempowerment.com/data/translations.json",
-    ),
-    ("product_kytran_news", "/mnt/standalone/kytran-news", None),
+    ("product_what_the_fact", "/mnt/archie_brain/what-the-fact", None),
     # ── KBS ──
     ("product_business_suite", "/mnt/standalone/kytran-business-suite", None),
     # ── C.R.E.E.D. Governance (AI wellness standalone, creed.kytranempowerment.com:8086) ──

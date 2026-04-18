@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="wtf-hero">
+  <h1>Radical transparency in AI news.</h1>
+  <p>Every article scored, every decision audited, every source documented.
+     Sign in with Kytran Empowerment for API access.</p>
+  <a class="wtf-btn" href="/auth/kytran/login?next=/dashboard">Sign in with Kytran Empowerment</a>
+</section>
+<section class="wtf-methodology">
+  <h2>How we score bias</h2>
+  <p>WTF uses heuristic v1 — weighted keyword triggers calibrated against a 10-article golden
+     file of Canadian political coverage. Full methodology →
+     <a href="https://github.com/KytranKatarn/archie-platform">source</a>.</p>
+</section>
+{% endblock %}

@@ -112,11 +112,10 @@ _STANDALONE_DEFS = [
     },
     {
         "name": "What The Fact",
-        "dir_name": "kytran-news",
-        "module_key": "standalone_kytran_news",
+        "dir_name": "what-the-fact",
+        "module_key": "standalone_what_the_fact",
         "tier": 1,
-        "type": "api",  # Flask API — no own static (served by frontend)
-        "compliance_packs": ["ubuntu-stig", "docker-stig"],
+        "compliance_packs": ["ubuntu-stig", "docker-stig", "network-stig"],
     },
     {
         "name": "A.R.C.H.I.E. Code (CLI)",
@@ -164,11 +163,6 @@ INFRASTRUCTURE_SERVICES = [
 _WEBSITE_DEFS = [
     {"name": "kytranempowerment.com", "dir_name": "kytranempowerment.com", "module_key": "website_kytranempowerment"},
     {"name": "creed-ai.org", "dir_name": "creed-ai.org", "module_key": "website_creed_ai"},
-    {
-        "name": "What The Fact (subdomain)",
-        "dir_name": "thenews.kytranempowerment.com",
-        "module_key": "website_kytran_news",
-    },
     {"name": "What The Fact (.com)", "dir_name": "what-the-fact.com", "module_key": "website_what_the_fact"},
 ]
 

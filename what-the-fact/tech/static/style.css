@@ -1,0 +1,29 @@
+:root {
+  --wtf-bg: #0b0d12;
+  --wtf-fg: #d9dde6;
+  --wtf-accent: #a78bfa;
+  --wtf-border: #1e2330;
+}
+body { margin: 0; font-family: -apple-system, system-ui, Segoe UI, sans-serif;
+       background: var(--wtf-bg); color: var(--wtf-fg); }
+.wtf-header { display: flex; justify-content: space-between; padding: 1rem 2rem;
+              border-bottom: 1px solid var(--wtf-border); }
+.wtf-brand { color: var(--wtf-accent); font-weight: 600; text-decoration: none; }
+.wtf-list { list-style: none; padding: 1rem 2rem; }
+.wtf-list li { padding: .75rem 0; border-bottom: 1px solid var(--wtf-border); }
+.wtf-list a { color: var(--wtf-fg); text-decoration: none; font-weight: 500; }
+.wtf-source { margin-left: .75rem; opacity: .7; font-size: .85em; }
+.wtf-bias { margin-left: .75rem; padding: .15em .5em; border-radius: 3px;
+            font-size: .75em; text-transform: uppercase; }
+.wtf-bias-left        { background: #3b5aa3; }
+.wtf-bias-center-left { background: #5578b8; }
+.wtf-bias-center      { background: #6b7280; }
+.wtf-bias-center-right{ background: #b87c55; }
+.wtf-bias-right       { background: #a33b3b; }
+.wtf-footer { padding: 2rem; border-top: 1px solid var(--wtf-border); opacity: .7; font-size: .85em; }
+.wtf-hero { padding: 4rem 2rem; text-align: center; }
+.wtf-hero h1 { font-size: 2rem; color: var(--wtf-accent); margin-bottom: 1rem; }
+.wtf-btn { display: inline-block; margin-top: 1.5rem; padding: .75rem 1.5rem;
+           background: var(--wtf-accent); color: #0b0d12; border-radius: 4px;
+           text-decoration: none; font-weight: 600; }
+.wtf-methodology { padding: 2rem; border-top: 1px solid var(--wtf-border); max-width: 700px; margin: 0 auto; }

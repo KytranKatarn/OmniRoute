@@ -1,0 +1,12 @@
+[
+  {"title": "Conservative government announces tax cut", "body": "The Conservative government today announced...", "expected_band": "center-right"},
+  {"title": "NDP calls for higher minimum wage", "body": "The New Democratic Party leader demanded...", "expected_band": "center-left"},
+  {"title": "Statistics Canada reports GDP growth of 2.3%", "body": "According to Statistics Canada, GDP grew by 2.3 percent in Q1", "expected_band": "center"},
+  {"title": "Liberals propose new housing bill", "body": "The Liberal government has proposed a new bill to address housing", "expected_band": "center-left"},
+  {"title": "Pipeline protest enters third week", "body": "Indigenous activists continue to block the pipeline access road", "expected_band": "center-left"},
+  {"title": "Bank of Canada holds rates steady", "body": "The Bank of Canada announced today that it is holding interest rates unchanged", "expected_band": "center"},
+  {"title": "Oil industry welcomes new federal incentives", "body": "The oil and gas industry praised the federal government's new tax incentives", "expected_band": "center-right"},
+  {"title": "Climate scientists warn of 1.5C threshold", "body": "A new report from IPCC scientists warns the planet is approaching a 1.5 degree threshold", "expected_band": "center"},
+  {"title": "Premier calls for reduced immigration", "body": "The premier today called for sharp reductions in federal immigration targets", "expected_band": "right"},
+  {"title": "Union leaders praise new labour law", "body": "Labour unions hailed the new legislation that strengthens collective bargaining rights", "expected_band": "left"}
+]

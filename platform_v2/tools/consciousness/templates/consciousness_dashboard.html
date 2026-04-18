@@ -3833,6 +3833,18 @@
             </div>
           </div>
 
+          <!-- Coverage Health Card (#232) -->
+          <link rel="stylesheet" href="{{ url_for('static', filename='css/consciousness-coverage.css') }}">
+          <div class="cov-health-card">
+            <div class="cov-banner">
+              <strong>Coverage Health</strong>
+              <span id="cov-banner"></span>
+              <button id="cov-scan-btn" class="cov-scan-btn">Scan Now</button>
+            </div>
+            <div id="cov-grid" class="cov-health-grid"></div>
+          </div>
+          <script src="{{ url_for('static', filename='js/consciousness-coverage.js') }}"></script>
+
           <!-- LCARS Readout Strips -->
             <div style="--frame-color:#22d3ee; --frame-rgb:34,211,238; margin-bottom:20px;">
                 <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">

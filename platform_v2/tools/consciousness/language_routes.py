@@ -31,6 +31,10 @@ import json as _json
 
 logger = logging.getLogger(__name__)
 
+# Single-flight guard for /api/translations/full-scan — prevents parallel scans
+# from racing on translation_gaps upserts (see migration 322).
+_full_scan_lock = threading.Lock()
+
 # External sites/products with data-i18n attributes to scan
 # Each entry: (source_label, directory_path, bundle_output_path_or_None)
 EXTERNAL_SCAN_SOURCES = [
@@ -49,6 +53,27 @@ EXTERNAL_SCAN_SOURCES = [
         "/mnt/archie_brain/website/creed-ai.org",
         "/mnt/archie_brain/website/creed-ai.org/data/translations.json",
     ),
+    # ── Watch products (VPS-hosted, scanned from hub filesystem mirror) ──
+    ("product_civic_watch", "/mnt/standalone/kytran-civic-watch", None),
+    ("product_gov_watch", "/mnt/standalone/kytran-gov-watch", None),
+    ("product_legal_watch", "/mnt/standalone/kytran-legal-watch", None),
+    ("product_market_watch", "/mnt/standalone/kytran-market-watch", None),
+    # ── What The Fact (brand) — frontend + backend ──
+    (
+        "website_what_the_fact",
+        "/mnt/standalone/websites/what-the-fact.com",
+        "/mnt/standalone/websites/what-the-fact.com/data/translations.json",
+    ),
+    (
+        "website_thenews",
+        "/mnt/standalone/websites/thenews.kytranempowerment.com",
+        "/mnt/standalone/websites/thenews.kytranempowerment.com/data/translations.json",
+    ),
+    ("product_kytran_news", "/mnt/standalone/kytran-news", None),
+    # ── KBS ──
+    ("product_business_suite", "/mnt/standalone/kytran-business-suite", None),
+    # ── C.R.E.E.D. Governance (AI wellness standalone, creed.kytranempowerment.com:8086) ──
+    ("product_creed_governance", "/mnt/standalone/kytran-creed", None),
 ]
 
 
@@ -141,8 +166,20 @@ def _scan_all_sources():
             continue
         ext_count = 0
         for root, _dirs, files in os.walk(ext_dir):
-            # Skip hidden dirs, node_modules, __pycache__
-            if any(skip in root for skip in ("/.git", "/node_modules", "/__pycache__")):
+            # Skip hidden dirs, node_modules, __pycache__, virtualenvs, build artifacts
+            if any(
+                skip in root
+                for skip in (
+                    "/.git",
+                    "/node_modules",
+                    "/__pycache__",
+                    "/.venv",
+                    "/venv",
+                    "/site-packages",
+                    "/dist",
+                    "/build",
+                )
+            ):
                 continue
             for fname in files:
                 if not fname.endswith(".html") or fname.startswith("_"):
@@ -284,6 +321,10 @@ def _seed_keys(keys_dict):
         for ext_label, _, _ in EXTERNAL_SCAN_SOURCES:
             context_map[ext_label] = ext_label
 
+        # External labels like "website_kso" map 1:1 to source_label; internal
+        # key sources (template/js/module_*/category) bucket under 'platform'.
+        external_labels = {s[0] for s in EXTERNAL_SCAN_SOURCES}
+
         for key, info in keys_dict.items():
             english = info.get("english", "")
             source_type = info.get("source", "")
@@ -292,15 +333,16 @@ def _seed_keys(keys_dict):
                 continue
 
             context = context_map.get(source_type, source_type)
+            source_label = source_type if source_type in external_labels else "platform"
 
             cur.execute(
                 """
-                INSERT INTO translations (key, language, text, source, status, context,
-                                          created_at, updated_at)
-                VALUES (%s, 'en', %s, 'imported', 'approved', %s, NOW(), NOW())
-                ON CONFLICT (key, language) DO NOTHING
+                INSERT INTO translations (key, language, text, source, source_label,
+                                          status, context, created_at, updated_at)
+                VALUES (%s, 'en', %s, 'imported', %s, 'approved', %s, NOW(), NOW())
+                ON CONFLICT (source_label, key, language) DO NOTHING
                 """,
-                (key, english, context),
+                (key, english, source_label, context),
             )
             if cur.rowcount > 0:
                 seeded += 1
@@ -338,7 +380,7 @@ def _run_translate_bg(languages, module_id, parent_job_id):
     Uses a single bridge job for the entire pipeline. batch_translate() updates
     the parent job's progress at batch level so only one agent slot is consumed.
     """
-    from ai_bridge.bridge_dispatcher import get_dispatcher
+    from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
     dispatcher = get_dispatcher()
     completed_langs = 0
@@ -786,13 +828,15 @@ def register_language_routes(bp, admin_required):
             if all_keys:
                 conn = _get_db()
                 cur = conn.cursor()
+                module_source_label = f"module_{module_id}"
                 for key, text in all_keys:
                     try:
                         cur.execute(
-                            """INSERT INTO translations (key, language, text, source, status)
-                               VALUES (%s, 'en', %s, 'ai_generated', 'approved')
-                               ON CONFLICT (key, language) DO NOTHING""",
-                            (key, text),
+                            """INSERT INTO translations (key, language, text, source,
+                                                         source_label, status)
+                               VALUES (%s, 'en', %s, 'ai_generated', %s, 'approved')
+                               ON CONFLICT (source_label, key, language) DO NOTHING""",
+                            (key, text, module_source_label),
                         )
                         if cur.rowcount > 0:
                             seeded += 1
@@ -1350,7 +1394,7 @@ def register_language_routes(bp, admin_required):
                 )
 
             # Create parent bridge job
-            from ai_bridge.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             job_id = dispatcher.create_job(
@@ -1524,7 +1568,7 @@ def register_language_routes(bp, admin_required):
                     SET text = %s, source = 'human_edited', status = 'approved',
                         reviewed_by = %s, updated_at = NOW()
                     WHERE id = %s
-                    RETURNING key, language
+                    RETURNING key, language, source_label
                     """,
                     (new_text, current_user.id, translation_id),
                 )
@@ -1532,8 +1576,9 @@ def register_language_routes(bp, admin_required):
                 if updated:
                     # Save correction to translation_memory
                     cur.execute(
-                        "SELECT text FROM translations WHERE key = %s AND language = 'en'",
-                        (updated["key"],),
+                        """SELECT text FROM translations
+                           WHERE source_label = %s AND key = %s AND language = 'en'""",
+                        (updated["source_label"], updated["key"]),
                     )
                     en_row = cur.fetchone()
                     if en_row:
@@ -1793,6 +1838,74 @@ def register_language_routes(bp, admin_required):
             )
         except Exception as e:
             logger.error(f"Translation export error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+
+    # --- Full-scan trigger + coverage health query (task #232) ---
+
+    @bp.route("/api/translations/full-scan", methods=["POST"])
+    @admin_required
+    def trigger_full_scan():
+        """Kick off the orchestrator in a background thread.
+
+        Single-flight: if a scan is already running, refuse instead of spawning
+        a parallel one (parallel scans double DB write load and can race on
+        translation_gaps upserts — see migration 322).
+        """
+        from tools.consciousness.translation_scanners.orchestrator import (
+            run_translation_coverage_scan,
+        )
+
+        if not _full_scan_lock.acquire(blocking=False):
+            return (
+                jsonify({"success": False, "error": "scan already in progress"}),
+                409,
+            )
+
+        def _run():
+            try:
+                run_translation_coverage_scan()
+            except Exception:  # noqa: BLE001
+                logger.exception("full-scan failed")
+            finally:
+                _full_scan_lock.release()
+
+        threading.Thread(target=_run, daemon=True, name="translation-full-scan").start()
+        return jsonify({"success": True, "message": "scan started"})
+
+    @bp.route("/api/translations/coverage-health", methods=["GET"])
+    @admin_required
+    def coverage_health():
+        """Per-source per-language coverage % + open-gap counts."""
+        conn = None
+        cur = None
+        try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """SELECT source_label AS source, language,
+                          COUNT(*) AS total,
+                          SUM(CASE WHEN status='approved' THEN 1 ELSE 0 END) AS approved,
+                          MAX(updated_at) AS last_updated
+                   FROM translations
+                   WHERE source_label IS NOT NULL
+                   GROUP BY source_label, language"""
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+            cur.execute(
+                """SELECT source, gap_type, COUNT(*) AS n
+                   FROM translation_gaps
+                   WHERE status <> 'resolved'
+                   GROUP BY source, gap_type"""
+            )
+            gap_rows = [dict(r) for r in cur.fetchall()]
+            return jsonify({"coverage": rows, "open_gaps": gap_rows})
+        except Exception as e:
+            logger.error(f"coverage-health query error: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
             if cur:

@@ -130,3 +130,4 @@ weasyprint>=62.0
 
 # insightface>=0.7.3 and onnxruntime>=1.16.0 — install manually for face detection
 # (requires g++/build-essential; face_service.py degrades gracefully without them)
+langdetect==1.0.9

@@ -1,0 +1,23 @@
+/* consciousness-coverage.css (#232) */
+.cov-health-card {
+    background: var(--archie-surface-1);
+    border: 1px solid var(--archie-border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 16px;
+}
+.cov-health-grid {
+    display: grid;
+    grid-template-columns: 180px repeat(8, 1fr);
+    gap: 2px;
+    font-size: 12px;
+}
+.cov-head, .cov-cell { padding: 6px 8px; text-align: center; }
+.cov-head { background: var(--archie-accent); color: #000; font-weight: 600; }
+.cov-source-label { text-align: left; background: var(--archie-surface-2); }
+.cov-cell[data-band="high"]   { background: #10b98133; }
+.cov-cell[data-band="medium"] { background: #f59e0b33; }
+.cov-cell[data-band="low"]    { background: #ef444433; }
+.cov-banner { display: flex; gap: 16px; margin-bottom: 12px; font-size: 13px; align-items: center; }
+.cov-scan-btn { background: var(--archie-accent); color: #000; border: 0; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+.cov-scan-btn:disabled { opacity: 0.5; cursor: not-allowed; }

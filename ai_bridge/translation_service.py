@@ -86,7 +86,7 @@ def _dispatch(capability: str, prompt: str, system_prompt: str = None, timeout: 
         Generated text, or empty string on failure.
     """
     try:
-        from ai_bridge.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
         result = dispatcher.request_work(
@@ -196,6 +196,7 @@ def batch_translate(
     parent_job_id: int = None,
     batch_offset: int = 0,
     model: str = None,
+    source_label: str = "platform",
 ) -> List[Dict]:
     """Translate a batch of UI strings via the bridge.
 
@@ -241,7 +242,7 @@ def batch_translate(
     standalone = job_id is None
     if standalone:
         try:
-            from ai_bridge.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
             dispatcher = get_dispatcher()
             job_id = dispatcher.create_job(
                 job_type="batch_translate",
@@ -260,7 +261,7 @@ def batch_translate(
             logger.warning("[Linguistics] Could not create bridge job: %s", e)
     else:
         try:
-            from ai_bridge.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
             dispatcher = get_dispatcher()
         except Exception:
             pass
@@ -318,7 +319,9 @@ def batch_translate(
         # Store this batch to DB immediately — no progress lost on crash
         if batch_ok > 0:
             try:
-                batch_stats = store_translations(batch_results, language, model or "qwen3-coder-cpu")
+                batch_stats = store_translations(
+                    batch_results, language, model or "qwen3-coder-cpu", source_label
+                )
                 total_ok += batch_stats.get("inserted", 0) + batch_stats.get("updated", 0)
                 total_fail += batch_stats.get("failed", 0)
             except Exception as e:
@@ -453,15 +456,18 @@ def store_translations(
     results: List[Dict],
     language: str,
     model: str,
+    source_label: str = "platform",
 ) -> Dict[str, int]:
     """Upsert translation results into the translations table.
 
-    Uses ON CONFLICT (key, language) to update existing entries.
+    Uses ON CONFLICT (source_label, key, language) so the same key can exist
+    across different products/sites without collision.
 
     Args:
         results: List of {"key": str, "translation": str, "success": bool}.
         language: Target language code.
         model: Model used for translation.
+        source_label: Product/site label (e.g. "platform", "website_creed").
 
     Returns:
         Dict with counts: {"inserted": N, "updated": N, "failed": N}
@@ -484,16 +490,19 @@ def store_translations(
                 try:
                     cur.execute(
                         """
-                        INSERT INTO translations (key, language, text, generated_by, source, status, created_at, updated_at)
-                        VALUES (%s, %s, %s, %s, 'ai_generated', 'approved', NOW(), NOW())
-                        ON CONFLICT (key, language) DO UPDATE SET
+                        INSERT INTO translations (source_label, key, language, text,
+                                                  generated_by, source, status,
+                                                  created_at, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, 'ai_generated', 'approved',
+                                NOW(), NOW())
+                        ON CONFLICT (source_label, key, language) DO UPDATE SET
                             text = EXCLUDED.text,
                             generated_by = EXCLUDED.generated_by,
                             status = 'approved',
                             updated_at = NOW()
                         RETURNING (xmax = 0) AS is_insert
                         """,
-                        (item["key"], language, item["translation"], model),
+                        (source_label, item["key"], language, item["translation"], model),
                     )
                     row = cur.fetchone()
                     if row and row[0]:

@@ -250,6 +250,81 @@ def check_standalone_health():
             _standalone_last_status[key] = "down"
 
 
+def budget_reconciliation():
+    """Job: reconcile agent_budgets.current_task_count against actual in-flight
+    bridge_jobs every hour. Belt-and-suspenders for the complete_job decrement
+    fix (task #2100) — catches drift from crashed workers or missed code paths.
+
+    Also emits an admin notification when any agent is budget-blocked (task #2101)
+    so Department HQ / A.R.C.H.I.E. don't keep silently swallowing capability
+    outages.
+    """
+    try:
+        import sys
+
+        sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+        from services.agent_service import reconcile_task_counters
+        from database import get_db_cursor
+
+        corrected = reconcile_task_counters()
+
+        # Detect any agent STILL blocked after reconciliation — genuine overcommit.
+        blocked: list = []
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT a.name, a.display_name, a.department,
+                       ab.current_task_count, ab.task_queue_limit
+                FROM agents a
+                JOIN agent_budgets ab ON ab.agent_id = a.id
+                WHERE a.shift_state IN ('active', 'winding_down')
+                  AND ab.current_task_count >= ab.task_queue_limit
+                """
+            )
+            blocked = [dict(r) for r in cur.fetchall()]
+
+        if blocked:
+            names = ", ".join(b["name"] for b in blocked)
+            logger.warning(
+                "[BudgetReconcile] %d agent(s) budget-blocked after reconciliation: %s",
+                len(blocked),
+                names,
+            )
+            try:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    msg = (
+                        f"🚨 Budget exhaustion — {len(blocked)} agent(s) blocked:\n"
+                        + "\n".join(
+                            f"• {b['display_name']} ({b['department']}) — "
+                            f"{b['current_task_count']}/{b['task_queue_limit']}"
+                            for b in blocked[:10]
+                        )
+                        + "\n\nAgents cannot accept new dispatch until their queue clears "
+                        "or task_queue_limit is raised."
+                    )
+                    cur.execute(
+                        """INSERT INTO system_notifications
+                               (type, title, message, source, priority, visibility,
+                                is_read, created_at)
+                           VALUES ('warning', 'Agent Budget Exhaustion',
+                                   %s, 'budget_reconcile', 'high', 'admin',
+                                   FALSE, NOW())""",
+                        (msg,),
+                    )
+            except Exception as notif_err:
+                logger.debug("[BudgetReconcile] notification insert failed: %s", notif_err)
+
+        _log_cycle(
+            "budget_reconciliation",
+            len(corrected),
+            len(blocked),
+            0,
+        )
+    except Exception as e:
+        _log_cycle("budget_reconciliation", 0, 1, 0, error_message=str(e))
+        logger.warning("Budget reconciliation failed: %s", e)
+
+
 def department_metrics_rollup():
     """Job #60: Department metrics rollup -- daily at 2:00 AM.
     Owned by Analytics & Intelligence (S.P.E.C.T.R.A.)."""
@@ -314,6 +389,153 @@ def renew_fleet_ssl():
 
 
 # ---------------------------------------------------------------------------
+# VPS Health Monitor (task #1683)
+# ---------------------------------------------------------------------------
+
+_vps_last_status = {}
+
+# Per-host probe config. Add a new host by appending a dict here.
+_VPS_HOSTS = [
+    {
+        "name": "US Outpost (76.13.107.109)",
+        "ssh_host": "76.13.107.109",
+        "ssh_port": 22,
+        "http_urls": [
+            "https://thenews.kytranempowerment.com/",
+            "https://wtf.kytranempowerment.com/",
+            "https://civic.kytranempowerment.com/",
+            "https://legal.kytranempowerment.com/",
+            "https://gov.kytranempowerment.com/",
+            "https://market.kytranempowerment.com/",
+        ],
+    },
+]
+
+
+def _probe_tcp(host: str, port: int, timeout: float = 5.0) -> tuple[bool, str]:
+    """Return (ok, detail). No side effects."""
+    import socket
+
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True, f"tcp {host}:{port} ok"
+    except Exception as e:
+        return False, f"tcp {host}:{port} fail: {e}"
+
+
+def _probe_http(url: str, timeout: float = 10.0) -> tuple[bool, str]:
+    """Return (ok, detail). 2xx/3xx counts as ok."""
+    import requests as req
+
+    try:
+        r = req.get(url, timeout=timeout, allow_redirects=False, verify=True)
+        if 200 <= r.status_code < 400:
+            return True, f"{url} -> {r.status_code}"
+        return False, f"{url} -> {r.status_code}"
+    except Exception as e:
+        return False, f"{url} -> {type(e).__name__}"
+
+
+def check_vps_health():
+    """Task #1683: probe SSH + HTTP endpoints on each VPS every 5 min.
+
+    Writes an autonomy_loop_log row via _log_cycle and, on a transition
+    from healthy -> degraded, emits a system_notifications alert
+    (picked up by the existing Telegram forwarder).
+    """
+    start = time.time()
+    total_checks = 0
+    total_failures = 0
+    per_host = {}
+
+    for cfg in _VPS_HOSTS:
+        host_failures = []
+        # SSH probe
+        ok, detail = _probe_tcp(cfg["ssh_host"], cfg["ssh_port"])
+        total_checks += 1
+        if not ok:
+            host_failures.append(detail)
+        # HTTP probes
+        for url in cfg["http_urls"]:
+            ok, detail = _probe_http(url)
+            total_checks += 1
+            if not ok:
+                host_failures.append(detail)
+
+        total_failures += len(host_failures)
+        per_host[cfg["name"]] = {
+            "failures": len(host_failures),
+            "details": host_failures[:10],  # cap for DB/log size
+        }
+
+        # State transition detection for alerting — only fire on the edge
+        prev_state = _vps_last_status.get(cfg["name"])
+        new_state = "degraded" if host_failures else "healthy"
+        _vps_last_status[cfg["name"]] = new_state
+
+        if prev_state == "healthy" and new_state == "degraded":
+            try:
+                from database import get_db_cursor
+
+                msg = f"{cfg['name']} — {len(host_failures)} probe(s) failing:\n" + "\n".join(
+                    f"  - {d}" for d in host_failures[:5]
+                )
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        """INSERT INTO system_notifications
+                           (type, title, message, source, priority, visibility, is_read, created_at)
+                           VALUES ('error', 'VPS Health Degraded', %s,
+                                   'agent_loop', 'high', 'admin', FALSE, NOW())""",
+                        (msg,),
+                    )
+                logger.warning(f"[VPS Health] ALERT — {cfg['name']} degraded")
+            except Exception as e:
+                logger.error(f"[VPS Health] failed to insert alert: {e}")
+        elif prev_state == "degraded" and new_state == "healthy":
+            logger.info(f"[VPS Health] {cfg['name']} recovered")
+
+    duration_ms = int((time.time() - start) * 1000)
+    _log_cycle(
+        "vps_health",
+        items_processed=total_checks - total_failures,
+        items_failed=total_failures,
+        duration_ms=duration_ms,
+        details={
+            "total_checks": total_checks,
+            "failures": total_failures,
+            "hosts": per_host,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Translation Coverage Scan
+# ---------------------------------------------------------------------------
+
+
+def _translation_coverage_scan_wrapper():
+    """Translation coverage scan (#232 nightly)."""
+    start = time.time()
+    try:
+        from tools.consciousness.translation_scanners.orchestrator import (
+            run_translation_coverage_scan,
+        )
+
+        summary = run_translation_coverage_scan()
+        _log_cycle(
+            "translation_coverage_scan",
+            items_processed=summary.get("auto_fixed", 0),
+            items_failed=0,
+            duration_ms=summary.get("duration_ms", 0),
+            details=summary,
+        )
+    except Exception as e:  # noqa: BLE001
+        dur = int((time.time() - start) * 1000)
+        logger.error("[TranslationScan] failed: %s", e)
+        _log_cycle("translation_coverage_scan", 0, 1, dur, error_message=str(e))
+
+
+# ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
 
@@ -366,6 +588,22 @@ def register_fleet_jobs(scheduler, flask_app):
     )
 
     scheduler.add_job(
+        with_ctx(check_vps_health),
+        trigger=IntervalTrigger(minutes=5),
+        id="agent_vps_health",
+        name="Agent Loop: VPS Health Monitor",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        with_ctx(_translation_coverage_scan_wrapper),
+        trigger=CronTrigger(hour=2, minute=0),
+        id="translation_coverage_scan",
+        name="Agent Loop: Translation Coverage Scan",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
         with_ctx(department_metrics_rollup),
         trigger=CronTrigger(hour=2, minute=0),
         id="department_metrics_rollup",
@@ -378,5 +616,13 @@ def register_fleet_jobs(scheduler, flask_app):
         trigger=CronTrigger(hour=3, minute=0),
         id="fleet_ssl_renewal",
         name="Agent Loop: Fleet SSL Renewal",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        with_ctx(budget_reconciliation),
+        trigger=IntervalTrigger(minutes=60),
+        id="budget_reconciliation",
+        name="Agent Loop: Budget Counter Reconciliation",
         replace_existing=True,
     )

@@ -406,6 +406,8 @@ JOB_DEPARTMENT_MAP = {
     "auto_log_ingestion": "Research & Development",
     "weekly_dependency_scan": "Security & Compliance",
     "health_probe": "Operations & Infrastructure",
+    "vps_health": "Operations & Infrastructure",
+    "translation_coverage_scan": "Documentation & Knowledge",
     "crew_wellness_tick": "Human Resources & Culture",
     "ollama_model_health": "Operations & Infrastructure",
     "media_queue_cleanup": "Creative & Design",

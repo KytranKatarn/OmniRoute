@@ -1186,6 +1186,79 @@ def increment_budget(agent_id, tokens_used=0):
         }
 
 
+def decrement_budget(agent_id):
+    """Atomically decrement agent_budgets.current_task_count, clamped at zero.
+
+    Mirrors increment_budget and must be called on every job completion/failure/
+    cancel so the counter stays honest. Without this pair, the counter drifts
+    upward forever and eventually exceeds task_queue_limit, silently blocking
+    the agent from dispatch (see task #2100).
+
+    Only decrements current_task_count — tokens_used_today is cumulative-daily
+    and is cleared by reset_budgets() on its own schedule.
+    """
+    if not agent_id:
+        return {"success": False, "reason": "no agent_id"}
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """UPDATE agent_budgets
+               SET current_task_count = GREATEST(0, COALESCE(current_task_count, 0) - 1),
+                   updated_at = NOW()
+               WHERE agent_id = %s
+               RETURNING current_task_count""",
+            (agent_id,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            return {"success": False, "reason": "no budget row for agent"}
+        return {"success": True, "task_count": row["current_task_count"]}
+
+
+def reconcile_task_counters():
+    """Sync agent_budgets.current_task_count to actual bridge_jobs in-flight count.
+
+    Safety net for the decrement path: catches any drift from missed
+    complete_job() calls, crashed workers, or legacy code paths. Run hourly
+    via agent_loop. Returns a dict of agent names → drift corrected.
+    """
+    corrected: dict = {}
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            WITH real_inflight AS (
+                SELECT agent_name, COUNT(*) AS actual
+                FROM bridge_jobs
+                WHERE status NOT IN ('completed', 'failed', 'cancelled')
+                GROUP BY agent_name
+            )
+            UPDATE agent_budgets ab
+            SET current_task_count = COALESCE(r.actual, 0),
+                updated_at = NOW()
+            FROM agents a
+            LEFT JOIN real_inflight r ON r.agent_name = a.name
+            WHERE ab.agent_id = a.id
+              AND ab.current_task_count <> COALESCE(r.actual, 0)
+            RETURNING a.name,
+                      ab.current_task_count AS new_count,
+                      (ab.current_task_count - COALESCE(
+                          (SELECT actual FROM real_inflight WHERE agent_name = a.name), 0
+                      )) AS drift_corrected
+            """
+        )
+        for row in cur.fetchall():
+            corrected[row["name"]] = {
+                "new_count": row["new_count"],
+                "drift_corrected": row["drift_corrected"],
+            }
+    if corrected:
+        logger.warning(
+            "[BudgetReconcile] corrected drift on %d agents: %s",
+            len(corrected),
+            ", ".join(f"{n}({d['drift_corrected']:+d})" for n, d in corrected.items()),
+        )
+    return corrected
+
+
 def update_welfare_after_task(agent_id, success=True):
     """Update an agent's emotional state based on recent task performance.
 

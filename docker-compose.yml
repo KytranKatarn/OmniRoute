@@ -505,8 +505,14 @@ services:
     environment:
       TS_AUTHKEY: ${HEADSCALE_HUB_AUTHKEY:-}
       TS_STATE_DIR: /var/lib/tailscale
-      TS_EXTRA_ARGS: "--login-server=http://archie_headscale:8095 --ssh --accept-dns=false"
+      TS_EXTRA_ARGS: "--login-server=https://mesh.kytranempowerment.com --ssh --accept-dns=false --advertise-routes=192.168.1.0/24"
       TS_USERSPACE: "false"
+    # Split-horizon DNS for DERP endpoint (#2087): the client resolves
+    # mesh.kytranempowerment.com via Docker DNS which forwards to the
+    # host's Tailscale resolver — that returns SERVFAIL for this zone.
+    # Pin it to the hub LAN IP so DERP traffic reaches NPM on 443.
+    extra_hosts:
+      - "mesh.kytranempowerment.com:192.168.1.200"
     volumes:
       - tailscale_hub_data:/var/lib/tailscale
       - /dev/net/tun:/dev/net/tun

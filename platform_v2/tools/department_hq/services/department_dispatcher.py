@@ -36,6 +36,7 @@ try:
         transition_shift_state as svc_transition_shift_state,
         find_replacement as svc_find_replacement,
         increment_budget as svc_increment_budget,
+        decrement_budget as svc_decrement_budget,
         update_welfare_after_task as svc_update_welfare_after_task,
         check_shift_transitions as svc_check_shift_transitions,
     )
@@ -5033,7 +5034,7 @@ class DepartmentDispatcher:
         # 6. Log for HR tracking
         self._log_execution(result, module_id, user_id, job_id=job_id)
 
-        # 6b. Increment agent budget tracking
+        # 6b. Increment agent budget tracking (tokens + in-flight task counter).
         if result.success:
             if _HAS_AGENT_SERVICE:
                 svc_increment_budget(
@@ -5045,6 +5046,21 @@ class DepartmentDispatcher:
                     agent.get("id"),
                     tokens_used=result.prompt_tokens + result.completion_tokens,
                 )
+
+            # Immediate (non-job-tracked) dispatches are synchronous — the work
+            # is done by the time we return, so the in-flight slot must be
+            # released here. Job-tracked dispatches (job_id set) decrement
+            # via complete_job() instead. Without this, the counter drifts
+            # upward on every translate/classify/etc. call and eventually
+            # blocks the agent (see task #2100).
+            if not job_id and _HAS_AGENT_SERVICE:
+                try:
+                    svc_decrement_budget(agent.get("id"))
+                except Exception as dec_err:
+                    logger.debug(
+                        f"[BridgeDispatcher] immediate-dispatch decrement "
+                        f"skipped for agent={agent.get('name')}: {dec_err}"
+                    )
 
         return result
 
@@ -5893,6 +5909,26 @@ class DepartmentDispatcher:
                 (status, job_id),
             )
             row = cur.fetchone()
+
+            # Release the agent's budget slot. The paired increment happens in
+            # _increment_budget() / svc_increment_budget() on dispatch, and
+            # without this decrement the counter drifts upward until the agent
+            # is silently blocked from dispatch (see task #2100). Clamped at 0.
+            if row and row[0]:
+                try:
+                    cur.execute(
+                        """UPDATE agent_budgets ab
+                           SET current_task_count = GREATEST(
+                                   0, COALESCE(current_task_count, 0) - 1
+                               ),
+                               updated_at = NOW()
+                           FROM agents a
+                           WHERE a.id = ab.agent_id AND a.name = %s""",
+                        (row[0],),
+                    )
+                except Exception as dec_err:
+                    logger.debug(f"[BridgeDispatcher] budget decrement failed for " f"{row[0]}: {dec_err}")
+
             conn.commit()
             cur.close()
             conn.close()

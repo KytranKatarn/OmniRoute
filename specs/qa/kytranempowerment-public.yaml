@@ -67,7 +67,7 @@ tests:
   - name: "AI Directors page loads"
     type: api
     method: GET
-    path: /directors.html
+    path: /ai-directors.html
     skip_auth: true
     expect:
       status: 200
@@ -75,7 +75,7 @@ tests:
   - name: "Directors data JSON loads"
     type: api
     method: GET
-    path: /directors.json
+    path: /data/directors.json
     skip_auth: true
     expect:
       status: 200
@@ -93,7 +93,7 @@ tests:
   - name: "CSS loads"
     type: api
     method: GET
-    path: /styles.css
+    path: /css/base.css
     skip_auth: true
     expect:
       status: 200
@@ -101,7 +101,7 @@ tests:
   - name: "Directors JS loads"
     type: api
     method: GET
-    path: /directors.js
+    path: /js/ai-directors.js
     skip_auth: true
     expect:
       status: 200

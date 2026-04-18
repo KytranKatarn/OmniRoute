@@ -2,6 +2,16 @@
 
 You are starting a new work session on the A.R.C.H.I.E. platform. Execute these steps IN ORDER before doing any work.
 
+## Model Routing (check before starting)
+
+Boot is tool-chain execution, not reasoning. **If you are on Opus, suggest `/model sonnet`** — this protocol runs 4–7 MCP calls and consumes ~20k context tokens with zero reasoning. Burning Opus on it is waste.
+
+- `/archie-boot`, `/archie-stats`, `/archie-save`, `/archie-status` → Sonnet
+- Architecture, multi-file refactor, hard debugging → Opus or `/fast`
+- Visual mockups, layout exploration → https://claude.ai/design (separate weekly bucket, free with Max)
+
+Three weekly buckets: All models, Sonnet only (safety-valve), Claude Design (separate). Reset Thursday. See CLAUDE.md "Model Routing & Weekly Buckets".
+
 ## GitHub Rate Hygiene (not a freeze — verified 2026-04-17)
 
 Pushes, PRs, and merges are FINE as long as we respect published rate limits.

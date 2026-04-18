@@ -30,6 +30,16 @@
 | Overseerr | 5055 | — | media_overseerr | Hub |
 | SABnzbd | 8083 | — | media_sabnzbd | Hub |
 
+## Anthropic Products (External — Separate Budgets)
+
+| Product | URL | Bucket | Use for |
+|---------|-----|--------|---------|
+| Claude Code | (this CLI) | All models / Sonnet only | Platform dev, terminal work |
+| Claude Design | https://claude.ai/design | **Claude Design** (separate weekly quota, free with Max) | Mockups, prototypes, slides, LCARS layout exploration (Project #223) |
+| claude.ai chat | https://claude.ai | All models / Sonnet only | Same bucket as Claude Code |
+
+Route visual/design work to Claude Design — it doesn't touch Claude Code budget.
+
 ## VPS / Fleet
 
 | Node | IP | Mesh IP | Role | Containers |

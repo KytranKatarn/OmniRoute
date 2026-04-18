@@ -47,6 +47,22 @@ auto/short-description    — AI/automation-initiated changes
 
 ---
 
+## Model Routing & Weekly Buckets (Max 20x)
+
+Three independent weekly buckets reset Thursday. Route work deliberately.
+
+| Bucket | Use for | How to invoke |
+|---|---|---|
+| **All models** (Opus + Sonnet + Haiku) | Hard reasoning, architecture, multi-file refactor, complex debugging | `/model opus` or `/fast` (Opus 4.6, faster output) |
+| **Sonnet only** (safety-valve) | Routine work — reads, edits, commits, boot/stats/status skills, tool-chain execution | `/model sonnet` |
+| **Claude Design** (separate quota, free with Max) | Visual mockups, prototypes, slides, LCARS layout exploration — Project #223 lives here | https://claude.ai/design |
+
+**Default rule**: Sonnet for routine work. Opus only when reasoning is actually required. Claude Design for anything visual — it does not touch the Claude Code budget.
+
+`/archie-boot`, `/archie-stats`, `/archie-save`, `/archie-status`, `/archie-search`, `/archie-project` are tool-chain execution — **run them on Sonnet**.
+
+---
+
 ## 6 Rules (Memorize These)
 
 | # | Rule | One-liner |

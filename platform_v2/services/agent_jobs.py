@@ -1642,6 +1642,98 @@ def check_understaffed_capabilities():
 
 
 # ---------------------------------------------------------------------------
+# Approval queue hygiene
+# ---------------------------------------------------------------------------
+
+
+def reap_stale_pending_approvals(max_age_days: int = 7):
+    """Auto-cancel bridge_jobs stuck in pending_approval past the age cap.
+
+    Jobs that never get approved/denied hold an agent's in-flight
+    budget slot indefinitely. Pixel was carrying 5 month-old cloud
+    image-gen approvals when this session audited the roster; they
+    legitimately counted as active work under the canonical definition
+    but the approvals themselves were abandoned. This reaper moves
+    those jobs to 'cancelled' (same path as manual deny), which frees
+    the counter via the existing complete_job decrement.
+
+    Runs daily. Returns dict with counts reaped + affected agents.
+    """
+    from db import get_db
+
+    start = time.time()
+    reaped = 0
+    affected: dict = {}
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE bridge_jobs
+            SET status = 'cancelled',
+                completed_at = NOW(),
+                updated_at = NOW(),
+                error_message = COALESCE(error_message, '') ||
+                    CASE WHEN COALESCE(error_message, '') = '' THEN '' ELSE '; ' END ||
+                    'auto-reaped: pending_approval > ' || %s || 'd'
+            WHERE status = 'pending_approval'
+              AND created_at < NOW() - (%s || ' days')::INTERVAL
+            RETURNING id, agent_name
+            """,
+            (max_age_days, max_age_days),
+        )
+        rows = cur.fetchall()
+        reaped = len(rows)
+        for r in rows:
+            name = r[1] if r and len(r) > 1 else None
+            if name:
+                affected[name] = affected.get(name, 0) + 1
+
+        # Decrement each affected agent's budget counter to match the
+        # cancelled jobs (complete_job's decrement path doesn't fire here
+        # because we UPDATE'd directly, not called complete_job per job).
+        for name, count in affected.items():
+            cur.execute(
+                """
+                UPDATE agent_budgets ab
+                SET current_task_count = GREATEST(0, COALESCE(current_task_count, 0) - %s),
+                    updated_at = NOW()
+                FROM agents a
+                WHERE a.id = ab.agent_id AND a.name = %s
+                """,
+                (count, name),
+            )
+
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as exc:
+        logger.exception("reap_stale_pending_approvals failed")
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle("reap_stale_pending_approvals", 0, 1, duration_ms, error_message=str(exc))
+        return {"reaped": 0, "affected": {}, "error": str(exc)}
+
+    if reaped:
+        logger.info(
+            "reap_stale_pending_approvals: reaped %d stale pending_approval job(s) across %d agent(s): %s",
+            reaped,
+            len(affected),
+            affected,
+        )
+
+    duration_ms = int((time.time() - start) * 1000)
+    _log_cycle(
+        "reap_stale_pending_approvals",
+        reaped,
+        0,
+        duration_ms,
+        details={"reaped": reaped, "affected_agents": affected, "max_age_days": max_age_days},
+    )
+    return {"reaped": reaped, "affected": affected}
+
+
+# ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
 
@@ -1751,5 +1843,13 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         trigger=CronTrigger(hour=9, minute=5),
         id="department_welfare_digest",
         name="Agent Loop: K.I.N. Department Welfare Digest",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        with_ctx(reap_stale_pending_approvals),
+        trigger=CronTrigger(hour=4, minute=30),
+        id="reap_stale_pending_approvals",
+        name="Agent Loop: Reap Stale pending_approval Jobs",
         replace_existing=True,
     )

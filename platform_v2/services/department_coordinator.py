@@ -279,7 +279,15 @@ class DepartmentCoordinator:
         department: str,
         recommended_tier: Optional[str] = None,
     ) -> Optional[Dict]:
-        """Select the best agent for a capability within a department."""
+        """Select the best agent for a capability within a department.
+
+        If every active/winding_down candidate is blocked (budget, stress,
+        reserved), fall back to a barracked specialist in the same
+        department with proficiency >= 3 on the requested skill and wake
+        them via shift-state transition before returning. This keeps the
+        home-department dispatch path preferred over cross-department
+        escalation whenever a qualified specialist exists on the bench.
+        """
         self._refresh_caches()
 
         candidates = []
@@ -296,6 +304,11 @@ class DepartmentCoordinator:
                 candidates.append((score, name, info))
 
         if not candidates:
+            # Every active candidate blocked/reserved/no-skill-match. Try
+            # to wake a barracked specialist before escalating cross-dept.
+            woken = self._wake_barracked_specialist(capability, department)
+            if woken:
+                return woken
             return None
 
         candidates.sort(key=lambda x: x[0], reverse=True)
@@ -308,6 +321,124 @@ class DepartmentCoordinator:
             department,
         )
         return best_info
+
+    def _wake_barracked_specialist(
+        self,
+        capability: str,
+        department: str,
+        min_proficiency: int = 3,
+    ) -> Optional[Dict]:
+        """Wake the best barracked specialist in this department for capability.
+
+        Queries agent_skills for a barracked agent with proficiency_level
+        >= min_proficiency on the requested skill, activates them via
+        agent_service.transition_shift_state, logs a governance event,
+        and returns a cache-shaped dict ready for dispatch.
+        """
+        from db import get_db
+
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT a.id, a.name, a.display_name, a.model, s.proficiency_level
+                FROM agents a
+                JOIN agent_skills s ON s.agent_id = a.id
+                WHERE a.department = %s
+                  AND a.shift_state = 'barracked'
+                  AND a.status = 'active'
+                  AND s.skill_name = %s
+                  AND s.proficiency_level >= %s
+                ORDER BY s.proficiency_level DESC, a.last_used ASC NULLS FIRST
+                LIMIT 1
+                """,
+                (department, capability, min_proficiency),
+            )
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+        except Exception as exc:
+            logger.warning("wake_on_demand: lookup failed — %s", exc)
+            return None
+
+        if not row:
+            return None
+
+        agent_id, agent_name, display_name, model, proficiency = row
+
+        try:
+            from services.agent_service import transition_shift_state
+
+            result = transition_shift_state(agent_id, "active", reason="wake_on_demand")
+            if not result or not result.get("success"):
+                logger.warning(
+                    "wake_on_demand: transition_shift_state failed for %s: %s",
+                    agent_name,
+                    result.get("error") if result else "no result",
+                )
+                return None
+        except Exception as exc:
+            logger.warning("wake_on_demand: state transition crashed — %s", exc)
+            return None
+
+        logger.info(
+            "wake_on_demand: %s (id=%d, Lv%d in %s) woken for %s",
+            agent_name,
+            agent_id,
+            proficiency,
+            department,
+            capability,
+        )
+
+        # Audit trail — K.I.N. sees every on-demand wake
+        try:
+            from db import get_db as _get_db
+            import json as _json
+
+            _conn = _get_db()
+            _cur = _conn.cursor()
+            _cur.execute(
+                """
+                INSERT INTO governance_audit_log
+                (event_type, event_category, agent_id, action, outcome, details, timestamp)
+                VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                """,
+                (
+                    "agent_welfare",
+                    "orchestration",
+                    agent_id,
+                    "wake_on_demand",
+                    "activated",
+                    _json.dumps(
+                        {
+                            "capability": capability,
+                            "department": department,
+                            "proficiency_level": proficiency,
+                            "trigger": "home_dept_saturated",
+                        }
+                    ),
+                ),
+            )
+            _conn.commit()
+            _cur.close()
+            _conn.close()
+        except Exception as exc:
+            logger.debug("wake_on_demand: governance log failed — %s", exc)
+
+        # Force the agent cache to pick up the new shift_state on next refresh.
+        self._cache_time = 0
+
+        return {
+            "id": agent_id,
+            "name": agent_name,
+            "display_name": display_name,
+            "model": model,
+            "department": department,
+            "shift_state": "active",
+            "status": "active",
+            "woken_on_demand": True,
+        }
 
     def find_cross_department_agent(
         self,

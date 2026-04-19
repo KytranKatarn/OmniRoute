@@ -198,6 +198,25 @@ CAPABILITY_TIMEOUTS = {
     "knowledge_analysis": 600,
 }
 
+# =========================================================================
+# DEPRECATED (2026-04-19, Project #261 #1915): this hardcoded table is
+# legacy. The real dispatch path is skill-based:
+#   department_coordinator.select_agent() scores candidates by
+#   agent_skills.proficiency_level for the requested capability.
+#
+# AGENT_SPECIALIZATION is now only read by get_agent_for_module()
+# (line ~5145). Several entries reference agents that were decommissioned
+# in migration 103 (Wordsmith, DataMind, CommRelay, OpsMaster) or never
+# existed (Sentinel). Those lookups silently return None because the
+# names are not in _agent_cache — callers fall through, no harm.
+#
+# Do NOT add new entries here. To route a capability, populate
+# agent_skills(skill_name, proficiency_level) on the responsible agent —
+# coordinator.select_agent() will pick it up automatically.
+#
+# Removal tracked as a follow-up: delete this table + get_agent_for_module
+# once all call sites are migrated to capability-based lookup.
+# =========================================================================
 # Specialized agent selection within departments
 # When a department has multiple agents, pick by sub-capability
 AGENT_SPECIALIZATION = {

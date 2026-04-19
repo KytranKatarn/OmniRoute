@@ -10,7 +10,7 @@ Docker container (Project #273).
 import logging
 import os
 
-from flask import Flask, redirect, url_for
+from flask import Flask, redirect, request, url_for
 from flask_login import LoginManager
 
 # tools.media_hub imports `from database import get_db_cursor`. Our standalone
@@ -49,6 +49,18 @@ def create_app() -> Flask:
     @app.route("/")
     def root():
         return redirect(url_for("media_hub.index"))
+
+    @app.after_request
+    def _no_store(resp):
+        # While the standalone is brand-new, stale negative caches from the
+        # pre-#169 period (when /static/css/media-hub.css 404'd) can persist
+        # in user browsers for hours. Force revalidation until Media Hub is
+        # stable enough to switch to sensible long-cache-with-hash URLs.
+        path = request.path or ""
+        if path.startswith("/static/") or path.startswith("/tools/media-hub/"):
+            resp.headers["Cache-Control"] = "no-cache, must-revalidate, max-age=0"
+            resp.headers["Pragma"] = "no-cache"
+        return resp
 
     @app.route("/health")
     def health():

@@ -39,6 +39,12 @@ services:
     depends_on:
       mediahub_db:
         condition: service_healthy
+    # Bypass public DNS / NAT hairpin for hub-local media subdomains.
+    # Container probes to plex.kytranempowerment.com / jellyfin.… resolve
+    # directly to the LAN IP — no round-trip through AdGuard or Hostinger.
+    extra_hosts:
+      - "plex.kytranempowerment.com:192.168.1.200"
+      - "jellyfin.kytranempowerment.com:192.168.1.200"
     environment:
       DATABASE_URL: postgresql://mediahub:${MEDIA_HUB_DB_PASSWORD}@mediahub_db:5432/mediahub
       MEDIA_HUB_SECRET_KEY: ${MEDIA_HUB_SECRET_KEY:?set in .env}

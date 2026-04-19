@@ -35,6 +35,25 @@ logger = logging.getLogger(__name__)
 # Ensure ai_bridge is on path
 sys.path.insert(0, os.path.dirname(__file__))
 
+from .ollama_options import build_options
+
+
+def _node_url_for_orchestration(node_id: str) -> str:
+    """Resolve node_id → base URL. Hub uses OLLAMA_URL env; fleet comes
+    from remote_nodes via fleet_service.
+    """
+    if node_id in ("hub", "archie-starbase"):
+        return os.environ.get("OLLAMA_URL", "http://host.docker.internal:11434")
+    try:
+        from .fleet_service import get_node_status
+
+        node = get_node_status(node_id)
+        if node and node.get("vpn_ip"):
+            return f"http://{node['vpn_ip']}:{node.get('port', 11434)}"
+    except Exception:
+        logger.warning("fleet_service lookup failed for %s, using OLLAMA_URL fallback", node_id)
+    return os.environ.get("OLLAMA_URL", "http://host.docker.internal:11434")
+
 
 def _default_conversation_model():
     """Get conversation model from BridgeDispatcher (lazy, with fallback)."""
@@ -793,12 +812,24 @@ class OrchestrationEngine:
             # --- Resolve model (uses Bridge dispatcher roster) ---
             model_used = self._resolve_model(routing, gpu_info, intent)
 
-            # --- Resolve Ollama URL (same as Bridge dispatcher: OLLAMA_LOCAL_HOST) ---
-            ollama_url = None
-            node_id = None
-            _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
-            _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
-            ollama_url = f"http://{_ollama_host}:{_ollama_port}/api/chat"
+            # --- Resolve Ollama URL via build_options for explicit GPU placement ---
+            _preflight_messages = [{"role": "user", "content": message}]
+            _prompt_text = "".join(m.get("content", "") for m in _preflight_messages)
+            _preflight_opts = build_options(
+                model=model_used,
+                target_node=None,
+                prompt_tokens_hint=len(_prompt_text) // 4,
+                keep_alive="5m",
+            )
+            node_id = _preflight_opts["target_node_id"]
+            ollama_url = _node_url_for_orchestration(node_id) + "/api/chat"
+            logger.info(
+                "placement: node=%s model=%s placement=%s reason=%s",
+                node_id,
+                _preflight_opts["model"],
+                _preflight_opts["placement"],
+                _preflight_opts["reason"],
+            )
 
             # --- Check provider (non-Ollama can't stream easily) ---
             provider = routing.get("provider", "ollama") if routing else "ollama"
@@ -1662,12 +1693,27 @@ Please try again or use the Team Management module directly.""",
             "User message: " + message[:500]
         )
         try:
+            _classify_opts = build_options(
+                model="qwen25-classify:latest",
+                target_node=None,
+                prompt_tokens_hint=len(prompt) // 4,
+                keep_alive="5m",
+            )
+            ollama_base = _node_url_for_orchestration(_classify_opts["target_node_id"])
+            logger.info(
+                "placement: node=%s model=%s placement=%s reason=%s",
+                _classify_opts["target_node_id"],
+                _classify_opts["model"],
+                _classify_opts["placement"],
+                _classify_opts["reason"],
+            )
             resp = requests.post(
-                os.environ.get("OLLAMA_URL", "http://host.docker.internal:11434") + "/api/generate",
+                f"{ollama_base}/api/generate",
                 json={
-                    "model": "qwen25-classify:latest",
+                    "model": _classify_opts["model"],
                     "prompt": prompt,
                     "stream": False,
+                    "keep_alive": _classify_opts["keep_alive"],
                 },
                 timeout=10,
             )
@@ -2410,6 +2456,10 @@ You can ask me to:
             "system_prompt": system_prompt,
         }
 
+        # NOTE: proxy_url is the Claude CLI proxy (CLAUDE_PROXY_URL, port 7682),
+        # not a direct Ollama endpoint. build_options() does not apply here —
+        # this uses a different payload shape (message/system_prompt, not
+        # messages/options) and routes to Claude via the Max subscription proxy.
         resp = requests.post(
             f"{proxy_url}/api/chat",
             json=payload,

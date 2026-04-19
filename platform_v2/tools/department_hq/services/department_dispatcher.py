@@ -56,6 +56,8 @@ try:
 except ImportError:
     _HAS_DEPT_HQ_SERVICES = False
 
+from .ollama_options import build_options
+
 try:
     from ai_bridge.schemas.agent_schemas import validate_schema as _validate_handoff_schema
 except ImportError:
@@ -65,6 +67,26 @@ except ImportError:
         _validate_handoff_schema = None
 
 logger = logging.getLogger(__name__)
+
+
+def _node_url(node_id: str) -> str:
+    """Resolve node_id → base URL for Ollama API calls.
+
+    Hub uses OLLAMA_HOST env (Decision #440: host.docker.internal:11434 or archie_ollama:11434);
+    fleet nodes come from remote_nodes via fleet_service.
+    """
+    if node_id in ("hub", "archie-starbase"):
+        return os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
+    try:
+        from .fleet_service import get_node_status
+
+        node = get_node_status(node_id)
+        if node:
+            return f"http://{node.get('vpn_ip')}:{node.get('port', 11434)}"
+    except Exception:
+        logger.warning("fleet_service lookup failed for %s, using OLLAMA_HOST fallback", node_id)
+    return os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
+
 
 # ============================================================================
 # CAPABILITY → DEPARTMENT MAPPING
@@ -1666,10 +1688,29 @@ class DepartmentDispatcher:
                 f"({hostname}:{port}) agent={agent_name} model={model}"
             )
 
+            _opts = build_options(
+                model=model,
+                target_node=None,  # Phase 1: hub-only; Phase 2a (Task 12) → select_node
+                prompt_tokens_hint=len(prompt) // 4 if prompt else 0,
+                keep_alive="5m",
+            )
+            _gen_url = f"{_node_url(_opts['target_node_id'])}/api/generate"
+            if options:
+                payload["options"] = {**_opts["options"], **options}
+            else:
+                payload["options"] = _opts["options"]
+            payload["keep_alive"] = _opts["keep_alive"]
             resp = requests.post(
-                f"http://{hostname}:{port}/api/generate",
+                _gen_url,
                 json=payload,
                 timeout=15,
+            )
+            logger.info(
+                "placement: node=%s model=%s placement=%s reason=%s",
+                _opts["target_node_id"],
+                _opts["model"],
+                _opts["placement"],
+                _opts["reason"],
             )
 
             if resp.status_code == 200:
@@ -7104,15 +7145,29 @@ class DepartmentDispatcher:
                 continue  # Skip tiny/unknown
 
             try:
+                _evict_opts = build_options(
+                    model=cname,
+                    target_node=None,
+                    keep_alive=0,
+                )
+                _evict_url = f"{_node_url(_evict_opts['target_node_id'])}/api/generate"
+                _evict_payload = {"model": _evict_opts["model"], "keep_alive": _evict_opts["keep_alive"]}
                 resp = requests.post(
-                    f"{ollama_url}/api/generate",
-                    json={"model": cname, "keep_alive": 0},
+                    _evict_url,
+                    json=_evict_payload,
                     timeout=10,
                 )
                 if resp.status_code == 200:
                     freed_gb += c_total
                     logger.info(
                         f"[ModelOrch] Evicted {cname} " f"(freed {c_total:.1f}GB, total freed {freed_gb:.1f}GB)"
+                    )
+                    logger.debug(
+                        "placement: node=%s model=%s placement=%s reason=%s",
+                        _evict_opts["target_node_id"],
+                        _evict_opts["model"],
+                        _evict_opts["placement"],
+                        _evict_opts["reason"],
                     )
                     if freed_gb >= needed_gb:
                         return True
@@ -7143,13 +7198,27 @@ class DepartmentDispatcher:
 
         host_label = f"{hostname}:{port}"
         try:
+            _unload_opts = build_options(
+                model=model,
+                target_node=None,
+                keep_alive=0,
+            )
+            _unload_url = f"{_node_url(_unload_opts['target_node_id'])}/api/generate"
+            _unload_payload = {"model": _unload_opts["model"], "keep_alive": _unload_opts["keep_alive"]}
             resp = requests.post(
-                f"{ollama_url}/api/generate",
-                json={"model": model, "keep_alive": 0},
+                _unload_url,
+                json=_unload_payload,
                 timeout=30,
             )
             if resp.status_code == 200:
                 logger.info(f"[ModelOrch] Unloaded {model} on {host_label}")
+                logger.debug(
+                    "placement: node=%s model=%s placement=%s reason=%s",
+                    _unload_opts["target_node_id"],
+                    _unload_opts["model"],
+                    _unload_opts["placement"],
+                    _unload_opts["reason"],
+                )
                 return {"success": True, "message": f"{model} unloaded"}
             return {
                 "success": False,
@@ -7182,15 +7251,29 @@ class DepartmentDispatcher:
             for m in cap.get("loaded_models", []):
                 if m.get("vram_gb", 0) > 0:
                     mname = m["name"]
+                    _swap_opts = build_options(
+                        model=mname,
+                        target_node=None,
+                        keep_alive=0,
+                    )
+                    _swap_url = f"{_node_url(_swap_opts['target_node_id'])}/api/generate"
+                    _swap_payload = {"model": _swap_opts["model"], "keep_alive": _swap_opts["keep_alive"]}
                     _req.post(
-                        f"{ollama_url}/api/generate",
-                        json={"model": mname, "keep_alive": 0},
+                        _swap_url,
+                        json=_swap_payload,
                         timeout=10,
                     )
                     unloaded.append(mname)
                     logger.info(
                         f"[BridgeDispatcher] VRAM swap: unloaded {mname} "
                         f"on {'node ' + str(node_db_id) if node_db_id else 'hub'}"
+                    )
+                    logger.debug(
+                        "placement: node=%s model=%s placement=%s reason=%s",
+                        _swap_opts["target_node_id"],
+                        _swap_opts["model"],
+                        _swap_opts["placement"],
+                        _swap_opts["reason"],
                     )
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] VRAM swap failed: {e}")
@@ -7223,12 +7306,30 @@ class DepartmentDispatcher:
 
             # Reload models on GPU
             for mname in model_names:
+                _reload_opts = build_options(
+                    model=mname,
+                    target_node=None,
+                    keep_alive="5m",
+                )
+                _reload_url = f"{_node_url(_reload_opts['target_node_id'])}/api/generate"
+                _reload_payload = {
+                    "model": _reload_opts["model"],
+                    "prompt": "",
+                    "keep_alive": _reload_opts["keep_alive"],
+                }
                 _req.post(
-                    f"{ollama_url}/api/generate",
-                    json={"model": mname, "prompt": "", "keep_alive": "5m"},
+                    _reload_url,
+                    json=_reload_payload,
                     timeout=30,
                 )
                 logger.info(f"[BridgeDispatcher] VRAM swap: reloaded {mname} on {target}")
+                logger.debug(
+                    "placement: node=%s model=%s placement=%s reason=%s",
+                    _reload_opts["target_node_id"],
+                    _reload_opts["model"],
+                    _reload_opts["placement"],
+                    _reload_opts["reason"],
+                )
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] VRAM restore failed: {e}")
 
@@ -7265,12 +7366,30 @@ class DepartmentDispatcher:
             target = "node " + str(node_db_id) if node_db_id else "hub"
 
             for mname in model_names:
+                _vreload_opts = build_options(
+                    model=mname,
+                    target_node=None,
+                    keep_alive="5m",
+                )
+                _vreload_url = f"{_node_url(_vreload_opts['target_node_id'])}/api/generate"
+                _vreload_payload = {
+                    "model": _vreload_opts["model"],
+                    "prompt": "",
+                    "keep_alive": _vreload_opts["keep_alive"],
+                }
                 _req.post(
-                    f"{ollama_url}/api/generate",
-                    json={"model": mname, "prompt": "", "keep_alive": "5m"},
+                    _vreload_url,
+                    json=_vreload_payload,
                     timeout=30,
                 )
                 logger.info(f"[BridgeDispatcher] Vision restore: reloaded {mname} on {target}")
+                logger.debug(
+                    "placement: node=%s model=%s placement=%s reason=%s",
+                    _vreload_opts["target_node_id"],
+                    _vreload_opts["model"],
+                    _vreload_opts["placement"],
+                    _vreload_opts["reason"],
+                )
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] Vision VRAM restore failed: {e}")
 
@@ -7682,14 +7801,32 @@ class DepartmentDispatcher:
             for row in saved:
                 model_name = row["model_name"]
                 try:
+                    _restore_opts = build_options(
+                        model=model_name,
+                        target_node=None,
+                        keep_alive="5m",
+                    )
+                    _restore_url = f"{_node_url(_restore_opts['target_node_id'])}/api/generate"
+                    _restore_payload = {
+                        "model": _restore_opts["model"],
+                        "prompt": "",
+                        "keep_alive": _restore_opts["keep_alive"],
+                    }
                     resp = requests.post(
-                        f"{ollama_url}/api/generate",
-                        json={"model": model_name, "prompt": "", "keep_alive": "5m"},
+                        _restore_url,
+                        json=_restore_payload,
                         timeout=120,
                     )
                     if resp.status_code == 200:
                         loaded += 1
                         logger.info("[BridgeDispatcher] Restored model %s on %s", model_name, host_type)
+                        logger.debug(
+                            "placement: node=%s model=%s placement=%s reason=%s",
+                            _restore_opts["target_node_id"],
+                            _restore_opts["model"],
+                            _restore_opts["placement"],
+                            _restore_opts["reason"],
+                        )
                     else:
                         failed += 1
                         logger.warning(

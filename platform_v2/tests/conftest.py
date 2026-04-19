@@ -13,6 +13,11 @@ import pytest
 if "/app" not in sys.path:
     sys.path.insert(0, "/app")
 
+# Allow packages installed to /tmp/pip_pkgs (e.g. `responses` for mocked tests)
+# when the container filesystem is read-only and pip cannot write to site-packages.
+if "/tmp/pip_pkgs" not in sys.path and os.path.isdir("/tmp/pip_pkgs"):
+    sys.path.insert(1, "/tmp/pip_pkgs")
+
 # Override DB settings for testing before importing app
 os.environ.setdefault("DB_HOST", "localhost")
 os.environ.setdefault("DB_NAME", "archie_test")

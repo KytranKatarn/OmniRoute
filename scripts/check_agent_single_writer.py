@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """K.I.N. Single-Writer & Architecture Guardrails.
 
-TWO classes of violations are rejected:
+THREE classes of violations are rejected:
 
 1. **agents-table single writer** — any raw ``UPDATE agents``,
    ``INSERT INTO agents``, or ``DELETE FROM agents WHERE`` statement
@@ -14,6 +14,13 @@ TWO classes of violations are rejected:
    ``platform_v2.tools.department_hq.services.*`` since Project #244
    Phase 2. The ai_bridge paths are back-compat shims only — new code
    must import from the canonical location.
+
+3. **Raw api/generate or api/chat outside build_options + allowlist** —
+   every dispatcher-initiated inference must flow through
+   ``tools.department_hq.services.ollama_options.build_options()`` so
+   GPU placement is explicit and observable.
+   Spec: docs/superpowers/specs/2026-04-19-dispatcher-gpu-awareness-design.md
+   Phase 1 of Project #261 #2079.
 
 Usage:
     python3 scripts/check_agent_single_writer.py file1.py file2.py ...
@@ -76,6 +83,73 @@ ALLOWED_DISPATCHER_PATHS = (
     "platform_v2/tools/department_hq/services/",  # the real modules
 )
 
+# ---- Check 3: raw api/generate outside ollama_options + allowlist -----------
+# Spec: docs/superpowers/specs/2026-04-19-dispatcher-gpu-awareness-design.md
+# Reason: every dispatcher-initiated inference must flow through
+# build_options() so GPU placement is explicit and observable. Retrofitted
+# consumer files keep their api/generate string literals (now inside
+# _node_url(opts[...]) expressions) but consume the helper.
+
+_API_GENERATE_RE = re.compile(r"api/(generate|chat)(?!\w)")
+
+# Files allowed to reference api/generate or api/chat. Add new entries
+# ONLY with a follow-up task ID explaining why the file is still raw.
+_API_GENERATE_ALLOWLIST: set[str] = {
+    # This script — references the pattern name in docs/error messages only.
+    "scripts/check_agent_single_writer.py",
+    # The helper — this IS the single writer.
+    "platform_v2/tools/department_hq/services/ollama_options.py",
+    # Retrofitted consumers (Tasks 6 + 7) — strings are inside
+    # _node_url(opts[...]) expressions after build_options() calls.
+    "platform_v2/tools/department_hq/services/department_dispatcher.py",
+    "platform_v2/tools/department_hq/services/orchestration_engine.py",
+    # Health-ping loop — passes explicit num_gpu=0 for non-GPU models;
+    # not a user-facing dispatch path.
+    "ai_bridge/agent_loop.py",
+    # Legacy pre-migration sites — covered by follow-up tasks in the
+    # ai_bridge → department_hq migration backlog.
+    "ai_bridge/archie_bridge.py",
+    "ai_bridge/knowledge_analyzer.py",
+}
+
+
+def _check_raw_api_generate(paths: list) -> list:
+    """Return violation strings for raw api/generate or api/chat outside allowlist."""
+    violations: list[str] = []
+    for p in paths:
+        rel = str(p).replace("\\", "/")
+        # Test files are always allowed — match on basename only so that
+        # tmp_path directories (e.g. /tmp/pytest-.../test_xxx/) don't
+        # accidentally exempt production files.
+        basename = Path(p).name
+        if (
+            basename.endswith("_test.py")
+            or basename.startswith("test_")
+            or "/tests/" in rel
+        ):
+            continue
+        # Skip non-Python files.
+        if not rel.endswith(".py"):
+            continue
+        # Allowlist match by suffix (caller may pass absolute paths).
+        if any(rel.endswith(allowed) for allowed in _API_GENERATE_ALLOWLIST):
+            continue
+        try:
+            text = Path(p).read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for i, line in enumerate(text.splitlines(), 1):
+            # Skip pure comment lines.
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            if _API_GENERATE_RE.search(line):
+                violations.append(
+                    f"{rel}:{i}: raw api/generate or api/chat — route through "
+                    f"tools.department_hq.services.ollama_options.build_options()"
+                )
+    return violations
+
 
 def _is_allowed(path: str, allow_list: tuple) -> bool:
     """True if the path is on the given allow-list."""
@@ -119,8 +193,9 @@ def main(argv: list[str]) -> int:
     agents_total = 0
     dispatcher_total = 0
 
-    for arg in argv[1:]:
-        path = Path(arg)
+    paths = [Path(arg) for arg in argv[1:]]
+
+    for path in paths:
         agents_hits, dispatcher_hits = _check_file(path)
         if agents_hits:
             agents_report.append(f"\n  \033[1;31m{path}\033[0m")
@@ -133,7 +208,10 @@ def main(argv: list[str]) -> int:
                 dispatcher_report.append(f"    line {lineno}: {line[:120]}")
                 dispatcher_total += 1
 
-    if agents_total == 0 and dispatcher_total == 0:
+    # ---- Check 3: raw api/generate ----
+    api_generate_violations = _check_raw_api_generate(paths)
+
+    if agents_total == 0 and dispatcher_total == 0 and not api_generate_violations:
         return 0
 
     # ---- Render agents-write violations ----
@@ -185,6 +263,33 @@ def main(argv: list[str]) -> int:
             "Inside the services/ package, prefer relative imports:\n"
             "    from .bridge_dispatcher import get_dispatcher\n"
             "    from .smart_router import get_router\n"
+            "\033[0m"
+        )
+
+    # ---- Render api/generate violations ----
+    if api_generate_violations:
+        sys.stderr.write(
+            "\n\033[1;31m"
+            "K.I.N. GPU-placement guardrail: raw api/generate or api/chat detected"
+            "\033[0m\n"
+        )
+        for v in api_generate_violations:
+            sys.stderr.write(f"  {v}\n")
+        sys.stderr.write(
+            "\n\033[1;33m"
+            "Every dispatcher-initiated inference must flow through build_options()\n"
+            "so GPU placement is explicit and observable.\n"
+            "\n"
+            "    from tools.department_hq.services.ollama_options import build_options\n"
+            "    opts = build_options(model, num_gpu=..., num_ctx=..., temperature=...)\n"
+            "    url = f\"{base_url}/{opts['endpoint']}\"  # api/generate or api/chat\n"
+            "    payload = opts['payload']\n"
+            "\n"
+            "If this file must remain raw (e.g. health pings, legacy migration site),\n"
+            "add it to _API_GENERATE_ALLOWLIST in scripts/check_agent_single_writer.py\n"
+            "with a comment referencing the follow-up task ID.\n"
+            "Spec: docs/superpowers/specs/2026-04-19-dispatcher-gpu-awareness-design.md\n"
+            "Project #261 #2079.\n"
             "\033[0m"
         )
 

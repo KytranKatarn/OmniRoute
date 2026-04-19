@@ -1093,6 +1093,16 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Ollama placement telemetry (every 5 min)
+        self.scheduler.add_job(
+            with_app_context(self._ollama_placement_telemetry),
+            trigger=IntervalTrigger(minutes=5),
+            id="ollama_placement_telemetry",
+            name="Agent Loop: Ollama Placement Telemetry",
+            replace_existing=True,
+            max_instances=1,
+        )
+
         # Media Hub health check (every 10 min) — probes Plex/Jellyfin/Sonarr/…
         self.scheduler.add_job(
             with_app_context(self._media_hub_health_check),
@@ -3663,6 +3673,59 @@ class AgentLoop:
         except Exception as e:
             duration_ms = int((time.time() - start) * 1000)
             self._log_cycle("ollama_model_health", 0, 1, duration_ms, error_message=str(e))
+
+    def _ollama_placement_telemetry(self):
+        """5-min placement-decision summary. Writes one autonomy_loop_log row."""
+        start = time.time()
+        try:
+            # Import lazily — keeps agent_loop importable even if dept_hq.services
+            # is temporarily broken during a refactor.
+            from tools.department_hq.services.ollama_options import drain_placement_events
+
+            events = drain_placement_events()
+            if not events:
+                self._log_cycle(
+                    "ollama_placement_telemetry", 0, 0,
+                    int((time.time() - start) * 1000),
+                )
+                return
+
+            gpu = sum(1 for e in events if e.get("placement") == "gpu")
+            cpu = sum(1 for e in events if e.get("placement") == "cpu")
+            total = gpu + cpu
+            cpu_share = cpu / max(total, 1)
+
+            prev = getattr(self, "_last_placement_summary", None)
+            anomaly = (
+                cpu_share > 0.5
+                and prev is not None
+                and prev.get("cpu_share", 0) > 0.5
+            )
+            self._last_placement_summary = {
+                "ts": time.time(),
+                "gpu": gpu,
+                "cpu": cpu,
+                "cpu_share": cpu_share,
+            }
+
+            self._log_cycle(
+                "ollama_placement_telemetry",
+                processed=total,
+                failed=cpu if anomaly else 0,
+                duration_ms=int((time.time() - start) * 1000),
+                error_message=(
+                    f"sustained_cpu_fallback cpu_share={cpu_share:.2f}"
+                    if anomaly
+                    else None
+                ),
+            )
+        except Exception as e:
+            logger.error(f"ollama_placement_telemetry failed: {e}")
+            self._log_cycle(
+                "ollama_placement_telemetry", 0, 1,
+                int((time.time() - start) * 1000),
+                error_message=str(e),
+            )
 
     def _platform_watchdog(self):
         """Alert when host is under memory/CPU pressure.

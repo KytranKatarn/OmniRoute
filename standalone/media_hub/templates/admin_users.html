@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Hub — Users</title>
+    <link rel="stylesheet" href="{{ url_for('media_hub.static', filename='standalone/lcars-frames.css') }}">
+    <style>
+        :root { color-scheme: dark; }
+        body { margin:0; font-family:'Antonio',system-ui,sans-serif; background:#0a0a0f; color:#e0f0ff; }
+        header { padding:1.25rem 2rem; border-bottom:2px solid #0ea5e9; display:flex; align-items:center; justify-content:space-between; }
+        header h1 { margin:0; font-size:1.3rem; letter-spacing:.1em; color:#0ea5e9; text-transform:uppercase; }
+        header nav a { color:#94a3b8; text-decoration:none; margin-left:1.25rem; font-size:.9rem; }
+        header nav a:hover { color:#0ea5e9; }
+        main { max-width:1100px; margin:2rem auto; padding:0 1rem; }
+        .msg { padding:.6rem 1rem; margin-bottom:1rem; border-radius:8px; }
+        .msg.error { background:rgba(220,38,38,.1); border-left:3px solid #dc2626; color:#fca5a5; }
+        .msg.notice { background:rgba(14,165,233,.1); border-left:3px solid #0ea5e9; color:#93c5fd; }
+        .card { background:linear-gradient(180deg,#0f1522,#0a0a0f); border:1px solid #1e293b; border-radius:12px; padding:1.5rem 2rem; margin-bottom:2rem; }
+        .card h2 { margin:0 0 1rem; font-size:1.05rem; color:#0ea5e9; letter-spacing:.1em; text-transform:uppercase; }
+        form.inline { display:inline; }
+        label { display:block; margin:.75rem 0 .25rem; font-size:.85rem; color:#94a3b8; }
+        input[type=text], input[type=password] {
+            padding:.5rem .75rem; background:rgba(255,255,255,.04); border:1px solid #1e293b;
+            border-radius:6px; color:#e0f0ff; font-family:inherit; font-size:.95rem; min-width:220px;
+        }
+        input:focus { outline:none; border-color:#0ea5e9; }
+        button {
+            padding:.5rem .9rem; background:#0ea5e9; color:#0a0a0f; border:0; border-radius:6px;
+            font-weight:700; letter-spacing:.05em; cursor:pointer; font-family:inherit;
+        }
+        button.ghost { background:transparent; color:#94a3b8; border:1px solid #1e293b; }
+        button.danger { background:#dc2626; color:#fff; }
+        button:hover { filter:brightness(1.1); }
+        table { width:100%; border-collapse:collapse; margin-top:.75rem; }
+        th, td { padding:.6rem .5rem; text-align:left; border-bottom:1px solid #1e293b; font-size:.9rem; }
+        th { color:#94a3b8; font-weight:normal; text-transform:uppercase; letter-spacing:.08em; font-size:.75rem; }
+        .muted { color:#64748b; font-size:.85rem; }
+        .pill { display:inline-block; padding:.15rem .55rem; border-radius:999px; font-size:.7rem; letter-spacing:.05em; text-transform:uppercase; }
+        .pill.admin { background:rgba(14,165,233,.15); color:#0ea5e9; }
+        .pill.active { background:rgba(34,197,94,.15); color:#4ade80; }
+        .pill.inactive { background:rgba(100,116,139,.2); color:#94a3b8; }
+        .actions { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; }
+        .actions input[type=password] { min-width:160px; font-size:.8rem; padding:.35rem .55rem; }
+        .actions button { font-size:.75rem; padding:.35rem .65rem; }
+        .checkbox-row { display:flex; align-items:center; gap:.5rem; margin-top:.75rem; }
+        .checkbox-row input { width:auto; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Media Hub — User Management</h1>
+        <nav>
+            <a href="/tools/media-hub/">← Library</a>
+            <a href="{{ url_for('user_mgmt.profile') }}">Profile</a>
+            <a href="{{ url_for('auth.logout') }}">Sign out</a>
+        </nav>
+    </header>
+
+    <main>
+        {% if error %}<div class="msg error">{{ error }}</div>{% endif %}
+        {% if notice %}<div class="msg notice">{{ notice }}</div>{% endif %}
+
+        <section class="card">
+            <h2>Add a user</h2>
+            <form method="POST">
+                <input type="hidden" name="action" value="create">
+                <label for="new-username">Username</label>
+                <input type="text" id="new-username" name="username" autocomplete="off" required>
+                <label for="new-password">Password (min 8 chars)</label>
+                <input type="password" id="new-password" name="password" minlength="8" autocomplete="new-password" required>
+                <div class="checkbox-row">
+                    <input type="checkbox" id="new-admin" name="is_admin">
+                    <label for="new-admin" style="margin:0;">Grant admin privileges</label>
+                </div>
+                <div style="margin-top:1rem;"><button type="submit">Create user</button></div>
+            </form>
+            <p class="muted" style="margin-top:1rem;">
+                Created users can sign in at the same login page. They see the Media Hub library but
+                can't manage users unless admin is granted.
+            </p>
+        </section>
+
+        <section class="card">
+            <h2>Users ({{ users|length }}) &middot; admins active: {{ admin_count }}</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Status</th>
+                        <th>Last login</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr>
+                        <td>
+                            <strong>{{ u.username }}</strong>
+                            {% if u.id == current_user_id %}<span class="muted">(you)</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if u.is_admin %}<span class="pill admin">admin</span>{% endif %}
+                            {% if u.is_active %}<span class="pill active">active</span>{% else %}<span class="pill inactive">disabled</span>{% endif %}
+                        </td>
+                        <td class="muted">{{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else '—' }}</td>
+                        <td class="muted">{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}</td>
+                        <td>
+                            <div class="actions">
+                                {% if u.id != current_user_id %}
+                                    {% if u.is_active %}
+                                    <form method="POST" class="inline">
+                                        <input type="hidden" name="action" value="disable">
+                                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                                        <button class="ghost" type="submit">Disable</button>
+                                    </form>
+                                    {% else %}
+                                    <form method="POST" class="inline">
+                                        <input type="hidden" name="action" value="enable">
+                                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                                        <button class="ghost" type="submit">Enable</button>
+                                    </form>
+                                    {% endif %}
+                                    <form method="POST" class="inline">
+                                        <input type="hidden" name="action" value="toggle_admin">
+                                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                                        <button class="ghost" type="submit">{{ u.is_admin and 'Demote' or 'Promote' }}</button>
+                                    </form>
+                                {% endif %}
+                                <form method="POST" class="inline" onsubmit="return confirm('Reset password for {{ u.username }}?');">
+                                    <input type="hidden" name="action" value="reset_password">
+                                    <input type="hidden" name="user_id" value="{{ u.id }}">
+                                    <input type="password" name="new_password" placeholder="new pw (8+ chars)" minlength="8" required>
+                                    <button class="ghost" type="submit">Reset</button>
+                                </form>
+                                {% if u.id != current_user_id %}
+                                <form method="POST" class="inline" onsubmit="return confirm('Delete {{ u.username }}? This cannot be undone.');">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="user_id" value="{{ u.id }}">
+                                    <button class="danger" type="submit">Delete</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+</body>
+</html>

@@ -30,6 +30,7 @@ COPY standalone/media_hub/database.py    /app/database.py
 COPY standalone/media_hub/app.py         /app/app.py
 COPY standalone/media_hub/auth_routes.py /app/auth_routes.py
 COPY standalone/media_hub/users.py       /app/users.py
+COPY standalone/media_hub/user_routes.py /app/user_routes.py
 COPY standalone/media_hub/templates/     /app/templates/
 COPY standalone/media_hub/scripts/       /app/scripts/
 

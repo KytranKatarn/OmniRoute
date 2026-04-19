@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Hub — Profile</title>
+    <link rel="stylesheet" href="{{ url_for('media_hub.static', filename='standalone/lcars-frames.css') }}">
+    <style>
+        :root { color-scheme: dark; }
+        body { margin:0; font-family:'Antonio',system-ui,sans-serif; background:#0a0a0f; color:#e0f0ff; }
+        header { padding:1.25rem 2rem; border-bottom:2px solid #0ea5e9; display:flex; align-items:center; justify-content:space-between; }
+        header h1 { margin:0; font-size:1.3rem; letter-spacing:.1em; color:#0ea5e9; text-transform:uppercase; }
+        header nav a { color:#94a3b8; text-decoration:none; margin-left:1.25rem; font-size:.9rem; }
+        header nav a:hover { color:#0ea5e9; }
+        main { max-width:520px; margin:3rem auto; padding:0 1rem; }
+        .card { background:linear-gradient(180deg,#0f1522,#0a0a0f); border:1px solid #1e293b; border-radius:12px; padding:1.5rem 2rem; margin-bottom:2rem; }
+        .card h2 { margin:0 0 1rem; font-size:1.05rem; color:#0ea5e9; letter-spacing:.1em; text-transform:uppercase; }
+        label { display:block; margin:.75rem 0 .25rem; font-size:.85rem; color:#94a3b8; }
+        input[type=password] { width:100%; box-sizing:border-box; padding:.6rem .8rem; background:rgba(255,255,255,.04); border:1px solid #1e293b; border-radius:8px; color:#e0f0ff; font-family:inherit; font-size:1rem; }
+        input:focus { outline:none; border-color:#0ea5e9; }
+        button { margin-top:1.5rem; width:100%; padding:.75rem; background:#0ea5e9; color:#0a0a0f; border:0; border-radius:8px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; cursor:pointer; font-family:inherit; }
+        button:hover { background:#0284c7; }
+        .msg { padding:.6rem 1rem; margin:.75rem 0; border-radius:8px; font-size:.9rem; }
+        .msg.error { background:rgba(220,38,38,.1); border-left:3px solid #dc2626; color:#fca5a5; }
+        .msg.notice { background:rgba(14,165,233,.1); border-left:3px solid #0ea5e9; color:#93c5fd; }
+        dl { margin:0; }
+        dt { color:#94a3b8; font-size:.8rem; text-transform:uppercase; letter-spacing:.05em; margin-top:.75rem; }
+        dd { margin:.15rem 0 0; color:#e0f0ff; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Media Hub — Profile</h1>
+        <nav>
+            <a href="/tools/media-hub/">← Library</a>
+            {% if current_user.is_admin %}<a href="{{ url_for('user_mgmt.admin_users') }}">Users</a>{% endif %}
+            <a href="{{ url_for('auth.logout') }}">Sign out</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="card">
+            <h2>Account</h2>
+            <dl>
+                <dt>Username</dt>
+                <dd>{{ current_user.username }}</dd>
+                <dt>Role</dt>
+                <dd>{{ current_user.is_admin and 'Administrator' or 'Member' }}</dd>
+            </dl>
+        </section>
+
+        <section class="card">
+            <h2>Change password</h2>
+            {% if error %}<div class="msg error">{{ error }}</div>{% endif %}
+            {% if notice %}<div class="msg notice">{{ notice }}</div>{% endif %}
+            <form method="POST">
+                <label for="current">Current password</label>
+                <input type="password" id="current" name="current_password" autocomplete="current-password" required>
+                <label for="new">New password (min 8 chars)</label>
+                <input type="password" id="new" name="new_password" minlength="8" autocomplete="new-password" required>
+                <label for="confirm">Confirm new password</label>
+                <input type="password" id="confirm" name="confirm_password" minlength="8" autocomplete="new-password" required>
+                <button type="submit">Update password</button>
+            </form>
+        </section>
+    </main>
+</body>
+</html>

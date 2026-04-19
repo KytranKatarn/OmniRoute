@@ -33,7 +33,10 @@ def create_app() -> Flask:
     lm.init_app(app)
     lm.user_loader(load_user)
 
+    from user_routes import user_mgmt_bp  # noqa: E402
+
     app.register_blueprint(auth_bp)
+    app.register_blueprint(user_mgmt_bp)
     app.register_blueprint(media_hub_bp)
 
     # Create admin from MEDIA_HUB_ADMIN_PASSWORD if users table is empty.

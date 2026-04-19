@@ -54,6 +54,17 @@ def create_app() -> Flask:
     def health():
         return {"status": "ok", "mode": "standalone", "product": "media_hub"}, 200
 
+    # Platform-only API stubs — media-hub.js probes these on every page load.
+    # Returning empty JSON (200) is cleaner than letting the JS fetch land a 404
+    # in the console for family members who open devtools.
+    @app.route("/api/alerts/unified")
+    def _stub_alerts_unified():
+        return {"alerts": [], "count": 0}, 200
+
+    @app.route("/tools/department-hq/api/dispatch/ops-summary")
+    def _stub_dispatch_ops_summary():
+        return {"status": "standalone", "dispatches": []}, 200
+
     log.info("Media Hub standalone app ready on blueprint %s", media_hub_bp.url_prefix)
     return app
 

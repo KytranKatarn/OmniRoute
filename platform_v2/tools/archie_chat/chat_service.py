@@ -3,12 +3,20 @@ ARCHIE Chat — Core Business Logic Service
 
 Conversation CRUD, message storage, tier-gating, and history retrieval.
 All DB access uses get_db_cursor context manager with RealDictCursor.
+
+Phase 4 (#2176): SQL re-pointed from chat_conversations + chat_messages to
+unified_conversations + unified_messages. Function signatures unchanged —
+routes.py and api_routes.py callers require no modification.
+
+Metadata that has no direct unified_messages column (role, agent_used,
+model_used, station_code, governance_events, duration_ms, token_count,
+thinking_steps) is packed into the unified_messages.metadata JSONB field
+and unpacked on read so callers continue to see the original column shape.
 """
 
+import json
 import uuid
 from datetime import datetime, timezone
-
-from psycopg2.extras import Json
 
 from database import get_db_cursor
 
@@ -88,18 +96,19 @@ def create_conversation(user_id, team_id=None, title=None, agent_target=None):
     """
     conversation_uuid = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
+    topic = title or "New conversation"
 
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             """
-            INSERT INTO chat_conversations
-                (conversation_uuid, user_id, team_id, title, agent_target,
-                 created_at, updated_at, is_archived)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, FALSE)
+            INSERT INTO unified_conversations
+                (user_id, topic, status, created_at, last_activity, updated_at,
+                 title, agent_target, team_id, is_archived, conversation_uuid)
+            VALUES (%s, %s, 'active', %s, %s, %s, %s, %s, %s, FALSE, %s)
             RETURNING id, conversation_uuid, user_id, team_id, title,
                       agent_target, created_at, updated_at, is_archived
             """,
-            (conversation_uuid, user_id, team_id, title, agent_target, now, now),
+            (user_id, topic, now, now, now, title, agent_target, team_id, conversation_uuid),
         )
         row = cur.fetchone()
 
@@ -134,7 +143,7 @@ def get_conversations(user_id, team_id=None, page=1, limit=20, archived=False):
             params = (user_id, archived)
 
         # Count total
-        cur.execute(f"SELECT COUNT(*) as cnt FROM chat_conversations WHERE {where}", params)
+        cur.execute(f"SELECT COUNT(*) as cnt FROM unified_conversations WHERE {where}", params)
         total = cur.fetchone()["cnt"]
 
         # Fetch page
@@ -142,7 +151,7 @@ def get_conversations(user_id, team_id=None, page=1, limit=20, archived=False):
             f"""
             SELECT id, conversation_uuid, user_id, team_id, title,
                    agent_target, created_at, updated_at, is_archived
-            FROM chat_conversations
+            FROM unified_conversations
             WHERE {where}
             ORDER BY updated_at DESC
             LIMIT %s OFFSET %s
@@ -174,7 +183,7 @@ def get_conversation_by_uuid(conversation_uuid, user_id, team_id=None):
             """
             SELECT id, conversation_uuid, user_id, team_id, title,
                    agent_target, created_at, updated_at, is_archived
-            FROM chat_conversations
+            FROM unified_conversations
             WHERE conversation_uuid = %s
             """,
             (conversation_uuid,),
@@ -210,59 +219,85 @@ def save_message(
     """Save a chat message and update the conversation timestamp.
 
     Args:
-        conversation_id: FK to chat_conversations.id
+        conversation_id: FK to unified_conversations.id
         role: 'user', 'assistant', or 'system'
         content: Message text content.
-        thinking_steps: Optional JSONB list of reasoning steps.
+        thinking_steps: Optional list of reasoning steps (packed into metadata).
         agent_used: Name of the agent that handled the message.
         model_used: LLM model identifier.
         station_code: Station that handled the request.
-        governance_events: Optional JSONB list of C.R.E.E.D. events.
+        governance_events: Optional list of C.R.E.E.D. events (packed into metadata).
         duration_ms: Response generation time in milliseconds.
         token_count: Number of tokens used.
 
     Returns:
-        dict with the saved message.
+        dict with the saved message (includes backfilled role/agent_used/model_used).
+
+    Phase 4: Writes to unified_messages. role→direction/sender mapped:
+      user      → inbound,  sender='user'
+      assistant → outbound, sender=agent_used or 'assistant'
+      system    → outbound, sender='system'
+    All chat_messages-specific columns packed into metadata JSONB.
     """
     now = datetime.now(timezone.utc)
+
+    channel = "web"
+    direction = "inbound" if role == "user" else "outbound"
+    sender = "user" if role == "user" else (agent_used or role)
+
+    metadata = {
+        "role": role,
+        "agent_used": agent_used,
+        "model_used": model_used,
+        "station_code": station_code,
+        "duration_ms": duration_ms,
+        "token_count": token_count,
+    }
+    if thinking_steps is not None:
+        metadata["thinking_steps"] = thinking_steps
+    if governance_events is not None:
+        metadata["governance_events"] = governance_events
 
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             """
-            INSERT INTO chat_messages
-                (conversation_id, role, content, thinking_steps,
-                 agent_used, model_used, station_code,
-                 governance_events, duration_ms, token_count, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING id, conversation_id, role, content, thinking_steps,
-                      agent_used, model_used, station_code,
-                      governance_events, duration_ms, token_count, created_at
+            INSERT INTO unified_messages
+                (conversation_id, channel, direction, sender, content, metadata, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, conversation_id, channel, direction, sender, content,
+                      metadata, created_at
             """,
             (
                 conversation_id,
-                role,
+                channel,
+                direction,
+                sender,
                 content,
-                Json(thinking_steps) if thinking_steps is not None else None,
-                agent_used,
-                model_used,
-                station_code,
-                Json(governance_events) if governance_events is not None else None,
-                duration_ms,
-                token_count,
+                json.dumps(metadata),
                 now,
             ),
         )
         msg = cur.fetchone()
 
-        # Update conversation timestamp
+        # Bump conversation updated_at + last_activity
         cur.execute(
             """
-            UPDATE chat_conversations SET updated_at = %s WHERE id = %s
+            UPDATE unified_conversations
+            SET updated_at = %s, last_activity = %s
+            WHERE id = %s
             """,
-            (now, conversation_id),
+            (now, now, conversation_id),
         )
 
-    return dict(msg)
+    # Return a dict that mimics chat_messages shape so callers don't break
+    row = dict(msg)
+    row.setdefault("role", role)
+    row.setdefault("agent_used", agent_used)
+    row.setdefault("model_used", model_used)
+    row.setdefault("station_code", station_code)
+    row.setdefault("duration_ms", duration_ms)
+    row.setdefault("token_count", token_count)
+    return row
 
 
 def get_conversation_messages(conversation_id, include_thinking=False, limit=50, before_id=None):
@@ -275,29 +310,19 @@ def get_conversation_messages(conversation_id, include_thinking=False, limit=50,
         before_id: If set, return messages with id < before_id (cursor pagination).
 
     Returns:
-        list of message dicts.
+        list of message dicts. Metadata is unpacked so callers see
+        role/agent_used/model_used/station_code/duration_ms/token_count
+        as top-level keys (same shape as the old chat_messages columns).
     """
     limit = min(max(limit, 1), 200)
-
-    if include_thinking:
-        columns = (
-            "id, conversation_id, role, content, thinking_steps, "
-            "agent_used, model_used, station_code, "
-            "governance_events, duration_ms, token_count, created_at"
-        )
-    else:
-        columns = (
-            "id, conversation_id, role, content, "
-            "agent_used, model_used, station_code, "
-            "governance_events, duration_ms, token_count, created_at"
-        )
 
     with get_db_cursor(commit=False) as (conn, cur):
         if before_id is not None:
             cur.execute(
-                f"""
-                SELECT {columns}
-                FROM chat_messages
+                """
+                SELECT id, conversation_id, channel, direction, sender,
+                       content, metadata, created_at
+                FROM unified_messages
                 WHERE conversation_id = %s AND id < %s
                 ORDER BY id ASC
                 LIMIT %s
@@ -306,23 +331,44 @@ def get_conversation_messages(conversation_id, include_thinking=False, limit=50,
             )
         else:
             cur.execute(
-                f"""
-                SELECT {columns}
-                FROM chat_messages
+                """
+                SELECT id, conversation_id, channel, direction, sender,
+                       content, metadata, created_at
+                FROM unified_messages
                 WHERE conversation_id = %s
                 ORDER BY id ASC
                 LIMIT %s
                 """,
                 (conversation_id, limit),
             )
-
         rows = cur.fetchall()
 
-    return [dict(r) for r in rows]
+    result = []
+    for r in rows:
+        row = dict(r)
+        # Unpack metadata so callers can access chat_messages-shaped fields
+        meta = row.get("metadata") or {}
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except Exception:
+                meta = {}
+        row["role"] = meta.get("role", row.get("direction", "user"))
+        row["agent_used"] = meta.get("agent_used")
+        row["model_used"] = meta.get("model_used")
+        row["station_code"] = meta.get("station_code")
+        row["duration_ms"] = meta.get("duration_ms")
+        row["token_count"] = meta.get("token_count")
+        if include_thinking:
+            row["thinking_steps"] = meta.get("thinking_steps")
+            row["governance_events"] = meta.get("governance_events")
+        result.append(row)
+
+    return result
 
 
 def archive_conversation(conversation_id, user_id):
-    """Soft-delete a conversation (set is_archived = TRUE).
+    """Soft-delete a conversation (set is_archived = TRUE, status = 'archived').
 
     Only the owner can archive a conversation.
 
@@ -332,8 +378,8 @@ def archive_conversation(conversation_id, user_id):
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             """
-            UPDATE chat_conversations
-            SET is_archived = TRUE, updated_at = %s
+            UPDATE unified_conversations
+            SET is_archived = TRUE, status = 'archived', updated_at = %s
             WHERE id = %s AND user_id = %s AND is_archived = FALSE
             """,
             (datetime.now(timezone.utc), conversation_id, user_id),
@@ -342,7 +388,7 @@ def archive_conversation(conversation_id, user_id):
 
 
 def search_conversations(user_id, query, team_id=None, limit=20):
-    """Search conversations by title or message content (ILIKE).
+    """Search conversations by title/topic or message content (ILIKE).
 
     Args:
         user_id: The requesting user.
@@ -361,22 +407,22 @@ def search_conversations(user_id, query, team_id=None, limit=20):
         if team_id:
             cur.execute(
                 """SELECT DISTINCT c.id, c.conversation_uuid, c.title, c.updated_at
-                   FROM chat_conversations c
-                   LEFT JOIN chat_messages m ON m.conversation_id = c.id
+                   FROM unified_conversations c
+                   LEFT JOIN unified_messages m ON m.conversation_id = c.id
                    WHERE c.team_id = %s AND c.is_archived = FALSE
-                     AND (c.title ILIKE %s OR m.content ILIKE %s)
+                     AND (c.title ILIKE %s OR c.topic ILIKE %s OR m.content ILIKE %s)
                    ORDER BY c.updated_at DESC LIMIT %s""",
-                (team_id, pattern, pattern, limit),
+                (team_id, pattern, pattern, pattern, limit),
             )
         else:
             cur.execute(
                 """SELECT DISTINCT c.id, c.conversation_uuid, c.title, c.updated_at
-                   FROM chat_conversations c
-                   LEFT JOIN chat_messages m ON m.conversation_id = c.id
+                   FROM unified_conversations c
+                   LEFT JOIN unified_messages m ON m.conversation_id = c.id
                    WHERE c.user_id = %s AND c.team_id IS NULL AND c.is_archived = FALSE
-                     AND (c.title ILIKE %s OR m.content ILIKE %s)
+                     AND (c.title ILIKE %s OR c.topic ILIKE %s OR m.content ILIKE %s)
                    ORDER BY c.updated_at DESC LIMIT %s""",
-                (user_id, pattern, pattern, limit),
+                (user_id, pattern, pattern, pattern, limit),
             )
         rows = cur.fetchall()
 
@@ -446,11 +492,11 @@ def auto_title_conversation(conversation_id, first_message):
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             """
-            UPDATE chat_conversations
-            SET title = %s, updated_at = %s
+            UPDATE unified_conversations
+            SET title = %s, topic = %s, updated_at = %s
             WHERE id = %s
             """,
-            (title, datetime.now(timezone.utc), conversation_id),
+            (title, title, datetime.now(timezone.utc), conversation_id),
         )
 
     return title

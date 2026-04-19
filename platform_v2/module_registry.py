@@ -569,13 +569,19 @@ MODULES: List[ModuleDefinition] = [
     # MEDIA & HOME (1 module)
     # ============================================
     # media_hub
+    #
+    # Extracted as a standalone Docker product (Project #273).
+    # Runs at https://media.kytranempowerment.com (hub :8105, NPM host 32).
+    # In-platform blueprint stays mounted during the transition so existing
+    # integrations keep working; dashboard card now launches the standalone.
     ModuleDefinition(
         id="media_hub",
         name="Media Hub",
-        description="Unified media server dashboard<br>Library • Smart search • Requests • Calendar • Downloads",
+        description="Unified media server dashboard<br>Now standalone — launches media.kytranempowerment.com",
         icon="tv-2",
         category=ModuleCategory.APPLICATIONS_CONCEPTS,
         route="/tools/media-hub",
+        external_url="https://media.kytranempowerment.com",
         blueprint_import="tools.media_hub.routes:media_hub_bp",
         required_permissions=[],
         minimum_role="USER",
@@ -586,6 +592,8 @@ MODULES: List[ModuleDefinition] = [
         priority=1,
         tags=[
             "media",
+            "standalone",
+            "product",
             "plex",
             "jellyfin",
             "sonarr",

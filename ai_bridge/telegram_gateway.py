@@ -698,41 +698,21 @@ class TelegramGateway:
                             send_err = str(e)
                             logger.warning(f"Failed to notify {chat_id}: {e}")
 
-                        # Mirror to telegram_message_log so DHQ COMs tab shows the escalation.
+                        # Mirror to telegram_message_log via unified service (one row per send).
                         try:
-                            log_conn = get_db()
-                            try:
-                                log_cur = log_conn.cursor()
-                                log_cur.execute(
-                                    """INSERT INTO telegram_message_log
-                                       (category, title, message, source_agent,
-                                        source_department, source_module, priority,
-                                        status, error_message, chat_id, telegram_message_id)
-                                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                                    (
-                                        "escalation",
-                                        f"Escalation #{approval_id}",
-                                        text,
-                                        context.get("agent_name"),
-                                        context.get("department"),
-                                        context.get("module_id"),
-                                        "high",
-                                        send_status,
-                                        send_err,
-                                        str(chat_id),
-                                        getattr(msg_obj, "message_id", None) if msg_obj else None,
-                                    ),
-                                )
-                                log_conn.commit()
-                            finally:
-                                try:
-                                    log_cur.close()
-                                except Exception:
-                                    pass
-                                try:
-                                    log_conn.close()
-                                except Exception:
-                                    pass
+                            from services.telegram_service import _log_message as _tg_log
+                            _tg_log(
+                                category="escalation",
+                                title=f"Escalation #{approval_id}",
+                                message=text,
+                                source_agent=context.get("agent_name"),
+                                source_department=context.get("department"),
+                                source_module=context.get("module_id"),
+                                status=send_status,
+                                error_message=send_err,
+                                chat_id=str(chat_id),
+                                telegram_message_id=getattr(msg_obj, "message_id", None) if msg_obj else None,
+                            )
                         except Exception as log_err:
                             logger.debug(f"Escalation COMs log insert failed: {log_err}")
 
@@ -874,42 +854,18 @@ class TelegramGateway:
     def send_dispatch_advisory(self, title: str, message: str):
         """Send FYI advisory to all linked Telegram users (no approval buttons).
 
-        Uses raw requests.post to Telegram Bot API (no python-telegram-bot dependency).
+        Routes through telegram_service.send() so every advisory produces
+        exactly one telegram_message_log row and benefits from A.R.C.H.I.E.'s
+        unified voice + throttling logic.
         """
-        if not self.bot_token:
-            return
-
-        import requests as _req
-
-        text = f"\U0001f500 *{title}*\n\n{message}\n\n_Advisory \u2014 no action required_"
-
         try:
-            conn = get_db()
-            try:
-                cur = conn.cursor()
-                cur.execute(
-                    "SELECT telegram_id FROM telegram_users "
-                    "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
-                )
-                rows = cur.fetchall()
-                for row in rows:
-                    try:
-                        _req.post(
-                            f"https://api.telegram.org/bot{self.bot_token}/sendMessage",
-                            json={"chat_id": row[0], "text": text, "parse_mode": "Markdown"},
-                            timeout=15,
-                        )
-                    except Exception:
-                        pass
-            finally:
-                try:
-                    cur.close()
-                except Exception:
-                    pass
-                try:
-                    conn.close()
-                except Exception:
-                    pass
+            from services.telegram_service import send as _tg_send
+            _tg_send(
+                category="info",
+                title=title,
+                message=message,
+                source_module="telegram_gateway",
+            )
         except Exception as e:
             logger.debug(f"[TelegramGateway] Advisory send failed: {e}")
 

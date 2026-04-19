@@ -16,11 +16,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Media Hub{% endblock %}</title>
 
-    {# Shared LCARS chrome — served from the blueprint's own static dir
-       (tools/media_hub/static/standalone/) so a standalone container
-       ships everything it needs without reaching into platform /static/. #}
-    <link rel="stylesheet" href="{{ url_for('media_hub.static', filename='standalone/lcars-frames.css') }}">
-    <link rel="stylesheet" href="{{ url_for('media_hub.static', filename='standalone/lcars-header.css') }}">
+    {# Full LCARS stack — same load order as platform base.html minus the
+       light-mode.css (without its theme-override partner it locks the UI
+       into light mode, which is what #171 was surfacing).
+       Order matters: design tokens → resets → components → chrome. #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/animations.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/archie-breakpoints.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/category-nav.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-modals.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
 
     {% block extra_css %}{% endblock %}
     {% block styles %}{% endblock %}

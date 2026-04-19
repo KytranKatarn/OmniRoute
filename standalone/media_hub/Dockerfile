@@ -42,9 +42,20 @@ COPY platform_v2/templates/includes/lcars-header.html    /app/templates/includes
 
 # Platform /static/ assets the Media Hub template hard-codes references to.
 # Flask(__name__) default static_folder=./static → served at /static/*.
-COPY platform_v2/static/css/media-hub.css      /app/static/css/media-hub.css
-COPY platform_v2/static/css/lcars-header.css   /app/static/css/lcars-header.css
-COPY platform_v2/static/css/lcars-frames.css   /app/static/css/lcars-frames.css
+COPY platform_v2/static/css/media-hub.css          /app/static/css/media-hub.css
+COPY platform_v2/static/css/lcars-header.css       /app/static/css/lcars-header.css
+COPY platform_v2/static/css/lcars-frames.css       /app/static/css/lcars-frames.css
+# Full LCARS design-token + shared-component stack so the dark theme actually
+# applies. Omits light-mode.css on purpose — loading it without a matching
+# dark-theme override leaves the UI stuck in light mode (#171 user report).
+COPY platform_v2/static/css/theme.css              /app/static/css/theme.css
+COPY platform_v2/static/css/base.css               /app/static/css/base.css
+COPY platform_v2/static/css/components.css         /app/static/css/components.css
+COPY platform_v2/static/css/category-nav.css       /app/static/css/category-nav.css
+COPY platform_v2/static/css/lcars-modals.css       /app/static/css/lcars-modals.css
+COPY platform_v2/static/css/animations.css         /app/static/css/animations.css
+COPY platform_v2/static/css/archie-breakpoints.css /app/static/css/archie-breakpoints.css
+COPY platform_v2/static/css/mobile.css             /app/static/css/mobile.css
 COPY platform_v2/static/js/media-hub.js        /app/static/js/media-hub.js
 COPY platform_v2/static/js/media-hub-sw.js     /app/static/js/media-hub-sw.js
 COPY platform_v2/static/js/lcars-header.js     /app/static/js/lcars-header.js

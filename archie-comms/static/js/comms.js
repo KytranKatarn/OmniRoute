@@ -304,7 +304,7 @@
             }
             convs.forEach(function(c) {
                 var id = c.id || c[0];
-                var topic = c.topic || c[1] || 'Conversation';
+                var topic = c.title || c.topic || 'Conversation';
                 var msgCount = c.msg_count || c[5] || 0;
                 var isEscalation = topic === 'A.R.C.H.I.E. Escalations';
                 var item = document.createElement('div');

@@ -159,3 +159,34 @@ class TestResumeApprovedBridgeJobs:
         finally:
             with db.cursor() as cur:
                 cur.execute("DELETE FROM bridge_jobs WHERE id=%s", (row_id,))
+
+
+class TestResumeDispatchTable:
+    def test_dispatch_table_covers_image_generation(self):
+        from services.agent_jobs import _BRIDGE_RESUME_HANDLERS, _resume_image_generation
+
+        assert "image_generation" in _BRIDGE_RESUME_HANDLERS
+        assert _BRIDGE_RESUME_HANDLERS["image_generation"] is _resume_image_generation
+
+    def test_dispatch_table_select_uses_registered_keys(self, db):
+        """Rows with unregistered job_type are not even selected by the job."""
+        from services import agent_jobs
+
+        # Seed an approved row with job_type NOT in the dispatch table.
+        with db.cursor() as cur:
+            cur.execute(
+                """INSERT INTO bridge_jobs
+                   (job_type, module_source, description, status, agent_name, total_steps, metadata)
+                   VALUES ('unknown_future_type', 'mod', 'x', 'approved', 'Pixel', 1, '{}'::jsonb)
+                   RETURNING id"""
+            )
+            row_id = cur.fetchone()["id"]
+        try:
+            agent_jobs.resume_approved_bridge_jobs()
+            with db.cursor() as cur:
+                cur.execute("SELECT status FROM bridge_jobs WHERE id=%s", (row_id,))
+                r = cur.fetchone()
+            assert r["status"] == "approved", "unknown job_type should remain untouched"
+        finally:
+            with db.cursor() as cur:
+                cur.execute("DELETE FROM bridge_jobs WHERE id=%s", (row_id,))

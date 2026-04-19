@@ -144,7 +144,7 @@ def get_conversations(user_id, team_id=None, page=1, limit=20, archived=False):
                    agent_target, created_at, updated_at, is_archived
             FROM chat_conversations
             WHERE {where}
-            ORDER BY updated_at DESC
+            ORDER BY (title = 'A.R.C.H.I.E. Escalations') DESC, updated_at DESC
             LIMIT %s OFFSET %s
             """,
             (*params, limit, offset),

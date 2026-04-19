@@ -616,3 +616,111 @@ class TestEscalationUnifiedChat:
                     (f"%{approval_id}%",),
                 )
                 cur.execute("DELETE FROM telegram_users WHERE telegram_id=%s", (test_chat_id,))
+
+
+class TestEscalationChatDualWrite:
+    def test_escalation_also_writes_to_chat_conversations(self, db):
+        """send_escalation_notification must dual-write to chat_conversations
+        + chat_messages so archie_comms sidebar shows the escalation."""
+        import sys
+
+        if "/mnt/archie_brain/ai_bridge" not in sys.path:
+            sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+        try:
+            from ai_bridge.telegram_gateway import TelegramGateway
+        except Exception as e:
+            pytest.skip(f"telegram_gateway not importable: {e}")
+
+        test_chat_id = 999_666
+        with db.cursor() as cur:
+            cur.execute(
+                "INSERT INTO telegram_users (telegram_id, user_id, is_authorized) "
+                "VALUES (%s, %s, TRUE) "
+                "ON CONFLICT (telegram_id) DO UPDATE SET user_id=EXCLUDED.user_id, is_authorized=TRUE",
+                (test_chat_id, TEST_USER_ID),
+            )
+
+        gw = TelegramGateway.__new__(TelegramGateway)
+        gw._running = True
+
+        class _FakeBot:
+            @staticmethod
+            async def send_message(chat_id, text, reply_markup):
+                return type("M", (), {"message_id": 12345})
+
+        class _FakeApp:
+            bot = _FakeBot()
+
+        gw._application = _FakeApp()
+
+        import asyncio
+        import threading
+
+        gw._loop = asyncio.new_event_loop()
+        loop_thread = threading.Thread(target=gw._loop.run_forever, daemon=True)
+        loop_thread.start()
+
+        approval_id = 99_333_444
+        try:
+            gw.send_escalation_notification(
+                approval_id=approval_id,
+                context={
+                    "agent_name": "Pixel",
+                    "department": "CREATIVE",
+                    "capability": "image_generation",
+                    "failure_count": 1,
+                    "original_model": "sdxl",
+                    "escalated_model": "gpt-image-1",
+                    "est_cost": 0.05,
+                    "module_id": "media_studio",
+                    "recommendation": "Approve",
+                },
+            )
+            import time
+
+            time.sleep(2.0)
+
+            with db.cursor() as cur:
+                cur.execute(
+                    """SELECT cm.id, cm.role, cm.content, cm.agent_used
+                       FROM chat_messages cm
+                       JOIN chat_conversations cc ON cc.id = cm.conversation_id
+                       WHERE cc.user_id = %s
+                         AND cc.title = 'A.R.C.H.I.E. Escalations'
+                         AND cm.content LIKE %s
+                       ORDER BY cm.id DESC LIMIT 1""",
+                    (TEST_USER_ID, f"%{approval_id}%"),
+                )
+                row = cur.fetchone()
+            assert row is not None, "Expected chat_messages row for escalation"
+            assert row["role"] == "assistant"
+            assert row["agent_used"] == "A.R.C.H.I.E."
+            assert str(approval_id) in row["content"]
+        finally:
+            gw._loop.call_soon_threadsafe(gw._loop.stop)
+            with db.cursor() as cur:
+                # Clean chat tables
+                cur.execute(
+                    "DELETE FROM chat_messages WHERE content LIKE %s",
+                    (f"%{approval_id}%",),
+                )
+                cur.execute(
+                    "DELETE FROM chat_conversations WHERE user_id=%s AND title='A.R.C.H.I.E. Escalations'"
+                    " AND id NOT IN (SELECT DISTINCT conversation_id FROM chat_messages)",
+                    (TEST_USER_ID,),
+                )
+                # Clean unified tables (to avoid leaks across test runs)
+                cur.execute(
+                    "DELETE FROM unified_messages WHERE content LIKE %s",
+                    (f"%{approval_id}%",),
+                )
+                cur.execute(
+                    "DELETE FROM unified_conversations WHERE user_id=%s AND topic='A.R.C.H.I.E. Escalations'"
+                    " AND id NOT IN (SELECT DISTINCT conversation_id FROM unified_messages)",
+                    (TEST_USER_ID,),
+                )
+                cur.execute(
+                    "DELETE FROM telegram_message_log WHERE message LIKE %s",
+                    (f"%{approval_id}%",),
+                )
+                cur.execute("DELETE FROM telegram_users WHERE telegram_id=%s", (test_chat_id,))

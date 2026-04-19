@@ -51,14 +51,49 @@ class SonarrClient(ArrServiceInterface, CalendarServiceInterface):
             logger.error(f"Sonarr API request failed: {e}")
             return None
 
-    def test_connection(self) -> bool:
-        """Test connection to Sonarr server"""
+    def probe(self) -> tuple[bool, str]:
+        """Two-stage reachability + auth probe.
+
+        `/ping` (served at root, not under /api/v3) needs no key so it
+        tells us server-up vs server-down. Then `/system/status` with
+        key tells us key-valid vs key-invalid — without the split, a
+        bad key looks identical to a dead server.
+        """
+        ping_url = f"{self.base_url.rsplit('/api/v3', 1)[0]}/ping"
         try:
-            result = self._request("/system/status")
-            return result is not None and "version" in result
-        except Exception as e:
-            logger.error(f"Sonarr connection test failed: {e}")
-            return False
+            resp = requests.get(ping_url, timeout=self.timeout)
+            if resp.status_code != 200:
+                return False, f"Sonarr unreachable: /ping returned HTTP {resp.status_code}"
+        except requests.RequestException as e:
+            return False, f"Sonarr unreachable at {ping_url}: {e}"
+
+        if not self.api_key:
+            return False, "Sonarr reachable but no API key configured"
+
+        try:
+            resp = requests.get(
+                urljoin(self.base_url + "/", "system/status"),
+                headers={"X-Api-Key": self.api_key, "Accept": "application/json"},
+                timeout=self.timeout,
+            )
+        except requests.RequestException as e:
+            return False, f"Sonarr /system/status request failed: {e}"
+
+        if resp.status_code == 401:
+            return False, "Sonarr API key invalid — re-paste key in Media Hub settings"
+        if resp.status_code != 200:
+            return False, f"Sonarr /system/status returned HTTP {resp.status_code}"
+        try:
+            if "version" not in resp.json():
+                return False, "Sonarr responded but payload missing version"
+        except ValueError:
+            return False, "Sonarr responded with non-JSON body"
+        return True, "Connection successful"
+
+    def test_connection(self) -> bool:
+        """Backward-compatible boolean check. Use probe() for detail."""
+        ok, _ = self.probe()
+        return ok
 
     def get_queue(self) -> List[Dict[str, Any]]:
         """Get current download queue"""

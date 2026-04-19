@@ -63,14 +63,43 @@ class OverseerrClient(RequestServiceInterface):
             logger.error(f"Overseerr API request failed: {e}")
             return None
 
-    def test_connection(self) -> bool:
-        """Test connection to Overseerr server"""
+    def probe(self) -> tuple[bool, str]:
+        """Two-stage reachability + auth probe.
+
+        `/status` needs no key so it tells us server-up vs server-down.
+        Then `/settings/main` with key tells us key-valid vs key-invalid —
+        without the split, a bad key looks identical to a dead server.
+        """
+        status_url = urljoin(self.base_url + "/", "status")
         try:
-            result = self._request("/settings/main")
-            return result is not None
-        except Exception as e:
-            logger.error(f"Overseerr connection test failed: {e}")
-            return False
+            resp = requests.get(status_url, timeout=self.timeout)
+            if resp.status_code != 200:
+                return False, f"Overseerr unreachable: /status returned HTTP {resp.status_code}"
+        except requests.RequestException as e:
+            return False, f"Overseerr unreachable at {self.base_url}: {e}"
+
+        if not self.api_key:
+            return False, "Overseerr reachable but no API key configured"
+
+        try:
+            resp = requests.get(
+                urljoin(self.base_url + "/", "settings/main"),
+                headers={"X-Api-Key": self.api_key, "Accept": "application/json"},
+                timeout=self.timeout,
+            )
+        except requests.RequestException as e:
+            return False, f"Overseerr /settings/main request failed: {e}"
+
+        if resp.status_code in (401, 403):
+            return False, "Overseerr API key invalid — re-paste key in Media Hub settings"
+        if resp.status_code != 200:
+            return False, f"Overseerr /settings/main returned HTTP {resp.status_code}"
+        return True, "Connection successful"
+
+    def test_connection(self) -> bool:
+        """Backward-compatible boolean check. Use probe() for detail."""
+        ok, _ = self.probe()
+        return ok
 
     def _build_poster_url(self, poster_path: Optional[str]) -> Optional[str]:
         """Build TMDB poster URL"""

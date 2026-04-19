@@ -45,14 +45,58 @@ class SABnzbdClient(DownloaderInterface):
             logger.error(f"SABnzbd API request failed: {e}")
             return None
 
-    def test_connection(self) -> bool:
-        """Test connection to SABnzbd server"""
+    def probe(self) -> tuple[bool, str]:
+        """Two-stage reachability + auth probe.
+
+        `mode=version` needs no key (returns version string). Then
+        `mode=queue` with key — SABnzbd returns HTTP 200 with JSON body
+        `{"status": false, "error": "API Key Incorrect"}` on bad key,
+        which would otherwise look identical to a healthy response.
+        """
         try:
-            result = self._request("version")
-            return result is not None and "version" in result
-        except Exception as e:
-            logger.error(f"SABnzbd connection test failed: {e}")
-            return False
+            resp = requests.get(
+                self.base_url,
+                params={"mode": "version", "output": "json"},
+                timeout=self.timeout,
+            )
+            if resp.status_code != 200:
+                return False, f"SABnzbd unreachable: mode=version returned HTTP {resp.status_code}"
+            try:
+                if "version" not in resp.json():
+                    return False, "SABnzbd responded to mode=version but payload missing version"
+            except ValueError:
+                return False, "SABnzbd responded with non-JSON body"
+        except requests.RequestException as e:
+            return False, f"SABnzbd unreachable at {self.base_url}: {e}"
+
+        if not self.api_key:
+            return False, "SABnzbd reachable but no API key configured"
+
+        try:
+            resp = requests.get(
+                self.base_url,
+                params={"mode": "queue", "output": "json", "apikey": self.api_key},
+                timeout=self.timeout,
+            )
+        except requests.RequestException as e:
+            return False, f"SABnzbd mode=queue request failed: {e}"
+
+        if resp.status_code in (401, 403):
+            return False, "SABnzbd API key invalid — re-paste key in Media Hub settings"
+        if resp.status_code != 200:
+            return False, f"SABnzbd mode=queue returned HTTP {resp.status_code}"
+        try:
+            body = resp.json()
+        except ValueError:
+            return False, "SABnzbd mode=queue responded with non-JSON body"
+        if body.get("status") is False and "API Key" in str(body.get("error", "")):
+            return False, "SABnzbd API key invalid — re-paste key in Media Hub settings"
+        return True, "Connection successful"
+
+    def test_connection(self) -> bool:
+        """Backward-compatible boolean check. Use probe() for detail."""
+        ok, _ = self.probe()
+        return ok
 
     def _parse_download_item(self, item: Dict, status: str = "downloading") -> DownloadItem:
         """Parse SABnzbd queue/history item to unified format"""

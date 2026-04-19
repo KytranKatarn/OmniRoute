@@ -59,14 +59,49 @@ class JellyfinClient(MediaServerInterface):
             return self._user_id
         return None
 
-    def test_connection(self) -> bool:
-        """Test connection to Jellyfin server"""
+    def probe(self) -> tuple[bool, str]:
+        """Two-stage reachability + auth probe.
+
+        `/System/Info/Public` needs no token so it tells us server-up vs
+        server-down. Then `/System/Info` with token tells us token-valid
+        vs token-expired — without the split, a bad key looks identical
+        to a dead server.
+        """
+        public_url = urljoin(self.base_url, "/System/Info/Public")
         try:
-            result = self._request("/System/Info")
-            return result is not None and "ServerName" in result
-        except Exception as e:
-            logger.error(f"Jellyfin connection test failed: {e}")
-            return False
+            resp = requests.get(public_url, timeout=self.timeout)
+            if resp.status_code != 200:
+                return False, f"Jellyfin unreachable: /System/Info/Public returned HTTP {resp.status_code}"
+        except requests.RequestException as e:
+            return False, f"Jellyfin unreachable at {self.base_url}: {e}"
+
+        if not self.api_key:
+            return False, "Jellyfin reachable but no API key configured"
+
+        try:
+            resp = requests.get(
+                urljoin(self.base_url, "/System/Info"),
+                headers={"X-MediaBrowser-Token": self.api_key, "Accept": "application/json"},
+                timeout=self.timeout,
+            )
+        except requests.RequestException as e:
+            return False, f"Jellyfin /System/Info request failed: {e}"
+
+        if resp.status_code == 401:
+            return False, "Jellyfin API key invalid or expired — re-paste key in Media Hub settings"
+        if resp.status_code != 200:
+            return False, f"Jellyfin /System/Info returned HTTP {resp.status_code}"
+        try:
+            if "ServerName" not in resp.json():
+                return False, "Jellyfin responded but payload missing ServerName"
+        except ValueError:
+            return False, "Jellyfin responded with non-JSON body"
+        return True, "Connection successful"
+
+    def test_connection(self) -> bool:
+        """Backward-compatible boolean check. Use probe() for detail."""
+        ok, _ = self.probe()
+        return ok
 
     def _get_image_url(self, item_id: str, image_type: str = "Primary") -> Optional[str]:
         """Get image URL for an item"""

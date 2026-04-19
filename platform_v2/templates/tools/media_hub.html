@@ -1,4 +1,6 @@
-{% extends 'base.html' %}
+{# base_template resolves to 'base.html' in platform context (default) or
+   'media_hub_base.html' when MEDIA_HUB_STANDALONE=1 — see tools/media_hub/__init__.py #}
+{% extends base_template %}
 
 {% block title %}Media Hub - A.R.C.H.I.E.{% endblock %}
 

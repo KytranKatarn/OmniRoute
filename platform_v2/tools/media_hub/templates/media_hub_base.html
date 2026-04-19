@@ -1,0 +1,33 @@
+<!doctype html>
+{#
+  Media Hub Standalone Base Template
+  ==================================
+  Used when MEDIA_HUB_STANDALONE=1 (task #2151, Project #273).
+  In platform context, media_hub.html extends platform base.html
+  instead (nothing changes for ARCHIE users).
+
+  Honors the same block contract as platform base.html so media_hub.html
+  can swap between the two by flipping the `base_template` context var:
+    title, module_name, extra_head, extra_css, styles, content, extra_js
+#}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Media Hub{% endblock %}</title>
+
+    {# Shared LCARS chrome — served from the blueprint's own static dir
+       (tools/media_hub/static/standalone/) so a standalone container
+       ships everything it needs without reaching into platform /static/. #}
+    <link rel="stylesheet" href="{{ url_for('media_hub.static', filename='standalone/lcars-frames.css') }}">
+    <link rel="stylesheet" href="{{ url_for('media_hub.static', filename='standalone/lcars-header.css') }}">
+
+    {% block extra_css %}{% endblock %}
+    {% block styles %}{% endblock %}
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="theme-lcars-classic" data-module="{% block module_name %}media_hub{% endblock %}">
+    {% block content %}{% endblock %}
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

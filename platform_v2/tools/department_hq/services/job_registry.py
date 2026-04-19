@@ -71,6 +71,13 @@ JOB_REGISTRY = {
         "interval": "60s",
         "source_file": "ai_bridge/agent_loop.py",
     },
+    "resume_approved_bridge_jobs": {
+        "department": "Executive Office",
+        "director": "A.R.C.H.I.E.",
+        "description": "Re-dispatch web-approved bridge_jobs image_generation rows to paid cloud provider",
+        "interval": "30s",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
     "agent_briefings": {
         "department": "Executive Office",
         "director": "A.R.C.H.I.E.",

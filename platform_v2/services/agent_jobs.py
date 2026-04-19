@@ -1734,6 +1734,204 @@ def reap_stale_pending_approvals(max_age_days: int = 7):
 
 
 # ---------------------------------------------------------------------------
+# Approval queue — resume approved bridge jobs
+# ---------------------------------------------------------------------------
+
+
+def resume_approved_bridge_jobs():
+    """Re-dispatch bridge_jobs rows approved via the web Approvals UI.
+
+    Picks up rows where status='approved' AND job_type='image_generation',
+    flips them to 'running' (atomic claim), then calls the paid cloud provider
+    to actually generate the image. Updates status to 'completed' with the
+    file path, or 'failed' with the error message.
+
+    Only image_generation is supported today — that's the only dispatcher path
+    that creates pending_approval rows (department_dispatcher._escalate_image_to_cloud).
+    Other job_types will be added as new dispatcher paths land.
+    """
+    import json as _json
+
+    from db import get_db
+
+    start = time.time()
+
+    # Fetch up to 10 approved image-gen rows (oldest first).
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT id, metadata, agent_name
+               FROM bridge_jobs
+               WHERE status = 'approved' AND job_type = 'image_generation'
+               ORDER BY approved_at NULLS LAST, id
+               LIMIT 10"""
+        )
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    if not rows:
+        return 0
+
+    try:
+        from ai_bridge import external_providers
+    except Exception as e:
+        logger.error("resume_approved_bridge_jobs: external_providers unavailable: %s", e)
+        return 0
+
+    processed = 0
+    for row in rows:
+        job_id = row[0]
+        raw_meta = row[1]
+        # psycopg2 may return JSONB as dict or str depending on register_default_jsonb
+        if isinstance(raw_meta, str):
+            try:
+                metadata = _json.loads(raw_meta)
+            except Exception:
+                metadata = {}
+        elif isinstance(raw_meta, dict):
+            metadata = raw_meta
+        else:
+            metadata = {}
+
+        # Atomically claim: flip approved → running. Skip if another worker beat us.
+        claim_conn = get_db()
+        claim_cur = claim_conn.cursor()
+        try:
+            claim_cur.execute(
+                """UPDATE bridge_jobs
+                   SET status = 'running', updated_at = NOW()
+                   WHERE id = %s AND status = 'approved'""",
+                (job_id,),
+            )
+            claim_conn.commit()
+            if claim_cur.rowcount == 0:
+                continue  # already claimed by another worker
+        finally:
+            claim_cur.close()
+            claim_conn.close()
+
+        prompt = metadata.get("prompt", "")
+        user_id = metadata.get("user_id")
+        params = metadata.get("image_params") or {}
+
+        try:
+            providers = [
+                p
+                for p in external_providers.get_providers_with_capability("image_gen")
+                if (p.get("tier_position") or 0) >= 5
+            ]
+            if not providers:
+                raise RuntimeError("no paid image providers available")
+            provider = providers[0]
+            result = external_providers.generate_media(
+                provider["provider_key"],
+                {"type": "image", "prompt": prompt, "params": params},
+            )
+            if result and result.get("success"):
+                file_path = result.get("file_path", "")
+                done_conn = get_db()
+                done_cur = done_conn.cursor()
+                try:
+                    done_cur.execute(
+                        """UPDATE bridge_jobs
+                           SET status = 'completed',
+                               description = COALESCE(description, '') || ' [cloud: ' || %s || ']',
+                               completed_steps = total_steps,
+                               completed_at = NOW(),
+                               updated_at = NOW()
+                           WHERE id = %s""",
+                        (file_path, job_id),
+                    )
+                    done_conn.commit()
+                finally:
+                    done_cur.close()
+                    done_conn.close()
+                # Log cloud usage for cost tracking
+                try:
+                    cost = float(result.get("cost_usd") or 0)
+                    usage_conn = get_db()
+                    usage_cur = usage_conn.cursor()
+                    try:
+                        usage_cur.execute(
+                            """INSERT INTO cloud_model_usage
+                               (model_name, provider, prompt_tokens, completion_tokens,
+                                cost_usd, user_id, task_type, success)
+                               VALUES (%s, %s, 0, 0, %s, %s, 'image_generation', TRUE)""",
+                            (
+                                f"{provider['provider_key']}_image",
+                                provider["provider_key"],
+                                cost,
+                                user_id,
+                            ),
+                        )
+                        usage_conn.commit()
+                    finally:
+                        usage_cur.close()
+                        usage_conn.close()
+                except Exception as log_err:
+                    logger.debug("resume_approved_bridge_jobs: cloud_model_usage log failed: %s", log_err)
+                processed += 1
+                logger.info(
+                    "resume_approved_bridge_jobs: job %d completed via %s → %s",
+                    job_id,
+                    provider["provider_key"],
+                    file_path,
+                )
+            else:
+                error_msg = (result.get("error") if result else "generate_media returned falsy") or "unknown error"
+                fail_conn = get_db()
+                fail_cur = fail_conn.cursor()
+                try:
+                    fail_cur.execute(
+                        """UPDATE bridge_jobs
+                           SET status = 'failed',
+                               error_message = %s,
+                               updated_at = NOW()
+                           WHERE id = %s""",
+                        (str(error_msg)[:500], job_id),
+                    )
+                    fail_conn.commit()
+                finally:
+                    fail_cur.close()
+                    fail_conn.close()
+                logger.warning("resume_approved_bridge_jobs: job %d failed: %s", job_id, error_msg)
+        except Exception as exc:
+            error_str = str(exc)[:500]
+            try:
+                exc_conn = get_db()
+                exc_cur = exc_conn.cursor()
+                try:
+                    exc_cur.execute(
+                        """UPDATE bridge_jobs
+                           SET status = 'failed',
+                               error_message = %s,
+                               updated_at = NOW()
+                           WHERE id = %s""",
+                        (error_str, job_id),
+                    )
+                    exc_conn.commit()
+                finally:
+                    exc_cur.close()
+                    exc_conn.close()
+            except Exception:
+                pass
+            logger.error("resume_approved_bridge_jobs: job %d exception: %s", job_id, error_str)
+
+    duration_ms = int((time.time() - start) * 1000)
+    _log_cycle(
+        "resume_approved_bridge_jobs",
+        processed,
+        0,
+        duration_ms,
+        details={"processed": processed},
+    )
+    return processed
+
+
+# ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
 
@@ -1843,6 +2041,14 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         trigger=CronTrigger(hour=9, minute=5),
         id="department_welfare_digest",
         name="Agent Loop: K.I.N. Department Welfare Digest",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        with_ctx(resume_approved_bridge_jobs),
+        trigger=IntervalTrigger(seconds=30),
+        id="resume_approved_bridge_jobs",
+        name="Agent Loop: Resume Approved Bridge Jobs",
         replace_existing=True,
     )
 

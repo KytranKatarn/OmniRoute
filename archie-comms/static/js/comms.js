@@ -306,15 +306,26 @@
                 var id = c.id || c[0];
                 var topic = c.topic || c[1] || 'Conversation';
                 var msgCount = c.msg_count || c[5] || 0;
+                var isEscalation = topic === 'A.R.C.H.I.E. Escalations';
                 var item = document.createElement('div');
-                item.className = 'ac-conversation-item';
+                item.className = 'ac-conversation-item' + (isEscalation ? ' esc-thread' : '');
                 item.setAttribute('data-conv-id', id);
-                var title = document.createElement('div');
-                title.textContent = topic;
+                if (isEscalation) { item.setAttribute('data-topic', 'A.R.C.H.I.E. Escalations'); }
+                var titleRow = document.createElement('div');
+                titleRow.className = 'ac-conversation-title-row';
+                var titleText = document.createElement('span');
+                titleText.textContent = topic;
+                titleRow.appendChild(titleText);
+                if (isEscalation) {
+                    var chip = document.createElement('span');
+                    chip.className = 'sidebar-esc-chip';
+                    chip.textContent = 'ESC';
+                    titleRow.appendChild(chip);
+                }
                 var meta = document.createElement('div');
                 meta.className = 'ac-conversation-time';
                 meta.textContent = msgCount + ' messages';
-                item.appendChild(title);
+                item.appendChild(titleRow);
                 item.appendChild(meta);
                 item.addEventListener('click', function() {
                     loadConversation(id);

@@ -524,6 +524,11 @@ async function loadDhqApprovals() {
 
 function _renderApprovalCard(a) {
     var card = document.createElement('div');
+    // Stable id for cross-linking from other tabs (#2168).
+    var _idParts = (a.id || '').split(':');
+    if (_idParts.length === 2 && /^\d+$/.test(_idParts[1])) {
+        card.id = 'approval-card-' + _idParts[0] + '-' + _idParts[1];
+    }
     card.style.cssText = 'background:rgba(0,229,255,0.05);border-left:3px solid #00e5ff;border-radius:6px;padding:16px;margin-bottom:12px';
 
     var header = document.createElement('div');
@@ -897,6 +902,35 @@ async function _dhqDenyApproval(approvalId, btn) {
 (function() {
     var comsLoaded = false;
 
+    // Cross-link helper: jump from a COMs escalation row to the matching approval card (#2168).
+    window._comsJumpToApproval = function(approvalNum) {
+        if (typeof lcarsHeaderSwitchTab === 'function') lcarsHeaderSwitchTab('approvals');
+        if (typeof switchTab === 'function') switchTab('approvals');
+        setTimeout(function () {
+            var found = null;
+            var prefixes = ['autonomy', 'contractor', 'bridge'];
+            for (var i = 0; i < prefixes.length; i++) {
+                found = document.getElementById('approval-card-' + prefixes[i] + '-' + approvalNum);
+                if (found) break;
+            }
+            if (found) {
+                found.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                var origShadow = found.style.boxShadow;
+                found.style.transition = 'box-shadow 0.6s';
+                found.style.boxShadow = '0 0 0 3px rgba(251,191,36,0.7)';
+                setTimeout(function () { found.style.boxShadow = origShadow; }, 1800);
+            } else {
+                var panel = document.getElementById('panel-approvals');
+                if (!panel) return;
+                var toast = document.createElement('div');
+                toast.style.cssText = 'background:rgba(251,191,36,0.15);border-left:3px solid #fbbf24;color:#fbbf24;padding:10px 14px;border-radius:4px;margin:12px 0;font-size:0.85rem';
+                toast.textContent = 'Approval #' + approvalNum + ' has been resolved. See Recent History below.';
+                panel.prepend(toast);
+                setTimeout(function () { toast.remove(); }, 6000);
+            }
+        }, 500);
+    };
+
     window.onLcarsTabSwitch = window.onLcarsTabSwitch || function(){};
     var _origSwitch = window.onLcarsTabSwitch;
     window.onLcarsTabSwitch = function(tabId) {
@@ -941,6 +975,17 @@ async function _dhqDenyApproval(approvalId, btn) {
                 text.textContent = (m.formatted_text || m.content || m.message || '').substring(0, 200);
                 div.appendChild(meta);
                 div.appendChild(text);
+                // Cross-link to matching approval card (#2168).
+                if (m.category === 'escalation') {
+                    div.style.cursor = 'pointer';
+                    div.title = 'Click to jump to matching approval';
+                    (function(msg) {
+                        div.addEventListener('click', function () {
+                            var match = (msg.title || msg.subject || '').match(/#(\d+)/);
+                            if (match) { window._comsJumpToApproval(match[1]); }
+                        });
+                    })(m);
+                }
                 feed.appendChild(div);
             });
             // Stats

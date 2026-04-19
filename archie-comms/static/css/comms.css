@@ -273,6 +273,23 @@ body {
 .ac-conversation-item:hover { background: rgba(255,255,255,0.05); }
 .ac-conversation-item.active { background: var(--accent-dim); color: var(--accent); border-left: 2px solid var(--accent); }
 .ac-conversation-time { font-size: 0.6rem; color: var(--dim); margin-top: 2px; }
+.ac-conversation-title-row { display: flex; align-items: center; gap: 4px; }
+/* Escalation thread — amber ESC chip + left-border accent */
+.ac-conversation-item.esc-thread { border-left: 3px solid #fbbf24; }
+.ac-conversation-item.esc-thread:hover { background: rgba(251,191,36,0.06); }
+.ac-conversation-item.esc-thread.active { border-left-color: #fbbf24; }
+.sidebar-esc-chip {
+    display: inline-block;
+    background: #fbbf24;
+    color: #1a1400;
+    font-size: 0.58rem;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 8px;
+    letter-spacing: 0.06em;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
 
 .ac-sidebar-footer {
     padding: 12px;

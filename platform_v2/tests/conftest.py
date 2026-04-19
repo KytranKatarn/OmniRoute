@@ -2,8 +2,16 @@
 ARCHIE Platform Test Fixtures
 """
 
+import importlib.util
 import os
+import sys
 import pytest
+
+# /app contains __init__.py making it a package, so `from app import app`
+# resolves to the package init rather than app.py.  Load app.py directly
+# via importlib so the Flask application object is always found correctly.
+if "/app" not in sys.path:
+    sys.path.insert(0, "/app")
 
 # Override DB settings for testing before importing app
 os.environ.setdefault("DB_HOST", "localhost")
@@ -14,11 +22,18 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("FLASK_SECRET_KEY", "test-secret-key")
 
 
+def _load_flask_app():
+    """Load app.py directly to avoid __init__.py package shadowing."""
+    spec = importlib.util.spec_from_file_location("flask_app_module", "/app/app.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.app
+
+
 @pytest.fixture
 def app():
     """Create Flask application for testing."""
-    from app import app as flask_app
-
+    flask_app = _load_flask_app()
     flask_app.config["TESTING"] = True
     flask_app.config["WTF_CSRF_ENABLED"] = False
     yield flask_app

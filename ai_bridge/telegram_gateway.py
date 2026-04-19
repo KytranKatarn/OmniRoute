@@ -685,12 +685,121 @@ class TelegramGateway:
                     rows = cur.fetchall()
 
                     for row in rows:
+                        chat_id = row[0]
+                        send_status = "sent"
+                        send_err = None
+                        msg_obj = None
                         try:
-                            await self._application.bot.send_message(
-                                chat_id=row[0], text=text, reply_markup=keyboard
+                            msg_obj = await self._application.bot.send_message(
+                                chat_id=chat_id, text=text, reply_markup=keyboard
                             )
                         except Exception as e:
-                            logger.warning(f"Failed to notify {row[0]}: {e}")
+                            send_status = "failed"
+                            send_err = str(e)
+                            logger.warning(f"Failed to notify {chat_id}: {e}")
+
+                        # Mirror to telegram_message_log so DHQ COMs tab shows the escalation.
+                        try:
+                            log_conn = get_db()
+                            try:
+                                log_cur = log_conn.cursor()
+                                log_cur.execute(
+                                    """INSERT INTO telegram_message_log
+                                       (category, title, message, source_agent,
+                                        source_department, source_module, priority,
+                                        status, error_message, chat_id, telegram_message_id)
+                                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                                    (
+                                        "escalation",
+                                        f"Escalation #{approval_id}",
+                                        text,
+                                        context.get("agent_name"),
+                                        context.get("department"),
+                                        context.get("module_id"),
+                                        "high",
+                                        send_status,
+                                        send_err,
+                                        str(chat_id),
+                                        getattr(msg_obj, "message_id", None) if msg_obj else None,
+                                    ),
+                                )
+                                log_conn.commit()
+                            finally:
+                                try:
+                                    log_cur.close()
+                                except Exception:
+                                    pass
+                                try:
+                                    log_conn.close()
+                                except Exception:
+                                    pass
+                        except Exception as log_err:
+                            logger.debug(f"Escalation COMs log insert failed: {log_err}")
+
+                        # Mirror to unified_messages (A.R.C.H.I.E. Chat, Project #265)
+                        # so the user sees the escalation in their canonical conversation.
+                        try:
+                            from database import get_db_cursor
+
+                            with get_db_cursor(commit=True) as (_c, uc_cur):
+                                uc_cur.execute(
+                                    "SELECT user_id FROM telegram_users WHERE telegram_id=%s",
+                                    (chat_id,),
+                                )
+                                u = uc_cur.fetchone()
+                                if not u:
+                                    raise RuntimeError("no linked user_id")
+                                user_id = u["user_id"] if isinstance(u, dict) else u[0]
+                                if not user_id:
+                                    raise RuntimeError("no linked user_id")
+
+                                uc_cur.execute(
+                                    """SELECT id FROM unified_conversations
+                                       WHERE user_id=%s AND topic=%s AND status='active'
+                                       ORDER BY last_activity DESC LIMIT 1""",
+                                    (user_id, "A.R.C.H.I.E. Escalations"),
+                                )
+                                conv_row = uc_cur.fetchone()
+                                if conv_row:
+                                    conv_id = conv_row["id"] if isinstance(conv_row, dict) else conv_row[0]
+                                    uc_cur.execute(
+                                        "UPDATE unified_conversations SET last_activity=NOW() WHERE id=%s",
+                                        (conv_id,),
+                                    )
+                                else:
+                                    uc_cur.execute(
+                                        """INSERT INTO unified_conversations
+                                           (user_id, topic, status, created_at, last_activity)
+                                           VALUES (%s, %s, 'active', NOW(), NOW())
+                                           RETURNING id""",
+                                        (user_id, "A.R.C.H.I.E. Escalations"),
+                                    )
+                                    first = uc_cur.fetchone()
+                                    conv_id = first["id"] if isinstance(first, dict) else first[0]
+
+                                import json as _json
+                                uc_cur.execute(
+                                    """INSERT INTO unified_messages
+                                       (conversation_id, channel, direction, sender, content, metadata, created_at)
+                                       VALUES (%s, %s, %s, %s, %s, %s, NOW())""",
+                                    (
+                                        conv_id,
+                                        "telegram",
+                                        "outbound",
+                                        "A.R.C.H.I.E.",
+                                        text,
+                                        _json.dumps({
+                                            "approval_id": approval_id,
+                                            "agent_name": context.get("agent_name"),
+                                            "department": context.get("department"),
+                                            "est_cost": context.get("est_cost"),
+                                            "telegram_message_id": getattr(msg_obj, "message_id", None) if msg_obj else None,
+                                            "send_status": send_status,
+                                        }),
+                                    ),
+                                )
+                        except Exception as uc_err:
+                            logger.debug(f"Escalation unified_messages log failed: {uc_err}")
                 finally:
                     try:
                         cur.close()

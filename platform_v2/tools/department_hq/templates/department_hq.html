@@ -538,12 +538,34 @@ function _renderApprovalCard(a) {
     title.appendChild(name);
     title.appendChild(sub);
 
+    var rightWrap = document.createElement('div');
+    rightWrap.style.cssText = 'display:flex;align-items:center;gap:8px';
+
+    var sourcePill = document.createElement('span');
+    var srcColors = {
+        'autonomy_approval_queue': ['#00e5ff', '#042e38'],
+        'contractor_approval_requests': ['#fbbf24', '#3a2e00'],
+        'bridge_jobs': ['#a855f7', '#2d1044']
+    };
+    var srcLabels = {
+        'autonomy_approval_queue': 'AUTONOMY',
+        'contractor_approval_requests': 'CONTRACTOR',
+        'bridge_jobs': 'CLOUD'
+    };
+    var colors = srcColors[a.source] || ['#94a3b8', '#1e293b'];
+    sourcePill.style.cssText = 'color:' + colors[0] + ';background:' + colors[1] + ';font-size:0.65rem;font-weight:bold;padding:2px 8px;border-radius:10px;letter-spacing:0.06em';
+    sourcePill.textContent = srcLabels[a.source] || 'OTHER';
+
     var priority = document.createElement('span');
     var prioColor = a.priority <= 3 ? '#ef4444' : (a.priority <= 5 ? '#fbbf24' : '#94a3b8');
     priority.style.cssText = 'color:' + prioColor + ';font-size:0.75rem;font-weight:bold';
-    priority.textContent = 'P' + a.priority;
+    priority.textContent = 'P' + (a.priority || '?');
+
+    rightWrap.appendChild(sourcePill);
+    rightWrap.appendChild(priority);
+
     header.appendChild(title);
-    header.appendChild(priority);
+    header.appendChild(rightWrap);
     card.appendChild(header);
 
     if (a.reason) {
@@ -554,15 +576,55 @@ function _renderApprovalCard(a) {
     }
 
     // Show action_data key fields
-    if (a.action_data && typeof a.action_data === 'object') {
-        var details = document.createElement('div');
-        details.style.cssText = 'font-size:0.75rem;color:#64748b;margin-bottom:12px';
-        if (a.category === 'compliance_fix') {
-            var fixDef = a.action_data.fix_def || {};
-            var sev = a.action_data.severity || '?';
-            details.textContent = 'Rule: ' + (a.action_data.rule_id || '?') + ' | Severity: ' + sev + ' | Fix: ' + (fixDef.type || '?');
+    var details = document.createElement('div');
+    details.style.cssText = 'font-size:0.75rem;color:#64748b;margin-bottom:12px';
+    if (a.category === 'compliance_fix') {
+        var fixDef = (a.action_data && a.action_data.fix_def) || {};
+        var sev = (a.action_data && a.action_data.severity) || '?';
+        details.textContent = 'Rule: ' + ((a.action_data && a.action_data.rule_id) || '?') + ' | Severity: ' + sev + ' | Fix: ' + (fixDef.type || '?');
+    } else if (a.category === 'contractor_dispatch') {
+        var cost = (typeof a.estimated_cost === 'number') ? a.estimated_cost : null;
+        var costColor = '#94a3b8';
+        if (cost !== null && cost > 0.10) costColor = '#ef4444';
+        else if (cost !== null && cost > 0.01) costColor = '#fbbf24';
+
+        details.textContent = '';
+        details.appendChild(document.createTextNode('Provider: '));
+
+        var provSpan = document.createElement('span');
+        provSpan.style.color = '#cbd5e1';
+        provSpan.textContent = a.contractor || '?';
+        details.appendChild(provSpan);
+
+        details.appendChild(document.createTextNode(' | Cost: '));
+
+        var costSpan = document.createElement('span');
+        costSpan.style.color = costColor;
+        costSpan.style.fontWeight = 'bold';
+        costSpan.textContent = (cost !== null) ? ('$' + cost.toFixed(4)) : 'cost: ?';
+        details.appendChild(costSpan);
+
+        if (a.estimated_tokens) {
+            details.appendChild(document.createTextNode(
+                ' | ~' + a.estimated_tokens.toLocaleString() + ' tok'
+            ));
         }
-        card.appendChild(details);
+    } else if (a.category === 'cloud_dispatch') {
+        var mod = a.module_source || '?';
+        var reason = (a.reason || '').slice(0, 200);
+        details.textContent = 'Module: ' + mod + (reason ? ' — "' + reason + '"' : '');
+    }
+    card.appendChild(details);
+
+    if (Array.isArray(a.escalation_chain) && a.escalation_chain.length >= 2) {
+        var chainDiv = document.createElement('div');
+        chainDiv.style.cssText = 'font-size:0.7rem;color:#64748b;margin-bottom:8px;font-style:italic';
+        var chain = a.escalation_chain.slice();
+        if (chain.length > 4) {
+            chain = [chain[0], chain[1], '…', chain[chain.length - 1]];
+        }
+        chainDiv.textContent = 'Escalated: ' + chain.join(' → ');
+        card.appendChild(chainDiv);
     }
 
     var btns = document.createElement('div');

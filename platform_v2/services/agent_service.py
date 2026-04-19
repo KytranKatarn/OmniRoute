@@ -1503,9 +1503,13 @@ def get_agent_cache() -> Dict:
                    a.is_department_ai,
                    COALESCE(json_agg(
                        json_build_object('skill', s.skill_name, 'level', s.proficiency_level)
-                   ) FILTER (WHERE s.id IS NOT NULL), '[]') AS skills_list
+                   ) FILTER (WHERE s.id IS NOT NULL), '[]') AS skills_list,
+                   COALESCE(json_agg(
+                       json_build_object('capability', cs.capability, 'score', cs.score)
+                   ) FILTER (WHERE cs.id IS NOT NULL), '[]') AS competency_list
             FROM agents a
             LEFT JOIN agent_skills s ON a.id = s.agent_id
+            LEFT JOIN agent_competency_scores cs ON a.id = cs.agent_id
             WHERE a.status = 'active'
             GROUP BY a.id
         """
@@ -1515,6 +1519,10 @@ def get_agent_cache() -> Dict:
             for s in row["skills_list"] if isinstance(row["skills_list"], list) else []:
                 if isinstance(s, dict) and s.get("skill"):
                     skills[s["skill"]] = s.get("level", 1)
+            competency_scores = {}
+            for c in row["competency_list"] if isinstance(row["competency_list"], list) else []:
+                if isinstance(c, dict) and c.get("capability") is not None:
+                    competency_scores[c["capability"]] = float(c["score"])
             cache[row["name"]] = {
                 "id": row["id"],
                 "name": row["name"],
@@ -1526,6 +1534,7 @@ def get_agent_cache() -> Dict:
                 "shift_state": row["shift_state"],
                 "is_department_ai": row["is_department_ai"],
                 "skills": skills,
+                "competency_scores": competency_scores,
             }
     return cache
 

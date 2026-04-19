@@ -167,6 +167,67 @@ class TestScoringPenalty:
         assert score > 1.5, f"Skilled agent should score well, got {score:.3f}"
 
 
+class TestCompetencyScoring:
+    """Competency scores from agent_competency_scores feed a +/-0.2 adjustment (#2179)."""
+
+    def _get_coordinator(self, agent_cache: dict, welfare_cache: dict):
+        from services.department_coordinator import DepartmentCoordinator
+
+        coord = DepartmentCoordinator.__new__(DepartmentCoordinator)
+        coord._agent_cache = agent_cache
+        coord._welfare_cache = welfare_cache
+        coord._cache_time = float("inf")
+        return coord
+
+    def _score(self, coord, agent_info: dict, capability, department) -> float:
+        name = agent_info.get("name", "Agent")
+        score, _ = coord.score_agent(name, agent_info, capability, department, None)
+        return score
+
+    def _make_agent_info(self, competency_scores: dict) -> dict:
+        return {
+            "id": 1,
+            "name": "TestAgent",
+            "department": "CREATIVE",
+            "is_department_ai": False,
+            "status": "active",
+            "shift_state": "active",
+            "skills": {"image_gen": 3},
+            "model": "llama3.2:3b",
+            "competency_scores": competency_scores,
+        }
+
+    def _make_welfare(self) -> dict:
+        return {1: {"stress": 0.3, "energy": 0.8, "budget": {"utilization_pct": 0.2}}}
+
+    def test_strong_competency_adds_bonus(self):
+        """score >= 0.7 adds +0.2, score < 0.5 subtracts -0.2 — 0.4 delta total."""
+        coord = self._get_coordinator({}, self._make_welfare())
+        strong = self._score(coord, self._make_agent_info({"image_gen": 0.85}), "image_gen", "CREATIVE")
+        weak = self._score(coord, self._make_agent_info({"image_gen": 0.40}), "image_gen", "CREATIVE")
+        untested = self._score(coord, self._make_agent_info({}), "image_gen", "CREATIVE")
+
+        assert strong - weak == pytest.approx(0.4, abs=0.001), f"Expected 0.4 delta, got {strong - weak}"
+        assert weak < untested < strong
+
+    def test_untested_equals_passable_no_adjustment(self):
+        """Untested agent (no entry) equals passable score (0.5 <= x < 0.7)."""
+        coord = self._get_coordinator({}, self._make_welfare())
+        untested = self._score(coord, self._make_agent_info({}), "image_gen", "CREATIVE")
+        passable = self._score(coord, self._make_agent_info({"image_gen": 0.6}), "image_gen", "CREATIVE")
+        assert untested == pytest.approx(passable, abs=0.001)
+
+    def test_no_competency_adjustment_when_capability_empty(self):
+        """Empty/None capability means no competency adjustment."""
+        coord = self._get_coordinator({}, self._make_welfare())
+        agent_with_comp = self._make_agent_info({"image_gen": 0.9})
+        agent_no_comp = self._make_agent_info({})
+        # skills={"image_gen": 3} but capability=None — no skill match, no competency
+        score_with = self._score(coord, agent_with_comp, None, "CREATIVE")
+        score_without = self._score(coord, agent_no_comp, None, "CREATIVE")
+        assert score_with == pytest.approx(score_without, abs=0.001)
+
+
 class TestLegacySymbolsRemoved:
     """Regression guard — prevents accidental reintroduction of removed legacy symbols.
 

@@ -251,6 +251,17 @@ class DepartmentCoordinator:
             # every active candidate is unskilled (#2166, 2026-04-19).
             score -= 1.0
 
+        # Competency adjustment — reward/penalize based on tested capability (#2179)
+        if capability:
+            competency_scores = agent_info.get("competency_scores") or {}
+            comp_score = competency_scores.get(capability)
+            if comp_score is not None:
+                if comp_score >= 0.7:
+                    score += 0.2
+                elif comp_score < 0.5:
+                    score -= 0.2
+                # else: 0.5 <= score < 0.7 is passable, no adjustment
+
         if agent_info.get("department") == department:
             score += 0.2
 

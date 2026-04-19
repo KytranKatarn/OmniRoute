@@ -18,7 +18,8 @@ globs: ["ai_bridge/**"]
 - Host: 192.168.1.200:11434 | Docker: `host.docker.internal:11434`
 - GPU: Quadro M4000 (8GB VRAM) | RAM: 128GB
 - RAM budget: 80% LLM (90% agents + 10% swap) / 20% host reserve (ADR-078)
-- MAX_LOADED_MODELS=13 | KEEP_ALIVE=5m (Decision #440, 2026-04-14) | NUM_PARALLEL=4
+- MAX_LOADED_MODELS=3 | KEEP_ALIVE=5m (Decision #440, 2026-04-14) | NUM_PARALLEL=1
+- Lifecycle: load-on-dispatch via `services/model_service.py:ensure_model_ready`, auto-unload via Ollama KEEP_ALIVE. Observer `ollama_lifecycle_telemetry` (5m) logs state + alerts on stall (#1898).
 - Warmup: `_warmup_ollama_models()` in app.py — priority by dispatch frequency, stops at <25GB free
 - Cloud models (`:cloud` suffix) skip local loading
 - Modelfiles at `/mnt/llm_drive/ollama/Modelfile.*`

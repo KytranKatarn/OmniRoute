@@ -1220,6 +1220,428 @@ def _check_proficiency_degradation(cur, conn):
 
 
 # ---------------------------------------------------------------------------
+# Observability jobs — Project #261 task #2101
+# Alerts flow through agent_alerts; track_agent_hr (5m) picks them up and
+# pushes to Telegram via _send_hr_telegram_alerts, so no separate sender.
+# ---------------------------------------------------------------------------
+
+
+def check_queue_exhaustion():
+    """DHQ observer: alert when an agent sits at/above its task_queue_limit.
+
+    Runs every 10 minutes. _create_hr_alert dedups at 1h, so a stuck agent
+    produces at most one warning per hour (matches the "stays that way for
+    >30min" requirement — second firing inside the 10-min cadence confirms
+    persistence, dedup keeps signal clean).
+    """
+    from db import get_db
+    from psycopg2.extras import RealDictCursor
+
+    start = time.time()
+    alerts_created = 0
+    checked = 0
+
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT
+                a.id, a.name, a.display_name, a.department,
+                b.current_task_count, b.task_queue_limit
+            FROM agent_budgets b
+            JOIN agents a ON a.id = b.agent_id
+            WHERE b.task_queue_limit > 0
+              AND b.current_task_count >= b.task_queue_limit
+              AND a.shift_state = 'active'
+            """
+        )
+        rows = cur.fetchall()
+        checked = len(rows)
+
+        for row in rows:
+            display = row["display_name"] or row["name"]
+            created = _create_hr_alert(
+                cur,
+                row["id"],
+                "queue_exhaustion",
+                "warning",
+                f"{display}: task queue full ({row['current_task_count']}/{row['task_queue_limit']})",
+                (
+                    f"Agent {display} ({row['department']}) is at or above task queue limit "
+                    f"({row['current_task_count']}/{row['task_queue_limit']}). Downstream "
+                    f"dispatches to this agent will block until the queue drains."
+                ),
+                {
+                    "department": row["department"],
+                    "current_task_count": row["current_task_count"],
+                    "task_queue_limit": row["task_queue_limit"],
+                },
+            )
+            alerts_created += created
+
+        if alerts_created:
+            conn.commit()
+
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle(
+            "check_queue_exhaustion",
+            checked,
+            0,
+            duration_ms,
+            details={"exhausted_agents": checked, "alerts_created": alerts_created},
+        )
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.exception("check_queue_exhaustion failed")
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle("check_queue_exhaustion", 0, 1, duration_ms, error_message=str(e))
+
+
+def check_counter_drift():
+    """Reconcile agent_budgets.current_task_count against bridge_jobs reality.
+
+    Runs hourly. For each agent, compare stored counter to the actual count
+    of pending/running/queued jobs in bridge_jobs. If |drift| > 3, alert —
+    persistent drift (>1h) self-confirms via re-firing + dedup.
+
+    This job DETECTS drift only. It does NOT auto-correct the counter —
+    that is a deliberate separation so the fix lives with the decrement
+    bug (sibling task) and this observer stays idempotent and safe.
+    """
+    from db import get_db
+    from psycopg2.extras import RealDictCursor
+
+    DRIFT_THRESHOLD = 3
+
+    start = time.time()
+    alerts_created = 0
+    max_drift = 0
+    drifted = 0
+
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # bridge_jobs keys by agent_name, not agent_id — join on name.
+        # Active-work definition MUST match reconcile_task_counters:
+        # anything NOT terminal still holds an in-flight slot (including
+        # pending_approval, which occupies the queue until approved/denied).
+        # Using a narrower IN-list caused false-positive drift alerts —
+        # e.g. Pixel with 5 month-old pending_approval jobs that the
+        # canonical reconciliation correctly recognises as real load.
+        cur.execute(
+            """
+            WITH active_bj AS (
+                SELECT agent_name, COUNT(*) AS live_count
+                FROM bridge_jobs
+                WHERE status NOT IN ('completed', 'failed', 'cancelled')
+                  AND agent_name IS NOT NULL
+                GROUP BY agent_name
+            )
+            SELECT
+                a.id, a.name, a.display_name, a.department,
+                b.current_task_count,
+                COALESCE(active_bj.live_count, 0) AS live_count,
+                b.current_task_count - COALESCE(active_bj.live_count, 0) AS drift
+            FROM agent_budgets b
+            JOIN agents a ON a.id = b.agent_id
+            LEFT JOIN active_bj ON active_bj.agent_name = a.name
+            WHERE a.shift_state = 'active'
+              AND ABS(b.current_task_count - COALESCE(active_bj.live_count, 0)) > %s
+            """,
+            (DRIFT_THRESHOLD,),
+        )
+        rows = cur.fetchall()
+        drifted = len(rows)
+
+        for row in rows:
+            display = row["display_name"] or row["name"]
+            drift = row["drift"]
+            max_drift = max(max_drift, abs(drift))
+            direction = "over-reports" if drift > 0 else "under-reports"
+
+            created = _create_hr_alert(
+                cur,
+                row["id"],
+                "queue_counter_drift",
+                "warning",
+                f"{display}: task counter drift ({drift:+d})",
+                (
+                    f"agent_budgets.current_task_count={row['current_task_count']} but "
+                    f"bridge_jobs shows {row['live_count']} active jobs for {display} "
+                    f"({row['department']}). Counter {direction} reality by {abs(drift)}. "
+                    "This observer does not self-correct — investigate decrement path."
+                ),
+                {
+                    "department": row["department"],
+                    "stored_count": row["current_task_count"],
+                    "live_count": row["live_count"],
+                    "drift": drift,
+                },
+            )
+            alerts_created += created
+
+        if alerts_created:
+            conn.commit()
+
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle(
+            "check_counter_drift",
+            drifted,
+            0,
+            duration_ms,
+            details={
+                "drifted_agents": drifted,
+                "alerts_created": alerts_created,
+                "max_drift": max_drift,
+                "threshold": DRIFT_THRESHOLD,
+            },
+        )
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.exception("check_counter_drift failed")
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle("check_counter_drift", 0, 1, duration_ms, error_message=str(e))
+
+
+def department_welfare_digest():
+    """K.I.N. daily digest: per-department welfare roll-up.
+
+    Project #261 task #1933. Surfaces get_department_welfare_summary()
+    so K.I.N. (and Kytran via Telegram) sees the aggregate state
+    without having to pull it. Fires a warning alert only when a
+    department has avg_stress > 0.5 or >= 1 agent at risk — quiet
+    days stay quiet.
+    """
+    from services.agent_service import get_department_welfare_summary
+
+    start = time.time()
+    alerts_created = 0
+    at_risk_depts = []
+
+    try:
+        summary = get_department_welfare_summary() or []
+
+        flagged = [d for d in summary if float(d.get("avg_stress") or 0) > 0.5 or (d.get("agents_at_risk") or 0) >= 1]
+
+        if flagged:
+            from db import get_db
+            from psycopg2.extras import RealDictCursor
+
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            preview_parts = []
+            for d in flagged[:6]:
+                preview_parts.append(
+                    f"{d['department']} (stress={d['avg_stress']}, "
+                    f"at_risk={d['agents_at_risk']}/{d['total_agents']}, "
+                    f"mood={d.get('dominant_mood') or 'unknown'})"
+                )
+            preview = "; ".join(preview_parts)
+            if len(flagged) > 6:
+                preview += f" (+{len(flagged) - 6} more)"
+
+            alerts_created = _create_hr_alert(
+                cur,
+                None,
+                "department_welfare_risk",
+                "warning",
+                f"K.I.N. welfare digest: {len(flagged)} department(s) elevated",
+                (
+                    f"Departments with stress > 0.5 or agents-at-risk: {preview}. "
+                    "Review welfare state before next heavy-dispatch window."
+                ),
+                {"flagged_departments": flagged, "all_departments": summary},
+            )
+            if alerts_created:
+                conn.commit()
+            at_risk_depts = [d["department"] for d in flagged]
+            cur.close()
+            conn.close()
+
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle(
+            "department_welfare_digest",
+            len(summary),
+            0,
+            duration_ms,
+            details={
+                "departments_total": len(summary),
+                "departments_flagged": len(flagged),
+                "at_risk_departments": at_risk_depts,
+                "alerts_created": alerts_created,
+            },
+        )
+    except Exception as e:
+        logger.exception("department_welfare_digest failed")
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle("department_welfare_digest", 0, 1, duration_ms, error_message=str(e))
+
+
+def ollama_lifecycle_telemetry():
+    """Snapshot Ollama's loaded-model state every 5 min.
+
+    Project #261 task #1898. Ollama already handles load-on-dispatch
+    (via ensure_model_ready) and idle unload (OLLAMA_KEEP_ALIVE=5m,
+    OLLAMA_MAX_LOADED_MODELS=3) on its own. This job does NOT enforce
+    eviction — it observes. It logs the live state so we have history,
+    and raises a warning if a model's KEEP_ALIVE expired >2m ago but
+    it's still resident (= Ollama's lifecycle has stalled).
+    """
+    from services.agent_models import snapshot_ollama_lifecycle
+
+    start = time.time()
+    alerts_created = 0
+
+    try:
+        snap = snapshot_ollama_lifecycle()
+        expired = snap.get("expired_still_loaded", [])
+
+        if expired:
+            from db import get_db
+            from psycopg2.extras import RealDictCursor
+
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            names = ", ".join(m["name"] for m in expired)
+            alerts_created = _create_hr_alert(
+                cur,
+                None,
+                "ollama_keep_alive_stall",
+                "warning",
+                f"Ollama KEEP_ALIVE stalled on {len(expired)} model(s)",
+                (
+                    f"Models past their KEEP_ALIVE window but still loaded: {names}. "
+                    "This points at the Ollama daemon, not at dispatch — inspect "
+                    "systemctl status ollama and recent /api/generate logs."
+                ),
+                {"expired": expired},
+            )
+            if alerts_created:
+                conn.commit()
+            cur.close()
+            conn.close()
+
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle(
+            "ollama_lifecycle_telemetry",
+            snap["models_loaded"],
+            0,
+            duration_ms,
+            details={
+                "models_loaded": snap["models_loaded"],
+                "total_vram_gb": snap["total_vram_gb"],
+                "total_ram_gb": snap["total_ram_gb"],
+                "models": [
+                    {
+                        "name": m["name"],
+                        "vram_gb": m["vram_gb"],
+                        "seconds_remaining": m["seconds_remaining"],
+                    }
+                    for m in snap["models"]
+                ],
+                "expired_count": len(expired),
+                "alerts_created": alerts_created,
+            },
+        )
+    except Exception as e:
+        logger.exception("ollama_lifecycle_telemetry failed")
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle("ollama_lifecycle_telemetry", 0, 1, duration_ms, error_message=str(e))
+
+
+def check_understaffed_capabilities():
+    """K.I.N. daily: which capabilities have no Lv4+ dispatchable agent?
+
+    Runs once a day (09:00 UTC). A capability is "understaffed" when NO
+    active agent with proficiency_level >= 4 is dispatchable (i.e., below
+    their task_queue_limit). Emits one system-level alert with the full
+    list so HR sees it as a single digest, not N per-capability pages.
+    """
+    from db import get_db
+    from psycopg2.extras import RealDictCursor
+
+    start = time.time()
+    alerts_created = 0
+    gaps = 0
+
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            WITH all_capabilities AS (
+                SELECT DISTINCT skill_name
+                FROM agent_skills
+                WHERE proficiency_level >= 4
+            ),
+            staffed AS (
+                SELECT DISTINCT s.skill_name
+                FROM agent_skills s
+                JOIN agents a ON a.id = s.agent_id
+                LEFT JOIN agent_budgets b ON b.agent_id = a.id
+                WHERE s.proficiency_level >= 4
+                  AND a.shift_state = 'active'
+                  AND (
+                      b.agent_id IS NULL
+                      OR b.current_task_count < COALESCE(b.task_queue_limit, 100)
+                  )
+            )
+            SELECT skill_name
+            FROM all_capabilities
+            WHERE skill_name NOT IN (SELECT skill_name FROM staffed)
+            ORDER BY skill_name
+            """
+        )
+        gap_rows = cur.fetchall()
+        gaps = len(gap_rows)
+
+        if gaps > 0:
+            gap_list = [r["skill_name"] for r in gap_rows]
+            preview = ", ".join(gap_list[:12])
+            if gaps > 12:
+                preview += f" (+{gaps - 12} more)"
+
+            # agent_id=NULL for system-level digest
+            alerts_created = _create_hr_alert(
+                cur,
+                None,
+                "understaffed_capabilities",
+                "warning",
+                f"K.I.N. digest: {gaps} capabilities lack a Lv4+ dispatchable agent",
+                (
+                    f"Capabilities with no Lv4+ agent currently dispatchable: {preview}. "
+                    "Consider reactivating a decommissioned specialist or proposing a "
+                    "new acronym agent via the hire workflow."
+                ),
+                {"gap_count": gaps, "capabilities": gap_list},
+            )
+            if alerts_created:
+                conn.commit()
+
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle(
+            "check_understaffed_capabilities",
+            gaps,
+            0,
+            duration_ms,
+            details={"understaffed_capabilities": gaps, "alerts_created": alerts_created},
+        )
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.exception("check_understaffed_capabilities failed")
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle("check_understaffed_capabilities", 0, 1, duration_ms, error_message=str(e))
+
+
+# ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
 
@@ -1286,5 +1708,48 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(minutes=15),
         id="agent_performance_rankings",
         name="Agent Loop: Performance Rankings",
+        replace_existing=True,
+    )
+
+    # --- Project #261 #2101 observability jobs ---
+    from apscheduler.triggers.cron import CronTrigger
+
+    scheduler.add_job(
+        with_ctx(check_queue_exhaustion),
+        trigger=IntervalTrigger(minutes=10),
+        id="agent_queue_exhaustion",
+        name="Agent Loop: Queue Exhaustion Observer",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        with_ctx(check_counter_drift),
+        trigger=IntervalTrigger(hours=1),
+        id="agent_counter_drift",
+        name="Agent Loop: Task Counter Drift Observer",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        with_ctx(check_understaffed_capabilities),
+        trigger=CronTrigger(hour=9, minute=0),
+        id="agent_understaffed_digest",
+        name="Agent Loop: K.I.N. Understaffed Capabilities Digest",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        with_ctx(ollama_lifecycle_telemetry),
+        trigger=IntervalTrigger(minutes=5),
+        id="ollama_lifecycle_telemetry",
+        name="Agent Loop: Ollama Model Lifecycle Telemetry",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        with_ctx(department_welfare_digest),
+        trigger=CronTrigger(hour=9, minute=5),
+        id="department_welfare_digest",
+        name="Agent Loop: K.I.N. Department Welfare Digest",
         replace_existing=True,
     )

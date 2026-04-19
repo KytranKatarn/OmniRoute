@@ -1309,6 +1309,35 @@ def update_welfare_after_task(agent_id, success=True):
         else:
             mood = "productive"
 
+        # Preserve state-machine history before DELETE+INSERT wipes it.
+        # previous_mood = the mood we are transitioning out of (whether or
+        # not the new mood is different). mood_duration_minutes = how long
+        # the agent held that previous mood. Observers use this pair to
+        # reason about agent trajectories (e.g., "exhausted for 3 hours
+        # then crashed to relaxed = just got relieved").
+        cur.execute(
+            """
+            SELECT current_mood, timestamp
+            FROM agent_emotional_state
+            WHERE agent_id = %s
+            ORDER BY timestamp DESC
+            LIMIT 1
+            """,
+            (agent_id,),
+        )
+        prior = cur.fetchone()
+        prev_mood = None
+        duration_minutes = None
+        if prior:
+            prev_mood = prior["current_mood"]
+            if prior["timestamp"]:
+                from datetime import datetime
+
+                duration_minutes = max(
+                    int((datetime.utcnow() - prior["timestamp"]).total_seconds() / 60),
+                    0,
+                )
+
         # DELETE + INSERT (no unique constraint on agent_id)
         cur.execute(
             "DELETE FROM agent_emotional_state WHERE agent_id = %s",
@@ -1317,10 +1346,19 @@ def update_welfare_after_task(agent_id, success=True):
         cur.execute(
             """
             INSERT INTO agent_emotional_state
-                (agent_id, current_mood, stress_level, energy_level, trigger_event)
-            VALUES (%s, %s, %s, %s, %s)
-        """,
-            (agent_id, mood, stress, energy, "post_task_welfare_update"),
+                (agent_id, current_mood, stress_level, energy_level,
+                 trigger_event, previous_mood, mood_duration_minutes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                agent_id,
+                mood,
+                stress,
+                energy,
+                "post_task_welfare_update",
+                prev_mood,
+                duration_minutes,
+            ),
         )
 
         logger.info(

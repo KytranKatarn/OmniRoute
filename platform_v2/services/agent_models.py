@@ -128,3 +128,56 @@ def check_vram_budget(ollama_url=None):
         "total_ram_gb": round(total_ram / (1024**3), 2),
         "models": [{"name": m["name"], "vram_gb": round(m.get("size_vram", 0) / (1024**3), 2)} for m in loaded],
     }
+
+
+def snapshot_ollama_lifecycle(ollama_url=None):
+    """Snapshot of loaded models with expiry state.
+
+    Returns a dict describing what's loaded, how long each model has left
+    on its KEEP_ALIVE clock, and which (if any) have already expired but
+    are still loaded — an indicator that Ollama's lifecycle enforcement
+    has stalled. Pure read — does not load, unload, or mutate anything.
+    """
+    from datetime import datetime, timezone
+
+    loaded = get_loaded_models(ollama_url)
+    now = datetime.now(timezone.utc)
+
+    models = []
+    expired_still_loaded = []
+    for m in loaded:
+        expires_raw = m.get("expires_at") or ""
+        expires_at = None
+        seconds_remaining = None
+        if expires_raw:
+            try:
+                expires_at = datetime.fromisoformat(expires_raw.replace("Z", "+00:00"))
+                seconds_remaining = int((expires_at - now).total_seconds())
+            except ValueError:
+                pass
+
+        entry = {
+            "name": m["name"],
+            "vram_gb": round(m.get("size_vram", 0) / (1024**3), 2),
+            "ram_gb": round(m.get("size", 0) / (1024**3), 2),
+            "expires_at": expires_raw,
+            "seconds_remaining": seconds_remaining,
+        }
+        models.append(entry)
+
+        # Model is still loaded but its KEEP_ALIVE window has passed.
+        # A brief negative window (<120s) can just be timing noise —
+        # only flag meaningful stalls.
+        if seconds_remaining is not None and seconds_remaining < -120:
+            expired_still_loaded.append(entry)
+
+    total_vram = sum(m.get("size_vram", 0) for m in loaded)
+    total_ram = sum(m.get("size", 0) for m in loaded)
+
+    return {
+        "models_loaded": len(loaded),
+        "total_vram_gb": round(total_vram / (1024**3), 2),
+        "total_ram_gb": round(total_ram / (1024**3), 2),
+        "models": models,
+        "expired_still_loaded": expired_still_loaded,
+    }

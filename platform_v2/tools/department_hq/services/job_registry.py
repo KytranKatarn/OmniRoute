@@ -5,7 +5,7 @@ Single source of truth for job ownership. Used by:
 - autonomy_loop_log department column
 - Job health reporting
 
-Total: 119 active jobs across 8 source files and 13 departments.
+Total: 124 active jobs across 8 source files and 13 departments.
 """
 
 # Each entry: job_id -> {department, director, description, interval, source_file}
@@ -805,7 +805,7 @@ JOB_REGISTRY = {
         "source_file": "platform_v2/services/fleet_jobs.py",
     },
     # =========================================================================
-    # platform_v2/services/agent_jobs.py — 6 jobs
+    # platform_v2/services/agent_jobs.py — 11 jobs
     # =========================================================================
     "agent_hr_tracker": {
         "department": "Human Resources & Culture",
@@ -847,6 +847,41 @@ JOB_REGISTRY = {
         "director": "S.P.E.C.T.R.A.",
         "description": "Update agent performance rankings across departments",
         "interval": "15m",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
+    "agent_queue_exhaustion": {
+        "department": "Human Resources & Culture",
+        "director": "K.I.N.",
+        "description": "DHQ observer — alert when agent is at task_queue_limit (Project #261 #2101)",
+        "interval": "10m",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
+    "agent_counter_drift": {
+        "department": "Human Resources & Culture",
+        "director": "K.I.N.",
+        "description": "Reconcile agent_budgets counter vs bridge_jobs live count — alert on drift > 3",
+        "interval": "1h",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
+    "agent_understaffed_digest": {
+        "department": "Human Resources & Culture",
+        "director": "K.I.N.",
+        "description": "Daily digest — capabilities with no Lv4+ dispatchable agent",
+        "interval": "daily 09:00",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
+    "ollama_lifecycle_telemetry": {
+        "department": "Operations & Infrastructure",
+        "director": "B.A.S.E.",
+        "description": "Snapshot Ollama loaded models + alert on KEEP_ALIVE stall (#1898)",
+        "interval": "5m",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
+    "department_welfare_digest": {
+        "department": "Human Resources & Culture",
+        "director": "K.I.N.",
+        "description": "Daily welfare roll-up — alert on elevated stress / agents-at-risk (#1933)",
+        "interval": "daily 09:05",
         "source_file": "platform_v2/services/agent_jobs.py",
     },
     # =========================================================================

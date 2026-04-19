@@ -3490,7 +3490,7 @@ class AgentLoop:
             import base64
             import requests
             from tools.consciousness.dependency_scanner import DependencyScanner
-            from tools.consciousness.routes import _store_dependency_scan
+            from tools.consciousness.github_routes import _store_dependency_scan
             from database import get_db_cursor
 
             github_token = os.getenv("GITHUB_TOKEN")

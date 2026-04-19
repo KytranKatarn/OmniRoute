@@ -31,6 +31,7 @@ DEPARTMENT_FLOOR_MAP = {
     "Creative & Design": "CREATIVE",
     "Marketing & Communications": "CREATIVE",
     "Documentation & Knowledge": "CREATIVE",
+    "News & Media": "CREATIVE",
     "Customer Success & Support": "SERVICES",
     "Human Resources & Culture": "SERVICES",
     "Medical & Wellness": "SERVICES",
@@ -228,7 +229,7 @@ def update_agent(agent_id, **fields):
     set_clauses = []
     params = []
     for key, val in fields.items():
-        if key in ("capabilities", "metadata") and isinstance(val, dict):
+        if key in ("capabilities", "metadata", "permissions") and isinstance(val, (dict, list)):
             set_clauses.append(f"{key} = %s::jsonb")
             params.append(json.dumps(val))
         else:

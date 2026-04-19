@@ -82,20 +82,26 @@ def create_app() -> Flask:
 
     @app.route("/agent")
     def agent_stub():
-        """Placeholder for the future M.E.D.I.A. agent (Media Entertainment
-        Direction & Intelligent Assistance). Same pattern as /auth/sso —
-        discoverable endpoint that tells clients the feature is on the
-        roadmap rather than 404ing silently."""
+        """Placeholder for M.A.V.E.N. — Media Archive & Viewing Experience
+        Navigator. Repurposed from the retired Maven librarian role in the
+        A.R.C.H.I.E. roster (platform agents table id=27, active News & Media
+        / CREATIVE). Wiring to inference is Tier 2."""
         return (
             jsonify(
                 {
                     "status": "not_implemented",
-                    "name": "M.E.D.I.A.",
-                    "description": (
-                        "Natural-language media agent on the roadmap. Will handle "
-                        "recommendation, smart queuing, duplicate triage, family-aware "
-                        "suggestions, and conversational search over the federated library."
-                    ),
+                    "name": "M.A.V.E.N.",
+                    "expansion": "Media Archive & Viewing Experience Navigator",
+                    "archetype": "Same pattern as F.O.R.G.E., V.I.G.I.L., P.R.O.B.E.",
+                    "capabilities": [
+                        "conversational_search",
+                        "recommendation",
+                        "library_curation",
+                        "upgrade_scanning",
+                        "collection_generation",
+                        "duplicate_triage",
+                        "family_profiles",
+                    ],
                     "tracking": "Project #273 Tier 2",
                 }
             ),

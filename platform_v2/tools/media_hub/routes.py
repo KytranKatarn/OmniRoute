@@ -32,6 +32,63 @@ _stats_cache = {
 # Cache for TMDB metadata enrichment
 _tmdb_enrichment_cache = {}
 
+# Generic per-endpoint TTL cache so tab switches don't re-hit Plex/Jellyfin on
+# every navigation. Keyed on endpoint name + query string; safe to keep
+# process-local per gunicorn worker because Plex/Jellyfin responses don't vary
+# by Flask user session.
+_response_cache = {}  # {key: (timestamp, (body, status, mimetype))}
+
+
+def cached_response(ttl_seconds):
+    """Decorator that caches a view's JSON/Response output for `ttl_seconds`."""
+    import json as _json
+    import time as _time
+    from functools import wraps as _wraps
+
+    from flask import Response as _Response
+    from flask import request as _request
+
+    def decorator(fn):
+        @_wraps(fn)
+        def wrapper(*args, **kwargs):
+            key = f"{fn.__name__}:{_request.query_string.decode('utf-8', 'replace')}"
+            now = _time.time()
+            hit = _response_cache.get(key)
+            if hit and (now - hit[0]) < ttl_seconds:
+                body, status, mimetype = hit[1]
+                return _Response(body, status=status, mimetype=mimetype)
+
+            result = fn(*args, **kwargs)
+
+            # Normalise to (payload, status) — view may return Response, dict,
+            # tuple, or plain body
+            status = 200
+            payload = result
+            if isinstance(result, tuple):
+                payload = result[0]
+                if len(result) > 1 and isinstance(result[1], int):
+                    status = result[1]
+
+            if isinstance(payload, _Response):
+                body = payload.get_data(as_text=True)
+                status = payload.status_code
+                mimetype = payload.mimetype or "application/json"
+            elif isinstance(payload, (dict, list)):
+                body = _json.dumps(payload)
+                mimetype = "application/json"
+            else:
+                body = str(payload)
+                mimetype = "text/plain"
+
+            # Only cache 2xx so we don't stamp failures into memory
+            if 200 <= status < 300:
+                _response_cache[key] = (now, (body, status, mimetype))
+            return _Response(body, status=status, mimetype=mimetype)
+
+        return wrapper
+
+    return decorator
+
 
 def enrich_items_with_tmdb(items: list) -> list:
     """
@@ -459,6 +516,7 @@ def api_search():
 
 
 @media_hub_bp.route("/api/library/recent")
+@cached_response(60)
 def api_library_recent():
     """Get recently added items from library"""
     limit = request.args.get("limit", 20, type=int)
@@ -589,6 +647,7 @@ def api_cache_status():
 
 
 @media_hub_bp.route("/api/library/movies")
+@cached_response(120)
 def api_library_movies():
     """Get all movies with pagination and sorting, enriched with TMDB data"""
     limit = request.args.get("limit", 50, type=int)
@@ -622,6 +681,7 @@ def api_library_movies():
 
 
 @media_hub_bp.route("/api/library/shows")
+@cached_response(120)
 def api_library_shows():
     """Get all TV shows with pagination and sorting, enriched with TMDB data"""
     limit = request.args.get("limit", 50, type=int)
@@ -1601,6 +1661,7 @@ def api_set_primary_server(service_id):
 
 
 @media_hub_bp.route("/api/library/continue-watching")
+@cached_response(30)
 def api_continue_watching():
     """Get on-deck / continue watching items from ALL media servers"""
     from .clients.plex import PlexClient
@@ -1685,6 +1746,7 @@ def api_continue_watching():
 
 
 @media_hub_bp.route("/api/library/collections")
+@cached_response(300)
 def api_collections():
     """Get all collections from library"""
     media_server, server_type = get_primary_media_server()

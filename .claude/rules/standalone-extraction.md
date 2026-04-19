@@ -57,6 +57,56 @@ Every extraction follows this playbook. No exceptions.
 8. **Redirect** — Replace ARCHIE module with launch link.
 9. **Verify** — Browser test all features, compliance green, badges live, Code Health reporting.
 
+## Common traps (learned the hard way)
+
+### CSS dependency tree — ship the WHOLE stack
+
+`platform_v2/templates/base.html` loads **16 CSS files** in a specific order. The module's own stylesheet (`<module>.css`) assumes every one of those upstream files has already declared its tokens and resets. Shipping only `<module>.css` + a couple of LCARS chrome files leaves the UI stuck in light-mode-forever (body-level dark tokens never declared, browser defaults win).
+
+Audit your standalone base template against this list before considering a module "extracted":
+
+```
+theme.css              — --archie-* design tokens, dark-mode defaults
+base.css               — html/body reset, typography
+animations.css         — LCARS transitions + transforms
+archie-breakpoints.css — responsive breakpoints
+components.css         — cards, buttons, badges, pills
+category-nav.css       — module category navigation strip
+lcars-frames.css       — elbow corners + frame borders
+lcars-header.css       — top bar w/ language/theme/alerts
+lcars-modals.css       — bm-overlay + bm-shell modals
+mobile.css             — 480/768/1024px overrides
+<module>.css           — module-specific styles (LAST)
+```
+
+**Do NOT ship `light-mode.css`** without also shipping its matching `themes/<theme>.css` override — without the override it wins on every selector and the standalone is visually broken. Load order: tokens → resets → animations → breakpoints → components → nav → chrome → modals → mobile → module.
+
+### Asset dependency tree — not just CSS
+
+Same discipline for JS + icons + manifest:
+
+```
+js/<module>.js         — the module JS
+js/<module>-sw.js      — if the module is a PWA
+js/lcars-header.js     — required by lcars-header.html include
+manifest.json          — required by <link rel="manifest">
+icons/<module>-*.png   — all sizes referenced from manifest + html
+```
+
+Service workers are booby-trapped: `cache.addAll()` fails the ENTIRE install if any single entry 404s, leaving the PWA silently broken. Audit the SW's `STATIC_ASSETS` list against what actually exists in the standalone build.
+
+### External CDN scripts
+
+If platform base loads anything from a CDN (Lucide icons, Bootstrap, fonts), make sure the standalone base loads them too. Platform dependencies like `https://unpkg.com/lucide@latest` aren't installed automatically — they're `<script>` tags the standalone base must repeat.
+
+### Negative cache
+
+Users who visited during the "built-but-assets-missing" window may have 404s negatively cached in their browser. Either ship `Cache-Control: no-cache, must-revalidate` on all responses until the extraction stabilises (transitional), or use hash-based filenames for static assets (production pattern).
+
+### Full QA loop — don't trust a single screen state
+
+Playwright "it renders" isn't enough — log in, navigate every main nav tab, check the console for 404s on each route. Compare light-mode vs dark-mode visually. The CSS drift in Media Hub went unnoticed for ~4 PRs because only one screen state was tested against a cached browser.
+
 ## Active Standalone Products
 
 | Product | Port | Path | Tier | Status |
@@ -64,3 +114,4 @@ Every extraction follows this playbook. No exceptions.
 | Kytran System Operations | 8085 | `/mnt/archie_brain/kytran-server-manager` | 1 | In Progress |
 | Kytran Business Suite | 8091 | `/mnt/archie_brain/kytran-business-suite` | 1 | Phase 1 Complete |
 | C.R.E.E.D. Governance | 8086 | `/mnt/archie_brain/kytran-creed` | 1 | Deployed (Decision #438) |
+| Media Hub | 8105 | `/mnt/archie_brain/standalone/media_hub` | 1 | Live 2026-04-19 at media.kytranempowerment.com |

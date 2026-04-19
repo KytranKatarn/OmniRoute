@@ -3,17 +3,23 @@
  * Enables PWA functionality with offline caching
  */
 
-const CACHE_NAME = 'media-hub-v1';
-const STATIC_CACHE = 'media-hub-static-v1';
-const DYNAMIC_CACHE = 'media-hub-dynamic-v1';
-const IMAGE_CACHE = 'media-hub-images-v1';
+// Bump these version tags on any precache list change so browsers with an
+// older SW pick up the fresh files (old caches are purged in the activate
+// handler below).
+const CACHE_NAME = 'media-hub-v2';
+const STATIC_CACHE = 'media-hub-static-v2';
+const DYNAMIC_CACHE = 'media-hub-dynamic-v2';
+const IMAGE_CACHE = 'media-hub-images-v2';
 
-// Static assets to cache immediately
+// Static assets to cache immediately. cache.addAll() fails the ENTIRE install
+// if any single entry 404s — so every path here must exist in both platform
+// and standalone builds. archie-design-system.css was removed on 2026-04-19
+// after it silently broke SW install on the Media Hub standalone.
 const STATIC_ASSETS = [
-    '/tools/media-hub',
+    '/tools/media-hub/',
     '/static/js/media-hub.js',
+    '/static/css/media-hub.css',
     '/static/manifest.json',
-    '/static/css/archie-design-system.css',
     '/static/icons/media-hub-192.png',
     '/static/icons/media-hub-512.png'
 ];

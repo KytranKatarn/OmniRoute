@@ -76,4 +76,7 @@ EXPOSE 8105
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD curl -fsS http://127.0.0.1:8105/health || exit 1
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8105", "--workers", "2", "--timeout", "60", "app:app"]
+# Single gunicorn worker keeps the in-memory rate limiter + response cache
+# consistent without external storage. Family-scale install — 1 worker is
+# plenty. If we ever scale out, swap MEDIA_HUB_RATELIMIT_URI to redis://.
+CMD ["gunicorn", "--bind", "0.0.0.0:8105", "--workers", "1", "--threads", "4", "--timeout", "60", "app:app"]

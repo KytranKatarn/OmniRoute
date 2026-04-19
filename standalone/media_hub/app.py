@@ -11,7 +11,10 @@ import logging
 import os
 
 from flask import Flask, redirect, request, url_for
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # tools.media_hub imports `from database import get_db_cursor`. Our standalone
 # /app/database.py (DATABASE_URL-backed) sits on sys.path first — see Dockerfile.
@@ -28,6 +31,22 @@ def create_app() -> Flask:
     app = Flask(__name__, template_folder="templates")
     app.config["SECRET_KEY"] = os.environ["MEDIA_HUB_SECRET_KEY"]
 
+    # NPM terminates TLS one hop in front of us — trust its X-Forwarded-* so
+    # get_remote_address() returns the real client IP for rate limiting,
+    # auth_events, and anything else that keys on IP.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+    # Rate limiter — default bucket is disabled; we apply limits per-endpoint.
+    # Storage is in-process memory (fine for a single gunicorn worker stack;
+    # if we scale out, swap to redis:// via MEDIA_HUB_RATELIMIT_URI).
+    limiter = Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=[],
+        storage_uri=os.getenv("MEDIA_HUB_RATELIMIT_URI", "memory://"),
+        strategy="fixed-window",
+    )
+
     lm = LoginManager()
     lm.login_view = "auth.login"
     lm.init_app(app)
@@ -38,6 +57,13 @@ def create_app() -> Flask:
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_mgmt_bp)
     app.register_blueprint(media_hub_bp)
+
+    # Gate /login after registration. Flask stores the dispatch target in
+    # app.view_functions — decorating with limiter.limit returns a new fn,
+    # so we have to reassign it back or the limit never fires.
+    app.view_functions["auth.login"] = limiter.limit("10 per minute; 30 per hour")(
+        app.view_functions["auth.login"]
+    )
 
     # Create admin from MEDIA_HUB_ADMIN_PASSWORD if users table is empty.
     with app.app_context():

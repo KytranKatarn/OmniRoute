@@ -15,6 +15,7 @@
 | WTF Ingest             | internal | — | wtf-ingest | VPS |
 | Business Suite | 8091 | business.kytranempowerment.com | kbs_app | Hub |
 | System Operations | 8085 | server.kytranempowerment.com | kytran-system-operations | Hub |
+| Media Hub (standalone) | 8105 | tbd | mediahub_app | Hub (not deployed yet) |
 | Stalwart Mail | 25/465/587/993 | mail.kytranempowerment.com | stalwart_mail | Hub |
 | CORS Proxy | 8098 | proxy.kytranempowerment.com | kytran_cors_proxy | Hub |
 | Headscale Mesh | 8095 | mesh.kytranempowerment.com | archie_headscale | Hub |

@@ -132,6 +132,13 @@ _STANDALONE_DEFS = [
         "tier": 1,
         "compliance_packs": ["docker-stig"],
     },
+    {
+        "name": "Media Hub",
+        "dir_name": "media_hub",
+        "module_key": "standalone_media_hub",
+        "tier": 1,
+        "compliance_packs": ["ubuntu-stig", "docker-stig"],
+    },
 ]
 
 
@@ -140,6 +147,9 @@ def _resolve_standalone_path(dir_name):
     candidates = [
         os.path.join(STANDALONE_BASE, dir_name),
         os.path.join("/mnt/archie_brain", dir_name),
+        # Newer standalones live under /mnt/archie_brain/standalone/<dir> — keeps
+        # all extraction products co-located (Project #273 onward).
+        os.path.join("/mnt/archie_brain/standalone", dir_name),
     ]
     for c in candidates:
         if os.path.isdir(c):

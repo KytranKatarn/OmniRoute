@@ -149,14 +149,6 @@ def test_placement_event_is_emitted_on_live_dispatch():
 
 from unittest.mock import patch as _unittest_patch
 
-# Ensure /tmp/pip_pkgs is on sys.path so `responses` can be found when
-# the container filesystem is read-only (pip installs there as a fallback).
-import os as _os
-import sys as _sys
-
-if _os.path.isdir("/tmp/pip_pkgs") and "/tmp/pip_pkgs" not in _sys.path:
-    _sys.path.insert(0, "/tmp/pip_pkgs")
-
 try:
     import responses as _responses
 

@@ -198,64 +198,6 @@ CAPABILITY_TIMEOUTS = {
     "knowledge_analysis": 600,
 }
 
-# =========================================================================
-# DEPRECATED (2026-04-19, Project #261 #1915): this hardcoded table is
-# legacy. The real dispatch path is skill-based:
-#   department_coordinator.select_agent() scores candidates by
-#   agent_skills.proficiency_level for the requested capability.
-#
-# AGENT_SPECIALIZATION is now only read by get_agent_for_module()
-# (line ~5145). Several entries reference agents that were decommissioned
-# in migration 103 (Wordsmith, DataMind, CommRelay, OpsMaster) or never
-# existed (Sentinel). Those lookups silently return None because the
-# names are not in _agent_cache — callers fall through, no harm.
-#
-# Do NOT add new entries here. To route a capability, populate
-# agent_skills(skill_name, proficiency_level) on the responsible agent —
-# coordinator.select_agent() will pick it up automatically.
-#
-# Removal tracked as a follow-up: delete this table + get_agent_for_module
-# once all call sites are migrated to capability-based lookup.
-# =========================================================================
-# Specialized agent selection within departments
-# When a department has multiple agents, pick by sub-capability
-AGENT_SPECIALIZATION = {
-    "Executive Office": {
-        "default": "ARCHIE",
-        "security_analysis": "Sentinel",
-        "compliance": "Sentinel",
-        "audit": "Sentinel",
-        "governance": "Sentinel",
-        "threat_detection": "Sentinel",
-    },
-    "Engineering & Technology": {
-        "default": "CodeSmith",
-        "schema_design": "Architect",
-        "api_design": "Architect",
-        "architecture": "Architect",
-    },
-    "Operations & Infrastructure": {
-        "default": "OpsMaster",
-        "telegram": "CommRelay",
-        "email": "CommRelay",
-        "notification": "CommRelay",
-        "webhook": "CommRelay",
-        "ha_integration": "CommRelay",
-    },
-    "Analytics & Intelligence": {
-        "default": "DataMind",
-        "embedding": "Nexus",
-        "vision": "Nexus",
-        "knowledge_extraction": "Nexus",
-    },
-    "Creative & Design": {
-        "default": "Wordsmith",
-    },
-    "Research & Development": {
-        "default": "Scholar",
-    },
-}
-
 # Scoring weights for multi-factor agent selection
 SELECTION_WEIGHTS = {
     "skills": 0.30,
@@ -1036,8 +978,8 @@ class DepartmentDispatcher:
     def _get_dynamic_specialization(self, department: str, capability: str) -> Optional[str]:
         """Return the top benchmark performer for *capability* in *department*.
 
-        Uses a 10-minute cache.  Falls back to ``None`` so the caller can
-        check the static ``AGENT_SPECIALIZATION`` dict.
+        Uses a 10-minute cache.  Falls back to ``None`` so the caller
+        falls through to skill-based coordinator.select_agent().
         """
         _NO_WINNER = ""  # sentinel for "queried DB, no winner found"
         now = time.time()
@@ -5130,51 +5072,6 @@ class DepartmentDispatcher:
                 return json.loads(result.response)
             except (json.JSONDecodeError, TypeError):
                 return None
-        return None
-
-    def get_agent_for_module(self, module_id: str) -> Optional[Dict]:
-        """
-        Get the currently assigned agent for a module.
-        Used by the agent badge system (Phase 4).
-        """
-        self._refresh_agent_cache()
-
-        # Find which station owns this module
-        try:
-            from psycopg2.extras import RealDictCursor
-
-            conn = self._get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
-                SELECT station_code, modules
-                FROM bridge_stations
-                WHERE is_active = TRUE AND %s = ANY(modules)
-                LIMIT 1
-            """,
-                (module_id,),
-            )
-            row = cur.fetchone()
-            cur.close()
-            conn.close()
-
-            if row:
-                station_code = row["station_code"]
-                # Get the default agent for this station
-                station_specs = AGENT_SPECIALIZATION.get(station_code, {})
-                agent_name = station_specs.get("default", "ARCHIE")
-                agent_info = self._agent_cache.get(agent_name)
-                if agent_info:
-                    return {
-                        "agent_name": agent_name,
-                        "agent_id": agent_info["id"],
-                        "model": agent_info["model"],
-                        "station_code": station_code,
-                        "status": "active",
-                    }
-        except Exception as e:
-            logger.warning(f"[BridgeDispatcher] get_agent_for_module failed: {e}")
-
         return None
 
     def get_model_for_capability(self, capability: str) -> str:

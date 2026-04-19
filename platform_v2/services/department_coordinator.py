@@ -244,6 +244,12 @@ class DepartmentCoordinator:
         if capability in skills:
             proficiency = skills[capability]
             score += proficiency * 0.2
+        elif capability:
+            # Agent lacks the requested skill entirely.  Apply a hard penalty
+            # so unskilled directors (dept +0.2, director +0.3) cannot beat a
+            # barracked specialist — this forces wake-on-demand to trigger when
+            # every active candidate is unskilled (#2166, 2026-04-19).
+            score -= 1.0
 
         if agent_info.get("department") == department:
             score += 0.2

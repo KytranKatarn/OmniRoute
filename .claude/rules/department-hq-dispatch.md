@@ -97,10 +97,7 @@ dispatch(capability, ...) → coordinator.select_agent(capability, department)
 2. Active/barracked shift state both work — barracked specialists wake on demand when no active candidate qualifies.
 3. `is_department_ai=true` gives a +0.3 bonus (department directors preferred unless a skilled specialist has enough raw score to overcome it).
 
-**Deprecated (do not add to):** `AGENT_SPECIALIZATION` dict at top of
-`department_dispatcher.py`. It's a legacy hardcoded-name lookup consulted
-only by `get_agent_for_module()` which silently returns None when its
-stale references miss the active cache. Removal tracked as follow-up.
+**Removed in #2165:** `AGENT_SPECIALIZATION` dict and `get_agent_for_module()` helper are gone. All agent selection goes through `coordinator.select_agent(capability, department)` — skill-based with wake-on-demand fallback. Regression tests in `test_dispatch_scoring.py::TestLegacySymbolsRemoved` prevent reintroduction.
 
 ## Approval Queue Surface (2026-04-19)
 

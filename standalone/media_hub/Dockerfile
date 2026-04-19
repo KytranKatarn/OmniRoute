@@ -31,6 +31,7 @@ COPY standalone/media_hub/app.py         /app/app.py
 COPY standalone/media_hub/auth_routes.py /app/auth_routes.py
 COPY standalone/media_hub/users.py       /app/users.py
 COPY standalone/media_hub/templates/     /app/templates/
+COPY standalone/media_hub/scripts/       /app/scripts/
 
 # Platform templates the Media Hub route renders directly
 # (the blueprint static/standalone base is already inside tools/media_hub/

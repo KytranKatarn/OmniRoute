@@ -69,3 +69,48 @@ exceeds `auto_approve_threshold`, it routes through `request_approval()` with
 `action_type='contractor_dispatch'` and blocks on `wait_for_approval()` until a
 Telegram approve/deny/escalate button press resolves it. See `autonomy.md` for
 the approval pipeline.
+
+## Agent Selection (2026-04-19)
+
+The canonical agent selection path is **skill-based**, not name-based:
+
+```
+dispatch(capability, ...) → coordinator.select_agent(capability, department)
+   → loops over _agent_cache for matching department
+   → score = 1.0 + (1-stress)*0.3 + energy*0.2 - util*0.5
+             + skill_proficiency * 0.2 if capability in agent.skills
+             + 0.2 if dept match
+             + 0.3 if is_department_ai
+             + tier-match bonus if recommended_tier
+   → highest positive score wins
+   → if NO active candidate scores > 0:
+        → _wake_barracked_specialist(capability, department)
+          → finds barracked agent with proficiency ≥ 3 on the skill
+          → agent_service.transition_shift_state(id, 'active', 'wake_on_demand')
+          → governance_audit_log entry written
+          → returns the woken agent
+```
+
+**Consequences for making an agent dispatchable:**
+
+1. Populate `agent_skills(agent_id, skill_name, proficiency_level, can_escalate_to)` — `skill_name` must match the `capability=` string passed to `dispatch()`.
+2. Active/barracked shift state both work — barracked specialists wake on demand when no active candidate qualifies.
+3. `is_department_ai=true` gives a +0.3 bonus (department directors preferred unless a skilled specialist has enough raw score to overcome it).
+
+**Deprecated (do not add to):** `AGENT_SPECIALIZATION` dict at top of
+`department_dispatcher.py`. It's a legacy hardcoded-name lookup consulted
+only by `get_agent_for_module()` which silently returns None when its
+stale references miss the active cache. Removal tracked as follow-up.
+
+## Approval Queue Surface (2026-04-19)
+
+`GET /api/approvals/pending` returns a unified list across three sources:
+- `autonomy_approval_queue` (Tier-2 agent-loop actions)
+- `contractor_approval_requests` (cost-gated contractor dispatch)
+- `bridge_jobs.status='pending_approval'` (cloud dispatch gate)
+
+Each row normalised to `{id, source, category, display_name, reason, agent_name, created_at}`. IDs are source-prefixed (`autonomy:123`, `contractor:456`, `bridge:789`).
+
+The `reap_stale_pending_approvals` job (daily 04:30 UTC) auto-cancels `bridge_jobs.pending_approval` rows older than 7 days and decrements the matching `agent_budgets.current_task_count`.
+
+**Canonical "active work" for agent_budgets**: `bridge_jobs.status NOT IN ('completed', 'failed', 'cancelled')`. This is what `reconcile_task_counters` uses; any drift observer must share the same filter.

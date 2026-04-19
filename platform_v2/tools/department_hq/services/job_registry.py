@@ -5,7 +5,7 @@ Single source of truth for job ownership. Used by:
 - autonomy_loop_log department column
 - Job health reporting
 
-Total: 118 active jobs across 8 source files and 13 departments.
+Total: 119 active jobs across 8 source files and 13 departments.
 """
 
 # Each entry: job_id -> {department, director, description, interval, source_file}
@@ -190,6 +190,13 @@ JOB_REGISTRY = {
         "director": "B.A.S.E.",
         "description": "Ollama model health check — verify loaded models are responsive",
         "interval": "30m",
+        "source_file": "ai_bridge/agent_loop.py",
+    },
+    "agent_media_hub_health_check": {
+        "department": "Operations & Infrastructure",
+        "director": "B.A.S.E.",
+        "description": "Probe every enabled Media Hub service (Plex/Jellyfin/Sonarr/…) and persist health_status + health_message",
+        "interval": "10m",
         "source_file": "ai_bridge/agent_loop.py",
     },
     "agent_mission_schedule": {

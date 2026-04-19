@@ -411,6 +411,7 @@ JOB_DEPARTMENT_MAP = {
     "translation_coverage_scan": "Documentation & Knowledge",
     "crew_wellness_tick": "Human Resources & Culture",
     "ollama_model_health": "Operations & Infrastructure",
+    "media_hub_health_check": "Operations & Infrastructure",
     "media_queue_cleanup": "Creative & Design",
     "media_export_cleanup": "Creative & Design",
     "market_watch_cycle": "Analytics & Intelligence",
@@ -1089,6 +1090,15 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=30),
             id="agent_ollama_model_health",
             name="Agent Loop: Ollama Model Health",
+            replace_existing=True,
+        )
+
+        # Media Hub health check (every 10 min) — probes Plex/Jellyfin/Sonarr/…
+        self.scheduler.add_job(
+            with_app_context(self._media_hub_health_check),
+            trigger=IntervalTrigger(minutes=10),
+            id="agent_media_hub_health_check",
+            name="Agent Loop: Media Hub Service Health",
             replace_existing=True,
         )
 
@@ -3562,6 +3572,29 @@ class AgentLoop:
         except Exception as e:
             duration_ms = int((time.time() - start) * 1000)
             self._log_cycle("crew_wellness_tick", 0, 1, duration_ms, error_message=str(e))
+
+    def _media_hub_health_check(self):
+        """Probe every enabled media_hub_services row and persist health state.
+
+        Delegates to tools.media_hub.health.run_health_checks so the logic
+        lifts cleanly during Project #273 standalone extraction.
+        """
+        start = time.time()
+        try:
+            from tools.media_hub.health import run_health_checks
+
+            summary = run_health_checks()
+            self._log_cycle(
+                "media_hub_health_check",
+                summary["healthy"],
+                summary["unhealthy"] + summary["errors"],
+                int((time.time() - start) * 1000),
+            )
+        except Exception as e:
+            logger.error(f"Error in media_hub_health_check: {e}")
+            self._log_cycle(
+                "media_hub_health_check", 0, 1, int((time.time() - start) * 1000), error_message=str(e)
+            )
 
     def _ollama_model_health(self):
         """Ollama model health check every 30 min — migrated from app.py."""

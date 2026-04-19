@@ -17,6 +17,7 @@ import logging
 import os
 import time
 from datetime import datetime
+from typing import Any, Optional
 
 logger = logging.getLogger("agent_loop")
 
@@ -1642,6 +1643,172 @@ def check_understaffed_capabilities():
 
 
 # ---------------------------------------------------------------------------
+# K.I.N. Hire Proposal Generation (#2102)
+# ---------------------------------------------------------------------------
+# Daily ~09:05 UTC, right after agent_understaffed_digest. Re-runs the same
+# WITH clause used by check_understaffed_capabilities (single source of truth),
+# then for each gap generates a shortlist + best-effort narrative and calls
+# hiring_service.propose_for_gap.
+
+KIN_AGENT_ID = 145  # prior-session exploration confirmed agents.id for K.I.N.
+MAX_PROPOSALS_PER_RUN = 10
+
+
+def _list_current_capability_gaps() -> list[dict[str, Any]]:
+    """Re-run the same WITH clause check_understaffed_capabilities uses.
+
+    Single source of truth — avoids cross-table dependency on
+    system_notifications / autonomy_loop_log for the gap list.
+    """
+    from db import get_db
+    from psycopg2.extras import RealDictCursor
+
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            WITH all_capabilities AS (
+                SELECT DISTINCT skill_name
+                FROM agent_skills
+                WHERE proficiency_level >= 4
+            ),
+            staffed AS (
+                SELECT DISTINCT s.skill_name
+                FROM agent_skills s
+                JOIN agents a ON a.id = s.agent_id
+                LEFT JOIN agent_budgets b ON b.agent_id = a.id
+                WHERE s.proficiency_level >= 4
+                  AND a.shift_state = 'active'
+                  AND (b.agent_id IS NULL
+                       OR b.current_task_count < COALESCE(b.task_queue_limit, 100))
+            )
+            SELECT skill_name AS capability
+            FROM all_capabilities
+            WHERE skill_name NOT IN (SELECT skill_name FROM staffed)
+            ORDER BY skill_name
+            """
+        )
+        return [
+            {"capability": r["capability"], "gap_reason": f"No active Lv4+ dispatchable agent for '{r['capability']}'"}
+            for r in cur.fetchall()
+        ]
+    finally:
+        conn.close()
+
+
+def _generate_hire_narrative(gap: dict[str, Any], shortlist: list[dict[str, Any]]) -> Optional[str]:
+    """Best-effort K.I.N. narrative via bridge dispatch. Returns None on any failure."""
+    try:
+        from tools.department_hq.services.department_dispatcher import dispatch
+
+        candidate_lines = "\n".join(
+            f"- {e.get('display_name', '?')} (dept={e.get('department', '?')}, "
+            f"skill level={e.get('proficiency_level', '?')}, "
+            f"model={e.get('primary_model', '?')})"
+            for e in shortlist
+        )
+        prompt = (
+            f"The capability '{gap['capability']}' is understaffed. "
+            f"Reason: {gap['gap_reason']}.\n\n"
+            f"Three decommissioned specialists are shortlisted:\n{candidate_lines}\n\n"
+            "Write a concise 2-3 sentence rationale explaining why this gap matters "
+            "and why these specific candidates are sensible picks. No preamble."
+        )
+        result = dispatch(
+            capability="workforce_planning",
+            prompt=prompt,
+            agent="K.I.N.",
+        )
+        if result and getattr(result, "success", False):
+            return (getattr(result, "response", "") or "").strip() or None
+    except Exception as e:
+        logger.info("K.I.N. narrative dispatch failed (non-fatal): %s", e)
+    return None
+
+
+def kin_generate_hire_proposals(max_proposals_per_run: int = MAX_PROPOSALS_PER_RUN):
+    """Daily ~09:05 UTC. Generate hiring_candidates rows for understaffed capabilities.
+
+    Flow per gap:
+      1. SQL shortlist (top 3 decommissioned agents at Lv3+).
+      2. Best-effort K.I.N. narrative via bridge dispatch.
+      3. Insert via hiring_service.propose_for_gap (dedup handled there).
+    """
+    from services import hiring_service
+
+    start = time.time()
+    inserted = 0
+    skipped_empty = 0
+    skipped_dedup = 0
+
+    try:
+        gaps = _list_current_capability_gaps()
+        for gap in gaps:
+            if inserted >= max_proposals_per_run:
+                break
+            shortlist = hiring_service.get_shortlist(gap["capability"], limit=3)
+            if not shortlist:
+                skipped_empty += 1
+                continue
+            narrative = _generate_hire_narrative(gap, shortlist)
+            row_id = hiring_service.propose_for_gap(
+                capability=gap["capability"],
+                gap_reason=gap["gap_reason"],
+                shortlist=shortlist,
+                narrative=narrative,
+                proposed_by_agent_id=KIN_AGENT_ID,
+            )
+            if row_id is None:
+                skipped_dedup += 1
+            else:
+                inserted += 1
+
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle(
+            "kin_generate_hire_proposals",
+            inserted,
+            0,
+            duration_ms,
+            details={
+                "gaps_seen": len(gaps),
+                "inserted": inserted,
+                "skipped_empty_shortlist": skipped_empty,
+                "skipped_dedup": skipped_dedup,
+            },
+        )
+    except Exception as e:
+        logger.exception("kin_generate_hire_proposals failed")
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle("kin_generate_hire_proposals", 0, 1, duration_ms, error_message=str(e))
+
+
+def expire_stale_hire_proposals():
+    """Daily 04:30 UTC. Flip pending hiring_candidates > 14d old to 'expired'."""
+    from services import hiring_service
+
+    start = time.time()
+    try:
+        n = hiring_service.expire_stale_proposals(max_age_days=14)
+        _log_cycle(
+            "expire_stale_hire_proposals",
+            n,
+            0,
+            int((time.time() - start) * 1000),
+            details={"expired": n},
+        )
+    except Exception as e:
+        logger.exception("expire_stale_hire_proposals failed")
+        _log_cycle(
+            "expire_stale_hire_proposals",
+            0,
+            1,
+            int((time.time() - start) * 1000),
+            error_message=str(e),
+        )
+
+
+# ---------------------------------------------------------------------------
 # Approval queue hygiene
 # ---------------------------------------------------------------------------
 
@@ -2048,6 +2215,24 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         id="agent_understaffed_digest",
         name="Agent Loop: K.I.N. Understaffed Capabilities Digest",
         replace_existing=True,
+    )
+
+    scheduler.add_job(
+        with_ctx(kin_generate_hire_proposals),
+        trigger=CronTrigger(hour=9, minute=5, timezone="UTC"),
+        id="kin_generate_hire_proposals",
+        name="Agent Loop: Hire Proposals",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    scheduler.add_job(
+        with_ctx(expire_stale_hire_proposals),
+        trigger=CronTrigger(hour=4, minute=30, timezone="UTC"),
+        id="expire_stale_hire_proposals",
+        name="Agent Loop: Expire Stale Hire Proposals",
+        replace_existing=True,
+        max_instances=1,
     )
 
     scheduler.add_job(

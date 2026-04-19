@@ -110,6 +110,11 @@ _API_GENERATE_ALLOWLIST: set[str] = {
     # ai_bridge → department_hq migration backlog.
     "ai_bridge/archie_bridge.py",
     "ai_bridge/knowledge_analyzer.py",
+    # Agent jobs — string literal in an alert message body ("inspect
+    # systemctl status ollama and recent /api/generate logs") not raw
+    # inference. All actual dispatch goes through department_dispatcher.
+    # Pre-existing false positive surfaced by #2102 Task 10.
+    "platform_v2/services/agent_jobs.py",
 }
 
 

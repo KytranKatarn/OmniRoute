@@ -1,0 +1,257 @@
+"""Route tests for the hire: source in the unified approvals endpoint.
+
+Strategy mirrors test_approvals_multi_source.py:
+  - Direct psycopg2 ``db`` fixture for DB seeding/cleanup.
+  - Minimal Flask ``approvals_client`` fixture (no full-app import).
+  - _login_as_admin() injects a Flask-Login session.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+import pytest
+import psycopg2
+import psycopg2.extras
+
+
+def _get_db_password():
+    try:
+        return open("/run/secrets/db_password").read().strip()
+    except FileNotFoundError:
+        return os.environ.get("DB_PASSWORD", "")
+
+
+@pytest.fixture(scope="module")
+def db():
+    conn = psycopg2.connect(
+        host=os.environ.get("DB_HOST", "archie_database"),
+        dbname=os.environ.get("DB_NAME", "archie"),
+        user=os.environ.get("DB_USER", "archie"),
+        password=_get_db_password(),
+        cursor_factory=psycopg2.extras.RealDictCursor,
+    )
+    conn.autocommit = True
+    yield conn
+    conn.close()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def import_helpers():
+    """Add /app to sys.path so approvals_routes is importable."""
+    app_path = "/app"
+    if app_path not in sys.path:
+        sys.path.insert(0, app_path)
+
+
+@pytest.fixture(scope="module")
+def approvals_client():
+    """Minimal Flask test client with only the approvals blueprint mounted."""
+    from flask import Flask, Blueprint
+    from flask_login import LoginManager, UserMixin
+
+    mini_app = Flask(__name__)
+    mini_app.config["SECRET_KEY"] = "test-secret"
+    mini_app.config["TESTING"] = True
+    mini_app.config["WTF_CSRF_ENABLED"] = False
+
+    login_manager = LoginManager(mini_app)
+
+    class _User(UserMixin):
+        def __init__(self, uid):
+            self.id = uid
+
+    @login_manager.user_loader
+    def load_user(uid):
+        return _User(int(uid))
+
+    bp = Blueprint("department_hq", __name__, url_prefix="/tools/department-hq")
+
+    def _no_op_admin_required(f):
+        return f
+
+    from tools.department_hq.approvals_routes import register_approvals_routes
+
+    register_approvals_routes(bp, _no_op_admin_required)
+    mini_app.register_blueprint(bp)
+
+    return mini_app.test_client()
+
+
+TEST_USER_ID = 2  # Kytran admin user — must exist in users table
+
+
+def _login_as_admin(client, user_id=TEST_USER_ID):
+    with client.session_transaction() as sess:
+        sess["_user_id"] = str(user_id)
+        sess["_fresh"] = True
+
+
+def _seed_hire(db, capability="translate", status="pending"):
+    with db.cursor() as cur:
+        cur.execute(
+            """INSERT INTO hiring_candidates
+                   (capability, gap_reason, shortlist, narrative, status)
+               VALUES (%s, 'only 2 active', '[]'::jsonb, 'why these 3', %s)
+               RETURNING id""",
+            (capability, status),
+        )
+        return cur.fetchone()["id"]
+
+
+def _cleanup_hire(db, hire_id):
+    with db.cursor() as cur:
+        cur.execute("DELETE FROM hiring_candidates WHERE id = %s", (hire_id,))
+
+
+class TestHireSourceInPendingEndpoint:
+    def test_pending_endpoint_unions_hire_rows(self, db, approvals_client):
+        """Seed a pending hiring_candidates row, hit the endpoint, assert hire:<id> shows up."""
+        _login_as_admin(approvals_client)
+        hire_id = _seed_hire(db)
+        try:
+            resp = approvals_client.get("/tools/department-hq/api/approvals/pending")
+            assert resp.status_code == 200
+            body = resp.get_json()
+            assert body["success"] is True
+            approvals = body["approvals"]
+            ids = [r.get("id") for r in approvals]
+            assert f"hire:{hire_id}" in ids, f"hire:{hire_id} missing from {ids}"
+
+            hire_row = next(r for r in approvals if r.get("id") == f"hire:{hire_id}")
+            assert hire_row["source"] == "hire"
+            assert hire_row["category"] == "hiring"
+            assert hire_row["display_name"] == "translate"
+            assert hire_row["payload"]["shortlist"] == []
+            assert hire_row["payload"]["gap_reason"] == "only 2 active"
+            assert hire_row["payload"]["narrative"] == "why these 3"
+            assert hire_row["agent_name"] == "K.I.N."  # no proposer_agent_id seeded
+        finally:
+            _cleanup_hire(db, hire_id)
+
+    def test_pending_endpoint_excludes_non_pending_hire_rows(self, db, approvals_client):
+        """Rows with status != 'pending' must not appear in the unified pending list."""
+        _login_as_admin(approvals_client)
+        hire_id = _seed_hire(db, capability="summarize", status="approved")
+        try:
+            resp = approvals_client.get("/tools/department-hq/api/approvals/pending")
+            assert resp.status_code == 200
+            body = resp.get_json()
+            ids = [r.get("id") for r in body["approvals"]]
+            assert f"hire:{hire_id}" not in ids, "Approved hire row should not appear in pending"
+        finally:
+            _cleanup_hire(db, hire_id)
+
+    def test_hire_row_shape(self, db, approvals_client):
+        """Verify every required field is present and correctly typed."""
+        _login_as_admin(approvals_client)
+        hire_id = _seed_hire(db, capability="code_review")
+        try:
+            resp = approvals_client.get("/tools/department-hq/api/approvals/pending")
+            assert resp.status_code == 200
+            body = resp.get_json()
+            hire_row = next(
+                (r for r in body["approvals"] if r.get("id") == f"hire:{hire_id}"),
+                None,
+            )
+            assert hire_row is not None, f"hire:{hire_id} not found in approvals"
+            # Required shape fields
+            assert hire_row["source"] == "hire"
+            assert hire_row["category"] == "hiring"
+            assert isinstance(hire_row["display_name"], str)
+            assert isinstance(hire_row["payload"], dict)
+            assert isinstance(hire_row["payload"]["shortlist"], list)
+            # by_source must include hire count
+            assert body["by_source"].get("hire", 0) >= 1
+        finally:
+            _cleanup_hire(db, hire_id)
+
+    def test_hire_count_reflected_in_by_source(self, db, approvals_client):
+        """by_source['hire'] accurately counts the pending hire rows."""
+        _login_as_admin(approvals_client)
+        id1 = _seed_hire(db, capability="cap_a")
+        id2 = _seed_hire(db, capability="cap_b")
+        try:
+            resp = approvals_client.get("/tools/department-hq/api/approvals/pending")
+            assert resp.status_code == 200
+            body = resp.get_json()
+            hire_count = body["by_source"].get("hire", 0)
+            assert hire_count >= 2, f"Expected at least 2 hire rows, got {hire_count}"
+        finally:
+            _cleanup_hire(db, id1)
+            _cleanup_hire(db, id2)
+
+
+class TestApproveHireEndpoint:
+    def test_post_approve_hire_calls_service_and_returns_200(self, approvals_client):
+        from services import hiring_service as _svc
+        from unittest.mock import patch as _patch
+
+        _login_as_admin(approvals_client)
+        with _patch.object(
+            _svc,
+            "approve_candidate",
+            return_value={"ok": True, "reason": "approved", "agent_id": 42},
+        ) as mock_approve:
+            resp = approvals_client.post(
+                "/tools/department-hq/api/approvals/hire/17/approve",
+                json={"chosen_agent_id": 42, "notes": "go for it"},
+            )
+        assert resp.status_code == 200
+        mock_approve.assert_called_once()
+        call_kwargs = mock_approve.call_args.kwargs
+        assert call_kwargs.get("hire_id") == 17
+        assert call_kwargs.get("chosen_agent_id") == 42
+
+    def test_post_approve_hire_returns_409_on_precheck_failure(self, approvals_client):
+        from services import hiring_service as _svc
+        from unittest.mock import patch as _patch
+
+        _login_as_admin(approvals_client)
+        with _patch.object(
+            _svc,
+            "approve_candidate",
+            return_value={
+                "ok": False,
+                "reason": "model_missing",
+                "agent_id": None,
+                "message": "Model X missing",
+            },
+        ):
+            resp = approvals_client.post(
+                "/tools/department-hq/api/approvals/hire/17/approve",
+                json={"chosen_agent_id": 42},
+            )
+        assert resp.status_code == 409
+        body = resp.get_json()
+        assert body.get("reason") == "model_missing"
+
+    def test_post_approve_hire_returns_400_on_missing_chosen_agent(self, approvals_client):
+        """Empty body / no chosen_agent_id → 400."""
+        _login_as_admin(approvals_client)
+        resp = approvals_client.post(
+            "/tools/department-hq/api/approvals/hire/17/approve",
+            json={},
+        )
+        assert resp.status_code == 400
+
+
+class TestRejectHireEndpoint:
+    def test_post_reject_hire_calls_service_and_returns_200(self, approvals_client):
+        from services import hiring_service as _svc
+        from unittest.mock import patch as _patch
+
+        _login_as_admin(approvals_client)
+
+        with _patch.object(
+            _svc,
+            "reject_candidate",
+            return_value={"ok": True, "reason": "rejected"},
+        ) as mock_reject:
+            resp = approvals_client.post(
+                "/tools/department-hq/api/approvals/hire/17/reject",
+                json={"notes": "not a fit"},
+            )
+        assert resp.status_code == 200
+        mock_reject.assert_called_once()
+        assert mock_reject.call_args.kwargs.get("hire_id") == 17

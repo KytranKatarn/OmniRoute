@@ -275,6 +275,46 @@ def register_approvals_routes(bp, admin_required_decorator):
                         }
                     )
 
+                # 4. hiring_candidates — Phase A of task #2102
+                cur.execute(
+                    """SELECT
+                           hc.id,
+                           hc.capability,
+                           hc.gap_reason,
+                           hc.narrative,
+                           hc.shortlist,
+                           hc.proposed_at,
+                           hc.proposed_by_agent_id,
+                           a.display_name AS proposer_name
+                       FROM hiring_candidates hc
+                       LEFT JOIN agents a ON a.id = hc.proposed_by_agent_id
+                       WHERE hc.status = 'pending'
+                       ORDER BY hc.proposed_at DESC"""
+                )
+                for r in cur.fetchall():
+                    r = dict(r)
+                    shortlist = r.get("shortlist")
+                    if shortlist is None:
+                        shortlist = []
+                    approvals.append(
+                        {
+                            "id": f"hire:{r['id']}",
+                            "source": "hire",
+                            "source_id": r["id"],
+                            "category": "hiring",
+                            "display_name": r["capability"],
+                            "action_type": "hire_candidate",
+                            "reason": r.get("narrative") or r.get("gap_reason"),
+                            "agent_name": r.get("proposer_name") or "K.I.N.",
+                            "created_at": r["proposed_at"].isoformat() if r.get("proposed_at") else None,
+                            "payload": {
+                                "shortlist": shortlist,
+                                "gap_reason": r.get("gap_reason"),
+                                "narrative": r.get("narrative"),
+                            },
+                        }
+                    )
+
             # Decorate each row with escalation_chain
             try:
                 from services.agent_service import get_agent_cache
@@ -309,6 +349,73 @@ def register_approvals_routes(bp, admin_required_decorator):
         except Exception as exc:
             logger.error("approvals_pending error: %s", exc)
             return jsonify({"success": False, "error": str(exc)}), 500
+
+    @bp.route("/api/approvals/hire/<int:hire_id>/approve", methods=["POST"])
+    @login_required
+    @admin_required_decorator
+    def approve_hire(hire_id: int):
+        """Approve a hiring_candidates row via web UI.
+
+        Delegates to hiring_service.approve_candidate and maps result.reason
+        to HTTP status codes.
+        """
+        from services import hiring_service
+
+        body = request.get_json(silent=True) or {}
+        chosen_agent_id = body.get("chosen_agent_id")
+        notes = body.get("notes", "") or ""
+        if not isinstance(chosen_agent_id, int):
+            return jsonify({"ok": False, "reason": "chosen_agent_id required"}), 400
+
+        result = hiring_service.approve_candidate(
+            hire_id=hire_id,
+            chosen_agent_id=chosen_agent_id,
+            decided_by_user_id=current_user.id,
+            notes=notes,
+        )
+
+        if result.get("ok"):
+            return jsonify(result), 200
+        status_map = {
+            "not_found": 404,
+            "already_decided": 409,
+            "candidate_not_in_shortlist": 400,
+            "model_missing": 409,
+            "ollama_unreachable": 409,
+            "transition_failed": 500,
+            "race_lost": 409,
+        }
+        status = status_map.get(result.get("reason", ""), 400)
+        return jsonify(result), status
+
+    @bp.route("/api/approvals/hire/<int:hire_id>/reject", methods=["POST"])
+    @login_required
+    @admin_required_decorator
+    def reject_hire(hire_id: int):
+        """Reject a hiring_candidates row via web UI.
+
+        Delegates to hiring_service.reject_candidate and maps result.reason
+        to HTTP status codes.
+        """
+        from services import hiring_service
+
+        body = request.get_json(silent=True) or {}
+        notes = body.get("notes", "") or ""
+
+        result = hiring_service.reject_candidate(
+            hire_id=hire_id,
+            decided_by_user_id=current_user.id,
+            notes=notes,
+        )
+        if result.get("ok"):
+            return jsonify(result), 200
+        status_map = {
+            "not_found": 404,
+            "already_decided": 409,
+            "race_lost": 409,
+        }
+        status = status_map.get(result.get("reason", ""), 400)
+        return jsonify(result), status
 
     @bp.route("/api/approvals/<path:approval_id>/approve", methods=["POST"])
     @login_required

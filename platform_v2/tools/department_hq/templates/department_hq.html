@@ -550,12 +550,14 @@ function _renderApprovalCard(a) {
     var srcColors = {
         'autonomy_approval_queue': ['#00e5ff', '#042e38'],
         'contractor_approval_requests': ['#fbbf24', '#3a2e00'],
-        'bridge_jobs': ['#a855f7', '#2d1044']
+        'bridge_jobs': ['#a855f7', '#2d1044'],
+        'hire': ['#c084fc', '#2d1044']
     };
     var srcLabels = {
         'autonomy_approval_queue': 'AUTONOMY',
         'contractor_approval_requests': 'CONTRACTOR',
-        'bridge_jobs': 'CLOUD'
+        'bridge_jobs': 'CLOUD',
+        'hire': 'HIRE'
     };
     var colors = srcColors[a.source] || ['#94a3b8', '#1e293b'];
     sourcePill.style.cssText = 'color:' + colors[0] + ';background:' + colors[1] + ';font-size:0.65rem;font-weight:bold;padding:2px 8px;border-radius:10px;letter-spacing:0.06em';
@@ -621,6 +623,51 @@ function _renderApprovalCard(a) {
     }
     card.appendChild(details);
 
+    // ---- Hire source: render expandable shortlist picker ----
+    var hireState = { chosenAgentId: null };
+    if (a.category === 'hiring' && a.payload && Array.isArray(a.payload.shortlist)) {
+        var shortlistBox = document.createElement('div');
+        shortlistBox.style.cssText = 'background:rgba(192,132,252,0.08);border:1px solid rgba(192,132,252,0.2);padding:8px 12px;border-radius:4px;margin-bottom:12px';
+        var slHeader = document.createElement('div');
+        slHeader.style.cssText = 'font-size:0.7rem;color:#c084fc;font-weight:bold;margin-bottom:6px;letter-spacing:0.05em';
+        slHeader.textContent = 'RECOMMENDED CANDIDATES \u2014 PICK ONE';
+        shortlistBox.appendChild(slHeader);
+
+        a.payload.shortlist.forEach(function(cand, idx) {
+            var row = document.createElement('label');
+            row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 4px;cursor:pointer;border-radius:3px';
+            var radio = document.createElement('input');
+            radio.type = 'radio';
+            radio.name = 'hire-' + a.id;
+            radio.value = String(cand.agent_id);
+            if (idx === 0) {
+                radio.checked = true;
+                hireState.chosenAgentId = cand.agent_id;
+            }
+            (function(agentId) {
+                radio.onchange = function() { hireState.chosenAgentId = agentId; };
+            })(cand.agent_id);
+
+            var nameSpan = document.createElement('span');
+            nameSpan.style.cssText = 'color:#e2e8f0;font-weight:bold;font-size:0.85rem';
+            nameSpan.textContent = cand.display_name || ('agent#' + cand.agent_id);
+
+            var metaSpan = document.createElement('span');
+            metaSpan.style.cssText = 'color:#94a3b8;font-size:0.75rem';
+            var parts = [];
+            if (cand.department) parts.push(cand.department);
+            if (cand.proficiency_level) parts.push('Lv' + cand.proficiency_level);
+            if (cand.primary_model) parts.push(cand.primary_model);
+            metaSpan.textContent = parts.length ? ' \u00b7 ' + parts.join(' \u00b7 ') : '';
+
+            row.appendChild(radio);
+            row.appendChild(nameSpan);
+            row.appendChild(metaSpan);
+            shortlistBox.appendChild(row);
+        });
+        card.appendChild(shortlistBox);
+    }
+
     if (Array.isArray(a.escalation_chain) && a.escalation_chain.length >= 2) {
         var chainDiv = document.createElement('div');
         chainDiv.style.cssText = 'font-size:0.7rem;color:#64748b;margin-bottom:8px;font-style:italic';
@@ -638,13 +685,25 @@ function _renderApprovalCard(a) {
     var approveBtn = document.createElement('button');
     approveBtn.className = 'btn btn-sm btn-primary';
     approveBtn.textContent = 'Approve';
-    approveBtn.onclick = function() { _dhqApproveApproval(a.id, approveBtn); };
+    if (a.category === 'hiring') {
+        approveBtn.textContent = 'Approve Selected';
+        (function(capturedHireState) {
+            approveBtn.onclick = function() { _dhqApproveHire(a.id, capturedHireState.chosenAgentId, approveBtn); };
+        })(hireState);
+    } else {
+        approveBtn.onclick = function() { _dhqApproveApproval(a.id, approveBtn); };
+    }
 
     var denyBtn = document.createElement('button');
     denyBtn.className = 'btn btn-sm';
     denyBtn.style.cssText = 'background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef4444';
     denyBtn.textContent = 'Deny';
-    denyBtn.onclick = function() { _dhqDenyApproval(a.id, denyBtn); };
+    if (a.category === 'hiring') {
+        denyBtn.textContent = 'Reject';
+        denyBtn.onclick = function() { _dhqRejectHire(a.id, denyBtn); };
+    } else {
+        denyBtn.onclick = function() { _dhqDenyApproval(a.id, denyBtn); };
+    }
 
     btns.appendChild(approveBtn);
     btns.appendChild(denyBtn);
@@ -850,6 +909,105 @@ async function _dhqDenyApproval(approvalId, btn) {
     }
 }
 
+async function _dhqApproveHire(approvalId, chosenAgentId, btn) {
+    if (!chosenAgentId) {
+        await _dhqLcarsModal({
+            title: 'NO CANDIDATE SELECTED',
+            message: 'Pick a candidate from the shortlist before approving.',
+            accent: '#ef4444',
+            rgb: '239,68,68',
+            cancelLabel: false
+        });
+        return;
+    }
+    var ok = await _dhqLcarsModal({
+        title: 'REACTIVATE AGENT',
+        message: 'Approve reactivation of agent #' + chosenAgentId + ' for this capability?\n\nA model-availability pre-check runs before the shift transition.',
+        accent: '#c084fc',
+        rgb: '192,132,252',
+        okLabel: 'Reactivate'
+    });
+    if (!ok) return;
+
+    var parts = (approvalId || '').split(':');
+    var hireId = parts[1];
+    if (!hireId) {
+        btn.textContent = 'Bad id';
+        return;
+    }
+
+    btn.textContent = 'Approving...';
+    btn.disabled = true;
+    try {
+        var resp = await fetch('/tools/department-hq/api/approvals/hire/' + hireId + '/approve', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ chosen_agent_id: Number(chosenAgentId), notes: '' })
+        });
+        var data = await resp.json();
+        if (resp.ok && data.ok) {
+            btn.textContent = 'Reactivated \u2713';
+            setTimeout(loadDhqApprovals, 1500);
+        } else {
+            btn.textContent = 'Failed';
+            btn.disabled = false;
+            await _dhqLcarsModal({
+                title: 'APPROVE FAILED',
+                message: (data.message || data.reason || 'Unknown error'),
+                accent: '#ef4444',
+                rgb: '239,68,68',
+                cancelLabel: false
+            });
+        }
+    } catch (e) {
+        btn.textContent = 'Error';
+        btn.disabled = false;
+        await _dhqLcarsModal({
+            title: 'NETWORK ERROR',
+            message: e.message,
+            accent: '#ef4444',
+            rgb: '239,68,68',
+            cancelLabel: false
+        });
+    }
+}
+
+async function _dhqRejectHire(approvalId, btn) {
+    var ok = await _dhqLcarsModal({
+        title: 'REJECT PROPOSAL',
+        message: 'Reject this hire proposal?',
+        accent: '#ef4444',
+        rgb: '239,68,68',
+        okLabel: 'Reject'
+    });
+    if (!ok) return;
+
+    var parts = (approvalId || '').split(':');
+    var hireId = parts[1];
+    if (!hireId) return;
+
+    btn.textContent = 'Rejecting...';
+    btn.disabled = true;
+    try {
+        var resp = await fetch('/tools/department-hq/api/approvals/hire/' + hireId + '/reject', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ notes: '' })
+        });
+        var data = await resp.json();
+        if (resp.ok && data.ok) {
+            btn.textContent = 'Rejected \u2713';
+            setTimeout(loadDhqApprovals, 1500);
+        } else {
+            btn.textContent = 'Failed';
+            btn.disabled = false;
+        }
+    } catch (e) {
+        btn.textContent = 'Error';
+        btn.disabled = false;
+    }
+}
+
 // Auto-refresh approvals list every 15s while tab panel is active and visible.
 // Badge polls every 30s regardless of active tab.
 (function() {
@@ -908,7 +1066,7 @@ async function _dhqDenyApproval(approvalId, btn) {
         if (typeof switchTab === 'function') switchTab('approvals');
         setTimeout(function () {
             var found = null;
-            var prefixes = ['autonomy', 'contractor', 'bridge'];
+            var prefixes = ['autonomy', 'contractor', 'bridge', 'hire'];
             for (var i = 0; i < prefixes.length; i++) {
                 found = document.getElementById('approval-card-' + prefixes[i] + '-' + approvalNum);
                 if (found) break;

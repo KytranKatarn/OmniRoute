@@ -1046,14 +1046,63 @@ async def session_briefing_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             "nodes_online": nodes_online,
         }
 
+        # 6. Active anomalies from the agent-loop observers
+        # (Project #272 Phase 4 / Task #2116). Replaces the old
+        # "fresh session" default with a real signal: what did
+        # V.I.G.I.L. / S.P.E.C.T.R.A. / K.I.N. / F.O.R.G.E. / C.O.D.E.X.
+        # observe going sideways in the last 24h?
+        cur.execute(
+            """
+            SELECT DISTINCT ON (job_name)
+                   job_name,
+                   status,
+                   items_failed,
+                   details->>'severity' AS severity,
+                   details->'reasons' AS reasons,
+                   error_message,
+                   created_at
+            FROM autonomy_loop_log
+            WHERE created_at > now() - INTERVAL '24 hours'
+              AND (
+                  status IN ('error', 'partial')
+                  OR details->>'severity' = 'error'
+                  OR details->>'severity' = 'warning'
+              )
+            ORDER BY job_name, created_at DESC
+            LIMIT 20
+            """
+        )
+        anomalies = []
+        for row in cur.fetchall():
+            anomalies.append(
+                {
+                    "job_name": row["job_name"],
+                    "status": row["status"],
+                    "severity": row.get("severity"),
+                    "items_failed": row.get("items_failed"),
+                    "reasons": row.get("reasons"),
+                    "error_message": row.get("error_message"),
+                    "last_seen": row["created_at"].isoformat() if row.get("created_at") else None,
+                }
+            )
+        briefing["anomalies_active"] = anomalies
+        briefing["anomaly_count"] = len(anomalies)
+
         cur.close()
         conn.close()
+
+        tip = "Review mistakes_to_avoid before starting work. Use search_knowledge for deeper dives."
+        if anomalies:
+            tip = (
+                f"{len(anomalies)} observer(s) flagged active anomalies in the "
+                "last 24h — inspect briefing.anomalies_active before starting new work."
+            )
 
         return {
             "success": True,
             "briefing": briefing,
             "generated_at": datetime.now().isoformat(),
-            "tip": "Review mistakes_to_avoid before starting work. Use search_knowledge for deeper dives.",
+            "tip": tip,
         }
 
     except Exception as e:

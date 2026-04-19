@@ -105,6 +105,10 @@ package-lock.json
 # Root-level test scripts (one-off, not part of CI)
 /test_*.py
 
+# Local debug scratch + generated QA artifacts
+sandbox/
+platform_v2/static/qa_reports/
+
 # Host command queue
 host_commands/
 

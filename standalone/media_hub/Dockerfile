@@ -40,6 +40,17 @@ COPY standalone/media_hub/scripts/       /app/scripts/
 COPY platform_v2/templates/tools/media_hub.html          /app/templates/tools/media_hub.html
 COPY platform_v2/templates/includes/lcars-header.html    /app/templates/includes/lcars-header.html
 
+# Platform /static/ assets the Media Hub template hard-codes references to.
+# Flask(__name__) default static_folder=./static → served at /static/*.
+COPY platform_v2/static/css/media-hub.css      /app/static/css/media-hub.css
+COPY platform_v2/static/css/lcars-header.css   /app/static/css/lcars-header.css
+COPY platform_v2/static/css/lcars-frames.css   /app/static/css/lcars-frames.css
+COPY platform_v2/static/js/media-hub.js        /app/static/js/media-hub.js
+COPY platform_v2/static/js/media-hub-sw.js     /app/static/js/media-hub-sw.js
+COPY platform_v2/static/js/lcars-header.js     /app/static/js/lcars-header.js
+COPY platform_v2/static/manifest.json          /app/static/manifest.json
+COPY platform_v2/static/icons/                 /app/static/icons/
+
 # The Media Hub module itself — this is the whole product
 COPY platform_v2/tools/media_hub/ /app/tools/media_hub/
 

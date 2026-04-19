@@ -25,9 +25,16 @@
     {% block extra_css %}{% endblock %}
     {% block styles %}{% endblock %}
     {% block extra_head %}{% endblock %}
+
+    {# Icon library — media_hub.js calls lucide.createIcons() on DOM ready #}
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body class="theme-lcars-classic" data-module="{% block module_name %}media_hub{% endblock %}">
     {% block content %}{% endblock %}
     {% block extra_js %}{% endblock %}
+
+    <script>
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    </script>
 </body>
 </html>

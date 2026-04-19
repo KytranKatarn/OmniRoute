@@ -781,62 +781,6 @@ class TelegramGateway:
                         except Exception as uc_err:
                             logger.debug(f"Escalation unified_messages log failed: {uc_err}")
 
-                        # Dual-write to chat_conversations + chat_messages (archie_comms
-                        # UI reads these tables). Parallel to the unified_* writes above.
-                        try:
-                            from database import get_db_cursor
-
-                            with get_db_cursor(commit=True) as (_c, chat_cur):
-                                # Resolve user_id via telegram_users (same lookup as unified path).
-                                chat_cur.execute(
-                                    "SELECT user_id FROM telegram_users WHERE telegram_id=%s",
-                                    (chat_id,),
-                                )
-                                u = chat_cur.fetchone()
-                                if not u or (u["user_id"] if isinstance(u, dict) else u[0]) is None:
-                                    raise RuntimeError("no linked user_id")
-                                chat_user_id = u["user_id"] if isinstance(u, dict) else u[0]
-
-                                # Find-or-create an 'A.R.C.H.I.E. Escalations' chat_conversations row.
-                                chat_cur.execute(
-                                    """SELECT id FROM chat_conversations
-                                       WHERE user_id=%s AND title=%s AND is_archived=FALSE
-                                       ORDER BY updated_at DESC LIMIT 1""",
-                                    (chat_user_id, "A.R.C.H.I.E. Escalations"),
-                                )
-                                c_row = chat_cur.fetchone()
-                                if c_row:
-                                    chat_conv_id = c_row["id"] if isinstance(c_row, dict) else c_row[0]
-                                    chat_cur.execute(
-                                        "UPDATE chat_conversations SET updated_at=NOW() WHERE id=%s",
-                                        (chat_conv_id,),
-                                    )
-                                else:
-                                    chat_cur.execute(
-                                        """INSERT INTO chat_conversations
-                                           (user_id, title, agent_target, is_archived, created_at, updated_at)
-                                           VALUES (%s, %s, %s, FALSE, NOW(), NOW())
-                                           RETURNING id""",
-                                        (chat_user_id, "A.R.C.H.I.E. Escalations", "A.R.C.H.I.E."),
-                                    )
-                                    first = chat_cur.fetchone()
-                                    chat_conv_id = first["id"] if isinstance(first, dict) else first[0]
-
-                                # Append chat_messages row (role='assistant', sender=A.R.C.H.I.E.).
-                                chat_cur.execute(
-                                    """INSERT INTO chat_messages
-                                       (conversation_id, role, content, agent_used,
-                                        station_code, created_at)
-                                       VALUES (%s, 'assistant', %s, %s, %s, NOW())""",
-                                    (
-                                        chat_conv_id,
-                                        text,
-                                        "A.R.C.H.I.E.",
-                                        context.get("department"),
-                                    ),
-                                )
-                        except Exception as chat_err:
-                            logger.debug(f"Escalation chat_conversations dual-write failed: {chat_err}")
                 finally:
                     try:
                         cur.close()

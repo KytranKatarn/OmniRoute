@@ -19,6 +19,8 @@ from .auth_middleware import (
 from .chat_service import (
     check_chat_access,
     get_user_team_id,
+)
+from services.conversation_service import (
     create_conversation,
     get_conversations,
     get_conversation_by_uuid,
@@ -541,7 +543,7 @@ def register_routes(bp, admin_required):
             return _error("VALIDATION_ERROR", "Query required", 400)
         team_id = get_user_team_id(user["id"])
 
-        from .chat_service import search_conversations
+        from services.conversation_service import search_conversations
 
         results = search_conversations(user["id"], query, team_id)
         return jsonify({"success": True, "results": results}), 200

@@ -301,7 +301,8 @@ def api_chat_conversations():
     user_id = session.get("user_id", 2)
     from services.conversation_service import get_conversations
 
-    convs = get_conversations(user_id)
+    result = get_conversations(user_id)
+    convs = result["conversations"] if isinstance(result, dict) else result
     return jsonify({"conversations": [dict(c) if hasattr(c, 'keys') else c for c in convs]})
 
 

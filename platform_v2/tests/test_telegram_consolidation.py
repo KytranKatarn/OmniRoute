@@ -249,8 +249,8 @@ class TestSendEscalationNotification:
         category = first.get("category") or (first.get("_positional", [None])[0])
         assert category == "escalation"
 
-    def test_dual_write_to_unified_and_chat_tables(self):
-        """unified_messages and chat_messages writes must still happen."""
+    def test_writes_to_unified_tables_only(self):
+        """After Phase 3 (#2175), escalations write to unified_* only — no chat_* writes."""
         context = {
             "agent_name": "K.I.N.",
             "department": "Human Resources & Culture",
@@ -267,7 +267,7 @@ class TestSendEscalationNotification:
         has_unified = any("UNIFIED_MESSAGES" in s or "UNIFIED_CONVERSATIONS" in s for s in sqls)
         has_chat = any("CHAT_MESSAGES" in s or "CHAT_CONVERSATIONS" in s for s in sqls)
         assert has_unified, f"No unified_messages/conversations write found. SQLs: {sqls}"
-        assert has_chat, f"No chat_messages/conversations write found. SQLs: {sqls}"
+        assert not has_chat, f"FU9 chat_* dual-write not fully removed. SQLs: {sqls}"
 
     def test_no_inline_insert_in_gateway(self):
         """Regression: the old inline INSERT INTO telegram_message_log must not exist in gateway."""

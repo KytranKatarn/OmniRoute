@@ -43,6 +43,7 @@ services:
       DATABASE_URL: postgresql://mediahub:${MEDIA_HUB_DB_PASSWORD}@mediahub_db:5432/mediahub
       MEDIA_HUB_SECRET_KEY: ${MEDIA_HUB_SECRET_KEY:?set in .env}
       MEDIA_HUB_ENCRYPTION_KEY: ${MEDIA_HUB_ENCRYPTION_KEY:?set in .env}
+      MEDIA_HUB_ADMIN_PASSWORD: ${MEDIA_HUB_ADMIN_PASSWORD:-}
       TMDB_API_KEY: ${TMDB_API_KEY:-}
     ports:
       - "8105:8105"

@@ -17,30 +17,35 @@ from flask_login import LoginManager
 # /app/database.py (DATABASE_URL-backed) sits on sys.path first — see Dockerfile.
 from tools.media_hub import media_hub_bp  # noqa: E402
 
+from auth_routes import auth_bp  # noqa: E402
+from users import bootstrap_admin_if_empty, load_user  # noqa: E402
+
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("media_hub.standalone")
 
 
 def create_app() -> Flask:
-    app = Flask(__name__)
+    app = Flask(__name__, template_folder="templates")
     app.config["SECRET_KEY"] = os.environ["MEDIA_HUB_SECRET_KEY"]
 
-    # Auth — task #2150 pt.2 will add a real user model. Until then, every
-    # session is anonymous, so the blueprint gate redirects to /auth/sso
-    # which returns 501 "not wired yet" — that's the expected UX.
     lm = LoginManager()
-    lm.login_view = "media_hub.sso_stub"
+    lm.login_view = "auth.login"
     lm.init_app(app)
+    lm.user_loader(load_user)
 
-    @lm.user_loader
-    def load_user(_user_id):
-        return None  # no users until #2150 pt.2
-
+    app.register_blueprint(auth_bp)
     app.register_blueprint(media_hub_bp)
+
+    # Create admin from MEDIA_HUB_ADMIN_PASSWORD if users table is empty.
+    with app.app_context():
+        try:
+            bootstrap_admin_if_empty()
+        except Exception as e:
+            log.warning("bootstrap_admin skipped: %s", e)
 
     @app.route("/")
     def root():
-        return redirect(url_for("media_hub.sso_stub"))
+        return redirect(url_for("media_hub.index"))
 
     @app.route("/health")
     def health():

@@ -24,9 +24,19 @@ WORKDIR /app
 COPY standalone/media_hub/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Standalone shims (database.py, app.py) land at /app/ so Python resolves them first
-COPY standalone/media_hub/database.py /app/database.py
-COPY standalone/media_hub/app.py      /app/app.py
+# Standalone shims (database.py, app.py, auth, users) land at /app/ so Python
+# resolves them first.
+COPY standalone/media_hub/database.py    /app/database.py
+COPY standalone/media_hub/app.py         /app/app.py
+COPY standalone/media_hub/auth_routes.py /app/auth_routes.py
+COPY standalone/media_hub/users.py       /app/users.py
+COPY standalone/media_hub/templates/     /app/templates/
+
+# Platform templates the Media Hub route renders directly
+# (the blueprint static/standalone base is already inside tools/media_hub/
+#  via #2151; these two live in platform_v2/templates and need lifting).
+COPY platform_v2/templates/tools/media_hub.html          /app/templates/tools/media_hub.html
+COPY platform_v2/templates/includes/lcars-header.html    /app/templates/includes/lcars-header.html
 
 # The Media Hub module itself — this is the whole product
 COPY platform_v2/tools/media_hub/ /app/tools/media_hub/

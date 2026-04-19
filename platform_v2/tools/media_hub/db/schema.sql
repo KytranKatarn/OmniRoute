@@ -63,4 +63,20 @@ CREATE TRIGGER trigger_media_hub_services_updated
     FOR EACH ROW
     EXECUTE FUNCTION update_media_hub_timestamp();
 
+-- Local users — only populated in the standalone container. In the
+-- platform-embedded mode the ARCHIE users table stays authoritative.
+-- password_hash stores a werkzeug-format hash (pbkdf2:sha256 or scrypt).
+CREATE TABLE IF NOT EXISTS media_hub_users (
+    id            SERIAL PRIMARY KEY,
+    username      VARCHAR(64)  NOT NULL UNIQUE,
+    password_hash TEXT         NOT NULL,
+    is_admin      BOOLEAN      NOT NULL DEFAULT FALSE,
+    is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    last_login_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_media_hub_users_username
+    ON media_hub_users (username);
+
 COMMIT;

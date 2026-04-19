@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Media Hub — Created by Kytran</title>
+    <meta name="description" content="Unified library for Plex, Jellyfin, Sonarr, Radarr, Prowlarr, Overseerr and SABnzbd. A self-hosted media command centre created by Kytran.">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/kytran-logo.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/kytran-logo.png') }}">
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0a0f1c;
+            --surface: #0f172a;
+            --surface-2: #1e293b;
+            --border: #1e293b;
+            --accent: #3b82f6;
+            --accent-deep: #1e40af;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.55;
+            min-height: 100vh;
+        }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        header.top {
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        header.top img { width: 36px; height: 36px; }
+        header.top .brand {
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            font-size: 1.05rem;
+        }
+        header.top .dim { color: var(--muted); font-size: 0.85rem; margin-left: 0.5rem; }
+        header.top .spacer { flex: 1; }
+        header.top .cta {
+            padding: 0.5rem 1rem;
+            background: var(--accent);
+            color: #0a0f1c;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        header.top .cta:hover { background: #60a5fa; text-decoration: none; }
+
+        .hero {
+            max-width: 1100px;
+            margin: 2rem auto 0;
+            padding: 3rem 1.5rem 4rem;
+            text-align: center;
+        }
+        .hero .mark {
+            width: 96px; height: 96px; margin: 0 auto 1.25rem;
+            filter: drop-shadow(0 6px 24px rgba(59,130,246,0.35));
+        }
+        .hero h1 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            margin: 0 0 0.5rem;
+            letter-spacing: -0.02em;
+        }
+        .hero .subtitle {
+            color: var(--muted);
+            font-size: clamp(1rem, 2vw, 1.15rem);
+            margin: 0 auto 2rem;
+            max-width: 640px;
+        }
+        .hero .ctas { display: flex; justify-content: center; gap: 0.75rem; flex-wrap: wrap; }
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.4rem;
+            border-radius: 10px;
+            font-weight: 600;
+            border: 1px solid transparent;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 1rem;
+        }
+        .btn.primary { background: var(--accent); color: #0a0f1c; }
+        .btn.primary:hover { background: #60a5fa; text-decoration: none; }
+        .btn.ghost { background: transparent; color: var(--text); border-color: var(--border); }
+        .btn.ghost:hover { border-color: var(--accent); text-decoration: none; }
+
+        section.features {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 1rem 1.5rem 4rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1.25rem;
+        }
+        .feature {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.5rem;
+        }
+        .feature .ico {
+            width: 40px; height: 40px;
+            background: rgba(59,130,246,0.12);
+            border-radius: 10px;
+            display: grid; place-items: center;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+        .feature h3 { margin: 0 0 0.5rem; font-size: 1.15rem; }
+        .feature p { margin: 0; color: var(--muted); }
+
+        section.integrations {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 1.5rem 4rem;
+        }
+        section.integrations h2 {
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: 500;
+            color: var(--muted);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin: 0 0 2rem;
+        }
+        .services {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 0.75rem;
+        }
+        .service {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem;
+            text-align: center;
+            font-weight: 500;
+            color: var(--text);
+        }
+        .service .dot {
+            display: inline-block;
+            width: 6px; height: 6px; border-radius: 50%;
+            background: #22c55e;
+            margin-right: 0.4rem;
+            vertical-align: middle;
+        }
+
+        footer.site {
+            border-top: 1px solid var(--border);
+            padding: 2rem 1.5rem;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+        footer.site a { color: var(--muted); }
+        footer.site a:hover { color: var(--accent); }
+        footer.site .attr {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        footer.site .attr img { width: 22px; height: 22px; opacity: 0.8; }
+
+        @media (max-width: 480px) {
+            header.top { padding: 1rem; }
+            header.top .dim { display: none; }
+            .hero { padding: 2rem 1rem 3rem; }
+        }
+    </style>
+</head>
+<body>
+    <header class="top">
+        <img src="{{ url_for('static', filename='img/kytran-logo.png') }}" alt="Kytran">
+        <span class="brand">Media Hub</span>
+        <span class="dim">created by Kytran</span>
+        <span class="spacer"></span>
+        <a href="{{ url_for('auth.login') }}" class="cta">Sign In</a>
+    </header>
+
+    <section class="hero">
+        <img src="{{ url_for('static', filename='img/kytran-logo.png') }}" alt="" class="mark">
+        <h1>Your media, one place.</h1>
+        <p class="subtitle">
+            A self-hosted command centre that federates Plex, Jellyfin, Sonarr,
+            Radarr, Prowlarr, Overseerr and SABnzbd behind a single sign-in —
+            installable on your phone, TV, or desktop.
+        </p>
+        <div class="ctas">
+            <a href="{{ url_for('auth.login') }}" class="btn primary">Sign in</a>
+            <a href="#features" class="btn ghost">What's inside</a>
+        </div>
+    </section>
+
+    <section class="features" id="features">
+        <div class="feature">
+            <div class="ico">📚</div>
+            <h3>Unified Library</h3>
+            <p>Browse every movie, show and episode across Plex and Jellyfin in one library, with real-time watch progress and instant search.</p>
+        </div>
+        <div class="feature">
+            <div class="ico">🎯</div>
+            <h3>Smart Requests</h3>
+            <p>Ask Overseerr to grab a title, track Sonarr / Radarr downloads, and watch SABnzbd queues — without jumping tools.</p>
+        </div>
+        <div class="feature">
+            <div class="ico">👪</div>
+            <h3>Family Access</h3>
+            <p>Create accounts for every household member. Members manage their own passwords; you stay in control of services and access.</p>
+        </div>
+        <div class="feature">
+            <div class="ico">📱</div>
+            <h3>Installable App</h3>
+            <p>Add to home screen on iOS, Android, or TV browsers for a full-screen media command centre — no app store, no tracking.</p>
+        </div>
+        <div class="feature">
+            <div class="ico">🤖</div>
+            <h3>AI-ready <span style="color:var(--muted); font-weight: 400;">— coming</span></h3>
+            <p>Media-recommending agent on the roadmap. Ask in plain language, get the right show queued. Same pattern as Kytran's Watch product line.</p>
+        </div>
+        <div class="feature">
+            <div class="ico">🔒</div>
+            <h3>Self-hosted</h3>
+            <p>Runs in your home, on hardware you own. Encrypted credentials, rate-limited sign-in, Let's Encrypt TLS, your media never leaves.</p>
+        </div>
+    </section>
+
+    <section class="integrations">
+        <h2>Integrates with</h2>
+        <div class="services">
+            <div class="service"><span class="dot"></span>Plex</div>
+            <div class="service"><span class="dot"></span>Jellyfin</div>
+            <div class="service"><span class="dot"></span>Overseerr</div>
+            <div class="service"><span class="dot"></span>Sonarr</div>
+            <div class="service"><span class="dot"></span>Radarr</div>
+            <div class="service"><span class="dot"></span>Prowlarr</div>
+            <div class="service"><span class="dot"></span>SABnzbd</div>
+            <div class="service"><span class="dot"></span>TMDB</div>
+        </div>
+    </section>
+
+    <footer class="site">
+        <div class="attr">
+            <img src="{{ url_for('static', filename='img/kytran-logo.png') }}" alt="">
+            <span>Created by <a href="https://kytranempowerment.com">Kytran Empowerment</a></span>
+        </div>
+        <div>
+            Self-hosted. Source coming to <a href="https://github.com/KytranKatarn">GitHub</a> when stable.
+            &middot; <a href="{{ url_for('media_hub.sso_stub') }}">SSO status</a>
+        </div>
+    </footer>
+</body>
+</html>

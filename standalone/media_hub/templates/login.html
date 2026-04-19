@@ -4,92 +4,111 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Media Hub — Sign In</title>
-    <link rel="stylesheet" href="{{ url_for('media_hub.static', filename='standalone/lcars-frames.css') }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/kytran-logo.png') }}">
     <style>
         :root { color-scheme: dark; }
         body {
             margin: 0;
-            font-family: 'Antonio', system-ui, sans-serif;
-            background: #0a0a0f;
-            color: #e0f0ff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #0a0f1c;
+            color: #e2e8f0;
             min-height: 100vh;
             display: grid;
             place-items: center;
         }
         .login-card {
-            background: linear-gradient(180deg, #0f1522 0%, #0a0a0f 100%);
-            border: 2px solid #0ea5e9;
-            border-radius: 24px;
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 16px;
             padding: 2.5rem 3rem;
-            max-width: 380px;
+            max-width: 400px;
             width: calc(100% - 2rem);
-            box-shadow: 0 0 40px rgba(14, 165, 233, 0.2);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .mark {
+            width: 64px; height: 64px;
+            display: block; margin: 0 auto 1rem;
         }
         h1 {
-            margin: 0 0 1.5rem;
-            font-size: 1.4rem;
-            letter-spacing: 0.1em;
-            color: #0ea5e9;
-            text-transform: uppercase;
+            margin: 0 0 0.25rem;
+            font-size: 1.5rem;
+            letter-spacing: -0.01em;
+            color: #e2e8f0;
+            text-align: center;
         }
-        label { display: block; margin: 1rem 0 0.25rem; font-size: 0.85rem; color: #94a3b8; }
+        .byline {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.85rem;
+            margin-bottom: 1.75rem;
+        }
+        label { display: block; margin: 1rem 0 0.35rem; font-size: 0.85rem; color: #94a3b8; }
         input[type="text"], input[type="password"] {
             width: 100%;
             box-sizing: border-box;
-            padding: 0.6rem 0.8rem;
-            background: rgba(255, 255, 255, 0.04);
+            padding: 0.7rem 0.9rem;
+            background: #0a0f1c;
             border: 1px solid #1e293b;
-            border-radius: 8px;
-            color: #e0f0ff;
+            border-radius: 10px;
+            color: #e2e8f0;
             font-family: inherit;
             font-size: 1rem;
         }
-        input:focus { outline: none; border-color: #0ea5e9; }
+        input:focus { outline: none; border-color: #3b82f6; }
         button {
             margin-top: 1.5rem;
             width: 100%;
-            padding: 0.75rem;
-            background: #0ea5e9;
-            color: #0a0a0f;
+            padding: 0.85rem;
+            background: #3b82f6;
+            color: #0a0f1c;
             border: none;
-            border-radius: 8px;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
+            border-radius: 10px;
+            font-weight: 600;
             cursor: pointer;
             font-family: inherit;
+            font-size: 1rem;
         }
-        button:hover { background: #0284c7; }
+        button:hover { background: #60a5fa; }
         .error {
             margin-top: 1rem;
-            padding: 0.5rem 0.8rem;
+            padding: 0.6rem 0.85rem;
             background: rgba(220, 38, 38, 0.1);
             border-left: 3px solid #dc2626;
+            border-radius: 6px;
             color: #fca5a5;
             font-size: 0.9rem;
         }
         .sso-note {
-            margin-top: 1.5rem;
+            margin-top: 1.75rem;
             padding-top: 1rem;
             border-top: 1px solid #1e293b;
             font-size: 0.8rem;
             color: #64748b;
+            text-align: center;
         }
-        .sso-note a { color: #0ea5e9; text-decoration: none; }
+        .sso-note a { color: #3b82f6; text-decoration: none; }
+        .back {
+            display: block; text-align: center; margin-top: 1rem;
+            color: #64748b; font-size: 0.85rem; text-decoration: none;
+        }
+        .back:hover { color: #94a3b8; }
     </style>
 </head>
 <body>
     <form class="login-card" method="POST" action="{{ url_for('auth.login') }}">
+        <img src="{{ url_for('static', filename='img/kytran-logo.png') }}" alt="Kytran" class="mark">
         <h1>Media Hub</h1>
+        <div class="byline">created by Kytran</div>
         <label for="username">Username</label>
         <input type="text" id="username" name="username" autocomplete="username" autofocus required>
         <label for="password">Password</label>
         <input type="password" id="password" name="password" autocomplete="current-password" required>
-        <button type="submit">Sign In</button>
+        <button type="submit">Sign in</button>
         {% if error %}<div class="error">{{ error }}</div>{% endif %}
         <div class="sso-note">
             Kytran SSO — <a href="{{ url_for('media_hub.sso_stub') }}">status</a>
         </div>
+        <a class="back" href="{{ url_for('root') }}">← Back to home</a>
     </form>
 </body>
 </html>

@@ -10,10 +10,10 @@ Docker container (Project #273).
 import logging
 import os
 
-from flask import Flask, redirect, request, url_for
+from flask import Flask, jsonify, redirect, render_template, request, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_login import LoginManager
+from flask_login import LoginManager, current_user
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 # tools.media_hub imports `from database import get_db_cursor`. Our standalone
@@ -74,7 +74,33 @@ def create_app() -> Flask:
 
     @app.route("/")
     def root():
-        return redirect(url_for("media_hub.index"))
+        # Anonymous visitors see the public landing. Authenticated users skip
+        # straight to the library — standard PWA home-screen launch behaviour.
+        if current_user.is_authenticated:
+            return redirect(url_for("media_hub.index"))
+        return render_template("landing.html")
+
+    @app.route("/agent")
+    def agent_stub():
+        """Placeholder for the future M.E.D.I.A. agent (Media Entertainment
+        Direction & Intelligent Assistance). Same pattern as /auth/sso —
+        discoverable endpoint that tells clients the feature is on the
+        roadmap rather than 404ing silently."""
+        return (
+            jsonify(
+                {
+                    "status": "not_implemented",
+                    "name": "M.E.D.I.A.",
+                    "description": (
+                        "Natural-language media agent on the roadmap. Will handle "
+                        "recommendation, smart queuing, duplicate triage, family-aware "
+                        "suggestions, and conversational search over the federated library."
+                    ),
+                    "tracking": "Project #273 Tier 2",
+                }
+            ),
+            501,
+        )
 
     @app.after_request
     def _no_store(resp):

@@ -62,6 +62,9 @@ COPY platform_v2/static/js/lcars-header.js     /app/static/js/lcars-header.js
 COPY platform_v2/static/manifest.json          /app/static/manifest.json
 COPY platform_v2/static/icons/                 /app/static/icons/
 
+# Standalone brand assets (Kytran ram logo + any landing imagery)
+COPY standalone/media_hub/static/img/          /app/static/img/
+
 # The Media Hub module itself — this is the whole product
 COPY platform_v2/tools/media_hub/ /app/tools/media_hub/
 

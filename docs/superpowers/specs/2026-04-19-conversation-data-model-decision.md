@@ -400,3 +400,73 @@ Once all writers are migrated:
 
 *Research performed on branch `research/conversation-data-model-2172`, 2026-04-19.*
 *All file:line references verified against live codebase and live DB state.*
+
+---
+
+## Phase 5 Audit — KBS Isolation Verified (2026-04-19)
+
+**Branch:** `feat/unified-conversations-phase5-6-complete-migration`
+**Auditor:** Claude Code (Sonnet 4.6)
+
+### Finding: KBS is fully isolated from public.chat_*
+
+Every KBS reference to `chat_conversations` / `chat_messages` resolves to the
+**tenant-scoped schema**, not `public`. Isolation is enforced at the DB cursor level:
+
+- `kytran-business-suite/core/chat_manager.py` — `set_tenant_search_path(cur, tenant_id)`
+  is called at the top of **every** method before any SQL touching chat tables:
+  `start_conversation()` (line 42), `add_message()` (line 89), `get_messages()` (line 128),
+  `close_conversation()` (line 165), `get_active_conversations()` (line 199).
+
+- `kytran-business-suite/plugins/kbs_communications/routes.py` — all three query blocks
+  that reference `chat_conversations` (lines 51, 194, 257) call
+  `set_tenant_search_path(cur, g.tenant_id)` first.
+
+### Schema divergence confirms independence
+
+| Column | `public.chat_conversations` | `tenant_1.chat_conversations` |
+|--------|-----------------------------|-------------------------------|
+| user_id | ✅ integer NOT NULL | — |
+| title | ✅ varchar(255) | — |
+| agent_target | ✅ varchar(100) | — |
+| is_archived | ✅ boolean | — |
+| visitor_name | — | ✅ varchar(255) |
+| visitor_email | — | ✅ varchar(255) |
+| customer_id | — | ✅ integer |
+| channel | — | ✅ varchar(20) CHECK widget/internal |
+| sender_type | — | ✅ (in chat_messages) |
+
+KBS columns (`visitor_name`, `channel`, `sender_type`) **do not exist** in the public
+schema — any accidental public-schema access would immediately raise a Postgres column
+error. The two systems are structurally incompatible, providing defence-in-depth beyond
+the `set_tenant_search_path` guard.
+
+### Tenant table row counts (at audit time)
+
+- `tenant_1.chat_conversations` — 0 rows (empty provisioned schema)
+- `tenant_9908.chat_conversations` — 0 rows (empty provisioned schema)
+
+No KBS data exists to be affected by dropping `public.chat_*`.
+
+### Conclusion
+
+Dropping `public.chat_conversations` + `public.chat_messages` in Phase 6 carries
+**zero risk** to KBS. KBS tenant schemas are fully independent and will continue
+operating normally after the drop.
+
+---
+
+## Phase 6 — Drop Applied (2026-04-19)
+
+**Migration:** `database/migrations/unified_conversations_phase6_drop_public_chat.sql`
+
+**Pre-drop catch-up results:**
+- `public.chat_conv unmigrated` before catch-up: **1** (edge-case row from Phase 2→4 window)
+- After Phase 2 idempotent catch-up re-run: **0** unmigrated conversations, **0** unmigrated messages
+
+**Tables dropped:** `public.chat_messages` (CASCADE), `public.chat_conversations`
+
+**Post-drop verification:** Only `tenant_1.chat_*` and `tenant_9908.chat_*` remain in
+`information_schema.tables` — no `public.chat_*` entries.
+
+**Migration is complete. All six phases of #2172 are done.**

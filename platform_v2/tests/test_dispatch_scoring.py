@@ -257,3 +257,121 @@ class TestLegacySymbolsRemoved:
             "get_agent_for_module was removed in #2165 — "
             "callers should use coordinator.select_agent(capability, department)"
         )
+
+
+class TestAgentNameConsistency:
+    """Regression guard for task #2164 Phase 1.
+
+    Verifies that no Python file passes a plain-form agent name (e.g. 'heritage',
+    'scroll', 'quill') to a dispatch parameter (prefer_agent / agent_name /
+    target_agent). After Phase 2 the agents.name column will contain dotted
+    forms only, so any plain-form reference would silently miss its target.
+
+    Add the SKIP_AGENT_NAME_AUDIT=1 env-var to suppress this during the
+    Phase 2 DB migration window itself.
+    """
+
+    # Plain-form names confirmed by:
+    #   SELECT name FROM agents WHERE worker_type='ai'
+    #     AND shift_state != 'decommissioned' AND name != display_name;
+    # (2026-04-19 — 33 rows)
+    PLAIN_FORMS = [
+        "ACCORD",
+        "ARCHIE",
+        "ARMADA",
+        "BASE",
+        "bias",
+        "CARGO",
+        "CODEX",
+        "DARWIN",
+        "draft",
+        "EMBER",
+        "ethos",
+        "fact",
+        "FORGE",
+        "GAVEL",
+        "heritage",
+        "ink",
+        "KIN",
+        "LEDGER",
+        "MARKET",
+        "MUSE",
+        "publish",
+        "quill",
+        "RESOLVE",
+        "restore",
+        "scroll",
+        "SHIELD",
+        "SIGNAL",
+        "SPECTRA",
+        "verify",
+        "VIGIL",
+        "visage",
+        "VITAL",
+    ]
+
+    # Directories to scan (relative to the repo root, as seen inside the container)
+    _SCAN_DIRS = [
+        "tools",
+        "services",
+        "ai_bridge",
+    ]
+
+    @pytest.mark.skipif(
+        __import__("os").environ.get("SKIP_AGENT_NAME_AUDIT") == "1",
+        reason="Skipped during Phase 2 agents.name migration window",
+    )
+    def test_no_plain_form_prefer_agent_calls(self):
+        """No Python file may pass a plain-form name to prefer_agent / agent_name /
+        target_agent. If this test fails, someone introduced a new plain-form
+        reference after Phase 1 was merged — fix it by using the dotted form."""
+        import os
+        import re
+        import subprocess
+
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        scan_paths = [os.path.join(base, d) for d in self._SCAN_DIRS if os.path.isdir(os.path.join(base, d))]
+
+        failures = []
+        pattern = re.compile(
+            r'(prefer_agent|agent_name|target_agent)\s*=\s*["\']('
+            + "|".join(re.escape(p) for p in self.PLAIN_FORMS)
+            + r')["\']'
+        )
+
+        # Exclude the dispatcher itself — it uses agent_name as an *output* field
+        # (DispatchResult, fallback defaults) not as a lookup key.
+        EXCLUDE_FILES = {
+            os.path.join(base, "tools/department_hq/services/department_dispatcher.py"),
+        }
+
+        for scan_dir in scan_paths:
+            result = subprocess.run(
+                [
+                    "grep",
+                    "-rn",
+                    "--include=*.py",
+                    "-P",
+                    r'(prefer_agent|agent_name|target_agent)\s*=\s*["\']('
+                    + "|".join(re.escape(p) for p in self.PLAIN_FORMS)
+                    + r')["\']',
+                    scan_dir,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if result.stdout.strip():
+                # Filter out excluded files
+                lines = [
+                    line
+                    for line in result.stdout.strip().splitlines()
+                    if not any(line.startswith(excl) for excl in EXCLUDE_FILES)
+                ]
+                if lines:
+                    failures.append("\n".join(lines))
+
+        assert not failures, (
+            "Found plain-form agent name(s) in dispatch call(s) — use the dotted form "
+            "(e.g. 'H.E.R.I.T.A.G.E.' not 'heritage'). Phase 2 will rename agents.name "
+            "to the dotted form, so plain-form references will silently miss their target.\n\n" + "\n".join(failures)
+        )

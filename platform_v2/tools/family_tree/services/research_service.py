@@ -402,7 +402,7 @@ def generate_life_story(person_data, relationships, events):
         result = dispatch(
             prompt=prompt,
             capability="text_analysis",
-            agent_name="heritage",
+            agent_name="H.E.R.I.T.A.G.E.",
             system_prompt=system_prompt,
             temperature=0.7,
         )
@@ -647,7 +647,7 @@ def analyze_research_results(results, person_context):
         result = dispatch(
             prompt=prompt,
             capability="text_analysis",
-            agent_name="scroll",
+            agent_name="S.C.R.O.L.L.",
             system_prompt=system_prompt,
             temperature=0.1,
         )

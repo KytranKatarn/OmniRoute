@@ -76,7 +76,7 @@ def _node_url(node_id: str) -> str:
     fleet nodes come from remote_nodes via fleet_service.
     """
     if node_id in ("hub", "archie-starbase"):
-        return os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
+        return os.environ.get("OLLAMA_HOST") or os.environ.get("OLLAMA_URL") or "http://archie_ollama:11434"
     try:
         from .fleet_service import get_node_status
 
@@ -85,7 +85,7 @@ def _node_url(node_id: str) -> str:
             return f"http://{node.get('vpn_ip')}:{node.get('port', 11434)}"
     except Exception:
         logger.warning("fleet_service lookup failed for %s, using OLLAMA_HOST fallback", node_id)
-    return os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
+    return os.environ.get("OLLAMA_HOST") or os.environ.get("OLLAMA_URL") or "http://archie_ollama:11434"
 
 
 # ============================================================================
@@ -1690,7 +1690,7 @@ class DepartmentDispatcher:
 
             _opts = build_options(
                 model=model,
-                target_node=None,  # Phase 1: hub-only; Phase 2a (Task 12) → select_node
+                target_node=None,  # select_node picks hub or fleet via build_options
                 prompt_tokens_hint=len(prompt) // 4 if prompt else 0,
                 keep_alive="5m",
             )

@@ -43,7 +43,7 @@ def _node_url_for_orchestration(node_id: str) -> str:
     from remote_nodes via fleet_service.
     """
     if node_id in ("hub", "archie-starbase"):
-        return os.environ.get("OLLAMA_URL", "http://host.docker.internal:11434")
+        return os.environ.get("OLLAMA_HOST") or os.environ.get("OLLAMA_URL") or "http://archie_ollama:11434"
     try:
         from .fleet_service import get_node_status
 
@@ -52,7 +52,7 @@ def _node_url_for_orchestration(node_id: str) -> str:
             return f"http://{node['vpn_ip']}:{node.get('port', 11434)}"
     except Exception:
         logger.warning("fleet_service lookup failed for %s, using OLLAMA_URL fallback", node_id)
-    return os.environ.get("OLLAMA_URL", "http://host.docker.internal:11434")
+    return os.environ.get("OLLAMA_HOST") or os.environ.get("OLLAMA_URL") or "http://archie_ollama:11434"
 
 
 def _default_conversation_model():

@@ -2,17 +2,23 @@
 Department HQ — Agent Detail routes
 
 Endpoints:
-  GET  /api/agent/<id>/profile     — Full agent profile (agent + skills + welfare + performance)
-  GET  /api/agent/<id>/skills      — Agent skills list
-  POST /api/agent/<id>/skills      — Add/update a skill {skill_name, level, category}
-  GET  /api/agent/<id>/welfare     — Agent welfare metrics
-  POST /api/agent/<id>/shift       — Change shift state {shift_state}
-  POST /api/agent/<id>/department  — Reassign department {department}
+  GET   /api/agent/<id>/profile     — Full agent profile (agent + skills + welfare + performance)
+  PATCH /api/agent/<id>             — Partial update (single-source editor for profile modal, #1916)
+  GET   /api/agent/<id>/skills      — Agent skills list
+  POST  /api/agent/<id>/skills      — Add/update a skill {skill_name, level, category}
+  GET   /api/agent/<id>/welfare     — Agent welfare metrics
+  POST  /api/agent/<id>/shift       — Change shift state {shift_state}
+  POST  /api/agent/<id>/department  — Reassign department {department}
 
 Uses the centralized agent_service for all operations.
 """
 
+import json as _json
+import logging
+
 from flask import jsonify, request
+from flask_login import current_user
+
 from services.agent_service import (
     get_agent,
     get_skills,
@@ -23,6 +29,51 @@ from services.agent_service import (
     DEPARTMENT_FLOOR_MAP,
     VALID_SHIFT_STATES,
 )
+from services.ollama_availability import is_model_available
+
+logger = logging.getLogger(__name__)
+
+# Fields the PATCH endpoint will accept. Anything else → 400 unknown_field.
+EDITABLE_FIELDS = {
+    # Identity
+    "display_name",
+    "title",
+    "bio",
+    "acronym",
+    "acronym_expansion",
+    "pronouns",
+    "current_grade",
+    # Classification
+    "department",
+    "floor",
+    "writing_tone",
+    "is_department_ai",
+    "reports_to_agent_id",
+    # Dispatch (sensitive)
+    "model",
+    "temperature",
+    "max_tokens",
+    "system_prompt",
+    # Appearance/narrative
+    "communication_style",
+    "appearance_notes",
+    "age_range",
+    "gender",
+    "ethnicity",
+    # Voice & social
+    "social_topics",
+    "auto_approve_threshold",
+}
+
+# Fields that trigger the confirm-on-dirty client overlay.
+SENSITIVE_FIELDS = {
+    "model",
+    "temperature",
+    "max_tokens",
+    "system_prompt",
+    "is_department_ai",
+    "reports_to_agent_id",
+}
 
 
 def register_agent_detail_routes(bp, admin_required):
@@ -41,23 +92,45 @@ def register_agent_detail_routes(bp, admin_required):
             welfare = get_welfare(agent_id)
             perf = get_performance(agent_id)
 
-            # Sanitize agent dict for JSON (remove non-serializable fields)
+            # Sanitize agent dict for JSON. Includes the full editable field
+            # set used by the agent profile modal (Project #262 Task #1916).
             agent_data = {
+                # Identity
                 "id": agent["id"],
                 "name": agent["name"],
-                "display_name": agent["display_name"],
-                "department": agent["department"],
-                "floor": agent["floor"],
-                "model": agent["model"],
-                "status": agent["status"],
-                "shift_state": agent["shift_state"],
-                "is_department_ai": agent.get("is_department_ai", False),
+                "display_name": agent.get("display_name"),
+                "title": agent.get("title", ""),
+                "bio": agent.get("bio", ""),
+                "acronym": agent.get("acronym"),
+                "acronym_expansion": agent.get("acronym_expansion"),
+                "pronouns": agent.get("pronouns"),
+                "current_grade": agent.get("current_grade"),
+                # Classification
+                "department": agent.get("department"),
+                "floor": agent.get("floor"),
+                "writing_tone": agent.get("writing_tone"),
+                "is_department_ai": bool(agent.get("is_department_ai")),
+                "reports_to_agent_id": agent.get("reports_to_agent_id"),
+                # Dispatch (sensitive)
+                "model": agent.get("model"),
                 "temperature": float(agent.get("temperature") or 0.7),
                 "max_tokens": agent.get("max_tokens", 2048),
                 "system_prompt": agent.get("system_prompt", ""),
-                "title": agent.get("title", ""),
+                # Appearance/narrative
+                "communication_style": agent.get("communication_style"),
+                "appearance_notes": agent.get("appearance_notes"),
+                "age_range": agent.get("age_range"),
+                "gender": agent.get("gender"),
+                "ethnicity": agent.get("ethnicity"),
+                # Voice & social
+                "social_topics": agent.get("social_topics") or [],
+                "auto_approve_threshold": float(agent.get("auto_approve_threshold") or 0.0),
+                # Read-only
+                "status": agent.get("status"),
+                "shift_state": agent.get("shift_state"),
                 "avatar_url": agent.get("avatar_url", ""),
                 "capabilities": agent.get("capabilities"),
+                # Welfare inline (for header band / quick render)
                 "stress_level": float(agent.get("stress_level") or 0),
                 "energy_level": float(agent.get("energy_level") or 0.5),
                 "current_mood": agent.get("current_mood", "neutral"),
@@ -204,3 +277,135 @@ def register_agent_detail_routes(bp, admin_required):
             return jsonify({"error": str(e)}), 400
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/agent/<int:agent_id>", methods=["PATCH"])
+    @admin_required
+    def api_agent_patch(agent_id):
+        """Single-source profile editor write path (Project #262 Task #1916).
+
+        Validates against EDITABLE_FIELDS allowlist, runs per-field rules,
+        calls agent_service.update_agent, writes governance_audit_log.
+        """
+        payload = request.get_json(silent=True) or {}
+        if not isinstance(payload, dict) or not payload:
+            return jsonify({"ok": False, "error": "empty_body"}), 400
+
+        unknown = set(payload.keys()) - EDITABLE_FIELDS
+        if unknown:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "unknown_field",
+                        "fields": sorted(unknown),
+                    }
+                ),
+                400,
+            )
+
+        agent = get_agent(agent_id)
+        if not agent:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+
+        err = _validate_patch_payload(agent_id, payload)
+        if err:
+            return jsonify({"ok": False, **err}), 400
+
+        before = {k: agent.get(k) for k in payload.keys()}
+
+        try:
+            update_agent(agent_id, **payload)
+        except Exception as exc:
+            logger.exception("agent PATCH failed for id=%s", agent_id)
+            return (
+                jsonify({"ok": False, "error": "update_failed", "detail": str(exc)}),
+                500,
+            )
+
+        actor_id = getattr(current_user, "id", None)
+        _audit_profile_update(
+            agent_id=agent_id,
+            user_id=actor_id,
+            before=before,
+            after=payload,
+        )
+
+        return (
+            jsonify({"ok": True, "updated_fields": sorted(payload.keys())}),
+            200,
+        )
+
+
+def _validate_patch_payload(agent_id, payload):
+    """Return None if ok; else dict with error + field keys (for jsonify)."""
+    if "temperature" in payload:
+        t = payload["temperature"]
+        if not isinstance(t, (int, float)) or isinstance(t, bool) or not (0.0 <= float(t) <= 2.0):
+            return {"error": "invalid_value", "field": "temperature"}
+    if "max_tokens" in payload:
+        mt = payload["max_tokens"]
+        if not isinstance(mt, int) or isinstance(mt, bool) or not (1 <= mt <= 8192):
+            return {"error": "invalid_value", "field": "max_tokens"}
+    if "auto_approve_threshold" in payload:
+        th = payload["auto_approve_threshold"]
+        if not isinstance(th, (int, float)) or isinstance(th, bool) or not (0.0 <= float(th) <= 1000.0):
+            return {"error": "invalid_value", "field": "auto_approve_threshold"}
+    if "is_department_ai" in payload and not isinstance(payload["is_department_ai"], bool):
+        return {"error": "invalid_value", "field": "is_department_ai"}
+    if "social_topics" in payload:
+        s = payload["social_topics"]
+        if not isinstance(s, list) or not all(isinstance(x, str) for x in s):
+            return {"error": "invalid_value", "field": "social_topics"}
+    if "department" in payload:
+        if payload["department"] not in DEPARTMENT_FLOOR_MAP:
+            return {"error": "invalid_value", "field": "department"}
+    if "reports_to_agent_id" in payload:
+        rt = payload["reports_to_agent_id"]
+        if rt is not None:
+            if rt == agent_id:
+                return {
+                    "error": "reports_to_self",
+                    "field": "reports_to_agent_id",
+                }
+            target = get_agent(rt)
+            if not target:
+                return {
+                    "error": "reports_to_missing",
+                    "field": "reports_to_agent_id",
+                }
+    if "model" in payload:
+        ok, msg = is_model_available(payload["model"])
+        if not ok:
+            return {
+                "error": "model_not_available",
+                "field": "model",
+                "detail": msg,
+            }
+    return None
+
+
+def _audit_profile_update(*, agent_id, user_id, before, after):
+    """Write one governance_audit_log row per successful profile save."""
+    from database import get_db_cursor
+
+    details = {"before": before, "after": after}
+    try:
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                """
+                INSERT INTO governance_audit_log
+                    (event_type, event_category, agent_id, user_id,
+                     action, details, timestamp)
+                VALUES (%s, %s, %s, %s, %s, %s::jsonb, NOW())
+                """,
+                (
+                    "agent_profile_update",
+                    "agent_management",
+                    agent_id,
+                    user_id,
+                    "profile_update",
+                    _json.dumps(details, default=str),
+                ),
+            )
+    except Exception as e:
+        logger.warning("governance_audit_log write failed for agent %s: %s", agent_id, e)

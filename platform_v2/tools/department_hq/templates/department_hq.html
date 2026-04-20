@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="{{ url_for('department_hq.static', filename='css/department-hq.css') }}">
 <link rel="stylesheet" href="/static/css/fleet.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent_profile_modal.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -1241,6 +1242,7 @@ async function _dhqRejectHire(approvalId, btn) {
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script src="{{ url_for('department_hq.static', filename='js/department-hq.js') }}"></script>
+<script src="{{ url_for('static', filename='js/agent_profile_modal.js') }}"></script>
 <script>
   window.onLcarsTabSwitch = function(tabId) { switchTab(tabId); };
   (function() {

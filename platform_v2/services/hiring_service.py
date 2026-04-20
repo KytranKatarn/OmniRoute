@@ -120,20 +120,15 @@ def propose_for_gap(
 
 
 def _verify_model_available(model: str, hub_host: Optional[str] = None) -> tuple[bool, str]:
-    """GET /api/tags on hub; return (ok, message). 5s timeout, any failure = not ok."""
+    """Back-compat shim. Delegates to services.ollama_availability.is_model_available
+    but preserves hiring's 'skip on empty model' semantic so barracked agents without
+    a configured model don't fail the approve path.
+    """
     if not model:
         return True, "no_model_configured_skip"
-    host = hub_host or os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
-    try:
-        r = requests.get(f"{host.rstrip('/')}/api/tags", timeout=5)
-        r.raise_for_status()
-        names = {m.get("name", "").split(":")[0] for m in r.json().get("models", [])}
-        stem = model.split(":")[0]
-        if stem not in names:
-            return False, f"Model {model!r} not present on {host}"
-        return True, "ok"
-    except Exception as e:
-        return False, f"Ollama unreachable: {e}"
+    from .ollama_availability import is_model_available
+
+    return is_model_available(model, hub_host=hub_host)
 
 
 def _transition_agent(agent_id: int, new_state: str, reason: str) -> None:

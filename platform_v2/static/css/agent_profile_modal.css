@@ -1,0 +1,139 @@
+/* Agent Profile Detail Modal — Task #1916 */
+
+#agentDetailOverlay .apm-root {
+  display: flex; flex-direction: column; gap: 14px;
+  color: var(--archie-text, #e6f2ff);
+  font-family: "IBM Plex Mono", monospace;
+}
+
+#agentDetailOverlay .apm-header-band {
+  display: grid;
+  grid-template-columns: 200px 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.25);
+}
+
+#agentDetailOverlay .apm-portrait {
+  width: 200px; height: 200px;
+  border-radius: 12px;
+  background: #041828;
+  object-fit: cover;
+  border: 1px solid rgba(0, 229, 255, 0.4);
+}
+
+#agentDetailOverlay .apm-name { font-size: 1.6rem; font-weight: 700; }
+#agentDetailOverlay .apm-codename { opacity: 0.7; }
+#agentDetailOverlay .apm-subline {
+  margin-top: 4px; font-size: 0.9rem; opacity: 0.8;
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+#agentDetailOverlay .apm-pill {
+  padding: 2px 10px; border-radius: 999px;
+  background: #0a3a4c; border: 1px solid #00e5ff; font-size: 0.8rem;
+  cursor: pointer;
+}
+
+#agentDetailOverlay .apm-section {
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(4, 24, 40, 0.6);
+}
+
+#agentDetailOverlay .apm-section-title {
+  font-size: 1rem; font-weight: 600; margin-bottom: 10px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+
+#agentDetailOverlay .apm-sensitive-mark {
+  color: #ff8a00; font-size: 0.75rem; font-weight: 500;
+}
+
+#agentDetailOverlay .apm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+
+#agentDetailOverlay .apm-field { display: flex; flex-direction: column; gap: 4px; }
+#agentDetailOverlay .apm-field-label {
+  font-size: 0.75rem; letter-spacing: 0.04em; opacity: 0.65;
+  text-transform: uppercase;
+}
+#agentDetailOverlay .apm-field-value { font-size: 0.95rem; min-height: 1.2em; }
+#agentDetailOverlay .apm-field-full { grid-column: 1 / -1; }
+
+#agentDetailOverlay input.apm-input,
+#agentDetailOverlay select.apm-input,
+#agentDetailOverlay textarea.apm-input {
+  background: #041828;
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  color: var(--archie-text, #e6f2ff);
+  padding: 6px 8px; border-radius: 4px; font-family: inherit;
+  font-size: 0.9rem;
+}
+#agentDetailOverlay textarea.apm-input { min-height: 80px; resize: vertical; }
+#agentDetailOverlay textarea.apm-prompt { min-height: 140px; }
+
+#agentDetailOverlay .apm-input.apm-error {
+  border-color: #ff2244; box-shadow: 0 0 0 2px rgba(255, 34, 68, 0.2);
+}
+
+#agentDetailOverlay .apm-chip {
+  display: inline-block; padding: 2px 10px; margin: 2px;
+  border-radius: 999px; background: #0a3a4c; font-size: 0.78rem;
+}
+
+#agentDetailOverlay .apm-deeplink {
+  font-size: 0.78rem; text-decoration: none; color: #00e5ff;
+}
+#agentDetailOverlay .apm-deeplink:hover { text-decoration: underline; }
+
+#agentDetailOverlay .apm-footer-actions {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding-top: 12px; border-top: 1px solid rgba(0, 229, 255, 0.25);
+}
+
+#agentDetailOverlay[data-mode="view"] .apm-edit-only { display: none; }
+#agentDetailOverlay[data-mode="edit"] .apm-view-only { display: none; }
+
+#agentDetailOverlay .apm-toast {
+  position: absolute; bottom: 20px; left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px; border-radius: 4px; font-size: 0.85rem;
+  opacity: 0; transition: opacity 0.2s;
+  pointer-events: none;
+}
+#agentDetailOverlay .apm-toast.show { opacity: 1; }
+#agentDetailOverlay .apm-toast.ok { background: #0a4a1a; border: 1px solid #00e58a; }
+#agentDetailOverlay .apm-toast.err { background: #4a0a1a; border: 1px solid #ff2244; }
+
+#apmConfirmOverlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 10000;
+  background: rgba(0, 0, 0, 0.65);
+  align-items: center; justify-content: center;
+}
+#apmConfirmOverlay.active { display: flex; }
+#apmConfirmOverlay .apm-confirm-shell {
+  background: #05263a; border: 1px solid #ff8a00;
+  border-radius: 8px; padding: 20px; max-width: 440px;
+  color: var(--archie-text, #e6f2ff);
+}
+#apmConfirmOverlay .apm-confirm-title {
+  color: #ff8a00; font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;
+}
+#apmConfirmOverlay .apm-confirm-body {
+  font-size: 0.9rem; margin-bottom: 16px; line-height: 1.4;
+}
+#apmConfirmOverlay .apm-confirm-actions {
+  display: flex; justify-content: flex-end; gap: 10px;
+}
+
+@media (max-width: 768px) {
+  #agentDetailOverlay .apm-header-band { grid-template-columns: 1fr; }
+  #agentDetailOverlay .apm-portrait { width: 140px; height: 140px; }
+  #agentDetailOverlay .apm-grid { grid-template-columns: 1fr; }
+}

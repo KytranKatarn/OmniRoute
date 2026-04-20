@@ -335,6 +335,105 @@ def register_agent_detail_routes(bp, admin_required):
             200,
         )
 
+    @bp.route("/api/agents/<int:agent_id>/generate-portrait", methods=["POST"])
+    @admin_required
+    def api_agent_generate_portrait(agent_id):
+        """Profile-modal Generate Portrait button — convenience wrapper.
+
+        Dispatches through the canonical Media Studio pipeline (Bridge →
+        P.I.X.E.L. image_generation skill → ComfyUI) and auto-approves the
+        result as the agent's canonical portrait. For preview-before-approve
+        flow, use the Media Studio Portraits tab directly.
+
+        Body (optional):
+            {"prompt": "override identity prompt"}
+
+        Returns shape expected by agent-profile.js:
+            {"success": bool, "active": avatar_url, "message": str,
+             "queue_id": int, "media_id": int}
+        """
+        from tools.media_studio.services.portrait_service import (
+            generate_canonical,
+            approve_canonical,
+        )
+        from database import get_db_cursor
+
+        body = request.get_json(silent=True) or {}
+        prompt_override = body.get("prompt")
+
+        agent = get_agent(agent_id)
+        if not agent:
+            return jsonify({"success": False, "error": "Agent not found"}), 404
+
+        # 1. Generate via the canonical pipeline
+        gen_result = generate_canonical(agent_id, prompt_override=prompt_override)
+        if gen_result.get("error"):
+            return jsonify({"success": False, "error": gen_result["error"]}), 500
+
+        queue_id = gen_result.get("queue_id")
+        status = gen_result.get("status")
+        if status != "completed" or not queue_id:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Generation not completed (status={status})",
+                        "queue_id": queue_id,
+                    }
+                ),
+                502,
+            )
+
+        # 2. Pull the media_id from the queue row
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                "SELECT result_media_id FROM media_generation_queue WHERE id = %s",
+                (queue_id,),
+            )
+            row = cur.fetchone()
+        media_id = row["result_media_id"] if row else None
+        if not media_id:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "No media_id on completed queue row",
+                        "queue_id": queue_id,
+                    }
+                ),
+                502,
+            )
+
+        # 3. Auto-approve so the avatar_url flips immediately.
+        approval = approve_canonical(agent_id, media_id)
+        if approval.get("error"):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": approval["error"],
+                        "queue_id": queue_id,
+                        "media_id": media_id,
+                    }
+                ),
+                500,
+            )
+
+        # 4. Fetch the now-updated avatar_url for the frontend
+        updated = get_agent(agent_id) or {}
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "message": "Portrait generated and set as canonical",
+                    "queue_id": queue_id,
+                    "media_id": media_id,
+                    "active": updated.get("avatar_url"),
+                }
+            ),
+            200,
+        )
+
 
 def _validate_patch_payload(agent_id, payload):
     """Return None if ok; else dict with error + field keys (for jsonify)."""

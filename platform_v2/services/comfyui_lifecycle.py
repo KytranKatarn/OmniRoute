@@ -99,6 +99,10 @@ def ensure_running(timeout: int = _COLD_START_TIMEOUT) -> bool:
 
     Returns True if container is running (or was already running).
     Called by the dispatcher before every generate_image.
+
+    Always refreshes `last_used_at` on success so the idle-stop observer
+    cannot kill the container during a multi-minute generation that follows
+    immediately after this call.
     """
     container = _get_container()
     if not container:
@@ -106,6 +110,7 @@ def ensure_running(timeout: int = _COLD_START_TIMEOUT) -> bool:
 
     container.reload()
     if container.status == "running":
+        record_last_used()
         return True
 
     logger.info(f"ComfyUI was {container.status}; cold-starting")
@@ -129,6 +134,7 @@ def ensure_running(timeout: int = _COLD_START_TIMEOUT) -> bool:
             r = requests.get(f"{host}/system_stats", timeout=3)
             if r.status_code == 200:
                 logger.info("ComfyUI cold-start ready")
+                record_last_used()
                 return True
         except Exception:
             pass
@@ -136,6 +142,29 @@ def ensure_running(timeout: int = _COLD_START_TIMEOUT) -> bool:
 
     logger.warning(f"ComfyUI did not answer within {timeout}s after cold-start")
     return False
+
+
+def _is_busy() -> bool:
+    """Return True if ComfyUI's queue has anything running or pending.
+
+    Defends against the idle-stop observer killing the container during a
+    long-running generation when `last_used_at` was old at gen start.
+    """
+    import os
+
+    import requests
+
+    host = os.getenv("COMFYUI_HOST", "http://archie_comfyui:8188")
+    try:
+        r = requests.get(f"{host}/queue", timeout=3)
+        if r.status_code != 200:
+            return False
+        q = r.json() or {}
+        running = q.get("queue_running") or []
+        pending = q.get("queue_pending") or []
+        return bool(running) or bool(pending)
+    except Exception:
+        return False
 
 
 def idle_stop_if_needed(max_idle_seconds: int = 1800) -> dict:
@@ -167,6 +196,14 @@ def idle_stop_if_needed(max_idle_seconds: int = 1800) -> dict:
 
     if idle_for < max_idle_seconds:
         return {"action": "skip", "reason": "not idle enough", "idle_for": idle_for}
+
+    # Defense in depth: if a generation is in flight, refresh the timestamp
+    # and skip stopping. last_used_at can lag behind active work when a long
+    # gen started right before the observer ran (race fixed by also having
+    # ensure_running record_last_used, but the queue check is the safety net).
+    if _is_busy():
+        record_last_used()
+        return {"action": "skip", "reason": "queue active", "idle_for": idle_for}
 
     logger.info(f"ComfyUI idle for {idle_for}s > {max_idle_seconds}s — stopping")
     try:

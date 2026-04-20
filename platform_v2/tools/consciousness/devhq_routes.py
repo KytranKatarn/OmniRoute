@@ -1442,15 +1442,24 @@ def register_devhq_routes(bp, admin_required):
         results = []
         for model in models:
             try:
-                result = dispatch(
-                    capability="chat",
-                    prompt="warmup",
-                    model=model,
-                    module_id="dev_hq",
-                    timeout=30,
+                # Warmup is admin-plane (load-into-VRAM), not inference —
+                # the prior dispatch(..., model=...) silently dropped the
+                # model kwarg and warmed whatever 'chat' routed to, not
+                # the target. Hit Ollama directly with keep_alive=5m.
+                import urllib.request as _urllib
+
+                payload = json.dumps({"model": model, "prompt": "warmup", "keep_alive": "5m"}).encode()
+                req = _urllib.Request(
+                    "http://192.168.1.200:11434/api/generate",
+                    data=payload,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
                 )
-                status = "ok" if result and result.success else "error"
-                error_msg = None if status == "ok" else (result.response if result else "no response")
+                with _urllib.urlopen(req, timeout=30) as resp:
+                    resp.read()
+                result = None
+                status = "ok"
+                error_msg = None
                 entry = {"model": model, "status": status}
                 if error_msg:
                     entry["error"] = error_msg

@@ -72,20 +72,15 @@ def _unload_model():
 
 
 def _free_gpu_for_tts():
-    """Ask Bridge dispatcher to unload GPU models before TTS generation."""
-    try:
-        from bridge_dispatcher import dispatch
-
-        dispatch(
-            capability="chat",
-            prompt="unload",
-            model="dummy",
-            module_id="media_studio",
-            keep_alive=0,
-            timeout=5,
-        )
-    except Exception:
-        pass
+    """Placeholder — the original implementation passed ``model`` +
+    ``keep_alive`` kwargs to ``dispatch()``, but the canonical
+    signature never accepted them, so this call was a silent no-op
+    in production. Proper VRAM management belongs inside the
+    dispatcher's ``_vram_swap_for_comfyui`` / ``_vram_swap_for_vision``
+    paths. Kept as a named hook in case we wire a real unload later.
+    See follow-up task #2129.
+    """
+    pass
 
 
 def generate_speech(

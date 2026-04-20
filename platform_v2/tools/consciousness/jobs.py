@@ -1197,12 +1197,16 @@ Respond with ONLY valid JSON:
             )
 
             try:
+                # prefer_model typo — canonical kwarg is prefer_agent. The
+                # caller wanted qwen2.5-coder:7b; the agent using that model
+                # is W.A.T.C.H. (Analytics). If that mapping changes, update
+                # here. Task #2129 tracks adding native prefer_model support.
                 result = dispatch_json(
                     capability="code_analysis",
                     prompt=prompt,
                     module_id="repo_relevance_analyzer",
                     system_prompt=system_prompt,
-                    prefer_model="qwen2.5-coder:7b",
+                    prefer_agent="W.A.T.C.H.",
                 )
 
                 if not result:
@@ -1403,12 +1407,15 @@ capabilities: [<list>]
             try:
                 from bridge_dispatcher import dispatch
 
+                # prefer_model typo — same rationale as the earlier call
+                # site in this file. Route to W.A.T.C.H. which owns the
+                # qwen2.5-coder:7b model today. See task #2129.
                 dispatch_result = dispatch(
                     capability="code_analysis",
                     prompt=prompt,
                     module_id="skill_adapter",
                     system_prompt=system_prompt,
-                    prefer_model="qwen2.5-coder:7b",
+                    prefer_agent="W.A.T.C.H.",
                 )
                 result = dispatch_result.response if dispatch_result and dispatch_result.success else None
 

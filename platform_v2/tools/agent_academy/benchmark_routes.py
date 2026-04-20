@@ -128,12 +128,17 @@ def register_benchmark_routes(bp, admin_required):
 
             from bridge_dispatcher import dispatch
 
+            # NOTE: the old call passed model=model_name, which the canonical
+            # signature silently dropped — benchmarks have been hitting
+            # whatever the 'benchmark' capability routes to, not the target
+            # model. Until prefer_model is added to the dispatcher (task
+            # #2129), benchmarks rely on capability routing for the under-
+            # test model. Pass target model via module_id for log traceability.
             start = time.time()
             result = dispatch(
                 capability="benchmark",
                 prompt=f"{system_prompt}\n\n{test_prompt}" if system_prompt else test_prompt,
-                model=model_name,
-                module_id="agent_academy",
+                module_id=f"agent_academy:{model_name}",
                 timeout=120,
             )
             duration_ms = int((time.time() - start) * 1000)
@@ -273,12 +278,14 @@ def register_benchmark_routes(bp, admin_required):
             try:
                 from bridge_dispatcher import dispatch
 
+                # See note at the earlier call site: model kwarg was silently
+                # dropped by the canonical signature. Encode target model in
+                # module_id until #2129 adds prefer_model.
                 start = time.time()
                 result = dispatch(
                     capability="benchmark",
                     prompt=test_prompt,
-                    model=model_name,
-                    module_id="agent_academy",
+                    module_id=f"agent_academy:{model_name}",
                     timeout=120,
                 )
                 duration_ms = int((time.time() - start) * 1000)

@@ -259,7 +259,6 @@ def automated_module_audit(flask_app):
         # Unload non-essential models to free VRAM/RAM for repair agents
         try:
             import urllib.request as _urllib
-            from bridge_dispatcher import dispatch
 
             essential_models = {"arctic-embed-cpu:latest", "qwen2.5-coder:7b", "qwen2.5:1.5b"}
             ps_resp = _urllib.urlopen("http://192.168.1.200:11434/api/ps", timeout=10)
@@ -268,16 +267,21 @@ def automated_module_audit(flask_app):
             for m in loaded:
                 if m["name"] not in essential_models:
                     try:
-                        result = dispatch(
-                            capability="chat",
-                            prompt="unload",
-                            model=m["name"],
-                            module_id="dev_hq",
-                            keep_alive=0,
-                            timeout=30,
+                        # Model unload is admin-plane, not inference —
+                        # going directly to Ollama's /api/generate with
+                        # keep_alive=0 is the documented way. The prior
+                        # `dispatch(..., model=..., keep_alive=0)` path
+                        # silently dropped those kwargs (not in canonical
+                        # signature) so unloads never happened in prod.
+                        payload = json.dumps({"model": m["name"], "prompt": "", "keep_alive": 0}).encode()
+                        req = _urllib.Request(
+                            "http://192.168.1.200:11434/api/generate",
+                            data=payload,
+                            headers={"Content-Type": "application/json"},
+                            method="POST",
                         )
-                        if result and result.success:
-                            unloaded += 1
+                        _urllib.urlopen(req, timeout=30)
+                        unloaded += 1
                     except Exception:
                         pass
             if unloaded:

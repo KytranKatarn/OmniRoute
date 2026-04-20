@@ -542,12 +542,17 @@ def translate():
             f"to {LANG_NAMES.get(target_lang, target_lang)}. "
             f"Return ONLY the translated text, no explanations.\n\n{text}"
         )
-        result = dispatcher.dispatch(
-            prompt=prompt,
+        # Was dispatcher.dispatch(..., max_tokens=...) — that method doesn't
+        # exist on the instance and max_tokens isn't a canonical kwarg.
+        # Use the module-level dispatch() with a proper DispatchResult.
+        from tools.department_hq.services.department_dispatcher import dispatch as _dispatch
+
+        result = _dispatch(
             capability="translation",
-            max_tokens=len(text) * 3,
+            prompt=prompt,
+            module_id="public_api_translation",
         )
-        translated = result.get("response", "").strip() if isinstance(result, dict) else str(result).strip()
+        translated = result.response.strip() if result and result.success and result.response else ""
         resp = jsonify(
             {
                 "translated_text": translated,

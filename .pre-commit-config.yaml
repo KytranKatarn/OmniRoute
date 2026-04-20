@@ -37,3 +37,22 @@ repos:
         language: system
         types: [python]
         pass_filenames: true
+
+      # V.I.G.I.L. dispatch signature guardrail (Project #272 Phase 1 Task
+      # #2104). Enforced starting now that drift Classes A/B/C/D have been
+      # cleaned up in PRs #134 + #135. Before this registration the hook
+      # was runnable on-demand only (per ADR-472 / Decision #471).
+      #
+      # Fails any commit that calls dispatch / dispatch_json / request_work
+      # with kwargs outside the canonical signature in
+      # platform_v2/tools/department_hq/services/department_dispatcher.py,
+      # or omits required args. Catches rename drift (agent_name →
+      # prefer_agent), ghost Ollama-layer kwargs (model/temperature/
+      # keep_alive/max_tokens), typos (prefer_model), and calls to
+      # non-existent instance methods like dispatcher.dispatch().
+      - id: dispatch-signature-guardrail
+        name: V.I.G.I.L. — dispatch signature guardrail
+        entry: python3 scripts/check_dispatch_signatures.py
+        language: system
+        types: [python]
+        pass_filenames: true

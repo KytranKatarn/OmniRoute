@@ -2648,8 +2648,24 @@
                     thumb.className = 'ms-portrait-thumb';
                     if (agent.avatar_url || agent.canonical_image_path) {
                         var imgEl = document.createElement('img');
-                        imgEl.src = '/static/' + (agent.canonical_image_path || agent.avatar_url);
+                        // Prefer avatar_url (single source of truth used by
+                        // Roster, Directory, AI Directors). canonical_image_path
+                        // is the portrait-workflow field and may lack /static/.
+                        // Normalize both: absolute paths pass through;
+                        // relative paths get /static/ prefixed.
+                        var src = agent.avatar_url || agent.canonical_image_path;
+                        if (src && src.charAt(0) !== '/' && !/^https?:\/\//i.test(src)) {
+                            src = '/static/' + src;
+                        }
+                        imgEl.src = src;
                         imgEl.alt = agent.display_name;
+                        imgEl.onerror = function() {
+                            // On 404, swap to initials placeholder.
+                            var ph = document.createElement('div');
+                            ph.className = 'ms-portrait-placeholder';
+                            ph.textContent = (agent.display_name || '?').charAt(0);
+                            this.replaceWith(ph);
+                        };
                         thumb.appendChild(imgEl);
                     } else {
                         var placeholder = document.createElement('div');

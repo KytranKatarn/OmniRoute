@@ -2272,6 +2272,35 @@ class DepartmentDispatcher:
             metadata["target_host"] = target_host
             if ollama_models_unloaded:
                 metadata["vram_swap"] = ollama_models_unloaded
+
+            # Bridge the dispatcher → media_generation_queue gap.
+            # If the caller created a queue row (Media Studio submit_generation
+            # does), persist the image to media_library + flip the queue status
+            # to 'completed' so avatar_url / portrait flows finish. Idempotent;
+            # logs its own errors. Root cause traced 2026-04-20 during #262.
+            queue_id = (context or {}).get("queue_id")
+            if queue_id and result.file_path:
+                try:
+                    from tools.media_studio.services.generation_service import (
+                        on_generation_complete,
+                    )
+
+                    media_id = on_generation_complete(
+                        queue_id=queue_id,
+                        file_path=result.file_path,
+                        seed=(context or {}).get("seed"),
+                        duration_ms=None,
+                        provider="comfyui",
+                        node_id=node_db_id,
+                    )
+                    if media_id:
+                        metadata["queue_id"] = queue_id
+                        metadata["media_library_id"] = media_id
+                except Exception as cb_err:
+                    logger.error(
+                        f"[BridgeDispatcher] on_generation_complete failed for " f"queue_id={queue_id}: {cb_err}"
+                    )
+
             return DispatchResult(
                 success=True,
                 response=result.file_path,

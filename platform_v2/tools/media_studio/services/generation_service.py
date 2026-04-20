@@ -125,7 +125,7 @@ def submit_generation(
 
     # Dispatch to Bridge
     try:
-        from ai_bridge.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
         capability = MEDIA_TYPE_CAPABILITIES[media_type]
@@ -153,20 +153,29 @@ def submit_generation(
             prefer_agent="Pixel",
         )
 
-        # Update queue with Bridge job info
+        # Conditional queue update: only stamp 'dispatched' if nothing else
+        # has transitioned the row. The dispatcher's _execute_comfyui path
+        # calls on_generation_complete() on success, which sets 'completed'
+        # and result_media_id — don't clobber that back to 'dispatched'.
+        # The `WHERE ... status='pending'` clause makes this idempotent.
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
                 """
                 UPDATE media_generation_queue
                 SET status = 'dispatched', started_at = NOW()
-                WHERE id = %s
+                WHERE id = %s AND status = 'pending'
                 """,
                 (queue_id,),
             )
+            cur.execute(
+                "SELECT status FROM media_generation_queue WHERE id = %s",
+                (queue_id,),
+            )
+            final_status = cur.fetchone()["status"]
 
         return {
             "queue_id": queue_id,
-            "status": "dispatched",
+            "status": final_status,
             "agent": getattr(result, "agent_name", None),
         }
 
@@ -227,8 +236,21 @@ def on_generation_complete(
         logger.error(f"Failed to copy media file: {e}")
         dest_path = file_path
 
-    # Relative path for DB storage (from static/)
-    rel_path = os.path.relpath(dest_path, os.path.join(MEDIA_ROOT, ".."))
+    # URL-friendly path for DB storage. Normalize to /static/<rel-to-static>
+    # so avatar_url works directly as an <img src>. The old implementation
+    # produced awkward `../../static/...` that only worked via the Media
+    # Studio's own prefix-stripper. Everyone else (Roster, Directory,
+    # Directors page) expects `/static/...` or an absolute URL.
+    static_root = os.path.join(MEDIA_ROOT, "..")
+    try:
+        _rel = os.path.relpath(dest_path, static_root)
+        if _rel.startswith(".."):
+            # dest_path is outside the static tree — keep absolute ref
+            rel_path = dest_path
+        else:
+            rel_path = "/static/" + _rel.replace(os.sep, "/")
+    except ValueError:
+        rel_path = dest_path
 
     # Create thumbnail (256px wide)
     thumb_path = None

@@ -1499,7 +1499,7 @@ def get_agent_cache() -> Dict:
         cur.execute(
             """
             SELECT a.id, a.name, a.display_name, a.department, a.floor,
-                   a.model, a.status, a.shift_state,
+                   a.model, a.image_model, a.status, a.shift_state,
                    a.is_department_ai,
                    COALESCE(json_agg(
                        json_build_object('skill', s.skill_name, 'level', s.proficiency_level)
@@ -1530,6 +1530,7 @@ def get_agent_cache() -> Dict:
                 "department": row["department"],
                 "floor": row["floor"],
                 "model": row["model"],
+                "image_model": row.get("image_model"),
                 "status": row["status"],
                 "shift_state": row["shift_state"],
                 "is_department_ai": row["is_department_ai"],

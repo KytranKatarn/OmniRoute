@@ -1310,9 +1310,6 @@ def logout():
 # ============================================================================
 
 
-# Directory routes moved to tools/directory/ (Task 2 — Blueprint extraction)
-
-
 @app.route("/api/module-agents")
 def api_module_agents():
     """Get the assigned agent for a module (Project #91 Agent Badge System).

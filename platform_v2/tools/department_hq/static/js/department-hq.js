@@ -343,9 +343,99 @@ function renderRoster(data) {
     var el = document.getElementById('rosterContent');
     if (rosterView === 'table') {
         renderRosterTable(data, el);
+    } else if (rosterView === 'gallery') {
+        renderRosterGallery(data, el);
     } else {
         renderRosterCards(data, el);
     }
+}
+
+function renderRosterGallery(data, el) {
+    // Portrait-first grid. Agents missing an avatar_url get a red
+    // "missing" indicator + eligible for the bulk-generate action.
+    var agents = data.agents || [];
+    var missing = agents.filter(function(a) { return !a.avatar_url; });
+
+    var html = '';
+    if (missing.length > 0) {
+        html += '<div class="dhq-gallery-toolbar">'
+            + '<span class="dhq-gallery-missing-count">'
+            + missing.length + ' missing portrait' + (missing.length === 1 ? '' : 's')
+            + '</span>'
+            + '<button class="dhq-action-btn dhq-gallery-bulk-btn" onclick="generateAllMissingPortraits()">'
+            + 'Generate All Missing</button>'
+            + '</div>';
+    }
+
+    html += '<div class="dhq-gallery-grid">';
+    agents.forEach(function(a) {
+        var color = floorColor(a.floor);
+        var initials = (a.display_name || a.name || '?').split(' ')
+            .map(function(w) { return w[0]; }).join('').substring(0, 2).toUpperCase();
+        var isMissing = !a.avatar_url;
+        var portraitInner = isMissing
+            ? '<div class="dhq-gallery-placeholder" style="color:' + color + '"><span>' + esc(initials) + '</span></div>'
+            : '<span class="dhq-gallery-initials" style="display:none;color:' + color + '">' + esc(initials) + '</span>'
+              + '<img src="' + esc(a.avatar_url) + '" alt="" loading="lazy"'
+              + ' onerror="this.style.display=\'none\';this.previousElementSibling.style.display=\'flex\'">';
+
+        html += '<div class="dhq-gallery-card ' + (isMissing ? 'missing' : '') + '"'
+            + ' onclick="openAgentDetail(' + a.id + ')" style="--card-accent:' + color + '">'
+            + '<div class="dhq-gallery-portrait">'
+            + portraitInner
+            + (isMissing ? '<span class="dhq-gallery-missing-badge">MISSING</span>' : '')
+            + (a.is_department_ai ? '<span class="dhq-gallery-director-badge">DIRECTOR</span>' : '')
+            + '</div>'
+            + '<div class="dhq-gallery-info">'
+            + '<div class="dhq-gallery-name">' + esc(a.display_name || a.name) + '</div>'
+            + (a.title
+                ? '<div class="dhq-gallery-title">' + esc(a.title) + '</div>'
+                : '')
+            + '<div class="dhq-gallery-dept" style="color:' + color + '">' + esc(a.department || '') + '</div>'
+            + '</div>'
+            + '</div>';
+    });
+    html += '</div>';
+
+    setHtml(el, html);
+}
+
+/** Bulk-generate portraits for every currently-visible agent with no avatar_url.
+    Sequential to avoid VRAM pressure — each dispatches through P.I.X.E.L.'s
+    image_generation skill → ComfyUI (see debe63d3 pipeline fix). */
+async function generateAllMissingPortraits() {
+    var agents = (lastRosterData && lastRosterData.agents) || [];
+    var missing = agents.filter(function(a) { return !a.avatar_url; });
+    if (missing.length === 0) {
+        alert('No missing portraits.');
+        return;
+    }
+    if (!confirm('Generate ' + missing.length + ' portrait'
+        + (missing.length === 1 ? '' : 's')
+        + '? ~3 min each, sequential. GPU will be busy throughout.')) {
+        return;
+    }
+
+    var btn = document.querySelector('.dhq-gallery-bulk-btn');
+    var ok = 0, fail = 0;
+    for (var i = 0; i < missing.length; i++) {
+        var a = missing[i];
+        if (btn) btn.textContent = 'Generating ' + (i+1) + '/' + missing.length + ' — ' + (a.display_name || a.name);
+        try {
+            var resp = await fetch('/tools/department-hq/api/agents/' + a.id + '/generate-portrait', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}'
+            });
+            var result = await resp.json();
+            if (result.success) ok++; else fail++;
+        } catch (e) {
+            fail++;
+        }
+    }
+    if (btn) btn.textContent = 'Done — ' + ok + ' ok, ' + fail + ' failed';
+    // Refresh roster after a moment to pick up new avatar_urls
+    setTimeout(loadRoster, 1500);
 }
 
 function renderRosterTable(data, el) {

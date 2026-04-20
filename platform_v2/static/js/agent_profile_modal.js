@@ -95,6 +95,19 @@
     return r.json();
   }
 
+  async function fetchPortrait(agentId) {
+    try {
+      const r = await fetch(
+        '/tools/media-studio/api/portraits/' + agentId,
+        { credentials: 'same-origin' }
+      );
+      if (!r.ok) return null;
+      return r.json();
+    } catch (_) {
+      return null;
+    }
+  }
+
   function formatView(val, type) {
     if (val === null || val === undefined || val === '') return '—';
     if (type === 'bool') return val ? 'yes' : 'no';
@@ -288,11 +301,91 @@
     return f;
   }
 
+  function buildPortraitSection(agent, portrait) {
+    const section = el('div', 'apm-section apm-portrait-section');
+    const titleRow = el('div', 'apm-section-title');
+    titleRow.appendChild(document.createTextNode('Portrait '));
+    const link = el('a', 'apm-deeplink', '→ Media Studio');
+    link.href = '/tools/media-studio#portraits';
+    titleRow.appendChild(link);
+    section.appendChild(titleRow);
+
+    const row = el('div', 'apm-portrait-row');
+
+    const canonical = el('div', 'apm-portrait-canonical-wrap');
+    const hasCanonical = !!(agent.avatar_url);
+    if (hasCanonical) {
+      const img = document.createElement('img');
+      img.className = 'apm-portrait-canonical';
+      img.src = agent.avatar_url;
+      img.alt = '';
+      canonical.appendChild(img);
+    } else {
+      const ph = el('div', 'apm-portrait-placeholder');
+      ph.appendChild(el('div', 'apm-portrait-placeholder-icon', '◉'));
+      ph.appendChild(el('div', 'apm-portrait-placeholder-label', 'NO CANONICAL'));
+      canonical.appendChild(ph);
+    }
+    row.appendChild(canonical);
+
+    const meta = el('div', 'apm-portrait-meta');
+
+    const variantCount = (portrait && Array.isArray(portrait.variants)) ?
+      portrait.variants.length : 0;
+    const trackedCanonical = !!(portrait && portrait.canonical_image_path);
+    const statusRow = el('div', 'apm-portrait-status');
+    if (trackedCanonical && portrait.approved) {
+      statusRow.appendChild(el('span', 'apm-portrait-badge apm-badge-ok',
+        'CANONICAL ✓'));
+    } else if (trackedCanonical) {
+      statusRow.appendChild(el('span', 'apm-portrait-badge apm-badge-warn',
+        'PENDING APPROVAL'));
+    } else if (hasCanonical) {
+      statusRow.appendChild(el('span', 'apm-portrait-badge apm-badge-muted',
+        'LEGACY'));
+    } else {
+      statusRow.appendChild(el('span', 'apm-portrait-badge apm-badge-muted',
+        'NOT GENERATED'));
+    }
+    statusRow.appendChild(el('span', 'apm-portrait-badge apm-badge-muted',
+      variantCount + (variantCount === 1 ? ' variant' : ' variants')));
+    meta.appendChild(statusRow);
+
+    const promptWrap = el('div', 'apm-portrait-prompt-wrap');
+    promptWrap.appendChild(el('div', 'apm-field-label', 'Identity prompt'));
+    const promptTA = document.createElement('textarea');
+    promptTA.className = 'apm-input apm-portrait-prompt';
+    promptTA.dataset.portraitPrompt = '1';
+    promptTA.rows = 3;
+    promptTA.placeholder =
+      'Describe this agent\'s face, uniform, and style. Used by ComfyUI + IP-Adapter.';
+    promptTA.value =
+      (portrait && (portrait.identity_prompt || portrait.default_identity_prompt)) || '';
+    promptWrap.appendChild(promptTA);
+    meta.appendChild(promptWrap);
+
+    const actions = el('div', 'apm-portrait-actions');
+    if (!hasCanonical) {
+      const gen = el('button', 'apm-btn apm-btn-primary', 'GENERATE CANONICAL');
+      gen.dataset.action = 'generate-canonical';
+      actions.appendChild(gen);
+    }
+    const savePrompt = el('button', 'apm-btn', 'SAVE PROMPT');
+    savePrompt.dataset.action = 'save-identity-prompt';
+    actions.appendChild(savePrompt);
+    meta.appendChild(actions);
+
+    row.appendChild(meta);
+    section.appendChild(row);
+    return section;
+  }
+
   function renderInto(body) {
     clear(body);
     const agent = state.snapshot.agent;
     const root = el('div', 'apm-root');
     root.appendChild(buildHeaderBand(agent));
+    root.appendChild(buildPortraitSection(agent, state.snapshot.portrait));
     SECTIONS.forEach(function (sec) { root.appendChild(buildSection(sec, agent)); });
     root.appendChild(buildReadOnlySections(
       state.snapshot.skills, state.snapshot.welfare, state.snapshot.performance
@@ -316,7 +409,69 @@
       }
       else if (action === 'save') saveHandler(overlay, body);
       else if (action === 'toggle-shift') cycleShift(overlay, body);
+      else if (action === 'generate-canonical') generateCanonical(overlay, body);
+      else if (action === 'save-identity-prompt') saveIdentityPrompt(overlay, body);
     };
+  }
+
+  async function generateCanonical(overlay, body) {
+    const btn = body.querySelector('[data-action="generate-canonical"]');
+    if (btn) btn.disabled = true;
+    try {
+      const ta = body.querySelector('[data-portrait-prompt="1"]');
+      const promptOverride = ta && ta.value.trim() ? ta.value.trim() : null;
+      const r = await fetch(
+        '/tools/media-studio/api/portraits/' + state.agentId + '/generate-canonical',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(promptOverride ? { prompt: promptOverride } : {}),
+        }
+      );
+      const js = await r.json();
+      if (!r.ok) {
+        toast(overlay, 'Generate failed: ' + (js.error || r.status), 'err');
+        return;
+      }
+      const jobId = js.job_id || js.id || '';
+      toast(overlay,
+        'Canonical queued' + (jobId ? ' · job ' + jobId : '') +
+        ' · watch Media Studio', 'ok');
+    } catch (_) {
+      toast(overlay, 'Network error', 'err');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function saveIdentityPrompt(overlay, body) {
+    const ta = body.querySelector('[data-portrait-prompt="1"]');
+    if (!ta) return;
+    const prompt = ta.value.trim();
+    if (!prompt) { toast(overlay, 'Prompt is empty', 'err'); return; }
+    try {
+      const r = await fetch(
+        '/tools/media-studio/api/portraits/' + state.agentId + '/identity-prompt',
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ prompt: prompt }),
+        }
+      );
+      if (!r.ok) {
+        const js = await r.json().catch(function () { return {}; });
+        toast(overlay, 'Save failed: ' + (js.error || r.status), 'err');
+        return;
+      }
+      toast(overlay, 'Identity prompt saved', 'ok');
+      state.snapshot.portrait = await fetchPortrait(state.agentId);
+      renderInto(body);
+      bindActions(overlay, body);
+    } catch (_) {
+      toast(overlay, 'Network error', 'err');
+    }
   }
 
   function collectDirty(body) {
@@ -468,7 +623,12 @@
     body.appendChild(el('div', 'dhq-loading', 'Loading agent profile...'));
 
     try {
-      state.snapshot = await fetchProfile(agentId);
+      const [profile, portrait] = await Promise.all([
+        fetchProfile(agentId),
+        fetchPortrait(agentId),
+      ]);
+      profile.portrait = portrait;
+      state.snapshot = profile;
       renderInto(body);
       bindActions(overlay, body);
     } catch (err) {

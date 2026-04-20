@@ -169,7 +169,8 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 
 ### Media Studio — `media_studio` · `/tools/media-studio` · ✅ · 🟢
 - **Capability**: 9,385 LOC · 98 routes · 19 service modules. GPU-aware image/video/audio via ComfyUI fleet dispatcher (tier: base/mid/high/CPU), gallery w/ per-user ownership + tagging + smart collections, portrait generation w/ canonical/variant + approval flows, social video queue, batch generation, multi-provider TTS + video, RunPod integration. Bridge dispatch at generation_service.py:128.
-- **Tables**: media_generation_queue, media_gallery, media_tags, media_collections, media_smart_collections, media_analytics
+- **Portrait pipeline** (2026-04-20, PRs #205-#210): `describe_portrait()` via moondream for auto-prompts (~7s); `upload_canonical()` accepts JPEG/PNG/WebP ≤10MB, resizes to 1024 longest edge, saves as `static/media/portraits/<stem>.png`. Endpoints: `POST /api/portraits/describe`, `POST /api/portraits/<id>/upload`, bulk-generate with serialized progress UX. `agent_portraits.agent_id` now `UNIQUE` (migration 331). Primary upload UI: Agent Profile modal in DHQ Roster. Public roster also now serves `avatar_thumb_url` (relative `/assets/portraits/<stem>.jpg`) so website pages render same-origin thumbs (43× smaller than full PNG).
+- **Tables**: media_generation_queue, media_gallery, media_tags, media_collections, media_smart_collections, media_analytics, agent_portraits (UNIQUE(agent_id))
 - **Audit**: KB 256846 · **Rules**: `creative-studios.md`
 
 ### Game Studio — `game_studio` · `/tools/game-studio` · ✅ · 🟡

@@ -129,6 +129,7 @@ def register_agent_detail_routes(bp, admin_required):
                 "status": agent.get("status"),
                 "shift_state": agent.get("shift_state"),
                 "avatar_url": agent.get("avatar_url", ""),
+                "avatar_updated_at": agent.get("updated_at").isoformat() if agent.get("updated_at") else None,
                 "capabilities": agent.get("capabilities"),
                 # Welfare inline (for header band / quick render)
                 "stress_level": float(agent.get("stress_level") or 0),

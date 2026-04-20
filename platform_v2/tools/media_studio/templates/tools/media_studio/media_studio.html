@@ -2657,6 +2657,13 @@
                         if (src && src.charAt(0) !== '/' && !/^https?:\/\//i.test(src)) {
                             src = '/static/' + src;
                         }
+                        // Cache-bust: stable per-agent paths (e.g. /static/media/portraits/<name>.png)
+                        // would otherwise serve a stale browser-cache hit after re-upload/approve.
+                        var ts = agent.avatar_updated_at || agent.updated_at;
+                        if (src && ts) {
+                            var v = typeof ts === 'string' ? (Date.parse(ts) || ts) : ts;
+                            src = src + (src.indexOf('?') === -1 ? '?' : '&') + 'v=' + v;
+                        }
                         imgEl.src = src;
                         imgEl.alt = agent.display_name;
                         imgEl.onerror = function() {

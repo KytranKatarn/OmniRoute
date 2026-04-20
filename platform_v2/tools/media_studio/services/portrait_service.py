@@ -41,6 +41,7 @@ def get_all_agent_portraits() -> List[Dict]:
         cur.execute(
             """
             SELECT a.id, a.name, a.display_name, a.avatar_url,
+                   a.updated_at AS avatar_updated_at,
                    p.id AS portrait_id, p.canonical_image_path, p.identity_prompt,
                    p.face_seed, p.ip_adapter_ref_path, p.approved,
                    p.style_tags, p.updated_at
@@ -69,6 +70,7 @@ def get_agent_portrait(agent_id: int) -> Optional[Dict]:
         cur.execute(
             """
             SELECT a.id, a.name, a.display_name, a.avatar_url,
+                   a.updated_at AS avatar_updated_at,
                    p.id AS portrait_id, p.canonical_image_path, p.identity_prompt,
                    p.face_seed, p.ip_adapter_ref_path, p.approved,
                    p.style_tags, p.created_at, p.updated_at

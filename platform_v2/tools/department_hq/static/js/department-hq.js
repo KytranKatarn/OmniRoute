@@ -33,6 +33,16 @@ function esc(s) {
     return d.innerHTML;
 }
 
+// Append cache-bust query param so an updated avatar replaces the cached
+// image immediately. Stable per-agent paths (/static/media/portraits/<name>.png)
+// would otherwise serve a stale browser-cache hit after re-upload/approve.
+function bust(url, ts) {
+    if (!url) return '';
+    if (!ts) return url;
+    var v = typeof ts === 'string' ? (Date.parse(ts) || ts) : ts;
+    return url + (url.indexOf('?') === -1 ? '?' : '&') + 'v=' + v;
+}
+
 async function api(path) {
     const res = await fetch(DHQ_BASE + path);
     if (!res.ok) throw new Error(`API ${path} returned ${res.status}`);
@@ -249,7 +259,7 @@ async function loadOrgChart() {
                     var dInitial = (d.display_name || d.name || '?').charAt(0).toUpperCase();
                     var dAvatar = d.avatar_url
                         ? '<span class="dhq-org-avatar-initials" style="display:none">' + esc(dInitial) + '</span>'
-                          + '<img src="' + esc(d.avatar_url) + '" alt="" loading="lazy"'
+                          + '<img src="' + esc(bust(d.avatar_url, d.avatar_updated_at)) + '" alt="" loading="lazy"'
                           + ' onerror="this.style.display=\'none\';this.previousElementSibling.style.display=\'flex\'">'
                         : '<span>' + esc(dInitial) + '</span>';
                     html += '<div class="dhq-org-director dhq-clickable" onclick="openAgentDetail(' + d.id + ')">'
@@ -267,7 +277,7 @@ async function loadOrgChart() {
                         var sInitial = (a.display_name || a.name || '?').charAt(0).toUpperCase();
                         var sAvatar = a.avatar_url
                             ? '<span class="dhq-org-staff-initials" style="display:none">' + esc(sInitial) + '</span>'
-                              + '<img src="' + esc(a.avatar_url) + '" alt="" loading="lazy"'
+                              + '<img src="' + esc(bust(a.avatar_url, a.avatar_updated_at)) + '" alt="" loading="lazy"'
                               + ' onerror="this.style.display=\'none\';this.previousElementSibling.style.display=\'flex\'">'
                             : '<span>' + esc(sInitial) + '</span>';
                         html += '<div class="dhq-org-agent dhq-clickable" onclick="openAgentDetail(' + a.id + ')">'
@@ -376,7 +386,7 @@ function renderRosterGallery(data, el) {
         var portraitInner = isMissing
             ? '<div class="dhq-gallery-placeholder" style="color:' + color + '"><span>' + esc(initials) + '</span></div>'
             : '<span class="dhq-gallery-initials" style="display:none;color:' + color + '">' + esc(initials) + '</span>'
-              + '<img src="' + esc(a.avatar_url) + '" alt="" loading="lazy"'
+              + '<img src="' + esc(bust(a.avatar_url, a.avatar_updated_at)) + '" alt="" loading="lazy"'
               + ' onerror="this.style.display=\'none\';this.previousElementSibling.style.display=\'flex\'">';
 
         html += '<div class="dhq-gallery-card ' + (isMissing ? 'missing' : '') + '"'
@@ -507,7 +517,7 @@ function renderRosterCards(data, el) {
             // Avoids innerHTML mutation — safer against any future content drift.
             var avatarInner = a.avatar_url
                 ? '<span class="dhq-crew-avatar-initials" style="display:none">' + esc(initials) + '</span>'
-                  + '<img src="' + esc(a.avatar_url) + '" alt="" loading="lazy"'
+                  + '<img src="' + esc(bust(a.avatar_url, a.avatar_updated_at)) + '" alt="" loading="lazy"'
                   + ' onerror="this.style.display=\'none\';this.previousElementSibling.style.display=\'flex\'">'
                 : '<span>' + esc(initials) + '</span>';
 
@@ -789,7 +799,7 @@ async function openAgentDetail(agentId) {
         // ── Header section ──
         html += '<div class="dhq-ad-header">'
             + '<div class="dhq-ad-avatar">'
-            + (a.avatar_url ? '<img src="' + esc(a.avatar_url) + '" alt="avatar">' : '<div class="dhq-ad-avatar-placeholder">&#x1F916;</div>')
+            + (a.avatar_url ? '<img src="' + esc(bust(a.avatar_url, a.avatar_updated_at)) + '" alt="avatar">' : '<div class="dhq-ad-avatar-placeholder">&#x1F916;</div>')
             + '</div>'
             + '<div class="dhq-ad-info">'
             + '<div class="dhq-ad-name">' + esc(a.display_name || a.name) + '</div>'

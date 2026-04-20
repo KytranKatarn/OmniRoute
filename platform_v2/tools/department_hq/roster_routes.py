@@ -114,6 +114,7 @@ def register_roster_routes(bp, admin_required):
                         "acronym": a.get("acronym"),
                         "acronym_expansion": a.get("acronym_expansion"),
                         "avatar_url": a.get("avatar_url"),
+                        "avatar_updated_at": a.get("updated_at").isoformat() if a.get("updated_at") else None,
                         "bio": a.get("bio"),
                         "worker_type": a.get("worker_type"),
                         "wellness_status": w.get("wellness_status", "green"),

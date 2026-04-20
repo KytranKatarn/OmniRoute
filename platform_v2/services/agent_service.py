@@ -101,7 +101,8 @@ def list_agents(
                        a.model, a.status, a.shift_state, a.is_department_ai,
                        a.temperature, a.max_tokens, a.system_prompt,
                        a.capabilities, a.metadata, a.title, a.avatar_url,
-                       a.acronym, a.acronym_expansion, a.bio, a.worker_type
+                       a.acronym, a.acronym_expansion, a.bio, a.worker_type,
+                       a.updated_at
                 FROM agents a {where}
                 ORDER BY a.floor, a.department, a.is_department_ai DESC, a.name
                 LIMIT %s""",

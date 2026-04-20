@@ -1,0 +1,60 @@
+# Phase 3 — Humans needing ethnicity-specific corporate prompts
+# 43 rows. Columns: id, full_name, role, department, current_state, proposed_ethnicity, gender, confidence, notes
+# Edit proposed_ethnicity/gender/notes before re-running the rewrite+regen pipeline.
+# confidence key: HIGH = name strongly implies ethnicity · MED = plausible but ambiguous · LOW = needs user input · CONFIRMED = prior handoff validated
+#
+# id	full_name	role	department	current_state	proposed_ethnicity	gender	confidence	notes
+8	Amara Osei (DataMind)	DataMind	Analytics & Intelligence	corp_noethn	West African (Ghanaian/Akan)	woman	HIGH	"Osei" is classic Akan surname
+47	Anika Bergstrom (Mapper)	Mapper	Creative & Design	corp_noethn	Scandinavian (Swedish)	woman	HIGH	"Bergstrom" — Swedish
+28	Isabella Fernandez (Nova)	Nova	Creative & Design	corp_noethn	Latina (Mexican-American)	woman	HIGH	classic Latina combo
+343	Lucia Moreno	Lucia	Creative & Design	wrong_scifi	Italian-American	woman	HIGH	Italian given + Spanish/Italian surname
+96	Kalani Mahoe (Hearth)	Hearth	Diplomatic & External Relations	corp_noethn	Native Hawaiian (Kanaka Maoli)	androgynous	HIGH	"Kalani" + "Mahoe" — Hawaiian
+125	Amara Okonkwo (Embassy)	Embassy	Diplomatic & External Relations	corp_noethn	Nigerian (Igbo)	woman	HIGH	"Okonkwo" — Igbo
+347	Lillian Paul	Lillian	Diplomatic & External Relations	wrong_scifi	Mi'kmaq (Eskasoni First Nation)	woman	CONFIRMED	per handoff 2026-04-20 project #262
+84	Elif Yilmaz (Runway)	Runway	Documentation & Knowledge	corp_noethn	Turkish	woman	HIGH	"Yilmaz" — Turkish
+341	Amina Youssef	Amina	Documentation & Knowledge	empty	Syrian (Arabic)	woman	CONFIRMED	per handoff — Syrian → Fredericton NB
+100	Jordan Alexis (Helpdesk)	Helpdesk	Engineering & Technology	corp_noethn	REQUEST_USER	androgynous	LOW	English-ambiguous name; needs your intent
+92	Oksana Kovalenko (Wrench)	Wrench	Engineering & Technology	corp_noethn	Ukrainian	woman	HIGH	classic Ukrainian
+99	Priya Subramanian (Weaver)	Weaver	Engineering & Technology	corp_noethn	South Asian (Tamil Indian)	woman	HIGH	"Subramanian" — Tamil
+127	Sophia Chen-Williams (Concierge)	Concierge	Executive Office	corp_noethn	Chinese-British mixed heritage	woman	HIGH	hyphenated surname signals mixed
+82	Fatima El Amrani (Ledger)	Ledger	Executive Office	corp_noethn	Moroccan (North African Arab)	woman	HIGH	"El Amrani" — Moroccan
+80	Linh Nguyen (Haven)	Haven	Executive Office	corp_noethn	Vietnamese	woman	HIGH	classic Vietnamese
+342	Kytran	Kytran	Executive Office	empty	REQUEST_USER	man	LOW	this is YOU — please specify how you want yourself portrayed
+102	Rosa Gutierrez (Payroll)	Payroll	Finance & Accounting	corp_noethn	Mexican-American	woman	HIGH	classic Mexican-American
+43	Olivia Oduya (Oracle)	Oracle	Finance & Accounting	corp_noethn	East African (Kenyan Luo)	woman	HIGH	"Oduya" — Luo
+42	Suki Taniguchi (Shield)	Shield	Finance & Accounting	corp_noethn	Japanese	woman	HIGH	"Taniguchi" — Japanese
+348	Josée Arsenault	Josee	Human Resources & Culture	wrong_scifi	Acadian (New Brunswick)	woman	CONFIRMED	per handoff — Acadian from Caraquet NB
+113	Fatou Diallo (Catalyst-HR)	Catalyst-HR	Human Resources & Culture	corp_noethn	West African (Senegalese/Guinean Fulani)	woman	HIGH	"Fatou Diallo" — Fulani Senegambian
+86	Valentina Quispe (Mentor)	Mentor	Human Resources & Culture	corp_noethn	Andean Indigenous (Quechua/Peruvian-Bolivian)	woman	HIGH	"Quispe" — Quechua
+114	River Sunbear (Harmony)	Harmony	Human Resources & Culture	corp_noethn	Indigenous North American	androgynous	HIGH	"Sunbear" — Indigenous name; ambiguous nation — confirm if specific
+88	Selam Tadesse (Kinship)	Kinship	Human Resources & Culture	corp_noethn	Ethiopian (Habesha)	woman	HIGH	"Tadesse" — Ethiopian
+121	Priscilla Nwosu (Clerk)	Clerk	Legal & Regulatory	corp_noethn	Nigerian (Igbo)	woman	HIGH	"Nwosu" — Igbo
+119	Dr. Yuna Park (Patent)	Patent	Legal & Regulatory	corp_noethn	Korean	woman	HIGH	"Yuna Park" — Korean
+90	Priya Chakraborty (Transit)	Transit	Logistics & Supply Chain	corp_noethn	South Asian (Bengali Indian)	woman	HIGH	"Chakraborty" — Bengali Brahmin
+56	Carmen Reyes (Dispatch)	Dispatch	Logistics & Supply Chain	corp_noethn	Latina (Puerto Rican / Caribbean)	woman	HIGH	classic Puerto Rican
+346	Maya Singh	Maya	Logistics & Supply Chain	wrong_scifi	South Asian (Punjabi Indian)	woman	HIGH	"Maya Singh" — Punjabi
+41	Leila Abadi (Tempo)	Tempo	Marketing & Communications	corp_noethn	Iranian / Middle Eastern	woman	HIGH	"Abadi" — Iranian
+20	Yuki Nakamura (Echo)	Echo	Marketing & Communications	corp_noethn	Japanese	woman	HIGH	"Nakamura" — Japanese
+15	Zara Ahmed (Atom)	Atom	Medical & Wellness	corp_noethn	South Asian (Pakistani/British Muslim)	woman	HIGH	"Zara Ahmed" — South Asian Muslim
+123	Sandra Olsson (Safeguard)	Safeguard	Medical & Wellness	corp_noethn	Scandinavian (Swedish)	woman	HIGH	"Olsson" — Swedish
+54	Dr. Aisha Patel (Medic)	Medic	Medical & Wellness	corp_noethn	South Asian (Gujarati Indian)	woman	HIGH	"Aisha Patel" — Gujarati
+110	Lucia Bianchi (Clockwork)	Clockwork	Operations & Infrastructure	corp_noethn	Italian	woman	HIGH	"Bianchi" — Italian
+35	Amira Hassan (Compass)	Compass	Operations & Infrastructure	corp_noethn	Arab / North African	woman	HIGH	classic Arab
+133	Niviaq Iqaluk (Aurora)	Aurora	Operations & Infrastructure	corp_noethn	Inuit (Greenlandic/Canadian)	woman	HIGH	"Niviaq" + "Iqaluk" — Inuit
+24	Thandi Mbeki (Juno)	Juno	Operations & Infrastructure	corp_noethn	Southern African (Zulu/Xhosa)	woman	HIGH	"Thandi Mbeki" — Zulu/Xhosa
+94	Mei Ling Tan (Girder)	Girder	Operations & Infrastructure	corp_noethn	Chinese (Singaporean/Malaysian Hokkien)	woman	HIGH	"Mei Ling" + "Tan" — Hokkien
+46	Olumide Adeyemi (Scout)	Scout	Research & Development	corp_noethn	Nigerian (Yoruba)	man	HIGH	"Olumide" + "Adeyemi" — Yoruba
+22	Priya Krishnan (Helix)	Helix	Research & Development	corp_noethn	South Asian (Tamil Indian)	woman	HIGH	"Krishnan" — Tamil
+34	Rowan McAllister (Thorn)	Thorn	Security & Compliance	corp_noethn	Scottish-Irish	androgynous	MED	"McAllister" — Scottish; "Rowan" androgynous
+108	Anika Osei (Bastion)	Bastion	Security & Compliance	corp_noethn	West African (Ghanaian/Akan)	woman	HIGH	"Osei" — Akan
+#
+# Rows flagged REQUEST_USER or low-confidence need your input before regen runs:
+#  - #100 Jordan Alexis (Helpdesk) — pick ethnicity OR accept "decline_ethnicity" to skip
+#  - #342 Kytran — how do you want yourself portrayed?
+#  - #114 River Sunbear — any specific Nation (Lakota? Ojibwe? Cree?) or generic Indigenous?
+#  - #34 Rowan McAllister — MED confidence, confirm Scottish-Irish or correct
+#
+# To proceed:
+#  1. Review and edit rows as needed (especially REQUEST_USER rows)
+#  2. Tell me "Phase 3 go" — I'll build migration 340 with all confirmed prompts
+#  3. Phase 3 regen = 43 portraits × ~3.6 min = ~2.5 hrs GPU

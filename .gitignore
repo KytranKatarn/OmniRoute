@@ -142,3 +142,21 @@ repos/
 platform_v2/static/downloads/*.exe
 .superpowers/
 .secrets/
+
+# ============================================================================
+# Project #272 Phase 4 — persistent untracked artifacts (#2115)
+# ============================================================================
+
+# P.R.O.B.E. QA report PDFs — generated per run, not committed
+platform_v2/static/qa_reports/
+
+# Sandbox — repair-bay / Project #272 smoke-test artifacts
+sandbox/
+
+# Ad-hoc debug scripts (session-scoped, not part of CI).
+# Project #272 Phase 4 task #2114 organized one-shot debugs into
+# scripts/debug/. Root-level scripts/debug_*.py is kept ignored so a
+# stray drop into scripts/ doesn't accidentally land in git. Real test
+# utilities live in scripts/tests/ and remain tracked.
+scripts/debug_*.py
+scripts/debug/

@@ -74,12 +74,22 @@ else
   say "skipping thumbnail regen (--no-thumb)"
 fi
 
-# ───── 2. rsync archie_brain → standalone ───────────────────────────────
-say "syncing website source → standalone"
-if [ "$DRY_RUN" = "1" ]; then
-  rsync -avn --delete "$SRC_SITE/" "$DST_SITE/" | tail -15
+# ───── 2. rsync archie_brain → standalone (skipped if symlinked) ────────
+# If $DST_SITE resolves to the same canonical path as $SRC_SITE (because
+# /mnt/standalone/websites/<domain> is now a symlink to the archie_brain
+# source — done 2026-04-20, task #7), rsync would be a self-copy. Detect
+# and skip.
+SRC_REAL="$(readlink -f "$SRC_SITE")"
+DST_REAL="$(readlink -f "$DST_SITE")"
+if [ "$SRC_REAL" = "$DST_REAL" ]; then
+  say "standalone is symlinked to the source — skipping rsync (same canonical path: $SRC_REAL)"
 else
-  rsync -a --delete "$SRC_SITE/" "$DST_SITE/" || die "rsync failed" 3
+  say "syncing website source → standalone"
+  if [ "$DRY_RUN" = "1" ]; then
+    rsync -avn --delete "$SRC_SITE/" "$DST_SITE/" | tail -15
+  else
+    rsync -a --delete "$SRC_SITE/" "$DST_SITE/" || die "rsync failed" 3
+  fi
 fi
 
 # ───── 3. create deploy zip ─────────────────────────────────────────────

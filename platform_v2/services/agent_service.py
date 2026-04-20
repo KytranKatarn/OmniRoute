@@ -551,7 +551,11 @@ def get_org_chart():
         if dept not in floors[floor]:
             floors[floor][dept] = {"director": None, "staff": []}
 
-        if agent.get("is_department_ai"):
+        # Canonical rule: one director per department. If the slot is already
+        # filled and another agent is also flagged is_department_ai (data
+        # drift), we keep the first winner as director and push the rest into
+        # staff — never silently drop an agent from the org chart.
+        if agent.get("is_department_ai") and floors[floor][dept]["director"] is None:
             floors[floor][dept]["director"] = agent
         else:
             floors[floor][dept]["staff"].append(agent)

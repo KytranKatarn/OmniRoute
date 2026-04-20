@@ -649,6 +649,38 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # F.O.R.G.E. — daily dep drift audit (Project #272 Phase 2 / Task #2109).
+        # 03:15 UTC — after S.P.E.C.T.R.A. and K.I.N. digest windows.
+        self.scheduler.add_job(
+            with_app_context(self._run_dep_drift_audit),
+            trigger=IntervalTrigger(hours=24, start_date="2026-01-01 03:15:00"),
+            id="forge_dep_drift",
+            name="Agent Loop: F.O.R.G.E. Dependency Drift Audit",
+            replace_existing=True,
+        )
+
+        # C.O.D.E.X. — event auto-documentation (Project #272 Phase 2 / Task #2108).
+        # Runs every 30 min; template-based, no LLM. Scans project_decisions
+        # for undocumented rows and writes a vault_note per ADR.
+        self.scheduler.add_job(
+            with_app_context(self._run_codex_event_docs),
+            trigger=IntervalTrigger(minutes=30),
+            id="codex_event_docs",
+            name="Agent Loop: C.O.D.E.X. Event Auto-Documentation",
+            replace_existing=True,
+        )
+
+        # V.I.G.I.L. — infra heartbeat (Project #272 Phase 2 / Task #2127).
+        # Every 5 min — critical containers going absent must be caught fast.
+        # Triggered by the 2026-04-18 NPM removal outage (KB mistake #256963).
+        self.scheduler.add_job(
+            with_app_context(self._run_infra_heartbeat),
+            trigger=IntervalTrigger(minutes=5),
+            id="vigil_infra_heartbeat",
+            name="Agent Loop: V.I.G.I.L. Infrastructure Heartbeat",
+            replace_existing=True,
+        )
+
         self.scheduler.add_job(
             with_app_context(self._check_ddns),
             trigger=IntervalTrigger(minutes=15),
@@ -2823,6 +2855,39 @@ class AgentLoop:
                 logger.error(f"Agent reactivation from approval failed: {react_err}")
                 return {"executed": False, "error": str(react_err)}
 
+        elif action_type == "restart_container":
+            # Project #272 Phase 2 / Task #2127. Approved recovery of a
+            # DOWN critical container. The V.I.G.I.L. heartbeat job files
+            # these; actual compose-up happens here only after approval.
+            compose_service = data.get("compose_service") or data.get("container")
+            if not compose_service:
+                return {"executed": False, "error": "No compose_service in action_data"}
+            try:
+                import sys
+
+                sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+                from services.infra_heartbeat_service import restart_container
+
+                result = restart_container(
+                    compose_service,
+                    reason=data.get("reason", "approved restart"),
+                )
+                if result.get("success"):
+                    logger.info(
+                        f"Container {compose_service} restarted from approval "
+                        f"#{item['id']}"
+                    )
+                    return {"executed": True, **result}
+                return {
+                    "executed": False,
+                    "error": result.get("error", "restart_container failed"),
+                }
+            except Exception as restart_err:
+                logger.error(
+                    f"Container restart from approval failed: {restart_err}"
+                )
+                return {"executed": False, "error": str(restart_err)}
+
         elif action_type == "improvement_approve":
             # Approved improvement proposal — trigger auto-execution pipeline
             proposal_id = data.get("proposal_id")
@@ -3462,6 +3527,358 @@ class AgentLoop:
             try:
                 self._log_cycle(
                     job_name="kin_welfare_digest",
+                    items_processed=0,
+                    items_failed=1,
+                    duration_ms=duration_ms,
+                    error_message=str(e),
+                )
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # F.O.R.G.E. Dependency Drift Audit (Project #272 Phase 2 / Task #2109)
+    # ------------------------------------------------------------------
+
+    def _run_dep_drift_audit(self):
+        """Daily drift audit — requirements.txt vs running container pip freeze.
+
+        Delegates to ``services.dep_drift_service.check_dep_drift`` (single
+        source of truth). Surfaces via autonomy_loop_log (always),
+        system_notifications (severity >= warning), Telegram (error).
+
+        The MCP tool ``mcp__archie__check_dep_drift`` composes onto the
+        same service function for on-demand invocation.
+        """
+        start = time.time()
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from services.dep_drift_service import (
+                check_dep_drift,
+                format_alert_message,
+            )
+
+            result = check_dep_drift()
+            severity = result["severity"]
+            metrics = result["summary_metrics"]
+            duration_ms = int((time.time() - start) * 1000)
+
+            self._log_cycle(
+                job_name="forge_dep_drift",
+                items_processed=result["anomaly_count"],
+                items_failed=metrics["missing"],
+                duration_ms=duration_ms,
+                details={
+                    "severity": severity,
+                    "summary_metrics": metrics,
+                    "reasons": result.get("reasons", []),
+                    "requirements_count": result["requirements_count"],
+                    "installed_count": result["installed_count"],
+                },
+            )
+
+            if severity in ("warning", "error"):
+                body = format_alert_message(result)
+                try:
+                    conn = get_db()
+                    cur = conn.cursor()
+                    cur.execute(
+                        """
+                        INSERT INTO system_notifications
+                          (type, title, message, source, priority, source_icon,
+                           related_action, visibility, target_user_id, is_read,
+                           metadata, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s, NOW())
+                        """,
+                        (
+                            "alert" if severity == "error" else "warning",
+                            f"F.O.R.G.E. — {severity} in dependency drift",
+                            body,
+                            "forge",
+                            "high" if severity == "error" else "normal",
+                            "⚙️",
+                            "/tools/repair-bay",
+                            "all",
+                            None,
+                            psycopg2.extras.Json(metrics),
+                        ),
+                    )
+                    conn.commit()
+                    cur.close()
+                    conn.close()
+                except Exception as notify_err:
+                    logger.warning(
+                        "F.O.R.G.E. dep drift: system_notifications insert failed: %s",
+                        notify_err,
+                    )
+
+            if severity == "error":
+                try:
+                    self._send_telegram(format_alert_message(result))
+                except Exception as tg_err:
+                    logger.warning(
+                        "F.O.R.G.E. dep drift: Telegram dispatch failed: %s", tg_err
+                    )
+
+            logger.info(
+                "F.O.R.G.E. dep drift: severity=%s anomalies=%d in %dms",
+                severity,
+                result["anomaly_count"],
+                duration_ms,
+            )
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            logger.error("F.O.R.G.E. dep drift audit failed: %s", e)
+            try:
+                self._log_cycle(
+                    job_name="forge_dep_drift",
+                    items_processed=0,
+                    items_failed=1,
+                    duration_ms=duration_ms,
+                    error_message=str(e),
+                )
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # C.O.D.E.X. Event Auto-Documentation (Project #272 Phase 2 / Task #2108)
+    # ------------------------------------------------------------------
+
+    def _run_codex_event_docs(self):
+        """Scan for undocumented project_decisions and auto-write vault_notes.
+
+        Template-based (no LLM dispatch) so the job is cheap and safe to
+        run every 30 min. Writes new ``knowledge_base`` rows with
+        ``source_type='codex_event_doc'`` and ``source_id='decision:<id>'``
+        — the service dedups on these before inserting, so the job is
+        idempotent.
+        """
+        start = time.time()
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from services.codex_event_docs_service import (
+                format_alert_message,
+                run_event_auto_docs,
+            )
+
+            result = run_event_auto_docs(max_items_per_run=10)
+            severity = result["severity"]
+            metrics = result["summary_metrics"]
+            duration_ms = int((time.time() - start) * 1000)
+
+            self._log_cycle(
+                job_name="codex_event_docs",
+                items_processed=metrics["created"],
+                items_failed=metrics["failed"],
+                duration_ms=duration_ms,
+                details={
+                    "severity": severity,
+                    "summary_metrics": metrics,
+                    "reasons": result.get("reasons", []),
+                    "lookback_days": result.get("lookback_days"),
+                },
+            )
+
+            # We intentionally stay quiet on success — routine auto-doc
+            # runs are uninteresting. Only surface on failure.
+            if severity == "warning" and metrics["failed"] > 0:
+                body = format_alert_message(result)
+                try:
+                    conn = get_db()
+                    cur = conn.cursor()
+                    cur.execute(
+                        """
+                        INSERT INTO system_notifications
+                          (type, title, message, source, priority, source_icon,
+                           related_action, visibility, target_user_id, is_read,
+                           metadata, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s, NOW())
+                        """,
+                        (
+                            "warning",
+                            "C.O.D.E.X. — auto-doc failures",
+                            body,
+                            "codex",
+                            "normal",
+                            "📚",
+                            "/tools/consciousness#knowledge",
+                            "all",
+                            None,
+                            psycopg2.extras.Json(metrics),
+                        ),
+                    )
+                    conn.commit()
+                    cur.close()
+                    conn.close()
+                except Exception as notify_err:
+                    logger.warning(
+                        "C.O.D.E.X. docs: system_notifications insert failed: %s",
+                        notify_err,
+                    )
+
+            logger.info(
+                "C.O.D.E.X. auto-docs: created=%d failed=%d in %dms",
+                metrics["created"],
+                metrics["failed"],
+                duration_ms,
+            )
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            logger.error("C.O.D.E.X. auto-docs failed: %s", e)
+            try:
+                self._log_cycle(
+                    job_name="codex_event_docs",
+                    items_processed=0,
+                    items_failed=1,
+                    duration_ms=duration_ms,
+                    error_message=str(e),
+                )
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # V.I.G.I.L. Infrastructure Heartbeat (Project #272 Phase 2 / Task #2127)
+    # ------------------------------------------------------------------
+
+    def _run_infra_heartbeat(self):
+        """Every-5-min heartbeat over critical infrastructure containers.
+
+        Detects absent / stopped / unreachable containers (the NPM
+        removal failure mode from 2026-04-18). For each DOWN container
+        where ``auto_restart_safe=True``, files a Tier-2 approval via
+        ``request_approval(action_type='restart_container', ...)`` so
+        Kytran approves the recovery from Telegram.
+        """
+        start = time.time()
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from services.infra_heartbeat_service import (
+                check_all_critical,
+                format_alert_message,
+            )
+
+            result = check_all_critical()
+            severity = result["severity"]
+            metrics = result["summary_metrics"]
+            duration_ms = int((time.time() - start) * 1000)
+
+            self._log_cycle(
+                job_name="vigil_infra_heartbeat",
+                items_processed=metrics["healthy"],
+                items_failed=metrics["down"] + metrics["warnings"],
+                duration_ms=duration_ms,
+                details={
+                    "severity": severity,
+                    "summary_metrics": metrics,
+                    "down_names": result["down_names"],
+                    "warning_names": result["warning_names"],
+                    "reasons": result.get("reasons", []),
+                },
+            )
+
+            if severity in ("warning", "error"):
+                body = format_alert_message(result)
+                # system_notifications row — surfaces in platform UI
+                try:
+                    conn = get_db()
+                    cur = conn.cursor()
+                    cur.execute(
+                        """
+                        INSERT INTO system_notifications
+                          (type, title, message, source, priority, source_icon,
+                           related_action, visibility, target_user_id, is_read,
+                           metadata, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s, NOW())
+                        """,
+                        (
+                            "alert" if severity == "error" else "warning",
+                            f"V.I.G.I.L. — {severity} in infra heartbeat",
+                            body,
+                            "vigil",
+                            "high" if severity == "error" else "normal",
+                            "🛡️",
+                            "/tools/security-network",
+                            "all",
+                            None,
+                            psycopg2.extras.Json(metrics),
+                        ),
+                    )
+                    conn.commit()
+                    cur.close()
+                    conn.close()
+                except Exception as notify_err:
+                    logger.warning(
+                        "V.I.G.I.L. heartbeat: system_notifications insert failed: %s",
+                        notify_err,
+                    )
+
+            # Telegram on any DOWN container. This is the loudest signal
+            # on the platform — it means a sibling product is offline.
+            if result["down_names"]:
+                try:
+                    self._send_telegram(format_alert_message(result))
+                except Exception as tg_err:
+                    logger.warning(
+                        "V.I.G.I.L. heartbeat: Telegram dispatch failed: %s", tg_err
+                    )
+
+            # File Tier-2 restart approvals for each auto_restart_safe DOWN
+            # container. request_approval de-dups per action_type+agent, so
+            # we won't pile up duplicates across runs.
+            for record in result["containers"]:
+                if record["severity"] != "error":
+                    continue
+                if not record.get("auto_restart_safe"):
+                    continue
+                try:
+                    approval_id = request_approval(
+                        action_type="restart_container",
+                        action_data={
+                            "agent": record["name"],  # dedup key
+                            "compose_service": record["compose_service"],
+                            "container": record["name"],
+                            "reason": record.get("reason") or "heartbeat DOWN",
+                            "recent_events": record.get("recent_events", [])[:5],
+                        },
+                        reason=(
+                            f"Container {record['name']} is {record['reason']}. "
+                            f"Auto-restart via docker compose is configured as "
+                            f"safe. Approve to bring it back up."
+                        ),
+                        requested_by="vigil_infra_heartbeat",
+                        tier=2,
+                    )
+                    if approval_id:
+                        logger.info(
+                            "V.I.G.I.L. heartbeat: restart approval #%s filed for %s",
+                            approval_id,
+                            record["name"],
+                        )
+                except Exception as appr_err:
+                    logger.warning(
+                        "V.I.G.I.L. heartbeat: approval submission failed for %s: %s",
+                        record["name"],
+                        appr_err,
+                    )
+
+            logger.info(
+                "V.I.G.I.L. infra heartbeat: severity=%s down=%d warnings=%d in %dms",
+                severity,
+                metrics["down"],
+                metrics["warnings"],
+                duration_ms,
+            )
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            logger.error("V.I.G.I.L. infra heartbeat failed: %s", e)
+            try:
+                self._log_cycle(
+                    job_name="vigil_infra_heartbeat",
                     items_processed=0,
                     items_failed=1,
                     duration_ms=duration_ms,

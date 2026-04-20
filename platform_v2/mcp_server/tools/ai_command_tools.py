@@ -988,3 +988,186 @@ Example: agent_id=20, reason='Translate capacity single-threaded on CODEX.'
     handler=propose_reactivation_handler,
     requires_permission="write",
 )
+
+
+# ============================================================================
+# TOOL: CHECK DEP DRIFT (F.O.R.G.E.)
+# ============================================================================
+
+
+async def check_dep_drift_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Run F.O.R.G.E. dep drift audit on demand.
+
+    Compares platform_v2/requirements.txt against the running
+    archie_platform container's pip freeze. Read-only; the scheduled
+    agent-loop job writes to autonomy_loop_log and system_notifications.
+    See platform_v2/services/dep_drift_service.py for the canonical
+    definition.
+    """
+    requirements_path = arguments.get("requirements_path") or None
+    try:
+        from services.dep_drift_service import check_dep_drift
+
+        result = check_dep_drift(requirements_path=requirements_path)
+        return {"success": True, **result}
+    except Exception as e:
+        logger.error(f"Error in check_dep_drift: {e}")
+        return {"success": False, "error": str(e)}
+
+
+register_tool(
+    name="check_dep_drift",
+    category="ai_command",
+    description="""Run F.O.R.G.E. dependency drift audit on demand.
+
+Compares platform_v2/requirements.txt (source of truth) against the
+running archie_platform container's pip freeze (runtime state).
+
+Detects 3 classes:
+- missing: package pinned in requirements.txt but not installed → error
+  severity; a container rebuild is required.
+- version_mismatch: different version installed than pinned → warning.
+- unpinned_in_requirements: requirement uses >= / ~= / no pin →
+  informational, never escalates severity alone.
+
+Returns severity ('info' | 'warning' | 'error'), findings by category,
+and summary_metrics. Does not write to the DB — the scheduled
+forge_dep_drift agent-loop job handles logging and notifications.
+
+Example: default → {}
+Example: custom path → requirements_path='/abs/path/to/requirements.txt'
+""",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "requirements_path": {
+                "type": "string",
+                "description": "Optional override for the source-of-truth requirements file",
+            },
+        },
+    },
+    handler=check_dep_drift_handler,
+    requires_permission="read",
+)
+
+
+# ============================================================================
+# TOOL: RUN AUTO DOCUMENTATION (C.O.D.E.X.)
+# ============================================================================
+
+
+async def run_auto_documentation_handler(
+    arguments: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Force-run the C.O.D.E.X. event auto-documentation pass.
+
+    Scans project_decisions for undocumented rows and writes a
+    vault_note per ADR. Idempotent — rerunning is safe because the
+    service dedups on source_type+source_id before inserting.
+    """
+    lookback_days = int(arguments.get("lookback_days", 30) or 30)
+    max_items = int(arguments.get("max_items_per_run", 10) or 10)
+    try:
+        from services.codex_event_docs_service import run_event_auto_docs
+
+        result = run_event_auto_docs(
+            lookback_days=lookback_days,
+            max_items_per_run=max_items,
+        )
+        return {"success": True, **result}
+    except Exception as e:
+        logger.error(f"Error in run_auto_documentation: {e}")
+        return {"success": False, "error": str(e)}
+
+
+register_tool(
+    name="run_auto_documentation",
+    category="ai_command",
+    description="""Force-run C.O.D.E.X. event auto-documentation.
+
+Scans project_decisions for rows within the lookback window that don't
+yet have a matching vault_note, then generates one per undocumented
+ADR and inserts into knowledge_base with source_type='codex_event_doc'.
+
+Idempotent — safe to call repeatedly. The scheduled agent-loop job
+codex_event_docs runs the same pass every 30 minutes.
+
+Example: default 30d lookback → {}
+Example: catch up on quarter → lookback_days=90, max_items_per_run=50
+""",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "lookback_days": {
+                "type": "integer",
+                "default": 30,
+                "minimum": 1,
+                "maximum": 365,
+                "description": "How far back to scan for undocumented decisions",
+            },
+            "max_items_per_run": {
+                "type": "integer",
+                "default": 10,
+                "minimum": 1,
+                "maximum": 100,
+                "description": "Max vault_notes to write in one invocation",
+            },
+        },
+    },
+    handler=run_auto_documentation_handler,
+    requires_permission="write",
+)
+
+
+# ============================================================================
+# TOOL: CHECK INFRA HEARTBEAT (V.I.G.I.L.)
+# ============================================================================
+
+
+async def check_infra_heartbeat_handler(
+    arguments: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Run V.I.G.I.L. infrastructure heartbeat pass on demand.
+
+    Inspects every registered critical container via docker inspect +
+    TCP/HTTP probes. Read-only; does not restart anything. The scheduled
+    agent-loop job vigil_infra_heartbeat files Tier-2 restart approvals
+    when a container is DOWN.
+    """
+    try:
+        from services.infra_heartbeat_service import check_all_critical
+
+        result = check_all_critical()
+        return {"success": True, **result}
+    except Exception as e:
+        logger.error(f"Error in check_infra_heartbeat: {e}")
+        return {"success": False, "error": str(e)}
+
+
+register_tool(
+    name="check_infra_heartbeat",
+    category="ai_command",
+    description="""Run V.I.G.I.L. infrastructure heartbeat audit on demand.
+
+Checks every critical container in the registry (nginx_proxy_manager,
+network_adguard, archie_comms, archie_comfyui, kbs_app,
+kytran-system-operations, kytran_creed, media_plex, media_jellyfin) for:
+- presence (catches docker rm removal — the NPM failure mode)
+- running state (catches stopped)
+- optional healthcheck status
+- TCP port reachability + optional HTTP probe
+
+Returns severity ('info' | 'warning' | 'error'), per-container detail
+with reasons, and summary_metrics (down, warnings, healthy counts).
+The scheduled agent-loop job runs the same check every 5 min and files
+Tier-2 restart approvals for DOWN containers marked auto_restart_safe.
+
+Example: default → {}
+""",
+    input_schema={
+        "type": "object",
+        "properties": {},
+    },
+    handler=check_infra_heartbeat_handler,
+    requires_permission="read",
+)

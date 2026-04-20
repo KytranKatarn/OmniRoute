@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Generate web-sized thumbnails for agent portraits.
 
-Reads source PNGs from platform_v2/static/media/portraits/ and emits
-400x400 JPEG thumbs (~50KB each) to website/kytranempowerment.com/assets/portraits/.
+Reads source PNGs from both portrait trees and emits 400x400 JPEG thumbs
+(~50KB each) to website/kytranempowerment.com/assets/portraits/:
+  - platform_v2/static/media/portraits/<name>.png   (legacy upload path)
+  - platform_v2/static/media/images/<date>/<uuid>.png  (SDXL-generated)
 
-The public-roster endpoint serves avatar_thumb_url pointing at these
-thumbs (relative /assets/portraits/<stem>.jpg) so public pages fetch
-them same-origin from Hostinger CDN instead of cross-origin from
-platform.kytranempowerment.com.
+The public-roster endpoint serves avatar_thumb_url pointing at
+/assets/portraits/<stem>.jpg so public pages fetch them same-origin
+from Hostinger CDN instead of cross-origin from platform.kytranempowerment.com.
 
 Run manually after adding/approving new portraits, or wire into
 portrait_service.approve_canonical as a follow-up.
@@ -15,6 +16,7 @@ portrait_service.approve_canonical as a follow-up.
 Usage:
     python3 scripts/generate_portrait_thumbnails.py
     python3 scripts/generate_portrait_thumbnails.py --force   # regenerate all
+    python3 scripts/generate_portrait_thumbnails.py --src /path/to/pngs  # custom root
 """
 import argparse
 import sys
@@ -33,7 +35,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # absolute path). Inside the archie_platform container, the platform code
 # lives at /app while the website repo is mounted at /mnt/archie_brain/...,
 # so override via CLI args when needed.
-DEFAULT_SRC = REPO_ROOT / "platform_v2" / "static" / "media" / "portraits"
+MEDIA_ROOT = REPO_ROOT / "platform_v2" / "static" / "media"
+DEFAULT_SRC = MEDIA_ROOT / "portraits"
+DEFAULT_SDXL_SRC = MEDIA_ROOT / "images"
 DEFAULT_DST = REPO_ROOT / "website" / "kytranempowerment.com" / "assets" / "portraits"
 
 THUMB_SIZE = (400, 400)
@@ -86,9 +90,20 @@ def main() -> int:
         return 1
     dst_dir.mkdir(parents=True, exist_ok=True)
 
-    sources = sorted(src_dir.glob("*.png"))
+    # Collect sources. When --src is the default (portraits/), ALSO scan the
+    # SDXL-generated tree (static/media/images/<date>/*.png) so regenerated
+    # portraits land in /assets/portraits/ alongside the legacy uploads.
+    # Otherwise honor the explicit --src verbatim (recursive PNG glob).
+    sources: list[Path] = []
+    if src_dir == DEFAULT_SRC:
+        sources.extend(sorted(src_dir.glob("*.png")))
+        if DEFAULT_SDXL_SRC.is_dir():
+            sources.extend(sorted(DEFAULT_SDXL_SRC.rglob("*.png")))
+    else:
+        sources.extend(sorted(src_dir.rglob("*.png")))
+
     if not sources:
-        sys.stderr.write(f"warning: no PNGs found in {SRC_DIR}\n")
+        sys.stderr.write(f"warning: no PNGs found under {src_dir}\n")
         return 0
 
     total_src = 0

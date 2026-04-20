@@ -346,6 +346,11 @@ def register_routes(bp, _admin_required=None):
                             "model": a["model"],
                             "status": a["status"],
                             "is_director": a.get("is_department_ai", False),
+                            "title": a.get("title"),
+                            "acronym": a.get("acronym"),
+                            "acronym_expansion": a.get("acronym_expansion"),
+                            "avatar_url": a.get("avatar_url"),
+                            "worker_type": a.get("worker_type"),
                         }
 
                     dept_list.append(

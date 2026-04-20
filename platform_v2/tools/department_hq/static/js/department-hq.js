@@ -246,8 +246,14 @@ async function loadOrgChart() {
 
                 if (dept.director) {
                     var d = dept.director;
+                    var dInitial = (d.display_name || d.name || '?').charAt(0).toUpperCase();
+                    var dAvatar = d.avatar_url
+                        ? '<span class="dhq-org-avatar-initials" style="display:none">' + esc(dInitial) + '</span>'
+                          + '<img src="' + esc(d.avatar_url) + '" alt="" loading="lazy"'
+                          + ' onerror="this.style.display=\'none\';this.previousElementSibling.style.display=\'flex\'">'
+                        : '<span>' + esc(dInitial) + '</span>';
                     html += '<div class="dhq-org-director dhq-clickable" onclick="openAgentDetail(' + d.id + ')">'
-                        + '<div class="dhq-org-director-icon">AI</div>'
+                        + '<div class="dhq-org-director-icon">' + dAvatar + '</div>'
                         + '<div>'
                         + '<div class="dhq-org-director-name">' + esc(d.display_name || d.name) + '</div>'
                         + '<div class="dhq-org-director-code">' + esc(d.name) + ' ' + shiftBadge(d.shift_state) + '</div>'
@@ -258,7 +264,14 @@ async function loadOrgChart() {
                     html += '<div class="dhq-org-staff-grid">';
                     for (var si = 0; si < dept.staff.length; si++) {
                         var a = dept.staff[si];
+                        var sInitial = (a.display_name || a.name || '?').charAt(0).toUpperCase();
+                        var sAvatar = a.avatar_url
+                            ? '<span class="dhq-org-staff-initials" style="display:none">' + esc(sInitial) + '</span>'
+                              + '<img src="' + esc(a.avatar_url) + '" alt="" loading="lazy"'
+                              + ' onerror="this.style.display=\'none\';this.previousElementSibling.style.display=\'flex\'">'
+                            : '<span>' + esc(sInitial) + '</span>';
                         html += '<div class="dhq-org-agent dhq-clickable" onclick="openAgentDetail(' + a.id + ')">'
+                            + '<span class="dhq-org-staff-avatar">' + sAvatar + '</span>'
                             + '<span class="dhq-org-agent-dot ' + esc(a.shift_state) + '"></span>'
                             + '<span>' + esc(a.display_name || a.name) + '</span>'
                             + '</div>';
@@ -399,10 +412,19 @@ function renderRosterCards(data, el) {
             var color = floorColor(a.floor);
             var initials = (a.display_name || a.name || '?').split(' ').map(function(w) { return w[0]; }).join('').substring(0, 2).toUpperCase();
 
+            // Avatar: render both fallback span (hidden) and img (visible).
+            // If the image errors, hide it and show the sibling initials.
+            // Avoids innerHTML mutation — safer against any future content drift.
+            var avatarInner = a.avatar_url
+                ? '<span class="dhq-crew-avatar-initials" style="display:none">' + esc(initials) + '</span>'
+                  + '<img src="' + esc(a.avatar_url) + '" alt="" loading="lazy"'
+                  + ' onerror="this.style.display=\'none\';this.previousElementSibling.style.display=\'flex\'">'
+                : '<span>' + esc(initials) + '</span>';
+
             html += '<div class="dhq-crew-card" onclick="openAgentDetail(' + a.id + ')" style="--card-accent:' + color + '">'
                 + '<div class="dhq-crew-card-top">'
                 + '<div class="dhq-crew-avatar" style="border-color:' + color + '">'
-                + '<span>' + esc(initials) + '</span>'
+                + avatarInner
                 + '</div>'
                 + '<div class="dhq-crew-card-info">'
                 + '<div class="dhq-crew-card-name">' + esc(a.display_name || a.name) + ' <span class="dhq-wellness-dot" data-status="' + esc(a.wellness_status || 'green') + '" title="Stress: ' + (a.stress_level != null ? a.stress_level.toFixed(2) : '0.00') + '"></span></div>'
@@ -411,7 +433,7 @@ function renderRosterCards(data, el) {
                     : '')
                 + (a.title
                     ? '<div class="dhq-crew-card-title">' + esc(a.title) + '</div>'
-                    : '<div class="dhq-crew-card-code">' + esc(a.name) + '</div>')
+                    : '<div class="dhq-crew-card-code">' + esc(a.display_name || a.name) + '</div>')
                 + '</div>'
                 + '</div>'
                 + '<div class="dhq-crew-card-meta">'

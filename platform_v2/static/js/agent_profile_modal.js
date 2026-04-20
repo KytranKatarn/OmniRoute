@@ -365,6 +365,21 @@
     meta.appendChild(promptWrap);
 
     const actions = el('div', 'apm-portrait-actions');
+
+    // Hidden file input + "UPLOAD IMAGE" button pair. The button just
+    // triggers a click on the input; the actual work happens in the
+    // 'portrait-file-picked' change handler wired in bindActions().
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/jpeg,image/png,image/webp';
+    fileInput.dataset.portraitFile = '1';
+    fileInput.style.display = 'none';
+    actions.appendChild(fileInput);
+
+    const uploadBtn = el('button', 'apm-btn', 'UPLOAD IMAGE');
+    uploadBtn.dataset.action = 'upload-pick';
+    actions.appendChild(uploadBtn);
+
     if (!hasCanonical) {
       const gen = el('button', 'apm-btn apm-btn-primary', 'GENERATE CANONICAL');
       gen.dataset.action = 'generate-canonical';
@@ -374,6 +389,14 @@
     savePrompt.dataset.action = 'save-identity-prompt';
     actions.appendChild(savePrompt);
     meta.appendChild(actions);
+
+    // Upload-mode area (hidden by default). Revealed once a file is picked
+    // and the vision-describe call starts. Holds preview + auto-filled
+    // prompt + CONFIRM / CANCEL buttons.
+    const uploadZone = el('div', 'apm-upload-zone');
+    uploadZone.style.display = 'none';
+    uploadZone.dataset.portraitUploadZone = '1';
+    meta.appendChild(uploadZone);
 
     row.appendChild(meta);
     section.appendChild(row);
@@ -411,7 +434,166 @@
       else if (action === 'toggle-shift') cycleShift(overlay, body);
       else if (action === 'generate-canonical') generateCanonical(overlay, body);
       else if (action === 'save-identity-prompt') saveIdentityPrompt(overlay, body);
+      else if (action === 'upload-pick') {
+        const fi = body.querySelector('[data-portrait-file="1"]');
+        if (fi) fi.click();
+      }
+      else if (action === 'confirm-upload') confirmUpload(overlay, body);
+      else if (action === 'cancel-upload') cancelUpload(overlay, body);
     };
+
+    // File-input change handler (not a data-action — triggered by the
+    // hidden <input type=file> when user picks a file).
+    body.onchange = function (e) {
+      const t = e.target;
+      if (t && t.dataset && t.dataset.portraitFile === '1') {
+        onUploadFileSelected(overlay, body, t.files && t.files[0]);
+      }
+    };
+  }
+
+  function resetUploadZone(body) {
+    const zone = body.querySelector('[data-portrait-upload-zone="1"]');
+    if (zone) { clear(zone); zone.style.display = 'none'; }
+    const fi = body.querySelector('[data-portrait-file="1"]');
+    if (fi) fi.value = '';
+    state.uploadFile = null;
+  }
+
+  async function onUploadFileSelected(overlay, body, file) {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast(overlay, 'File too large (max 10 MB)', 'err');
+      resetUploadZone(body);
+      return;
+    }
+    state.uploadFile = file;
+
+    const zone = body.querySelector('[data-portrait-upload-zone="1"]');
+    if (!zone) return;
+    clear(zone);
+    zone.style.display = 'block';
+
+    // Preview (object URL)
+    const previewWrap = el('div', 'apm-upload-preview-wrap');
+    const preview = document.createElement('img');
+    preview.className = 'apm-upload-preview';
+    preview.src = URL.createObjectURL(file);
+    preview.alt = '';
+    previewWrap.appendChild(preview);
+    zone.appendChild(previewWrap);
+
+    // Status + prompt
+    const status = el('div', 'apm-upload-status',
+      '✨ Analyzing image with vision model — this takes 5–15 seconds…');
+    zone.appendChild(status);
+
+    const promptWrap = el('div', 'apm-portrait-prompt-wrap');
+    promptWrap.appendChild(el('div', 'apm-field-label', 'Identity prompt (edit before confirming)'));
+    const ta = document.createElement('textarea');
+    ta.className = 'apm-input apm-portrait-prompt';
+    ta.dataset.uploadPrompt = '1';
+    ta.rows = 4;
+    ta.disabled = true;
+    ta.value = 'analyzing…';
+    promptWrap.appendChild(ta);
+    zone.appendChild(promptWrap);
+
+    const actions = el('div', 'apm-portrait-actions');
+    const confirmBtn = el('button', 'apm-btn apm-btn-primary', 'CONFIRM UPLOAD');
+    confirmBtn.dataset.action = 'confirm-upload';
+    confirmBtn.disabled = true;
+    const cancelBtn = el('button', 'apm-btn', 'CANCEL');
+    cancelBtn.dataset.action = 'cancel-upload';
+    actions.appendChild(confirmBtn);
+    actions.appendChild(cancelBtn);
+    zone.appendChild(actions);
+
+    // Kick off vision describe in parallel with preview render
+    try {
+      const b64 = await fileToBase64(file);
+      const r = await fetch('/tools/media-studio/api/portraits/describe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ image: b64 }),
+      });
+      const js = await r.json();
+      if (js.success && js.prompt) {
+        ta.value = js.prompt;
+        status.textContent = '✓ Review + edit the prompt, then confirm.';
+      } else {
+        ta.value = '';
+        status.textContent =
+          '⚠ Auto-describe failed — write the prompt manually, then confirm.';
+      }
+    } catch (err) {
+      ta.value = '';
+      status.textContent =
+        '⚠ Auto-describe failed (' + err.message + '). Write prompt manually.';
+    }
+    ta.disabled = false;
+    confirmBtn.disabled = false;
+  }
+
+  function fileToBase64(file) {
+    return new Promise(function (resolve, reject) {
+      const r = new FileReader();
+      r.onload = function () {
+        const result = r.result || '';
+        // result looks like "data:image/png;base64,....."
+        const comma = result.indexOf(',');
+        resolve(comma >= 0 ? result.slice(comma + 1) : result);
+      };
+      r.onerror = function () { reject(new Error('FileReader failed')); };
+      r.readAsDataURL(file);
+    });
+  }
+
+  async function confirmUpload(overlay, body) {
+    const file = state.uploadFile;
+    if (!file) { toast(overlay, 'No file picked', 'err'); return; }
+    const ta = body.querySelector('[data-upload-prompt="1"]');
+    const prompt = ta ? ta.value.trim() : '';
+    if (!prompt) { toast(overlay, 'Identity prompt is required', 'err'); return; }
+
+    const confirmBtn = body.querySelector('[data-action="confirm-upload"]');
+    if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'UPLOADING…'; }
+
+    try {
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      fd.append('identity_prompt', prompt);
+      const r = await fetch(
+        '/tools/media-studio/api/portraits/' + state.agentId + '/upload',
+        { method: 'POST', credentials: 'same-origin', body: fd }
+      );
+      const js = await r.json().catch(function () { return {}; });
+      if (!r.ok || !js.success) {
+        toast(overlay, 'Upload failed: ' + (js.error || r.status), 'err');
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'CONFIRM UPLOAD'; }
+        return;
+      }
+      toast(overlay, 'Portrait uploaded ✓', 'ok');
+      resetUploadZone(body);
+      // Refresh modal with new canonical
+      const [profile, portrait] = await Promise.all([
+        fetchProfile(state.agentId),
+        fetchPortrait(state.agentId),
+      ]);
+      profile.portrait = portrait;
+      state.snapshot = profile;
+      renderInto(body);
+      bindActions(overlay, body);
+    } catch (err) {
+      toast(overlay, 'Network error: ' + err.message, 'err');
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'CONFIRM UPLOAD'; }
+    }
+  }
+
+  function cancelUpload(overlay, body) {
+    resetUploadZone(body);
+    toast(overlay, 'Upload cancelled', 'ok');
   }
 
   async function generateCanonical(overlay, body) {
@@ -645,6 +827,7 @@
     state.agentId = null;
     state.snapshot = null;
     state.mode = 'view';
+    state.uploadFile = null;
   }
 
   window.agentProfileModal = { open: open, close: close };

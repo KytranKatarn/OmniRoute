@@ -187,6 +187,26 @@
   display: flex; gap: 8px; flex-wrap: wrap;
 }
 
+#agentDetailOverlay .apm-upload-zone {
+  margin-top: 14px; padding: 12px;
+  border: 1px dashed rgba(0, 229, 255, 0.4);
+  border-radius: 8px;
+  background: rgba(0, 229, 255, 0.05);
+  display: flex; flex-direction: column; gap: 10px;
+}
+#agentDetailOverlay .apm-upload-preview-wrap {
+  width: 100%; max-height: 240px;
+  display: flex; align-items: center; justify-content: center;
+  background: #041828; border-radius: 6px; overflow: hidden;
+}
+#agentDetailOverlay .apm-upload-preview {
+  max-width: 100%; max-height: 240px; object-fit: contain;
+}
+#agentDetailOverlay .apm-upload-status {
+  font-size: 0.85rem; color: rgba(0, 229, 255, 0.85);
+  font-style: italic;
+}
+
 @media (max-width: 768px) {
   #agentDetailOverlay .apm-header-band { grid-template-columns: 1fr; }
   #agentDetailOverlay .apm-portrait { width: 140px; height: 140px; }

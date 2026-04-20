@@ -787,7 +787,6 @@ def api_list_permissions():
         # Human-readable labels and category groupings
         PERM_META = {
             "public:view": {"label": "View Public Pages", "category": "Public Access"},
-            "directory:view": {"label": "View Directory", "category": "Public Access"},
             "archie:chat": {
                 "label": "Chat with A.R.C.H.I.E.",
                 "category": "Core Features",

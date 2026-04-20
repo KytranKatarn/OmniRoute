@@ -350,6 +350,35 @@ def starship_compat_redirect(subpath):
     return redirect(new_url, code=307)
 
 
+@app.route("/tools/directory", methods=["GET"])
+@app.route("/tools/directory/", methods=["GET"])
+def directory_compat_redirect():
+    """Redirect old /tools/directory to the Department HQ Roster tab.
+
+    Directory module decommissioned in Project #262 (migration 332).
+    Public directory API lives at /api/public/directory.
+    """
+    from flask import redirect
+
+    return redirect("/tools/department-hq#roster", code=308)
+
+
+@app.route("/tools/department-hq/api/agents/public-roster", methods=["GET", "OPTIONS"])
+@app.route("/tools/department-hq/api/agents/public-roster/live", methods=["GET", "OPTIONS"])
+def public_roster_compat_redirect():
+    """Back-compat 308 for the legacy public-roster endpoint.
+
+    Moved to /api/public/directory[/live] in Project #262. Kept so cached
+    clients / external integrations don't break during rollout.
+    """
+    from flask import redirect, request as req
+
+    target = "/api/public/directory/live" if req.path.endswith("/live") else "/api/public/directory"
+    if req.query_string:
+        target += f"?{req.query_string.decode()}"
+    return redirect(target, code=308)
+
+
 @app.route("/tools/fleet/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE"])
 def fleet_compat_redirect(subpath):
     """Redirect old /tools/fleet/ URLs to Department HQ."""
@@ -2368,10 +2397,13 @@ def _warmup_ollama_models():
         import time
         import requests as req
         import psutil
+        from services.model_service import get_model_service
 
         ollama_host = os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
         if not ollama_host.startswith("http"):
             ollama_host = f"http://{ollama_host}"
+
+        model_svc = get_model_service()
 
         # Check what's currently on GPU AND capture all loaded models for eviction.
         # Project #240 task #1761 — even after PR #33 fixed KEEP_ALIVE to 5m,
@@ -2391,56 +2423,52 @@ def _warmup_ollama_models():
         except Exception:
             pass
 
-        # Force-evict stale loaded models (keep_alive=0 tells Ollama to drop on return).
+        # Force-evict stale loaded models via model_service (keep_alive=0).
         for model_name in loaded_before:
-            try:
-                req.post(
-                    f"{ollama_host}/api/generate",
-                    json={"model": model_name, "prompt": "", "keep_alive": 0, "stream": False},
-                    timeout=30,
-                )
+            if model_svc.unload_model(model_name):
                 logger.info(f"Ollama evict: unloaded stale {model_name}")
-            except Exception as e:
-                logger.warning(f"Ollama evict: {model_name} failed: {e}")
+            else:
+                logger.warning(f"Ollama evict: {model_name} failed")
         if loaded_before:
             time.sleep(3)  # let Ollama release RAM before warmup begins
 
         models_to_load = _get_agent_models()
 
         def _load_model(model_name, endpoint):
-            # Use GPU only if model is already on GPU (preserve user choice)
-            use_gpu = model_name in gpu_models or f"{model_name}:latest" in gpu_models
-            for attempt in range(3):
-                try:
-                    if endpoint == "embed":
+            # Embed models warm via /api/embed (lifecycle-only, no inference options).
+            # Text models warm via model_service.load_model — its single-writer
+            # api/generate path handles retries + keep_alive=5m.
+            # Note: model_service.load_model doesn't preserve CPU-only preference
+            # (num_gpu=0); Ollama auto-places based on VRAM. Acceptable since
+            # MAX_LOADED_MODELS=3 bounds GPU pressure.
+            if endpoint == "embed":
+                for attempt in range(3):
+                    try:
                         data = {"model": model_name, "input": "warmup", "keep_alive": "5m"}
-                    else:
-                        opts = {"num_predict": 1}
-                        if not use_gpu:
-                            opts["num_gpu"] = 0
-                        data = {
-                            "model": model_name,
-                            "prompt": "warmup",
-                            "stream": False,
-                            "options": opts,
-                            "keep_alive": "5m",
-                        }
-                    req_timeout = 600 if "coder" in model_name else 300
-                    resp = req.post(
-                        f"{ollama_host}/api/{endpoint}",
-                        json=data,
-                        timeout=req_timeout,
-                    )
-                    if resp.status_code == 200:
-                        logger.info(f"Ollama warmup: {model_name} loaded " f"({'GPU' if use_gpu else 'CPU'})")
-                        return True
-                    else:
+                        resp = req.post(
+                            f"{ollama_host}/api/embed",
+                            json=data,
+                            timeout=600 if "coder" in model_name else 300,
+                        )
+                        if resp.status_code == 200:
+                            logger.info(f"Ollama warmup: {model_name} loaded (embed)")
+                            return True
                         logger.warning(
                             f"Ollama warmup: {model_name} returned " f"{resp.status_code}, retry {attempt+1}/3"
                         )
-                except Exception as e:
-                    logger.warning(f"Ollama warmup: {model_name} attempt " f"{attempt+1}/3 failed: {e}")
-                time.sleep(5)
+                    except Exception as e:
+                        logger.warning(f"Ollama warmup embed {model_name}: {e} (retry {attempt+1}/3)")
+                    time.sleep(2)
+                return False
+
+            # Text model: delegate to model_service (single-writer for api/generate).
+            for attempt in range(3):
+                if model_svc.load_model(model_name):
+                    placement = "GPU" if (model_name in gpu_models or f"{model_name}:latest" in gpu_models) else "auto"
+                    logger.info(f"Ollama warmup: {model_name} loaded ({placement})")
+                    return True
+                logger.warning(f"Ollama warmup: {model_name} load failed, retry {attempt+1}/3")
+                time.sleep(2)
             return False
 
         ram_free = psutil.virtual_memory().available / (1024**3)
@@ -3268,29 +3296,27 @@ def api_translate_public():
         return jsonify({"success": False, "error": "text too long (max 2000 chars)"}), 400
 
     try:
-        import requests as http_requests
-
-        ollama_host = os.environ.get("OLLAMA_HOST", "http://host.docker.internal:11434")
-        if not ollama_host.startswith("http"):
-            ollama_host = f"http://{ollama_host}"
+        # Route through Bridge dispatcher (ADR-013) — respects agent welfare,
+        # capability routing, and governance logging.
+        from tools.department_hq.services.department_dispatcher import dispatch
 
         prompt = (
             f"Translate the following text from {source_lang} to {target_lang}. "
             f"Return ONLY the translated text, nothing else.\n\nText: {text}"
         )
 
-        resp = http_requests.post(
-            f"{ollama_host}/api/generate",
-            json={"model": "llama3.2:3b", "prompt": prompt, "stream": False},
-            timeout=30,
+        result = dispatch(
+            capability="translate",
+            prompt=prompt,
+            module_id="public_translate",
+            local_only=True,  # public endpoint — no cloud tokens
         )
 
-        if resp.status_code == 200:
-            translated = resp.json().get("response", "").strip()
+        if result.success:
             return jsonify(
                 {
                     "success": True,
-                    "translated": translated,
+                    "translated": (result.response or "").strip(),
                     "source": source_lang,
                     "target": target_lang,
                     "engine": "A.R.C.H.I.E. AI",

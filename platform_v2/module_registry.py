@@ -856,21 +856,6 @@ MODULES: List[ModuleDefinition] = [
         priority=12,
         tags=["google", "gmail", "email", "calendar", "agents", "ai"],
     ),
-    ModuleDefinition(
-        id="directory",
-        name="Employee Directory",
-        description="Corporate team page with org chart<br>Profiles • Search • Live status",
-        icon="contact",
-        category=ModuleCategory.SAAS_SERVICES,
-        route="/tools/directory",
-        blueprint_import="tools.directory.routes:bp",
-        required_permissions=["directory:view"],
-        minimum_role="PUBLIC",
-        enabled=False,
-        health_check=lambda: default_health_check("directory"),
-        priority=13,
-        tags=["directory", "employees", "team", "org-chart", "profiles"],
-    ),
     # ============================================
     # STANDALONE PRODUCTS (6 external launchers)
     # ============================================

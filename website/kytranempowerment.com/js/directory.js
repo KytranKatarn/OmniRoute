@@ -1,10 +1,10 @@
 /* Directory — Agent roster with live status polling
-   Polls the platform public-roster endpoint — single source of truth for
-   avatars + bios + titles. Static fallback only fires if the API is
+   Polls the canonical public directory endpoint — single source of truth
+   for avatars + bios + titles. Static fallback only fires if the API is
    unreachable (local dev, outage). */
 var Directory = {
-    API_URL: 'https://platform.kytranempowerment.com/tools/department-hq/api/agents/public-roster',
-    LIVE_URL: 'https://platform.kytranempowerment.com/tools/department-hq/api/agents/public-roster/live',
+    API_URL: 'https://platform.kytranempowerment.com/api/public/directory',
+    LIVE_URL: 'https://platform.kytranempowerment.com/api/public/directory/live',
     FALLBACK_URL: '/data/directory-fallback.json',
     POLL_INTERVAL: 30000,
     agents: [],
@@ -394,7 +394,7 @@ var Directory = {
                     return r.json();
                 })
                 .then(function (data) {
-                    // /public-roster/live returns {success, agents: [{id, code_name, shift_state, current_mood, wellness_status}]}
+                    // /api/public/directory/live returns {success, agents: [{id, code_name, shift_state, current_mood, wellness_status}]}
                     var statuses = (data && data.agents) || data.statuses || data;
                     if (!Array.isArray(statuses)) return;
                     statuses.forEach(function (s) {

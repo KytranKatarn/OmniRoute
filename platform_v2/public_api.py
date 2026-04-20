@@ -13,6 +13,10 @@ import os
 import time
 from flask import Blueprint, jsonify, request, make_response
 from database import get_db_cursor
+from services.public_roster_service import (
+    get_public_roster,
+    get_public_roster_live,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -431,68 +435,59 @@ def add_cors_headers(response):
 
 
 # ---------------------------------------------------------------------------
-# Endpoint 3: /directory — Agent roster from public_agent_directory view
+# Endpoint 3: /directory — Canonical public agent roster
 # ---------------------------------------------------------------------------
+#
+# Backed by services/public_roster_service.py + public_agent_directory view
+# (migration 332). Consolidated from the legacy /tools/department-hq/api/
+# agents/public-roster endpoint — same shape, same CORS/PNA headers.
+#
+# Consumers:
+#   - website/kytranempowerment.com/js/directory.js
+#   - website/kytranempowerment.com/js/ai-directors.js
+#   - creed-ai.org
+#   - any external directory surface
 
 
-def _fetch_directory(department=None, agent_type=None, search=None):
-    """Fetch agents from the public_agent_directory view with optional filters."""
-    try:
-        with get_db_cursor() as (conn, cur):
-            clauses = ["1=1"]
-            params = []
-
-            if department:
-                clauses.append("department = %s")
-                params.append(department)
-            if agent_type:
-                clauses.append("agent_type = %s")
-                params.append(agent_type)
-            if search:
-                clauses.append("(full_name ILIKE %s OR acronym ILIKE %s)")
-                params.extend([f"%{search}%", f"%{search}%"])
-
-            sql = f"SELECT id, full_name, acronym, acronym_expansion, title, department, bio, avatar_url, pronouns, status, shift_state, agent_type FROM public_agent_directory WHERE {' AND '.join(clauses)} ORDER BY department, full_name"
-            cur.execute(sql, params)
-            rows = [dict(row) for row in cur.fetchall()]
-            return {"agents": rows, "total": len(rows)}
-    except Exception as e:
-        logger.error("public_api /directory query failed: %s", e)
-        return {"agents": [], "total": 0, "error": str(e)}
+def _public_directory_cors(resp, max_age=300):
+    """Attach CORS + Private Network Access headers for public consumers."""
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    resp.headers["Access-Control-Allow-Private-Network"] = "true"
+    resp.headers["Access-Control-Max-Age"] = "86400"
+    resp.headers["Cache-Control"] = f"public, max-age={max_age}"
+    return resp
 
 
-@public_api_bp.route("/directory")
+@public_api_bp.route("/directory", methods=["GET", "OPTIONS"])
 def directory():
-    """Public agent directory with optional filtering."""
+    """Public agent directory. Rich shape with acronym, thumb URL, director flag."""
+    if request.method == "OPTIONS":
+        return _public_directory_cors(jsonify({}), max_age=300)
+
     department = request.args.get("department")
     agent_type = request.args.get("type")
     search = request.args.get("search")
 
-    # Build a cache key that includes filters
     cache_key = f"directory:{department}:{agent_type}:{search}"
-    data = _get_cached(cache_key, lambda: _fetch_directory(department, agent_type, search))
+    data = _get_cached(cache_key, lambda: get_public_roster(department, agent_type, search))
 
-    response = jsonify(data)
-    response.headers["Cache-Control"] = "public, max-age=300"
-    return response
+    return _public_directory_cors(jsonify(data), max_age=300)
 
 
 # ---------------------------------------------------------------------------
-# Endpoint 4: /directory/live — Real-time agent shift states
+# Endpoint 4: /directory/live — Lightweight presence poll
 # ---------------------------------------------------------------------------
 
 
-@public_api_bp.route("/directory/live")
+@public_api_bp.route("/directory/live", methods=["GET", "OPTIONS"])
 def directory_live():
-    """Real-time agent shift states — no caching."""
-    try:
-        with get_db_cursor() as (conn, cur):
-            cur.execute("SELECT id, shift_state FROM agents WHERE status = 'active'")
-            states = {row["id"]: row["shift_state"] for row in cur.fetchall()}
-            return jsonify({"available": True, "states": states})
-    except Exception as e:
-        logger.error("public_api /directory/live failed: %s", e)
-        return jsonify({"available": False, "states": {}, "error": str(e)}), 500
+    """Live shift states + mood. Short cache window for near-real-time badges."""
+    if request.method == "OPTIONS":
+        return _public_directory_cors(jsonify({}), max_age=20)
+
+    data = get_public_roster_live()
+    return _public_directory_cors(jsonify(data), max_age=20)
 
 
 # ---------------------------------------------------------------------------

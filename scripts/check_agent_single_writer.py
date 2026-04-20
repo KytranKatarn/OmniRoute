@@ -120,6 +120,14 @@ _API_GENERATE_ALLOWLIST: set[str] = {
     # the regex. Actual LLM dispatches from this module go through
     # tools.department_hq.services.department_dispatcher.
     "platform_v2/tools/media_studio/routes.py",
+    # app.py — legitimate false positives only after Project #262 follow-up
+    # migration (#2184): 3 Flask route decorators /api/chat/pin{,ned,/<id>}
+    # for the pin-message feature (not Ollama inference). All real
+    # inference sites have been migrated: warmup/eviction → model_service,
+    # /api/translate → Bridge dispatcher. Hook regex api/(generate|chat)(?!\w)
+    # matches these route path strings — deferred hook refinement to future
+    # work.
+    "platform_v2/app.py",
 }
 
 

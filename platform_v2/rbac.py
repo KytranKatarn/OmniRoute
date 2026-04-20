@@ -60,7 +60,6 @@ class Permission(Enum):
 
     # Public (no login required)
     PUBLIC_VIEW = "public:view"
-    DIRECTORY_VIEW = "directory:view"
 
     # User permissions
     USER_CHAT = "archie:chat"
@@ -123,12 +122,10 @@ class Permission(Enum):
 ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
     Role.PUBLIC: {
         Permission.PUBLIC_VIEW,
-        Permission.DIRECTORY_VIEW,
     },
     Role.USER: {
         # Inherit PUBLIC
         Permission.PUBLIC_VIEW,
-        Permission.DIRECTORY_VIEW,
         # USER specific
         Permission.CODE_EDITOR_READ,
         Permission.CODE_EDITOR_WRITE,
@@ -149,7 +146,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
     Role.PREMIUM: {
         # Inherit USER
         Permission.PUBLIC_VIEW,
-        Permission.DIRECTORY_VIEW,
         Permission.CODE_EDITOR_READ,
         Permission.CODE_EDITOR_WRITE,
         Permission.USER_SETTINGS,
@@ -175,7 +171,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
     Role.ADMIN: {
         # Inherit PREMIUM
         Permission.PUBLIC_VIEW,
-        Permission.DIRECTORY_VIEW,
         Permission.USER_CHAT,
         Permission.CODE_EDITOR_READ,
         Permission.CODE_EDITOR_WRITE,
@@ -590,7 +585,7 @@ if __name__ == "__main__":
     print("=" * 80)
 
     test_cases = [
-        (Role.PUBLIC, Permission.DIRECTORY_VIEW),
+        (Role.PUBLIC, Permission.PUBLIC_VIEW),
         (Role.USER, Permission.CODE_EDITOR_WRITE),
         (Role.PREMIUM, Permission.APP_BUILDER_CREATE),
         (Role.ADMIN, Permission.ADMIN_ACCESS),

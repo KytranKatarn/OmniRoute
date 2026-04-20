@@ -171,7 +171,7 @@
     });
   }
 
-  var API_URL = 'https://platform.kytranempowerment.com/tools/department-hq/api/agents/public-roster';
+  var API_URL = 'https://platform.kytranempowerment.com/api/public/directory';
   var FALLBACK_URL = 'data/directors.json';
 
   function init() {

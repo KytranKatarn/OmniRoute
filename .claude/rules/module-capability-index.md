@@ -120,8 +120,11 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 - **Gaps**: **Calendar + Drive wired in services but NOT exposed in routes.py** — big UI gap. Token refresh invisible. No quota/rate-limit awareness.
 - **Audit**: KB 256846 · **Rules**: `saas-services.md`
 
-### Employee Directory — `directory` · `/tools/directory` · ⛔
-- **Status**: Disabled.
+### Employee Directory — `directory` · ~~`/tools/directory`~~ · ⛔
+- **Status**: DECOMMISSIONED 2026-04-20 (PR #214, Project #262 tasks #2180-2182 + #2184).
+- **Canonical replacement**: `/api/public/directory` (+ `/live`) in `platform_v2/public_api.py`, backed by `services/public_roster_service.py` + `public_agent_directory` view (migration 332). Single source of truth for the public directory.
+- **Redirects**: `/tools/directory` → `/tools/department-hq#roster` (308); legacy `/tools/department-hq/api/agents/public-roster[/live]` → `/api/public/directory[/live]` (308).
+- **Consumers**: `website/kytranempowerment.com/js/directory.js`, `js/ai-directors.js`, creed-ai.org.
 
 ### Kytran Business Suite — `kytran_business_suite` · `/external/kbs` · ✅
 - **Type**: External/standalone — port 8091, business.kytranempowerment.com

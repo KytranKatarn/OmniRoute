@@ -19,19 +19,8 @@ logger = logging.getLogger(__name__)
 # IP-Adapter variant generation — which requires a prompt paired with the
 # canonical face reference.
 VISION_DESCRIBE_PROMPT = (
-    "Describe the person in this portrait for use as a Stable Diffusion / "
-    "IP-Adapter prompt. Focus on observable features:\n"
-    '- Age range (e.g., "mid-30s", "late 20s")\n'
-    "- Ethnicity / appearance (observational, respectful)\n"
-    "- Hair (color, length, style)\n"
-    "- Facial features (beard, glasses, distinguishing marks)\n"
-    "- Eye color if visible\n"
-    "- Clothing / attire if visible\n\n"
-    "Output ONLY a single comma-separated description phrase, no preamble, "
-    "no bullet points. Example output:\n"
-    '"mid-30s East Asian man with short black hair, clean-shaven, warm '
-    "brown eyes, wearing a dark navy uniform, confident expression, "
-    'photorealistic"'
+    "Describe the person in this portrait in detail: their appearance, "
+    "age, hair, eyes, clothing, and any distinctive features."
 )
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -321,33 +310,45 @@ def describe_portrait(image_source: str) -> Dict:
             }
         b64 = image_source
 
+    # Direct-to-moondream call (bypasses agent selection via
+    # capability='vision'). Rationale: Pixel / V.I.S.A.G.E. are configured
+    # with qwen2.5vl:7b (8.3B params, CPU-bound on M4000, 5+ min per
+    # inference). moondream:latest (1.8B, fits on GPU VRAM, ~11s) is 20x
+    # faster and sufficient for face-describe — small input, small output.
+    # This is a utility function (no creative welfare/cost logging needed);
+    # going direct keeps the pipeline fast and predictable.
+    vision_model = os.getenv("PORTRAIT_DESCRIBE_MODEL", "moondream:latest")
+
     try:
-        from tools.department_hq.services.department_dispatcher import dispatch
+        from ai_bridge.archie_bridge import analyze_image
     except ImportError as e:
-        return {"success": False, "prompt": "", "model": "", "error": f"dispatcher import failed: {e}"}
-
-    try:
-        result = dispatch(
-            capability="vision",
-            prompt=VISION_DESCRIBE_PROMPT,
-            module_id="portrait_service",
-            images=[b64],
-            local_only=True,
-            timeout=180,
-        )
-    except Exception as e:
-        logger.exception("vision dispatch for describe_portrait failed")
-        return {"success": False, "prompt": "", "model": "", "error": str(e)}
-
-    if not getattr(result, "success", False):
         return {
             "success": False,
             "prompt": "",
-            "model": getattr(result, "model", "") or "",
-            "error": getattr(result, "error", "dispatch failed") or "dispatch failed",
+            "model": "",
+            "error": f"analyze_image import failed: {e}",
         }
 
-    desc = (getattr(result, "response", "") or "").strip()
+    try:
+        result = analyze_image(
+            image_base64=b64,
+            prompt=VISION_DESCRIBE_PROMPT,
+            model=vision_model,
+            timeout=180,
+        )
+    except Exception as e:
+        logger.exception("analyze_image for describe_portrait failed")
+        return {"success": False, "prompt": "", "model": vision_model, "error": str(e)}
+
+    if not result.get("success"):
+        return {
+            "success": False,
+            "prompt": "",
+            "model": result.get("model", vision_model),
+            "error": result.get("error") or "analyze_image returned failure",
+        }
+
+    desc = (result.get("response") or "").strip()
     # Strip surrounding quotes if the model added them
     if len(desc) > 2 and desc[0] in ('"', "'") and desc[-1] == desc[0]:
         desc = desc[1:-1].strip()
@@ -356,15 +357,15 @@ def describe_portrait(image_source: str) -> Dict:
         return {
             "success": False,
             "prompt": "",
-            "model": getattr(result, "model", "") or "",
+            "model": result.get("model", vision_model),
             "error": "vision model returned empty description",
         }
 
     return {
         "success": True,
         "prompt": desc,
-        "model": getattr(result, "model", "") or "",
-        "tier": getattr(result, "tier", "") or "",
+        "model": result.get("model", vision_model),
+        "provider": result.get("provider", "ollama_vision"),
     }
 
 

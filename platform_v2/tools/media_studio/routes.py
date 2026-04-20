@@ -356,6 +356,56 @@ def api_update_identity_prompt(agent_id):
     return jsonify(result)
 
 
+@media_studio_bp.route("/api/portraits/<int:agent_id>/upload", methods=["POST"])
+@login_required
+def api_upload_portrait(agent_id):
+    """Upload an image as the canonical portrait for an agent.
+
+    multipart/form-data body:
+      file              — the image (jpeg/png/webp, <= 10 MB)
+      identity_prompt   — required; describes the person for variant generation
+                          (typically auto-filled via /api/portraits/describe
+                          and reviewed/edited by the user before submit)
+
+    Creates a media_library record, inserts/upserts agent_portraits with
+    approved=true, and updates agents.avatar_url through agent_service
+    (single-writer). Returns the new avatar_url + dimensions on success.
+    """
+    from .services.portrait_service import (
+        ALLOWED_UPLOAD_TYPES,
+        MAX_UPLOAD_BYTES,
+        upload_canonical,
+    )
+
+    if "file" not in request.files:
+        return jsonify({"error": "file field required"}), 400
+    f = request.files["file"]
+    if not f or not f.filename:
+        return jsonify({"error": "empty file"}), 400
+    content_type = (f.mimetype or "").lower()
+    if content_type not in ALLOWED_UPLOAD_TYPES:
+        return jsonify({"error": f"content_type must be one of {sorted(ALLOWED_UPLOAD_TYPES)}"}), 400
+
+    file_bytes = f.read()
+    if len(file_bytes) > MAX_UPLOAD_BYTES:
+        return jsonify({"error": f"file too large (max {MAX_UPLOAD_BYTES} bytes)"}), 413
+
+    identity_prompt = (request.form.get("identity_prompt") or "").strip()
+    if not identity_prompt:
+        return jsonify({"error": "identity_prompt required"}), 400
+
+    result = upload_canonical(
+        agent_id=agent_id,
+        file_bytes=file_bytes,
+        content_type=content_type,
+        identity_prompt=identity_prompt,
+        original_filename=f.filename,
+    )
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result), 201
+
+
 @media_studio_bp.route("/api/portraits/describe", methods=["POST"])
 @login_required
 def api_describe_portrait():

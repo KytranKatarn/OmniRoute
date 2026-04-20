@@ -369,6 +369,134 @@ def describe_portrait(image_source: str) -> Dict:
     }
 
 
+ALLOWED_UPLOAD_TYPES = {"image/jpeg", "image/png", "image/webp"}
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+UPLOAD_MAX_DIM = 1024  # Resize longest edge to this if larger
+
+
+def upload_canonical(
+    agent_id: int,
+    file_bytes: bytes,
+    content_type: str,
+    identity_prompt: str,
+    original_filename: Optional[str] = None,
+) -> Dict:
+    """Accept an uploaded portrait image, save as canonical, update agents.avatar_url.
+
+    Resizes to fit UPLOAD_MAX_DIM if the longest edge exceeds it, then saves
+    as PNG at platform_v2/static/media/portraits/<code_stem>.png (stable name
+    per agent — overwrites prior uploads/generates for this agent).
+
+    Creates a media_library entry + insert/upsert agent_portraits row
+    (approved=True since the user explicitly uploaded) and updates
+    agents.avatar_url via agent_service.update_agent (single-writer).
+    """
+    if content_type not in ALLOWED_UPLOAD_TYPES:
+        return {"error": f"unsupported content_type: {content_type}"}
+    if not file_bytes or len(file_bytes) > MAX_UPLOAD_BYTES:
+        return {"error": f"file size out of range (0 < size <= {MAX_UPLOAD_BYTES})"}
+    if not identity_prompt or not identity_prompt.strip():
+        return {"error": "identity_prompt is required"}
+
+    # Look up agent to get a stable filename stem
+    agent = agent_service.get_agent(agent_id)
+    if not agent:
+        return {"error": f"agent {agent_id} not found"}
+    code_name = agent.get("name") or f"agent_{agent_id}"
+    stem = code_name.replace(".", "").lower()
+    dest_rel = f"static/media/portraits/{stem}.png"
+    dest_abs = os.path.join(_PLATFORM_DIR, dest_rel)
+    os.makedirs(os.path.dirname(dest_abs), exist_ok=True)
+
+    # Load via Pillow, resize if needed, re-encode as PNG for consistency.
+    try:
+        from PIL import Image
+        from io import BytesIO
+    except ImportError:
+        return {"error": "Pillow not installed in platform runtime"}
+
+    try:
+        im = Image.open(BytesIO(file_bytes))
+        if im.mode not in ("RGB", "RGBA"):
+            im = im.convert("RGB")
+        w, h = im.size
+        if max(w, h) > UPLOAD_MAX_DIM:
+            im.thumbnail((UPLOAD_MAX_DIM, UPLOAD_MAX_DIM), Image.LANCZOS)
+        im.save(dest_abs, "PNG", optimize=True)
+        final_w, final_h = im.size
+    except Exception as e:
+        logger.exception("portrait upload decode/save failed for agent_id=%s", agent_id)
+        return {"error": f"image decode/save failed: {e}"}
+
+    # URL the platform serves the file at (same shape as other avatar_urls)
+    avatar_url_relative = f"/{dest_rel}"
+
+    # media_library insert (history + provenance)
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            INSERT INTO media_library
+                (owner_type, owner_id, media_type, file_path, prompt,
+                 provider, width, height, metadata)
+            VALUES
+                ('agent', %s, 'image', %s, %s,
+                 'upload', %s, %s, %s::jsonb)
+            RETURNING id
+            """,
+            (
+                agent_id,
+                dest_rel,
+                identity_prompt,
+                final_w,
+                final_h,
+                '{"source":"user_upload","original_filename":'
+                + ('"' + (original_filename or "") + '"}' if original_filename else "null}"),
+            ),
+        )
+        media_id = cur.fetchone()["id"]
+
+        # Manual upsert — agent_portraits has no unique constraint on agent_id
+        # (and existing data has duplicate rows per agent), so ON CONFLICT
+        # isn't available. UPDATE existing row(s); INSERT only if none.
+        cur.execute(
+            """
+            UPDATE agent_portraits
+            SET canonical_image_path = %s,
+                identity_prompt      = %s,
+                approved             = true,
+                provider             = 'upload',
+                resolution_w         = %s,
+                resolution_h         = %s,
+                updated_at           = NOW()
+            WHERE agent_id = %s
+            """,
+            (dest_rel, identity_prompt, final_w, final_h, agent_id),
+        )
+        if cur.rowcount == 0:
+            cur.execute(
+                """
+                INSERT INTO agent_portraits
+                    (agent_id, canonical_image_path, identity_prompt, approved,
+                     provider, resolution_w, resolution_h, updated_at)
+                VALUES
+                    (%s, %s, %s, true, 'upload', %s, %s, NOW())
+                """,
+                (agent_id, dest_rel, identity_prompt, final_w, final_h),
+            )
+
+    # Single-writer path for agents.avatar_url.
+    agent_service.update_agent(agent_id, avatar_url=avatar_url_relative)
+
+    return {
+        "success": True,
+        "agent_id": agent_id,
+        "media_id": media_id,
+        "avatar_url": avatar_url_relative,
+        "width": final_w,
+        "height": final_h,
+    }
+
+
 def update_identity_prompt(agent_id: int, prompt: str) -> Dict:
     """Update the identity prompt for an agent's portraits."""
     _ensure_portrait_record(agent_id, prompt)

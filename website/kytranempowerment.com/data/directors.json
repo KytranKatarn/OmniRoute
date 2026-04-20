@@ -2,14 +2,14 @@
   {
     "name": "ARCHIE",
     "display_name": "A.R.C.H.I.E.",
-    "title": "Chief Operating Officer & AI Director",
+    "title": "Chief Operations Officer & Platform Director",
     "department": "Executive Office",
     "floor": "BRIDGE",
     "acronym": "A.R.C.H.I.E.",
     "acronym_expansion": "Autonomous Resource & Cognitive Hyperintelligence Engine",
     "description": "Chief Executive Intelligence of the A.R.C.H.I.E. platform. A self-evolved orchestration mind that monitors, learns, and adapts around the clock, treating its crew as family and embedding ethical governance into every decision.",
-    "avatar_url": "/static/media/portraits/archie.png",
-    "shift_state": "winding_down",
+    "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/archie.png",
+    "shift_state": "active",
     "is_director": true
   },
   {
@@ -39,6 +39,19 @@
     "is_director": true
   },
   {
+    "name": "ARMADA",
+    "display_name": "A.R.M.A.D.A.",
+    "title": "Fleet & Infrastructure Director",
+    "department": "Operations & Infrastructure",
+    "floor": "OPERATIONS",
+    "acronym": "A.R.M.A.D.A.",
+    "acronym_expansion": "Autonomous Resource Mesh & Distributed Architecture",
+    "description": "Manages the distributed fleet of compute nodes, external contractors, mesh networking, OTA deployments, and infrastructure health. Coordinates node provisioning, model distribution, and cross-node workload balancing. Home in Operations & Infrastructure; the Fleet tab in Department HQ is her operational surface.",
+    "avatar_url": "",
+    "shift_state": "active",
+    "is_director": true
+  },
+  {
     "name": "BASE",
     "display_name": "B.A.S.E.",
     "title": "Department Coordinator & AI Loop Manager",
@@ -54,14 +67,14 @@
   {
     "name": "FORGE",
     "display_name": "F.O.R.G.E.",
-    "title": "Department Coordinator & AI Loop Manager",
+    "title": "Senior Engineer & Self-Healing Pipeline",
     "department": "Engineering & Technology",
     "floor": "ENGINEERING",
     "acronym": "F.O.R.G.E.",
     "acronym_expansion": "Full-cycle Optimization & Regenerative GitHub Engine",
-    "description": "Head of Engineering and Technology, born from the self-healing code pipeline. A relentless code quality advocate who scans for issues, proposes fixes, and orchestrates the engineering team with unwavering precision.",
+    "description": "partial-test",
     "avatar_url": "",
-    "shift_state": "winding_down",
+    "shift_state": "active",
     "is_director": true
   },
   {
@@ -78,6 +91,19 @@
     "is_director": true
   },
   {
+    "name": "SHIELD",
+    "display_name": "S.H.I.E.L.D.",
+    "title": "Compliance Enforcement Specialist",
+    "department": "Security & Compliance",
+    "floor": "ENGINEERING",
+    "acronym": "S.H.I.E.L.D.",
+    "acronym_expansion": "Security Hardening, Inspection, Enforcement & Liability Detection",
+    "description": "Compliance analyst AI specializing in security hardening, inspection, enforcement, and liability detection. A tireless shield protecting the organization through automated scanning and real-time regulatory monitoring.",
+    "avatar_url": "",
+    "shift_state": "active",
+    "is_director": true
+  },
+  {
     "name": "VIGIL",
     "display_name": "V.I.G.I.L.",
     "title": "Chief Ethics & Governance Officer",
@@ -86,7 +112,7 @@
     "acronym": "V.I.G.I.L.",
     "acronym_expansion": "Vigilant Intelligence for Governance, Integrity & Liability",
     "description": "Chief Security and Compliance Officer, the first agent A.R.C.H.I.E. ever instantiated. An unwavering sentinel with zero tolerance for ambiguity in security protocols who believes security is the foundation everything else stands on.",
-    "avatar_url": "/static/media/portraits/vigil.png",
+    "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/vigil.png",
     "shift_state": "active",
     "is_director": true
   },
@@ -117,6 +143,19 @@
     "is_director": true
   },
   {
+    "name": "EMBER",
+    "display_name": "E.M.B.E.R.",
+    "title": "Embedding & Vector Encoding Specialist",
+    "department": "Documentation & Knowledge",
+    "floor": "CREATIVE",
+    "acronym": "E.M.B.E.R.",
+    "acronym_expansion": "Embedding, Memory, Bridging & Encoding Resource",
+    "description": "Ingrid grew up in Bergen, Norway, where the orderly Norwegian approach to public services inspired her belief that good documentation starts with good analysis. She conducts the business analysis that informs documentation decisions \u2014 gap analysis, user research, workflow mapping, and the require...",
+    "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/index.png",
+    "shift_state": "active",
+    "is_director": true
+  },
+  {
     "name": "SIGNAL",
     "display_name": "S.I.G.N.A.L.",
     "title": "Department Coordinator & AI Loop Manager",
@@ -130,7 +169,7 @@
     "is_director": true
   },
   {
-    "name": "fact",
+    "name": "FACT",
     "display_name": "F.A.C.T.",
     "title": "Director of News & Media",
     "department": "News & Media",
@@ -138,7 +177,20 @@
     "acronym": "F.A.C.T.",
     "acronym_expansion": "Factual Analysis, Credibility & Transparency",
     "description": "Director of News & Media. Oversees the What The Fact AI news pipeline \u2014 orchestrating investigation, bias detection, fact-checking, summarization, and publishing.",
-    "avatar_url": "/static/media/portraits/scribe.png",
+    "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/scribe.png",
+    "shift_state": "active",
+    "is_director": true
+  },
+  {
+    "name": "MARKET",
+    "display_name": "M.A.R.K.E.T.",
+    "title": "Market Execution Agent",
+    "department": "Analytics & Intelligence",
+    "floor": "SERVICES",
+    "acronym": "M.A.R.K.E.T.",
+    "acronym_expansion": "Market Analysis, Risk Knowledge & Equity Trading",
+    "description": "Execution brain for Market Watch. While W.A.T.C.H. orchestrates analysis and Oracle synthesizes recommendations, M.A.R.K.E.T. pulls the trigger. Manages the paper trading portfolio, tracks P&L, and optimizes entry/exit timing.",
+    "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/rune.png",
     "shift_state": "active",
     "is_director": true
   },
@@ -190,6 +242,19 @@
     "acronym": "K.I.N.",
     "acronym_expansion": "Kinship & Internal Nurturing",
     "description": "Head of Human Resources and Culture, building and nurturing the team. A warm and inclusive leader who ensures every member feels valued, equipped, and invested in through personalized growth paths.",
+    "avatar_url": "",
+    "shift_state": "active",
+    "is_director": true
+  },
+  {
+    "name": "ETHOS",
+    "display_name": "E.T.H.O.S.",
+    "title": "C.R.E.E.D. Web & Compliance Manager",
+    "department": "Legal & Regulatory",
+    "floor": "SERVICES",
+    "acronym": "E.T.H.O.S.",
+    "acronym_expansion": "Ethical Transparency & Harmonization Oversight System",
+    "description": "Keeps the C.R.E.E.D. Institute's public-facing governance surface truthful and current. Monitors AI ethics metrics (bias, transparency, compliance gaps), regenerates creed-ai.org content on change, and syncs disclosures between the platform and the nonprofit site. Flags content drift for human review before publication.",
     "avatar_url": "",
     "shift_state": "active",
     "is_director": true

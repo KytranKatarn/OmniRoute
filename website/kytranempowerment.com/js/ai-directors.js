@@ -168,7 +168,7 @@
     });
   }
 
-  var API_URL = 'https://archie.kytranempowerment.com/tools/department-hq/api/agents/public-roster';
+  var API_URL = 'https://platform.kytranempowerment.com/tools/department-hq/api/agents/public-roster';
   var FALLBACK_URL = 'data/directors.json';
 
   function init() {

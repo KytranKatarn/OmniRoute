@@ -10,6 +10,8 @@ Endpoints:
 Uses the centralized agent_service for all agent operations.
 """
 
+import os
+
 from flask import jsonify, request
 from services.agent_service import (
     list_agents,
@@ -21,6 +23,27 @@ from services.agent_service import (
 from database import get_db_cursor
 
 VALID_DEPARTMENTS = set(DEPARTMENT_FLOOR_MAP.keys())
+
+# Public-facing host for portrait URLs returned by /public-roster endpoints.
+# Default: platform.kytranempowerment.com (NPM proxy → archie_platform:3000).
+# Override via env for local dev or alt-deploys.
+PUBLIC_PORTRAIT_HOST = os.getenv("PUBLIC_PORTRAIT_HOST", "https://platform.kytranempowerment.com").rstrip("/")
+
+
+def _public_avatar_url(raw):
+    """Normalize agent.avatar_url to a publicly-reachable absolute URL.
+
+    - Absolute URLs (http/https) are passed through.
+    - Paths starting with / are prepended with PUBLIC_PORTRAIT_HOST.
+    - Empty / None returns "" so the client can render a placeholder.
+    """
+    if not raw:
+        return ""
+    if raw.startswith(("http://", "https://")):
+        return raw
+    if raw.startswith("/"):
+        return PUBLIC_PORTRAIT_HOST + raw
+    return raw
 
 
 def _compute_wellness(stress, mood):
@@ -202,7 +225,16 @@ def register_roster_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    @bp.route("/api/agents/public-roster")
+    def _public_roster_cors(resp, max_age=300):
+        """Attach CORS + PNA headers to public-roster responses."""
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        resp.headers["Access-Control-Allow-Private-Network"] = "true"
+        resp.headers["Access-Control-Max-Age"] = "86400"
+        resp.headers["Cache-Control"] = f"public, max-age={max_age}"
+        return resp
+
+    @bp.route("/api/agents/public-roster", methods=["GET", "OPTIONS"])
     def public_roster():
         """Public read-only agent roster for website and C.R.E.E.D. standalone.
 
@@ -210,10 +242,13 @@ def register_roster_routes(bp, admin_required):
         Used by: kytranempowerment.com directors page, creed-ai.org,
         Org Chart tab, external integrations.
         """
+        if request.method == "OPTIONS":
+            return _public_roster_cors(jsonify({}), max_age=300)
+
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """
-                SELECT display_name, name, title, department, floor,
+                SELECT id, display_name, name, title, department, floor,
                        acronym, acronym_expansion, bio, avatar_url,
                        is_department_ai, worker_type, shift_state
                 FROM agents
@@ -236,6 +271,7 @@ def register_roster_routes(bp, admin_required):
             for r in cur.fetchall():
                 agents.append(
                     {
+                        "id": r["id"],
                         "display_name": r["display_name"],
                         "code_name": r["name"],
                         "title": r["title"],
@@ -244,11 +280,7 @@ def register_roster_routes(bp, admin_required):
                         "acronym": r["acronym"],
                         "acronym_expansion": r["acronym_expansion"],
                         "bio": r["bio"],
-                        "avatar_url": (
-                            "https://archie.kytranempowerment.com" + r["avatar_url"]
-                            if r["avatar_url"] and r["avatar_url"].startswith("/")
-                            else r["avatar_url"]
-                        ),
+                        "avatar_url": _public_avatar_url(r["avatar_url"]),
                         "is_director": bool(r["is_department_ai"]),
                         "worker_type": r["worker_type"],
                         "shift_state": r["shift_state"],
@@ -272,11 +304,48 @@ def register_roster_routes(bp, admin_required):
                 },
             }
         )
-        # CORS — allow website + CREED standalone to fetch
-        resp.headers["Access-Control-Allow-Origin"] = "*"
-        resp.headers["Access-Control-Allow-Methods"] = "GET"
-        resp.headers["Cache-Control"] = "public, max-age=300"
-        return resp
+        return _public_roster_cors(resp, max_age=300)
+
+    @bp.route("/api/agents/public-roster/live", methods=["GET", "OPTIONS"])
+    def public_roster_live():
+        """Lightweight live-state poll companion to /public-roster.
+
+        Returns only shift_state + current_mood per agent. Intended for
+        public pages to refresh presence badges without re-fetching the
+        full roster. Shorter cache window than /public-roster.
+        """
+        if request.method == "OPTIONS":
+            return _public_roster_cors(jsonify({}), max_age=20)
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT a.id, a.name AS code_name, a.shift_state,
+                       e.current_mood, e.stress_level, e.mood_intensity
+                FROM agents a
+                LEFT JOIN LATERAL (
+                    SELECT current_mood, stress_level, mood_intensity
+                    FROM agent_emotional_state
+                    WHERE agent_id = a.id
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                ) e ON TRUE
+                WHERE a.shift_state NOT IN ('decommissioned')
+                """
+            )
+            rows = [
+                {
+                    "id": r["id"],
+                    "code_name": r["code_name"],
+                    "shift_state": r["shift_state"],
+                    "current_mood": r["current_mood"] or "neutral",
+                    "wellness_status": _compute_wellness(r["stress_level"], r["mood_intensity"]),
+                }
+                for r in cur.fetchall()
+            ]
+
+        resp = jsonify({"success": True, "agents": rows})
+        return _public_roster_cors(resp, max_age=20)
 
     @bp.route("/api/coordinator/status")
     @admin_required

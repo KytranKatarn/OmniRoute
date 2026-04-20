@@ -1,8 +1,11 @@
-/* Directory — Agent roster with live status polling */
+/* Directory — Agent roster with live status polling
+   Polls the platform public-roster endpoint — single source of truth for
+   avatars + bios + titles. Static fallback only fires if the API is
+   unreachable (local dev, outage). */
 var Directory = {
-    API_URL: '/data/directory-fallback.json',
-    /* LIVE_URL disabled — endpoint does not exist
-    LIVE_URL: 'https://api.kytranempowerment.com/api/directory/live-status', */
+    API_URL: 'https://platform.kytranempowerment.com/tools/department-hq/api/agents/public-roster',
+    LIVE_URL: 'https://platform.kytranempowerment.com/tools/department-hq/api/agents/public-roster/live',
+    FALLBACK_URL: '/data/directory-fallback.json',
     POLL_INTERVAL: 30000,
     agents: [],
     _pollTimer: null,
@@ -19,19 +22,36 @@ var Directory = {
                 self._fixAvatarPaths(self.agents);
                 self.renderFilters();
                 self.renderAgents(self.agents);
-                /* Live polling disabled — endpoint does not exist
-                self.startLivePolling(); */
+                self.startLivePolling();
                 self.bindEvents();
             })
-            .catch(function () {
-                self.showOfflineNotice();
+            .catch(function (err) {
+                console.warn('[directory] Live API unreachable, using static fallback:', err.message);
+                fetch(self.FALLBACK_URL)
+                    .then(function (r) {
+                        if (!r.ok) throw new Error(r.status);
+                        return r.json();
+                    })
+                    .then(function (data) {
+                        self.agents = data.agents || data;
+                        self._fixAvatarPaths(self.agents);
+                        self.renderFilters();
+                        self.renderAgents(self.agents);
+                        self.bindEvents();
+                    })
+                    .catch(function () { self.showOfflineNotice(); });
             });
     },
 
-    /** Rewrite legacy /static/media/portraits/ paths to /assets/portraits/ */
+    /** Normalize avatar URLs. Live API returns fully-qualified https URLs;
+        only rewrite legacy relative paths found in the static fallback. */
     _fixAvatarPaths: function (agents) {
         agents.forEach(function (a) {
-            if (a.avatar_url && a.avatar_url.indexOf('/static/media/portraits/') !== -1) {
+            if (!a.avatar_url) return;
+            // Absolute URLs (from live API) are already correct — leave alone.
+            if (/^https?:\/\//i.test(a.avatar_url)) return;
+            // Legacy fallback paths — rewrite to local /assets/portraits/ dir.
+            if (a.avatar_url.indexOf('/static/media/portraits/') !== -1) {
                 a.avatar_url = a.avatar_url.replace('/static/media/portraits/', '/assets/portraits/');
             }
         });
@@ -370,7 +390,8 @@ var Directory = {
                     return r.json();
                 })
                 .then(function (data) {
-                    var statuses = data.statuses || data;
+                    // /public-roster/live returns {success, agents: [{id, code_name, shift_state, current_mood, wellness_status}]}
+                    var statuses = (data && data.agents) || data.statuses || data;
                     if (!Array.isArray(statuses)) return;
                     statuses.forEach(function (s) {
                         var dots = document.querySelectorAll('[data-agent-id="' + s.id + '"]');
@@ -382,7 +403,10 @@ var Directory = {
                     // Update internal state
                     self.agents.forEach(function (a) {
                         statuses.forEach(function (s) {
-                            if (String(a.id) === String(s.id)) a.shift_state = s.shift_state;
+                            if (String(a.id) === String(s.id)) {
+                                a.shift_state = s.shift_state;
+                                if (s.current_mood) a.current_mood = s.current_mood;
+                            }
                         });
                     });
                 })

@@ -705,3 +705,286 @@ Example: Python skills only → mode='matrix', category='programming'
     handler=get_skills_matrix_handler,
     requires_permission="read",
 )
+
+
+# ============================================================================
+# TOOL 7: RUN MISROUTE AUDIT (S.P.E.C.T.R.A.)
+# ============================================================================
+
+
+async def run_misroute_audit_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Run S.P.E.C.T.R.A. dispatch misroute audit on demand.
+
+    Scans the last `window_hours` of task_execution_log + dispatch_escalation_log
+    for 4 anomaly classes: floor fallback, cloud escalation, missing capability
+    tag, and high (agent, capability) failure rate. Read-only — does not write
+    to autonomy_loop_log or system_notifications (that's the scheduled job's
+    responsibility). See platform_v2/services/misroute_audit_service.py for
+    the canonical definition.
+    """
+    window_hours = arguments.get("window_hours", 24)
+    try:
+        from services.misroute_audit_service import run_misroute_audit
+
+        result = run_misroute_audit(window_hours=window_hours)
+        return {"success": True, **result}
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        logger.error(f"Error in run_misroute_audit: {e}")
+        return {"success": False, "error": str(e)}
+
+
+register_tool(
+    name="run_misroute_audit",
+    category="ai_command",
+    description="""Run S.P.E.C.T.R.A. dispatch misroute audit on demand.
+
+Scans recent dispatch activity for 4 anomaly classes:
+- Floor fallback hits (home department escalations)
+- Paid-cloud escalations with cost footprint
+- Dispatches missing capability tags
+- High failure rate per (agent, capability) pair
+
+Returns severity ('info' | 'warning' | 'error'), findings by category,
+and summary_metrics. Read-only; does not write to the DB — the scheduled
+agent-loop job does that nightly.
+
+Example: Default 24h window → {}
+Example: Last week → window_hours=168
+""",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "window_hours": {
+                "type": "integer",
+                "default": 24,
+                "minimum": 1,
+                "maximum": 720,
+                "description": "Look-back window in hours (1–720, default 24)",
+            },
+        },
+    },
+    handler=run_misroute_audit_handler,
+    requires_permission="read",
+)
+
+
+# ============================================================================
+# TOOL 8: GET WELFARE DIGEST (K.I.N.)
+# ============================================================================
+
+
+async def get_welfare_digest_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Get K.I.N. welfare digest — crew welfare + budget utilization.
+
+    Composes department-level welfare summary (stress / mood / energy) with
+    per-department budget rollup (token usage %, over-budget, starving) and
+    per-agent outlier flags. Read-only; the scheduled agent-loop job writes
+    to autonomy_loop_log and system_notifications nightly.
+    """
+    over_budget_threshold = arguments.get("over_budget_threshold", 0.90)
+    starving_warning = arguments.get("starving_warning", 3)
+    try:
+        from services.agent_service import get_kin_welfare_digest
+
+        digest = get_kin_welfare_digest(
+            over_budget_threshold=over_budget_threshold,
+            starving_warning=starving_warning,
+        )
+        return {"success": True, **digest}
+    except Exception as e:
+        logger.error(f"Error in get_welfare_digest: {e}")
+        return {"success": False, "error": str(e)}
+
+
+register_tool(
+    name="get_welfare_digest",
+    category="ai_command",
+    description="""Get K.I.N. crew welfare + budget digest.
+
+Composes per-department welfare (stress, energy, mood, agents_at_risk)
+with per-department budget rollup (avg_token_usage_pct, agents_over_budget,
+agents_starving) and a per-agent outlier list. Returns severity
+('info' | 'warning' | 'error') plus summary_metrics and reasons.
+
+Starving = active agent with zero tokens used AND zero current tasks —
+a dispatcher routing signal.
+
+Example: default thresholds → {}
+Example: stricter over-budget check → over_budget_threshold=0.75
+""",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "over_budget_threshold": {
+                "type": "number",
+                "default": 0.90,
+                "minimum": 0.1,
+                "maximum": 1.0,
+                "description": "Token usage pct above which an agent is flagged",
+            },
+            "starving_warning": {
+                "type": "integer",
+                "default": 3,
+                "minimum": 1,
+                "description": "Starving agent count that elevates severity to warning",
+            },
+        },
+    },
+    handler=get_welfare_digest_handler,
+    requires_permission="read",
+)
+
+
+# ============================================================================
+# TOOL 9: LIST REACTIVATION CANDIDATES
+# ============================================================================
+
+
+async def list_reactivation_candidates_handler(
+    arguments: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Rank decommissioned agents by skill match for a given capability.
+
+    Read-only discovery surface — paired with propose_reactivation below.
+    Project #272 Phase 1 / Task #2107.
+    """
+    capability = arguments.get("capability")
+    department = arguments.get("department")
+    top_n = min(max(int(arguments.get("top_n", 5) or 5), 1), 20)
+    if not capability:
+        return {"success": False, "error": "capability is required"}
+    try:
+        from services.agent_service import find_reactivation_candidates
+
+        candidates = find_reactivation_candidates(capability=capability, department=department, top_n=top_n)
+        return {
+            "success": True,
+            "capability": capability,
+            "department": department,
+            "candidates": [_serialize_row(c) for c in candidates],
+            "count": len(candidates),
+        }
+    except Exception as e:
+        logger.error(f"Error in list_reactivation_candidates: {e}")
+        return {"success": False, "error": str(e)}
+
+
+register_tool(
+    name="list_reactivation_candidates",
+    category="ai_command",
+    description="""Rank decommissioned agents by skill match for a capability.
+
+Reads decommissioned agents that have a matching skill_name, skill_category,
+or stem-expanded skill_name (for English verb↔noun forms — e.g., 'translate'
+matches 'Translation'). Scores by proficiency_level × match_weight.
+
+Returns up to top_n candidates with full agent metadata (name, department,
+model, worker_type) so the caller can choose before submitting a
+propose_reactivation request.
+
+Example: who can translate? → capability='translate'
+Example: Engineering translator → capability='translate', department='Engineering & Technology'
+""",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "capability": {
+                "type": "string",
+                "description": "Capability or skill name to match (e.g. 'translate', 'code_review')",
+            },
+            "department": {
+                "type": "string",
+                "description": "Optional department tiebreak (agent's home dept is preferred)",
+            },
+            "top_n": {
+                "type": "integer",
+                "default": 5,
+                "minimum": 1,
+                "maximum": 20,
+                "description": "Max candidates to return (1–20)",
+            },
+        },
+        "required": ["capability"],
+    },
+    handler=list_reactivation_candidates_handler,
+    requires_permission="read",
+)
+
+
+# ============================================================================
+# TOOL 10: PROPOSE REACTIVATION
+# ============================================================================
+
+
+async def propose_reactivation_handler(
+    arguments: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Submit a Tier-2 reactivation proposal to the approval queue.
+
+    Mutates: inserts into autonomy_approval_queue. Does NOT reactivate
+    the agent — Kytran approves via Telegram or the Dept HQ hiring queue,
+    then _execute_approved_action calls agent_service.reactivate_agent().
+    """
+    agent_id = arguments.get("agent_id")
+    reason = arguments.get("reason")
+    requested_by = arguments.get("requested_by", "mcp_client")
+    if not agent_id:
+        return {"success": False, "error": "agent_id is required"}
+    if not reason:
+        return {"success": False, "error": "reason is required"}
+    try:
+        from services.agent_service import propose_reactivation
+
+        result = propose_reactivation(
+            agent_id=int(agent_id),
+            reason=reason,
+            requested_by=requested_by,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error in propose_reactivation: {e}")
+        return {"success": False, "error": str(e)}
+
+
+register_tool(
+    name="propose_reactivation",
+    category="ai_command",
+    description="""Propose reactivating a decommissioned agent (Tier-2 approval).
+
+Submits a reactivation request to autonomy_approval_queue with
+action_type='reactivate_agent'. Kytran approves via Telegram or the Dept
+HQ hiring queue; approval triggers the state flip from 'decommissioned'
+to 'barracked' inside agent_service.
+
+Rule: NO reactivation without explicit Kytran approval — this tool only
+files the proposal.
+
+Use list_reactivation_candidates first to pick an agent_id. Provide a
+clear `reason` (it goes into the approval notification).
+
+Example: agent_id=20, reason='Translate capacity single-threaded on CODEX.'
+""",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "agent_id": {
+                "type": "integer",
+                "description": "ID of the decommissioned agent to reactivate",
+            },
+            "reason": {
+                "type": "string",
+                "description": "Why the reactivation is needed (surfaced in approval UI)",
+            },
+            "requested_by": {
+                "type": "string",
+                "default": "mcp_client",
+                "description": "Identifier for the caller (agent name or tool)",
+            },
+        },
+        "required": ["agent_id", "reason"],
+    },
+    handler=propose_reactivation_handler,
+    requires_permission="write",
+)

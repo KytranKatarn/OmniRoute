@@ -372,6 +372,189 @@ def cooldown(agent_id):
     return update_agent(agent_id, shift_state="cooldown")
 
 
+# ---------------------------------------------------------------------------
+# Reactivation — Project #272 Phase 1 / Task #2107 (reframed).
+# Decommissioned agents retain their skill rows and can be re-staffed
+# instead of hiring new. All reactivations must go through the Tier-2
+# approval queue — agents/callers never flip the state directly.
+# ---------------------------------------------------------------------------
+
+
+def reactivate_agent(agent_id, reason="manual reactivation"):
+    """Reactivate a decommissioned agent by flipping shift_state to barracked.
+
+    Gated upstream — the canonical entry point is the ``reactivate_agent``
+    action_type consumer in agent_loop, which only runs after Kytran
+    approves the proposal. Do NOT call this directly from user-facing code.
+
+    Returns dict with success + metadata or success=False + error.
+    """
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "SELECT id, name, display_name, department, shift_state " "FROM agents WHERE id = %s",
+            (agent_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return {"success": False, "error": f"Agent {agent_id} not found"}
+        current = row["shift_state"]
+        if current != "decommissioned":
+            return {
+                "success": False,
+                "error": (
+                    f"Agent {agent_id} ({row['name']}) is not decommissioned " f"(current shift_state={current!r})"
+                ),
+            }
+
+        cur.execute(
+            "UPDATE agents SET shift_state = 'barracked', updated_at = NOW() " "WHERE id = %s",
+            (agent_id,),
+        )
+        logger.info(f"[agent_service] Reactivated agent {agent_id} ({row['name']}): {reason}")
+        return {
+            "success": True,
+            "agent_id": row["id"],
+            "name": row["name"],
+            "display_name": row["display_name"],
+            "department": row["department"],
+            "previous_state": "decommissioned",
+            "new_state": "barracked",
+            "reason": reason,
+        }
+
+
+def find_reactivation_candidates(capability, department=None, top_n=5):
+    """Rank decommissioned agents by skill match for a given capability.
+
+    Matches ``skill_name`` via ILIKE substring, with proficiency + exact /
+    category match boosting the score. Returns up to ``top_n`` candidates.
+
+    Score formula: ``match_weight * proficiency_level``, where
+    ``match_weight`` is 10 (exact skill_name), 7 (skill_category match),
+    or 5 (substring match). Ordered high-score first, with
+    ``department`` tiebreak when requested.
+    """
+    if not capability or not isinstance(capability, str):
+        return []
+    if top_n <= 0 or top_n > 50:
+        top_n = 5
+
+    department_tiebreak_sql = "CASE WHEN a.department = %(dept)s THEN 0 ELSE 1 END," if department else ""
+    params = {"cap": capability, "top_n": top_n}
+    if department:
+        params["dept"] = department
+
+    # Stem expansion — English verb/noun forms differ by a small suffix
+    # ("translate" vs "Translation"). Drop the last 2 chars when the
+    # capability is long enough, so "translate" → "translat" matches
+    # "Translation", "French Translation", "gh:document-translation".
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            f"""
+            SELECT a.id, a.name, a.display_name, a.department, a.model,
+                   a.worker_type,
+                   s.skill_name, s.skill_category, s.proficiency_level,
+                   (CASE WHEN lower(s.skill_name) = lower(%(cap)s) THEN 10
+                         WHEN lower(s.skill_category) = lower(%(cap)s) THEN 7
+                         WHEN lower(s.skill_name) LIKE '%%'
+                                                || lower(%(cap)s) || '%%' THEN 5
+                         WHEN length(%(cap)s) >= 6
+                              AND lower(s.skill_name) LIKE '%%'
+                                  || lower(substring(%(cap)s from 1
+                                                     for length(%(cap)s) - 2))
+                                  || '%%' THEN 4
+                         ELSE 1
+                    END) * s.proficiency_level AS match_score
+            FROM agents a
+            JOIN agent_skills s ON s.agent_id = a.id
+            WHERE a.shift_state = 'decommissioned'
+              AND (
+                  lower(s.skill_name) LIKE '%%' || lower(%(cap)s) || '%%'
+                  OR lower(s.skill_category) = lower(%(cap)s)
+                  OR (length(%(cap)s) >= 6
+                      AND lower(s.skill_name) LIKE '%%'
+                          || lower(substring(%(cap)s from 1
+                                             for length(%(cap)s) - 2))
+                          || '%%')
+              )
+            ORDER BY {department_tiebreak_sql}
+                     match_score DESC,
+                     s.proficiency_level DESC
+            LIMIT %(top_n)s
+            """,
+            params,
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def propose_reactivation(agent_id, reason, requested_by="mcp_client"):
+    """Submit a reactivation proposal to the Tier-2 approval queue.
+
+    Validates the agent exists and is decommissioned, then delegates to
+    ``agent_loop.request_approval`` with ``action_type='reactivate_agent'``.
+    The approval consumer at ``_execute_approved_action`` calls
+    :func:`reactivate_agent` after Kytran approves via Telegram / the
+    Dept HQ hiring queue (task #2102).
+
+    Returns ``{"success": True, "approval_id": int, "agent": {...}}`` on
+    success, or ``{"success": False, "error": str}`` when the agent isn't
+    eligible or the approval submission fails.
+    """
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT id, name, display_name, department, model, shift_state " "FROM agents WHERE id = %s",
+            (agent_id,),
+        )
+        agent = cur.fetchone()
+    if not agent:
+        return {"success": False, "error": f"Agent {agent_id} not found"}
+    if agent["shift_state"] != "decommissioned":
+        return {
+            "success": False,
+            "error": (f"Agent {agent['name']} is not decommissioned " f"(shift_state={agent['shift_state']!r})"),
+        }
+
+    # Defer the import to avoid a module-load cycle — agent_loop imports
+    # agent_service during boot.
+    try:
+        sys_path_append = "/mnt/archie_brain"
+        import sys as _sys
+
+        if sys_path_append not in _sys.path:
+            _sys.path.insert(0, sys_path_append)
+        from ai_bridge.agent_loop import request_approval
+    except Exception as exc:
+        return {"success": False, "error": f"request_approval import failed: {exc}"}
+
+    action_data = {
+        "agent_id": agent["id"],
+        "agent_name": agent["name"],
+        "department": agent["department"],
+        "model": agent["model"],
+        "reason": reason,
+    }
+    approval_reason = (
+        f"Reactivate {agent['display_name'] or agent['name']} " f"({agent['department']}, {agent['model']}): {reason}"
+    )
+    approval_id = request_approval(
+        action_type="reactivate_agent",
+        action_data=action_data,
+        reason=approval_reason,
+        requested_by=requested_by,
+        tier=2,
+    )
+    if not approval_id:
+        return {
+            "success": False,
+            "error": "request_approval returned None (likely dedup collision)",
+        }
+    return {
+        "success": True,
+        "approval_id": approval_id,
+        "agent": dict(agent),
+    }
+
+
 def deploy_to_node(agent_id, node_id):
     """Deploy agent to a remote node."""
     with get_db_cursor(commit=True) as (conn, cur):
@@ -1389,11 +1572,21 @@ def get_department_welfare_summary():
 
     Returns list of dicts: {department, avg_stress, avg_energy, agents_at_risk,
     total_agents, dominant_mood}. Ordered by avg_stress descending.
+
+    Note: ``agent_emotional_state`` is a historical time-series (~63k rows
+    for 131 agents). We reduce to latest-per-agent via ``DISTINCT ON``
+    before joining — otherwise the join fans out and breaks the counts.
     """
     try:
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """
+                WITH latest_aes AS (
+                    SELECT DISTINCT ON (agent_id)
+                           agent_id, current_mood, stress_level, energy_level
+                    FROM agent_emotional_state
+                    ORDER BY agent_id, timestamp DESC
+                )
                 SELECT a.department,
                        ROUND(AVG(COALESCE(aes.stress_level, 0.2))::numeric, 2) AS avg_stress,
                        ROUND(AVG(COALESCE(aes.energy_level, 0.8))::numeric, 2) AS avg_energy,
@@ -1401,7 +1594,7 @@ def get_department_welfare_summary():
                        COUNT(*) AS total_agents,
                        MODE() WITHIN GROUP (ORDER BY COALESCE(aes.current_mood, 'idle')) AS dominant_mood
                 FROM agents a
-                LEFT JOIN agent_emotional_state aes ON a.id = aes.agent_id
+                LEFT JOIN latest_aes aes ON a.id = aes.agent_id
                 WHERE a.worker_type = 'ai' AND a.shift_state = 'active'
                 GROUP BY a.department
                 ORDER BY avg_stress DESC
@@ -1411,6 +1604,210 @@ def get_department_welfare_summary():
     except Exception as e:
         logger.error(f"Department welfare summary failed: {e}")
         return []
+
+
+# ---------------------------------------------------------------------------
+# K.I.N. holistic digest — welfare + budget utilization.
+# Project #272 Phase 1 / Task #2106. Closes Pillar 4 (surfaces) for K.I.N. —
+# the budget data has been in ``agent_budgets`` all along, but no digest
+# consumed it. The agent-loop job ``kin_welfare_digest`` and the MCP tool
+# ``mcp__archie__get_welfare_digest`` both compose onto this function.
+# ---------------------------------------------------------------------------
+
+
+def _get_department_budget_rollup():
+    """Return {department: {avg_token_usage_pct, agents_over_budget, agents_starving}}.
+
+    * ``over_budget``: agent with ``tokens_used_today > 90%`` of its daily limit.
+    * ``starving``: agent in ``shift_state='active'`` with zero tokens used
+      today AND zero current tasks — the dispatcher isn't sending it work.
+    """
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT a.department,
+                       ROUND(AVG(
+                           CASE WHEN COALESCE(ab.token_limit_per_day, 0) > 0
+                                THEN ab.tokens_used_today::float
+                                     / ab.token_limit_per_day::float
+                                ELSE 0
+                           END
+                       )::numeric, 3) AS avg_token_usage_pct,
+                       COUNT(*) FILTER (
+                           WHERE COALESCE(ab.token_limit_per_day, 0) > 0
+                             AND ab.tokens_used_today::float
+                                 / ab.token_limit_per_day::float > 0.9
+                       ) AS agents_over_budget,
+                       COUNT(*) FILTER (
+                           WHERE a.shift_state = 'active'
+                             AND COALESCE(ab.tokens_used_today, 0) = 0
+                             AND COALESCE(ab.current_task_count, 0) = 0
+                       ) AS agents_starving
+                FROM agents a
+                LEFT JOIN agent_budgets ab ON a.id = ab.agent_id
+                WHERE a.worker_type = 'ai' AND a.status = 'active'
+                GROUP BY a.department
+                """
+            )
+            return {row["department"]: dict(row) for row in cur.fetchall()}
+    except Exception as e:
+        logger.error(f"Department budget rollup failed: {e}")
+        return {}
+
+
+def _get_agent_welfare_outliers(over_budget_threshold: float = 0.90):
+    """Return the per-agent list of outliers (over_budget or starving).
+
+    Collapses ``agent_emotional_state`` to the latest row per agent before
+    joining — otherwise the join fans out on the history table.
+    """
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                WITH latest_aes AS (
+                    SELECT DISTINCT ON (agent_id) agent_id, stress_level
+                    FROM agent_emotional_state
+                    ORDER BY agent_id, timestamp DESC
+                )
+                SELECT a.id, a.name, a.display_name, a.department, a.shift_state,
+                       COALESCE(ab.tokens_used_today, 0) AS tokens_used_today,
+                       COALESCE(ab.token_limit_per_day, 0) AS token_limit_per_day,
+                       COALESCE(ab.current_task_count, 0) AS current_task_count,
+                       COALESCE(ab.task_queue_limit, 0) AS task_queue_limit,
+                       COALESCE(aes.stress_level, 0.2) AS stress_level
+                FROM agents a
+                LEFT JOIN agent_budgets ab ON a.id = ab.agent_id
+                LEFT JOIN latest_aes aes ON a.id = aes.agent_id
+                WHERE a.worker_type = 'ai' AND a.status = 'active'
+                """
+            )
+            flags = []
+            for row in cur.fetchall():
+                r = dict(row)
+                limit = r["token_limit_per_day"] or 0
+                if limit > 0:
+                    pct = r["tokens_used_today"] / limit
+                    if pct > over_budget_threshold:
+                        flags.append(
+                            {
+                                "agent_id": r["id"],
+                                "name": r["name"],
+                                "display_name": r.get("display_name"),
+                                "department": r["department"],
+                                "flag": "over_budget",
+                                "token_usage_pct": round(pct, 3),
+                                "stress_level": float(r["stress_level"]),
+                            }
+                        )
+                        continue
+                if r["shift_state"] == "active" and r["tokens_used_today"] == 0 and r["current_task_count"] == 0:
+                    flags.append(
+                        {
+                            "agent_id": r["id"],
+                            "name": r["name"],
+                            "display_name": r.get("display_name"),
+                            "department": r["department"],
+                            "flag": "starving",
+                            "token_usage_pct": 0.0,
+                            "stress_level": float(r["stress_level"]),
+                        }
+                    )
+            return flags
+    except Exception as e:
+        logger.error(f"Agent outlier flags query failed: {e}")
+        return []
+
+
+def get_kin_welfare_digest(
+    stress_threshold: float = 0.7,
+    over_budget_threshold: float = 0.90,
+    starving_warning: int = 3,
+):
+    """K.I.N. holistic digest — welfare + budget utilization.
+
+    Composes ``get_department_welfare_summary()`` (stress / mood) with
+    per-department budget aggregation and per-agent outlier flags. Drives
+    the scheduled ``kin_welfare_digest`` job in agent_loop and the MCP
+    tool ``get_welfare_digest``.
+
+    Severity rollup:
+      * ``error``   — ≥3 agents over budget OR ≥5 at welfare risk
+      * ``warning`` — any agent over budget / at welfare risk, or
+                      ≥``starving_warning`` starving agents
+      * ``info``    — otherwise
+    """
+    from datetime import datetime, timezone
+
+    department_rollup = get_department_welfare_summary()
+    budget_by_dept = _get_department_budget_rollup()
+
+    for dept in department_rollup:
+        budget = budget_by_dept.get(dept["department"], {}) or {}
+        dept["avg_token_usage_pct"] = float(budget.get("avg_token_usage_pct") or 0)
+        dept["agents_over_budget"] = int(budget.get("agents_over_budget") or 0)
+        dept["agents_starving"] = int(budget.get("agents_starving") or 0)
+
+    per_agent_flags = _get_agent_welfare_outliers(over_budget_threshold)
+
+    total_over_budget = sum(d["agents_over_budget"] for d in department_rollup)
+    total_starving = sum(d["agents_starving"] for d in department_rollup)
+    total_at_risk = sum(int(d.get("agents_at_risk") or 0) for d in department_rollup)
+
+    severity = "info"
+    reasons = []
+    if total_over_budget >= 3:
+        severity = "error"
+        reasons.append(f"{total_over_budget} agents over budget")
+    if total_at_risk >= 5:
+        severity = "error"
+        reasons.append(f"{total_at_risk} agents at welfare risk (stress>0.7)")
+    if severity != "error":
+        if total_over_budget > 0:
+            severity = "warning"
+            reasons.append(f"{total_over_budget} agent(s) over budget")
+        if total_at_risk > 0:
+            severity = "warning"
+            reasons.append(f"{total_at_risk} agent(s) at welfare risk")
+        if total_starving >= starving_warning:
+            severity = "warning"
+            reasons.append(f"{total_starving} starving agents (active but receiving no work)")
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "department_rollup": department_rollup,
+        "per_agent_flags": per_agent_flags,
+        "summary_metrics": {
+            "total_over_budget": total_over_budget,
+            "total_starving": total_starving,
+            "total_at_risk": total_at_risk,
+            "department_count": len(department_rollup),
+            "per_agent_flag_count": len(per_agent_flags),
+        },
+        "severity": severity,
+        "reasons": reasons,
+    }
+
+
+def format_kin_digest_message(digest):
+    """Render a compact K.I.N. digest message for Telegram / system_notifications."""
+    metrics = digest["summary_metrics"]
+    lines = [
+        f"K.I.N. — crew welfare & budget digest",
+        f"Severity: *{digest['severity'].upper()}* · " f"{metrics['per_agent_flag_count']} agent flag(s)",
+        "",
+        f"• over-budget agents: {metrics['total_over_budget']}",
+        f"• starving agents: {metrics['total_starving']}",
+        f"• at welfare risk: {metrics['total_at_risk']}",
+        f"• departments scanned: {metrics['department_count']}",
+    ]
+    if digest.get("reasons"):
+        lines.append("")
+        lines.append("Reasons:")
+        for reason in digest["reasons"]:
+            lines.append(f"  – {reason}")
+    return "\n".join(lines)
 
 
 def check_shift_transitions():

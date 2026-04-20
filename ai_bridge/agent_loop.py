@@ -629,6 +629,26 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # S.P.E.C.T.R.A. — nightly dispatch misroute audit (Project #272 / Task #2105).
+        # 02:15 UTC offset from the other nightly maintenance windows.
+        self.scheduler.add_job(
+            with_app_context(self._run_misroute_audit),
+            trigger=IntervalTrigger(hours=24, start_date="2026-01-01 02:15:00"),
+            id="spectra_misroute_audit",
+            name="Agent Loop: S.P.E.C.T.R.A. Dispatch Misroute Audit",
+            replace_existing=True,
+        )
+
+        # K.I.N. — daily crew welfare + budget digest (Project #272 / Task #2106).
+        # 02:45 UTC — after S.P.E.C.T.R.A. so routing anomalies are fresh.
+        self.scheduler.add_job(
+            with_app_context(self._run_kin_welfare_digest),
+            trigger=IntervalTrigger(hours=24, start_date="2026-01-01 02:45:00"),
+            id="kin_welfare_digest",
+            name="Agent Loop: K.I.N. Welfare + Budget Digest",
+            replace_existing=True,
+        )
+
         self.scheduler.add_job(
             with_app_context(self._check_ddns),
             trigger=IntervalTrigger(minutes=15),
@@ -2771,6 +2791,38 @@ class AgentLoop:
                 logger.error(f"Agent creation from approval failed: {create_err}")
                 return {"executed": False, "error": str(create_err)}
 
+        elif action_type == "reactivate_agent":
+            # Project #272 Phase 1 / Task #2107. Approved reactivation flips
+            # a decommissioned agent to barracked. Consumer pairs with the
+            # propose_reactivation() service helper; the actual state change
+            # lives in agent_service.reactivate_agent() (single-writer).
+            agent_id = data.get("agent_id")
+            if not agent_id:
+                return {"executed": False, "error": "No agent_id in action_data"}
+            try:
+                import sys
+
+                sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+                from services.agent_service import reactivate_agent
+
+                result = reactivate_agent(
+                    agent_id,
+                    reason=data.get("reason", "approved reactivation"),
+                )
+                if result.get("success"):
+                    logger.info(
+                        f"Agent {agent_id} reactivated from approval "
+                        f"#{item['id']}: {result.get('name')}"
+                    )
+                    return {"executed": True, **result}
+                return {
+                    "executed": False,
+                    "error": result.get("error", "reactivate_agent failed"),
+                }
+            except Exception as react_err:
+                logger.error(f"Agent reactivation from approval failed: {react_err}")
+                return {"executed": False, "error": str(react_err)}
+
         elif action_type == "improvement_approve":
             # Approved improvement proposal — trigger auto-execution pipeline
             proposal_id = data.get("proposal_id")
@@ -3193,6 +3245,230 @@ class AgentLoop:
 
         except Exception as e:
             logger.error("Dependency audit failed: %s", e)
+
+    # ------------------------------------------------------------------
+    # S.P.E.C.T.R.A. Dispatch Misroute Audit (Project #272 / Task #2105)
+    # ------------------------------------------------------------------
+
+    def _run_misroute_audit(self):
+        """Nightly dispatch misroute audit owned by S.P.E.C.T.R.A.
+
+        Delegates the scan to ``services.misroute_audit_service.run_misroute_audit``
+        (single source of truth), then surfaces results via:
+          * one ``autonomy_loop_log`` row (always, regardless of severity)
+          * one ``system_notifications`` row when severity >= 'warning'
+          * one Telegram alert when severity == 'error'
+
+        The MCP tool ``mcp__archie__run_misroute_audit`` wraps the same
+        service function so Kytran can invoke it on demand.
+        """
+        start = time.time()
+        severity = "info"
+        result = None
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from services.misroute_audit_service import (
+                format_alert_message,
+                run_misroute_audit,
+            )
+
+            result = run_misroute_audit(window_hours=24)
+            severity = result["severity"]
+            metrics = result["summary_metrics"]
+            duration_ms = int((time.time() - start) * 1000)
+
+            # Always log the cycle so the Dev HQ routing dashboard (#2110)
+            # has a timeline to render.
+            self._log_cycle(
+                job_name="spectra_misroute_audit",
+                items_processed=result["anomaly_count"],
+                items_failed=metrics["high_failure_pairs"],
+                duration_ms=duration_ms,
+                details={
+                    "severity": severity,
+                    "summary_metrics": metrics,
+                    "reasons": result.get("reasons", []),
+                    "window_hours": result["window_hours"],
+                    "finding_sizes": {
+                        k: len(v) for k, v in result["findings"].items()
+                    },
+                },
+            )
+
+            # Surface on warning or worse. Info-level runs are silent.
+            if severity in ("warning", "error"):
+                body = format_alert_message(result)
+                try:
+                    conn = get_db()
+                    cur = conn.cursor()
+                    cur.execute(
+                        """
+                        INSERT INTO system_notifications
+                          (type, title, message, source, priority, source_icon,
+                           related_action, visibility, target_user_id, is_read,
+                           metadata, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s, NOW())
+                        """,
+                        (
+                            "alert" if severity == "error" else "warning",
+                            f"S.P.E.C.T.R.A. — {severity} in dispatch routing",
+                            body,
+                            "spectra",
+                            "high" if severity == "error" else "normal",
+                            "🛰️",
+                            "/tools/department-hq#dispatch",
+                            "all",
+                            None,
+                            psycopg2.extras.Json(metrics),
+                        ),
+                    )
+                    conn.commit()
+                    cur.close()
+                    conn.close()
+                except Exception as notify_err:
+                    logger.warning(
+                        "Misroute audit: system_notifications insert failed: %s",
+                        notify_err,
+                    )
+
+            # Telegram only on 'error'. Warnings stay in the notifications
+            # tray so they don't spam the phone.
+            if severity == "error":
+                try:
+                    self._send_telegram(format_alert_message(result))
+                except Exception as tg_err:
+                    logger.warning(
+                        "Misroute audit: Telegram dispatch failed: %s", tg_err
+                    )
+
+            logger.info(
+                "S.P.E.C.T.R.A. misroute audit: severity=%s anomalies=%d in %dms",
+                severity,
+                result["anomaly_count"],
+                duration_ms,
+            )
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            logger.error("S.P.E.C.T.R.A. misroute audit failed: %s", e)
+            try:
+                self._log_cycle(
+                    job_name="spectra_misroute_audit",
+                    items_processed=0,
+                    items_failed=1,
+                    duration_ms=duration_ms,
+                    error_message=str(e),
+                )
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # K.I.N. Welfare + Budget Digest (Project #272 / Task #2106)
+    # ------------------------------------------------------------------
+
+    def _run_kin_welfare_digest(self):
+        """Daily K.I.N. digest — welfare (stress/mood) + budget utilization.
+
+        Delegates the aggregation to
+        ``services.agent_service.get_kin_welfare_digest`` (single source of
+        truth). Always writes an ``autonomy_loop_log`` row; surfaces a
+        ``system_notifications`` row when severity ≥ 'warning' and a
+        Telegram alert when severity == 'error'.
+
+        The MCP tool ``mcp__archie__get_welfare_digest`` composes onto the
+        same service function so Kytran can poll on demand.
+        """
+        start = time.time()
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from services.agent_service import (
+                format_kin_digest_message,
+                get_kin_welfare_digest,
+            )
+
+            digest = get_kin_welfare_digest()
+            severity = digest["severity"]
+            metrics = digest["summary_metrics"]
+            duration_ms = int((time.time() - start) * 1000)
+
+            self._log_cycle(
+                job_name="kin_welfare_digest",
+                items_processed=metrics["per_agent_flag_count"],
+                items_failed=metrics["total_over_budget"],
+                duration_ms=duration_ms,
+                details={
+                    "severity": severity,
+                    "summary_metrics": metrics,
+                    "reasons": digest.get("reasons", []),
+                    "department_count": metrics["department_count"],
+                },
+            )
+
+            if severity in ("warning", "error"):
+                body = format_kin_digest_message(digest)
+                try:
+                    conn = get_db()
+                    cur = conn.cursor()
+                    cur.execute(
+                        """
+                        INSERT INTO system_notifications
+                          (type, title, message, source, priority, source_icon,
+                           related_action, visibility, target_user_id, is_read,
+                           metadata, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s, NOW())
+                        """,
+                        (
+                            "alert" if severity == "error" else "warning",
+                            f"K.I.N. — {severity} in crew welfare / budgets",
+                            body,
+                            "kin",
+                            "high" if severity == "error" else "normal",
+                            "🧑‍⚕️",
+                            "/tools/department-hq#overview",
+                            "all",
+                            None,
+                            psycopg2.extras.Json(metrics),
+                        ),
+                    )
+                    conn.commit()
+                    cur.close()
+                    conn.close()
+                except Exception as notify_err:
+                    logger.warning(
+                        "K.I.N. digest: system_notifications insert failed: %s",
+                        notify_err,
+                    )
+
+            if severity == "error":
+                try:
+                    self._send_telegram(format_kin_digest_message(digest))
+                except Exception as tg_err:
+                    logger.warning(
+                        "K.I.N. digest: Telegram dispatch failed: %s", tg_err
+                    )
+
+            logger.info(
+                "K.I.N. welfare digest: severity=%s flags=%d in %dms",
+                severity,
+                metrics["per_agent_flag_count"],
+                duration_ms,
+            )
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            logger.error("K.I.N. welfare digest failed: %s", e)
+            try:
+                self._log_cycle(
+                    job_name="kin_welfare_digest",
+                    items_processed=0,
+                    items_failed=1,
+                    duration_ms=duration_ms,
+                    error_message=str(e),
+                )
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # DDNS Public IP Monitor

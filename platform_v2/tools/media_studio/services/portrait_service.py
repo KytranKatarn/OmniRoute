@@ -4,6 +4,7 @@ Manages canonical portraits, face-consistent variants, approval workflow,
 and environment art for hub/node backgrounds.
 """
 
+import base64
 import logging
 import os
 from typing import Dict, List, Optional
@@ -12,6 +13,26 @@ from database import get_db_cursor
 from services import agent_service
 
 logger = logging.getLogger(__name__)
+
+# Vision-model prompt for deriving an identity_prompt from an imported face.
+# Used by the upload flow (#1917) so imported portraits can participate in
+# IP-Adapter variant generation — which requires a prompt paired with the
+# canonical face reference.
+VISION_DESCRIBE_PROMPT = (
+    "Describe the person in this portrait for use as a Stable Diffusion / "
+    "IP-Adapter prompt. Focus on observable features:\n"
+    '- Age range (e.g., "mid-30s", "late 20s")\n'
+    "- Ethnicity / appearance (observational, respectful)\n"
+    "- Hair (color, length, style)\n"
+    "- Facial features (beard, glasses, distinguishing marks)\n"
+    "- Eye color if visible\n"
+    "- Clothing / attire if visible\n\n"
+    "Output ONLY a single comma-separated description phrase, no preamble, "
+    "no bullet points. Example output:\n"
+    '"mid-30s East Asian man with short black hair, clean-shaven, warm '
+    "brown eyes, wearing a dark navy uniform, confident expression, "
+    'photorealistic"'
+)
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PLATFORM_DIR = os.path.abspath(os.path.join(_THIS_DIR, "..", "..", ".."))
@@ -258,6 +279,93 @@ def approve_canonical(agent_id: int, media_id: int) -> Dict:
     agent_service.update_agent(agent_id, avatar_url=thumb)
 
     return {"status": "approved", "agent_id": agent_id, "media_id": media_id}
+
+
+def describe_portrait(image_source: str) -> Dict:
+    """Generate an identity_prompt for an imported portrait via vision model.
+
+    Dispatches capability='vision' through the Department HQ dispatcher, which
+    auto-selects a vision-capable model (moondream by default, qwen2.5vl
+    fallback) and handles VRAM swap on the M4000. Returns a description
+    suitable for pairing with the IP-Adapter canonical reference in
+    generate_variant().
+
+    Args:
+        image_source: either a filesystem path, a base64-encoded PNG/JPEG,
+            or a data: URL.
+
+    Returns:
+        {"success": bool, "prompt": str, "model": str, "error": str}
+    """
+    # Normalize to base64 — dispatcher's analyze_image helper accepts b64.
+    # Order matters: check data URL → filesystem → try as raw b64 (last).
+    b64: str
+    if image_source.startswith(("data:image/", "data:")):
+        b64 = image_source.split(",", 1)[-1]
+    elif len(image_source) < 512 and os.path.isfile(image_source):
+        # Short enough to be a path AND exists on disk
+        with open(image_source, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode("ascii")
+    else:
+        # Assume raw base64. Validate by attempting decode; reject on failure.
+        try:
+            decoded = base64.b64decode(image_source, validate=True)
+            if len(decoded) < 100:
+                raise ValueError("decoded payload too small to be an image")
+        except Exception as e:
+            return {
+                "success": False,
+                "prompt": "",
+                "model": "",
+                "error": f"image_source not a valid path or base64 image: {e}",
+            }
+        b64 = image_source
+
+    try:
+        from tools.department_hq.services.department_dispatcher import dispatch
+    except ImportError as e:
+        return {"success": False, "prompt": "", "model": "", "error": f"dispatcher import failed: {e}"}
+
+    try:
+        result = dispatch(
+            capability="vision",
+            prompt=VISION_DESCRIBE_PROMPT,
+            module_id="portrait_service",
+            images=[b64],
+            local_only=True,
+            timeout=180,
+        )
+    except Exception as e:
+        logger.exception("vision dispatch for describe_portrait failed")
+        return {"success": False, "prompt": "", "model": "", "error": str(e)}
+
+    if not getattr(result, "success", False):
+        return {
+            "success": False,
+            "prompt": "",
+            "model": getattr(result, "model", "") or "",
+            "error": getattr(result, "error", "dispatch failed") or "dispatch failed",
+        }
+
+    desc = (getattr(result, "response", "") or "").strip()
+    # Strip surrounding quotes if the model added them
+    if len(desc) > 2 and desc[0] in ('"', "'") and desc[-1] == desc[0]:
+        desc = desc[1:-1].strip()
+
+    if not desc:
+        return {
+            "success": False,
+            "prompt": "",
+            "model": getattr(result, "model", "") or "",
+            "error": "vision model returned empty description",
+        }
+
+    return {
+        "success": True,
+        "prompt": desc,
+        "model": getattr(result, "model", "") or "",
+        "tier": getattr(result, "tier", "") or "",
+    }
 
 
 def update_identity_prompt(agent_id: int, prompt: str) -> Dict:

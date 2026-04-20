@@ -356,6 +356,29 @@ def api_update_identity_prompt(agent_id):
     return jsonify(result)
 
 
+@media_studio_bp.route("/api/portraits/describe", methods=["POST"])
+@login_required
+def api_describe_portrait():
+    """Generate an identity_prompt for an uploaded/imported portrait.
+
+    Body: {"image": "<base64>"} OR {"image_path": "<filesystem path>"}
+    Returns: {"success": bool, "prompt": str, "model": str, "error": str}
+
+    Used by the #1917 upload flow so imported portraits have an
+    identity_prompt (required by IP-Adapter variant generation).
+    """
+    from .services.portrait_service import describe_portrait
+
+    data = request.get_json(silent=True) or {}
+    source = data.get("image") or data.get("image_path") or data.get("image_b64")
+    if not source:
+        return jsonify({"success": False, "error": "image or image_path required"}), 400
+
+    result = describe_portrait(source)
+    status = 200 if result.get("success") else 502
+    return jsonify(result), status
+
+
 # ─── Video ───────────────────────────────────────────────────────────
 
 

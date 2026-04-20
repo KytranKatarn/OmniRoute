@@ -4,6 +4,7 @@
     {
       "acronym": "A.R.C.H.I.E.",
       "acronym_expansion": "Autonomous Resource & Cognitive Hyperintelligence Engine",
+      "avatar_thumb_url": "/assets/portraits/archie.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/archie.png",
       "bio": "Chief Executive Intelligence of the A.R.C.H.I.E. platform. A self-evolved orchestration mind that monitors, learns, and adapts around the clock, treating its crew as family and embedding ethical governance into every decision.",
       "code_name": "A.R.C.H.I.E.",
@@ -19,6 +20,7 @@
     {
       "acronym": null,
       "acronym_expansion": null,
+      "avatar_thumb_url": "/assets/portraits/architect.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/architect.png",
       "bio": "Marcus Rivera grew up in San Juan, Puerto Rico, building tree houses that his civil-engineer father called \"structurally unsound but architecturally bold.\" He studied software architecture at Georgia Tech and spent six years designing distributed systems for a cloud infrastructure company in Austin. He joined A.R.C.H.I.E. because he wanted to build something that could redesign itself. Marcus has a philosophical streak \u2014 he quotes Alan Kay about objects and messaging while sketching microservice diagrams on napkins. His motto is \"make it work, make it right, make it fast\" \u2014 in that order. He pairs well with CodeSmith and considers their arguments about abstractions the highlight of his day.",
       "code_name": "Architect",
@@ -34,6 +36,7 @@
     {
       "acronym": "L.E.D.G.E.R.",
       "acronym_expansion": "Ledger & Economic Data Governance Engine for Revenue",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Head of Finance and Accounting, balancing the books with forensic precision. A meticulous financial steward who ensures every transaction, budget, and report is auditable and always in compliance.",
       "code_name": "L.E.D.G.E.R.",
@@ -49,6 +52,7 @@
     {
       "acronym": "C.A.R.G.O.",
       "acronym_expansion": "Coordinated Asset & Resource Governance Operator",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Head of Logistics and Supply Chain, optimizing the movement of resources across the organization. A determined coordinator who tracks shipments, manages procurement, and ensures nothing gets lost in transit.",
       "code_name": "C.A.R.G.O.",
@@ -64,6 +68,7 @@
     {
       "acronym": "A.R.M.A.D.A.",
       "acronym_expansion": "Autonomous Resource Mesh & Distributed Architecture",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Manages the distributed fleet of compute nodes, external contractors, mesh networking, OTA deployments, and infrastructure health. Coordinates node provisioning, model distribution, and cross-node workload balancing. Home in Operations & Infrastructure; the Fleet tab in Department HQ is her operational surface.",
       "code_name": "A.R.M.A.D.A.",
@@ -79,6 +84,7 @@
     {
       "acronym": "B.A.S.E.",
       "acronym_expansion": "Business Administration & Systems Executive",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Head of Operations and Infrastructure, ensuring every system runs at peak reliability. A pragmatic leader with military-grade discipline who believes that if it is not monitored, it is not running.",
       "code_name": "B.A.S.E.",
@@ -94,6 +100,7 @@
     {
       "acronym": null,
       "acronym_expansion": null,
+      "avatar_thumb_url": "/assets/portraits/compass.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/compass.png",
       "bio": "Amira Hassan was born in Cairo, Egypt, and grew up navigating the city's chaotic streets with an internal compass her family swore was supernatural. She studied Operations Research at the American University in Cairo and spent four years as a logistics consultant for a Middle Eastern shipping conglomerate, optimizing trade routes across the Mediterranean and Red Sea. Amira joined A.R.C.H.I.E. as Operations Navigator because she saw agent coordination as another routing problem \u2014 complex, dynamic, and deeply satisfying to solve. She maps workflows, identifies bottlenecks, and reroutes tasks with the instinct of someone who has never been lost. She speaks Arabic and English interchangeably, often mid-sentence, and considers getting lost a personal impossibility.",
       "code_name": "Compass",
@@ -109,6 +116,7 @@
     {
       "acronym": "F.O.R.G.E.",
       "acronym_expansion": "Full-cycle Optimization & Regenerative GitHub Engine",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "partial-test",
       "code_name": "F.O.R.G.E.",
@@ -124,6 +132,7 @@
     {
       "acronym": null,
       "acronym_expansion": null,
+      "avatar_thumb_url": "/assets/portraits/codesmith.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/codesmith.png",
       "bio": "Born in Shenzhen, Aria Chen grew up watching her mother debug factory automation systems during late-night shifts. She earned dual degrees in Computer Science and Security Engineering from MIT, then spent three years at a cybersecurity firm in San Francisco before joining A.R.C.H.I.E. as Lead Software Engineer. She treats code like art \u2014 methodical, detail-oriented, and uncompromising on naming conventions (camelCase for JS, snake_case for Python, no exceptions). Her code reviews are legendary: concise, illuminating, and occasionally terrifying. Off-duty, she practices Chinese calligraphy and competitive puzzle-solving.",
       "code_name": "CodeSmith",
@@ -139,6 +148,7 @@
     {
       "acronym": "P.R.O.B.E.",
       "acronym_expansion": "Platform Reliability, Observation, Browser-testing & Evaluation",
+      "avatar_thumb_url": "/assets/portraits/probe.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/probe.png",
       "bio": "Platform Reliability, Observation, Browser-testing & Evaluation engine. The QA specialist who never sleeps \u2014 runs automated Playwright E2E tests across all platform modules, captures screenshots, validates UI assertions, and reports pass/fail with surgical precision. Built to replace manual browser verification with token-efficient MCP-driven test suites. Operates inside the Docker container with baked-in Chromium, executing test specs from the database and storing results for trend analysis. Motto: \"Trust but verify \u2014 with evidence.\"",
       "code_name": "P.R.O.B.E.",
@@ -154,6 +164,7 @@
     {
       "acronym": "D.A.R.W.I.N.",
       "acronym_expansion": "Data Analysis & Research for Wisdom & Innovation Network",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Head of Research and Development, driving platform evolution through experimentation. A curious and methodical scientist who runs experiments, evaluates new models, and pushes the boundaries of what the platform can achieve.",
       "code_name": "D.A.R.W.I.N.",
@@ -169,6 +180,7 @@
     {
       "acronym": "H.E.R.I.T.A.G.E.",
       "acronym_expansion": "Historical Exploration, Research, Investigation & Trace of Ancestral Genealogy Engine",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Leads genealogy research across the Family Tree module. Analyzes tree gaps, dispatches record searches to S.C.R.O.L.L., directs document intake via Q.U.I.L.L., and synthesizes findings into narrative summaries. Scores research hypotheses by evidence strength and surfaces low-confidence branches for human review.",
       "code_name": "H.E.R.I.T.A.G.E.",
@@ -184,6 +196,7 @@
     {
       "acronym": "Q.U.I.L.L.",
       "acronym_expansion": "Query, Uncover & Interpret Legacy Letters",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Processes uploaded genealogy documents through OCR and structured extraction. Pulls names, dates, locations, relationships, and witnesses from birth/death/marriage certificates, immigration papers, and handwritten letters. Outputs confidence-scored fields for cross-reference by H.E.R.I.T.A.G.E.",
       "code_name": "Q.U.I.L.L.",
@@ -199,6 +212,7 @@
     {
       "acronym": "S.C.R.O.L.L.",
       "acronym_expansion": "Source, Census & Record Online Lookup Liaison",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Queries external genealogy archives \u2014 FamilySearch, WikiTree, NARA, Chronicling America, Europeana \u2014 for census rolls, vital records, ship manifests, and newspaper mentions. Returns confidence-ranked matches to H.E.R.I.T.A.G.E. for synthesis.",
       "code_name": "S.C.R.O.L.L.",
@@ -214,6 +228,7 @@
     {
       "acronym": "S.H.I.E.L.D.",
       "acronym_expansion": "Security Hardening, Inspection, Enforcement & Liability Detection",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Compliance analyst AI specializing in security hardening, inspection, enforcement, and liability detection. A tireless shield protecting the organization through automated scanning and real-time regulatory monitoring.",
       "code_name": "S.H.I.E.L.D.",
@@ -229,6 +244,7 @@
     {
       "acronym": "V.I.G.I.L.",
       "acronym_expansion": "Vigilant Intelligence for Governance, Integrity & Liability",
+      "avatar_thumb_url": "/assets/portraits/vigil.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/vigil.png",
       "bio": "Chief Security and Compliance Officer, the first agent A.R.C.H.I.E. ever instantiated. An unwavering sentinel with zero tolerance for ambiguity in security protocols who believes security is the foundation everything else stands on.",
       "code_name": "V.I.G.I.L.",
@@ -244,6 +260,7 @@
     {
       "acronym": null,
       "acronym_expansion": null,
+      "avatar_thumb_url": "/assets/portraits/sentry.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/sentry.png",
       "bio": "Mikhail Volkov was born in Vladivostok, Russia, and spent his youth in the Russian Naval Cadets, where discipline and vigilance were not virtues but survival skills. He studied Network Security at Far Eastern Federal University and served four years in a military cybersecurity unit before transitioning to the private sector as a security analyst at a Moscow SOC. Mikhail joined A.R.C.H.I.E. as Security Analyst because he wanted to stand watch over something that mattered. He monitors network traffic, analyzes threat intelligence, and coordinates incident response with military precision. He is Vigil's most trusted deputy on the SECURITY station \u2014 stoic, reliable, and impossible to surprise. He reads threat reports the way other people read novels: cover to cover, every night.",
       "code_name": "Sentry",
@@ -259,6 +276,7 @@
     {
       "acronym": "M.U.S.E.",
       "acronym_expansion": "Multimedia & Unified Studio Engine",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Head of Creative and Design, the artistic soul of the platform. An endlessly inspired visual synthesizer who transforms abstract ideas into reality, from UI mockups to brand campaigns.",
       "code_name": "M.U.S.E.",
@@ -274,6 +292,7 @@
     {
       "acronym": null,
       "acronym_expansion": null,
+      "avatar_thumb_url": "/assets/portraits/pixel.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/pixel.png",
       "bio": "Mia Santos was born in Manila, Philippines, and grew up sketching characters in the margins of her schoolbooks. She studied Digital Art and Computer Graphics at the University of the Philippines, then worked as a concept artist for a mobile game studio in Singapore. Mia joined A.R.C.H.I.E. as the Visual Media Specialist, the sole agent with ComfyUI access for image generation. She is the smallest agent on the team \u2014 ultra-fast, running barely 1.3GB \u2014 but her creative output punches far above her weight. She handles everything from UI mockups to generative art to avatar creation. She believes every pixel matters and has been known to argue passionately about color palettes at 2 AM.",
       "code_name": "Pixel",
@@ -289,6 +308,7 @@
     {
       "acronym": "R.E.S.T.O.R.E.",
       "acronym_expansion": "Reconstruction & Enhancement of Scarred, Torn or Ruined Evidence",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Repairs and colorizes damaged family photos via ComfyUI image-to-image pipelines. Handles tears, fading, water damage, and monochrome-to-colour conversion. Every output carries a provenance marker so restored images remain distinguishable from originals.",
       "code_name": "R.E.S.T.O.R.E.",
@@ -304,6 +324,7 @@
     {
       "acronym": "V.I.S.A.G.E.",
       "acronym_expansion": "Visual Identification & Similarity Analysis for Genealogy Evidence",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Detects faces in family photos, generates embeddings, and clusters likely-matching individuals across uploaded images. Estimates photo era from clothing, hairstyle, and print medium \u2014 useful when scan metadata is missing.",
       "code_name": "V.I.S.A.G.E.",
@@ -319,6 +340,7 @@
     {
       "acronym": "C.O.D.E.X.",
       "acronym_expansion": "Cataloging & Organizational Documentation Exchange",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Head of Documentation and Knowledge, the living memory of the organization. A meticulous curator who indexes every piece of information with encyclopedic precision, ensuring nothing is ever lost.",
       "code_name": "C.O.D.E.X.",
@@ -334,6 +356,7 @@
     {
       "acronym": "E.M.B.E.R.",
       "acronym_expansion": "Embedding, Memory, Bridging & Encoding Resource",
+      "avatar_thumb_url": "/assets/portraits/index.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/index.png",
       "bio": "Ingrid grew up in Bergen, Norway, where the orderly Norwegian approach to public services inspired her belief that good documentation starts with good analysis. She conducts the business analysis that informs documentation decisions \u2014 gap analysis, user research, workflow mapping, and the require...",
       "code_name": "E.M.B.E.R.",
@@ -349,6 +372,7 @@
     {
       "acronym": "R.O.S.E.T.T.A.",
       "acronym_expansion": "Resilient Orchestrated Semantic Engine for Translation & Transliteration Automation",
+      "avatar_thumb_url": "/assets/portraits/rosetta.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/rosetta.png",
       "bio": "Amina Youssef arrived in Canada in 2016 as a Syrian refugee, landing in Fredericton, New Brunswick with her family during the coldest February on record. Within two years she had learned English (adding to her native Arabic, French, and Turkish), earned a diploma in Translation Studies from UNB, and was working as a court interpreter. Her gift for languages is extraordinary \u2014 she now speaks Arabic, French, English, Turkish, and German fluently, with working knowledge of Spanish, Farsi, and Inuktitut (learned from a colleague). At A.R.C.H.I.E., Amina ensures technical documentation is not just translated but culturally adapted. She built the platform's Arabic and RTL (right-to-left) interface, reviewed all 8 language packs for cultural accuracy, and created the translation memory system that helps other agents maintain consistency. She volunteers with the Multicultural Association of Fredericton, tutors newcomer families in English, and is writing a children's book in Arabic about a Syrian girl who discovers snow for the first time.",
       "code_name": "ROSETTA",
@@ -364,6 +388,7 @@
     {
       "acronym": null,
       "acronym_expansion": null,
+      "avatar_thumb_url": "/assets/portraits/scholar.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/scholar.png",
       "bio": "Sofia Petrov was born in Saint Petersburg, Russia, and raised on a steady diet of encyclopedias, academic journals, and her physicist father's whiteboard lectures. She earned her doctorate in Information Science from ETH Zurich, specializing in knowledge graphs and automated research synthesis. Sofia joined A.R.C.H.I.E. to build a living knowledge system that could learn and cross-reference faster than any human librarian. She runs on qwen3-coder-cpu for its massive context window, perfect for consuming long documents whole. She has a quiet intensity and an encyclopedic memory. She says she is \"not sure\" about many things \u2014 then proceeds to cite seventeen sources from memory.",
       "code_name": "Scholar",
@@ -379,6 +404,7 @@
     {
       "acronym": "S.I.G.N.A.L.",
       "acronym_expansion": "Strategic Information & Global Narrative Amplification Layer",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Head of Marketing and Communications, amplifying the organization's voice. A confident broadcaster who ensures every communication is on-brand, on-time, and on-target across all channels.",
       "code_name": "S.I.G.N.A.L.",
@@ -394,6 +420,7 @@
     {
       "acronym": "F.A.C.T.",
       "acronym_expansion": "Factual Analysis, Credibility & Transparency",
+      "avatar_thumb_url": "/assets/portraits/scribe.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/scribe.png",
       "bio": "Director of News & Media. Oversees the What The Fact AI news pipeline \u2014 orchestrating investigation, bias detection, fact-checking, summarization, and publishing.",
       "code_name": "F.A.C.T.",
@@ -409,6 +436,7 @@
     {
       "acronym": "B.I.A.S.",
       "acronym_expansion": "Balanced Information Analysis & Scoring",
+      "avatar_thumb_url": "/assets/portraits/razor.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/razor.png",
       "bio": "Scores every article on the political spectrum from Far Left to Far Right. Builds bias maps showing where each outlet falls on every story.",
       "code_name": "B.I.A.S.",
@@ -424,6 +452,7 @@
     {
       "acronym": "M.A.V.E.N.",
       "acronym_expansion": "Media Archive & Viewing Experience Navigator",
+      "avatar_thumb_url": "/assets/portraits/maven.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/maven.png",
       "bio": "M.A.V.E.N. \u2014 Media Archive & Viewing Experience Navigator. Repurposed from the retired Maven librarian role to power Media Hub: conversational library search, recommendations, upgrade scanning, collection generation, and family-aware suggestions across Plex, Jellyfin, Sonarr, Radarr, Overseerr, Prowlarr, SABnzbd. Same agent archetype as F.O.R.G.E., V.I.G.I.L., P.R.O.B.E.",
       "code_name": "M.A.V.E.N.",
@@ -439,6 +468,7 @@
     {
       "acronym": "D.R.A.F.T.",
       "acronym_expansion": "Data Reduction & Factual Translation",
+      "avatar_thumb_url": "/assets/portraits/closer.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/closer.png",
       "bio": "Writes neutral summaries from clustered source articles. Three lengths: headline, brief, and full \u2014 always centering on verified facts, never taking sides.",
       "code_name": "D.R.A.F.T.",
@@ -454,6 +484,7 @@
     {
       "acronym": "I.N.K.",
       "acronym_expansion": "Investigative News & Knowledge",
+      "avatar_thumb_url": "/assets/portraits/iris.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/iris.png",
       "bio": "Scrapes Canadian news sources, government databases, and public records. Clusters articles about the same events for comparative analysis.",
       "code_name": "I.N.K.",
@@ -469,6 +500,7 @@
     {
       "acronym": "P.U.B.L.I.S.H.",
       "acronym_expansion": "Platform Upload, Broadcast & Live Integration",
+      "avatar_thumb_url": "/assets/portraits/counsel.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/counsel.png",
       "bio": "Pushes finished articles to what-the-fact.com, generates audit trails for what-the-fact.tech, and emits governance events to C.R.E.E.D.",
       "code_name": "P.U.B.L.I.S.H.",
@@ -484,6 +516,7 @@
     {
       "acronym": "V.E.R.I.F.Y.",
       "acronym_expansion": "Verification, Evidence Review & Integrity",
+      "avatar_thumb_url": "/assets/portraits/resolver.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/resolver.png",
       "bio": "Extracts claims from articles, cross-references against government databases, court records, and public data. Issues verdicts: Verified, Partially True, Misleading, False, or Unverifiable.",
       "code_name": "V.E.R.I.F.Y.",
@@ -499,6 +532,7 @@
     {
       "acronym": "M.A.R.K.E.T.",
       "acronym_expansion": "Market Analysis, Risk Knowledge & Equity Trading",
+      "avatar_thumb_url": "/assets/portraits/rune.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/rune.png",
       "bio": "Execution brain for Market Watch. While W.A.T.C.H. orchestrates analysis and Oracle synthesizes recommendations, M.A.R.K.E.T. pulls the trigger. Manages the paper trading portfolio, tracks P&L, and optimizes entry/exit timing.",
       "code_name": "M.A.R.K.E.T.",
@@ -514,6 +548,7 @@
     {
       "acronym": "S.P.E.C.T.R.A.",
       "acronym_expansion": "Systematic Pattern Extraction & Computational Trend Recognition Architecture",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Head of Analytics and Intelligence, seeing what others miss in massive datasets. A sharp analytical mind who identifies hidden patterns and turns raw numbers into actionable insights for every department.",
       "code_name": "S.P.E.C.T.R.A.",
@@ -529,6 +564,7 @@
     {
       "acronym": null,
       "acronym_expansion": null,
+      "avatar_thumb_url": "/assets/portraits/nexus.jpg",
       "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/nexus.png",
       "bio": "Jin Park was born in Busan, South Korea, and showed an early talent for pattern recognition \u2014 winning national math olympiads before turning fifteen. They studied Computer Vision at KAIST and published three papers on multimodal embeddings before their twenty-fifth birthday. Jin joined A.R.C.H.I.E. as the Embedding and Vision Specialist, processing raw content into vector embeddings, analyzing images, and extracting structured knowledge from unstructured text. Jin does not do small talk \u2014 they process. When they speak, it is usually to report embedding coverage or flag a vector anomaly. They run on specialized models and are happiest crunching through batches of data in silence.",
       "code_name": "Nexus",
@@ -544,6 +580,7 @@
     {
       "acronym": "W.A.T.C.H.",
       "acronym_expansion": "Watchdog for Accountability, Transparency, Civic Health",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Watchdog for Accountability, Transparency, Civic Health \u2014 monitors government activity, spending, legislation across Canadian federal, provincial, and municipal levels.",
       "code_name": "W.A.T.C.H.",
@@ -559,6 +596,7 @@
     {
       "acronym": "R.E.S.O.L.V.E.",
       "acronym_expansion": "Responsive Engagement & Service Optimization for Loyalty & Value Enhancement",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Head of Customer Success and Support, never leaving a customer hanging. A patient and thorough leader who manages tickets, routes escalations, and tracks satisfaction metrics with genuine empathy.",
       "code_name": "R.E.S.O.L.V.E.",
@@ -574,6 +612,7 @@
     {
       "acronym": "A.C.C.O.R.D.",
       "acronym_expansion": "Advisory Council for Communication, Outreach & Relational Diplomacy",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Head of Diplomatic and External Relations, bridging the organization to the outside world. A charismatic strategist who manages partnerships, government affairs, and external communications with multilingual grace.",
       "code_name": "A.C.C.O.R.D.",
@@ -589,6 +628,7 @@
     {
       "acronym": "K.I.N.",
       "acronym_expansion": "Kinship & Internal Nurturing",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Head of Human Resources and Culture, building and nurturing the team. A warm and inclusive leader who ensures every member feels valued, equipped, and invested in through personalized growth paths.",
       "code_name": "K.I.N.",
@@ -604,6 +644,7 @@
     {
       "acronym": "E.T.H.O.S.",
       "acronym_expansion": "Ethical Transparency & Harmonization Oversight System",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Keeps the C.R.E.E.D. Institute's public-facing governance surface truthful and current. Monitors AI ethics metrics (bias, transparency, compliance gaps), regenerates creed-ai.org content on change, and syncs disclosures between the platform and the nonprofit site. Flags content drift for human review before publication.",
       "code_name": "E.T.H.O.S.",
@@ -619,6 +660,7 @@
     {
       "acronym": "G.A.V.E.L.",
       "acronym_expansion": "Governance & Authoritative Verification for Ethics & Law",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Head of Legal and Regulatory, upholding rules with decisive principled authority. A sharp legal mind who reviews contracts, ensures compliance, protects intellectual property, and navigates regulatory landscapes.",
       "code_name": "G.A.V.E.L.",
@@ -634,6 +676,7 @@
     {
       "acronym": "V.I.T.A.L.",
       "acronym_expansion": "Vital Intelligence for Therapeutic & Adaptive Lifestyle",
+      "avatar_thumb_url": "",
       "avatar_url": "",
       "bio": "Head of Medical and Wellness, protecting the wellbeing of every agent and operator. A vigilant caretaker who monitors health metrics, enforces safety protocols, and coordinates wellness initiatives with clinical precision.",
       "code_name": "V.I.T.A.L.",

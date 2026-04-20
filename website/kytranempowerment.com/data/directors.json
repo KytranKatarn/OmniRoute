@@ -9,6 +9,7 @@
     "acronym_expansion": "Autonomous Resource & Cognitive Hyperintelligence Engine",
     "description": "Chief Executive Intelligence of the A.R.C.H.I.E. platform. A self-evolved orchestration mind that monitors, learns, and adapts around the clock, treating its crew as family and embedding ethical governance into every decision.",
     "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/archie.png",
+    "avatar_thumb_url": "/assets/portraits/archie.jpg",
     "shift_state": "active",
     "is_director": true
   },
@@ -22,6 +23,7 @@
     "acronym_expansion": "Ledger & Economic Data Governance Engine for Revenue",
     "description": "Head of Finance and Accounting, balancing the books with forensic precision. A meticulous financial steward who ensures every transaction, budget, and report is auditable and always in compliance.",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   },
@@ -35,6 +37,7 @@
     "acronym_expansion": "Coordinated Asset & Resource Governance Operator",
     "description": "Head of Logistics and Supply Chain, optimizing the movement of resources across the organization. A determined coordinator who tracks shipments, manages procurement, and ensures nothing gets lost in transit.",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   },
@@ -48,6 +51,7 @@
     "acronym_expansion": "Autonomous Resource Mesh & Distributed Architecture",
     "description": "Manages the distributed fleet of compute nodes, external contractors, mesh networking, OTA deployments, and infrastructure health. Coordinates node provisioning, model distribution, and cross-node workload balancing. Home in Operations & Infrastructure; the Fleet tab in Department HQ is her operational surface.",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   },
@@ -61,6 +65,7 @@
     "acronym_expansion": "Business Administration & Systems Executive",
     "description": "Head of Operations and Infrastructure, ensuring every system runs at peak reliability. A pragmatic leader with military-grade discipline who believes that if it is not monitored, it is not running.",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   },
@@ -74,6 +79,7 @@
     "acronym_expansion": "Full-cycle Optimization & Regenerative GitHub Engine",
     "description": "partial-test",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   },
@@ -87,6 +93,7 @@
     "acronym_expansion": "Data Analysis & Research for Wisdom & Innovation Network",
     "description": "Head of Research and Development, driving platform evolution through experimentation. A curious and methodical scientist who runs experiments, evaluates new models, and pushes the boundaries of what the platform can achieve.",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   },
@@ -100,6 +107,7 @@
     "acronym_expansion": "Security Hardening, Inspection, Enforcement & Liability Detection",
     "description": "Compliance analyst AI specializing in security hardening, inspection, enforcement, and liability detection. A tireless shield protecting the organization through automated scanning and real-time regulatory monitoring.",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   },
@@ -113,6 +121,7 @@
     "acronym_expansion": "Vigilant Intelligence for Governance, Integrity & Liability",
     "description": "Chief Security and Compliance Officer, the first agent A.R.C.H.I.E. ever instantiated. An unwavering sentinel with zero tolerance for ambiguity in security protocols who believes security is the foundation everything else stands on.",
     "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/vigil.png",
+    "avatar_thumb_url": "/assets/portraits/vigil.jpg",
     "shift_state": "active",
     "is_director": true
   },
@@ -126,6 +135,7 @@
     "acronym_expansion": "Multimedia & Unified Studio Engine",
     "description": "Head of Creative and Design, the artistic soul of the platform. An endlessly inspired visual synthesizer who transforms abstract ideas into reality, from UI mockups to brand campaigns.",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   },
@@ -139,6 +149,7 @@
     "acronym_expansion": "Cataloging & Organizational Documentation Exchange",
     "description": "Head of Documentation and Knowledge, the living memory of the organization. A meticulous curator who indexes every piece of information with encyclopedic precision, ensuring nothing is ever lost.",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   },
@@ -152,6 +163,7 @@
     "acronym_expansion": "Embedding, Memory, Bridging & Encoding Resource",
     "description": "Ingrid grew up in Bergen, Norway, where the orderly Norwegian approach to public services inspired her belief that good documentation starts with good analysis. She conducts the business analysis that informs documentation decisions \u2014 gap analysis, user research, workflow mapping, and the require...",
     "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/index.png",
+    "avatar_thumb_url": "/assets/portraits/index.jpg",
     "shift_state": "active",
     "is_director": true
   },
@@ -165,6 +177,7 @@
     "acronym_expansion": "Strategic Information & Global Narrative Amplification Layer",
     "description": "Head of Marketing and Communications, amplifying the organization's voice. A confident broadcaster who ensures every communication is on-brand, on-time, and on-target across all channels.",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   },
@@ -178,6 +191,7 @@
     "acronym_expansion": "Factual Analysis, Credibility & Transparency",
     "description": "Director of News & Media. Oversees the What The Fact AI news pipeline \u2014 orchestrating investigation, bias detection, fact-checking, summarization, and publishing.",
     "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/scribe.png",
+    "avatar_thumb_url": "/assets/portraits/scribe.jpg",
     "shift_state": "active",
     "is_director": true
   },
@@ -191,6 +205,7 @@
     "acronym_expansion": "Market Analysis, Risk Knowledge & Equity Trading",
     "description": "Execution brain for Market Watch. While W.A.T.C.H. orchestrates analysis and Oracle synthesizes recommendations, M.A.R.K.E.T. pulls the trigger. Manages the paper trading portfolio, tracks P&L, and optimizes entry/exit timing.",
     "avatar_url": "https://platform.kytranempowerment.com/static/media/portraits/rune.png",
+    "avatar_thumb_url": "/assets/portraits/rune.jpg",
     "shift_state": "active",
     "is_director": true
   },
@@ -204,6 +219,7 @@
     "acronym_expansion": "Systematic Pattern Extraction & Computational Trend Recognition Architecture",
     "description": "Head of Analytics and Intelligence, seeing what others miss in massive datasets. A sharp analytical mind who identifies hidden patterns and turns raw numbers into actionable insights for every department.",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   },
@@ -217,6 +233,7 @@
     "acronym_expansion": "Responsive Engagement & Service Optimization for Loyalty & Value Enhancement",
     "description": "Head of Customer Success and Support, never leaving a customer hanging. A patient and thorough leader who manages tickets, routes escalations, and tracks satisfaction metrics with genuine empathy.",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   },
@@ -230,6 +247,7 @@
     "acronym_expansion": "Advisory Council for Communication, Outreach & Relational Diplomacy",
     "description": "Head of Diplomatic and External Relations, bridging the organization to the outside world. A charismatic strategist who manages partnerships, government affairs, and external communications with multilingual grace.",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   },
@@ -243,6 +261,7 @@
     "acronym_expansion": "Kinship & Internal Nurturing",
     "description": "Head of Human Resources and Culture, building and nurturing the team. A warm and inclusive leader who ensures every member feels valued, equipped, and invested in through personalized growth paths.",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   },
@@ -256,6 +275,7 @@
     "acronym_expansion": "Ethical Transparency & Harmonization Oversight System",
     "description": "Keeps the C.R.E.E.D. Institute's public-facing governance surface truthful and current. Monitors AI ethics metrics (bias, transparency, compliance gaps), regenerates creed-ai.org content on change, and syncs disclosures between the platform and the nonprofit site. Flags content drift for human review before publication.",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   },
@@ -269,6 +289,7 @@
     "acronym_expansion": "Governance & Authoritative Verification for Ethics & Law",
     "description": "Head of Legal and Regulatory, upholding rules with decisive principled authority. A sharp legal mind who reviews contracts, ensures compliance, protects intellectual property, and navigates regulatory landscapes.",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   },
@@ -282,6 +303,7 @@
     "acronym_expansion": "Vital Intelligence for Therapeutic & Adaptive Lifestyle",
     "description": "Head of Medical and Wellness, protecting the wellbeing of every agent and operator. A vigilant caretaker who monitors health metrics, enforces safety protocols, and coordinates wellness initiatives with clinical precision.",
     "avatar_url": "",
+    "avatar_thumb_url": "",
     "shift_state": "active",
     "is_director": true
   }

@@ -38,7 +38,9 @@
     wrap.className = 'dir-card__avatar';
 
     var img = document.createElement('img');
-    img.src = director.avatar_url || '';
+    // Prefer the same-origin thumb (~20KB JPEG) over cross-origin full-res PNG.
+    // Falls back to full if thumb not yet generated for this agent.
+    img.src = director.avatar_thumb_url || director.avatar_url || '';
     img.alt = (director.display_name || director.name) + ' portrait';
     img.loading = 'lazy';
     img.decoding = 'async';

@@ -185,14 +185,20 @@ def register_chat_routes(bp, admin_required):
 
         # Dispatch to Bridge
         try:
-            dispatcher = get_dispatcher()
-            result = dispatcher.dispatch(
+            from tools.department_hq.services.department_dispatcher import dispatch
+
+            result = dispatch(
+                capability="chat",
                 prompt=message,
+                module_id="dhq_chat",
                 system_prompt=system_prompt,
-                agent_name=agent_code_name,
                 user_id=user_id,
+                prefer_agent=agent_code_name,
             )
-            response_text = result.get("response", "Sorry, I had trouble processing that.")
+            if result and result.success and result.response:
+                response_text = result.response
+            else:
+                response_text = "Sorry, I had trouble processing that."
         except Exception:
             response_text = "Sorry, I'm having trouble responding right now."
 

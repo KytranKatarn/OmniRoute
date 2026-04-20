@@ -6154,17 +6154,23 @@ def _summarize_conversation(cur, conn, convo):
         role = "User" if msg['sender_type'] == 'user' else agent_name
         conv_text += f"{role}: {msg['message']}\n"
 
-    # Dispatch summarization
-    from bridge_dispatcher import get_dispatcher
-    dispatcher = get_dispatcher()
+    # Dispatch summarization via canonical module-level dispatch() — the
+    # previous .dispatch() call on the instance silently AttributeError'd.
+    from bridge_dispatcher import dispatch
 
     # Summary
-    summary_result = dispatcher.dispatch(
+    summary_result = dispatch(
+        capability="summarize",
         prompt=f"Summarize this conversation in 2-3 sentences:\n\n{conv_text}",
+        module_id="directory_memory",
         system_prompt="You are a helpful assistant. Provide a concise summary.",
-        agent_name=agent.get('name'),
+        prefer_agent=agent.get('name'),
     )
-    summary = summary_result.get('response', '').strip()
+    summary = (
+        summary_result.response.strip()
+        if summary_result and summary_result.success and summary_result.response
+        else ''
+    )
 
     if summary:
         cur.execute("""
@@ -6173,12 +6179,18 @@ def _summarize_conversation(cur, conn, convo):
         """, (convo['agent_id'], convo['user_id'], summary))
 
     # Pinned memories
-    pinned_result = dispatcher.dispatch(
+    pinned_result = dispatch(
+        capability="summarize",
         prompt=f"What important facts should you remember about this user from this conversation? List each fact on its own line. Only include facts worth remembering for future conversations.\n\n{conv_text}",
+        module_id="directory_memory",
         system_prompt="You are a helpful assistant. Extract key facts about the user.",
-        agent_name=agent.get('name'),
+        prefer_agent=agent.get('name'),
     )
-    pinned_text = pinned_result.get('response', '').strip()
+    pinned_text = (
+        pinned_result.response.strip()
+        if pinned_result and pinned_result.success and pinned_result.response
+        else ''
+    )
 
     if pinned_text:
         for line in pinned_text.split('\n'):

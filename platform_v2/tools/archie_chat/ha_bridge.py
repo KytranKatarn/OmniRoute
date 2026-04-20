@@ -198,15 +198,29 @@ def register_ha_routes(bp):
             user_context["chat_mode"] = "home_assistant"
 
             try:
-                from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+                from tools.department_hq.services.department_dispatcher import dispatch
 
-                dispatcher = get_dispatcher()
-                result = dispatcher.dispatch(
+                # Inline the recent conversation into system_prompt — the old
+                # user_context dict was dropped silently by the broken call
+                # path (dispatcher had no .dispatch method), so voice replies
+                # lost context anyway. Now it travels in-prompt.
+                history_text = "\n".join(
+                    f"{m.get('role', '?')}: {m.get('content', '')}" for m in conversation_history if m.get("content")
+                )
+                voice_system_prompt = (
+                    "You are ARCHIE in Home Assistant voice mode. Keep replies "
+                    "short and speakable — no markdown, no code blocks."
+                )
+                if history_text:
+                    voice_system_prompt += f"\n\n## Recent conversation\n{history_text}"
+
+                result = dispatch(
+                    capability="chat",
                     prompt=query,
+                    module_id="home_assistant",
+                    system_prompt=voice_system_prompt,
                     user_id=KYTRAN_USER_ID,
-                    conversation_id=conversation_id,
-                    agent_target="ARCHIE",
-                    user_context=user_context,
+                    prefer_agent="ARCHIE",
                     project_id=user_context.get("project_id") if isinstance(user_context, dict) else None,
                 )
             except Exception as orch_err:

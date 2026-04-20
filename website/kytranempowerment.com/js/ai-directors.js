@@ -100,7 +100,137 @@
     badge.textContent = STATE_LABELS[state] || state;
     card.appendChild(badge);
 
+    // Click-to-showcase — open a full detail modal for the director
+    card.style.cursor = 'pointer';
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-label', 'Open showcase for ' + (director.acronym || director.display_name || director.name));
+    card.addEventListener('click', function () { openShowcase(director, floorColor); });
+    card.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openShowcase(director, floorColor); }
+    });
+
     return card;
+  }
+
+  function openShowcase(director, floorColor) {
+    var existing = document.getElementById('directorShowcaseModal');
+    if (existing) existing.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'directorShowcaseModal';
+    overlay.className = 'dir-modal';
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) overlay.remove();
+    });
+
+    var panel = document.createElement('div');
+    panel.className = 'dir-modal__panel';
+    if (floorColor) panel.style.borderColor = floorColor;
+
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'dir-modal__close';
+    closeBtn.setAttribute('aria-label', 'Close');
+    closeBtn.textContent = '\u00D7';
+    closeBtn.addEventListener('click', function () { overlay.remove(); });
+    panel.appendChild(closeBtn);
+
+    // Avatar
+    var avatarWrap = document.createElement('div');
+    avatarWrap.className = 'dir-modal__avatar';
+    if (director.avatar_url || director.avatar_thumb_url) {
+      var img = document.createElement('img');
+      img.src = director.avatar_url || director.avatar_thumb_url;
+      img.alt = (director.acronym || director.display_name || 'Director') + ' portrait';
+      img.onerror = function () {
+        var ph = document.createElement('div');
+        ph.className = 'dir-modal__avatar-fallback';
+        if (floorColor) ph.style.background = floorColor;
+        ph.textContent = (director.acronym || director.display_name || '?').charAt(0);
+        this.replaceWith(ph);
+      };
+      avatarWrap.appendChild(img);
+    } else {
+      var ph = document.createElement('div');
+      ph.className = 'dir-modal__avatar-fallback';
+      if (floorColor) ph.style.background = floorColor;
+      ph.textContent = (director.acronym || director.display_name || '?').charAt(0);
+      avatarWrap.appendChild(ph);
+    }
+    panel.appendChild(avatarWrap);
+
+    // Acronym + expansion
+    var acrH = document.createElement('h2');
+    acrH.className = 'dir-modal__acronym';
+    if (floorColor) acrH.style.color = floorColor;
+    acrH.textContent = director.acronym || director.display_name || director.name || '';
+    panel.appendChild(acrH);
+
+    if (director.acronym_expansion) {
+      var exp = document.createElement('p');
+      exp.className = 'dir-modal__expansion';
+      exp.textContent = director.acronym_expansion;
+      panel.appendChild(exp);
+    }
+
+    // Bio
+    if (director.bio) {
+      var bioH = document.createElement('h3');
+      bioH.className = 'dir-modal__bio-heading';
+      bioH.textContent = 'About';
+      panel.appendChild(bioH);
+
+      var bioP = document.createElement('p');
+      bioP.className = 'dir-modal__bio';
+      bioP.textContent = director.bio;
+      panel.appendChild(bioP);
+    }
+
+    // Info rows
+    var fields = [
+      { label: 'Role',       value: director.title },
+      { label: 'Department', value: director.department },
+      { label: 'Floor',      value: director.floor },
+      { label: 'Status',     value: director.shift_state }
+    ];
+
+    var infoGrid = document.createElement('div');
+    infoGrid.className = 'dir-modal__info';
+    fields.forEach(function (f) {
+      if (!f.value) return;
+      var row = document.createElement('div');
+      row.className = 'dir-modal__row';
+
+      var label = document.createElement('span');
+      label.className = 'dir-modal__label';
+      label.textContent = f.label;
+      row.appendChild(label);
+
+      var val = document.createElement('span');
+      val.className = 'dir-modal__value';
+      if (f.label === 'Status') {
+        var s = document.createElement('span');
+        s.className = 'dir-modal__status dir-modal__status--' + f.value;
+        s.textContent = STATE_LABELS[f.value] || f.value;
+        val.appendChild(s);
+      } else {
+        val.textContent = f.value;
+      }
+      row.appendChild(val);
+      infoGrid.appendChild(row);
+    });
+    panel.appendChild(infoGrid);
+
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    var escHandler = function (e) {
+      if (e.key === 'Escape') {
+        overlay.remove();
+        document.removeEventListener('keydown', escHandler);
+      }
+    };
+    document.addEventListener('keydown', escHandler);
   }
 
   function buildFloorSection(floorKey, directors) {

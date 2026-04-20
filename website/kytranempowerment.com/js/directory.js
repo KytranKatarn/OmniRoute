@@ -242,6 +242,19 @@ var Directory = {
             panel.appendChild(nameH);
         }
 
+        // Bio — humanize the modal by showing the agent's backstory/description
+        if (agent.bio) {
+            var bioHeading = document.createElement('h3');
+            bioHeading.className = 'dir-modal__bio-heading';
+            bioHeading.textContent = agent.worker_type === 'ai' ? 'About' : 'Bio';
+            panel.appendChild(bioHeading);
+
+            var bioEl = document.createElement('p');
+            bioEl.className = 'dir-modal__bio';
+            bioEl.textContent = agent.bio;
+            panel.appendChild(bioEl);
+        }
+
         // Info rows
         var fields = [
             { label: 'Title', value: agent.title },

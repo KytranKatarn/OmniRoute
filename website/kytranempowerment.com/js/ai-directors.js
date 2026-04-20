@@ -41,6 +41,7 @@
     img.src = director.avatar_url || '';
     img.alt = (director.display_name || director.name) + ' portrait';
     img.loading = 'lazy';
+    img.decoding = 'async';
 
     img.onerror = function () {
       wrap.removeChild(img);

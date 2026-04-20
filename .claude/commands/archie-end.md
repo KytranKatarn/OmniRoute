@@ -32,6 +32,34 @@ Run `gh api /rate_limit` before any push. `core` remaining > 4,000 = safe. If be
 2. Update MEMORY.md if new memory files were created
 ```
 
+## Step 3a: Consciousness Doc Refresh (MANDATORY when code shipped)
+
+The Consciousness module is how both end-users and coders (future Claude, future devs, agent loops) discover what the platform can do. If you ship a PR and don't leave a searchable doc, the work is effectively invisible next session.
+
+**Walk every PR shipped this session.** For each, confirm the KB has at least one `vault_note` documenting the change, and update the capability index when operational surface changed.
+
+Per-PR checklist:
+- [ ] **User-facing vault_note** — *What can the user now do? Where in the UI? How is it triggered?*
+      Tags: `["user-doc", "project-<id>", "pr-<n>"]`
+- [ ] **Coder-facing vault_note** — *What's the contract?* (endpoint path + method + body + response shape, OR service function signature + side effects + preconditions)
+      Tags: `["coder-doc", "project-<id>", "pr-<n>"]`
+- [ ] **Capability index** — If the PR added/removed/renamed a route, tab, service, or DB column, edit `.claude/rules/module-capability-index.md` inline. This file is loaded into every session's context — drift here is expensive.
+- [ ] **Mistake_learned** — Any 2+ step debug loop or "this was harder than it should have been" moment gets its own entry so we don't repeat it.
+
+MCP call shape (copy-paste friendly):
+```
+mcp__archie__store_memory(
+    memory_type="vault_note",
+    title="<feature> — <user|coder> reference (PR #<n>, <YYYY-MM-DD>)",
+    content="<markdown>\n## Summary\n…\n## API contract / UI entry point\n…\n## Examples\n…",
+    category="<project-slug>",
+    tags=["user-doc" OR "coder-doc", "project-<id>", "pr-<n>", <module tags>],
+    importance=0.75  # 0.9 for frequently-referenced surfaces (public API, core service)
+)
+```
+
+Two vault_notes per substantive PR is the floor. Quantity-over-verbosity — they get embedded and semantically searched, so many small, focused notes beat one giant one. Skipping this step fails the close-out.
+
 ## Step 4: Update Session Handoff
 
 Edit `~/.claude/projects/-mnt-archie-brain/memory/project_session-handoff.md` with:

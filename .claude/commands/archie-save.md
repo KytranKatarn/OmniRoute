@@ -17,7 +17,27 @@ Quick-save your current session state without closing out. Like a game save poin
    - `mcp__archie__log_decision` for architectural choices
    - `mcp__archie__complete_task` for finished tasks
 
-4. **Show session summary with context check** — Pull stats from the hook + check the context budget:
+4. **Consciousness doc refresh (MANDATORY when code shipped)** — For every PR / commit of substance this session, confirm the Consciousness module has fresh, searchable documentation. The KB embedding loop surfaces these in future sessions, Dev HQ, and for downstream agents. If you skip this, future Claude/user can't discover what you built.
+
+   Per-PR checklist — for anything user-visible or API-shaped:
+   - [ ] **User-facing vault_note** — what the user can now do, where it lives in the UI, how it's invoked. Tags: `["user-doc", "project-<id>", "pr-<n>"]`.
+   - [ ] **Coder-facing vault_note** — the contract (endpoint path + method + body/response shape, or service function signature + side effects). Tags: `["coder-doc", "project-<id>", "pr-<n>"]`.
+   - [ ] **Capability index** — if a platform module's operational surface changed (new endpoint, changed field, new UI tab, removed feature), edit `.claude/rules/module-capability-index.md` inline. This file is loaded into every session's context, so drift here bites hard.
+   - [ ] **Mistake_learned** — any 2+ step debugging session or "why was this so hard?" moment gets a mistake_learned entry so it doesn't repeat.
+
+   Quick MCP call shape:
+   ```
+   mcp__archie__store_memory(
+       memory_type="vault_note",
+       title="<API/feature name> — <user|coder> reference (PR #<n>, <date>)",
+       content="<markdown: what it is, how to use it, example input/output>",
+       category="<project slug>",
+       tags=["user-doc" OR "coder-doc", "project-<id>", "pr-<n>"],
+       importance=0.75  # bump higher for frequently-referenced surfaces
+   )
+   ```
+
+5. **Show session summary with context check** — Pull stats from the hook + check the context budget:
 
    ```bash
    bash /mnt/archie_brain/.claude/hooks/session-stats.sh | python3 -m json.tool
@@ -45,4 +65,4 @@ Quick-save your current session state without closing out. Like a game save poin
 
    Print the banner matching the current band. Session 14 demonstrated that high-quality work continues well into the 60s — the old "50 % CRITICAL" rule cut sessions short.
 
-5. **Continue working** — Under 70 %: freely. 70-80 %: only finishing/patching work already in flight; no new architecture. 80-90 %: ship what you have and close. 90 %+: stop.
+6. **Continue working** — Under 70 %: freely. 70-80 %: only finishing/patching work already in flight; no new architecture. 80-90 %: ship what you have and close. 90 %+: stop.

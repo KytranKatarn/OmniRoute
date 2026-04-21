@@ -20,9 +20,26 @@ logging.basicConfig(
 logger = logging.getLogger("archie_comms")
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
-app.secret_key = os.getenv("SECRET_KEY", os.urandom(32).hex())
+
+# Session secret MUST be persistent + shared across gunicorn workers. A random
+# per-worker key (the old default) was the root cause of OAuth "Invalid state
+# parameter" errors: worker A set oauth_state, the callback hit worker B, and
+# the session couldn't be decoded. Fail loud if SECRET_KEY is missing so the
+# bug can't silently regress.
+_secret_key = os.getenv("SECRET_KEY")
+if not _secret_key:
+    raise RuntimeError(
+        "SECRET_KEY env var is not set. archie_comms needs a persistent secret "
+        "so OAuth session cookies remain valid across workers. Set SECRET_KEY "
+        "in docker-compose / .env before starting."
+    )
+app.secret_key = _secret_key
+
 app.config["SESSION_COOKIE_DOMAIN"] = ".kytranempowerment.com"
 app.config["SESSION_COOKIE_NAME"] = "archie_comms_session"
+app.config["SESSION_COOKIE_SECURE"] = True  # subdomain is HTTPS
+app.config["SESSION_COOKIE_HTTPONLY"] = True  # blocks JS cookie read
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"  # permit top-level OAuth redirect
 
 # SSO — "Connect with Kytran Empowerment"
 # Two OAuth clients: archie-comms (archie subdomain) + claude-terminal (claude subdomain)

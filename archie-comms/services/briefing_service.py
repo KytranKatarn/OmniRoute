@@ -15,6 +15,120 @@ import time
 
 logger = logging.getLogger(__name__)
 
+# Kytran's user_id in the platform `users` table — target for director-report
+# chat threads. Directors post their escalations as messages into a per-director
+# conversation owned by this user so Kytran sees them in the chat sidebar
+# alongside Telegram. Fallback value; overridden by DB lookup if available.
+_KYTRAN_USER_ID = 2
+
+
+def _get_owner_user_id():
+    """Resolve the chat owner (Kytran) — prefer DB, fall back to constant."""
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                "SELECT id FROM users WHERE role = 'admin' AND username = 'Kytran' LIMIT 1"
+            )
+            row = cur.fetchone()
+            if row:
+                return row["id"] if isinstance(row, dict) else row[0]
+    except Exception as e:
+        logger.debug("briefing_service: owner lookup fell back to constant (%s)", e)
+    return _KYTRAN_USER_ID
+
+
+def _ensure_director_thread(user_id, director_agent):
+    """Find or create the persistent chat thread for this director's reports.
+
+    One thread per director (V.I.G.I.L., B.A.S.E., K.I.N., etc.) — their
+    reports accumulate in a single conversation so Kytran can scroll history
+    and reply inline instead of context-switching to Telegram.
+    """
+    try:
+        from database import get_db_cursor
+
+        topic = f"{director_agent} Reports"
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT id FROM unified_conversations "
+                "WHERE user_id = %s AND topic = %s AND status = 'active' LIMIT 1",
+                (user_id, topic),
+            )
+            row = cur.fetchone()
+            if row:
+                return row["id"] if isinstance(row, dict) else row[0]
+
+            cur.execute(
+                "INSERT INTO unified_conversations (user_id, topic, title, agent_target) "
+                "VALUES (%s, %s, %s, %s) RETURNING id",
+                (user_id, topic, topic, director_agent),
+            )
+            row = cur.fetchone()
+            conn.commit()
+            cid = row["id"] if isinstance(row, dict) else row[0]
+            logger.info(
+                "briefing_service: created director thread #%d for %s", cid, director_agent
+            )
+            return cid
+    except Exception as e:
+        logger.error("briefing_service: _ensure_director_thread failed: %s", e)
+        return None
+
+
+def _mirror_to_chat(director_agent, title, summary, severity, report_id):
+    """Post the escalated report as a chat message (Phase 1f, ADR-001).
+
+    A.R.C.H.I.E. is the unified voice, so the chat inbox mirrors every
+    Telegram escalation. Kytran can click the director's thread in the
+    sidebar and reply inline — future phase wires replies back to A.R.C.H.I.E.
+    for intent parsing + delegation.
+
+    Writes directly to unified_messages because conversation_service has two
+    overloaded save_message definitions; we want the (channel, direction,
+    sender, metadata) semantics specifically, not the chat-role mapping.
+    """
+    try:
+        user_id = _get_owner_user_id()
+        conv_id = _ensure_director_thread(user_id, director_agent)
+        if not conv_id:
+            return
+
+        from database import get_db_cursor
+
+        icon = {"critical": "🔴", "high": "🟡", "medium": "🟢", "low": "ℹ️"}.get(severity, "•")
+        content = f"{icon} **{title}**\n\n{summary}"
+        metadata = {
+            "report_id": report_id,
+            "severity": severity,
+            "title": title,
+        }
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """INSERT INTO unified_messages
+                   (conversation_id, channel, direction, sender, content, metadata)
+                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                (
+                    conv_id,
+                    "director_report",
+                    "in",
+                    director_agent,
+                    content,
+                    json.dumps(metadata),
+                ),
+            )
+            cur.execute(
+                "UPDATE unified_conversations SET last_activity = NOW(), updated_at = NOW() "
+                "WHERE id = %s",
+                (conv_id,),
+            )
+            conn.commit()
+    except Exception as e:
+        logger.error(
+            "briefing_service: _mirror_to_chat failed for report #%d: %s", report_id, e
+        )
+
 
 def submit_director_report(
     department,
@@ -127,7 +241,15 @@ def run_triage():
 
 
 def _escalate_report(report_id, department, director_agent, title, summary, severity):
-    """Send a director report to Kytran via Telegram (using A.R.C.H.I.E.'s voice)."""
+    """Send a director report to Kytran via Telegram AND the chat inbox.
+
+    A.R.C.H.I.E. is the unified voice (ADR-001). Every escalation:
+      1. goes to Telegram (out-of-app alerts)
+      2. also posts into the director's chat thread (in-app inbox)
+
+    Kytran sees both. In chat he can click in and discuss inline; Telegram
+    is the push notification. Failure in one path doesn't break the other.
+    """
     try:
         from services.telegram_service import send
 
@@ -139,6 +261,9 @@ def _escalate_report(report_id, department, director_agent, title, summary, seve
             source_department=department,
             force=(severity == "critical"),
         )
+
+        # Mirror into chat inbox — never block the escalation on this path.
+        _mirror_to_chat(director_agent, title, summary, severity, report_id)
 
         from database import get_db_cursor
 

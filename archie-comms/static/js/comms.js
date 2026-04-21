@@ -238,10 +238,18 @@
     });
 
     sidebarToggle.addEventListener('click', function() {
-        if (window.innerWidth <= 768) {
-            sidebar.classList.toggle('open');
+        // Track visible/hidden as a single boolean so the toggle is stable across
+        // viewport resizes. Desktop hides via .collapsed (width:0); mobile shows
+        // via .open (translateX(0)). Managing both keeps state consistent when
+        // the user rotates / resizes.
+        var isVisible = sidebar.classList.contains('open') ||
+            (window.innerWidth > 768 && !sidebar.classList.contains('collapsed'));
+        if (isVisible) {
+            sidebar.classList.add('collapsed');
+            sidebar.classList.remove('open');
         } else {
-            sidebar.classList.toggle('collapsed');
+            sidebar.classList.remove('collapsed');
+            sidebar.classList.add('open');
         }
     });
 
@@ -333,6 +341,14 @@
                         el.classList.remove('active');
                     });
                     item.classList.add('active');
+                    // On narrow viewports or touch-primary devices (Fold5
+                    // unfolded, phones, tablets), auto-collapse the sidebar
+                    // after selection so the chat is visible without needing
+                    // a second hamburger tap.
+                    if (window.matchMedia('(max-width: 1024px), (pointer: coarse)').matches) {
+                        sidebar.classList.add('collapsed');
+                        sidebar.classList.remove('open');
+                    }
                 });
                 convList.appendChild(item);
             });

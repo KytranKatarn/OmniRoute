@@ -248,6 +248,7 @@ services:
       - PLATFORM_URL=http://archie_platform:3000
       - CLAUDE_PROXY_URL=http://host.docker.internal:7682
       - COMMS_PORT=3002
+      - SECRET_KEY=${SECRET_KEY}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}

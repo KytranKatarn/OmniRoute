@@ -2486,6 +2486,86 @@
             favBtn.appendChild(favText);
             actions.appendChild(favBtn);
 
+            // Agent-portrait specific actions: Generate New, Set as Canonical, Save (download)
+            // Only shown for agent-owned media (variants) — hidden for user-owned gallery items.
+            if (item.owner_type === 'agent' && item.owner_id) {
+                var agentId = item.owner_id;
+
+                // Generate New Variant — fires another SDXL gen with same canonical ref
+                var genBtn = document.createElement("button");
+                genBtn.className = "ms-modal-action-btn";
+                genBtn.title = "Generate another variant for this agent";
+                genBtn.addEventListener("click", function() {
+                    if (!confirm("Generate a new variant for this agent? (~3 min on M4000)")) return;
+                    genBtn.disabled = true;
+                    genBtn.querySelector('span').textContent = ' Generating...';
+                    api("POST", "/api/portraits/" + agentId + "/generate-variant", {}).then(function() {
+                        closeMediaModal();
+                        if (typeof loadPortraitDetail === 'function') loadPortraitDetail(agentId);
+                    }).catch(function(err) {
+                        alert("Generate failed: " + err.message);
+                        genBtn.disabled = false;
+                        genBtn.querySelector('span').textContent = ' Generate New';
+                    });
+                });
+                var genIcon = document.createElement("i");
+                genIcon.setAttribute("data-lucide", "refresh-cw");
+                genIcon.style.cssText = "width:14px;height:14px;";
+                genBtn.appendChild(genIcon);
+                var genText = document.createElement("span");
+                genText.textContent = " Generate New";
+                genBtn.appendChild(genText);
+                actions.appendChild(genBtn);
+
+                // Set as Canonical — promotes this variant to the agent's official portrait
+                // (updates agents.avatar_url → flows to Roster, Org Chart, public directory).
+                var canonBtn = document.createElement("button");
+                canonBtn.className = "ms-modal-action-btn";
+                canonBtn.title = "Set as agent's official portrait — flows to Roster + public website";
+                canonBtn.addEventListener("click", function() {
+                    if (!confirm("Set this image as the agent's canonical portrait?\n\nIt will appear on the Roster, Org Chart, and public website.")) return;
+                    api("POST", "/api/portraits/" + agentId + "/approve", { media_id: item.id }).then(function() {
+                        alert("Set as canonical portrait ✓");
+                        closeMediaModal();
+                        if (typeof loadPortraitDetail === 'function') loadPortraitDetail(agentId);
+                    }).catch(function(err) {
+                        alert("Set as canonical failed: " + err.message);
+                    });
+                });
+                var canonIcon = document.createElement("i");
+                canonIcon.setAttribute("data-lucide", "check-circle");
+                canonIcon.style.cssText = "width:14px;height:14px;";
+                canonBtn.appendChild(canonIcon);
+                var canonText = document.createElement("span");
+                canonText.textContent = " Set as Profile";
+                canonBtn.appendChild(canonText);
+                actions.appendChild(canonBtn);
+
+                // Save — download the original PNG to user's machine
+                var saveBtn = document.createElement("button");
+                saveBtn.className = "ms-modal-action-btn";
+                saveBtn.title = "Download the original PNG";
+                saveBtn.addEventListener("click", function() {
+                    var url = item.url || item.file_path;
+                    if (url && url.charAt(0) !== '/' && !/^https?:/.test(url)) url = '/static/' + url;
+                    if (url && url.indexOf('static/') === 0) url = '/' + url;
+                    var a = document.createElement("a");
+                    a.href = url;
+                    a.download = url.split('/').pop() || 'portrait.png';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                });
+                var saveIcon = document.createElement("i");
+                saveIcon.setAttribute("data-lucide", "download");
+                saveIcon.style.cssText = "width:14px;height:14px;";
+                saveBtn.appendChild(saveIcon);
+                var saveText = document.createElement("span");
+                saveText.textContent = " Save";
+                saveBtn.appendChild(saveText);
+                actions.appendChild(saveBtn);
+            }
+
             var delBtn = document.createElement("button");
             delBtn.className = "ms-modal-action-btn danger";
             delBtn.addEventListener("click", function() {

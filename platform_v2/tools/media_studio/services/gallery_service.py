@@ -66,12 +66,18 @@ def get_gallery(
 
 
 def get_media_detail(media_id: int, owner_type: str, owner_id: int) -> Optional[Dict]:
-    """Full metadata with ownership check."""
+    """Full metadata with ownership check.
+
+    Accepts items owned by the calling user OR any agent-owned portrait/
+    variant — the Media Studio portrait variant grid clicks land here and
+    need agent-owned media to render. Public agent portraits aren't private.
+    """
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
             SELECT * FROM media_library
-            WHERE id = %s AND owner_type = %s AND owner_id = %s AND is_deleted = false
+            WHERE id = %s AND is_deleted = false
+              AND ((owner_type = %s AND owner_id = %s) OR owner_type = 'agent')
             """,
             (media_id, owner_type, owner_id),
         )

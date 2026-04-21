@@ -307,6 +307,31 @@ def detect_dns_tunneling():
 # ---------------------------------------------------------------------------
 
 
+def _get_trusted_ips() -> set:
+    """Return IP addresses classified as trusted zone in network_devices.
+
+    Trusted devices (Kytran's phone, admin laptop, etc.) generate behavior
+    that would otherwise trip the detectors — long TLS SNI names, photo
+    backups that look like exfiltration, overnight sync traffic, per-app
+    subdomain queries. Exempting them stops the flood without disabling
+    the detector for unknown/quarantined devices where it matters.
+    """
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT host(ip_address) AS ip FROM network_devices WHERE security_zone = 'trusted'")
+            return {row["ip"] for row in cur.fetchall()}
+    except Exception as e:
+        logger.error("[AnomalyDetection] trusted-IP lookup failed: %s", e)
+        return set()
+
+
+def _filter_trusted(findings: list, trusted: set) -> tuple:
+    """Split findings into (kept, suppressed) based on trusted IP set."""
+    kept = [f for f in findings if f.get("device_ip") not in trusted]
+    suppressed = [f for f in findings if f.get("device_ip") in trusted]
+    return kept, suppressed
+
+
 def _format_bytes(b):
     """Human-readable byte string."""
     for unit in ("B", "KB", "MB", "GB", "TB"):
@@ -340,8 +365,18 @@ def run_all_anomaly_checks():
     # Collect digest lines (batched into one Telegram message at the end)
     digest_lines = []
 
+    # Trusted-zone devices are exempt from the four anomaly detectors —
+    # their normal behavior generates false positives (photo-backup
+    # uploads look like exfil, per-app subdomains look like tunneling,
+    # phone sync at 3 AM looks like odd-hours activity). Unknown /
+    # quarantined devices still get flagged as before.
+    trusted_ips = _get_trusted_ips()
+    suppressed_total = 0
+
     # 1. Bandwidth spikes — dashboard + digest
-    spikes = detect_bandwidth_spikes()
+    spikes_raw = detect_bandwidth_spikes()
+    spikes, suppressed = _filter_trusted(spikes_raw, trusted_ips)
+    suppressed_total += len(suppressed)
     for s in spikes:
         create_security_alert(
             "intrusion",
@@ -356,7 +391,9 @@ def run_all_anomaly_checks():
     all_findings["bandwidth_spikes"] = spikes
 
     # 2. Data exfiltration — IMMEDIATE Telegram (active threat)
-    exfil = detect_exfiltration()
+    exfil_raw = detect_exfiltration()
+    exfil, suppressed = _filter_trusted(exfil_raw, trusted_ips)
+    suppressed_total += len(suppressed)
     for e in exfil:
         create_security_alert(
             "intrusion",
@@ -370,7 +407,9 @@ def run_all_anomaly_checks():
     all_findings["exfiltration"] = exfil
 
     # 3. Odd-hours activity — dashboard + digest
-    odd = detect_odd_hours_activity()
+    odd_raw = detect_odd_hours_activity()
+    odd, suppressed = _filter_trusted(odd_raw, trusted_ips)
+    suppressed_total += len(suppressed)
     for o in odd:
         create_security_alert(
             "intrusion",
@@ -383,7 +422,9 @@ def run_all_anomaly_checks():
     all_findings["odd_hours"] = odd
 
     # 4. DNS tunneling — dashboard + digest
-    tunneling = detect_dns_tunneling()
+    tunneling_raw = detect_dns_tunneling()
+    tunneling, suppressed = _filter_trusted(tunneling_raw, trusted_ips)
+    suppressed_total += len(suppressed)
     for t in tunneling:
         if t["type"] == "long_domain":
             detail = f"Long domain ({t['domain_length']} chars): {t['domain'][:60]}"
@@ -427,12 +468,19 @@ def run_all_anomaly_checks():
 
     if total > 0:
         logger.warning(
-            "[AnomalyDetection] %d findings: %d spikes, %d exfil, %d odd-hours, %d tunneling",
+            "[AnomalyDetection] %d findings: %d spikes, %d exfil, %d odd-hours, %d tunneling "
+            "(%d suppressed from trusted zone)",
             total,
             len(spikes),
             len(exfil),
             len(odd),
             len(tunneling),
+            suppressed_total,
+        )
+    elif suppressed_total > 0:
+        logger.info(
+            "[AnomalyDetection] All clear (%d findings suppressed from trusted zone)",
+            suppressed_total,
         )
     else:
         logger.info("[AnomalyDetection] All clear -- no anomalies detected")

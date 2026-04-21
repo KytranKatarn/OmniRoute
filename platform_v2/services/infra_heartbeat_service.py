@@ -82,10 +82,14 @@ CRITICAL_CONTAINERS: Dict[str, Dict[str, Any]] = {
         "compose_service": "archie_comms",
     },
     "archie_comfyui": {
-        "description": "ComfyUI image generation service (port 8188)",
+        "description": "ComfyUI image generation service (port 8188) — on-demand",
         "tcp_probes": [8188],
         "auto_restart_safe": True,
         "compose_service": "archie_comfyui",
+        # On-demand: container is only running during SDXL generation
+        # (VRAM swap with Ollama). An 'exited' state is the normal idle
+        # state, not a failure. Dispatcher spins it up when Pixel needs it.
+        "service_class": "on-demand",
     },
     "kbs_app": {
         "description": "Kytran Business Suite (port 8091)",
@@ -247,6 +251,7 @@ def check_container(name: str, config: Dict[str, Any]) -> Dict[str, Any]:
       * ``info``    — all probes pass
     """
     snap = inspect_container(name)
+    service_class = config.get("service_class", "always-on")
     result: Dict[str, Any] = {
         "name": name,
         "description": config.get("description"),
@@ -255,15 +260,33 @@ def check_container(name: str, config: Dict[str, Any]) -> Dict[str, Any]:
         "http_probe": None,
         "auto_restart_safe": bool(config.get("auto_restart_safe")),
         "compose_service": config.get("compose_service", name),
+        "service_class": service_class,
     }
 
     # Escalate immediately if the container isn't present or running.
     if not snap["present"]:
+        # On-demand services may be absent at rest (e.g., scale=0 sidecars).
+        # Treat as info rather than error — dispatcher will spin them up.
+        if service_class == "on-demand":
+            result["severity"] = "info"
+            result["reason"] = "on-demand — not currently running (normal at rest)"
+            return result
         result["severity"] = "error"
         result["reason"] = "container absent from docker (likely removed)"
         return result
     if snap["state"] != "running":
-        result["severity"] = "error"
+        # On-demand services spend most of their time exited — that IS the
+        # normal idle state, not a failure. Dispatcher brings them up when
+        # Pixel/SDXL needs them. Surface as info so V.I.G.I.L. still reports
+        # state but doesn't page A.R.C.H.I.E. about it.
+        if service_class == "on-demand" and snap["state"] == "exited":
+            result["severity"] = "info"
+            result["reason"] = "idle (on-demand; dispatcher spins up when needed)"
+            return result
+        # Any other non-running state for on-demand (restarting, dead, paused,
+        # created) still warrants a warning — not expected idle behavior.
+        severity = "warning" if service_class == "on-demand" else "error"
+        result["severity"] = severity
         result["reason"] = f"container state={snap['state']!r}"
         return result
 
@@ -282,7 +305,7 @@ def check_container(name: str, config: Dict[str, Any]) -> Dict[str, Any]:
         # 5xx or None is a failure. 2xx/3xx/4xx still means it's
         # *responding*, which is what we care about at this layer.
         if code is None or code >= 500:
-            failed.append(f"http:{http_url}")
+            failed.append(f"GET {http_url}")
 
     if failed:
         result["severity"] = "warning"

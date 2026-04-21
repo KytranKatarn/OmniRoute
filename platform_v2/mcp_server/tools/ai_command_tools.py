@@ -991,6 +991,125 @@ Example: agent_id=20, reason='Translate capacity single-threaded on CODEX.'
 
 
 # ============================================================================
+# TOOL 11: PROPOSE HIRE (NEW AGENT)
+# ============================================================================
+
+
+async def propose_hire_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Submit a Tier-2 new-agent creation proposal to the approval queue.
+
+    Parallel to propose_reactivation but for net-new agents. Mutates:
+    inserts into autonomy_approval_queue. Does NOT create the agent —
+    Kytran approves via Telegram or the Dept HQ hiring queue, then
+    _execute_approved_action invokes BridgeDispatcher._create_agent_from_approval
+    which calls agent_service.create_agent (single-writer).
+
+    Project #272 Task #2124.
+    """
+    name = arguments.get("name")
+    display_name = arguments.get("display_name")
+    department = arguments.get("department")
+    model = arguments.get("model")
+    capability = arguments.get("capability")
+    reason = arguments.get("reason")
+    requested_by = arguments.get("requested_by", "mcp_client")
+    suggested_skills = arguments.get("suggested_skills")
+
+    for field_name, field_value in (
+        ("name", name),
+        ("display_name", display_name),
+        ("department", department),
+        ("model", model),
+        ("capability", capability),
+        ("reason", reason),
+    ):
+        if not field_value:
+            return {"success": False, "error": f"{field_name} is required"}
+
+    try:
+        from services.agent_service import propose_hire
+
+        return propose_hire(
+            name=name,
+            display_name=display_name,
+            department=department,
+            model=model,
+            capability=capability,
+            reason=reason,
+            requested_by=requested_by,
+            suggested_skills=suggested_skills,
+        )
+    except Exception as e:
+        logger.error(f"Error in propose_hire: {e}")
+        return {"success": False, "error": str(e)}
+
+
+register_tool(
+    name="propose_hire",
+    category="ai_command",
+    description="""Propose hiring a new agent (Tier-2 approval).
+
+Submits a creation request to autonomy_approval_queue with
+action_type='create_agent'. Kytran approves via Telegram or the Dept HQ
+hiring queue; approval triggers agent_service.create_agent via
+BridgeDispatcher._create_agent_from_approval.
+
+Rule: NO new-agent creation without explicit Kytran approval — this tool
+only files the proposal.
+
+Guards against duplicate names across all shift_states. If the name is
+already taken by a decommissioned agent, use propose_reactivation instead.
+
+Example: name='QUILL', display_name='Quill the Chronicler',
+department='Research & Development', model='mistral:7b', capability='translate',
+reason='Add second translator to break ARCHIE single-thread bottleneck.'
+""",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "Agent code name (UPPERCASE or acronym with dots — must be unique across all shift_states)",
+            },
+            "display_name": {
+                "type": "string",
+                "description": "Human-friendly title (shown in UI)",
+            },
+            "department": {
+                "type": "string",
+                "description": "Department name — must match DEPARTMENT_FLOOR_MAP keys in agent_service.py",
+            },
+            "model": {
+                "type": "string",
+                "description": "Ollama model or cloud model identifier (e.g. 'mistral:7b', 'claude-3-5-sonnet:cloud')",
+            },
+            "capability": {
+                "type": "string",
+                "description": "Primary capability tag the agent will serve (e.g. 'translate', 'code_review')",
+            },
+            "reason": {
+                "type": "string",
+                "description": "Why the hire is needed — surfaced in approval UI",
+            },
+            "suggested_skills": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Optional list of agent_skills entries to seed. Defaults to [capability].",
+            },
+            "requested_by": {
+                "type": "string",
+                "default": "mcp_client",
+                "description": "Identifier for the caller (agent name or tool)",
+            },
+        },
+        "required": ["name", "display_name", "department", "model", "capability", "reason"],
+    },
+    handler=propose_hire_handler,
+    requires_permission="write",
+)
+
+
+# ============================================================================
 # TOOL: CHECK DEP DRIFT (F.O.R.G.E.)
 # ============================================================================
 

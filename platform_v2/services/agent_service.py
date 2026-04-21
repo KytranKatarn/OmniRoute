@@ -570,6 +570,121 @@ def propose_reactivation(agent_id, reason, requested_by="mcp_client"):
     }
 
 
+def propose_hire(
+    name,
+    display_name,
+    department,
+    model,
+    capability,
+    reason,
+    requested_by="mcp_client",
+    suggested_skills=None,
+):
+    """Submit a new-agent creation proposal to the Tier-2 approval queue.
+
+    Parallel to :func:`propose_reactivation`, but for net-new agents rather
+    than decommissioned ones. Validates the inputs, guards against name
+    collisions with existing agents (active, barracked, or decommissioned),
+    and delegates to ``agent_loop.request_approval`` with
+    ``action_type='create_agent'``. The approval consumer at
+    ``_execute_approved_action`` (agent_loop.py:2822) calls
+    ``BridgeDispatcher._create_agent_from_approval`` which in turn calls
+    :func:`create_agent` (single-writer path for agents table).
+
+    Rule: NO new-agent creation without explicit Kytran approval — this tool
+    only files the proposal. This keeps Project #272 Phase 1 gating intact.
+
+    Returns ``{"success": True, "approval_id": int, "proposed": {...}}`` on
+    success, or ``{"success": False, "error": str}`` on validation failure
+    / approval-queue dedup collision.
+    """
+    # Basic arg validation
+    for field_name, field_value in (
+        ("name", name),
+        ("display_name", display_name),
+        ("department", department),
+        ("model", model),
+        ("capability", capability),
+        ("reason", reason),
+    ):
+        if not field_value or not str(field_value).strip():
+            return {"success": False, "error": f"{field_name} is required"}
+    if department not in DEPARTMENT_FLOOR_MAP:
+        return {
+            "success": False,
+            "error": f"Invalid department: {department!r}. Valid: {sorted(DEPARTMENT_FLOOR_MAP.keys())}",
+        }
+
+    # Name-collision guard — block duplicates across every shift_state so a
+    # propose_hire on a decommissioned agent's old name doesn't race the
+    # reactivation path.
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT id, shift_state FROM agents WHERE name = %s LIMIT 1",
+            (name,),
+        )
+        existing = cur.fetchone()
+    if existing:
+        return {
+            "success": False,
+            "error": (
+                f"Agent name {name!r} already exists (agent #{existing['id']}, "
+                f"shift_state={existing['shift_state']!r}). Use propose_reactivation "
+                f"if this is the right agent, or pick a different name."
+            ),
+        }
+
+    # Defer the import to avoid a module-load cycle — agent_loop imports
+    # agent_service during boot.
+    try:
+        sys_path_append = "/mnt/archie_brain"
+        import sys as _sys
+
+        if sys_path_append not in _sys.path:
+            _sys.path.insert(0, sys_path_append)
+        from ai_bridge.agent_loop import request_approval
+    except Exception as exc:
+        return {"success": False, "error": f"request_approval import failed: {exc}"}
+
+    skills = suggested_skills or [capability]
+    # action_data must match the shape consumed by
+    # BridgeDispatcher._create_agent_from_approval (department_dispatcher.py:3930).
+    action_data = {
+        "suggested_name": name,
+        "display_name": display_name,
+        "department": department,
+        "suggested_model": model,
+        "capability": capability,
+        "suggested_skills": skills,
+        "reason": reason,
+    }
+    approval_reason = f"Hire {display_name} ({department}, {model}): {reason}"
+    approval_id = request_approval(
+        action_type="create_agent",
+        action_data=action_data,
+        reason=approval_reason,
+        requested_by=requested_by,
+        tier=2,
+    )
+    if not approval_id:
+        return {
+            "success": False,
+            "error": "request_approval returned None (likely dedup collision — a hiring proposal with the same name may already be pending)",
+        }
+    return {
+        "success": True,
+        "approval_id": approval_id,
+        "proposed": {
+            "name": name,
+            "display_name": display_name,
+            "department": department,
+            "model": model,
+            "capability": capability,
+            "skills": skills,
+        },
+    }
+
+
 def deploy_to_node(agent_id, node_id):
     """Deploy agent to a remote node."""
     with get_db_cursor(commit=True) as (conn, cur):

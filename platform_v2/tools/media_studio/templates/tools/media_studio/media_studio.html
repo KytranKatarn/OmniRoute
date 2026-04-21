@@ -2723,8 +2723,9 @@
     function _normalizeStaticPath(p) {
         if (!p) return '';
         if (/^https?:\/\//i.test(p)) return p;
-        if (p.charAt(0) === '/') return p;
-        return '/static/' + p;
+        if (p.charAt(0) === '/') return p;           // already absolute
+        if (p.indexOf('static/') === 0) return '/' + p;  // "static/media/..." → "/static/media/..."
+        return '/static/' + p;                        // legacy bare path like "media/..."
     }
     // Cache-bust identical to the Roster renderer in department-hq.js.
     function _bustPath(p, ts) {

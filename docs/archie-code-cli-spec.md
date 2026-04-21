@@ -1,143 +1,109 @@
-# ArchieCode — OpenClaude Fork + Delegation Surface
+# A.R.C.H.I.E. as Delegate — Interactive Orchestrator
 
-**Project:** #276 · 2026-04-21
-**Priority:** P10 · target: working Phase 1+2 by **2026-04-26**
-**Authoritative spec.** Any deviation during implementation should come back and update this doc.
+**Project:** #276 (renamed from "ArchieCode — OpenClaude Fork + Delegation Surface")
+**Priority:** P10 · week-1 target: Phase 1–3 end-to-end by **2026-04-26**
+**Authoritative spec.** Any deviation should come back and update this doc.
+
+> **2026-04-21 pivot note:** original scope forked `Gitlawb/openclaude` for a new CLI. That upstream has a proprietary-derivative license (derivative of Anthropic's closed-source Claude Code, `NOASSERTION` on GitHub) — unsafe to fork. The project re-scoped to focus on the **delegation surface itself** (Claude ↔ A.R.C.H.I.E. ↔ agents), which is the actual missing piece. Optional CLI fork demoted to Phase 4 using `plandex` (MIT) as upstream.
 
 ## TL;DR
 
-Fork [Gitlawb/openclaude](https://github.com/Gitlawb/openclaude) → `KytranKatarn/archie-code-cli`, rebrand the binary as `archie-code`, and wire its defaults to the local A.R.C.H.I.E. platform (Ollama fleet on 192.168.1.200, MCP server with 103 tools, Department HQ dispatcher for escalation). The result is a second CLI — parallel to Claude Code — that Kytran can use to delegate work to A.R.C.H.I.E. directly, run locally against Ollama (zero cost), and invoke any platform capability (search_knowledge, create_task, propose_hire, run_misroute_audit, etc.) without ever leaving the terminal.
-
-Two CLIs, two budgets, one platform:
-- **Claude Code** — complex reasoning, architectural refactor, long-context multi-file work (Anthropic subscription)
-- **ArchieCode** — routine edits, local Ollama-backed work, platform-integrated tasks (free — runs on hub)
-
-## Why OpenClaude is the right base
-
-| Feature | Why it matters for us |
-|---|---|
-| npm-installable TypeScript CLI | Fork + rebrand takes hours, not weeks |
-| Native Ollama support via `OPENAI_BASE_URL=.../v1` | Zero adapter code for our Quadro M4000 fleet |
-| **MCP client built-in** | A.R.C.H.I.E.'s 103 MCP tools plug in without us writing a bridge |
-| gRPC headless mode (`localhost:50051`) | `archie_comms` (Telegram) can drive the same engine |
-| Agent routing via settings.json | Explore → qwen2.5-coder, Plan → gpt-oss:20b, cloud via dispatcher |
-| Bash / file / grep / glob / tasks / slash commands | Same surface Claude Code users expect |
-| Apache-2.0 license | Fork is legally clean; must preserve attribution |
-
-## Integration surface — what we plug where
+Build the delegation surface so Claude (and Kytran) can hand work to A.R.C.H.I.E. by capability tag. She orchestrates her agents (via the existing `OrchestrationEngine` + `department_dispatcher` + DHQ) and streams results back through the already-shipped Unified Comms (#265).
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│  Kytran's terminal                                         │
-│  ┌──────────────┐        ┌──────────────┐                  │
-│  │ Claude Code  │        │ archie-code  │  ← new           │
-│  └──────┬───────┘        └──────┬───────┘                  │
-│         │                       │                          │
-│         │ MCP (stdio)           │ MCP (stdio)              │
-└─────────┼───────────────────────┼──────────────────────────┘
-          │                       │
-          ▼                       ▼
-    ┌────────────────────────────────────┐
-    │ A.R.C.H.I.E. MCP server (103 tools)│
-    │  search_knowledge, create_task,    │
-    │  propose_hire, run_misroute_audit, │
-    │  log_decision, store_memory, …     │
-    └───────────┬────────────────────────┘
-                │
-                ▼
-    ┌────────────────────────────────────┐
-    │ Department HQ dispatcher           │
-    │  • Welfare check                   │
-    │  • Capability match                │
-    │  • Agent selection (13 depts)      │
-    │  • GPU-aware model routing         │
-    │  • Tier escalation → cloud         │
-    │  • C.R.E.E.D. ethics gate          │
-    └───────────┬────────────────────────┘
-                │
-                ▼
-    ┌────────────────────────────────────┐
-    │ Ollama fleet on 192.168.1.200      │
-    │  qwen2.5-coder:7b, gpt-oss:20b,    │
-    │  mistral:7b, nomic-embed, etc.     │
-    └────────────────────────────────────┘
+Claude (reasoning)
+     │ mcp__archie__delegate_task(capability='run_qa_suite', …)
+     ▼
+delegation_service.delegate_task() — persists to unified_tasks (delegation_source='claude')
+     │
+     ▼
+_run_delegate_task_worker (agent-loop job, 30s)
+     │
+     ├──► known-tool shortcut — run_qa_suite, run_misroute_audit, check_dep_drift
+     │                          (direct service function)
+     └──► DHQ dispatcher — everything else (agent selection + C.R.E.E.D. + cost tracking)
+     │
+     ▼
+work_notes result + task.status='completed'
+     │
+     ▼  (Phase 3)
+Unified Comms streaming — Telegram / web chat
 ```
 
-Key principle: **archie-code never calls cloud APIs directly.** All cloud escalation goes through the platform's Bridge dispatcher so C.R.E.E.D. ethics + approval gating still apply. This also keeps cost tracking in one place (`bridge_jobs.cost_usd`).
+## Why this shape
 
-## Phase plan
+- **Reuse, don't rebuild.** `OrchestrationEngine` (line 229 of `orchestration_engine.py`) and `department_dispatcher.dispatch()` already exist and already work. Adding a persistence layer + worker loop is ~400 LOC.
+- **Unified Comms (#265) is already shipped.** Streaming surface exists; Phase 3 just wires delegation events into it.
+- **C.R.E.E.D. + cost gates stay in one place.** Any cloud escalation still flows through the dispatcher — no new approval path to maintain.
+- **Claude and Kytran use the same tool.** Kytran can call `delegate_task` via Telegram/CLI/web; Claude calls it via MCP. One surface, many callers.
 
-### Phase 1 — Fork + brand + local Ollama (this week, 2026-04-22 → 04-24)
+## What shipped in Phase 1 (this commit)
 
-| # | Task | Effort |
-|---|------|--------|
-| 2189 | Write this spec (doc) | small |
-| 2190 | `gh repo fork Gitlawb/openclaude KytranKatarn/archie-code-cli` | tiny |
-| 2191 | Rename binary `openclaude` → `archie-code`; keep `openclaude` alias | small |
-| 2192 | Default config: `OPENAI_BASE_URL=http://192.168.1.200:11434/v1`, model=qwen2.5-coder:7b, optional `ARCHIE_MCP_URL` env | small |
-| 2193 | `CLAUDE.md` → `ARCHIE.md` with Kytran platform rules + never-direct-cloud rule | small |
-| 2194 | Install globally + smoke test (`archie-code "hello"` round-trips Ollama) | small |
+| File | Role |
+|------|------|
+| `database/migrations/344_delegation_columns_unified_tasks.sql` | Adds `delegation_source` / `delegation_args` / `streaming_channel` columns + partial index on `(status, created_at) WHERE delegation_source IS NOT NULL`. Idempotent. |
+| `platform_v2/services/delegation_service.py` | `delegate_task()` (persist) + `execute_delegated_task()` (route to known-tool shortcut or dispatcher) + `fetch_pending_delegations()` / `mark_*()` helpers. |
+| `platform_v2/mcp_server/tools/ai_command_tools.py` | `mcp__archie__delegate_task` MCP tool registered alongside `propose_hire` / `propose_reactivation`. |
+| `ai_bridge/agent_loop.py` | New scheduler job `delegate_task_worker` (30s interval) + `_run_delegate_task_worker` method. Claims ≤3 tasks/cycle, logs one `autonomy_loop_log` row per non-empty cycle. |
+| `platform_v2/tests/test_delegation_service.py` | 13 unit tests: validation, persistence, known-tool routing (misroute audit + adapter, JSON-string args), dispatcher fallback, failure paths. 0.17s, DB-free via mock cursor. |
 
-**Exit criteria (Phase 1):** Kytran can run `archie-code` on his laptop, point it at hub, and chat with Ollama. No MCP integration yet.
+## Known-tool capabilities (Phase 1 shortcuts)
 
-### Phase 2 — Delegate to A.R.C.H.I.E. (2026-04-25 → 04-26)
+These route straight to service functions — no LLM round-trip:
 
-| # | Task | Effort |
-|---|------|--------|
-| 2195 | Wire A.R.C.H.I.E. MCP server into archie-code settings | medium |
-| 2196 | `/archie` slash command → invokes Department HQ dispatcher via MCP | medium |
-| 2197 | Agent routing: Explore→qwen2.5-coder, Plan→gpt-oss:20b, cloud-via-dispatcher | small |
-| 2198 | Telegram bridge hook (start/finish pings via platform's telegram_service) | small |
+- `run_qa_suite` → `services.qa_service.run_qa_suite`
+- `run_misroute_audit` → `services.misroute_audit_service.run_misroute_audit`
+- `run_misroute_to_proposal_adapter` → `services.misroute_to_proposal_adapter.run`
+- `check_dep_drift` → `services.dep_drift_service.check_dep_drift`
+- `health_check` / `check_platform_health` → `services.health_service`
 
-**Exit criteria (Phase 2):** `archie-code "use FORGE to review this diff"` dispatches the work through DHQ → FORGE → Bridge → Ollama/cloud → result streamed back to CLI. That's the full loop we want for the week.
+New capabilities are added by extending `KNOWN_TOOL_CAPABILITIES` and `_execute_known_tool()`. Everything else falls through to `dispatch(capability, prompt)` for LLM-based work.
 
-### Phase 3 — Shared skill library (next week)
+## Phase 2 (next session) — conversational state
 
-| # | Task | Effort |
-|---|------|--------|
-| 2199 | Consciousness ingest pipeline pushes skills to `~/.archie-code/skills/` in addition to `~/.claude/skills/` | medium |
-| 2200 | skill-pipeline-test extended: pass/fail recorded per CLI | medium |
-| 2201 | Adapt the 27 ARCHIE-flagged skills (likely mostly no-op) | medium |
+Multi-turn delegation. Today every `delegate_task` call is fire-and-forget. Phase 2 adds:
+- `parent_task_id` so a task can spawn sub-tasks ("I need API docs first")
+- Conversation thread ID so multi-step delegations stay linked
+- Archie can reply back up the chain to clarify
 
-Current state (from `.claude/rules/learned-skills.md`): 389 installed in Claude Code, 52 tested pass, 31 tested fail, 27 adapted for ARCHIE. Extending to archie-code should be mostly mechanical since both CLIs speak the same SKILL.md schema.
+Spec not written yet — next sprint.
 
-### Phase 4 — gRPC headless + A.R.C.H.I.E. Comms unification
+## Phase 3 (next session) — Unified Comms streaming
 
-| # | Task | Effort |
-|---|------|--------|
-| 2202 | archie-code gRPC server on hub (port 50051, systemd or docker-compose) | medium |
-| 2203 | `archie_comms` Telegram bridge forwards to gRPC → unified engine for CLI + Telegram | medium |
-| 2204 | Session summaries feed C.O.D.E.X. event-docs pipeline (reuses #2108) | small |
+Wire `_run_delegate_task_worker` events into `telegram_service` + `archie_comms`. Kytran sees each delegated task scroll in Archie's voice. Replaces the old "Telegram ping" Phase 2 item with a richer stream. Depends on #265 infrastructure (already shipped).
 
-### Phase 5 — Division of labor
+## Phase 4 (nice-to-have, not this week) — ArchieCode CLI fork
 
-| # | Task | Effort |
-|---|------|--------|
-| 2205 | Decision doc: Claude Code vs ArchieCode use cases | small |
-| 2206 | Handoff pattern: Claude plans → ArchieCode executes (one end-to-end example) | medium |
+Optional terminal-native surface for Kytran. Upstream = **plandex** (MIT, server+CLI). Replaces the openclaude plan that couldn't be forked safely. Rebrand binary, point defaults at hub Ollama + A.R.C.H.I.E. MCP server, ship.
+
+## Phase 5 (next sprint) — Division of labor
+
+Decision doc: when Claude vs when Archie. Handoff pattern example. One end-to-end demo committed as `docs/delegation-demo.md`.
 
 ## Risks & gotchas
 
-- **Name collision with completed #185** (`ARCHIE Code CLI — Branded Development Tool`). That project was a Claude-Code rebrand and shipped a package called `archie-code`. The new openclaude fork also wants that binary name. **Decision:** supersede the old one — it was never used in production per the current memory index. Archive the old npm package; publish the new archie-code under the same name. If old artifacts exist on npm, bump major version.
-- **Ollama concurrency:** one more CLI hitting Ollama means more contention. `MAX_LOADED_MODELS=3` + `KEEP_ALIVE=5m` is already tight. If Phase 2 MCP round-trips spike load average, add ArchieCode traffic tracking in `ollama_lifecycle_telemetry`.
-- **MCP auth:** the platform's MCP server currently assumes local trust. archie-code running on Kytran's laptop needs either a token handshake or a mesh-only endpoint. Mesh-only (via Tailscale 100.64.0.0/10) is simpler for week 1.
-- **Upstream drift:** openclaude moves fast (465 commits). Plan a quarterly rebase cadence. Keep brand changes in a thin diff so rebases stay easy.
-- **Skill path divergence:** openclaude reads from `~/.claude/skills/` **by default** too (per their README). If we point both CLIs at the same directory, we may get conflicts on skills that assume Anthropic API behavior. Use `~/.archie-code/skills/` separately and copy-on-write from the shared library.
-- **SaaS model:** if Kytran wants to resell ArchieCode later, the fork's Apache-2.0 lets us relicense derivative work under any terms. But we must preserve openclaude's NOTICE file.
+- **Worker starvation.** 30s interval, 3 tasks/cycle. If Archie gets flooded with delegations (say a Claude session batches 50 sub-tasks), they'll queue. OK for Phase 1 — add priority-based scheduling if it becomes a bottleneck.
+- **Dispatcher fallback cost.** Unknown capabilities go through the LLM dispatcher which may escalate to cloud. Each cloud call goes through existing C.R.E.E.D. + approval gates, so the safety rail is the same as any other dispatch.
+- **work_notes churn.** Every completed task writes a `work_notes` row. If tasks become high-frequency (>1k/day), consider batch-summarizing into a single daily row via C.O.D.E.X.
+- **task status semantics.** We flip to `blocked` on failure, not `failed`. That matches the existing `status` CHECK constraint options in `unified_tasks`. Follow-up: add a `failed` state formally if we want cleaner analytics.
+- **No auth on the MCP side.** Anyone with MCP write permission can delegate tasks. For now that's Kytran only (via Claude's MCP session). When we open MCP to external callers, `delegation_source='mcp_client'` gates will need a token/source verification step.
 
-## Open questions (for decision this week)
+## Live check (Phase 1 exit criteria — verified this commit)
 
-1. **Repo location:** new top-level sibling to `archie_platform`, or nested under `/mnt/archie_brain/archie-code-cli/`? Recommend nested — simpler local dev.
-2. **Telegram integration depth:** just start/finish pings (small), or full bidirectional (Telegram → archie-code gRPC)? Phase 2 picks start/finish; Phase 4 does full bridge.
-3. **Cloud fallback authority:** can archie-code force cloud escalation without DHQ gate for routine queries? Recommend: NO. Always through dispatcher so cost and C.R.E.E.D. gate stay consistent.
-4. **VSCode extension:** openclaude ships one in-tree. Rebrand now, or skip for MVP? Skip for MVP; revisit when Phase 4 is stable.
+- Migration 344 applied: `delegation_source`, `delegation_args`, `streaming_channel` columns + partial index present on `unified_tasks`
+- 13/13 unit tests pass (0.17s, DB-free)
+- MCP tool registered — `mcp__archie__delegate_task` callable from any MCP client
+- Worker job scheduled — `delegate_task_worker` appears in `autonomy_loop_log` once it processes a non-empty batch
 
 ## This week's committed scope
 
-Phase 0 + Phase 1 + Phase 2 = 10 tasks, all small/medium. Realistic 2–3 focused sessions. Exit criteria above per phase.
+- ✅ Phase 0 — spec (this doc)
+- ✅ Phase 1 — delegation surface (this commit)
+- Phase 3 — Unified Comms streaming (target: 2026-04-26)
+- **Exit criteria:** `delegate_task(capability='run_qa_suite', args={'module':'autonomy'}, reason='Verify X', delegation_source='claude')` from a Claude MCP session → row appears in unified_tasks → worker picks up within 30s → QA suite runs → work_notes row written with result → (Phase 3) Telegram ping.
 
-Phases 3–5 deferred to week of 2026-04-27 with the same project.
+Phases 2, 4, 5 deferred to next week's sprint under the same project.
 
 ---
 
-**This spec lives at `docs/archie-code-cli-spec.md`. Update it as we make design decisions rather than creating new notes.**
+**Spec lives at `docs/archie-code-cli-spec.md`. Update in place as design evolves.**

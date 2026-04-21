@@ -649,6 +649,19 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Archie-as-delegate worker (Project #276 / Task #2209).
+        # Polls unified_tasks for pending delegated work every 30s.
+        # Fast cadence so Claude → Archie feels interactive, not batch.
+        self.scheduler.add_job(
+            with_app_context(self._run_delegate_task_worker),
+            trigger=IntervalTrigger(seconds=30),
+            id="delegate_task_worker",
+            name="Agent Loop: Archie Delegate Task Worker",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         # K.I.N. — daily crew welfare + budget digest (Project #272 / Task #2106).
         # 02:45 UTC — after S.P.E.C.T.R.A. so routing anomalies are fresh.
         self.scheduler.add_job(
@@ -3494,6 +3507,103 @@ class AgentLoop:
                     job_name="misroute_to_proposal_adapter",
                     items_processed=0,
                     items_failed=1,
+                    duration_ms=duration_ms,
+                    error_message=str(e),
+                )
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # Archie-as-delegate worker (Project #276 / Task #2209)
+    # ------------------------------------------------------------------
+
+    def _run_delegate_task_worker(self):
+        """Pick up pending delegated tasks and execute via OrchestrationEngine.
+
+        Polls ``unified_tasks`` for rows with ``delegation_source IS NOT
+        NULL`` AND ``status = 'pending'``. Per cycle, claims up to 3
+        tasks to avoid starving other agent-loop jobs. Each claimed task
+        is flipped to ``in_progress`` before execution; on completion or
+        failure, status + a ``work_notes`` row are written.
+
+        Logs one ``autonomy_loop_log`` row per cycle via ``_log_cycle``
+        so the Dev HQ job-monitoring view (#2105 infrastructure) shows
+        a timeline.
+        """
+        start = time.time()
+        processed = 0
+        failed = 0
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from services.delegation_service import (
+                execute_delegated_task,
+                fetch_pending_delegations,
+                mark_task_completed,
+                mark_task_failed,
+                mark_task_in_progress,
+            )
+
+            tasks = fetch_pending_delegations(limit=3)
+            if not tasks:
+                # Silent no-op when queue is empty — avoids autonomy_loop_log spam.
+                return
+
+            for task in tasks:
+                task_id = task["id"]
+                mark_task_in_progress(task_id)
+                try:
+                    result = execute_delegated_task(task)
+                    if result.get("success"):
+                        mark_task_completed(task_id, result.get("summary", ""))
+                        processed += 1
+                    else:
+                        mark_task_failed(
+                            task_id,
+                            result.get("summary")
+                            or result.get("error")
+                            or "Unknown failure",
+                        )
+                        failed += 1
+                except Exception as task_err:
+                    logger.exception(
+                        "Delegate task #%s raised during execute", task_id
+                    )
+                    try:
+                        mark_task_failed(task_id, f"Executor exception: {task_err}")
+                    except Exception:
+                        pass
+                    failed += 1
+
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle(
+                job_name="delegate_task_worker",
+                items_processed=processed,
+                items_failed=failed,
+                duration_ms=duration_ms,
+                details={
+                    "claimed": len(tasks),
+                    "completed": processed,
+                    "failed": failed,
+                },
+            )
+            if processed or failed:
+                logger.info(
+                    "delegate_task_worker: claimed=%d done=%d failed=%d in %dms",
+                    len(tasks),
+                    processed,
+                    failed,
+                    duration_ms,
+                )
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            logger.error("delegate_task_worker failed: %s", e)
+            try:
+                self._log_cycle(
+                    job_name="delegate_task_worker",
+                    items_processed=processed,
+                    items_failed=max(failed, 1),
                     duration_ms=duration_ms,
                     error_message=str(e),
                 )

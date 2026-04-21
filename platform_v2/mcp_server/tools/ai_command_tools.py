@@ -1110,6 +1110,132 @@ reason='Add second translator to break ARCHIE single-thread bottleneck.'
 
 
 # ============================================================================
+# TOOL 12: DELEGATE TASK (Archie-as-delegate — Project #276 Phase 1)
+# ============================================================================
+
+
+async def delegate_task_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Hand work to A.R.C.H.I.E. by capability tag.
+
+    Claude (or anyone with MCP write access) delegates a task. It is
+    persisted into unified_tasks with delegation_source set; the
+    agent-loop worker ``_run_delegate_task_worker`` picks it up and
+    routes to the right executor — either a known-tool shortcut or the
+    DHQ dispatcher. No cloud escalation bypasses C.R.E.E.D./approval
+    gates.
+
+    Project #276 Task #2207.
+    """
+    capability = arguments.get("capability")
+    reason = arguments.get("reason")
+    args = arguments.get("args") or {}
+    delegation_source = arguments.get("delegation_source", "claude")
+    requested_by = arguments.get("requested_by", "mcp_client")
+    streaming_channel = arguments.get("streaming_channel")
+    priority = int(arguments.get("priority", 5) or 5)
+    project_id = arguments.get("project_id")
+
+    if not capability:
+        return {"success": False, "error": "capability is required"}
+    if not reason:
+        return {"success": False, "error": "reason is required"}
+
+    try:
+        from services.delegation_service import delegate_task
+
+        return delegate_task(
+            capability=capability,
+            reason=reason,
+            args=args,
+            delegation_source=delegation_source,
+            requested_by=requested_by,
+            streaming_channel=streaming_channel,
+            priority=priority,
+            project_id=project_id,
+        )
+    except Exception as e:
+        logger.error(f"Error in delegate_task: {e}")
+        return {"success": False, "error": str(e)}
+
+
+register_tool(
+    name="delegate_task",
+    category="ai_command",
+    description="""Hand a task to A.R.C.H.I.E. for execution by her agents.
+
+Enables Claude → Archie delegation: Claude drops a capability + args + reason,
+Archie's worker loop picks it up and routes to the right executor. Known
+capabilities (run_qa_suite, run_misroute_audit, check_dep_drift, health_check,
+run_misroute_to_proposal_adapter) invoke the service directly. Everything else
+flows through the Department HQ dispatcher with full welfare, agent-selection,
+C.R.E.E.D. governance, and cost tracking.
+
+Rule: NO cloud escalation bypasses approval gates. Cost visibility matches
+any other dispatched work.
+
+Example: delegate run_qa_suite on the autonomy module while Claude works on
+something else:
+  capability='run_qa_suite', args={'module':'autonomy'},
+  reason='Verify PR #243 landed cleanly', delegation_source='claude'
+
+Typical polling: the caller re-reads the task row (by returned task_id) to
+check status. Streaming to Telegram/Comms is handled by Phase 3 of #276.
+""",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "capability": {
+                "type": "string",
+                "description": (
+                    "The capability tag. Known-tool capabilities (run_qa_suite, "
+                    "run_misroute_audit, check_dep_drift, health_check, "
+                    "run_misroute_to_proposal_adapter) invoke services directly. "
+                    "Unknown tags flow through the DHQ dispatcher."
+                ),
+            },
+            "reason": {
+                "type": "string",
+                "description": "Why the delegation is needed — surfaces in streaming channel + work_notes",
+            },
+            "args": {
+                "type": "object",
+                "description": "Capability-specific arguments dict (e.g. {'suite_name': 'autonomy'} for run_qa_suite)",
+            },
+            "delegation_source": {
+                "type": "string",
+                "enum": ["claude", "user_cli", "telegram", "web_chat", "mcp_client", "automation"],
+                "default": "claude",
+                "description": "Who is delegating. Used for routing and analytics.",
+            },
+            "requested_by": {
+                "type": "string",
+                "default": "mcp_client",
+                "description": "Identifier for the caller (agent name, user name, or tool)",
+            },
+            "streaming_channel": {
+                "type": "string",
+                "description": "Optional target for progress streaming: telegram:<user>, mcp:<session>, comms:<convo_id>",
+            },
+            "priority": {
+                "type": "integer",
+                "default": 5,
+                "minimum": 1,
+                "maximum": 10,
+                "description": "Task priority (1–10, higher first)",
+            },
+            "project_id": {
+                "type": "integer",
+                "description": "Optional project ID to attach the delegated task to",
+            },
+        },
+        "required": ["capability", "reason"],
+    },
+    handler=delegate_task_handler,
+    requires_permission="write",
+)
+
+
+# ============================================================================
 # TOOL: CHECK DEP DRIFT (F.O.R.G.E.)
 # ============================================================================
 

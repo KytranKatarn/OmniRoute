@@ -63,17 +63,29 @@ _setup_dynamic_oauth()
 
 @kytran_auth.on_login
 def on_sso_login(user_data):
-    """SSO callback — only allow admin users."""
+    """Post-SSO gate — only admin-role Kytran accounts reach A.R.C.H.I.E. Comms.
+
+    Access control lives on the Kytran Empowerment hub: staff get role='admin',
+    subscribers stay role='user'/'premium'. If the user lacks admin, we discard
+    the session so `kytran_user` is absent and /chat redirects back to /login.
+    """
     from flask import session
 
     role = user_data.get("role", "")
     if role != "admin":
         session.pop("kytran_user", None)
+        logger.warning(
+            "SSO login rejected: %s has role=%s (admin required)",
+            user_data.get("username"),
+            role,
+        )
         return
+    # Cache SSO-derived identity for routes that read session["user_id"] directly
+    # (chat_routes, conversation listing, etc. predate kytran_user and use these keys).
     session["user_id"] = user_data.get("sub")
     session["username"] = user_data.get("username")
     session["role"] = role
-    logger.info(f"SSO login: {user_data.get('username')} (admin)")
+    logger.info("SSO login accepted: %s (admin)", user_data.get("username"))
 
 
 @app.route("/api/health")
@@ -110,57 +122,27 @@ def index():
     return render_template("landing.html")
 
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/login")
 def login():
-    """Admin-only login page. Respects ?next= param for redirect after login."""
+    """SSO-only login. Local username/password is disabled — access is managed
+    centrally via Kytran Empowerment accounts. Staff with role='admin' can enter;
+    everyone else is rejected at the SSO callback.
+
+    Respects ?next= param for redirect after login.
+    """
     from flask import render_template, request, redirect, session
 
     next_url = request.args.get("next", "/chat")
 
-    # Already logged in — redirect
-    if "user_id" in session or "kytran_user" in session:
+    # Already authenticated via Kytran SSO → skip login page
+    if "kytran_user" in session:
         return redirect(next_url)
 
-    if request.method == "POST":
-        username = request.form.get("username", "")
-        password = request.form.get("password", "")
-        next_url = request.form.get("next", "/chat")
-        # Admin-only auth — verify against platform DB
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor() as (conn, cur):
-                cur.execute(
-                    "SELECT id, username, role FROM users WHERE username = %s AND role = 'admin'",
-                    (username,),
-                )
-                user = cur.fetchone()
-                if user:
-                    from werkzeug.security import check_password_hash
-
-                    cur.execute(
-                        "SELECT password_hash FROM users WHERE id = %s",
-                        (user["id"],),
-                    )
-                    row = cur.fetchone()
-                    pw_hash = row["password_hash"] if isinstance(row, dict) else row[0] if row else None
-                    if pw_hash and check_password_hash(pw_hash, password):
-                        session["user_id"] = user["id"]
-                        session["username"] = user["username"]
-                        session["role"] = user["role"]
-                        return redirect(next_url)
-        except Exception as e:
-            logger.error(f"Login error: {e}")
-
-        return render_template("login.html", error="Invalid credentials or not an admin user", next_url=next_url)
-
-    # Show login page — detect hostname for branding
+    # Render SSO-only landing (hostname-branched)
     host = request.host.lower()
     if "claude" in host:
         return render_template("claude_login.html", next_url=next_url)
     return render_template("login.html", next_url=next_url)
-
-    return render_template("login.html")
 
 
 @app.route("/logout")
@@ -177,10 +159,10 @@ def logout():
 
 @app.route("/chat")
 def chat():
-    """A.R.C.H.I.E. chat interface — admin only."""
+    """A.R.C.H.I.E. chat interface — Kytran-SSO admins only."""
     from flask import render_template, session, redirect
 
-    if "user_id" not in session and "kytran_user" not in session:
+    if "kytran_user" not in session:
         return redirect("/login")
     return render_template("chat.html")
 

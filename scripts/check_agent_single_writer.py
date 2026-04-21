@@ -115,6 +115,11 @@ _API_GENERATE_ALLOWLIST: set[str] = {
     # inference. All actual dispatch goes through department_dispatcher.
     # Pre-existing false positive surfaced by #2102 Task 10.
     "platform_v2/services/agent_jobs.py",
+    # archie-comms Flask app — exposes its own REST namespace
+    # `@app.route("/api/chat/...")` (send_message / escalate / conversations /
+    # messages / new). Not Ollama inference. Follow-up to refine the guardrail
+    # regex so route decorators no longer trigger: task #2228.
+    "archie-comms/app_comms.py",
     # Media Studio — Flask route path @bp.route("/api/generate") for image
     # generation (ComfyUI-backed, not Ollama). Legitimate false positive on
     # the regex. Actual LLM dispatches from this module go through

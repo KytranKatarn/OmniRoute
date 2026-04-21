@@ -53,25 +53,13 @@
             <div class="login-badge">Admin Access Only</div>
         </div>
 
-        <div class="error-msg" id="errorMsg"></div>
+        <p style="text-align:center;color:var(--muted);font-size:0.8rem;line-height:1.5;margin-bottom:1.5rem;">
+            Sign in with your Kytran Empowerment staff account.<br>
+            Access is managed centrally &mdash; contact an admin if you need it.
+        </p>
 
-        <form method="POST" action="/login" id="loginForm">
-            <input type="hidden" name="next" value="{{ next_url|default('/claude/terminal') }}">
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" placeholder="Enter username" required autocomplete="username">
-            </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" placeholder="Enter password" required autocomplete="current-password">
-            </div>
-            <button type="submit" class="login-btn">Sign In</button>
-        </form>
-
-        <div class="divider">or</div>
-
-        <a href="/auth/kytran/login?next={{ next_url|default('/claude/terminal') }}" class="sso-btn">
-            Connect with Kytran Empowerment
+        <a href="/auth/kytran/login?next={{ next_url|default('/claude/terminal') }}" class="login-btn" style="display:block;text-align:center;text-decoration:none;">
+            Sign in with Kytran Empowerment
         </a>
 
         <div class="login-footer">

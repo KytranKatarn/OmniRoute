@@ -69,19 +69,36 @@ _PAID_CLOUD_PROVIDERS = (
 )
 
 
+def _get_db_password() -> str:
+    """Read DB password from Docker secret file, fall back to env var.
+
+    Mirrors ``services.dispatch_service.DispatchService._get_db_password`` so
+    the audit works in every runtime context — MCP server (env-driven),
+    agent_loop scheduler (secret-file via compose), and ad-hoc
+    ``docker exec`` (secret-file bind-mounted).
+    """
+    secret_file = os.environ.get("DB_PASSWORD_FILE", "/run/secrets/db_password")
+    try:
+        with open(secret_file) as f:
+            return f.read().strip()
+    except (FileNotFoundError, PermissionError):
+        return os.environ.get("DB_PASSWORD", "")
+
+
 def _get_conn():
     """Return a plain psycopg2 connection.
 
     Matches the pattern used in ``mcp_server/tools/ai_command_tools.py``
     — env-driven, no dependency on Flask app context so the same code
-    path works under the MCP server and inside agent_loop.
+    path works under the MCP server and inside agent_loop. Resolves the
+    DB password via ``_get_db_password`` so Docker secret setups work.
     """
     return psycopg2.connect(
         host=os.getenv("DB_HOST", "192.168.1.200"),
         port=int(os.getenv("DB_PORT", "5432")),
         dbname=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
+        password=_get_db_password(),
     )
 
 

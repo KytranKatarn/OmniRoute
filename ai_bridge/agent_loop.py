@@ -3538,6 +3538,7 @@ class AgentLoop:
 
             sys.path.insert(0, "/mnt/archie_brain/platform_v2")
             from services.delegation_service import (
+                emit_delegation_event,
                 execute_delegated_task,
                 fetch_pending_delegations,
                 mark_task_completed,
@@ -3553,17 +3554,56 @@ class AgentLoop:
             for task in tasks:
                 task_id = task["id"]
                 mark_task_in_progress(task_id)
+
+                # Capability + source for Unified Comms event payload.
+                args = task.get("delegation_args") or {}
+                if isinstance(args, str):
+                    try:
+                        import json as _json
+
+                        args = _json.loads(args)
+                    except Exception:
+                        args = {}
+                capability = args.get("capability", "unknown")
+                delegation_source = task.get("delegation_source") or "mcp_client"
+                streaming_channel = task.get("streaming_channel")
+
+                emit_delegation_event(
+                    task_id,
+                    "start",
+                    capability=capability,
+                    delegation_source=delegation_source,
+                    streaming_channel=streaming_channel,
+                )
+
                 try:
                     result = execute_delegated_task(task)
                     if result.get("success"):
-                        mark_task_completed(task_id, result.get("summary", ""))
+                        summary = result.get("summary", "")
+                        mark_task_completed(task_id, summary)
+                        emit_delegation_event(
+                            task_id,
+                            "complete",
+                            capability=capability,
+                            summary=summary,
+                            delegation_source=delegation_source,
+                            streaming_channel=streaming_channel,
+                        )
                         processed += 1
                     else:
-                        mark_task_failed(
-                            task_id,
+                        fail_summary = (
                             result.get("summary")
                             or result.get("error")
-                            or "Unknown failure",
+                            or "Unknown failure"
+                        )
+                        mark_task_failed(task_id, fail_summary)
+                        emit_delegation_event(
+                            task_id,
+                            "fail",
+                            capability=capability,
+                            summary=fail_summary,
+                            delegation_source=delegation_source,
+                            streaming_channel=streaming_channel,
                         )
                         failed += 1
                 except Exception as task_err:
@@ -3572,6 +3612,14 @@ class AgentLoop:
                     )
                     try:
                         mark_task_failed(task_id, f"Executor exception: {task_err}")
+                        emit_delegation_event(
+                            task_id,
+                            "fail",
+                            capability=capability,
+                            summary=f"Executor exception: {task_err}",
+                            delegation_source=delegation_source,
+                            streaming_channel=streaming_channel,
+                        )
                     except Exception:
                         pass
                     failed += 1

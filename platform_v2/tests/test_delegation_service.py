@@ -26,6 +26,15 @@ _stub_dispatcher.dispatch = MagicMock(return_value=MagicMock(success=False))
 sys.modules["tools.department_hq.services.department_dispatcher"] = _stub_dispatcher
 _pkg_services.department_dispatcher = _stub_dispatcher
 
+# Stub telegram_service too — hitting the live service during tests would
+# try to reach archie_comms (http://192.168.1.200:3002). delegation_service
+# imports it lazily inside emit_delegation_event, so we only need the
+# module to be resolvable when patch() looks it up.
+_stub_telegram = types.ModuleType("services.telegram_service")
+_stub_telegram.send_info = MagicMock(return_value={"sent": True})
+_stub_telegram.send_system = MagicMock(return_value={"sent": True})
+sys.modules.setdefault("services.telegram_service", _stub_telegram)
+
 
 def _mock_cursor(row=None, rows=None):
     """Return a context-manager mock that fetches ``row`` / ``rows``."""
@@ -276,6 +285,98 @@ class TestExecutorExceptionHandling:
         assert result["success"] is False
         assert "RuntimeError" in result["summary"]
         assert result["error"] == "DB connection lost"
+
+
+class TestEmitDelegationEvent:
+    """Phase 3 — Unified Comms streaming. Verifies the shape of the
+    message handed to telegram_service and that failures are suppressed
+    so streaming bugs can never break the worker loop."""
+
+    def test_start_event_uses_send_info(self, delegation_service):
+        import services.telegram_service as tg
+
+        tg.send_info.reset_mock()
+        tg.send_system.reset_mock()
+        delegation_service.emit_delegation_event(
+            task_id=42,
+            event_type="start",
+            capability="run_qa_suite",
+            delegation_source="claude",
+        )
+        tg.send_info.assert_called_once()
+        tg.send_system.assert_not_called()
+        title = tg.send_info.call_args.args[0]
+        body = tg.send_info.call_args.args[1]
+        assert "#42" in title
+        assert "picking up" in title
+        assert "run_qa_suite" in body
+        assert "claude" in body
+
+    def test_complete_event_includes_summary(self, delegation_service):
+        import services.telegram_service as tg
+
+        tg.send_info.reset_mock()
+        tg.send_system.reset_mock()
+        delegation_service.emit_delegation_event(
+            task_id=43,
+            event_type="complete",
+            capability="run_misroute_audit",
+            summary="severity=info, 13 anomalies",
+            delegation_source="claude",
+        )
+        tg.send_info.assert_called_once()
+        body = tg.send_info.call_args.args[1]
+        assert "Result: severity=info, 13 anomalies" in body
+
+    def test_fail_event_uses_send_system_escalation(self, delegation_service):
+        import services.telegram_service as tg
+
+        tg.send_info.reset_mock()
+        tg.send_system.reset_mock()
+        delegation_service.emit_delegation_event(
+            task_id=44,
+            event_type="fail",
+            capability="obscure_thing",
+            summary="Dispatcher refused: no agent available",
+            delegation_source="claude",
+        )
+        tg.send_system.assert_called_once()
+        tg.send_info.assert_not_called()
+        assert "failed" in tg.send_system.call_args.args[0]
+
+    def test_telegram_streaming_channel_routes_to_chat_id(self, delegation_service):
+        import services.telegram_service as tg
+
+        tg.send_info.reset_mock()
+        tg.send_system.reset_mock()
+        delegation_service.emit_delegation_event(
+            task_id=45,
+            event_type="start",
+            capability="health_check",
+            delegation_source="claude",
+            streaming_channel="telegram:5551234567",
+        )
+        kwargs = tg.send_info.call_args.kwargs
+        assert kwargs.get("chat_id") == "5551234567"
+
+    def test_exception_in_streaming_is_suppressed(self, delegation_service):
+        """If telegram_service explodes, emit must NOT raise — it would
+        break the worker loop otherwise."""
+        import services.telegram_service as tg
+
+        tg.send_info.side_effect = RuntimeError("comms bridge down")
+        tg.send_info.reset_mock()
+        try:
+            delegation_service.emit_delegation_event(
+                task_id=46,
+                event_type="start",
+                capability="run_qa_suite",
+                delegation_source="claude",
+            )
+        except Exception as exc:  # pragma: no cover — failure path
+            pytest.fail(f"emit_delegation_event must suppress exceptions, raised: {exc}")
+        finally:
+            tg.send_info.side_effect = None
 
 
 if __name__ == "__main__":

@@ -288,6 +288,69 @@ def _execute_via_dispatcher(capability: str, payload: Dict[str, Any], reason: st
     }
 
 
+def emit_delegation_event(
+    task_id: int,
+    event_type: str,
+    capability: str,
+    summary: str = "",
+    delegation_source: str = "mcp_client",
+    streaming_channel: Optional[str] = None,
+) -> None:
+    """Fire a delegation lifecycle event into Unified Comms (#265).
+
+    Routes through ``telegram_service.send_info`` in A.R.C.H.I.E.'s
+    direct voice (Executive Office, COO tone), since delegated work is
+    Archie executing on Kytran's / Claude's behalf.
+
+    ``streaming_channel`` is honored as a targeting hint (e.g. a
+    specific Telegram chat or comms conversation). For now the default
+    chat_id from ``telegram_service`` is used unless the channel
+    encodes ``telegram:<chat_id>`` — keeps Phase 3 scope small while
+    leaving room for multi-channel routing in Phase 4.
+
+    This function NEVER raises. Streaming is best-effort; a dead
+    Telegram bridge must not block worker progress.
+
+    event_type: one of ``start``, ``complete``, ``fail``.
+    """
+    try:
+        from services import telegram_service  # local import — avoids boot cycle
+
+        verb = {
+            "start": "picking up",
+            "complete": "completed",
+            "fail": "failed",
+        }.get(event_type, event_type)
+
+        title = f"Delegated task #{task_id} {verb}"
+        body_lines = [
+            f"Capability: {capability}",
+            f"Source: {delegation_source}",
+        ]
+        if summary:
+            body_lines.append(f"Result: {summary}")
+        message = "\n".join(body_lines)
+
+        send_kwargs: Dict[str, Any] = {}
+        if streaming_channel and streaming_channel.startswith("telegram:"):
+            send_kwargs["chat_id"] = streaming_channel.split(":", 1)[1] or None
+
+        # Failure events escalate via send_system (warning priority);
+        # start/complete stay informational.
+        if event_type == "fail":
+            telegram_service.send_system(title, message, **send_kwargs)
+        else:
+            telegram_service.send_info(title, message, **send_kwargs)
+    except Exception as exc:
+        # Streaming must never break the worker loop. Log and move on.
+        logger.warning(
+            "emit_delegation_event(task=%s event=%s) suppressed error: %s",
+            task_id,
+            event_type,
+            exc,
+        )
+
+
 def fetch_pending_delegations(limit: int = 10) -> list:
     """Return up to ``limit`` pending delegated tasks oldest-first."""
     with get_db_cursor() as (conn, cur):

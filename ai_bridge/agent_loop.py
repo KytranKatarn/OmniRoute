@@ -639,6 +639,16 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # S.P.E.C.T.R.A. → Audit Pipeline adapter (Project #272 / Task #2186).
+        # 02:30 UTC — 15 min after the audit, so findings are fresh.
+        self.scheduler.add_job(
+            with_app_context(self._run_misroute_to_proposal_adapter),
+            trigger=IntervalTrigger(hours=24, start_date="2026-01-01 02:30:00"),
+            id="misroute_to_proposal_adapter",
+            name="Agent Loop: S.P.E.C.T.R.A. Misroute → Proposal Adapter",
+            replace_existing=True,
+        )
+
         # K.I.N. — daily crew welfare + budget digest (Project #272 / Task #2106).
         # 02:45 UTC — after S.P.E.C.T.R.A. so routing anomalies are fresh.
         self.scheduler.add_job(
@@ -3420,6 +3430,68 @@ class AgentLoop:
             try:
                 self._log_cycle(
                     job_name="spectra_misroute_audit",
+                    items_processed=0,
+                    items_failed=1,
+                    duration_ms=duration_ms,
+                    error_message=str(e),
+                )
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # S.P.E.C.T.R.A. → Audit Pipeline adapter (Project #272 / Task #2186)
+    # ------------------------------------------------------------------
+
+    def _run_misroute_to_proposal_adapter(self):
+        """Nightly adapter: convert misroute findings into audit proposals.
+
+        Runs 15 min after ``_run_misroute_audit``. Delegates the scan +
+        conversion + pipeline call to
+        ``services.misroute_to_proposal_adapter.run`` (single source of
+        truth), then logs one ``autonomy_loop_log`` row for the Dev HQ
+        routing dashboard (#2110) to render a timeline.
+
+        No-op path stays silent. Any proposals created are automatically
+        routed into the approval queue by ``audit_pipeline._create_audit_proposal``.
+        """
+        start = time.time()
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from services.misroute_to_proposal_adapter import run as run_adapter
+
+            result = run_adapter(window_hours=24)
+            duration_ms = int((time.time() - start) * 1000)
+
+            self._log_cycle(
+                job_name="misroute_to_proposal_adapter",
+                items_processed=result.get("issues_generated", 0),
+                items_failed=0,
+                duration_ms=duration_ms,
+                details={
+                    "input_anomalies": result.get("input_anomalies", 0),
+                    "audit_severity": result.get("audit_severity"),
+                    "proposals_created": result.get("proposals_created", 0),
+                    "skipped_duplicates": result.get("skipped_duplicates", 0),
+                    "issues_by_code": result.get("issues_by_code", {}),
+                    "window_hours": result.get("window_hours"),
+                },
+            )
+
+            logger.info(
+                "misroute_to_proposal_adapter: anomalies=%d issues=%d proposals=%d in %dms",
+                result.get("input_anomalies", 0),
+                result.get("issues_generated", 0),
+                result.get("proposals_created", 0),
+                duration_ms,
+            )
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            logger.error("misroute_to_proposal_adapter failed: %s", e)
+            try:
+                self._log_cycle(
+                    job_name="misroute_to_proposal_adapter",
                     items_processed=0,
                     items_failed=1,
                     duration_ms=duration_ms,

@@ -75,29 +75,48 @@ the approval pipeline.
 The canonical agent selection path is **skill-based**, not name-based:
 
 ```
-dispatch(capability, ...) → coordinator.select_agent(capability, department)
-   → loops over _agent_cache for matching department
-   → score = 1.0 + (1-stress)*0.3 + energy*0.2 - util*0.5
-             + skill_proficiency * 0.2 if capability in agent.skills
-             + 0.2 if dept match
-             + 0.3 if is_department_ai
-             + tier-match bonus if recommended_tier
-   → highest positive score wins
-   → if NO active candidate scores > 0:
-        → _wake_barracked_specialist(capability, department)
-          → finds barracked agent with proficiency ≥ 3 on the skill
-          → agent_service.transition_shift_state(id, 'active', 'wake_on_demand')
-          → governance_audit_log entry written
-          → returns the woken agent
+dispatch(capability, ...) → coordinator.resolve_department(capability) → home_dept
+   → coordinator.select_agent(capability, home_dept)
+     → loops over _agent_cache for matching department
+     → score = 1.0 + (1-stress)*0.3 + energy*0.2 - util*0.5
+               + skill_proficiency * 0.2 if capability in agent.skills
+               - 1.0                      if capability present and NOT in skills  ← hard penalty
+               + 0.2 if dept match
+               + 0.3 if is_department_ai
+               + tier-match bonus if recommended_tier
+     → highest positive score wins
+     → SKILL-FIRST CHECK (#2217, 2026-04-21):
+         if best candidate lacks the skill AND someone in another dept has it
+         → coordinator.find_cross_department_agent(capability, blocked_department)
+     → if NO active candidate scores > 0:
+          → _wake_barracked_specialist(capability, home_dept)
+            → finds barracked agent with proficiency ≥ 3 on the skill
+            → agent_service.transition_shift_state(id, 'active', 'wake_on_demand')
+            → governance_audit_log entry written
+            → if still None → cross-dept fallback before returning None
 ```
+
+**CAPABILITY_DEPARTMENT_MAP** (line ~46 of `services/department_coordinator.py`) resolves capability → home department. Entries are **authoritative** — additions go here, not in smart_router. Known mappings include:
+- Engineering & Technology: code, code_review, debug, general
+- Documentation & Knowledge: documentation, consolidation_research, module_audit, document_audit, summarize, summarization, translate, embedding
+- Research & Development: research, research_synthesis
+- Analytics & Intelligence: classify, analyze, knowledge_analysis
+- Creative & Design: creative, image_generation, visual_design, vision, multimodal, ux_scoring
+- Security & Compliance: security, compliance
+- Customer Success & Support: support
+
+Unmapped capabilities default to Engineering & Technology; the skill-first check compensates by cross-dept routing when Engineering has no skilled agent.
 
 **Consequences for making an agent dispatchable:**
 
 1. Populate `agent_skills(agent_id, skill_name, proficiency_level, can_escalate_to)` — `skill_name` must match the `capability=` string passed to `dispatch()`.
 2. Active/barracked shift state both work — barracked specialists wake on demand when no active candidate qualifies.
-3. `is_department_ai=true` gives a +0.3 bonus (department directors preferred unless a skilled specialist has enough raw score to overcome it).
+3. `is_department_ai=true` gives a +0.3 bonus — but no longer beats a skilled cross-dept specialist when the home-dept director has no skill match (#2217).
+4. For a new capability: add an entry to `CAPABILITY_DEPARTMENT_MAP` AND seed at least one agent's `agent_skills` row. `TestMultiAgentDispatchCoverage` catches gaps.
 
 **Removed in #2165:** `AGENT_SPECIALIZATION` dict and `get_agent_for_module()` helper are gone. All agent selection goes through `coordinator.select_agent(capability, department)` — skill-based with wake-on-demand fallback. Regression tests in `test_dispatch_scoring.py::TestLegacySymbolsRemoved` prevent reintroduction.
+
+**#2217 (2026-04-21):** skill-first routing + cross-dept fallback. Before the fix, `dispatch(capability='documentation')` routed to F.O.R.G.E. (Engineering, no doc skill, score 0.97) instead of C.O.D.E.X. (Documentation & Knowledge, doc Lv5, score 3.00). Same-shape bug likely caused historical misroute audit failures (ARCHIE translate 89.5%, FORGE code_analysis 100%, W.A.T.C.H. knowledge_analysis 100%). ADR-002 logged. Regression coverage in `TestCrossDepartmentSkillFallback` + `TestMultiAgentDispatchCoverage` (24 tests).
 
 ## Approval Queue Surface (2026-04-19)
 

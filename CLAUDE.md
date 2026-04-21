@@ -101,7 +101,7 @@ Every new session MUST begin with one of:
 | Dev HQ | http://192.168.1.200:3000/tools/consciousness/#devhq (tab inside Consciousness) |
 | Docs | `knowledge_base` table → Consciousness Knowledge tab or MCP `search_knowledge` |
 | Modules | `/mnt/archie_brain/platform_v2/tools/` (36 modules) |
-| MCP Tools | 85 tools via `.mcp.json` (incl. `session_briefing`) |
+| MCP Tools | 87 tools via `.mcp.json` (incl. `session_briefing`, `propose_hire` #2124, `delegate_task` #2207) |
 | Projects | `unified_projects` table → MCP `get_projects` / `create_task` |
 
 ## Architecture (3 Core Systems + 6 Subsystems)
@@ -140,12 +140,15 @@ platform_v2/app.py                          - Flask app + |localtime filter
 platform_v2/module_registry.py              - Module definitions
 platform_v2/rbac.py                         - Permissions
 platform_v2/database.py                     - DB connection
-platform_v2/services/agent_service.py       - Centralized agent CRUD, lifecycle, skills, welfare
+platform_v2/services/agent_service.py       - Centralized agent CRUD, lifecycle, skills, welfare (+propose_hire #2124)
 platform_v2/services/agent_models.py        - Model load/unload/warmboot
 platform_v2/services/agent_dispatch.py      - Candidate selection, scoring
 platform_v2/services/audit_pipeline.py      - Self-healing repair pipeline
 platform_v2/services/agent_social_service.py - Social presence
 platform_v2/services/work_tracking_service.py - Work sessions, metrics
+platform_v2/services/department_coordinator.py - Skill-first routing w/ cross-dept fallback (ADR-002, #2217)
+platform_v2/services/delegation_service.py  - Claude → A.R.C.H.I.E. delegation surface (#276)
+platform_v2/services/misroute_to_proposal_adapter.py - S.P.E.C.T.R.A. observer→proposal adapter (#2186)
 platform_v2/tools/department_hq/            - Department management (6 tabs)
 platform_v2/tools/agent_academy/            - Training & benchmarks (5 tabs)
 platform_v2/static/js/archie-time.js        - Timezone formatter

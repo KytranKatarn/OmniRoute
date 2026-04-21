@@ -2716,22 +2716,44 @@
         document.querySelector('.ms-portrait-actions').style.display = '';
     };
 
+    // Normalize a path that may be absolute (starts with /), HTTP(S), or a
+    // legacy relative path (no leading slash) to a browser-usable URL.
+    // Canonical paths stored post-2026-04-20 start with /static/; legacy
+    // ones are just "static/media/..." without the leading slash.
+    function _normalizeStaticPath(p) {
+        if (!p) return '';
+        if (/^https?:\/\//i.test(p)) return p;
+        if (p.charAt(0) === '/') return p;
+        return '/static/' + p;
+    }
+    // Cache-bust identical to the Roster renderer in department-hq.js.
+    function _bustPath(p, ts) {
+        if (!p || !ts) return p;
+        var v = typeof ts === 'string' ? (Date.parse(ts) || ts) : ts;
+        return p + (p.indexOf('?') === -1 ? '?' : '&') + 'v=' + v;
+    }
+
     window.loadPortraitDetail = function(agentId) {
         fetch(API_BASE + '/api/portraits/' + agentId)
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 document.getElementById('ms-portrait-agent-name').textContent = data.display_name;
 
+                // has_portrait is only set by the grid endpoint; derive it
+                // here from canonical_image_path so the badge/buttons work
+                // on the detail page too.
+                var hasPortrait = data.has_portrait || !!data.canonical_image_path;
+
                 var statusBadge = document.getElementById('ms-portrait-status');
-                statusBadge.className = 'ms-status-badge ' + (data.approved ? 'completed' : data.has_portrait ? 'pending' : 'idle');
-                statusBadge.textContent = data.approved ? 'Approved' : 'Pending Approval';
+                statusBadge.className = 'ms-status-badge ' + (data.approved ? 'completed' : hasPortrait ? 'pending' : 'idle');
+                statusBadge.textContent = data.approved ? 'Approved' : hasPortrait ? 'Pending Approval' : 'No Portrait';
 
                 // Canonical image
                 var canonPanel = document.getElementById('ms-canonical-image');
                 _clearChildren(canonPanel);
                 if (data.canonical_image_path) {
                     var img = document.createElement('img');
-                    img.src = '/static/' + data.canonical_image_path;
+                    img.src = _bustPath(_normalizeStaticPath(data.canonical_image_path), data.avatar_updated_at || data.updated_at);
                     img.alt = 'Canonical portrait';
                     canonPanel.appendChild(img);
                 } else {
@@ -2742,7 +2764,7 @@
                 }
 
                 // Show/hide buttons
-                document.getElementById('ms-approve-btn').style.display = (data.canonical_image_path && !data.approved) ? '' : 'none';
+                document.getElementById('ms-approve-btn').style.display = (hasPortrait && !data.approved) ? '' : 'none';
                 document.getElementById('ms-variant-btn').style.display = data.approved ? '' : 'none';
 
                 // Identity prompt
@@ -2757,7 +2779,7 @@
                     item.onclick = function() { showMediaDetail(v.id); };
 
                     var vImg = document.createElement('img');
-                    vImg.src = '/static/' + (v.thumbnail_path || v.file_path);
+                    vImg.src = _normalizeStaticPath(v.thumbnail_path || v.file_path);
                     vImg.alt = 'Variant';
                     vImg.loading = 'lazy';
                     item.appendChild(vImg);

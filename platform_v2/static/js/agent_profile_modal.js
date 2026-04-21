@@ -361,6 +361,10 @@
       'Describe this agent\'s face, uniform, and style. Used by ComfyUI + IP-Adapter.';
     promptTA.value =
       (portrait && (portrait.identity_prompt || portrait.default_identity_prompt)) || '';
+    // Locked by default — must click EDIT to modify. Stash the loaded value
+    // so CANCEL can revert. Same pattern as the Media Studio Portraits tab.
+    promptTA.disabled = true;
+    promptTA.dataset.originalValue = promptTA.value;
     promptWrap.appendChild(promptTA);
     meta.appendChild(promptWrap);
 
@@ -385,9 +389,18 @@
       gen.dataset.action = 'generate-canonical';
       actions.appendChild(gen);
     }
+    // Edit/Save/Cancel triad — locked by default to prevent accidental edits.
+    const editPrompt = el('button', 'apm-btn', 'EDIT PROMPT');
+    editPrompt.dataset.action = 'edit-identity-prompt';
+    actions.appendChild(editPrompt);
     const savePrompt = el('button', 'apm-btn', 'SAVE PROMPT');
     savePrompt.dataset.action = 'save-identity-prompt';
+    savePrompt.style.display = 'none';
     actions.appendChild(savePrompt);
+    const cancelPrompt = el('button', 'apm-btn', 'CANCEL');
+    cancelPrompt.dataset.action = 'cancel-identity-prompt';
+    cancelPrompt.style.display = 'none';
+    actions.appendChild(cancelPrompt);
     meta.appendChild(actions);
 
     // Upload-mode area (hidden by default). Revealed once a file is picked
@@ -433,6 +446,8 @@
       else if (action === 'save') saveHandler(overlay, body);
       else if (action === 'toggle-shift') cycleShift(overlay, body);
       else if (action === 'generate-canonical') generateCanonical(overlay, body);
+      else if (action === 'edit-identity-prompt') editIdentityPrompt(body);
+      else if (action === 'cancel-identity-prompt') cancelIdentityPrompt(body);
       else if (action === 'save-identity-prompt') saveIdentityPrompt(overlay, body);
       else if (action === 'upload-pick') {
         const fi = body.querySelector('[data-portrait-file="1"]');
@@ -625,6 +640,36 @@
     } finally {
       if (btn) btn.disabled = false;
     }
+  }
+
+  // Edit/Save/Cancel pattern for the identity prompt textarea. Default
+  // state is locked (disabled). EDIT unlocks + reveals SAVE/CANCEL.
+  // SAVE persists then re-renders (which re-locks via the default state).
+  // CANCEL reverts to the originally-loaded value and re-locks.
+  function _setPromptLockedUI(body, locked) {
+    const ta = body.querySelector('[data-portrait-prompt="1"]');
+    const editBtn = body.querySelector('[data-action="edit-identity-prompt"]');
+    const saveBtn = body.querySelector('[data-action="save-identity-prompt"]');
+    const cancelBtn = body.querySelector('[data-action="cancel-identity-prompt"]');
+    if (ta) ta.disabled = locked;
+    if (editBtn) editBtn.style.display = locked ? '' : 'none';
+    if (saveBtn) saveBtn.style.display = locked ? 'none' : '';
+    if (cancelBtn) cancelBtn.style.display = locked ? 'none' : '';
+  }
+
+  function editIdentityPrompt(body) {
+    const ta = body.querySelector('[data-portrait-prompt="1"]');
+    if (!ta) return;
+    ta.dataset.originalValue = ta.value;
+    _setPromptLockedUI(body, false);
+    ta.focus();
+  }
+
+  function cancelIdentityPrompt(body) {
+    const ta = body.querySelector('[data-portrait-prompt="1"]');
+    if (!ta) return;
+    ta.value = ta.dataset.originalValue || '';
+    _setPromptLockedUI(body, true);
   }
 
   async function saveIdentityPrompt(overlay, body) {

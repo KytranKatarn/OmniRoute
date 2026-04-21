@@ -122,10 +122,31 @@ def _get_token() -> str:
 
 
 def _get_chat_id() -> str:
-    """Lazy-load chat ID from env if init() was never called."""
+    """Resolve chat ID: cached value → TELEGRAM_CHAT_ID env → telegram_users DB fallback.
+
+    DB fallback picks the first `telegram_users.telegram_id` where `is_authorized=true`,
+    so delivery keeps working even when env drifts. Result is cached for the process.
+    """
     global _default_chat_id
-    if not _default_chat_id:
-        _default_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+    if _default_chat_id:
+        return _default_chat_id
+    _default_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+    if _default_chat_id:
+        return _default_chat_id
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                "SELECT telegram_id FROM telegram_users "
+                "WHERE is_authorized = true ORDER BY id LIMIT 1"
+            )
+            row = cur.fetchone()
+            if row:
+                _default_chat_id = str(row["telegram_id"])
+                logger.info("telegram_service: chat_id resolved from telegram_users fallback")
+    except Exception as exc:
+        logger.debug("telegram_service: DB chat_id fallback failed: %s", exc)
     return _default_chat_id
 
 

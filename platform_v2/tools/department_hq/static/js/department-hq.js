@@ -262,7 +262,7 @@ async function loadOrgChart() {
                           + '<img src="' + esc(bust(d.avatar_url, d.avatar_updated_at)) + '" alt="" loading="lazy"'
                           + ' onerror="this.style.display=\'none\';this.previousElementSibling.style.display=\'flex\'">'
                         : '<span>' + esc(dInitial) + '</span>';
-                    html += '<div class="dhq-org-director dhq-clickable" onclick="openAgentDetail(' + d.id + ')">'
+                    html += '<div class="dhq-org-director dhq-clickable" onclick="openAgentSummary(' + d.id + ')">'
                         + '<div class="dhq-org-director-icon">' + dAvatar + '</div>'
                         + '<div>'
                         + '<div class="dhq-org-director-name">' + esc(d.display_name || d.name) + '</div>'
@@ -280,7 +280,7 @@ async function loadOrgChart() {
                               + '<img src="' + esc(bust(a.avatar_url, a.avatar_updated_at)) + '" alt="" loading="lazy"'
                               + ' onerror="this.style.display=\'none\';this.previousElementSibling.style.display=\'flex\'">'
                             : '<span>' + esc(sInitial) + '</span>';
-                        html += '<div class="dhq-org-agent dhq-clickable" onclick="openAgentDetail(' + a.id + ')">'
+                        html += '<div class="dhq-org-agent dhq-clickable" onclick="openAgentSummary(' + a.id + ')">'
                             + '<span class="dhq-org-staff-avatar">' + sAvatar + '</span>'
                             + '<span class="dhq-org-agent-dot ' + esc(a.shift_state) + '"></span>'
                             + '<span>' + esc(a.display_name || a.name) + '</span>'
@@ -771,6 +771,59 @@ async function loadCreed() {
     } catch (err) {
         setHtml(el, '<div class="dhq-empty">Error loading C.R.E.E.D.: ' + esc(err.message) + '</div>');
     }
+}
+
+// ───────────────────────────────────────────────────────────────
+// Agent Summary Modal — Org Chart compact popup
+// (lighter than openAgentDetail; just the "who, where, contact" facts)
+// ───────────────────────────────────────────────────────────────
+
+async function openAgentSummary(agentId) {
+    var overlay = document.getElementById('agentSummaryOverlay');
+    var body = document.getElementById('agentSummaryBody');
+    overlay.style.display = 'flex';
+    setHtml(body, '<div class="dhq-loading">Loading...</div>');
+
+    try {
+        var data = await api('/api/agent/' + agentId + '/profile');
+        var a = data.agent || {};
+        var bio = (a.bio || '').slice(0, 220);
+        if ((a.bio || '').length > 220) bio += '...';
+        var avatarHtml = a.avatar_url
+            ? '<img src="' + esc(bust(a.avatar_url, a.avatar_updated_at)) + '" alt="avatar" style="width:88px;height:88px;border-radius:50%;object-fit:cover">'
+            : '<div class="dhq-ad-avatar-placeholder" style="width:88px;height:88px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#1a1a2e">&#x1F916;</div>';
+
+        var contactRows = '';
+        if (a.email) contactRows += '<div><strong>Email:</strong> <a href="mailto:' + esc(a.email) + '" style="color:#8b5cf6">' + esc(a.email) + '</a></div>';
+        if (a.phone) contactRows += '<div><strong>Phone:</strong> ' + esc(a.phone) + '</div>';
+        if (!contactRows) contactRows = '<div style="color:var(--dhq-text-dim)">No public contact info.</div>';
+
+        var html = ''
+            + '<div style="display:flex;gap:18px;align-items:flex-start">'
+            +   '<div>' + avatarHtml + '</div>'
+            +   '<div style="flex:1">'
+            +     '<div style="font-size:1.3rem;font-weight:600">' + esc(a.display_name || a.name) + '</div>'
+            +     '<div style="font-size:0.85rem;color:var(--dhq-text-dim);margin-top:2px">' + esc(a.name) + (a.acronym_expansion ? ' &middot; ' + esc(a.acronym_expansion) : '') + '</div>'
+            +     (a.title ? '<div style="margin-top:4px;font-style:italic">' + esc(a.title) + '</div>' : '')
+            +     '<div style="margin-top:8px"><span style="color:' + floorColor(a.floor) + '">' + esc(a.department || '?') + '</span> &middot; ' + esc(a.floor || '?') + ' &middot; ' + shiftBadge(a.shift_state)
+            +       (a.is_department_ai ? ' &middot; <span class="dhq-role-director">DIRECTOR</span>' : '') + '</div>'
+            +   '</div>'
+            + '</div>'
+            + (bio ? '<div style="margin-top:14px;padding:10px;background:rgba(139,92,246,0.06);border-left:2px solid #8b5cf6;border-radius:4px">' + esc(bio) + '</div>' : '')
+            + '<div style="margin-top:14px"><div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;color:var(--dhq-text-dim);margin-bottom:6px">Contact</div>' + contactRows + '</div>'
+            + '<div style="margin-top:18px;display:flex;justify-content:flex-end;gap:8px">'
+            +   '<button class="dhq-btn-sm" onclick="closeAgentSummary()">Close</button>'
+            +   '<button class="dhq-btn-sm dhq-btn-primary" onclick="closeAgentSummary();openAgentDetail(' + agentId + ')">View Full Profile</button>'
+            + '</div>';
+        setHtml(body, html);
+    } catch (err) {
+        setHtml(body, '<div style="color:#f87171">Failed to load: ' + esc(err.message || String(err)) + '</div>');
+    }
+}
+
+function closeAgentSummary(event) {
+    if (event && event.target !== event.currentTarget) return;
+    document.getElementById('agentSummaryOverlay').style.display = 'none';
 }
 
 // ───────────────────────────────────────────────────────────────

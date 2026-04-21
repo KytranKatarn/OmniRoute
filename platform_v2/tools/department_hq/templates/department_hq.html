@@ -1238,6 +1238,28 @@ async function _dhqRejectHire(approvalId, btn) {
     </div>
   </div>
 </div>
+
+<!-- Agent Summary Modal (Org Chart compact popup) -->
+<div class="bm-overlay" id="agentSummaryOverlay" style="display:none" onclick="closeAgentSummary(event)">
+  <div class="bm-shell dhq-agent-summary-modal" style="--bm-accent:#8b5cf6;--bm-accent-rgb:139,92,246;max-width:520px" onclick="event.stopPropagation()">
+    <div class="bm-frame">
+      <div class="bm-frame-elbow-top"></div>
+      <div class="bm-frame-seg"></div>
+      <div class="bm-frame-seg dim"></div>
+      <div class="bm-frame-fill"></div>
+      <div class="bm-frame-elbow-bottom"></div>
+    </div>
+    <div class="bm-content">
+      <div class="bm-header">
+        <div class="dhq-modal-title">Agent Summary</div>
+        <button class="dhq-modal-close" onclick="closeAgentSummary()">&times;</button>
+      </div>
+      <div class="bm-body" id="agentSummaryBody">
+        <div class="dhq-loading">Loading...</div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}

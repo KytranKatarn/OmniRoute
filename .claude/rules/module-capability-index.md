@@ -61,13 +61,14 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 
 ### Department HQ — `department_hq` · `/tools/department-hq` · ✅ · 🟡
 - **Capability**: 12 tabs — Overview, Org Chart, Roster, Work Tracking, Performance, C.R.E.E.D., Social, Devices (actually Identity/Portraits), Dispatch, **Fleet**, Contractors, COMs. Owns dispatcher (`services/department_dispatcher.py` — renamed from bridge_dispatcher per Decision #441), orchestration engine (8-step pipeline), smart_router (11-tier GPU-aware escalation), job_registry (118 jobs across 13 depts). Fleet tab merged Starbase Command + Starship + A.R.M.A.D.A. on 2026-04-08.
-- **Distinctive**: Welfare-gating + replacement hunt (unique vs commodity LLM dispatch).
+- **Distinctive**: Welfare-gating + replacement hunt (unique vs commodity LLM dispatch). **Delegation surface (2026-04-21, Project #276):** external callers hand work via `mcp__archie__delegate_task(capability, reason, ...)` → persists to `unified_tasks` with `delegation_source` → `delegate_task_worker` (30s, max_instances=1) claims ≤3/cycle → routes to known-tool shortcut or dispatcher. **Skill-first routing (2026-04-21, ADR-002, #2217):** coordinator now calls `find_cross_department_agent()` when the home dept has no agent with the capability in their skills. New MCP tools: `propose_hire` (#2124), `delegate_task` (#2207).
 - **Rules**: `department-hq-dispatch.md`, `starbase.md`
 - **Audits**: 3 separate notes
   - Security angle → KB 256837 (#1025, 2026-04-17) — ✅ migration debt, no blockers
   - Core tabs (10 non-fleet/dispatch) → KB 256843 (#1942 part 1, 2026-04-17) — 🟢 Mature
   - Dispatch/Fleet/Jobs → KB 256844 (#1942 part 2, 2026-04-17) — 🟡 Partial (legacy imports, stub installers)
-- **Gaps**: 3 sibling tables not yet agent_service-owned (agent_skills/budgets/creation_events — #2057); 18 legacy ai_bridge.* imports remain (#2058); 5 dispatch_routes stubs (Project #243); MissionManager coupling; CAPABILITY_TAXONOMY hardcoded in smart_router
+  - Delegation + skill-first routing → KB 258687/258688/258693 (2026-04-21) — 🟢 Live, verified end-to-end
+- **Gaps**: 3 sibling tables not yet agent_service-owned (agent_skills/budgets/creation_events — #2057); 18 legacy ai_bridge.* imports remain (#2058); 5 dispatch_routes stubs (Project #243); MissionManager coupling; CAPABILITY_TAXONOMY hardcoded in smart_router; `bridge_jobs` may not persist LLM responses for dispatcher path (unverified — noted in #276 handoff).
 
 ### Consciousness — `consciousness` · `/tools/consciousness` · ✅ · 🟢
 - **Capability**: 5 tabs + Dev HQ subtabs + Code Health. Owns `knowledge_base` (25,874 entries, 99.1% embedded). Embedding/Analysis/Translate/GitHub-ingest loops. 129 routes, 314+ endpoints, 62+ async jobs.

@@ -70,12 +70,27 @@ def get_agent_by_name(name):
 
 
 def list_agents(
-    department=None, floor=None, shift_state=None, skill=None, search=None, is_department_ai=None, limit=200
+    department=None,
+    floor=None,
+    shift_state=None,
+    skill=None,
+    search=None,
+    is_department_ai=None,
+    status="active",
+    limit=200,
 ):
-    """List agents with optional filters. Returns list of dicts."""
+    """List agents with optional filters. Returns list of dicts.
+
+    status defaults to 'active' so decommissioned/inactive agents don't leak
+    into Roster / Org Chart / dispatch call sites. Pass status=None to opt
+    out (e.g. admin audit tooling that needs the full history).
+    """
     conditions = []
     params = []
 
+    if status is not None:
+        conditions.append("a.status = %s")
+        params.append(status)
     if department:
         conditions.append("a.department = %s")
         params.append(department)

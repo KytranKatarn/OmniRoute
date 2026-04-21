@@ -375,3 +375,301 @@ class TestAgentNameConsistency:
             "(e.g. 'H.E.R.I.T.A.G.E.' not 'heritage'). Phase 2 will rename agents.name "
             "to the dotted form, so plain-form references will silently miss their target.\n\n" + "\n".join(failures)
         )
+
+
+# ---------------------------------------------------------------------------
+# Cross-department skill fallback (Project #276 Task #2217)
+# ---------------------------------------------------------------------------
+
+
+class TestCrossDepartmentSkillFallback:
+    """When the resolved home department has zero agents with the requested
+    skill, the coordinator must fall back to a skilled agent in another
+    department instead of picking an unskilled dept-director.
+
+    Found live 2026-04-21: capability='documentation' routed to F.O.R.G.E.
+    (Engineering, no skill) instead of C.O.D.E.X. (Documentation & Knowledge,
+    skill Lv5) because select_agent scored within one department only.
+    """
+
+    def _coord_with_cache(self, agent_cache, welfare_cache=None):
+        from services.department_coordinator import DepartmentCoordinator
+
+        coord = DepartmentCoordinator.__new__(DepartmentCoordinator)
+        coord._agent_cache = agent_cache
+        coord._welfare_cache = welfare_cache or {}
+        coord._cache_time = float("inf")
+        coord._reserved_agents = set()
+        import threading
+
+        coord._lock = threading.Lock()
+        return coord
+
+    def test_capability_documentation_is_mapped_to_documentation_dept(self):
+        """CAPABILITY_DEPARTMENT_MAP must resolve doc-family capabilities."""
+        from services.department_coordinator import CAPABILITY_DEPARTMENT_MAP
+
+        assert CAPABILITY_DEPARTMENT_MAP.get("documentation") == "Documentation & Knowledge"
+        assert CAPABILITY_DEPARTMENT_MAP.get("consolidation_research") == "Documentation & Knowledge"
+        assert CAPABILITY_DEPARTMENT_MAP.get("module_audit") == "Documentation & Knowledge"
+
+    def test_unskilled_director_loses_to_skilled_agent_in_other_dept(self):
+        """F.O.R.G.E. (Engineering, no doc skill) must lose to
+        C.O.D.E.X. (Documentation & Knowledge, doc skill Lv5) when the
+        caller passes department='Engineering & Technology' but nobody
+        in Engineering has the skill. This is the regression for #2217.
+        """
+        _, forge_info = _make_agent(
+            name="F.O.R.G.E.",
+            department="Engineering & Technology",
+            skills={"code": 5, "debug": 5},  # no 'documentation'
+            is_department_ai=True,
+            agent_id=136,
+        )
+        _, codex_info = _make_agent(
+            name="C.O.D.E.X.",
+            department="Documentation & Knowledge",
+            skills={"documentation": 5, "summarize": 4},
+            is_department_ai=True,
+            agent_id=146,
+        )
+        coord = self._coord_with_cache(
+            {
+                "F.O.R.G.E.": forge_info,
+                "C.O.D.E.X.": codex_info,
+            }
+        )
+
+        selected = coord.select_agent(
+            capability="documentation",
+            department="Engineering & Technology",
+        )
+        assert selected is not None
+        assert (
+            selected["name"] == "C.O.D.E.X."
+        ), f"expected cross-dept fallback to C.O.D.E.X., got {selected.get('name')}"
+
+    def test_skilled_home_dept_agent_still_wins_over_cross_dept(self):
+        """Fallback must NOT fire when the home dept has a skilled agent."""
+        _, forge_info = _make_agent(
+            name="F.O.R.G.E.",
+            department="Engineering & Technology",
+            skills={"code": 5, "code_review": 5},
+            is_department_ai=True,
+            agent_id=136,
+        )
+        _, probe_info = _make_agent(
+            name="P.R.O.B.E.",
+            department="Engineering & Technology",
+            skills={"code_review": 4},
+            is_department_ai=False,
+            agent_id=137,
+        )
+        _, codex_info = _make_agent(
+            name="C.O.D.E.X.",
+            department="Documentation & Knowledge",
+            skills={"code_review": 3},
+            is_department_ai=True,
+            agent_id=146,
+        )
+        coord = self._coord_with_cache(
+            {
+                "F.O.R.G.E.": forge_info,
+                "P.R.O.B.E.": probe_info,
+                "C.O.D.E.X.": codex_info,
+            }
+        )
+
+        selected = coord.select_agent(
+            capability="code_review",
+            department="Engineering & Technology",
+        )
+        assert selected is not None
+        assert selected["department"] == "Engineering & Technology"
+
+    def test_resolve_department_still_uses_map_when_capability_known(self):
+        from services.department_coordinator import DepartmentCoordinator
+
+        coord = DepartmentCoordinator.__new__(DepartmentCoordinator)
+        assert coord.resolve_department("documentation") == "Documentation & Knowledge"
+        assert coord.resolve_department("code") == "Engineering & Technology"
+        # Unknown capabilities still default to Engineering (legacy behavior);
+        # the select_agent-layer fallback compensates by cross-dept routing.
+        assert coord.resolve_department("totally_made_up_capability") == "Engineering & Technology"
+
+
+# ---------------------------------------------------------------------------
+# Multi-agent multi-skill dispatch coverage (Project #276 Task #2217)
+# ---------------------------------------------------------------------------
+#
+# Verifies routing across the full director roster — not just the C.O.D.E.X. /
+# documentation case. Each director lives in their home department with
+# domain skills; dispatch for every mapped capability should pick the right
+# director (or a skilled specialist if present).
+
+
+_FULL_ROSTER = {
+    # (name, department, skills, is_department_ai, agent_id)
+    "F.O.R.G.E.": (
+        "Engineering & Technology",
+        {"code": 5, "code_review": 5, "debug": 5, "code_generation": 4},
+        True,
+        136,
+    ),
+    "V.I.G.I.L.": ("Security & Compliance", {"security": 5, "compliance": 5}, True, 200),
+    "D.A.R.W.I.N.": ("Research & Development", {"research": 5, "research_synthesis": 4}, True, 201),
+    "M.U.S.E.": ("Creative & Design", {"creative": 5, "image_generation": 4, "visual_design": 4}, True, 202),
+    "P.I.X.E.L.": (
+        "Creative & Design",
+        {"vision": 5, "ux_scoring": 4, "image_generation": 5, "multimodal": 4},
+        False,
+        203,
+    ),
+    "S.I.G.N.A.L.": ("Marketing & Communications", {"creative_writing": 3}, True, 204),
+    "C.O.D.E.X.": (
+        "Documentation & Knowledge",
+        {
+            "documentation": 5,
+            "summarize": 4,
+            "translate": 5,
+            "embedding": 3,
+            "knowledge_analysis": 4,
+            "module_audit": 3,
+            "consolidation_research": 4,
+            "summarization": 4,
+        },
+        True,
+        146,
+    ),
+    "R.E.S.O.L.V.E.": ("Customer Success & Support", {"support": 5}, True, 205),
+    "K.I.N.": ("Human Resources & Culture", {"welfare": 5}, True, 206),
+    "V.I.T.A.L.": ("Medical & Wellness", {"medical": 5}, True, 207),
+    "G.A.V.E.L.": ("Legal & Regulatory", {"legal": 5, "documentation": 4}, True, 208),
+    "A.C.C.O.R.D.": ("Diplomatic & External Relations", {"diplomatic": 5}, True, 209),
+    "S.P.E.C.T.R.A.": ("Analytics & Intelligence", {"classify": 5, "analyze": 5, "knowledge_analysis": 5}, True, 210),
+    "F.A.C.T.": ("News & Media", {"news": 5}, True, 211),
+    "B.A.S.E.": ("Operations & Infrastructure", {"infrastructure": 5}, True, 212),
+    "C.A.R.G.O.": ("Logistics & Supply Chain", {"logistics": 5}, True, 213),
+    "L.E.D.G.E.R.": ("Finance & Accounting", {"finance": 5}, True, 214),
+}
+
+
+def _roster_cache():
+    """Build an agent_cache with the full 17-director roster."""
+    cache = {}
+    for name, (dept, skills, is_ai, agent_id) in _FULL_ROSTER.items():
+        _, info = _make_agent(
+            name=name,
+            department=dept,
+            skills=skills,
+            is_department_ai=is_ai,
+            agent_id=agent_id,
+        )
+        cache[name] = info
+    return cache
+
+
+class TestMultiAgentDispatchCoverage:
+    """Full-roster dispatch coverage — each mapped capability must reach the
+    right director (or at minimum, an agent in the right department with
+    the matching skill)."""
+
+    def _coord(self):
+        from services.department_coordinator import DepartmentCoordinator
+
+        coord = DepartmentCoordinator.__new__(DepartmentCoordinator)
+        coord._agent_cache = _roster_cache()
+        coord._welfare_cache = {}
+        coord._cache_time = float("inf")
+        coord._reserved_agents = set()
+        import threading
+
+        coord._lock = threading.Lock()
+        return coord
+
+    # Every entry in CAPABILITY_DEPARTMENT_MAP should resolve to a department
+    # that has at least one active agent in our roster. This catches
+    # accidental deletions or typos in the map.
+    def test_every_mapped_capability_has_a_department_in_roster(self):
+        from services.department_coordinator import CAPABILITY_DEPARTMENT_MAP
+
+        roster_departments = {info[0] for info in _FULL_ROSTER.values()}
+        missing = []
+        for capability, dept in CAPABILITY_DEPARTMENT_MAP.items():
+            if dept not in roster_departments:
+                missing.append(f"{capability} → {dept}")
+        assert not missing, (
+            f"CAPABILITY_DEPARTMENT_MAP references departments not in the " f"roster test fixture: {missing}"
+        )
+
+    # These are the capability → expected agent selections that the real
+    # routing must produce. If any regresses, one of the canonical flows
+    # is broken.
+    _CAPABILITY_EXPECTATIONS = [
+        # (capability, caller_dept, expected_agent)
+        ("documentation", "Engineering & Technology", "C.O.D.E.X."),
+        ("consolidation_research", "Engineering & Technology", "C.O.D.E.X."),
+        ("module_audit", "Engineering & Technology", "C.O.D.E.X."),
+        ("translate", "Engineering & Technology", "C.O.D.E.X."),
+        ("summarize", "Engineering & Technology", "C.O.D.E.X."),
+        ("knowledge_analysis", "Creative & Design", "S.P.E.C.T.R.A."),
+        ("classify", "Engineering & Technology", "S.P.E.C.T.R.A."),
+        ("analyze", "Documentation & Knowledge", "S.P.E.C.T.R.A."),
+        ("security", "Engineering & Technology", "V.I.G.I.L."),
+        ("compliance", "Engineering & Technology", "V.I.G.I.L."),
+        ("research", "Engineering & Technology", "D.A.R.W.I.N."),
+        ("research_synthesis", "Documentation & Knowledge", "D.A.R.W.I.N."),
+        ("visual_design", "Engineering & Technology", "M.U.S.E."),
+        # When multiple agents in the home dept have the skill, home wins:
+        ("code", "Engineering & Technology", "F.O.R.G.E."),
+        ("debug", "Engineering & Technology", "F.O.R.G.E."),
+        ("support", "Engineering & Technology", "R.E.S.O.L.V.E."),
+    ]
+
+    @pytest.mark.parametrize("capability,caller_dept,expected_agent", _CAPABILITY_EXPECTATIONS)
+    def test_dispatch_reaches_the_right_agent(self, capability, caller_dept, expected_agent):
+        coord = self._coord()
+        selected = coord.select_agent(capability=capability, department=caller_dept)
+        assert selected is not None, (
+            f"capability={capability!r} caller_dept={caller_dept!r}: "
+            f"coordinator returned None — expected {expected_agent}"
+        )
+        assert selected["name"] == expected_agent, (
+            f"capability={capability!r} caller_dept={caller_dept!r}: "
+            f"expected {expected_agent} but got {selected['name']} "
+            f"(dept={selected.get('department')})"
+        )
+
+    def test_pixel_preferred_over_muse_for_vision(self):
+        """Within Creative & Design, skilled specialist (P.I.X.E.L. with
+        vision Lv5) should beat the director (M.U.S.E., no vision skill)."""
+        coord = self._coord()
+        selected = coord.select_agent(capability="vision", department="Creative & Design")
+        assert selected is not None
+        assert selected["name"] == "P.I.X.E.L.", (
+            f"P.I.X.E.L. Lv5 vision must beat M.U.S.E. (no vision skill); " f"got {selected.get('name')}"
+        )
+
+    def test_codex_wins_documentation_over_gavel_despite_both_having_skill(self):
+        """C.O.D.E.X. (Doc&K director, Lv5) beats G.A.V.E.L. (Legal, Lv4 doc skill)
+        because Documentation & Knowledge is the mapped home department."""
+        coord = self._coord()
+        selected = coord.select_agent(
+            capability="documentation",
+            department="Documentation & Knowledge",  # correct home dept
+        )
+        assert selected is not None
+        assert selected["name"] == "C.O.D.E.X."
+
+    def test_unmapped_capability_with_no_skilled_agent_picks_home_best(self):
+        """Truly unknown capability, nobody has the skill anywhere — the
+        home-dept best (F.O.R.G.E. default) is acceptable as the fallback
+        of last resort."""
+        coord = self._coord()
+        selected = coord.select_agent(
+            capability="totally_made_up_capability_xyz",
+            department="Engineering & Technology",
+        )
+        assert selected is not None
+        # Some Engineering agent picked — F.O.R.G.E. in this roster
+        assert selected["department"] == "Engineering & Technology"

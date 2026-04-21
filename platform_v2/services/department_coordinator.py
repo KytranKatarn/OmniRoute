@@ -50,7 +50,16 @@ CAPABILITY_DEPARTMENT_MAP = {
     "classify": "Analytics & Intelligence",
     "analyze": "Analytics & Intelligence",
     "knowledge_analysis": "Analytics & Intelligence",
+    # Documentation & Knowledge (C.O.D.E.X. department) — 2026-04-21 fix
+    # for Project #276 Task #2217. "documentation" was missing and unknown
+    # capabilities defaulted to Engineering, routing doc/research work to
+    # F.O.R.G.E. instead of C.O.D.E.X. (who has documentation Lv5).
+    "documentation": "Documentation & Knowledge",
+    "consolidation_research": "Documentation & Knowledge",
+    "document_audit": "Documentation & Knowledge",
+    "module_audit": "Documentation & Knowledge",
     "summarize": "Documentation & Knowledge",
+    "summarization": "Documentation & Knowledge",
     "translate": "Documentation & Knowledge",
     "embedding": "Documentation & Knowledge",
     "creative": "Creative & Design",
@@ -67,6 +76,7 @@ CAPABILITY_DEPARTMENT_MAP = {
     "compliance": "Security & Compliance",
     "support": "Customer Success & Support",
     "research": "Research & Development",
+    "research_synthesis": "Research & Development",
 }
 
 
@@ -326,10 +336,49 @@ class DepartmentCoordinator:
             woken = self._wake_barracked_specialist(capability, department)
             if woken:
                 return woken
-            return None
+            # Cross-department skill fallback (Project #276 Task #2217).
+            # Nobody in the home dept (active or barracked) qualifies;
+            # search every other dept for a skilled agent before giving up.
+            cross = self.find_cross_department_agent(capability, blocked_department=department)
+            if cross:
+                logger.info(
+                    "coordinator: no skilled agent in %s for '%s', routed cross-dept to %s (%s)",
+                    department,
+                    capability,
+                    cross.get("name", "unknown"),
+                    cross.get("department", "unknown"),
+                )
+            return cross
 
+        # Cross-department skill fallback (Project #276 Task #2217) —
+        # when capability → department resolution was wrong (e.g. unknown
+        # capability defaulted to Engineering), the home-dept candidate
+        # may have won by welfare + director bonuses alone WITHOUT any
+        # skill match. Before confirming, check whether the best candidate
+        # actually has the skill; if nobody here does, prefer a skilled
+        # agent in another dept.
         candidates.sort(key=lambda x: x[0], reverse=True)
         best_score, best_name, best_info = candidates[0]
+
+        nobody_here_has_skill = capability and not any(
+            capability in info.get("skills", {}) for _, _, info in candidates
+        )
+        if nobody_here_has_skill:
+            cross = self.find_cross_department_agent(capability, blocked_department=department)
+            if cross:
+                logger.info(
+                    "coordinator: no skilled agent in %s for '%s' (best was %s, "
+                    "score=%.2f, no skill match) — routed cross-dept to %s (%s)",
+                    department,
+                    capability,
+                    best_name,
+                    best_score,
+                    cross.get("name", "unknown"),
+                    cross.get("department", "unknown"),
+                )
+                return cross
+            # Fall through — nobody anywhere has the skill, stick with best.
+
         logger.info(
             "coordinator: selected %s (score=%.2f) for %s in %s",
             best_name,

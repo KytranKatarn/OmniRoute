@@ -26,6 +26,9 @@ services:
   jellyfin:
     image: jellyfin/jellyfin:10.11
     container_name: media_jellyfin
+    dns:
+      - 192.168.1.200
+      - 1.1.1.1
     environment:
       - PUID=1000
       - PGID=1000
@@ -50,6 +53,9 @@ services:
   sonarr:
     image: lscr.io/linuxserver/sonarr:4.0.17
     container_name: media_sonarr
+    dns:
+      - 192.168.1.200
+      - 1.1.1.1
     environment:
       - PUID=1000
       - PGID=1000
@@ -70,6 +76,9 @@ services:
   radarr:
     image: lscr.io/linuxserver/radarr:6.1.1
     container_name: media_radarr
+    dns:
+      - 192.168.1.200
+      - 1.1.1.1
     environment:
       - PUID=1000
       - PGID=1000
@@ -90,6 +99,9 @@ services:
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:2.3.5
     container_name: media_prowlarr
+    dns:
+      - 192.168.1.200
+      - 1.1.1.1
     environment:
       - PUID=1000
       - PGID=1000
@@ -108,6 +120,9 @@ services:
   overseerr:
     image: lscr.io/linuxserver/overseerr:1.35.0
     container_name: media_overseerr
+    dns:
+      - 192.168.1.200
+      - 1.1.1.1
     environment:
       - PUID=1000
       - PGID=1000
@@ -126,6 +141,9 @@ services:
   sabnzbd:
     image: lscr.io/linuxserver/sabnzbd:4.5.5
     container_name: media_sabnzbd
+    dns:
+      - 192.168.1.200
+      - 1.1.1.1
     environment:
       - PUID=1000
       - PGID=1000

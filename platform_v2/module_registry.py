@@ -884,7 +884,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="kytran_gov_watch",
         name="Kytran Gov Watch",
-        description="Government tender intelligence<br>P.R.O.C.U.R.E. agent • Live tenders • Bid analytics",
+        description="Government tender intelligence<br>P.R.O.C.U.R.E. agent (Analytics &amp; Intelligence) • Live tenders • RFP analysis • Personalized bids",
         icon="landmark",
         category=ModuleCategory.MEDIA_OUTREACH,
         route="/external/gov",

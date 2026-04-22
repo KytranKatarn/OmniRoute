@@ -50,6 +50,18 @@ CAPABILITY_DEPARTMENT_MAP = {
     "classify": "Analytics & Intelligence",
     "analyze": "Analytics & Intelligence",
     "knowledge_analysis": "Analytics & Intelligence",
+    # P.R.O.C.U.R.E. — Procurement intelligence for Canadian SMBs bidding on
+    # CanadaBuys federal tenders. Analytics & Intelligence (alongside
+    # S.P.E.C.T.R.A. + W.A.T.C.H.) — procurement is intelligence work.
+    # Supersedes ADR-006. Competitive intel: KB #258941.
+    "tender_match": "Analytics & Intelligence",
+    "tender_summarize": "Analytics & Intelligence",
+    "bid_draft": "Analytics & Intelligence",
+    "naics_mapping": "Analytics & Intelligence",
+    "deadline_alert": "Analytics & Intelligence",
+    "award_history_analysis": "Analytics & Intelligence",
+    "sosa_navigation": "Analytics & Intelligence",
+    "supplier_profile": "Analytics & Intelligence",
     # Documentation & Knowledge (C.O.D.E.X. department) — 2026-04-21 fix
     # for Project #276 Task #2217. "documentation" was missing and unknown
     # capabilities defaulted to Engineering, routing doc/research work to

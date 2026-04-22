@@ -2201,6 +2201,13 @@ from maven_dispatch import maven_dispatch_bp  # noqa: E402
 
 app.register_blueprint(maven_dispatch_bp)
 
+# Procure dispatch — /api/procure/dispatch is the hub-side surface for the
+# Gov Watch standalone's P.R.O.C.U.R.E. surface. Same Bridge-routed pattern
+# as Maven. Project #203 Phase 1 (supersedes ADR-006). Backed by agent #349.
+from procure_dispatch import procure_dispatch_bp  # noqa: E402
+
+app.register_blueprint(procure_dispatch_bp)
+
 # Standalone Product API — compliance report receiver
 from api_standalone import init_standalone_api  # noqa: E402
 

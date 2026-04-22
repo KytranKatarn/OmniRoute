@@ -208,6 +208,11 @@ These are standalone products surfaced as modules with `/external/` routes. All 
 
 ### Kytran Gov Watch — `kytran_gov_watch` · `/external/gov` · ✅
 - **Deployment**: VPS, port 8102, gov.kytranempowerment.com
+- **Capability**: Canadian federal tender intelligence. CanadaBuys + PSPC/CRA feed ingest (`CanadaBuysFeed` in `feeds.py`), filtered browse by department/trade/province/value/deadline, saved supplier profiles (email + trades[] + provinces[] + value range), AI tender analysis + bid drafting, deadline alerts, KBS CRM opportunity push. 21 endpoints, Kytran SSO (dual-auth), shared Postgres in `gov_watch` schema.
+- **Distinguishing**: **P.R.O.C.U.R.E. agent** (agent #349, Analytics & Intelligence, `qwen2.5:7b`) — beats the federal government's own Procura chatbot by personalizing to the supplier profile, extracting RFP criteria as checklists, and refusing to deflect users to phone lines. Hub-side dispatch surface: `POST /api/procure/dispatch` (JWT bearer → Bridge). Persona auto-loaded from `agents.system_prompt` so every response opens with "Procure here." See KB #258941 (Procura competitive intel), Project #203.
+- **Skills**: tender_match Lv5, tender_summarize Lv5, bid_draft Lv4, naics_mapping Lv4, deadline_alert Lv3, award_history_analysis Lv3, sosa_navigation Lv3, supplier_profile Lv3. All 8 mapped to Analytics &amp; Intelligence in `CAPABILITY_DEPARTMENT_MAP`.
+- **Source**: `/mnt/standalone/kytran-gov-watch/` (the `/mnt/archie_brain/kytran-gov-watch/` path is empty — do not edit there).
+- **Gaps / Phase 2**: `/procure` conversational surface on Gov Watch, RFP PDF → criteria extractor, extended profile schema (NAICS, certs, Indigenous/women/minority-owned flags), procure_bids pipeline table, existing AI routes migrated to hub dispatch.
 
 ### Kytran Market Watch — `kytran_market_watch` · `/external/market` · ✅
 - **Deployment**: VPS, port 8101, market.kytranempowerment.com

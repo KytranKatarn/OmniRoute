@@ -74,6 +74,27 @@ else
   say "skipping thumbnail regen (--no-thumb)"
 fi
 
+# ───── 1b. sweep thumbs staged by approve_canonical ────────────────────
+# The Flask container mounts the website dir read-only, so
+# portrait_service._sync_website_thumb writes under
+# platform_v2/static/media/thumbs/ when called from inside the container.
+# Mirror those into the website repo here so they ship on the next deploy.
+STAGING_DIR="$REPO_ROOT/platform_v2/static/media/thumbs"
+DST_PORTRAIT_DIR="$SRC_SITE/assets/portraits"
+if [ -d "$STAGING_DIR" ] && [ -n "$(ls -A "$STAGING_DIR" 2>/dev/null)" ]; then
+  staged_count=$(find "$STAGING_DIR" -maxdepth 1 -name '*.jpg' | wc -l)
+  say "sweeping $staged_count staged thumb(s) from $STAGING_DIR → $DST_PORTRAIT_DIR"
+  if [ "$DRY_RUN" = "1" ]; then
+    find "$STAGING_DIR" -maxdepth 1 -name '*.jpg' -print | head -5
+    say "  would cp -u $STAGING_DIR/*.jpg $DST_PORTRAIT_DIR/"
+  else
+    mkdir -p "$DST_PORTRAIT_DIR"
+    # -u only copies if source is newer; -p preserves mtimes so the next
+    # generate_portrait_thumbnails run doesn't rewrite them.
+    cp -up "$STAGING_DIR"/*.jpg "$DST_PORTRAIT_DIR"/
+  fi
+fi
+
 # ───── 2. rsync archie_brain → standalone (skipped if symlinked) ────────
 # If $DST_SITE resolves to the same canonical path as $SRC_SITE (because
 # /mnt/standalone/websites/<domain> is now a symlink to the archie_brain

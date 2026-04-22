@@ -28,6 +28,95 @@ _PLATFORM_DIR = os.path.abspath(os.path.join(_THIS_DIR, "..", "..", ".."))
 MEDIA_ROOT = os.path.join(_PLATFORM_DIR, "static", "media")
 PORTRAITS_DIR = os.path.join(MEDIA_ROOT, "portraits")
 
+# Website thumbs — public-facing 400x400 JPEGs that the directory page
+# loads same-origin from Hostinger. Mirrors `scripts/generate_portrait_thumbnails.py`
+# (kept for batch backfills); approve_canonical invokes the inline helper
+# below so approval produces the website-visible thumb in one step.
+#
+# Constraint: archie_platform container mounts /mnt/archie_brain/website
+# as read-only (see docker-compose.yml). When the direct path isn't
+# writable we fall through to a hub-local staging tree
+# (/app/static/media/thumbs) which publish_website.sh syncs on deploy.
+# The website copy is the authoritative one consumed by the directory
+# page; the staging copy exists so the hub side of the flow always
+# succeeds even if the container is sandboxed.
+WEBSITE_THUMB_PRIMARY = os.getenv(
+    "PORTRAIT_WEBSITE_THUMB_DIR",
+    "/mnt/archie_brain/website/kytranempowerment.com/assets/portraits",
+)
+WEBSITE_THUMB_STAGING = os.path.join(_PLATFORM_DIR, "static", "media", "thumbs")
+WEBSITE_THUMB_SIZE = (400, 400)
+WEBSITE_THUMB_JPEG_QUALITY = 82
+
+
+def _sync_website_thumb(canonical_db_path: str) -> Optional[str]:
+    """Generate the public 400x400 JPEG thumb for the website repo.
+
+    Accepts the canonical_image_path stored in agent_portraits (a URL-style
+    path starting with ``/static/…``) and writes the thumb to the website
+    assets tree when writable, otherwise stages it under the hub's static
+    tree. Returns the path written on success or None on failure — the
+    helper never raises so approve_canonical stays resilient if Pillow or
+    either target is unavailable.
+    """
+    try:
+        from PIL import Image  # lazy import — media_studio already depends on Pillow
+    except Exception:
+        logger.warning("PIL not available — skipping website thumb sync")
+        return None
+
+    if not canonical_db_path:
+        return None
+
+    # /static/media/images/2026-04-22/e64da74f-03e.png  →  /app/static/media/images/2026-04-22/e64da74f-03e.png
+    rel = canonical_db_path.lstrip("/")
+    src_fs = os.path.join(_PLATFORM_DIR, rel) if rel.startswith("static/") else canonical_db_path
+    if not os.path.isfile(src_fs):
+        logger.warning("website thumb source missing: %s", src_fs)
+        return None
+
+    stem = os.path.splitext(os.path.basename(src_fs))[0]
+
+    # Try primary (website repo) first, fall back to staging if RO.
+    for target_dir, label in (
+        (WEBSITE_THUMB_PRIMARY, "website"),
+        (WEBSITE_THUMB_STAGING, "hub-staging"),
+    ):
+        try:
+            os.makedirs(target_dir, exist_ok=True)
+        except Exception as exc:
+            logger.warning("cannot ensure %s thumb dir %s: %s", label, target_dir, exc)
+            continue
+        dst = os.path.join(target_dir, f"{stem}.jpg")
+        try:
+            with Image.open(src_fs) as im:
+                if im.mode in ("RGBA", "LA"):
+                    bg = Image.new("RGB", im.size, (255, 255, 255))
+                    bg.paste(im, mask=im.split()[-1])
+                    im = bg
+                else:
+                    im = im.convert("RGB")
+                im.thumbnail(WEBSITE_THUMB_SIZE, Image.LANCZOS)
+                im.save(
+                    dst,
+                    "JPEG",
+                    quality=WEBSITE_THUMB_JPEG_QUALITY,
+                    optimize=True,
+                    progressive=True,
+                )
+            logger.info("website thumb written (%s): %s", label, dst)
+            return dst
+        except PermissionError:
+            logger.info("%s thumb dir read-only, falling through: %s", label, target_dir)
+            continue
+        except Exception as exc:
+            logger.warning("website thumb generation failed at %s: %s", dst, exc)
+            continue
+
+    logger.warning("could not write website thumb for %s to any target", stem)
+    return None
+
+
 # Import diversity map from existing portrait generator
 try:
     from ai_bridge.portrait_generator import AGENT_DIVERSITY
@@ -269,7 +358,17 @@ def approve_canonical(agent_id: int, media_id: int) -> Dict:
     # canonical mutation surface (Project #241 Track C.1).
     agent_service.update_agent(agent_id, avatar_url=thumb)
 
-    return {"status": "approved", "agent_id": agent_id, "media_id": media_id}
+    # Publish a 400x400 JPEG thumb to the kytranempowerment.com website
+    # repo so the public directory page can render same-origin. Best-effort
+    # — a thumb-gen failure must NOT fail the approval.
+    website_thumb = _sync_website_thumb(file_path)
+
+    return {
+        "status": "approved",
+        "agent_id": agent_id,
+        "media_id": media_id,
+        "website_thumb": website_thumb,
+    }
 
 
 def describe_portrait(image_source: str) -> Dict:

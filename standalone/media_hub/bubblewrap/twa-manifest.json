@@ -1,0 +1,34 @@
+{
+  "_comment_": "Bubblewrap TWA manifest template for Media Hub. Build with: `npx @bubblewrap/cli@latest init --manifest=https://media.kytranempowerment.com/static/manifest.json`. Then copy this file over the generated twa-manifest.json to keep our package id, names, and shortcut intents consistent across rebuilds.",
+  "packageId": "com.kytranempowerment.mediahub",
+  "host": "media.kytranempowerment.com",
+  "name": "Kytran Media Hub",
+  "launcherName": "Media Hub",
+  "display": "standalone",
+  "themeColor": "#0f172a",
+  "themeColorDark": "#0f172a",
+  "navigationColor": "#0a0f1c",
+  "navigationColorDark": "#0a0f1c",
+  "backgroundColor": "#0a0f1c",
+  "enableNotifications": false,
+  "startUrl": "/",
+  "iconUrl": "https://media.kytranempowerment.com/static/icons/kytran-ram-512.png",
+  "maskableIconUrl": "https://media.kytranempowerment.com/static/icons/kytran-ram-512-maskable.png",
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://media.kytranempowerment.com/static/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {
+    "playBilling": { "enabled": false }
+  },
+  "alphaDependencies": { "enabled": false },
+  "enableSiteSettingsShortcut": false,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "minSdkVersion": 21,
+  "orientation": "default",
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "android"
+  }
+}

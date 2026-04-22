@@ -9,6 +9,7 @@
     <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/kytran-logo.png') }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='icons/apple-touch-icon-180.png') }}">
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tv-mode.css') }}">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Media Hub">
@@ -256,6 +257,22 @@
         </div>
     </section>
 
+    <script>
+        // TV-mode auto-activate. Trigger when either:
+        //   (a) URL has ?tv=1 — manual override, useful for TV-sized browsers
+        //       that don't report pointer: coarse (e.g., Fire TV Silk on
+        //       certain generations).
+        //   (b) User-agent matches a known TV signature — Fire TV ("AFT" /
+        //       "Silk" / "BRAVIA" / "Android TV"). The CSS @media query
+        //       catches most cases via pointer: coarse + large viewport but
+        //       some Fire TV builds lie about pointer type.
+        (function () {
+            var ua = navigator.userAgent || "";
+            var isTv = /\?|&tv=1/.test(location.search)
+                    || /AFT[A-Z0-9]+|BRAVIA|Android TV|GoogleTV|SMART-TV|Tizen|Web0S|WebOS|Roku/i.test(ua);
+            if (isTv) document.body.classList.add("tv-mode");
+        })();
+    </script>
     <footer class="site">
         <div class="attr">
             <img src="{{ url_for('static', filename='img/kytran-logo.png') }}" alt="">

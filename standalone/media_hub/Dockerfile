@@ -32,6 +32,7 @@ COPY standalone/media_hub/auth_routes.py /app/auth_routes.py
 COPY standalone/media_hub/kytran_auth.py /app/kytran_auth.py
 COPY standalone/media_hub/users.py       /app/users.py
 COPY standalone/media_hub/user_routes.py /app/user_routes.py
+COPY standalone/media_hub/health_observer.py /app/health_observer.py
 COPY standalone/media_hub/templates/     /app/templates/
 COPY standalone/media_hub/scripts/       /app/scripts/
 
@@ -66,9 +67,12 @@ COPY platform_v2/static/icons/                 /app/static/icons/
 # Standalone brand assets (Kytran ram logo + any landing imagery).
 # Standalone manifest + icons overlay the platform ones copied above — PWA
 # installer shows the ram logo instead of the platform media-hub-*.png icons.
+# tv-mode.css adds 10-foot UI polish for Fire TV / Android TV (auto-activates
+# via @media pointer: coarse + large viewport, or manual body.tv-mode class).
 COPY standalone/media_hub/static/img/          /app/static/img/
 COPY standalone/media_hub/static/icons/        /app/static/icons/
 COPY standalone/media_hub/static/manifest.json /app/static/manifest.json
+COPY standalone/media_hub/static/css/tv-mode.css /app/static/css/tv-mode.css
 
 # The Media Hub module itself — this is the whole product
 COPY platform_v2/tools/media_hub/ /app/tools/media_hub/

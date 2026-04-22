@@ -125,6 +125,17 @@ def create_app() -> Flask:
     def _inject_standalone_flag():
         return {"standalone": True}
 
+    # Scheduled health observers (project #279 tasks #2243, #2244). APScheduler
+    # runs in-process alongside gunicorn. Opt-out: MEDIA_HUB_DISABLE_OBSERVERS=1.
+    # Catches the "row says healthy 2 days ago but service actually died" trap
+    # that let Prowlarr go blind against NZBgeek for 7 days.
+    if os.environ.get("MEDIA_HUB_DISABLE_OBSERVERS", "").lower() not in ("1", "true"):
+        try:
+            from health_observer import start_scheduler  # noqa: E402
+            start_scheduler()
+        except Exception as e:
+            log.warning("health observer scheduler failed to start: %s", e)
+
     # Gate /login after registration. Flask stores the dispatch target in
     # app.view_functions — decorating with limiter.limit returns a new fn,
     # so we have to reassign it back or the limit never fires.
@@ -190,6 +201,29 @@ def create_app() -> Flask:
     @app.route("/health")
     def health():
         return {"status": "ok", "mode": "standalone", "product": "media_hub"}, 200
+
+    # Digital Asset Links — Fire TV / Android TV TWA trust binding.
+    # ANDROID_APK_PACKAGE defaults to the Bubblewrap package id; SHA-256
+    # fingerprints come from the signing keystore (see bubblewrap/README).
+    # Comma-separate multiple fingerprints for keystore rotation.
+    @app.route("/.well-known/assetlinks.json")
+    def assetlinks():
+        fps = os.environ.get("ANDROID_APK_FINGERPRINTS", "").strip()
+        pkg = os.environ.get("ANDROID_APK_PACKAGE", "com.kytranempowerment.mediahub")
+        if not fps:
+            # Empty array is valid JSON — means no TWA apps trusted yet. Allows
+            # us to publish this route before the first APK ships.
+            return jsonify([]), 200
+        return jsonify([{
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+                "namespace": "android_app",
+                "package_name": pkg,
+                "sha256_cert_fingerprints": [
+                    fp.strip() for fp in fps.split(",") if fp.strip()
+                ],
+            },
+        }]), 200
 
     # Platform-only API stubs — media-hub.js probes these on every page load.
     # Returning empty JSON (200) is cleaner than letting the JS fetch land a 404

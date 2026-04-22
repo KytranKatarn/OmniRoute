@@ -1,0 +1,83 @@
+/* Media Hub — TV / 10-foot UI layer.
+ *
+ * Activation
+ * ----------
+ *   1. Automatic via @media — coarse pointer + large viewport. Fire TV and
+ *      Android TV typically report a coarse pointer (D-pad) and a viewport
+ *      >= 1280×720. We match both so desktop touchscreens with fine mice
+ *      don't get upgraded accidentally.
+ *   2. Manual via `?tv=1` URL param — landing.html flips a body.tv-mode
+ *      class, which this stylesheet also targets for explicit override.
+ *
+ * Scope
+ * -----
+ *   Only the public landing + login for now. The authenticated media_hub.html
+ *   has its own LCARS layout; polishing that for 10-foot is tracked under
+ *   project #279 task #2249 as a separate UI pass.
+ */
+
+@media (min-width: 1280px) and (pointer: coarse) {
+    body {
+        font-size: 20px;
+        line-height: 1.6;
+    }
+
+    /* D-pad focus indicators — a visible 3px outline on any interactive
+       element. Browsers on TV hide focus rings by default; put them back. */
+    a:focus, a:focus-visible,
+    button:focus, button:focus-visible,
+    input:focus, input:focus-visible,
+    [tabindex]:focus, [tabindex]:focus-visible {
+        outline: 3px solid #60a5fa !important;
+        outline-offset: 4px;
+        border-radius: 6px;
+        box-shadow: 0 0 0 6px rgba(96, 165, 250, 0.2);
+    }
+
+    .btn, .sso-btn, .cta, button[type="submit"] {
+        padding: 1.1rem 2.2rem !important;
+        font-size: 1.25rem !important;
+    }
+
+    .hero h1 { font-size: clamp(3rem, 4vw, 4.5rem); }
+    .hero .subtitle { font-size: 1.3rem; max-width: 800px; }
+    .hero .mark { width: 128px; height: 128px; }
+
+    .feature { padding: 2.2rem; }
+    .feature h3 { font-size: 1.6rem; }
+    .feature p { font-size: 1.1rem; }
+    .feature .ico { width: 56px; height: 56px; font-size: 1.6rem; }
+
+    header.top { padding: 1.75rem 2.5rem; }
+    header.top img { width: 48px; height: 48px; }
+    header.top .brand { font-size: 1.25rem; }
+}
+
+/* Explicit override — ?tv=1 sets body.tv-mode regardless of viewport. */
+body.tv-mode {
+    font-size: 20px;
+    line-height: 1.6;
+}
+
+body.tv-mode a:focus, body.tv-mode a:focus-visible,
+body.tv-mode button:focus, body.tv-mode button:focus-visible,
+body.tv-mode input:focus, body.tv-mode input:focus-visible,
+body.tv-mode [tabindex]:focus, body.tv-mode [tabindex]:focus-visible {
+    outline: 3px solid #60a5fa !important;
+    outline-offset: 4px;
+    border-radius: 6px;
+    box-shadow: 0 0 0 6px rgba(96, 165, 250, 0.2);
+}
+
+body.tv-mode .btn,
+body.tv-mode .sso-btn,
+body.tv-mode .cta,
+body.tv-mode button[type="submit"] {
+    padding: 1.1rem 2.2rem !important;
+    font-size: 1.25rem !important;
+}
+
+body.tv-mode .feature { padding: 2.2rem; }
+body.tv-mode .feature h3 { font-size: 1.6rem; }
+body.tv-mode .feature p { font-size: 1.1rem; }
+body.tv-mode .feature .ico { width: 56px; height: 56px; font-size: 1.6rem; }

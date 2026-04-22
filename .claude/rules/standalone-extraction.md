@@ -20,6 +20,17 @@ Every extraction follows this playbook. No exceptions.
 | 7 | README with install, configure, run instructions | Someone unfamiliar can get it running in <10 min |
 | 8 | Passes Tier 1 compliance checks from `compliance-standards.md` | No hardcoded secrets, resource limits set, pinned tags |
 | 9 | Registered in Code Health scanner | Shows in Consciousness module Code Health tab |
+| 10 | **Container DNS override** — `dns: [192.168.1.200, 1.1.1.1]` on any service that reaches external hostnames | Each app-like service in docker-compose.yml has an explicit `dns:` block; postgres/redis-only services may omit |
+
+### Why #10 is mandatory
+
+Host `/etc/resolv.conf` on the hub is Tailscale-owned. Docker's embedded resolver at `127.0.0.11` cherry-picks the first two upstreams (`100.100.100.100` MagicDNS + its IPv6 twin) and **drops** the host's `8.8.8.8` fallback. If MagicDNS's upstream ever SERVFAILs — as happened to AdGuard briefly on 2026-04-14 — containers lose external name resolution entirely while the host stays fine.
+
+That silent failure mode kept Prowlarr blind to `api.nzbgeek.info` for **7 days** until a user reported "Sonarr isn't downloading" on 2026-04-21 (PR #258, vault note #258811). Every standalone that reaches external services needs the explicit DNS block as defence in depth.
+
+Exceptions:
+- Database + cache containers (postgres, redis) that only talk to app siblings on the compose network.
+- Reverse proxies serving only static local content (e.g. `www_proxy` nginx).
 
 ## Tier 2 — Within 30 Days of Ship
 

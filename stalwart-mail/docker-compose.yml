@@ -16,6 +16,13 @@ services:
       - ./certs:/opt/stalwart-mail/certs:ro
     extra_hosts:
       - "relay.kytranempowerment.com:100.64.0.1"
+    # Mail servers do constant external MX + SPF + DKIM DNS lookups — a
+    # SERVFAIL from the Tailscale-MagicDNS trap would kill delivery silently
+    # (bounces on the outgoing side, rejected inbound mail). Pin AdGuard
+    # first, Cloudflare fallback. See PR #258 for the trap pattern.
+    dns:
+      - 192.168.1.200
+      - 1.1.1.1
     environment:
       - STALWART_ADMIN_PASSWORD=${STALWART_ADMIN_PASSWORD:-KytranMail2026!}
     mem_limit: 512m

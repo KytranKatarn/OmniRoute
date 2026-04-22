@@ -20,6 +20,11 @@ services:
       - mail-data:/opt/stalwart-mail
       - ./dkim:/opt/stalwart-mail/dkim:ro
       - ./certs:/opt/stalwart-mail/certs:ro
+    # Mail servers need reliable external MX/SPF/DKIM DNS — see stalwart-mail
+    # compose for full rationale + PR #258 for the trap pattern.
+    dns:
+      - 192.168.1.200
+      - 1.1.1.1
     restart: unless-stopped
     deploy:
       resources:

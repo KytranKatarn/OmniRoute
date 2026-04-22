@@ -5,5 +5,11 @@ services:
     restart: unless-stopped
     ports:
       - "8098:8080"
+    # CORS proxy fetches arbitrary external URLs by design — DNS failure
+    # would make it useless. Pin AdGuard + Cloudflare so we don't depend
+    # on the Tailscale-MagicDNS chain (see PR #258 for the trap).
+    dns:
+      - 192.168.1.200
+      - 1.1.1.1
     mem_limit: 64m
     cpus: 0.25

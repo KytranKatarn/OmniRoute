@@ -1,0 +1,59 @@
+{% extends "maven_base.html" %}
+{% block title %}Discover{% endblock %}
+{% block content %}
+<h1>Discover
+    {% if report.user.display_name or report.user.username %}
+        <span class="dim" style="font-weight:400;">for {{ report.user.display_name or report.user.username }}</span>
+    {% endif %}
+</h1>
+<p class="byline">{{ report.note }}</p>
+
+{% if report.movies %}
+<h2 style="margin:2rem 0 1rem;">Movies</h2>
+<div class="grid">
+    {% for m in report.movies %}
+    <div class="card" style="padding:0.75rem;">
+        {% if m.poster %}
+        <div class="poster" style="background-image:url('https://image.tmdb.org/t/p/w342{{ m.poster }}');"></div>
+        {% else %}
+        <div class="poster"></div>
+        {% endif %}
+        <div class="title-row">
+            <h3 style="font-size:1rem;">{{ m.title }}{% if m.year %} ({{ m.year }}){% endif %}</h3>
+        </div>
+        {% if m.vote_average %}<div class="stat">&#9733; {{ '%.1f' | format(m.vote_average) }} · {{ m.vote_count }} votes</div>{% endif %}
+        <div class="detail" style="font-size:0.85rem; margin-top:0.4rem;">{{ m.overview[:140] }}{% if m.overview|length > 140 %}…{% endif %}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if report.tv %}
+<h2 style="margin:2rem 0 1rem;">TV</h2>
+<div class="grid">
+    {% for s in report.tv %}
+    <div class="card" style="padding:0.75rem;">
+        {% if s.poster %}
+        <div class="poster" style="background-image:url('https://image.tmdb.org/t/p/w342{{ s.poster }}');"></div>
+        {% else %}
+        <div class="poster"></div>
+        {% endif %}
+        <div class="title-row">
+            <h3 style="font-size:1rem;">{{ s.title }}{% if s.year %} ({{ s.year }}){% endif %}</h3>
+        </div>
+        {% if s.vote_average %}<div class="stat">&#9733; {{ '%.1f' | format(s.vote_average) }} · {{ s.vote_count }} votes</div>{% endif %}
+        <div class="detail" style="font-size:0.85rem; margin-top:0.4rem;">{{ s.overview[:140] }}{% if s.overview|length > 140 %}…{% endif %}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if not report.movies and not report.tv %}
+<div class="card">
+    <div class="detail">
+        No recommendations available. Overseerr may not be configured — check
+        the Settings tab in Media Hub to add its URL + API key.
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -2193,6 +2193,14 @@ from oauth_userinfo import oauth_userinfo_bp  # noqa: E402
 
 app.register_blueprint(oauth_userinfo_bp)
 
+# Maven dispatch — /api/maven/dispatch is the hub-side surface for the
+# Media Hub standalone's conversational skill. Routes {capability, prompt}
+# from the standalone through the Bridge dispatcher so welfare-gating +
+# cost tracking apply. Project #279 task #2251 (phase 2 of #2237).
+from maven_dispatch import maven_dispatch_bp  # noqa: E402
+
+app.register_blueprint(maven_dispatch_bp)
+
 # Standalone Product API — compliance report receiver
 from api_standalone import init_standalone_api  # noqa: E402
 

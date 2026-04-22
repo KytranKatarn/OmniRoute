@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}M.A.V.E.N.{% endblock %} — Media Hub</title>
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/kytran-logo.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='icons/apple-touch-icon-180.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tv-mode.css') }}">
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0a0f1c; --surface: #0f172a; --surface-2: #1e293b;
+            --border: #1e293b; --accent: #3b82f6;
+            --text: #e2e8f0; --muted: #94a3b8;
+            --ok: #22c55e; --warn: #f59e0b; --err: #ef4444;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--bg); color: var(--text);
+               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+               line-height: 1.55; }
+        a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+        header.top { padding: 1.25rem 1.5rem; display: flex; align-items: center;
+                     gap: 0.75rem; max-width: 1200px; margin: 0 auto; }
+        header.top img { width: 36px; height: 36px; }
+        header.top .brand { font-weight: 700; letter-spacing: 0.02em; font-size: 1.05rem; }
+        header.top .dim { color: var(--muted); font-size: 0.85rem; margin-left: 0.5rem; }
+        header.top .spacer { flex: 1; }
+        header.top a.nav { color: var(--muted); margin-left: 1rem; font-size: 0.9rem; }
+        header.top a.nav:hover { color: var(--text); text-decoration: none; }
+        main { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+        h1 { margin: 0 0 0.25rem; font-size: 1.75rem; letter-spacing: -0.01em; }
+        .byline { color: var(--muted); margin-bottom: 2rem; font-size: 0.95rem; }
+        .card { background: var(--surface); border: 1px solid var(--border);
+                border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 0.75rem; }
+        .pill { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px;
+                font-size: 0.75rem; font-weight: 600; letter-spacing: 0.03em;
+                text-transform: uppercase; }
+        .pill.ok    { background: rgba(34,197,94,0.15);  color: var(--ok); }
+        .pill.warning { background: rgba(245,158,11,0.15); color: var(--warn); }
+        .pill.error { background: rgba(239,68,68,0.15);  color: var(--err); }
+        .title-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.35rem; }
+        .title-row h3 { margin: 0; font-size: 1.1rem; }
+        .detail { color: var(--muted); font-size: 0.95rem; }
+        .fix { margin-top: 0.5rem; font-size: 0.85rem; color: #cbd5e1;
+               background: rgba(59,130,246,0.08); border-left: 3px solid var(--accent);
+               padding: 0.55rem 0.8rem; border-radius: 6px; font-family: ui-monospace, Menlo, monospace; }
+        .summary { display: flex; gap: 0.75rem; margin-bottom: 2rem; flex-wrap: wrap; }
+        .summary .pill { font-size: 0.85rem; padding: 0.4rem 1rem; }
+        .stat { color: var(--muted); font-size: 0.85rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+                gap: 1rem; }
+        .poster { aspect-ratio: 2/3; background: var(--surface-2) center/cover;
+                  border-radius: 8px; margin-bottom: 0.5rem; }
+        .back { color: var(--muted); font-size: 0.85rem; }
+        .run-btn { background: var(--accent); color: #0a0f1c; border: none;
+                   padding: 0.6rem 1.2rem; border-radius: 8px; font-weight: 600;
+                   cursor: pointer; font-family: inherit; font-size: 0.95rem; }
+        .run-btn:hover { background: #60a5fa; }
+    </style>
+</head>
+<body>
+    <header class="top">
+        <img src="{{ url_for('static', filename='img/kytran-logo.png') }}" alt="Kytran">
+        <span class="brand">M.A.V.E.N.</span>
+        <span class="dim">Media Hub</span>
+        <span class="spacer"></span>
+        <a class="nav" href="/maven/chat">Chat</a>
+        <a class="nav" href="/maven/discover">Discover</a>
+        {% if current_user.is_authenticated and current_user.is_admin %}
+            <a class="nav" href="/maven/troubleshoot">Troubleshoot</a>
+            <a class="nav" href="/maven/upgrades">Upgrades</a>
+            <a class="nav" href="/maven/duplicates">Duplicates</a>
+        {% endif %}
+        <a class="nav" href="/tools/media-hub">← Media Hub</a>
+    </header>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

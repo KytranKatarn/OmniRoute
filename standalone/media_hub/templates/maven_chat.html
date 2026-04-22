@@ -1,0 +1,100 @@
+{% extends "maven_base.html" %}
+{% block title %}Chat{% endblock %}
+{% block content %}
+<h1>Chat with M.A.V.E.N.</h1>
+<p class="byline">
+    Ask about your library, get recommendations, troubleshoot downloads.
+    Running on <code>{{ default_model }}</code>.
+</p>
+
+<div id="chat-log" style="display:flex; flex-direction:column; gap:0.75rem; margin-bottom:1rem;"></div>
+
+<form id="chat-form" style="display:flex; gap:0.5rem;">
+    <input type="text" id="chat-input" autofocus autocomplete="off"
+           placeholder="e.g. What horror movies do we have?"
+           style="flex:1; padding:0.8rem 1rem; background:var(--surface);
+                  color:var(--text); border:1px solid var(--border);
+                  border-radius:10px; font-family:inherit; font-size:1rem;">
+    <button type="submit" class="run-btn" id="chat-send">Send</button>
+</form>
+
+<p class="stat" style="margin-top:0.75rem;">
+    Tip: M.A.V.E.N.'s first response takes a few seconds (model cold-load).
+    Follow-ups are fast.
+</p>
+
+<style>
+    .msg { max-width: 80%; padding: 0.75rem 1rem; border-radius: 12px;
+           white-space: pre-wrap; word-wrap: break-word; line-height: 1.5; }
+    .msg.user   { align-self: flex-end;   background: var(--accent); color: #0a0f1c; }
+    .msg.maven  { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); }
+    .msg.error  { align-self: flex-start; background: rgba(239,68,68,0.12);
+                  border-left: 3px solid var(--err); color: #fca5a5; }
+    .msg.pending { align-self: flex-start; color: var(--muted); font-style: italic; }
+    .msg .meta  { display: block; margin-top: 0.4rem; font-size: 0.7rem;
+                  color: var(--muted); opacity: 0.7; }
+</style>
+
+<script>
+(function () {
+    const log = document.getElementById("chat-log");
+    const form = document.getElementById("chat-form");
+    const input = document.getElementById("chat-input");
+    const send = document.getElementById("chat-send");
+    const history = [];  // [{role, content}, ...]
+
+    function addMsg(role, text, cls, meta) {
+        const el = document.createElement("div");
+        el.className = "msg " + (cls || role);
+        el.textContent = text;
+        if (meta) {
+            const m = document.createElement("span");
+            m.className = "meta";
+            m.textContent = meta;
+            el.appendChild(m);
+        }
+        log.appendChild(el);
+        el.scrollIntoView({behavior: "smooth", block: "end"});
+        return el;
+    }
+
+    form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const text = input.value.trim();
+        if (!text) return;
+
+        addMsg("user", text);
+        history.push({role: "user", content: text});
+        input.value = "";
+        send.disabled = true;
+
+        const pending = addMsg("maven", "M.A.V.E.N. is thinking…", "pending");
+
+        try {
+            const r = await fetch("/maven/api/chat", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({messages: history}),
+            });
+            const j = await r.json();
+            pending.remove();
+            if (j.error) {
+                addMsg("maven", j.error, "error");
+            } else {
+                const meta = j.model + (j.total_duration_ms
+                    ? ` · ${(j.total_duration_ms/1000).toFixed(1)}s`
+                    : "");
+                addMsg("maven", j.reply, "maven", meta);
+                history.push({role: "assistant", content: j.reply});
+            }
+        } catch (err) {
+            pending.remove();
+            addMsg("maven", "Network error: " + err.message, "error");
+        } finally {
+            send.disabled = false;
+            input.focus();
+        }
+    });
+})();
+</script>
+{% endblock %}

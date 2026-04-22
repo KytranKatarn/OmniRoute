@@ -1,0 +1,71 @@
+{% extends "maven_base.html" %}
+{% block title %}Duplicates{% endblock %}
+{% block content %}
+<h1>Duplicate Triage</h1>
+<p class="byline">
+    Library items where Plex has more than one matched file — usually means
+    a leftover from an upgrade or a re-grab that didn't replace the older
+    version. Pick the keeper (biggest / highest-res), delete the rest.
+</p>
+
+{% if report.error %}
+<div class="card">
+    <div class="title-row">
+        <span class="pill error">error</span>
+        <h3>Couldn't scan</h3>
+    </div>
+    <div class="detail">{{ report.error }}</div>
+</div>
+{% else %}
+
+<div class="summary">
+    <span class="pill {{ 'warning' if (report.summary.movie_count + report.summary.show_count) > 0 else 'ok' }}">
+        {{ report.summary.movie_count + report.summary.show_count }} duplicates
+    </span>
+    <span class="stat">{{ report.summary.movie_count }} movies · {{ report.summary.show_count }} episodes</span>
+    {% if report.summary.potential_savings_gb > 0 %}
+    <span class="stat">&nbsp;·&nbsp;potential savings: <strong>{{ report.summary.potential_savings_gb }} GB</strong></span>
+    {% endif %}
+    <span class="stat">&nbsp;·&nbsp;source: {{ report.source }}</span>
+</div>
+
+{% macro render_item(i) %}
+<div class="card">
+    <div class="title-row">
+        <span class="pill warning">{{ i.file_count }} files</span>
+        <h3>{{ i.title }}{% if i.year %} ({{ i.year }}){% endif %}</h3>
+    </div>
+    <div class="detail">total {{ i.total_size_gb }} GB</div>
+    <div style="margin-top:0.6rem;">
+        {% for f in i.files %}
+        <div style="font-family: ui-monospace, Menlo, monospace; font-size: 0.8rem;
+                    color: {% if loop.first %}#60a5fa{% else %}var(--muted){% endif %};
+                    padding: 0.25rem 0;">
+            {% if loop.first %}&#11088; keep{% else %}&nbsp; delete{% endif %}
+            &nbsp;· {{ f.size_gb }} GB
+            {% if f.resolution %} · {{ f.resolution }}{% endif %}
+            {% if f.container %} · {{ f.container }}{% endif %}
+            &nbsp;· <code>{{ f.path }}</code>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endmacro %}
+
+{% if report.movies %}
+<h2 style="margin-top:2rem;">Movies</h2>
+{% for m in report.movies %}{{ render_item(m) }}{% endfor %}
+{% endif %}
+
+{% if report.shows %}
+<h2 style="margin-top:2rem;">Episodes</h2>
+{% for s in report.shows %}{{ render_item(s) }}{% endfor %}
+{% endif %}
+
+{% if not report.movies and not report.shows %}
+<div class="card">
+    <div class="detail">No duplicates found — library is clean.</div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

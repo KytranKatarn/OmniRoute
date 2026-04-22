@@ -10,6 +10,23 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="/static/css/lcars-frames.css">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/media-hub.css') }}">
+{% if standalone %}
+<!-- TV-mode polish — auto-activates on large coarse-pointer viewports
+     (Fire TV / Android TV), body.tv-mode class for manual override. -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tv-mode.css') }}">
+<script>
+(function () {
+    var ua = navigator.userAgent || "";
+    var isTv = /[?&]tv=1/.test(location.search)
+            || /AFT[A-Z0-9]+|BRAVIA|Android TV|GoogleTV|SMART-TV|Tizen|Web0S|WebOS|Roku/i.test(ua);
+    if (isTv) {
+        if (document.body) document.body.classList.add("tv-mode");
+        else document.addEventListener("DOMContentLoaded",
+            function(){ document.body.classList.add("tv-mode"); });
+    }
+})();
+</script>
+{% endif %}
 <!-- PWA Meta Tags -->
 <meta name="theme-color" content="#E5A00D">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -43,10 +60,20 @@
     {% set cat_label = 'APPLICATIONS & CONCEPTS' %}
     {% set module_title = 'MEDIA HUB' %}
     {% if standalone %}
-        {# Standalone deployment — the platform sibling-app links above don't
-           exist on this host. Surface Media-Hub-scoped actions instead: own
-           profile for anyone, user admin for admins, sign-out always. #}
-        {% set header_shortcuts = [("Profile", "user", "/profile")] %}
+        {# Standalone deployment — the platform sibling-app links don't exist
+           on this host. Surface M.A.V.E.N. skills + user actions instead. #}
+        {% set header_shortcuts = [
+            ("Chat", "message-circle", "/maven/chat"),
+            ("Discover", "sparkles", "/maven/discover")
+        ] %}
+        {% if current_user.is_authenticated and current_user.is_admin %}
+            {% set header_shortcuts = header_shortcuts + [
+                ("Troubleshoot", "activity", "/maven/troubleshoot"),
+                ("Upgrades", "arrow-up-circle", "/maven/upgrades"),
+                ("Duplicates", "copy", "/maven/duplicates")
+            ] %}
+        {% endif %}
+        {% set header_shortcuts = header_shortcuts + [("Profile", "user", "/profile")] %}
         {% if current_user.is_authenticated and current_user.is_admin %}
             {% set header_shortcuts = header_shortcuts + [("Users", "users", "/admin/users")] %}
         {% endif %}

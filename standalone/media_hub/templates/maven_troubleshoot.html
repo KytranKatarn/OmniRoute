@@ -1,0 +1,31 @@
+{% extends "maven_base.html" %}
+{% block title %}Troubleshoot{% endblock %}
+{% block content %}
+<h1>Troubleshoot</h1>
+<p class="byline">
+    Full probe of the Media Hub service chain — DNS, service health,
+    indexer status, download client queue. Re-runs every request;
+    no cache.
+</p>
+
+<div class="summary">
+    <span class="pill {{ report.overall }}">{{ report.overall }}</span>
+    <span class="stat">{{ report.summary.ok }} ok · {{ report.summary.warning }} warning · {{ report.summary.error }} error</span>
+    <span class="stat">generated {{ report.generated_at }}</span>
+    <span class="spacer" style="flex:1"></span>
+    <button class="run-btn" onclick="location.reload()">Re-run</button>
+</div>
+
+{% for check in report.checks %}
+<div class="card">
+    <div class="title-row">
+        <span class="pill {{ check.severity }}">{{ check.severity }}</span>
+        <h3>{{ check.title }}</h3>
+    </div>
+    <div class="detail">{{ check.detail }}</div>
+    {% if check.fix %}
+    <div class="fix">{{ check.fix }}</div>
+    {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

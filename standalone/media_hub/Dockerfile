@@ -33,6 +33,7 @@ COPY standalone/media_hub/kytran_auth.py /app/kytran_auth.py
 COPY standalone/media_hub/users.py       /app/users.py
 COPY standalone/media_hub/user_routes.py /app/user_routes.py
 COPY standalone/media_hub/health_observer.py /app/health_observer.py
+COPY standalone/media_hub/maven/         /app/maven/
 COPY standalone/media_hub/templates/     /app/templates/
 COPY standalone/media_hub/scripts/       /app/scripts/
 

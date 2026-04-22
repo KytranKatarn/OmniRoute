@@ -117,6 +117,12 @@ def create_app() -> Flask:
     app.register_blueprint(user_mgmt_bp)
     app.register_blueprint(media_hub_bp)
 
+    # M.A.V.E.N. skills — mounted at /maven/*. troubleshoot + upgrades are
+    # admin-only (enforced per-route); discover is available to any
+    # authenticated user. Project #279 tasks #2239/#2240/#2241.
+    from maven import maven_bp  # noqa: E402
+    app.register_blueprint(maven_bp)
+
     # Jinja flag so shared templates (platform_v2/templates/tools/media_hub.html)
     # can distinguish standalone deployment from platform-embedded mode and
     # swap out cross-module UI that doesn't make sense here (other-app
@@ -143,6 +149,110 @@ def create_app() -> Flask:
         app.view_functions["auth.login"]
     )
 
+    # M.A.V.E.N. skill rate limits (task #2248). Applied per-endpoint because
+    # each has a different cost profile: chat pins a GPU, troubleshoot +
+    # upgrades fan out to *arr apps, discover hits a single Overseerr page.
+    # Keyed on remote IP (single gunicorn worker → memory store is fine).
+    _maven_limits = {
+        "maven.api_chat":          "20 per minute; 400 per day",
+        "maven.chat_page":         "30 per minute",
+        "maven.api_troubleshoot":  "10 per minute; 120 per hour",
+        "maven.troubleshoot_page": "10 per minute",
+        "maven.api_upgrades":      "10 per minute; 120 per hour",
+        "maven.upgrades_page":     "10 per minute",
+        "maven.api_duplicates":    "6 per minute; 60 per hour",
+        "maven.duplicates_page":   "6 per minute",
+        "maven.api_discover":      "30 per minute; 500 per day",
+        "maven.discover_page":     "30 per minute",
+        "user_mgmt.admin_users":   "30 per minute",
+        "user_mgmt.profile":       "30 per minute",
+    }
+    for view_name, rate in _maven_limits.items():
+        if view_name in app.view_functions:
+            app.view_functions[view_name] = limiter.limit(rate)(
+                app.view_functions[view_name]
+            )
+
+    # Friendly error pages. Shared template at templates/error.html renders
+    # a severity pill + remediation hint. Rendered HTML for browser traffic;
+    # /api/ and /maven/api/ paths get JSON so fetch() callers can parse.
+    def _render_error(code: int, title: str, message: str, fix: str = ""):
+        path = (request.path or "")
+        if path.startswith("/api/") or "/api/" in path:
+            return jsonify({
+                "error": title, "message": message, "fix": fix, "code": code,
+            }), code
+        return render_template(
+            "error.html",
+            code=code, title=title, message=message, fix=fix,
+        ), code
+
+    @app.errorhandler(403)
+    def _err_403(e):
+        return _render_error(
+            403, "Not allowed",
+            "This page is admin-only.",
+            "Sign in with an admin account, or ask Kytran to promote yours.",
+        )
+
+    @app.errorhandler(404)
+    def _err_404(e):
+        return _render_error(
+            404, "Not found",
+            "That URL isn't part of Media Hub.",
+            "Head back to the home page or try /maven/discover to browse.",
+        )
+
+    @app.errorhandler(429)
+    def _err_429(e):
+        # flask-limiter passes the retry-after window on e.description when
+        # available; fall back to a generic message otherwise.
+        msg = getattr(e, "description", "") or str(e)
+        return _render_error(
+            429, "Slow down",
+            f"You're hitting that endpoint too fast. {msg}",
+            "Wait a few seconds and retry. This limit exists to keep the "
+            "LLM + download-client APIs responsive for everyone at home.",
+        )
+
+    @app.errorhandler(500)
+    def _err_500(e):
+        log.exception("500 handler fired: %s", e)
+        return _render_error(
+            500, "Something broke",
+            "An internal error was logged.",
+            "If this repeats, run /maven/troubleshoot (admin) to see which "
+            "service is degraded, or check docker logs mediahub_app.",
+        )
+
+    @app.errorhandler(502)
+    def _err_502(e):
+        return _render_error(
+            502, "Upstream not responding",
+            "A service Media Hub depends on (Plex / Jellyfin / Sonarr / "
+            "Radarr / Prowlarr / SABnzbd / Overseerr) isn't replying.",
+            "Visit /maven/troubleshoot (admin) — it tells you which one "
+            "and, if DNS is the cause, how to fix it.",
+        )
+
+    @app.errorhandler(503)
+    def _err_503(e):
+        return _render_error(
+            503, "Temporarily unavailable",
+            "Media Hub or one of its backends is offline.",
+            "Check docker ps; the offender is usually visible on "
+            "/maven/troubleshoot (admin).",
+        )
+
+    @app.errorhandler(504)
+    def _err_504(e):
+        return _render_error(
+            504, "Backend timed out",
+            "A backend took too long to reply.",
+            "Ollama cold-load can take ~60s on first M.A.V.E.N. chat after "
+            "idle; retry once. If it repeats, /maven/troubleshoot.",
+        )
+
     # Create admin from MEDIA_HUB_ADMIN_PASSWORD if users table is empty.
     with app.app_context():
         try:
@@ -159,32 +269,30 @@ def create_app() -> Flask:
         return render_template("landing.html")
 
     @app.route("/agent")
-    def agent_stub():
-        """Placeholder for M.A.V.E.N. — Media Archive & Viewing Experience
-        Navigator. Repurposed from the retired Maven librarian role in the
-        A.R.C.H.I.E. roster (platform agents table id=27, active News & Media
-        / CREATIVE). Wiring to inference is Tier 2."""
-        return (
-            jsonify(
-                {
-                    "status": "not_implemented",
-                    "name": "M.A.V.E.N.",
-                    "expansion": "Media Archive & Viewing Experience Navigator",
-                    "archetype": "Same pattern as F.O.R.G.E., V.I.G.I.L., P.R.O.B.E.",
-                    "capabilities": [
-                        "conversational_search",
-                        "recommendation",
-                        "library_curation",
-                        "upgrade_scanning",
-                        "collection_generation",
-                        "duplicate_triage",
-                        "family_profiles",
-                    ],
-                    "tracking": "Project #273 Tier 2",
-                }
-            ),
-            501,
-        )
+    def agent_info():
+        """M.A.V.E.N. agent metadata. The hub record (agents.id=27) has been
+        live since before this standalone shipped; what was new in PR #261
+        was the first real skill surface (/maven/troubleshoot + /upgrades +
+        /discover) and — in the PR that added this route update — a direct
+        chat endpoint at /maven/chat. Full Bridge dispatch from the
+        standalone is still phase 2 (task #2237 phase 2)."""
+        return jsonify({
+            "status": "live",
+            "agent_id": 27,
+            "name": "M.A.V.E.N.",
+            "display_name": "Camille Dubois (M.A.V.E.N.)",
+            "expansion": "Media Archive & Viewing Experience Navigator",
+            "archetype": "Same pattern as F.O.R.G.E., V.I.G.I.L., P.R.O.B.E.",
+            "department": "News & Media",
+            "model": os.environ.get("MAVEN_CHAT_MODEL", "llama3.2:3b"),
+            "skill_routes": [
+                "/maven/chat",
+                "/maven/troubleshoot",
+                "/maven/upgrades",
+                "/maven/discover",
+            ],
+            "phase": "phase 1 (direct Ollama dispatch; bridge dispatch phase 2)",
+        }), 200
 
     @app.after_request
     def _no_store(resp):

@@ -1,0 +1,57 @@
+{% extends "maven_base.html" %}
+{% block title %}Upgrades{% endblock %}
+{% block content %}
+<h1>Upgrade Candidates</h1>
+<p class="byline">
+    Library items where the current file is below the quality profile's
+    cutoff. Source: Sonarr + Radarr <code>/wanted/cutoff</code>.
+</p>
+
+<div class="summary">
+    <span class="pill {{ 'warning' if (report.movies.count + report.episodes.count) > 0 else 'ok' }}">
+        {{ report.movies.count + report.episodes.count }} candidates
+    </span>
+    <span class="stat">{{ report.movies.count }} movies · {{ report.episodes.count }} episodes</span>
+</div>
+
+{% if report.movies.items %}
+<h2 style="margin-top:2rem;">Movies</h2>
+{% for m in report.movies.items %}
+<div class="card">
+    <div class="title-row">
+        <span class="pill warning">{{ m.current_quality or 'unknown' }}</span>
+        <h3>{{ m.title }}{% if m.year %} ({{ m.year }}){% endif %}</h3>
+    </div>
+    <div class="detail">
+        {% if m.size_bytes %}current file: {{ (m.size_bytes / 1024 / 1024 / 1024) | round(1) }} GB{% else %}no file{% endif %}
+    </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if report.episodes.items %}
+<h2 style="margin-top:2rem;">Episodes</h2>
+{% for e in report.episodes.items %}
+<div class="card">
+    <div class="title-row">
+        <span class="pill warning">{{ e.current_quality or 'unknown' }}</span>
+        <h3>
+            {{ e.title }}
+            {% if e.season is not none %}S{{ '%02d' % e.season }}{% endif %}{% if e.episode is not none %}E{{ '%02d' % e.episode }}{% endif %}
+            {% if e.episode_title %}— {{ e.episode_title }}{% endif %}
+        </h3>
+    </div>
+    <div class="detail">
+        {% if e.size_bytes %}current file: {{ (e.size_bytes / 1024 / 1024 / 1024) | round(2) }} GB{% endif %}
+        {% if e.air_date %} · aired {{ e.air_date[:10] }}{% endif %}
+    </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if not report.movies.items and not report.episodes.items %}
+<div class="card">
+    <div class="detail">Nothing to upgrade — your library is already at or above cutoff.</div>
+</div>
+{% endif %}
+{% endblock %}

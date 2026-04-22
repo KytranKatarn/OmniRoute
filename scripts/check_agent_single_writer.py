@@ -120,6 +120,13 @@ _API_GENERATE_ALLOWLIST: set[str] = {
     # messages / new). Not Ollama inference. Follow-up to refine the guardrail
     # regex so route decorators no longer trigger: task #2228.
     "archie-comms/app_comms.py",
+    # Media Hub standalone — M.A.V.E.N. chat surface (task #2238, phase 1)
+    # talks to Ollama directly at 192.168.1.200:11434 because the standalone
+    # container doesn't ship tools.department_hq.services.ollama_options.
+    # Phase 2 of task #2237 will replace this with a hub-side HTTP dispatch
+    # endpoint that routes through build_options() on the hub's behalf.
+    # Until that lands, keep the raw call behind this entry.
+    "standalone/media_hub/maven/chat.py",
     # Media Studio — Flask route path @bp.route("/api/generate") for image
     # generation (ComfyUI-backed, not Ollama). Legitimate false positive on
     # the regex. Actual LLM dispatches from this module go through

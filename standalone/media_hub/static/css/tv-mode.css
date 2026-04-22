@@ -81,3 +81,71 @@ body.tv-mode .feature { padding: 2.2rem; }
 body.tv-mode .feature h3 { font-size: 1.6rem; }
 body.tv-mode .feature p { font-size: 1.1rem; }
 body.tv-mode .feature .ico { width: 56px; height: 56px; font-size: 1.6rem; }
+
+/* ---------------------------------------------------------------------
+ * Authenticated dashboard (media_hub.html) + LCARS chrome + M.A.V.E.N.
+ * skill pages. Kept selector-heavy + !important because media_hub.html
+ * has a lot of inline-style !important blocks we have to outweigh.
+ * ------------------------------------------------------------------ */
+
+@media (min-width: 1280px) and (pointer: coarse) {
+    .lcars-strip-btn, .lcars-header-tab, .lcars-header-back {
+        min-height: 52px !important;
+        padding: 0.7rem 1.2rem !important;
+        font-size: 1.05rem !important;
+        letter-spacing: 0.04em !important;
+    }
+    #globalSearch {
+        font-size: 1.15rem !important;
+        padding: 0.9rem 1rem !important;
+        min-height: 52px !important;
+    }
+    .svc-badge {
+        font-size: 1rem !important;
+        padding: 0.4rem 0.9rem !important;
+    }
+    .stat-card, .stats-chart-card, .stats-overview-card {
+        padding: 1.5rem !important;
+    }
+    .stat-card h3, .stats-overview-card h3 { font-size: 1.2rem !important; }
+    .stat-card .stat-value { font-size: 2rem !important; }
+    .hub-header h1 { font-size: 2rem !important; }
+    .hub-header .brand-subtitle { font-size: 1rem !important; }
+    .hub-header .brand-icon { width: 64px !important; height: 64px !important; }
+    .status-label { font-size: 1rem !important; }
+    .run-btn, .install-app-btn, .view-btn, .trending-tab, .limit-btn,
+    .calendar-nav, .btn-primary, .btn-ghost, .btn-outline, .btn-icon {
+        min-height: 48px !important;
+        padding: 0.8rem 1.4rem !important;
+        font-size: 1.05rem !important;
+    }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important; }
+    .grid .card { padding: 1rem !important; }
+    .grid .card h3 { font-size: 1.1rem !important; }
+    .title-row h3 { font-size: 1.25rem !important; }
+    .pill { font-size: 0.9rem !important; padding: 0.3rem 0.8rem !important; }
+}
+
+body.tv-mode .lcars-strip-btn,
+body.tv-mode .lcars-header-tab,
+body.tv-mode .lcars-header-back {
+    min-height: 52px !important;
+    padding: 0.7rem 1.2rem !important;
+    font-size: 1.05rem !important;
+}
+body.tv-mode #globalSearch {
+    font-size: 1.15rem !important;
+    padding: 0.9rem 1rem !important;
+    min-height: 52px !important;
+}
+body.tv-mode .svc-badge {
+    font-size: 1rem !important;
+    padding: 0.4rem 0.9rem !important;
+}
+body.tv-mode .stat-card { padding: 1.5rem !important; }
+body.tv-mode .run-btn, body.tv-mode .view-btn,
+body.tv-mode .btn-primary, body.tv-mode .btn-ghost, body.tv-mode .btn-outline {
+    min-height: 48px !important;
+    padding: 0.8rem 1.4rem !important;
+    font-size: 1.05rem !important;
+}

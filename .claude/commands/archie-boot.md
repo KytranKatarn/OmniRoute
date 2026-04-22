@@ -24,6 +24,59 @@ Pushes, PRs, and merges are FINE as long as we respect published rate limits.
 
 Full policy + historical context: `~/.claude/projects/-mnt-archie-brain/memory/feedback_github-actions-minutes.md`.
 
+## Step 0: Declare session role (multi-session coordination)
+
+The user runs Claude Code in **two terminals at once** to conserve the
+Opus weekly bucket. Every boot must explicitly declare which role this
+session is taking, so sibling sessions don't collide and so the user
+knows what to send where.
+
+**Role A — Architect (Opus 4.7):**
+- Planning, spec writing, architectural decisions
+- Hard multi-file refactors, cross-subsystem debugging
+- Writes specs to `~/.claude/plans/<slug>.md` for the Executor to pick up
+- Writes durable design notes to `~/.claude/projects/-mnt-archie-brain/memory/`
+- Uses Opus sparingly — most turns should hand off to Role B
+
+**Role B — Executor (Sonnet 4.6):**
+- Reads specs from `~/.claude/plans/` and executes them
+- Runs all `/archie-*` skills, rsync/git/docker/psql, MCP tool-chain work
+- Ships PRs, runs deploys, updates `project_session-handoff.md`
+- 5× cheaper per turn — this should be the always-on terminal
+
+**Role C — Delegate (platform agents, hub Ollama — zero Claude cost):**
+- Not a Claude session at all
+- Work dispatched via `mcp__archie__delegate_task(capability=..., reason=...)`
+- Platform agents (F.O.R.G.E., V.I.G.I.L., C.O.D.E.X., P.R.O.C.U.R.E., etc.) pick it up
+- Known-tool shortcuts (`run_qa_suite`, `check_dep_drift`, `health_check`,
+  `run_misroute_audit`, `run_misroute_to_proposal_adapter`,
+  `check_platform_health`) skip the LLM entirely — pure Python
+
+**How this session decides its role:**
+
+1. Check `$CLAUDE_MODEL` or the current model context — if you're on
+   Sonnet → Role B (Executor). If you're on Opus → Role A (Architect).
+2. Check `~/.claude/projects/-mnt-archie-brain/memory/project_session-handoff.md`
+   for any active sibling-session declaration (look for "Architect:
+   in session" or "Executor: in session" lines set by the other terminal).
+3. Read `~/.claude/plans/` for any unclaimed specs — Executor picks one
+   up; Architect writes new ones.
+4. Quick scan of `mcp__archie__get_my_tasks(status='in_progress')` — if
+   the sibling claimed a task, don't double-claim.
+
+**Coordination substrates (all shared between terminals):**
+
+| Substrate | Purpose |
+|---|---|
+| `~/.claude/projects/-mnt-archie-brain/memory/` | Handoff + feedback + project memories, read on boot |
+| `~/.claude/plans/` | Architect writes specs, Executor consumes |
+| `unified_tasks` table (MCP `create_task` / `get_my_tasks`) | Queue-based work hand-off |
+| `work_notes` column | Result of delegated tasks |
+| Platform `delegate_task` worker | Auto-routes dispatched work to agents |
+
+**Announce the role in the Step 7 boot summary** so the user sees which
+terminal is which at a glance.
+
 ## Step 1: Load Knowledge Context
 
 Call `mcp__archie__session_briefing` with the topic extracted from the user's first message (or "platform status" if no specific topic).
@@ -95,12 +148,16 @@ Ollama runs on the HOST at 192.168.1.200:11434 — NOT in a container. KEEP_ALIV
 Print a concise summary:
 ```
 ## Session Briefing
+- **Session role**: Architect (Opus) | Executor (Sonnet) — from Step 0
+- **Sibling session**: Active on <role> | None detected
 - **KB Health**: [total entries] entries, [embedding %] embedded
 - **Active Projects**: [list active project names]
 - **Relevant Context**: [any knowledge found for the task]
 - **Mistakes to Avoid**: [any mistake_learned entries found — list them]
 - **Recent Corrections**: [from Step 2 — patterns to not repeat]
 - **Agent Status**: [active count] / [total] agents online
+- **Pending specs in ~/.claude/plans/**: [list unclaimed specs, if Executor]
+- **Claimed by sibling**: [list tasks sibling is running, if any]
 - **Ready**: Yes/No + any blockers
 ```
 

@@ -65,18 +65,29 @@ CREATE TRIGGER trigger_media_hub_services_updated
 
 -- Local users — only populated in the standalone container. In the
 -- platform-embedded mode the ARCHIE users table stays authoritative.
--- password_hash stores a werkzeug-format hash (pbkdf2:sha256 or scrypt).
+-- Dual-auth: sso_sub set → Kytran SSO user. password_hash set → local user.
+-- Constraint enforces at least one auth method present.
 CREATE TABLE IF NOT EXISTS media_hub_users (
     id            SERIAL PRIMARY KEY,
     username      VARCHAR(64)  NOT NULL UNIQUE,
-    password_hash TEXT         NOT NULL,
+    password_hash TEXT,
     is_admin      BOOLEAN      NOT NULL DEFAULT FALSE,
     is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-    last_login_at TIMESTAMP
+    last_login_at TIMESTAMP,
+    sso_sub       VARCHAR(255),
+    email         VARCHAR(255),
+    display_name  VARCHAR(128),
+    role          VARCHAR(32),
+    product_tiers JSONB,
+    CONSTRAINT media_hub_users_auth_method_chk
+        CHECK (sso_sub IS NOT NULL OR password_hash IS NOT NULL)
 );
 
 CREATE INDEX IF NOT EXISTS idx_media_hub_users_username
     ON media_hub_users (username);
+
+CREATE UNIQUE INDEX IF NOT EXISTS media_hub_users_sso_sub_unique
+    ON media_hub_users (sso_sub) WHERE sso_sub IS NOT NULL;
 
 COMMIT;

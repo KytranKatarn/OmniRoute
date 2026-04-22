@@ -29,6 +29,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 COPY standalone/media_hub/database.py    /app/database.py
 COPY standalone/media_hub/app.py         /app/app.py
 COPY standalone/media_hub/auth_routes.py /app/auth_routes.py
+COPY standalone/media_hub/kytran_auth.py /app/kytran_auth.py
 COPY standalone/media_hub/users.py       /app/users.py
 COPY standalone/media_hub/user_routes.py /app/user_routes.py
 COPY standalone/media_hub/templates/     /app/templates/
@@ -62,8 +63,12 @@ COPY platform_v2/static/js/lcars-header.js     /app/static/js/lcars-header.js
 COPY platform_v2/static/manifest.json          /app/static/manifest.json
 COPY platform_v2/static/icons/                 /app/static/icons/
 
-# Standalone brand assets (Kytran ram logo + any landing imagery)
+# Standalone brand assets (Kytran ram logo + any landing imagery).
+# Standalone manifest + icons overlay the platform ones copied above — PWA
+# installer shows the ram logo instead of the platform media-hub-*.png icons.
 COPY standalone/media_hub/static/img/          /app/static/img/
+COPY standalone/media_hub/static/icons/        /app/static/icons/
+COPY standalone/media_hub/static/manifest.json /app/static/manifest.json
 
 # The Media Hub module itself — this is the whole product
 COPY platform_v2/tools/media_hub/ /app/tools/media_hub/

@@ -51,6 +51,30 @@ services:
       MEDIA_HUB_ENCRYPTION_KEY: ${MEDIA_HUB_ENCRYPTION_KEY:?set in .env}
       MEDIA_HUB_ADMIN_PASSWORD: ${MEDIA_HUB_ADMIN_PASSWORD:-}
       TMDB_API_KEY: ${TMDB_API_KEY:-}
+      # Kytran SSO — dual-mode auth (SSO primary, local password fallback for family)
+      # Two client rows: public subdomain vs LAN IP. app.py swaps per request.host
+      # because browser session cookies don't cross host boundaries (state param
+      # verification fails otherwise).
+      KYTRAN_CLIENT_ID: ${KYTRAN_CLIENT_ID:-media-hub-viewer}
+      KYTRAN_CLIENT_SECRET: ${KYTRAN_CLIENT_SECRET:-}
+      KYTRAN_CLIENT_ID_LAN: ${KYTRAN_CLIENT_ID_LAN:-media-hub-viewer-lan}
+      KYTRAN_CLIENT_SECRET_LAN: ${KYTRAN_CLIENT_SECRET_LAN:-}
+      # Public hub URL — must be reachable by the user's browser for the
+      # OAuth redirect AND by this container for server-to-server token
+      # exchange (container DNS override above handles the latter). ADR-001
+      # (2026-04-08) split internal/external URLs in the full SDK; this copy
+      # uses a single URL until #2064 SDK consolidation lands.
+      KYTRAN_AUTH_URL: ${KYTRAN_AUTH_URL:-https://platform.kytranempowerment.com}
+      KYTRAN_REDIRECT_URI: ${KYTRAN_REDIRECT_URI:-https://media.kytranempowerment.com/auth/kytran/callback}
+      KYTRAN_REDIRECT_URI_LAN: ${KYTRAN_REDIRECT_URI_LAN:-http://192.168.1.200:8105/auth/kytran/callback}
+      # Family-access: don't block on product entitlement; policy lives in on_login.
+      KYTRAN_AUTH_ENFORCE_ENTITLEMENT: "false"
+    # Container DNS override — host DNS is Tailscale-owned which SERVFAILs on
+    # external hostnames inside Docker (discovered 2026-04-21 via Prowlarr).
+    # Use AdGuard first, Cloudflare fallback.
+    dns:
+      - 192.168.1.200
+      - 1.1.1.1
     ports:
       - "8105:8105"
     read_only: true

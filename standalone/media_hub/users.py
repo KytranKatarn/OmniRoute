@@ -6,11 +6,13 @@ Only used when MEDIA_HUB_STANDALONE=1 — in platform-embedded mode the
 ARCHIE users table is authoritative and this file is never imported.
 """
 
+import json
 import logging
 import os
 from dataclasses import dataclass
 from typing import Optional
 
+import psycopg2.extras
 from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -25,9 +27,17 @@ class User(UserMixin):
     username: str
     is_admin: bool
     is_active: bool = True
+    sso_sub: Optional[str] = None
+    email: Optional[str] = None
+    display_name: Optional[str] = None
+    role: Optional[str] = None
 
     def get_id(self) -> str:
         return str(self.id)
+
+    @property
+    def is_sso(self) -> bool:
+        return bool(self.sso_sub)
 
 
 def _row_to_user(row) -> Optional[User]:
@@ -40,9 +50,29 @@ def _row_to_user(row) -> Optional[User]:
             username=row["username"],
             is_admin=row["is_admin"],
             is_active=row["is_active"],
+            sso_sub=row.get("sso_sub"),
+            email=row.get("email"),
+            display_name=row.get("display_name"),
+            role=row.get("role"),
         )
-    id_, username, _hash, is_admin, is_active, _c, _l = row
-    return User(id=id_, username=username, is_admin=is_admin, is_active=is_active)
+    # Tuple order: id, username, password_hash, is_admin, is_active, created_at, last_login_at, sso_sub, email, display_name, role
+    id_, username, _hash, is_admin, is_active, _c, _l, sso_sub, email, display_name, role = row
+    return User(
+        id=id_,
+        username=username,
+        is_admin=is_admin,
+        is_active=is_active,
+        sso_sub=sso_sub,
+        email=email,
+        display_name=display_name,
+        role=role,
+    )
+
+
+_USER_SELECT_COLS = (
+    "id, username, password_hash, is_admin, is_active, created_at, last_login_at, "
+    "sso_sub, email, display_name, role"
+)
 
 
 def load_user(user_id: str) -> Optional[User]:
@@ -53,28 +83,97 @@ def load_user(user_id: str) -> Optional[User]:
         return None
     with get_db_cursor() as (_conn, cur):
         cur.execute(
-            "SELECT id, username, password_hash, is_admin, is_active, created_at, last_login_at "
-            "FROM media_hub_users WHERE id = %s AND is_active = TRUE",
+            f"SELECT {_USER_SELECT_COLS} FROM media_hub_users "
+            "WHERE id = %s AND is_active = TRUE",
             (uid,),
         )
         return _row_to_user(cur.fetchone())
 
 
 def authenticate(username: str, password: str) -> Optional[User]:
+    """Local username/password login. SSO-only accounts (password_hash NULL)
+    can never authenticate this way — they must go through /auth/kytran/login."""
     with get_db_cursor(cursor_factory=None, commit=True) as (_conn, cur):
         cur.execute(
-            "SELECT id, username, password_hash, is_admin, is_active, created_at, last_login_at "
-            "FROM media_hub_users WHERE username = %s",
+            f"SELECT {_USER_SELECT_COLS} FROM media_hub_users WHERE username = %s",
             (username,),
         )
         row = cur.fetchone()
         if not row:
             return None
-        _id, _u, pw_hash, is_admin, is_active, *_ = row
-        if not is_active or not check_password_hash(pw_hash, password):
+        _id, _u, pw_hash, is_admin, is_active = row[0], row[1], row[2], row[3], row[4]
+        if not is_active or not pw_hash or not check_password_hash(pw_hash, password):
             return None
-        cur.execute("UPDATE media_hub_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = %s", (_id,))
-    return User(id=_id, username=_u, is_admin=is_admin, is_active=is_active)
+        cur.execute(
+            "UPDATE media_hub_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = %s",
+            (_id,),
+        )
+    return _row_to_user(row)
+
+
+def upsert_sso_user(sso_data: dict) -> Optional[User]:
+    """Create or update a local media_hub_users row from a Kytran SSO userinfo payload.
+
+    sso_data keys (all from kytran_auth session["kytran_user"]):
+        sub, username, email, name, role, product_tiers
+
+    Lookup key is sso_sub. Local-only rows (sso_sub NULL) are never touched.
+    The first SSO user to log in becomes admin iff no other active admin exists
+    (keeps the "owner" account authoritative); later SSO users default to
+    is_admin=role=='admin'.
+    """
+    sub = sso_data.get("sub")
+    if not sub:
+        return None
+    sub = str(sub)
+
+    username = (sso_data.get("username") or sso_data.get("name") or sso_data.get("email") or f"sso-{sub}").strip()
+    email = sso_data.get("email")
+    display_name = sso_data.get("name")
+    role = sso_data.get("role") or "user"
+    product_tiers = sso_data.get("product_tiers") or {}
+    is_admin = role == "admin"
+
+    with get_db_cursor(cursor_factory=None, commit=True) as (_conn, cur):
+        # Avoid username collision: if a local user already owns this username,
+        # namespace the SSO user to keep the unique constraint happy.
+        cur.execute(
+            "SELECT id FROM media_hub_users WHERE username = %s AND (sso_sub IS NULL OR sso_sub != %s)",
+            (username, sub),
+        )
+        if cur.fetchone():
+            username = f"{username}@kytran"
+
+        cur.execute(
+            """
+            INSERT INTO media_hub_users
+                (username, sso_sub, email, display_name, role, product_tiers,
+                 is_admin, is_active, last_login_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE, CURRENT_TIMESTAMP)
+            ON CONFLICT (sso_sub) WHERE sso_sub IS NOT NULL
+            DO UPDATE SET
+                username      = EXCLUDED.username,
+                email         = EXCLUDED.email,
+                display_name  = EXCLUDED.display_name,
+                role          = EXCLUDED.role,
+                product_tiers = EXCLUDED.product_tiers,
+                is_admin      = media_hub_users.is_admin OR EXCLUDED.is_admin,
+                last_login_at = CURRENT_TIMESTAMP
+            RETURNING {cols}
+            """.format(cols=_USER_SELECT_COLS),
+            (
+                username,
+                sub,
+                email,
+                display_name,
+                role,
+                psycopg2.extras.Json(product_tiers),
+                is_admin,
+            ),
+        )
+        row = cur.fetchone()
+
+    return _row_to_user(row)
 
 
 def create_user(username: str, password: str, is_admin: bool = False) -> User:
@@ -117,8 +216,7 @@ def count_admins() -> int:
 def get_user(user_id: int) -> Optional[User]:
     with get_db_cursor(cursor_factory=None) as (_c, cur):
         cur.execute(
-            "SELECT id, username, password_hash, is_admin, is_active, created_at, last_login_at "
-            "FROM media_hub_users WHERE id = %s",
+            f"SELECT {_USER_SELECT_COLS} FROM media_hub_users WHERE id = %s",
             (user_id,),
         )
         return _row_to_user(cur.fetchone())

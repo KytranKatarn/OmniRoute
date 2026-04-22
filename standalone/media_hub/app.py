@@ -13,7 +13,7 @@ import os
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_login import LoginManager, current_user
+from flask_login import LoginManager, current_user, login_user
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 # tools.media_hub imports `from database import get_db_cursor`. Our standalone
@@ -21,7 +21,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from tools.media_hub import media_hub_bp  # noqa: E402
 
 from auth_routes import auth_bp  # noqa: E402
-from users import bootstrap_admin_if_empty, load_user  # noqa: E402
+from kytran_auth import KytranAuth  # noqa: E402
+from users import bootstrap_admin_if_empty, load_user, upsert_sso_user  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("media_hub.standalone")
@@ -52,11 +53,77 @@ def create_app() -> Flask:
     lm.init_app(app)
     lm.user_loader(load_user)
 
+    # Kytran SSO — registers /auth/kytran/login + /auth/kytran/callback.
+    # Entitlement enforcement disabled by default for Media Hub (family access);
+    # access policy lives in the on_login callback below.
+    kytran_auth = KytranAuth()
+    kytran_auth.init_app(app)
+
+    # Dynamic OAuth client per hostname. Same pattern as archie-comms and KSO:
+    # browser session cookies don't cross host boundaries, so the redirect_uri
+    # must match the host the user actually started on — otherwise the
+    # oauth_state stored in the session on host A disappears when the hub
+    # redirects the browser back to host B, and the callback sees
+    # "Invalid state parameter". Public HTTPS and LAN HTTP are separate
+    # oauth_clients rows on the hub IdP.
+    @app.before_request
+    def _select_oauth_client_by_host():
+        host = (request.host or "").lower()
+        if host.startswith("192.168.") or host.startswith("127.") or host.startswith("localhost"):
+            kytran_auth.client_id = os.getenv(
+                "KYTRAN_CLIENT_ID_LAN", "media-hub-viewer-lan"
+            )
+            kytran_auth.client_secret = os.getenv(
+                "KYTRAN_CLIENT_SECRET_LAN", ""
+            )
+            kytran_auth.redirect_uri = os.getenv(
+                "KYTRAN_REDIRECT_URI_LAN",
+                "http://192.168.1.200:8105/auth/kytran/callback",
+            )
+        else:
+            kytran_auth.client_id = os.getenv(
+                "KYTRAN_CLIENT_ID", "media-hub-viewer"
+            )
+            kytran_auth.client_secret = os.getenv(
+                "KYTRAN_CLIENT_SECRET", ""
+            )
+            kytran_auth.redirect_uri = os.getenv(
+                "KYTRAN_REDIRECT_URI",
+                "https://media.kytranempowerment.com/auth/kytran/callback",
+            )
+
+    @kytran_auth.on_login
+    def _on_sso_login(user_data):
+        """Bridge Kytran SSO → flask_login session.
+
+        Upsert a media_hub_users row keyed on sso_sub, then log the resulting
+        User in so the existing @login_required decorators, session['_user_id'],
+        and `current_user` all work identically to a local-password login.
+        Admin role flows through (see users.upsert_sso_user) — everyone else
+        gets a regular viewer account.
+        """
+        user = upsert_sso_user(user_data)
+        if user and user.is_active:
+            login_user(user)
+            log.info("SSO login: %s (sso_sub=%s, admin=%s)",
+                     user.username, user.sso_sub, user.is_admin)
+        else:
+            log.warning("SSO login rejected (upsert failed or user inactive): %s",
+                        user_data.get("sub"))
+
     from user_routes import user_mgmt_bp  # noqa: E402
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_mgmt_bp)
     app.register_blueprint(media_hub_bp)
+
+    # Jinja flag so shared templates (platform_v2/templates/tools/media_hub.html)
+    # can distinguish standalone deployment from platform-embedded mode and
+    # swap out cross-module UI that doesn't make sense here (other-app
+    # shortcuts in the LCARS strip, etc.).
+    @app.context_processor
+    def _inject_standalone_flag():
+        return {"standalone": True}
 
     # Gate /login after registration. Flask stores the dispatch target in
     # app.view_functions — decorating with limiter.limit returns a new fn,

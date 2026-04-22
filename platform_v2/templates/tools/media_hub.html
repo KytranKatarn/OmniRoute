@@ -42,13 +42,24 @@
     {% set cat_accent_dark = '#0284c7' %}
     {% set cat_label = 'APPLICATIONS & CONCEPTS' %}
     {% set module_title = 'MEDIA HUB' %}
-    {% set header_shortcuts = [
-        ("DOC", "stethoscope", "/tools/doc"),
-        ("Therapy", "flower-2", "/tools/therapy"),
-        ("Fitness", "dumbbell", "/tools/fitness"),
-        ("Pool", "pickaxe", "/tools/archie-pool"),
-        ("Media", "tv-2", "/tools/media-hub")
-    ] %}
+    {% if standalone %}
+        {# Standalone deployment — the platform sibling-app links above don't
+           exist on this host. Surface Media-Hub-scoped actions instead: own
+           profile for anyone, user admin for admins, sign-out always. #}
+        {% set header_shortcuts = [("Profile", "user", "/profile")] %}
+        {% if current_user.is_authenticated and current_user.is_admin %}
+            {% set header_shortcuts = header_shortcuts + [("Users", "users", "/admin/users")] %}
+        {% endif %}
+        {% set header_shortcuts = header_shortcuts + [("Sign out", "log-out", "/logout")] %}
+    {% else %}
+        {% set header_shortcuts = [
+            ("DOC", "stethoscope", "/tools/doc"),
+            ("Therapy", "flower-2", "/tools/therapy"),
+            ("Fitness", "dumbbell", "/tools/fitness"),
+            ("Pool", "pickaxe", "/tools/archie-pool"),
+            ("Media", "tv-2", "/tools/media-hub")
+        ] %}
+    {% endif %}
     {% set header_tabs = [
         ("dashboard", "Dashboard", "layout-dashboard"),
         ("movies", "Movies", "film"),

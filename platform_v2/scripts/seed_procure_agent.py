@@ -32,7 +32,23 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger("seed_procure")
 
 AGENT_NAME = "P.R.O.C.U.R.E."
-DISPLAY_NAME = "Procure"
+# User-facing identity is the acronym everywhere (directory cards, roster,
+# badge). No "Procure" shorthand — keeps the AI-agent visual convention
+# consistent with S.P.E.C.T.R.A., W.A.T.C.H., M.A.V.E.N., etc.
+DISPLAY_NAME = "P.R.O.C.U.R.E."
+FIRST_NAME = "P.R.O.C.U.R.E."
+LAST_NAME = ""
+TITLE = "Procurement Intelligence Analyst"
+PRONOUNS = "they/them"
+BIO = (
+    "Procurement Research, Opportunity Coordination & Unified Resource "
+    "Engine — helps Canadian businesses win federal contracts by matching "
+    "tenders to supplier profile, extracting mandatory/rated criteria from "
+    "RFPs, and drafting compliant bid skeletons. Lives inside Kytran Gov "
+    "Watch, beats the federal Procura chatbot by refusing to deflect users "
+    "to phone lines."
+)
+EMAIL = "procure@kytranempowerment.com"
 DEPARTMENT = "Analytics & Intelligence"
 MODEL = "qwen2.5:7b"
 
@@ -94,26 +110,37 @@ def find_existing_agent_id(name: str) -> int | None:
         return int(row["id"]) if row else None
 
 
+PROFILE_FIELDS = {
+    "display_name": DISPLAY_NAME,
+    "first_name": FIRST_NAME,
+    "last_name": LAST_NAME,
+    "title": TITLE,
+    "pronouns": PRONOUNS,
+    "bio": BIO,
+    "email": EMAIL,
+    "department": DEPARTMENT,
+    "model": MODEL,
+    "shift_state": "active",
+    "system_prompt": SYSTEM_PROMPT,
+    "temperature": 0.3,
+    "max_tokens": 4096,
+    "capabilities": CAPABILITIES_JSON,
+    "is_department_ai": False,
+    "tier": 3,
+    "worker_type": "ai",
+}
+
+
 def ensure_agent() -> int:
     existing = find_existing_agent_id(AGENT_NAME)
     if existing is not None:
-        log.info("Agent %s already exists (id=%d) — updating fields", AGENT_NAME, existing)
-        agent_service.update_agent(
-            existing,
-            display_name=DISPLAY_NAME,
-            department=DEPARTMENT,
-            model=MODEL,
-            shift_state="active",
-            system_prompt=SYSTEM_PROMPT,
-            temperature=0.3,
-            max_tokens=4096,
-            capabilities=CAPABILITIES_JSON,
-            is_department_ai=False,
-            tier=3,
-            worker_type="ai",
-        )
+        log.info("Agent %s already exists (id=%d) — updating full profile", AGENT_NAME, existing)
+        agent_service.update_agent(existing, **PROFILE_FIELDS)
         return existing
 
+    # create_agent only accepts a narrow kwargs set (name/display_name/
+    # department/model + a handful more). Create the row first, then
+    # update_agent to fill in the human-readable profile columns.
     new_id = agent_service.create_agent(
         name=AGENT_NAME,
         display_name=DISPLAY_NAME,
@@ -127,6 +154,15 @@ def ensure_agent() -> int:
         is_department_ai=False,
         tier=3,
         worker_type="ai",
+    )
+    agent_service.update_agent(
+        new_id,
+        first_name=FIRST_NAME,
+        last_name=LAST_NAME,
+        title=TITLE,
+        pronouns=PRONOUNS,
+        bio=BIO,
+        email=EMAIL,
     )
     log.info("Created agent %s (id=%d)", AGENT_NAME, new_id)
     return new_id

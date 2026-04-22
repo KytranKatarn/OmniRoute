@@ -976,11 +976,12 @@ async function openAgentDetail(agentId) {
             + '<div class="dhq-ad-subsection">'
             + '<div class="dhq-ad-section-title">Portrait Prompt '
             + '<button class="dhq-btn-sm" onclick="generatePortraitPrompt(' + a.id + ')">Auto-Generate</button>'
+            + '<a class="dhq-btn-sm dhq-btn-link" href="/tools/media-studio?tab=portraits&agent=' + a.id + '" target="_blank" rel="noopener" title="Open canonical + variants in Media Studio">Manage in Media Studio →</a>'
             + '</div>'
             + '<div id="portrait-prompt-preview" class="dhq-ad-prompt" style="min-height:2rem"></div>'
             + '<div id="portraitGallery" class="dhq-portrait-grid"></div>'
             + '<div class="dhq-portrait-note" style="color:#8b8b8b;font-size:0.75rem;margin-top:0.5rem">'
-            + 'ComfyUI portrait generation coming soon (pending disk space cleanup).'
+            + 'Full portrait pipeline (generate / variants / approve) lives in the Media Studio → Portraits tab.'
             + '</div></div></div>';
 
         // ── Social Presence ──
@@ -3086,4 +3087,18 @@ function saveProvider() {
 
 document.addEventListener('DOMContentLoaded', function() {
     loadOverview();
+
+    // Deep-link from Media Studio Portraits tab (or elsewhere):
+    //   /tools/department-hq?agent=349#roster
+    // opens the Roster tab then the agent's detail modal.
+    try {
+        var params = new URLSearchParams(window.location.search || '');
+        var agentId = parseInt(params.get('agent') || '0', 10);
+        if (agentId > 0 && typeof openAgentDetail === 'function') {
+            // Give the tab-switch + any data-load a moment to settle, then open.
+            setTimeout(function() {
+                try { openAgentDetail(agentId); } catch (_) {}
+            }, 500);
+        }
+    } catch (_) {}
 });

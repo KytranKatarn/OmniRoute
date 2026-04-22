@@ -960,6 +960,7 @@
                 <button class="ms-btn ms-btn-ghost" onclick="closePortraitDetail()" data-i18n="media_studio.back_to_grid">Back</button>
                 <h3 id="ms-portrait-agent-name"></h3>
                 <span id="ms-portrait-status" class="ms-status-badge"></span>
+                <a id="ms-view-in-roster" class="ms-btn ms-btn-ghost" href="#" target="_blank" rel="noopener" style="margin-left:auto;text-decoration:none;" title="Open this agent in the Department HQ Roster tab">View in Roster →</a>
             </div>
 
             <div class="ms-detail-layout">
@@ -2790,6 +2791,9 @@
         document.getElementById('ms-portrait-grid').style.display = 'none';
         document.querySelector('.ms-portrait-actions').style.display = 'none';
         document.getElementById('ms-portrait-detail').style.display = 'block';
+        // Wire the "View in Roster →" deep-link back to DHQ for this agent.
+        var rosterLink = document.getElementById('ms-view-in-roster');
+        if (rosterLink) rosterLink.href = '/tools/department-hq?agent=' + agentId + '#roster';
         loadPortraitDetail(agentId);
     };
 
@@ -3099,10 +3103,35 @@
     document.addEventListener("DOMContentLoaded", function() {
         if (typeof lucide !== "undefined") lucide.createIcons();
 
+        // Support deep-link from Department HQ Roster:
+        //   /tools/media-studio?tab=portraits&agent=349
+        // Switches to the named tab and, for ?tab=portraits, auto-opens the
+        // agent's portrait detail once loadPortraits() populates the grid.
+        var params = new URLSearchParams(window.location.search || "");
+        var paramTab = params.get("tab");
+        var paramAgent = parseInt(params.get("agent") || "0", 10);
         var hash = (window.location.hash || "").replace("#", "");
-        if (hash && document.getElementById("ms-tab-" + hash)) {
-            if (window.setLcarsActiveTab) window.setLcarsActiveTab(hash);
-            switchMsTab(hash);
+        var initialTab = paramTab || hash;
+
+        if (initialTab && document.getElementById("ms-tab-" + initialTab)) {
+            if (window.setLcarsActiveTab) window.setLcarsActiveTab(initialTab);
+            switchMsTab(initialTab);
+            if (initialTab === "portraits" && paramAgent > 0 && typeof openPortraitDetail === "function") {
+                // loadPortraits() is async; poll briefly for it to finish then
+                // open the agent's detail panel. Give up after ~4s so the user
+                // still sees the grid.
+                var tries = 0;
+                var timer = setInterval(function() {
+                    tries += 1;
+                    var grid = document.getElementById("ms-portrait-grid");
+                    if (grid && grid.children.length > 0) {
+                        clearInterval(timer);
+                        try { openPortraitDetail(paramAgent); } catch (_) {}
+                    } else if (tries > 20) {
+                        clearInterval(timer);
+                    }
+                }, 200);
+            }
         } else {
             loadDashboard();
         }

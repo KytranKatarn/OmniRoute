@@ -53,6 +53,13 @@ BATCH_SIZE = 5
 # Module ID for bridge tracking
 MODULE_ID = "consciousness_linguistics"
 
+# LLM placeholder words that signal the model returned a stub instead of
+# translating. These are stored as failed (fall back to English) and the
+# row is NOT persisted to the translations table.
+_PLACEHOLDER_TRANSLATIONS: frozenset = frozenset(
+    {"mock", "translated", "translation", "placeholder", "todo", "tbd", "test", "n/a", "..."}
+)
+
 
 def _get_db():
     """Get a psycopg2 connection to the ARCHIE database."""
@@ -282,8 +289,9 @@ def batch_translate(
 
         prompt = (
             f"Translate the following UI strings from English to {lang_name}.\n"
-            f"Return ONLY a JSON array with objects: "
-            f'[{{"n": 1, "t": "translated"}}]\n\n'
+            f"Return ONLY a JSON array. Each object has 'n' (the string number) "
+            f"and 't' (the actual {lang_name} translation — not a placeholder).\n"
+            f'Example format: [{{"n": 1, "t": "<{lang_name} translation>"}}, {{"n": 2, "t": "<{lang_name} translation>"}}]\n\n'
             f"{glossary_section}"
             f"Strings to translate:\n"
             + "\n".join(numbered)
@@ -301,15 +309,23 @@ def batch_translate(
         batch_results = []
         batch_ok = 0
         for i, (key, english_text, _context) in enumerate(batch):
-            if i < len(translations) and translations[i]:
+            t = translations[i] if i < len(translations) else None
+            is_placeholder = t and t.strip().lower() in _PLACEHOLDER_TRANSLATIONS
+            if t and not is_placeholder:
                 batch_results.append({
                     "key": key,
-                    "translation": translations[i],
+                    "translation": t,
                     "success": True,
                 })
                 batch_ok += 1
             else:
-                logger.warning("Missing translation for key=%s in batch", key)
+                if is_placeholder:
+                    logger.warning(
+                        "Placeholder translation '%s' rejected for key=%s lang=%s",
+                        t, key, language,
+                    )
+                else:
+                    logger.warning("Missing translation for key=%s in batch", key)
                 batch_results.append({
                     "key": key,
                     "translation": english_text,

@@ -1718,7 +1718,7 @@ def _generate_hire_narrative(gap: dict[str, Any], shortlist: list[dict[str, Any]
         result = dispatch(
             capability="workforce_planning",
             prompt=prompt,
-            agent="K.I.N.",
+            prefer_agent="K.I.N.",
         )
         if result and getattr(result, "success", False):
             return (getattr(result, "response", "") or "").strip() or None
@@ -2120,6 +2120,112 @@ def resume_approved_bridge_jobs():
     return processed
 
 
+def refresh_website_directory():
+    """Regenerate directory-fallback.json and push it to Hostinger via API.
+
+    Runs every 6 hours so the static fallback always reflects the live roster.
+    Also uploads just the JSON file via TUS (no full-site redeploy needed).
+    """
+    import json
+    import os
+    import threading
+
+    import requests
+
+    try:
+        # Fetch live public roster from the platform itself
+        resp = requests.get(
+            "http://127.0.0.1:3000/api/public/directory",
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("refresh_website_directory: failed to fetch roster: %s", exc)
+        return
+
+    agents = data.get("agents", data) if isinstance(data, dict) else data
+
+    # Write updated fallback JSON
+    fallback_path = os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "..",
+        "website",
+        "kytranempowerment.com",
+        "data",
+        "directory-fallback.json",
+    )
+    fallback_path = os.path.normpath(fallback_path)
+    try:
+        with open(fallback_path, "w") as fh:
+            json.dump({"agents": agents}, fh, indent=2, default=str)
+        logger.info("refresh_website_directory: wrote %d agents to fallback JSON", len(agents))
+    except Exception as exc:
+        logger.warning("refresh_website_directory: failed to write fallback: %s", exc)
+        return
+
+    # Push the JSON file to Hostinger via TUS in a background thread
+    api_key = os.getenv("HOSTINGER_API_KEY", "")
+    if not api_key:
+        logger.debug("refresh_website_directory: HOSTINGER_API_KEY not set, skipping push")
+        return
+
+    def _push():
+        try:
+            base = "https://developers.hostinger.com"
+            auth = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+
+            r = requests.get(
+                f"{base}/api/hosting/v1/websites?domain=kytranempowerment.com",
+                headers=auth,
+                timeout=10,
+            )
+            r.raise_for_status()
+            username = r.json()["data"][0]["username"]
+
+            r = requests.post(
+                f"{base}/api/hosting/v1/files/upload-urls",
+                headers=auth,
+                json={"username": username, "domain": "kytranempowerment.com"},
+                timeout=10,
+            )
+            r.raise_for_status()
+            creds = r.json()
+            upload_url = creds["url"].rstrip("/")
+            auth_token = creds["auth_key"]
+            auth_rest = creds["rest_auth_key"]
+
+            file_size = os.path.getsize(fallback_path)
+            endpoint = f"{upload_url}/data/directory-fallback.json?override=true"
+            tus_h = {
+                "X-Auth": auth_token,
+                "X-Auth-Rest": auth_rest,
+                "upload-length": str(file_size),
+                "upload-offset": "0",
+            }
+            r = requests.post(endpoint, data=b"", headers=tus_h, timeout=30)
+            if r.status_code != 201:
+                logger.warning("directory fallback TUS init failed: %s", r.status_code)
+                return
+            with open(fallback_path, "rb") as fh:
+                r = requests.patch(
+                    endpoint,
+                    data=fh,
+                    headers={**tus_h, "Content-Type": "application/offset+octet-stream"},
+                    timeout=60,
+                )
+            if r.status_code in (200, 204):
+                logger.info("refresh_website_directory: fallback JSON pushed to Hostinger")
+            else:
+                logger.warning("directory fallback PATCH failed: %s", r.status_code)
+        except Exception as exc:
+            logger.warning("refresh_website_directory push error: %s", exc)
+
+    threading.Thread(target=_push, daemon=True, name="dir-fallback-push").start()
+
+
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
@@ -2265,4 +2371,13 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         id="reap_stale_pending_approvals",
         name="Agent Loop: Reap Stale pending_approval Jobs",
         replace_existing=True,
+    )
+
+    scheduler.add_job(
+        with_ctx(refresh_website_directory),
+        trigger=IntervalTrigger(hours=6),
+        id="refresh_website_directory",
+        name="Agent Loop: Refresh Website Directory Fallback",
+        replace_existing=True,
+        max_instances=1,
     )

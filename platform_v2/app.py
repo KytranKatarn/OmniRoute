@@ -2354,7 +2354,7 @@ def _get_agent_models():
                     ON tel.agent_name = a.name
                     AND tel.created_at > NOW() - INTERVAL '7 days'
                 WHERE a.status = 'active'
-                    AND a.model IS NOT NULL AND a.model != ''
+                    AND a.model IS NOT NULL AND a.model != '' AND a.model != 'none'
                     AND a.model NOT LIKE '%%:cloud'
                     AND COALESCE(a.shift_state, 'active') != 'barracked'
                 GROUP BY a.model

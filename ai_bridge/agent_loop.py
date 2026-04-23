@@ -430,6 +430,7 @@ class AgentLoop:
         self.scheduler = scheduler
         self.flask_app = flask_app
         self._running = False
+        self._last_down_set: frozenset = frozenset()
 
     def start(self):
         """Attach agent loop jobs to the scheduler."""
@@ -4047,15 +4048,17 @@ class AgentLoop:
                         notify_err,
                     )
 
-            # Telegram on any DOWN container. This is the loudest signal
-            # on the platform — it means a sibling product is offline.
-            if result["down_names"]:
+            # Telegram only when DOWN set changes (new failure or recovery).
+            # Prevents flooding when a container stays down across many 5-min ticks.
+            current_down = frozenset(result["down_names"])
+            if current_down != self._last_down_set:
                 try:
                     self._send_telegram(format_alert_message(result))
                 except Exception as tg_err:
                     logger.warning(
                         "V.I.G.I.L. heartbeat: Telegram dispatch failed: %s", tg_err
                     )
+                self._last_down_set = current_down
 
             # File Tier-2 restart approvals for each auto_restart_safe DOWN
             # container. request_approval de-dups per action_type+agent, so

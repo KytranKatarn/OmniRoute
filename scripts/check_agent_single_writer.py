@@ -140,6 +140,13 @@ _API_GENERATE_ALLOWLIST: set[str] = {
     # matches these route path strings — deferred hook refinement to future
     # work.
     "platform_v2/app.py",
+    # Department HQ jobs — model unload via keep_alive=0 at line ~278.
+    # Admin-plane operation (not user-facing inference): the only documented
+    # way to evict a model from Ollama VRAM is POST /api/generate with
+    # keep_alive=0. Cannot route through build_options() because that path
+    # is for inference, not eviction. Pre-existing false positive surfaced
+    # when jobs.py was first modified for #2235.
+    "platform_v2/tools/department_hq/jobs.py",
 }
 
 

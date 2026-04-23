@@ -316,21 +316,25 @@ def automated_module_audit(flask_app):
             total_dispatched,
         )
 
-        # --- Phase 3: Send Telegram summary ---
-        try:
-            gateway = flask_app.config.get("TELEGRAM_GATEWAY")
-            if gateway and gateway.is_running and (violations > 0 or total_dispatched > 0):
-                summary_msg = (
-                    f"\U0001f527 Weekly Repair Cycle Complete\n"
-                    f"Modules audited: {audited} ({clean} clean, {violations} violations)\n"
-                    f"Severity: {severity_totals['red']} red, {severity_totals['yellow']} yellow, {severity_totals['info']} info\n"
-                    f"Proposals: {total_proposals} created, {total_dispatched} dispatched"
-                )
-                import asyncio
+        # --- Phase 3: Route Telegram summary through A.R.C.H.I.E. inbox ---
+        if violations > 0 or total_dispatched > 0:
+            try:
+                from services.telegram_service import send as _tg_send
 
-                asyncio.run_coroutine_threadsafe(gateway.send_notification(summary_msg), gateway.loop)
-        except Exception as tg_err:
-            logger.debug("Repair cycle Telegram summary failed: %s", tg_err)
+                _tg_send(
+                    category="system",
+                    title="Weekly Repair Cycle Complete",
+                    message=(
+                        f"Modules audited: {audited} ({clean} clean, {violations} violations)\n"
+                        f"Severity: {severity_totals['red']} red, {severity_totals['yellow']} yellow, {severity_totals['info']} info\n"
+                        f"Proposals: {total_proposals} created, {total_dispatched} dispatched"
+                    ),
+                    source_agent="F.O.R.G.E.",
+                    source_department="Engineering & Technology",
+                    source_module="jobs",
+                )
+            except Exception as tg_err:
+                logger.debug("Repair cycle Telegram summary failed: %s", tg_err)
 
         _log_cycle("automated_module_audit", audited, violations, 0)
     except Exception as e:

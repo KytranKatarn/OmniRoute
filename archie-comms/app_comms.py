@@ -190,8 +190,10 @@ def chat():
 @app.route("/api/director/report", methods=["POST"])
 def api_director_report():
     """Agent loop jobs call this to submit director reports UP the hierarchy."""
+    if not ARCHIE_SERVICE_TOKEN:
+        return jsonify({"error": "Service token not configured"}), 503
     token = request.headers.get("X-Service-Token", "")
-    if ARCHIE_SERVICE_TOKEN and not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
+    if not token or not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
         return jsonify({"error": "Unauthorized"}), 401
 
     from services.briefing_service import submit_director_report

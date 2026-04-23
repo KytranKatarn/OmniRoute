@@ -151,16 +151,13 @@ def _create_hr_alert(cur, agent_id, alert_type, severity, title, message, detail
 
 
 def _send_hr_telegram_alerts(cur, conn, flask_app):
-    """Send unnotified critical/warning alerts via Telegram."""
+    """Submit unnotified critical/warning alerts to A.R.C.H.I.E. director report inbox."""
     try:
-        import asyncio
+        from services.telegram_service import send as _tg_send
+    except ImportError:
+        return
 
-        # Find the running gateway instance
-        gateway = flask_app.config.get("TELEGRAM_GATEWAY")
-        if not gateway or not gateway.is_running:
-            return
-
-        # Get unnotified alerts
+    try:
         cur.execute(
             """
             SELECT aa.id, aa.agent_id, aa.alert_type, aa.severity,
@@ -179,50 +176,28 @@ def _send_hr_telegram_alerts(cur, conn, flask_app):
         if not alerts:
             return
 
-        # Get authorized Telegram user
-        cur.execute(
-            """
-            SELECT telegram_id FROM telegram_users
-            WHERE is_authorized = TRUE AND user_id IS NOT NULL
-            LIMIT 1
-        """
-        )
-        tg_user = cur.fetchone()
-        if not tg_user:
-            return
-
-        telegram_id = tg_user["telegram_id"]
-        loop = gateway._loop
-
         for alert in alerts:
-            severity_icon = "\u26a0\ufe0f" if alert["severity"] == "warning" else "\U0001f6a8"
-            text = (
-                f"{severity_icon} *HR Alert: {alert['title']}*\n\n"
-                f"{alert['message']}\n\n"
-                f"_Type: {alert['alert_type']} | Agent: {alert['agent_name'] or 'System'}_"
+            message = (
+                f"{alert['message']}\n\n" f"Type: {alert['alert_type']} | Agent: {alert['agent_name'] or 'System'}"
             )
-
             try:
-                asyncio.run_coroutine_threadsafe(
-                    gateway._application.bot.send_message(
-                        chat_id=telegram_id,
-                        text=text,
-                        parse_mode="Markdown",
-                    ),
-                    loop,
+                _tg_send(
+                    category="system",
+                    title=f"HR Alert: {alert['title']}",
+                    message=message,
+                    source_agent="K.I.N.",
+                    source_department="Human Resources & Culture",
+                    source_module="agent_jobs",
                 )
-
                 cur.execute(
                     "UPDATE agent_alerts SET notified_telegram = TRUE WHERE id = %s",
                     (alert["id"],),
                 )
             except Exception as e:
-                logger.error(f"Failed to send HR alert to Telegram: {e}")
+                logger.error(f"Failed to route HR alert to inbox: {e}")
 
         conn.commit()
 
-    except ImportError:
-        pass  # Telegram not available
     except Exception as e:
         logger.error(f"HR Telegram alerts failed: {e}")
 
@@ -583,38 +558,22 @@ def process_training_tick():
         if completed > 0:
             conn.commit()
 
-            # Send Telegram notification for completions
+            # Route training completions to A.R.C.H.I.E. director report inbox
             try:
-                gateway = _flask_app.config.get("TELEGRAM_GATEWAY") if _flask_app else None
-                if gateway and gateway.is_running:
-                    cur.execute(
-                        """
-                        SELECT telegram_id FROM telegram_users
-                        WHERE is_authorized = TRUE AND user_id IS NOT NULL LIMIT 1
-                    """
-                    )
-                    tg_user = cur.fetchone()
-                    if tg_user:
-                        import asyncio
+                from services.telegram_service import send as _tg_send
 
-                        loop = gateway._loop
-                        for t in ready:
-                            dn = t["display_name"] or t["agent_name"]
-                            text = (
-                                f"\U0001f393 *Training Complete*\n\n"
-                                f"{dn} finished {t['skill_name']} training, "
-                                f"now at Lv{t['target_proficiency']}."
-                            )
-                            asyncio.run_coroutine_threadsafe(
-                                gateway._application.bot.send_message(
-                                    chat_id=tg_user["telegram_id"],
-                                    text=text,
-                                    parse_mode="Markdown",
-                                ),
-                                loop,
-                            )
+                for t in ready:
+                    dn = t["display_name"] or t["agent_name"]
+                    _tg_send(
+                        category="info",
+                        title=f"Training Complete: {dn}",
+                        message=(f"{dn} finished {t['skill_name']} training, " f"now at Lv{t['target_proficiency']}."),
+                        source_agent="K.I.N.",
+                        source_department="Human Resources & Culture",
+                        source_module="agent_jobs",
+                    )
             except Exception as e:
-                logger.warning(f"Failed: {e}")
+                logger.warning(f"Failed to route training completion to inbox: {e}")
 
         cur.close()
         conn.close()

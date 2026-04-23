@@ -10,7 +10,7 @@ import os
 from flask import jsonify, request, render_template
 from flask_login import login_required, current_user
 
-from . import media_studio_bp
+from . import admin_required, media_studio_bp
 
 logger = logging.getLogger(__name__)
 
@@ -344,7 +344,7 @@ def api_approve_canonical(agent_id):
 
 
 @media_studio_bp.route("/api/portraits/<int:agent_id>/identity-prompt", methods=["PUT"])
-@login_required
+@admin_required
 def api_update_identity_prompt(agent_id):
     """Update the identity prompt for an agent."""
     from .services.portrait_service import update_identity_prompt

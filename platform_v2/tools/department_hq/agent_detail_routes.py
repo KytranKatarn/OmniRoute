@@ -60,6 +60,8 @@ EDITABLE_FIELDS = {
     "age_range",
     "gender",
     "ethnicity",
+    # Portrait (lives in agent_portraits, delegated to portrait_service)
+    "identity_prompt",
     # Voice & social
     "social_topics",
     "auto_approve_threshold",
@@ -74,6 +76,22 @@ SENSITIVE_FIELDS = {
     "is_department_ai",
     "reports_to_agent_id",
 }
+
+
+def _get_identity_prompt(agent_id: int):
+    """Fetch identity_prompt from agent_portraits (single source of truth)."""
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                "SELECT identity_prompt FROM agent_portraits WHERE agent_id = %s",
+                (agent_id,),
+            )
+            row = cur.fetchone()
+            return row["identity_prompt"] if row else None
+    except Exception:
+        return None
 
 
 def register_agent_detail_routes(bp, admin_required):
@@ -125,6 +143,8 @@ def register_agent_detail_routes(bp, admin_required):
                 # Voice & social
                 "social_topics": agent.get("social_topics") or [],
                 "auto_approve_threshold": float(agent.get("auto_approve_threshold") or 0.0),
+                # Portrait identity (from agent_portraits — single source of truth)
+                "identity_prompt": _get_identity_prompt(agent_id),
                 # Read-only
                 "status": agent.get("status"),
                 "shift_state": agent.get("shift_state"),
@@ -314,8 +334,19 @@ def register_agent_detail_routes(bp, admin_required):
 
         before = {k: agent.get(k) for k in payload.keys()}
 
+        # identity_prompt lives in agent_portraits — delegate to portrait_service
+        identity_prompt_value = payload.pop("identity_prompt", None)
+        identity_prompt_in_payload = "identity_prompt" in before
+
         try:
-            update_agent(agent_id, **payload)
+            if identity_prompt_in_payload:
+                from tools.media_studio.services.portrait_service import (
+                    update_identity_prompt as _update_ip,
+                )
+
+                _update_ip(agent_id, identity_prompt_value or "")
+            if payload:
+                update_agent(agent_id, **payload)
         except Exception as exc:
             logger.exception("agent PATCH failed for id=%s", agent_id)
             return (

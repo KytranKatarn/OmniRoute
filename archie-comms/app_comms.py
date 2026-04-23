@@ -309,14 +309,69 @@ def api_internal_triage_policies():
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
-            SELECT severity, category_prefix, director_agent_pattern, action, reason
+            SELECT id, severity, category_prefix, director_agent_pattern,
+                   action, reason, priority, active
             FROM triage_policies
-            WHERE active = TRUE
             ORDER BY priority ASC
             """
         )
         rows = [dict(r) for r in cur.fetchall()]
     return jsonify({"policies": rows})
+
+
+@app.route("/api/internal/triage-policies", methods=["POST"])
+def api_internal_triage_policies_create():
+    """Create a new triage policy."""
+    token = request.headers.get("X-Service-Token", "")
+    if ARCHIE_SERVICE_TOKEN and not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    from database import get_db_cursor
+
+    data = request.get_json() or {}
+    action = data.get("action")
+    reason = data.get("reason", "")
+    if action not in ("escalate", "resolve", "consolidate", "suppress"):
+        return jsonify({"error": "Invalid action"}), 400
+    if not reason:
+        return jsonify({"error": "reason is required"}), 400
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            INSERT INTO triage_policies
+              (severity, category_prefix, director_agent_pattern, action, reason, priority)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id
+            """,
+            (
+                data.get("severity") or None,
+                data.get("category_prefix") or None,
+                data.get("director_agent_pattern") or None,
+                action,
+                reason,
+                int(data.get("priority", 50)),
+            ),
+        )
+        row = cur.fetchone()
+    return jsonify({"success": True, "id": row["id"] if row else None}), 201
+
+
+@app.route("/api/internal/triage-policies/<int:policy_id>", methods=["DELETE"])
+def api_internal_triage_policies_delete(policy_id):
+    """Delete a triage policy by id."""
+    token = request.headers.get("X-Service-Token", "")
+    if ARCHIE_SERVICE_TOKEN and not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    from database import get_db_cursor
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute("DELETE FROM triage_policies WHERE id = %s", (policy_id,))
+        deleted = cur.rowcount
+    if not deleted:
+        return jsonify({"error": "Policy not found"}), 404
+    return jsonify({"success": True})
 
 
 @app.route("/api/chat/send_message", methods=["POST"])

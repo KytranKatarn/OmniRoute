@@ -156,7 +156,7 @@ _POLICY_CACHE_TTL = 300
 
 
 def get_policies() -> list:
-    """Fetch active triage policies from archie-comms with 5-min cache."""
+    """Fetch triage policies from archie-comms with 5-min cache."""
     global _policy_cache, _policy_cache_ts
     if _time.time() - _policy_cache_ts < _POLICY_CACHE_TTL:
         return _policy_cache
@@ -173,3 +173,52 @@ def get_policies() -> list:
     except Exception as e:
         logger.warning("get_policies failed, using stale cache: %s", e)
         return _policy_cache
+
+
+def create_policy(
+    action: str,
+    reason: str,
+    severity: str = None,
+    category_prefix: str = None,
+    director_agent_pattern: str = None,
+    priority: int = 50,
+) -> dict:
+    """Create a new triage policy in archie-comms."""
+    global _policy_cache_ts
+    try:
+        resp = requests.post(
+            f"{_COMMS_BASE}/api/internal/triage-policies",
+            headers=_headers(),
+            json={
+                "action": action,
+                "reason": reason,
+                "severity": severity or None,
+                "category_prefix": category_prefix or None,
+                "director_agent_pattern": director_agent_pattern or None,
+                "priority": priority,
+            },
+            timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        _policy_cache_ts = 0  # invalidate cache
+        return resp.json()
+    except Exception as e:
+        logger.error("create_policy failed: %s", e)
+        return {"success": False, "error": str(e)}
+
+
+def delete_policy(policy_id: int) -> bool:
+    """Delete a triage policy by id."""
+    global _policy_cache_ts
+    try:
+        resp = requests.delete(
+            f"{_COMMS_BASE}/api/internal/triage-policies/{policy_id}",
+            headers=_headers(),
+            timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        _policy_cache_ts = 0  # invalidate cache
+        return resp.json().get("success", False)
+    except Exception as e:
+        logger.error("delete_policy(%s) failed: %s", policy_id, e)
+        return False

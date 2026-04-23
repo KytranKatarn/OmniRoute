@@ -362,8 +362,38 @@ def register_coms_routes(bp, admin_required):
     @bp.route("/api/coms/triage-policies")
     @admin_required
     def coms_triage_policies():
-        """Return active triage policies for the classification rules viewer."""
+        """Return all triage policies for the classification rules viewer."""
         from services.director_report_service import get_policies
 
         policies = get_policies()
         return jsonify({"policies": policies, "count": len(policies)})
+
+    @bp.route("/api/coms/triage-policies", methods=["POST"])
+    @admin_required
+    def coms_create_triage_policy():
+        """Create a new triage policy."""
+        from services.director_report_service import create_policy
+
+        data = request.get_json() or {}
+        result = create_policy(
+            action=data.get("action", ""),
+            reason=data.get("reason", ""),
+            severity=data.get("severity") or None,
+            category_prefix=data.get("category_prefix") or None,
+            director_agent_pattern=data.get("director_agent_pattern") or None,
+            priority=int(data.get("priority", 50)),
+        )
+        if not result.get("success"):
+            return jsonify(result), 400
+        return jsonify(result), 201
+
+    @bp.route("/api/coms/triage-policies/<int:policy_id>", methods=["DELETE"])
+    @admin_required
+    def coms_delete_triage_policy(policy_id):
+        """Delete a triage policy."""
+        from services.director_report_service import delete_policy
+
+        ok = delete_policy(policy_id)
+        if not ok:
+            return jsonify({"error": "Delete failed or not found"}), 404
+        return jsonify({"success": True})

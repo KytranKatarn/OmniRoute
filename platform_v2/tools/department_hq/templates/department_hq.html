@@ -419,9 +419,35 @@
                 <div id="coms-inbox" style="max-height:400px;overflow-y:auto;"></div>
                 <h3 style="color:#60a5fa;font-family:'Orbitron',sans-serif;font-size:0.75rem;letter-spacing:2px;margin:16px 0 8px;display:flex;align-items:center;gap:8px;">
                   CLASSIFICATION RULES
-                  <button onclick="loadComsPolicies()" style="margin-left:auto;padding:2px 8px;background:rgba(96,165,250,0.15);border:1px solid rgba(96,165,250,0.4);border-radius:4px;color:#60a5fa;font-size:0.65rem;cursor:pointer;">↻</button>
+                  <button onclick="loadComsPolicies()" style="padding:2px 8px;background:rgba(96,165,250,0.15);border:1px solid rgba(96,165,250,0.4);border-radius:4px;color:#60a5fa;font-size:0.65rem;cursor:pointer;">↻</button>
+                  <button onclick="toggleComsAddPolicy()" id="coms-add-policy-btn" style="margin-left:auto;padding:2px 8px;background:rgba(96,165,250,0.15);border:1px solid rgba(96,165,250,0.4);border-radius:4px;color:#60a5fa;font-size:0.65rem;cursor:pointer;">+ Add Rule</button>
                 </h3>
                 <div id="coms-policies" style="max-height:200px;overflow-y:auto;"></div>
+                <div id="coms-add-policy" style="display:none;background:rgba(96,165,250,0.05);border:1px solid rgba(96,165,250,0.2);border-radius:6px;padding:10px;margin-top:8px;">
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+                    <select id="cp-severity" style="background:#111827;color:#e0e0e0;border:1px solid #374151;border-radius:4px;padding:3px 6px;font-size:0.7rem;">
+                      <option value="">* any severity</option>
+                      <option value="critical">critical</option>
+                      <option value="high">high</option>
+                      <option value="medium">medium</option>
+                      <option value="low">low</option>
+                    </select>
+                    <select id="cp-action" style="background:#111827;color:#e0e0e0;border:1px solid #374151;border-radius:4px;padding:3px 6px;font-size:0.7rem;">
+                      <option value="suppress">suppress</option>
+                      <option value="consolidate">consolidate</option>
+                      <option value="resolve">resolve</option>
+                      <option value="escalate">escalate</option>
+                    </select>
+                    <input id="cp-category" type="text" placeholder="category prefix (optional)" style="background:#111827;color:#e0e0e0;border:1px solid #374151;border-radius:4px;padding:3px 6px;font-size:0.7rem;">
+                    <input id="cp-director" type="text" placeholder="director pattern (optional)" style="background:#111827;color:#e0e0e0;border:1px solid #374151;border-radius:4px;padding:3px 6px;font-size:0.7rem;">
+                  </div>
+                  <input id="cp-reason" type="text" placeholder="reason (required)" style="width:100%;box-sizing:border-box;background:#111827;color:#e0e0e0;border:1px solid #374151;border-radius:4px;padding:3px 6px;font-size:0.7rem;margin-bottom:6px;">
+                  <div style="display:flex;gap:6px;align-items:center;">
+                    <input id="cp-priority" type="number" value="50" min="1" max="99" style="width:60px;background:#111827;color:#e0e0e0;border:1px solid #374151;border-radius:4px;padding:3px 6px;font-size:0.7rem;">
+                    <span style="color:#4b5563;font-size:0.65rem;">priority (lower = checked first)</span>
+                    <button onclick="submitComsAddPolicy()" style="margin-left:auto;padding:3px 12px;background:rgba(96,165,250,0.2);border:1px solid rgba(96,165,250,0.5);border-radius:4px;color:#60a5fa;font-size:0.7rem;cursor:pointer;">Save Rule</button>
+                  </div>
+                </div>
               </div>
             </div>
             <div style="margin-top:16px;text-align:center;">
@@ -1305,7 +1331,7 @@ async function _dhqRejectHire(approvalId, btn) {
         window.loadComsInbox();
     }
 
-    // ── Classification Rules (#2262) ─────────────────────────────────────────
+    // ── Classification Rules (#2262 / #2263) ────────────────────────────────
     window.loadComsPolicies = async function() {
         var box = document.getElementById('coms-policies');
         if (!box) return;
@@ -1318,13 +1344,14 @@ async function _dhqRejectHire(approvalId, btn) {
             if (policies.length === 0) {
                 var d = document.createElement('div');
                 d.style.cssText = 'color:#4b5563;font-size:0.7rem;padding:8px;font-style:italic;';
-                d.textContent = 'Built-in defaults only (no DB policies active).';
+                d.textContent = 'Built-in defaults only — use Add Rule to create DB policies.';
                 box.appendChild(d); return;
             }
             var actionColors = {escalate:'#ef4444',resolve:'#10b981',consolidate:'#60a5fa',suppress:'#9ca3af'};
             policies.forEach(function(p) {
                 var row = document.createElement('div');
-                row.style.cssText = 'display:flex;gap:6px;align-items:center;font-size:0.65rem;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,0.04);';
+                var isInactive = p.active === false;
+                row.style.cssText = 'display:flex;gap:6px;align-items:center;font-size:0.65rem;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,0.04);' + (isInactive ? 'opacity:0.4;' : '');
                 var cond = [p.severity||'*', p.category_prefix ? p.category_prefix+'…' : '*', p.director_agent_pattern||'*'].join(' / ');
                 var condEl = document.createElement('span'); condEl.style.cssText='color:#9ca3af;flex:2;'; condEl.textContent=cond;
                 var arrow = document.createElement('span'); arrow.style.color='#4b5563'; arrow.textContent=' → ';
@@ -1332,13 +1359,62 @@ async function _dhqRejectHire(approvalId, btn) {
                 actionEl.style.cssText='color:'+(actionColors[p.action]||'#e0e0e0')+';font-weight:600;flex:1;text-transform:uppercase;font-size:0.6rem;';
                 actionEl.textContent=p.action;
                 var reasonEl = document.createElement('span'); reasonEl.style.cssText='color:#4b5563;flex:3;font-style:italic;'; reasonEl.textContent=p.reason||'';
-                row.appendChild(condEl); row.appendChild(arrow); row.appendChild(actionEl); row.appendChild(reasonEl);
+                var delBtn = document.createElement('button');
+                delBtn.style.cssText='padding:1px 6px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:3px;color:#ef4444;font-size:0.6rem;cursor:pointer;flex-shrink:0;';
+                delBtn.textContent = '×';
+                delBtn.title = 'Delete this policy';
+                delBtn.setAttribute('data-pid', p.id);
+                delBtn.addEventListener('click', function() { _comsDeletePolicy(this.getAttribute('data-pid')); });
+                row.appendChild(condEl); row.appendChild(arrow); row.appendChild(actionEl); row.appendChild(reasonEl); row.appendChild(delBtn);
                 box.appendChild(row);
             });
         } catch(e) {
             _comsMsg(box, 'Policies unavailable.');
         }
     };
+
+    window.toggleComsAddPolicy = function() {
+        var form = document.getElementById('coms-add-policy');
+        if (!form) return;
+        form.style.display = form.style.display === 'none' ? '' : 'none';
+    };
+
+    window.submitComsAddPolicy = async function() {
+        var reason = (document.getElementById('cp-reason') || {}).value || '';
+        if (!reason.trim()) { alert('Reason is required.'); return; }
+        var body = {
+            severity: (document.getElementById('cp-severity') || {}).value || null,
+            action: (document.getElementById('cp-action') || {}).value || 'suppress',
+            category_prefix: (document.getElementById('cp-category') || {}).value || null,
+            director_agent_pattern: (document.getElementById('cp-director') || {}).value || null,
+            reason: reason.trim(),
+            priority: parseInt((document.getElementById('cp-priority') || {}).value || '50', 10),
+        };
+        try {
+            var resp = await fetch('/api/department-hq/api/coms/triage-policies', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify(body),
+            });
+            if (!resp.ok) { alert('Failed to save rule.'); return; }
+            // reset form
+            ['cp-severity','cp-action','cp-category','cp-director','cp-reason'].forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el) el.value = el.tagName === 'SELECT' ? el.options[0].value : '';
+            });
+            var pr = document.getElementById('cp-priority'); if (pr) pr.value = '50';
+            window.toggleComsAddPolicy();
+            window.loadComsPolicies();
+        } catch(e) { alert('Error saving rule.'); }
+    };
+
+    async function _comsDeletePolicy(id) {
+        if (!confirm('Delete this triage policy?')) return;
+        try {
+            var resp = await fetch('/api/department-hq/api/coms/triage-policies/' + id, { method: 'DELETE' });
+            if (!resp.ok) { alert('Failed to delete policy.'); return; }
+            window.loadComsPolicies();
+        } catch(e) { alert('Error deleting policy.'); }
+    }
 
 })();
 </script>

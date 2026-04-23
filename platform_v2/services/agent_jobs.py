@@ -2146,18 +2146,21 @@ def refresh_website_directory():
 
     agents = data.get("agents", data) if isinstance(data, dict) else data
 
-    # Write updated fallback JSON
-    fallback_path = os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "..",
-        "..",
-        "website",
-        "kytranempowerment.com",
-        "data",
-        "directory-fallback.json",
+    _site_data = os.path.normpath(
+        os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "..",
+            "website",
+            "kytranempowerment.com",
+            "data",
+        )
     )
-    fallback_path = os.path.normpath(fallback_path)
+    fallback_path = os.path.join(_site_data, "directory-fallback.json")
+    directors_path = os.path.join(_site_data, "directors.json")
+
+    # Write directory-fallback.json (all public agents)
     try:
         with open(fallback_path, "w") as fh:
             json.dump({"agents": agents}, fh, indent=2, default=str)
@@ -2165,6 +2168,17 @@ def refresh_website_directory():
     except Exception as exc:
         logger.warning("refresh_website_directory: failed to write fallback: %s", exc)
         return
+
+    # Write directors.json (is_director subset — used by ai-directors.html fallback)
+    directors = [a for a in agents if a.get("is_director")]
+    if not directors:
+        directors = [a for a in agents if a.get("acronym")]
+    try:
+        with open(directors_path, "w") as fh:
+            json.dump({"agents": directors}, fh, indent=2, default=str)
+        logger.info("refresh_website_directory: wrote %d directors to directors.json", len(directors))
+    except Exception as exc:
+        logger.warning("refresh_website_directory: failed to write directors.json: %s", exc)
 
     # Push the JSON file to Hostinger via TUS in a background thread
     api_key = os.getenv("HOSTINGER_API_KEY", "")
@@ -2220,6 +2234,36 @@ def refresh_website_directory():
                 logger.info("refresh_website_directory: fallback JSON pushed to Hostinger")
             else:
                 logger.warning("directory fallback PATCH failed: %s", r.status_code)
+
+            # Also push directors.json (ai-directors.html fallback)
+            def _tus_upload(local_path, remote_rel):
+                r2 = requests.get(
+                    f"{base}/api/hosting/v1/files/upload-urls",
+                    headers=auth,
+                    timeout=10,
+                )
+                r2.raise_for_status()
+                c2 = r2.json() if r2.status_code == 200 else None
+                if not c2:
+                    c2 = {"url": upload_url, "auth_key": auth_token, "rest_auth_key": auth_rest}
+                ep = f"{c2['url'].rstrip('/')}/{remote_rel}?override=true"
+                fsize = os.path.getsize(local_path)
+                h2 = {
+                    "X-Auth": c2["auth_key"],
+                    "X-Auth-Rest": c2["rest_auth_key"],
+                    "upload-length": str(fsize),
+                    "upload-offset": "0",
+                }
+                if requests.post(ep, data=b"", headers=h2, timeout=30).status_code != 201:
+                    return
+                with open(local_path, "rb") as f2:
+                    requests.patch(
+                        ep, data=f2, headers={**h2, "Content-Type": "application/offset+octet-stream"}, timeout=60
+                    )
+
+            _tus_upload(directors_path, "data/directors.json")
+            logger.info("refresh_website_directory: directors.json pushed to Hostinger")
+
         except Exception as exc:
             logger.warning("refresh_website_directory push error: %s", exc)
 

@@ -333,6 +333,9 @@ def register_agent_detail_routes(bp, admin_required):
             return jsonify({"ok": False, **err}), 400
 
         before = {k: agent.get(k) for k in payload.keys()}
+        # Fix before value for identity_prompt — agents table doesn't have it
+        if "identity_prompt" in before:
+            before["identity_prompt"] = _get_identity_prompt(agent_id)
 
         # identity_prompt lives in agent_portraits — delegate to portrait_service
         identity_prompt_value = payload.pop("identity_prompt", None)

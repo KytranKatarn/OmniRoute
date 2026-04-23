@@ -695,6 +695,18 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # F.O.R.G.E. — PR review polling (Project #247 Phase 1 / Task #1799).
+        # Polls GitHub every 5 min for new/changed open PRs; upserts pr_reviews.
+        self.scheduler.add_job(
+            with_app_context(self._run_pr_review_poll),
+            trigger=IntervalTrigger(minutes=5),
+            id="forge_pr_review_poll",
+            name="Agent Loop: F.O.R.G.E. PR Review Polling",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         # C.O.D.E.X. — event auto-documentation (Project #272 Phase 2 / Task #2108).
         # Runs every 30 min; template-based, no LLM. Scans project_decisions
         # for undocumented rows and writes a vault_note per ADR.
@@ -3898,6 +3910,23 @@ class AgentLoop:
     # ------------------------------------------------------------------
     # F.O.R.G.E. Dependency Drift Audit (Project #272 Phase 2 / Task #2109)
     # ------------------------------------------------------------------
+
+    def _run_pr_review_poll(self):
+        """Poll GitHub for open PRs and upsert into pr_reviews (Project #247 Phase 1)."""
+        try:
+            import sys
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from tools.repair_bay.services.pr_review_service import poll_open_prs, sync_closed_prs
+
+            result = poll_open_prs()
+            closed = sync_closed_prs()
+            logger.info(
+                "pr_review_poll: polled=%d inserted=%d updated=%d closed_synced=%d",
+                result.get("polled", 0), result.get("inserted", 0),
+                result.get("updated", 0), closed,
+            )
+        except Exception as e:
+            logger.error("pr_review_poll failed: %s", e)
 
     def _run_dep_drift_audit(self):
         """Daily drift audit — requirements.txt vs running container pip freeze.

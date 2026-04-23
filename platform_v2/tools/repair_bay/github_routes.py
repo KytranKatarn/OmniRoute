@@ -564,3 +564,50 @@ def register_github_routes(bp, admin_required):
         reason = data.get("reason", "Manual escalation by admin")
         escalate_to_human(proposal_id, reason, {"manual": True})
         return jsonify({"success": True, "proposal_id": proposal_id, "status": "escalated"})
+
+    # ── PR Review Service (Project #247 Phase 1, Task #1799) ─────────────────
+
+    @bp.route("/api/forge/pr-reviews", methods=["GET"])
+    @login_required
+    @admin_required
+    def forge_pr_reviews_list():
+        """List tracked PR reviews with optional state/review_status filters."""
+        from .services.pr_review_service import list_reviews
+
+        state = request.args.get("state")
+        review_status = request.args.get("review_status")
+        limit = request.args.get("limit", 50, type=int)
+        return jsonify({"reviews": list_reviews(state=state, review_status=review_status, limit=limit)})
+
+    @bp.route("/api/forge/pr-reviews/<int:pr_number>", methods=["GET"])
+    @login_required
+    @admin_required
+    def forge_pr_review_get(pr_number):
+        """Fetch a single PR review record."""
+        from .services.pr_review_service import get_review
+
+        review = get_review(pr_number)
+        if not review:
+            return jsonify({"error": "not found"}), 404
+        return jsonify({"review": review})
+
+    @bp.route("/api/forge/pr-reviews/poll", methods=["POST"])
+    @login_required
+    @admin_required
+    def forge_pr_reviews_poll():
+        """Manually trigger a GitHub PR poll + sync closed PRs."""
+        from .services.pr_review_service import poll_open_prs, sync_closed_prs
+
+        poll_result = poll_open_prs()
+        closed = sync_closed_prs()
+        return jsonify({**poll_result, "closed_synced": closed})
+
+    @bp.route("/api/forge/pr-reviews/<int:pr_number>/skip", methods=["POST"])
+    @login_required
+    @admin_required
+    def forge_pr_review_skip(pr_number):
+        """Mark a PR as skipped (no AI review needed)."""
+        from .services.pr_review_service import mark_review_skipped
+
+        mark_review_skipped(pr_number)
+        return jsonify({"success": True})

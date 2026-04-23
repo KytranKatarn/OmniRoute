@@ -1416,3 +1416,98 @@ Example: default → {}
     handler=check_infra_heartbeat_handler,
     requires_permission="read",
 )
+
+
+# ============================================================================
+# get_system_alerts — unified query: system_notifications + director_reports
+# ============================================================================
+
+
+async def get_system_alerts_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Unified system alerts from notifications + escalated director_reports."""
+    import sys
+
+    sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+    limit = int(arguments.get("limit", 20))
+    severity = arguments.get("severity") or None
+    since_hours = int(arguments.get("since_hours", 24))
+
+    alerts = []
+
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT 'notification' AS source, type AS severity,
+                       title, message AS detail,
+                       created_at::text AS created_at
+                FROM system_notifications
+                WHERE created_at > NOW() - INTERVAL '%s hours'
+                  AND is_read = FALSE
+                  AND (%s IS NULL OR type = %s)
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (since_hours, severity, severity, limit),
+            )
+            alerts += [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        logger.warning("get_system_alerts: notifications query failed: %s", e)
+
+    try:
+        from services.director_report_service import get_pending_reports
+
+        for r in get_pending_reports(limit=limit):
+            if r.get("severity") in ("critical", "high"):
+                alerts.append(
+                    {
+                        "source": "director_report",
+                        "severity": r["severity"],
+                        "title": r["title"],
+                        "detail": r["summary"],
+                        "created_at": r.get("created_at"),
+                    }
+                )
+    except Exception as e:
+        logger.warning("get_system_alerts: director_reports query failed: %s", e)
+
+    alerts.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+    top = alerts[:limit]
+    return {"success": True, "alerts": top, "count": len(top)}
+
+
+register_tool(
+    name="get_system_alerts",
+    category="ai_command",
+    description="""Unified system alerts — recent unread system_notifications + high/critical pending director_reports.
+
+Returns alerts sorted by recency with source, severity, title, and detail.
+Useful for a quick platform health scan without reading logs.
+
+Example: last hour of critical alerts → limit=10, since_hours=1, severity='error'
+Example: default (24h, all severities) → {}
+""",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "limit": {
+                "type": "integer",
+                "default": 20,
+                "description": "Max alerts to return",
+            },
+            "severity": {
+                "type": "string",
+                "description": "Filter by severity type (e.g. 'error', 'warning'). Omit for all.",
+            },
+            "since_hours": {
+                "type": "integer",
+                "default": 24,
+                "description": "How many hours back to query notifications",
+            },
+        },
+    },
+    handler=get_system_alerts_handler,
+    requires_permission="read",
+)

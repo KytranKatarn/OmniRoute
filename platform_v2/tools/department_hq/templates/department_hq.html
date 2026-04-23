@@ -411,6 +411,12 @@
               <div style="flex:1;">
                 <h3 style="color:#fbbf24;font-family:'Orbitron',sans-serif;font-size:0.75rem;letter-spacing:2px;margin-bottom:12px;">DIRECTOR REPORTS</h3>
                 <div id="coms-reports" style="max-height:500px;overflow-y:auto;"></div>
+                <h3 style="color:#a78bfa;font-family:'Orbitron',sans-serif;font-size:0.75rem;letter-spacing:2px;margin:16px 0 8px;display:flex;align-items:center;gap:8px;">
+                  TRIAGE INBOX
+                  <span id="coms-inbox-badge" style="display:none;background:#a78bfa;color:#000;border-radius:10px;padding:1px 7px;font-size:0.65rem;font-weight:700;"></span>
+                  <button onclick="loadComsInbox()" style="margin-left:auto;padding:2px 8px;background:rgba(167,139,250,0.15);border:1px solid rgba(167,139,250,0.4);border-radius:4px;color:#a78bfa;font-size:0.65rem;cursor:pointer;">↻</button>
+                </h3>
+                <div id="coms-inbox" style="max-height:400px;overflow-y:auto;"></div>
               </div>
             </div>
             <div style="margin-top:16px;text-align:center;">
@@ -1098,6 +1104,7 @@ async function _dhqRejectHire(approvalId, btn) {
         if (tabId === 'coms' && !comsLoaded) {
             loadComsFeed();
             loadComsReports();
+            loadComsInbox();
             comsLoaded = true;
         }
     };
@@ -1212,6 +1219,79 @@ async function _dhqRejectHire(approvalId, btn) {
         } catch(e) {
             var el = document.getElementById('coms-reports');
             if (el) { el.textContent = 'Reports unavailable.'; el.style.color = '#4b5563'; }
+
+    // ── Triage Inbox ────────────────────────────────────────────────────────
+
+    async function loadComsInbox() {
+        var box = document.getElementById('coms-inbox');
+        if (!box) return;
+        box.textContent = '';
+        var loading = document.createElement('div');
+        loading.style.cssText = 'color:#4b5563;font-size:0.7rem;padding:8px;';
+        loading.textContent = 'Loading…';
+        box.appendChild(loading);
+        try {
+            var resp = await fetch('/api/department-hq/api/coms/director-reports/pending');
+            box.textContent = '';
+            if (!resp.ok) { var e2 = document.createElement('div'); e2.style.cssText='color:#4b5563;font-size:0.7rem;padding:8px;'; e2.textContent='Inbox unavailable.'; box.appendChild(e2); return; }
+            var data = await resp.json();
+            var badge = document.getElementById('coms-inbox-badge');
+            if (badge) { badge.textContent = data.count; badge.style.display = data.count > 0 ? '' : 'none'; }
+            var reports = data.reports || [];
+            if (reports.length === 0) {
+                var empty = document.createElement('div');
+                empty.style.cssText = 'color:#4b5563;font-size:0.7rem;padding:8px;font-style:italic;';
+                empty.textContent = 'No pending reports.';
+                box.appendChild(empty); return;
+            }
+            var sevColors = {critical:'#ef4444',high:'#f59e0b',medium:'#a78bfa',low:'#4b5563'};
+            reports.forEach(function(r) {
+                var card = document.createElement('div');
+                card.style.cssText = 'padding:8px 10px;border-left:2px solid '+(sevColors[r.severity]||'#a78bfa')+';background:#111827;border-radius:0 6px 6px 0;margin-bottom:6px;';
+                var meta = document.createElement('div');
+                meta.style.cssText = 'display:flex;justify-content:space-between;font-size:0.65rem;margin-bottom:2px;';
+                var agent = document.createElement('span');
+                agent.style.color = sevColors[r.severity] || '#a78bfa';
+                agent.textContent = (r.director_agent||'') + ' [' + (r.severity||'').toUpperCase() + ']';
+                var dept = document.createElement('span');
+                dept.style.color = '#64748b';
+                dept.textContent = r.department || '';
+                meta.appendChild(agent); meta.appendChild(dept);
+                var title = document.createElement('div');
+                title.style.cssText = 'font-size:0.75rem;color:#e0e0e0;font-weight:500;margin-bottom:4px;';
+                title.textContent = r.title || '';
+                var summary = document.createElement('div');
+                summary.style.cssText = 'font-size:0.7rem;color:#9ca3af;margin-bottom:6px;';
+                summary.textContent = (r.summary||'').substring(0, 100);
+                var btns = document.createElement('div');
+                btns.style.cssText = 'display:flex;gap:4px;';
+                [['suppress','#9ca3af','rgba(75,85,99,0.3)','#374151'],
+                 ['resolve','#10b981','rgba(16,185,129,0.15)','rgba(16,185,129,0.4)'],
+                 ['escalate','#ef4444','rgba(239,68,68,0.15)','rgba(239,68,68,0.4)']].forEach(function(b) {
+                    var btn = document.createElement('button');
+                    btn.style.cssText = 'padding:2px 8px;background:'+b[2]+';border:1px solid '+b[3]+';border-radius:4px;color:'+b[1]+';font-size:0.65rem;cursor:pointer;';
+                    btn.textContent = b[0].charAt(0).toUpperCase()+b[0].slice(1);
+                    btn.setAttribute('data-id', r.id);
+                    btn.setAttribute('data-action', b[0]);
+                    btn.addEventListener('click', function() { comsAckReport(this.getAttribute('data-id'), this.getAttribute('data-action')); });
+                    btns.appendChild(btn);
+                });
+                card.appendChild(meta); card.appendChild(title); card.appendChild(summary); card.appendChild(btns);
+                box.appendChild(card);
+            });
+        } catch(e2) {
+            box.textContent = '';
+            var err = document.createElement('div'); err.style.cssText='color:#4b5563;font-size:0.7rem;padding:8px;'; err.textContent='Inbox unavailable.'; box.appendChild(err);
+        }
+    }
+
+    async function comsAckReport(id, action) {
+        await fetch('/api/department-hq/api/coms/director-reports/' + id + '/ack', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({action: action})
+        });
+        loadComsInbox();
+    }
         }
     }
 })();

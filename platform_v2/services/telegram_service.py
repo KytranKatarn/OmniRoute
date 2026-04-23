@@ -57,6 +57,8 @@ Categories:
 # =============================================================================
 """
 
+import hashlib as _hashlib
+import json as _json
 import logging
 import os
 import time
@@ -152,6 +154,47 @@ def _get_chat_id() -> str:
 # ---------------------------------------------------------------------------
 # Core send function
 # ---------------------------------------------------------------------------
+# Callers that may send directly to Telegram (bypass the inbox redirect).
+# All other callers are routed to the director_reports inbox for triage.
+_PRIVILEGED_SOURCES = frozenset({"A.R.C.H.I.E.", "archie_triage_consumer", "system_bootstrap"})
+
+
+def _audit_send(
+    category: str,
+    title: str,
+    source_agent: str,
+    route: str,
+    suppressed: bool,
+) -> None:
+    """Write a send-attempt row to governance_audit_log. Non-blocking."""
+    try:
+        from database import get_db_cursor
+
+        msg_hash = _hashlib.sha256(f"{title}{source_agent}".encode()).hexdigest()[:16]
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO governance_audit_log
+                  (event_category, event_type, actor, details, timestamp)
+                VALUES ('telegram_send', %s, %s, %s::jsonb, NOW())
+                """,
+                (
+                    category,
+                    source_agent or "unknown",
+                    _json.dumps(
+                        {
+                            "title": title,
+                            "route": route,
+                            "suppressed": suppressed,
+                            "msg_hash": msg_hash,
+                        }
+                    ),
+                ),
+            )
+    except Exception as _e:
+        logger.warning("telegram audit log failed (non-blocking): %s", _e)
+
+
 def send(
     category: str,
     title: str,
@@ -182,43 +225,29 @@ def send(
     Returns:
         dict: {sent: bool, reason: str (if not sent), log_id: int (if logged)}
     """
-    # Route through A.R.C.H.I.E.'s director reports hierarchy when possible.
-    # archie_comms triages, applies personality voice, and sends via Telegram.
-    # Falls back to direct send if comms container is unreachable.
-    if source_agent and not chat_id:
-        try:
-            import requests as _req
+    # ── Privilege check ──────────────────────────────────────────────────────
+    # Only A.R.C.H.I.E. / triage consumer / system_bootstrap may send directly
+    # to Telegram. All other callers are redirected to the director_reports
+    # inbox where A.R.C.H.I.E. triages and escalates if warranted.
+    caller_is_privileged = _privileged or (source_agent in _PRIVILEGED_SOURCES)
 
-            _comms_url = os.getenv("ARCHIE_COMMS_URL", "http://192.168.1.200:3002")
-            _resp = _req.post(
-                f"{_comms_url}/api/director/report",
-                json={
-                    "department": source_department or "Unknown",
-                    "director_agent": source_agent,
-                    "severity": {"critical": "critical", "high": "high", "medium": "medium", "low": "low"}.get(
-                        CATEGORIES.get(category, {}).get("priority", "medium"), "medium"
-                    ),
-                    "category": category,
-                    "title": title,
-                    "summary": message,
-                },
-                headers={"X-Service-Token": _COMMS_SERVICE_TOKEN},
-                timeout=5,
-            )
-            if _resp.ok:
-                logger.info(
-                    "telegram_service: routed [%s] '%s' through director reports (agent=%s)",
-                    category,
-                    title,
-                    source_agent,
-                )
-                return {
-                    "sent": True,
-                    "reason": "routed via director reports",
-                    "report_id": _resp.json().get("report_id"),
-                }
-        except Exception as _e:
-            logger.debug("telegram_service: comms unreachable (%s), falling back to direct send", _e)
+    if not caller_is_privileged:
+        logger.warning(
+            "telegram_service.send() unprivileged caller '%s' — routing to director report inbox",
+            source_agent,
+        )
+        from services.director_report_service import submit_via_inbox
+
+        result = submit_via_inbox(
+            category=category,
+            title=title,
+            message=message,
+            source_agent=source_agent,
+            department=source_department or "Unknown",
+        )
+        _audit_send(category, title, source_agent, route="inbox", suppressed=True)
+        return result
+    # ─────────────────────────────────────────────────────────────────────────
 
     token = _get_token()
     if not token:
@@ -303,6 +332,7 @@ def send(
                 text,
             )
             logger.info("telegram_service: sent [%s] '%s' from %s", category, title, source_agent or "system")
+            _audit_send(category, title, source_agent, route="direct", suppressed=False)
             return {"sent": True, "log_id": log_id}
         else:
             reason = f"HTTP {resp.status_code}: {resp.text[:100]}"

@@ -334,3 +334,26 @@ def register_coms_routes(bp, admin_required):
         except Exception as e:
             logger.warning("coms_director_reports: %s", e)
             return jsonify({"reports": [], "count": 0, "error": str(e)})
+
+    @bp.route("/api/coms/director-reports/pending")
+    @admin_required
+    def coms_director_reports_pending():
+        """Pending-only triage inbox for COMs Inbox section."""
+        limit = request.args.get("limit", 50, type=int)
+        from services.director_report_service import get_pending_reports
+
+        reports = get_pending_reports(limit=limit)
+        return jsonify({"reports": reports, "count": len(reports)})
+
+    @bp.route("/api/coms/director-reports/<int:report_id>/ack", methods=["POST"])
+    @admin_required
+    def coms_ack_report(report_id):
+        """Manual triage action from COMs Inbox — Kytran override."""
+        from services.director_report_service import triage_report
+
+        data = request.get_json() or {}
+        action = data.get("action", "suppress")
+        if action not in ("resolve", "consolidate", "suppress", "escalate"):
+            return jsonify({"error": "Invalid action"}), 400
+        ok = triage_report(report_id, action, reason="Manual override by Kytran")
+        return jsonify({"success": ok})

@@ -1,0 +1,37 @@
+suite:
+  name: "watch-market-e2e"
+  description: "Market Watch — availability, login gate, market data pages"
+  base_url: "https://market.kytranempowerment.com"
+
+tests:
+  - name: "home-loads"
+    type: api
+    method: GET
+    path: /
+    skip_auth: true
+    expect:
+      status: [200, 302]
+
+  - name: "login-page"
+    type: api
+    method: GET
+    path: /login
+    skip_auth: true
+    expect:
+      status: [200, 302]
+
+  - name: "health-endpoint"
+    type: api
+    method: GET
+    path: /api/health
+    skip_auth: true
+    expect:
+      status: [200, 404]
+
+  - name: "dashboard-authenticated-gate"
+    type: api
+    method: GET
+    path: /dashboard
+    skip_auth: true
+    expect:
+      status: [200, 302, 401]

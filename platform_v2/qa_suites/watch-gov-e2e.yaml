@@ -1,0 +1,45 @@
+suite:
+  name: "watch-gov-e2e"
+  description: "Gov Watch (P.R.O.C.U.R.E.) — availability, login gate, procurement feed"
+  base_url: "https://gov.kytranempowerment.com"
+
+tests:
+  - name: "home-loads"
+    type: api
+    method: GET
+    path: /
+    skip_auth: true
+    expect:
+      status: [200, 302]
+
+  - name: "login-page"
+    type: api
+    method: GET
+    path: /login
+    skip_auth: true
+    expect:
+      status: [200, 302]
+
+  - name: "health-endpoint"
+    type: api
+    method: GET
+    path: /api/health
+    skip_auth: true
+    expect:
+      status: [200, 404]
+
+  - name: "tenders-gate"
+    type: api
+    method: GET
+    path: /tenders
+    skip_auth: true
+    expect:
+      status: [200, 302, 401]
+
+  - name: "procure-dispatch-available"
+    type: api
+    method: GET
+    path: /api/procure/dispatch
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 405]

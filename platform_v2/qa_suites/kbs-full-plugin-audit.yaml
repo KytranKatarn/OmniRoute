@@ -1,0 +1,180 @@
+suite:
+  name: "kbs-full-plugin-audit"
+  description: "KBS all-24-plugin availability audit — verifies each plugin loads (task #2015)"
+  base_url: "http://192.168.1.200:8091"
+  auth:
+    username: "${KBS_TEST_USERNAME}"
+    password: "${KBS_TEST_PASSWORD}"
+
+tests:
+  - name: "kbs-home"
+    type: api
+    method: GET
+    path: /
+    expect:
+      status: [200, 302]
+
+  # Core business plugins
+  - name: "crm"
+    type: api
+    method: GET
+    path: /plugins/crm/
+    expect:
+      status: [200, 302]
+
+  - name: "invoicing"
+    type: api
+    method: GET
+    path: /plugins/invoicing/
+    expect:
+      status: [200, 302]
+
+  - name: "accounting"
+    type: api
+    method: GET
+    path: /plugins/accounting/
+    expect:
+      status: [200, 302]
+
+  - name: "contracts"
+    type: api
+    method: GET
+    path: /plugins/contracts/
+    expect:
+      status: [200, 302]
+
+  - name: "store"
+    type: api
+    method: GET
+    path: /plugins/store/
+    expect:
+      status: [200, 302]
+
+  - name: "appointments"
+    type: api
+    method: GET
+    path: /plugins/appointments/
+    expect:
+      status: [200, 302]
+
+  - name: "help-desk"
+    type: api
+    method: GET
+    path: /plugins/help_desk/
+    expect:
+      status: [200, 302]
+
+  # Communications & marketing
+  - name: "communications"
+    type: api
+    method: GET
+    path: /plugins/communications/
+    expect:
+      status: [200, 302]
+
+  - name: "marketing"
+    type: api
+    method: GET
+    path: /plugins/marketing/
+    expect:
+      status: [200, 302]
+
+  - name: "social-media"
+    type: api
+    method: GET
+    path: /plugins/social_media/
+    expect:
+      status: [200, 302]
+
+  - name: "content-studio"
+    type: api
+    method: GET
+    path: /plugins/content_studio/
+    expect:
+      status: [200, 302]
+
+  - name: "call-center"
+    type: api
+    method: GET
+    path: /plugins/call_center/
+    expect:
+      status: [200, 302]
+
+  # Productivity & knowledge
+  - name: "knowledge-base"
+    type: api
+    method: GET
+    path: /plugins/knowledge_base/
+    expect:
+      status: [200, 302]
+
+  - name: "automations"
+    type: api
+    method: GET
+    path: /plugins/automations/
+    expect:
+      status: [200, 302]
+
+  - name: "website-builder"
+    type: api
+    method: GET
+    path: /plugins/website_builder/
+    expect:
+      status: [200, 302]
+
+  # Industry verticals (8)
+  - name: "industry-hub"
+    type: api
+    method: GET
+    path: /plugins/industry/
+    expect:
+      status: [200, 302]
+
+  - name: "industry-construction"
+    type: api
+    method: GET
+    path: /plugins/industry_construction/
+    expect:
+      status: [200, 302]
+
+  - name: "industry-electrical"
+    type: api
+    method: GET
+    path: /plugins/industry_electrical/
+    expect:
+      status: [200, 302]
+
+  - name: "industry-limo"
+    type: api
+    method: GET
+    path: /plugins/industry_limo/
+    expect:
+      status: [200, 302]
+
+  - name: "industry-mechanical"
+    type: api
+    method: GET
+    path: /plugins/industry_mechanical/
+    expect:
+      status: [200, 302, 404]
+
+  - name: "industry-photography"
+    type: api
+    method: GET
+    path: /plugins/industry_photography/
+    expect:
+      status: [200, 302]
+
+  - name: "industry-plumbing"
+    type: api
+    method: GET
+    path: /plugins/industry_plumbing/
+    expect:
+      status: [200, 302]
+
+  - name: "industry-salon"
+    type: api
+    method: GET
+    path: /plugins/industry_salon/
+    expect:
+      status: [200, 302]

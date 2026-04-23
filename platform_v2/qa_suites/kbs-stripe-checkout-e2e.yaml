@@ -1,0 +1,59 @@
+suite:
+  name: "kbs-stripe-checkout-e2e"
+  description: "KBS Stripe billing E2E — checkout page, billing gateway, webhook endpoint availability"
+  base_url: "http://192.168.1.200:8091"
+  auth:
+    username: "${KBS_TEST_USERNAME}"
+    password: "${KBS_TEST_PASSWORD}"
+
+tests:
+  - name: "kbs-home-loads"
+    type: api
+    method: GET
+    path: /
+    expect:
+      status: [200, 302]
+
+  - name: "billing-checkout-gate"
+    type: api
+    method: GET
+    path: /billing/checkout
+    expect:
+      status: [200, 302, 400]
+
+  - name: "billing-webhook-exists"
+    type: api
+    method: POST
+    path: /billing/webhook
+    skip_auth: true
+    body: {}
+    expect:
+      status: [200, 400, 401, 403]
+
+  - name: "subscription-plans-api"
+    type: api
+    method: GET
+    path: /api/billing/plans
+    expect:
+      status: [200, 302, 404]
+
+  - name: "billing-success-page"
+    type: api
+    method: GET
+    path: /billing/success
+    expect:
+      status: [200, 302, 400]
+
+  - name: "store-plugin-loads"
+    type: api
+    method: GET
+    path: /plugins/store/
+    expect:
+      status: [200, 302]
+
+  - name: "invoicing-plugin-loads"
+    type: api
+    method: GET
+    path: /plugins/invoicing/
+    expect:
+      status: [200, 302]

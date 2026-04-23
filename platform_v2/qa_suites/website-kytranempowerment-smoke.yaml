@@ -1,0 +1,53 @@
+suite:
+  name: "website-kytranempowerment-smoke"
+  description: "kytranempowerment.com — main website smoke test for key pages"
+  base_url: "https://www.kytranempowerment.com"
+
+tests:
+  - name: "home-loads"
+    type: api
+    method: GET
+    path: /
+    skip_auth: true
+    expect:
+      status: 200
+
+  - name: "about-loads"
+    type: api
+    method: GET
+    path: /about.html
+    skip_auth: true
+    expect:
+      status: 200
+
+  - name: "ai-directors-loads"
+    type: api
+    method: GET
+    path: /ai-directors.html
+    skip_auth: true
+    expect:
+      status: 200
+
+  - name: "pricing-loads"
+    type: api
+    method: GET
+    path: /pricing.html
+    skip_auth: true
+    expect:
+      status: 200
+
+  - name: "directory-api"
+    type: api
+    method: GET
+    path: /assets/data/directory-fallback.json
+    skip_auth: true
+    expect:
+      status: 200
+
+  - name: "archie-code-page"
+    type: api
+    method: GET
+    path: /archie-code.html
+    skip_auth: true
+    expect:
+      status: 200

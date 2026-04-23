@@ -16,6 +16,7 @@
 {% set header_tabs = [
     ("chat", "Chat", "message-circle"),
     ("history", "History", "clock"),
+    ("code", "Code", "code"),
     ("collaboration", "Collaboration", "users"),
     ("terminal", "Claude TTY", "terminal"),
     ("settings", "Settings", "settings")
@@ -233,6 +234,60 @@
   </div>
 </div>
 
+<!-- Tab: Code Sessions (#2255 / #2256) -->
+<div id="panel-code" class="ac-tab-panel" style="display:none;">
+  <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:16px !important;">
+    <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+      <div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+      <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+      <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+      <div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+      <div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+    </div>
+    <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+      <div style="height:44px;background:var(--cat-accent,#00ffff);border-radius:0 20px 20px 0;display:flex;align-items:center;gap:12px;padding:0 16px;flex-shrink:0;">
+        <span style="font-family:'Antonio',sans-serif;font-size:0.85rem;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:#010409;">CODE SESSIONS</span>
+        <div style="flex:1"></div>
+        <button onclick="loadCodeSessions()" style="padding:2px 8px;background:rgba(0,0,0,0.2);border:1px solid rgba(0,0,0,0.3);border-radius:4px;color:rgba(0,0,0,0.55);font-size:0.65rem;cursor:pointer;">↻</button>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">OPENCODE</span>
+      </div>
+      <div style="flex:1;display:flex;gap:12px;padding:12px;overflow:hidden;min-height:420px;">
+        <!-- Left: Session list -->
+        <div style="width:250px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;">
+          <button onclick="toggleCodeNewForm()" style="padding:6px 10px;background:rgba(0,212,255,0.15);border:1px solid rgba(0,212,255,0.4);border-radius:6px;color:#00d4ff;font-size:0.75rem;cursor:pointer;font-family:'Antonio',sans-serif;letter-spacing:1px;">+ NEW SESSION</button>
+          <div id="code-new-form" style="display:none;background:#0f1729;border:1px solid rgba(0,212,255,0.2);border-radius:6px;padding:10px;">
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <input id="cnf-title" type="text" placeholder="Session title" style="background:#111827;color:#e0e0e0;border:1px solid #374151;border-radius:4px;padding:4px 8px;font-size:0.75rem;">
+              <select id="cnf-tier" style="background:#111827;color:#e0e0e0;border:1px solid #374151;border-radius:4px;padding:4px 8px;font-size:0.75rem;">
+                <option value="1">Tier 1 — Auto PR</option>
+                <option value="2" selected>Tier 2 — Manual Review</option>
+              </select>
+              <textarea id="cnf-instruction" rows="2" placeholder="Initial instruction (optional)" style="background:#111827;color:#e0e0e0;border:1px solid #374151;border-radius:4px;padding:4px 8px;font-size:0.75rem;resize:vertical;"></textarea>
+              <div style="display:flex;gap:6px;">
+                <button onclick="submitNewCodeSession()" style="flex:1;padding:4px;background:rgba(0,212,255,0.2);border:1px solid rgba(0,212,255,0.5);border-radius:4px;color:#00d4ff;font-size:0.7rem;cursor:pointer;">Create &amp; Start</button>
+                <button onclick="toggleCodeNewForm()" style="padding:4px 8px;background:rgba(75,85,99,0.3);border:1px solid #374151;border-radius:4px;color:#9ca3af;font-size:0.7rem;cursor:pointer;">Cancel</button>
+              </div>
+            </div>
+          </div>
+          <div id="code-session-list" style="flex:1;overflow-y:auto;"></div>
+        </div>
+        <!-- Right: Active session -->
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0;background:#0a1120;border-radius:6px;border:1px solid #1e293b;overflow:hidden;">
+          <div id="code-session-header" style="padding:10px 12px;border-bottom:1px solid #1e293b;display:flex;align-items:center;gap:8px;min-height:44px;flex-shrink:0;">
+            <span style="color:#4b5563;font-size:0.75rem;font-style:italic;">Select or create a session.</span>
+          </div>
+          <div id="code-event-feed" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;"></div>
+          <div style="padding:8px;border-top:1px solid #1e293b;display:flex;gap:6px;flex-shrink:0;">
+            <textarea id="code-msg-input" rows="2" placeholder="Message to OpenCode… (Ctrl+Enter)" style="flex:1;background:#111827;color:#e0e0e0;border:1px solid #374151;border-radius:4px;padding:6px 8px;font-size:0.8rem;resize:none;font-family:inherit;"></textarea>
+            <button onclick="sendCodeMsg()" style="padding:6px 14px;background:rgba(0,212,255,0.2);border:1px solid rgba(0,212,255,0.5);border-radius:4px;color:#00d4ff;font-size:0.75rem;cursor:pointer;align-self:flex-end;">Send</button>
+          </div>
+        </div>
+      </div>
+      <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Tab: Claude TTY -->
 <div id="panel-terminal" class="ac-tab-panel" style="display:none;">
   <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:16px !important;">
@@ -303,11 +358,198 @@
 <script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script src="{{ url_for('static', filename='js/archie-chat.js') }}"></script>
 <script>
+  var _prevTabSwitch = window.onLcarsTabSwitch;
   window.onLcarsTabSwitch = function(tabId) {
     document.querySelectorAll('.ac-tab-panel').forEach(function(p) {
       p.style.display = p.id === 'panel-' + tabId ? '' : 'none';
       p.classList.toggle('active', p.id === 'panel-' + tabId);
     });
+    if (tabId === 'code' && !window._codeTabLoaded) {
+      loadCodeSessions();
+      window._codeTabLoaded = true;
+    }
   };
+</script>
+<script>
+// Code Tab — OpenCode session management (#2255 / #2256)
+(function() {
+  var _activeSid = null;
+  var _evtSrc = null;
+  var _STATUS_COLORS = {active:'#00d4ff',paused:'#fbbf24',completed:'#10b981',failed:'#ef4444'};
+
+  // Ctrl+Enter shortcut on message input
+  document.addEventListener('DOMContentLoaded', function() {
+    var inp = document.getElementById('code-msg-input');
+    if (inp) inp.addEventListener('keydown', function(e) {
+      if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); sendCodeMsg(); }
+    });
+  });
+
+  window.loadCodeSessions = function() {
+    fetch('/tools/archie-chat/api/code-sessions')
+      .then(function(r) { return r.json(); })
+      .then(function(d) { _renderList(d.sessions || []); })
+      .catch(function() {});
+  };
+
+  function _renderList(sessions) {
+    var list = document.getElementById('code-session-list');
+    if (!list) return;
+    list.textContent = '';
+    if (!sessions.length) {
+      var d = document.createElement('div');
+      d.style.cssText = 'color:#4b5563;font-size:0.75rem;padding:12px;text-align:center;font-style:italic;';
+      d.textContent = 'No sessions yet.';
+      list.appendChild(d); return;
+    }
+    sessions.forEach(function(s) {
+      var card = document.createElement('div');
+      card.style.cssText = 'padding:8px 10px;background:#0f1729;border-radius:6px;cursor:pointer;border:1px solid ' + (_activeSid === s.id ? '#00d4ff33' : 'transparent') + ';margin-bottom:4px;';
+      card.addEventListener('click', function() { openCodeSession(s.id); });
+      var hdr = document.createElement('div');
+      hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;';
+      var title = document.createElement('span');
+      title.style.cssText = 'font-size:0.75rem;color:#e0e0e0;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      title.textContent = s.title;
+      var badge = document.createElement('span');
+      badge.style.cssText = 'font-size:0.6rem;padding:1px 5px;border-radius:10px;background:' + (_STATUS_COLORS[s.status]||'#4b5563') + '22;color:' + (_STATUS_COLORS[s.status]||'#9ca3af') + ';font-weight:600;text-transform:uppercase;flex-shrink:0;margin-left:4px;';
+      badge.textContent = s.status;
+      hdr.appendChild(title); hdr.appendChild(badge);
+      var meta = document.createElement('div');
+      meta.style.cssText = 'font-size:0.65rem;color:#4b5563;';
+      meta.textContent = 'T' + s.tier + ' · ' + s.source + (s.result_pr_url && s.result_pr_url.startsWith('http') ? ' · PR' : '');
+      card.appendChild(hdr); card.appendChild(meta);
+      list.appendChild(card);
+    });
+  }
+
+  window.openCodeSession = function(sid) {
+    _activeSid = sid;
+    if (_evtSrc) { _evtSrc.close(); _evtSrc = null; }
+    var feed = document.getElementById('code-event-feed');
+    if (feed) feed.textContent = '';
+    _evtSrc = new EventSource('/tools/archie-chat/api/code-sessions/' + sid + '/stream');
+    _evtSrc.onmessage = function(e) {
+      var evt = JSON.parse(e.data);
+      var f = document.getElementById('code-event-feed');
+      if (f) { _renderEvt(f, evt); f.scrollTop = f.scrollHeight; }
+    };
+    fetch('/tools/archie-chat/api/code-sessions/' + sid)
+      .then(function(r) { return r.json(); })
+      .then(function(d) { _updateHeader(d.session); })
+      .catch(function() {});
+    loadCodeSessions();
+  };
+
+  function _renderEvt(feed, evt) {
+    var type = evt.event_type, c = evt.content || {};
+    var div = document.createElement('div');
+    if (type === 'message') {
+      var user = c.role === 'user';
+      div.style.cssText = 'display:flex;justify-content:' + (user ? 'flex-end' : 'flex-start') + ';';
+      var bub = document.createElement('div');
+      bub.style.cssText = 'max-width:82%;padding:8px 12px;border-radius:' + (user ? '12px 12px 4px 12px' : '12px 12px 12px 4px') + ';background:' + (user ? 'rgba(0,212,255,0.12)' : '#1e293b') + ';color:#e0e0e0;font-size:0.8rem;line-height:1.5;white-space:pre-wrap;word-break:break-word;';
+      bub.textContent = c.text || '';
+      div.appendChild(bub);
+    } else if (type === 'tool') {
+      div.style.cssText = 'background:#0a1628;border-left:2px solid #fbbf24;padding:5px 10px;border-radius:0 4px 4px 0;';
+      var lbl = document.createElement('span');
+      lbl.style.cssText = 'font-size:0.65rem;color:#fbbf24;font-family:"IBM Plex Mono",monospace;';
+      lbl.textContent = (c.type||'tool').toUpperCase() + (c.toolName ? ': '+c.toolName : '');
+      div.appendChild(lbl);
+    } else if (type === 'error') {
+      div.style.cssText = 'background:rgba(239,68,68,0.08);border-left:2px solid #ef4444;padding:5px 10px;border-radius:0 4px 4px 0;color:#ef4444;font-size:0.75rem;';
+      div.textContent = c.text || 'Error';
+    } else if (type === 'terminal_raw') {
+      div.style.cssText = 'font-family:"IBM Plex Mono",monospace;font-size:0.7rem;color:#4b5563;';
+      div.textContent = c.text || '';
+    }
+    if (div.children.length || div.textContent) feed.appendChild(div);
+  }
+
+  function _updateHeader(s) {
+    var hdr = document.getElementById('code-session-header');
+    if (!hdr) return;
+    hdr.textContent = '';
+    var ttl = document.createElement('span');
+    ttl.style.cssText = 'font-size:0.82rem;color:#e0e0e0;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    ttl.textContent = s.title;
+    var bdg = document.createElement('span');
+    bdg.style.cssText = 'font-size:0.65rem;padding:2px 7px;border-radius:10px;background:' + (_STATUS_COLORS[s.status]||'#4b5563') + '22;color:' + (_STATUS_COLORS[s.status]||'#9ca3af') + ';font-weight:600;text-transform:uppercase;flex-shrink:0;';
+    bdg.textContent = s.status;
+    hdr.appendChild(ttl); hdr.appendChild(bdg);
+    var actionMap = {
+      active: [['Abort','#fbbf24','abort'],['Finalize','#10b981','finalize']],
+      paused:  [['Resume','#00d4ff','resume'],['Finalize','#10b981','finalize']],
+      failed:  [['Resume','#00d4ff','resume']],
+      completed: []
+    };
+    (actionMap[s.status] || [['Start','#00d4ff','start']]).forEach(function(b) {
+      var btn = document.createElement('button');
+      btn.style.cssText = 'padding:3px 10px;background:' + b[1] + '22;border:1px solid ' + b[1] + '66;border-radius:4px;color:' + b[1] + ';font-size:0.7rem;cursor:pointer;flex-shrink:0;';
+      btn.textContent = b[0];
+      btn.setAttribute('data-act', b[2]);
+      btn.addEventListener('click', function() { _doAction(this.getAttribute('data-act')); });
+      hdr.appendChild(btn);
+    });
+    if (s.result_pr_url && s.result_pr_url.startsWith('http')) {
+      var a = document.createElement('a');
+      a.href = s.result_pr_url; a.target = '_blank';
+      a.style.cssText = 'font-size:0.65rem;color:#60a5fa;text-decoration:none;flex-shrink:0;';
+      a.textContent = 'PR →';
+      hdr.appendChild(a);
+    }
+  }
+
+  function _doAction(action) {
+    if (!_activeSid) return;
+    fetch('/tools/archie-chat/api/code-sessions/' + _activeSid + '/' + action, {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}'
+    }).then(function() {
+      fetch('/tools/archie-chat/api/code-sessions/' + _activeSid)
+        .then(function(r) { return r.json(); })
+        .then(function(d) { _updateHeader(d.session); });
+      loadCodeSessions();
+    });
+  }
+
+  window.sendCodeMsg = function() {
+    if (!_activeSid) return;
+    var inp = document.getElementById('code-msg-input');
+    var text = (inp ? inp.value : '').trim();
+    if (!text) return;
+    inp.value = '';
+    var f = document.getElementById('code-event-feed');
+    if (f) { _renderEvt(f, {event_type:'message',content:{role:'user',text:text}}); f.scrollTop = f.scrollHeight; }
+    fetch('/tools/archie-chat/api/code-sessions/' + _activeSid + '/message', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text: text})
+    });
+  };
+
+  window.toggleCodeNewForm = function() {
+    var form = document.getElementById('code-new-form');
+    if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  };
+
+  window.submitNewCodeSession = function() {
+    var title = (document.getElementById('cnf-title')||{}).value || 'New Session';
+    var tier = parseInt((document.getElementById('cnf-tier')||{}).value||'2', 10);
+    var instr = ((document.getElementById('cnf-instruction')||{}).value||'').trim();
+    fetch('/tools/archie-chat/api/code-sessions', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({title:title, tier:tier})
+    }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      window.toggleCodeNewForm();
+      var sid = d.session_id;
+      openCodeSession(sid);
+      return fetch('/tools/archie-chat/api/code-sessions/' + sid + '/start', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: instr ? JSON.stringify({instruction:instr}) : '{}'
+      });
+    }).then(function() { loadCodeSessions(); });
+  };
+})();
 </script>
 {% endblock %}

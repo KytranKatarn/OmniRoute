@@ -2258,7 +2258,10 @@ def refresh_website_directory():
                     return
                 with open(local_path, "rb") as f2:
                     requests.patch(
-                        ep, data=f2, headers={**h2, "Content-Type": "application/offset+octet-stream"}, timeout=60
+                        ep,
+                        data=f2,
+                        headers={**h2, "Content-Type": "application/offset+octet-stream"},
+                        timeout=60,
                     )
 
             _tus_upload(directors_path, "data/directors.json")

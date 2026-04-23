@@ -74,9 +74,10 @@ def _update_dns_records(new_ip):
     import requests
 
     updated = []
-    api_token = os.getenv("HOSTINGER_API_TOKEN", "")
+    # Use HOSTINGER_API_KEY — same credential used by hostinger_service.py + deploy skill
+    api_token = os.getenv("HOSTINGER_API_KEY", "") or os.getenv("HOSTINGER_API_TOKEN", "")
     if not api_token:
-        logger.error("DDNS: No HOSTINGER_API_TOKEN set")
+        logger.error("DDNS: No HOSTINGER_API_KEY set")
         return updated
 
     headers = {
@@ -101,7 +102,7 @@ def _update_dns_records(new_ip):
         try:
             # Get current records
             resp = requests.get(
-                f"https://api.hostinger.com/api/dns/v1/zones/{root}",
+                f"https://developers.hostinger.com/api/dns/v1/zones/{root}",
                 headers=headers,
                 timeout=10,
             )
@@ -128,7 +129,7 @@ def _update_dns_records(new_ip):
 
             if zone_updates:
                 put_resp = requests.put(
-                    f"https://api.hostinger.com/api/dns/v1/zones/{root}",
+                    f"https://developers.hostinger.com/api/dns/v1/zones/{root}",
                     headers=headers,
                     json={"overwrite": True, "zone": zone_updates},
                     timeout=10,

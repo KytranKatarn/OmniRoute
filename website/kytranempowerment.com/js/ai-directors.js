@@ -138,9 +138,9 @@
     // Avatar
     var avatarWrap = document.createElement('div');
     avatarWrap.className = 'dir-modal__avatar';
-    if (director.avatar_url || director.avatar_thumb_url) {
+    if (director.avatar_thumb_url || director.avatar_url) {
       var img = document.createElement('img');
-      img.src = director.avatar_url || director.avatar_thumb_url;
+      img.src = director.avatar_thumb_url || director.avatar_url;
       img.alt = (director.acronym || director.display_name || 'Director') + ' portrait';
       img.onerror = function () {
         var ph = document.createElement('div');

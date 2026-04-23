@@ -204,9 +204,9 @@ var Directory = {
         var avatarWrap = document.createElement('div');
         avatarWrap.className = 'dir-modal__avatar';
         var initial = (agent.full_name || agent.acronym || '?').charAt(0).toUpperCase();
-        if (agent.avatar_url) {
+        if (agent.avatar_thumb_url || agent.avatar_url) {
             var img = document.createElement('img');
-            img.src = agent.avatar_url;
+            img.src = agent.avatar_thumb_url || agent.avatar_url;
             img.alt = agent.full_name || agent.acronym || 'Agent';
             img.onerror = function () {
                 var ph = document.createElement('div');

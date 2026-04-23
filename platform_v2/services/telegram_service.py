@@ -175,7 +175,7 @@ def _audit_send(
             cur.execute(
                 """
                 INSERT INTO governance_audit_log
-                  (event_category, event_type, actor, details, timestamp)
+                  (event_category, event_type, action, details, timestamp)
                 VALUES ('telegram_send', %s, %s, %s::jsonb, NOW())
                 """,
                 (

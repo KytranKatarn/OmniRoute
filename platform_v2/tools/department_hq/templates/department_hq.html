@@ -417,6 +417,11 @@
                   <button onclick="loadComsInbox()" style="margin-left:auto;padding:2px 8px;background:rgba(167,139,250,0.15);border:1px solid rgba(167,139,250,0.4);border-radius:4px;color:#a78bfa;font-size:0.65rem;cursor:pointer;">↻</button>
                 </h3>
                 <div id="coms-inbox" style="max-height:400px;overflow-y:auto;"></div>
+                <h3 style="color:#60a5fa;font-family:'Orbitron',sans-serif;font-size:0.75rem;letter-spacing:2px;margin:16px 0 8px;display:flex;align-items:center;gap:8px;">
+                  CLASSIFICATION RULES
+                  <button onclick="loadComsPolicies()" style="margin-left:auto;padding:2px 8px;background:rgba(96,165,250,0.15);border:1px solid rgba(96,165,250,0.4);border-radius:4px;color:#60a5fa;font-size:0.65rem;cursor:pointer;">↻</button>
+                </h3>
+                <div id="coms-policies" style="max-height:200px;overflow-y:auto;"></div>
               </div>
             </div>
             <div style="margin-top:16px;text-align:center;">
@@ -1104,7 +1109,8 @@ async function _dhqRejectHire(approvalId, btn) {
         if (tabId === 'coms' && !comsLoaded) {
             loadComsFeed();
             loadComsReports();
-            loadComsInbox();
+            window.loadComsInbox();
+            window.loadComsPolicies();
             comsLoaded = true;
         }
     };
@@ -1219,21 +1225,26 @@ async function _dhqRejectHire(approvalId, btn) {
         } catch(e) {
             var el = document.getElementById('coms-reports');
             if (el) { el.textContent = 'Reports unavailable.'; el.style.color = '#4b5563'; }
+        }
+    }
 
-    // ── Triage Inbox ────────────────────────────────────────────────────────
+    // ── Triage Inbox (#2261) ─────────────────────────────────────────────────
+    function _comsMsg(box, text) {
+        var d = document.createElement('div');
+        d.style.cssText = 'color:#4b5563;font-size:0.7rem;padding:8px;';
+        d.textContent = text;
+        box.appendChild(d);
+    }
 
-    async function loadComsInbox() {
+    window.loadComsInbox = async function() {
         var box = document.getElementById('coms-inbox');
         if (!box) return;
         box.textContent = '';
-        var loading = document.createElement('div');
-        loading.style.cssText = 'color:#4b5563;font-size:0.7rem;padding:8px;';
-        loading.textContent = 'Loading…';
-        box.appendChild(loading);
+        _comsMsg(box, 'Loading…');
         try {
             var resp = await fetch('/api/department-hq/api/coms/director-reports/pending');
             box.textContent = '';
-            if (!resp.ok) { var e2 = document.createElement('div'); e2.style.cssText='color:#4b5563;font-size:0.7rem;padding:8px;'; e2.textContent='Inbox unavailable.'; box.appendChild(e2); return; }
+            if (!resp.ok) { _comsMsg(box, 'Inbox unavailable.'); return; }
             var data = await resp.json();
             var badge = document.getElementById('coms-inbox-badge');
             if (badge) { badge.textContent = data.count; badge.style.display = data.count > 0 ? '' : 'none'; }
@@ -1264,8 +1275,9 @@ async function _dhqRejectHire(approvalId, btn) {
                 summary.style.cssText = 'font-size:0.7rem;color:#9ca3af;margin-bottom:6px;';
                 summary.textContent = (r.summary||'').substring(0, 100);
                 var btns = document.createElement('div');
-                btns.style.cssText = 'display:flex;gap:4px;';
+                btns.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;';
                 [['suppress','#9ca3af','rgba(75,85,99,0.3)','#374151'],
+                 ['consolidate','#60a5fa','rgba(96,165,250,0.15)','rgba(96,165,250,0.4)'],
                  ['resolve','#10b981','rgba(16,185,129,0.15)','rgba(16,185,129,0.4)'],
                  ['escalate','#ef4444','rgba(239,68,68,0.15)','rgba(239,68,68,0.4)']].forEach(function(b) {
                     var btn = document.createElement('button');
@@ -1273,7 +1285,7 @@ async function _dhqRejectHire(approvalId, btn) {
                     btn.textContent = b[0].charAt(0).toUpperCase()+b[0].slice(1);
                     btn.setAttribute('data-id', r.id);
                     btn.setAttribute('data-action', b[0]);
-                    btn.addEventListener('click', function() { comsAckReport(this.getAttribute('data-id'), this.getAttribute('data-action')); });
+                    btn.addEventListener('click', function() { _comsAckReport(this.getAttribute('data-id'), this.getAttribute('data-action')); });
                     btns.appendChild(btn);
                 });
                 card.appendChild(meta); card.appendChild(title); card.appendChild(summary); card.appendChild(btns);
@@ -1281,19 +1293,53 @@ async function _dhqRejectHire(approvalId, btn) {
             });
         } catch(e2) {
             box.textContent = '';
-            var err = document.createElement('div'); err.style.cssText='color:#4b5563;font-size:0.7rem;padding:8px;'; err.textContent='Inbox unavailable.'; box.appendChild(err);
+            _comsMsg(box, 'Inbox unavailable.');
         }
-    }
+    };
 
-    async function comsAckReport(id, action) {
+    async function _comsAckReport(id, action) {
         await fetch('/api/department-hq/api/coms/director-reports/' + id + '/ack', {
             method: 'POST', headers: {'Content-Type':'application/json'},
             body: JSON.stringify({action: action})
         });
-        loadComsInbox();
+        window.loadComsInbox();
     }
+
+    // ── Classification Rules (#2262) ─────────────────────────────────────────
+    window.loadComsPolicies = async function() {
+        var box = document.getElementById('coms-policies');
+        if (!box) return;
+        box.textContent = '';
+        try {
+            var resp = await fetch('/api/department-hq/api/coms/triage-policies');
+            if (!resp.ok) { _comsMsg(box, 'Policies unavailable.'); return; }
+            var data = await resp.json();
+            var policies = data.policies || [];
+            if (policies.length === 0) {
+                var d = document.createElement('div');
+                d.style.cssText = 'color:#4b5563;font-size:0.7rem;padding:8px;font-style:italic;';
+                d.textContent = 'Built-in defaults only (no DB policies active).';
+                box.appendChild(d); return;
+            }
+            var actionColors = {escalate:'#ef4444',resolve:'#10b981',consolidate:'#60a5fa',suppress:'#9ca3af'};
+            policies.forEach(function(p) {
+                var row = document.createElement('div');
+                row.style.cssText = 'display:flex;gap:6px;align-items:center;font-size:0.65rem;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,0.04);';
+                var cond = [p.severity||'*', p.category_prefix ? p.category_prefix+'…' : '*', p.director_agent_pattern||'*'].join(' / ');
+                var condEl = document.createElement('span'); condEl.style.cssText='color:#9ca3af;flex:2;'; condEl.textContent=cond;
+                var arrow = document.createElement('span'); arrow.style.color='#4b5563'; arrow.textContent=' → ';
+                var actionEl = document.createElement('span');
+                actionEl.style.cssText='color:'+(actionColors[p.action]||'#e0e0e0')+';font-weight:600;flex:1;text-transform:uppercase;font-size:0.6rem;';
+                actionEl.textContent=p.action;
+                var reasonEl = document.createElement('span'); reasonEl.style.cssText='color:#4b5563;flex:3;font-style:italic;'; reasonEl.textContent=p.reason||'';
+                row.appendChild(condEl); row.appendChild(arrow); row.appendChild(actionEl); row.appendChild(reasonEl);
+                box.appendChild(row);
+            });
+        } catch(e) {
+            _comsMsg(box, 'Policies unavailable.');
         }
-    }
+    };
+
 })();
 </script>
 

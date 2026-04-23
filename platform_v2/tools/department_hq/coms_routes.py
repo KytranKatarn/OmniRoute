@@ -321,7 +321,8 @@ def register_coms_routes(bp, admin_required):
             with get_db_cursor() as (conn, cur):
                 cur.execute(
                     """SELECT id, department, director_agent, severity, category,
-                              title, summary, escalated, created_at
+                              title, summary, escalated, triage_status, triage_action,
+                              created_at
                        FROM director_reports
                        WHERE created_at > NOW() - INTERVAL '%s hours'
                        ORDER BY created_at DESC
@@ -357,3 +358,12 @@ def register_coms_routes(bp, admin_required):
             return jsonify({"error": "Invalid action"}), 400
         ok = triage_report(report_id, action, reason="Manual override by Kytran")
         return jsonify({"success": ok})
+
+    @bp.route("/api/coms/triage-policies")
+    @admin_required
+    def coms_triage_policies():
+        """Return active triage policies for the classification rules viewer."""
+        from services.director_report_service import get_policies
+
+        policies = get_policies()
+        return jsonify({"policies": policies, "count": len(policies)})

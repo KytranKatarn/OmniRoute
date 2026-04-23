@@ -1787,10 +1787,17 @@ def _get_department_budget_rollup():
 
 
 def _get_agent_welfare_outliers(over_budget_threshold: float = 0.90):
-    """Return the per-agent list of outliers (over_budget or starving).
+    """Return per-agent outlier flags: over_budget, starving_idle, starving_no_llm.
 
-    Collapses ``agent_emotional_state`` to the latest row per agent before
-    joining — otherwise the join fans out on the history table.
+    Flag types:
+    - ``over_budget``     — tokens_used_today > 90% of daily limit
+    - ``starving_idle``   — active, zero tokens, zero tasks, dept has NO scheduled-job
+                           activity today → dispatcher routing gap (real issue)
+    - ``starving_no_llm`` — active, zero tokens, zero tasks, BUT dept IS running scheduled
+                           jobs today → LLM-free background worker (expected, low priority)
+
+    Each flag also includes a ``stress_trend`` (rising/stable/recovering) derived from
+    comparing today's stress to the 7-day rolling average.
     """
     try:
         with get_db_cursor() as (conn, cur):
@@ -1800,22 +1807,46 @@ def _get_agent_welfare_outliers(over_budget_threshold: float = 0.90):
                     SELECT DISTINCT ON (agent_id) agent_id, stress_level
                     FROM agent_emotional_state
                     ORDER BY agent_id, timestamp DESC
+                ),
+                stress_7d AS (
+                    SELECT agent_id, AVG(stress_level) AS avg_stress_7d
+                    FROM agent_emotional_state
+                    WHERE timestamp > NOW() - INTERVAL '7d'
+                    GROUP BY agent_id
+                ),
+                dept_loop_activity AS (
+                    SELECT DISTINCT department
+                    FROM autonomy_loop_log
+                    WHERE created_at > NOW() - INTERVAL '24h'
+                      AND status = 'success'
                 )
                 SELECT a.id, a.name, a.display_name, a.department, a.shift_state,
-                       COALESCE(ab.tokens_used_today, 0) AS tokens_used_today,
-                       COALESCE(ab.token_limit_per_day, 0) AS token_limit_per_day,
-                       COALESCE(ab.current_task_count, 0) AS current_task_count,
-                       COALESCE(ab.task_queue_limit, 0) AS task_queue_limit,
-                       COALESCE(aes.stress_level, 0.2) AS stress_level
+                       COALESCE(ab.tokens_used_today, 0)    AS tokens_used_today,
+                       COALESCE(ab.token_limit_per_day, 0)  AS token_limit_per_day,
+                       COALESCE(ab.current_task_count, 0)   AS current_task_count,
+                       COALESCE(aes.stress_level, 0.2)      AS stress_level,
+                       COALESCE(s7.avg_stress_7d, 0.2)      AS stress_7d_avg,
+                       (dla.department IS NOT NULL)          AS has_loop_activity
                 FROM agents a
-                LEFT JOIN agent_budgets ab ON a.id = ab.agent_id
-                LEFT JOIN latest_aes aes ON a.id = aes.agent_id
+                LEFT JOIN agent_budgets ab      ON a.id = ab.agent_id
+                LEFT JOIN latest_aes aes        ON a.id = aes.agent_id
+                LEFT JOIN stress_7d s7          ON s7.agent_id = a.id
+                LEFT JOIN dept_loop_activity dla ON dla.department = a.department
                 WHERE a.worker_type = 'ai' AND a.status = 'active'
                 """
             )
             flags = []
             for row in cur.fetchall():
                 r = dict(row)
+                stress_now = float(r["stress_level"])
+                stress_7d = float(r["stress_7d_avg"])
+                if stress_now > stress_7d + 0.15:
+                    stress_trend = "rising"
+                elif stress_now < stress_7d - 0.15:
+                    stress_trend = "recovering"
+                else:
+                    stress_trend = "stable"
+
                 limit = r["token_limit_per_day"] or 0
                 if limit > 0:
                     pct = r["tokens_used_today"] / limit
@@ -1828,26 +1859,51 @@ def _get_agent_welfare_outliers(over_budget_threshold: float = 0.90):
                                 "department": r["department"],
                                 "flag": "over_budget",
                                 "token_usage_pct": round(pct, 3),
-                                "stress_level": float(r["stress_level"]),
+                                "stress_level": stress_now,
+                                "stress_trend": stress_trend,
                             }
                         )
                         continue
                 if r["shift_state"] == "active" and r["tokens_used_today"] == 0 and r["current_task_count"] == 0:
+                    flag = "starving_no_llm" if r["has_loop_activity"] else "starving_idle"
                     flags.append(
                         {
                             "agent_id": r["id"],
                             "name": r["name"],
                             "display_name": r.get("display_name"),
                             "department": r["department"],
-                            "flag": "starving",
+                            "flag": flag,
                             "token_usage_pct": 0.0,
-                            "stress_level": float(r["stress_level"]),
+                            "stress_level": stress_now,
+                            "stress_trend": stress_trend,
                         }
                     )
             return flags
     except Exception as e:
         logger.error(f"Agent outlier flags query failed: {e}")
         return []
+
+
+def _write_welfare_snapshots(per_agent_flags: list) -> None:
+    """Upsert today's welfare snapshot row for each flagged agent (migration 155)."""
+    if not per_agent_flags:
+        return
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            for flag in per_agent_flags:
+                cur.execute(
+                    """
+                    INSERT INTO agent_welfare_snapshots
+                        (agent_id, snapshot_date, flag, avg_stress, created_at)
+                    VALUES (%s, CURRENT_DATE, %s, %s, NOW())
+                    ON CONFLICT (agent_id, snapshot_date) DO UPDATE SET
+                        flag       = EXCLUDED.flag,
+                        avg_stress = EXCLUDED.avg_stress
+                    """,
+                    (flag["agent_id"], flag["flag"], flag.get("stress_level")),
+                )
+    except Exception as e:
+        logger.warning("_write_welfare_snapshots failed: %s", e)
 
 
 def get_kin_welfare_digest(
@@ -1882,8 +1938,15 @@ def get_kin_welfare_digest(
     per_agent_flags = _get_agent_welfare_outliers(over_budget_threshold)
 
     total_over_budget = sum(d["agents_over_budget"] for d in department_rollup)
-    total_starving = sum(d["agents_starving"] for d in department_rollup)
     total_at_risk = sum(int(d.get("agents_at_risk") or 0) for d in department_rollup)
+
+    # Refined starving breakdown: truly idle vs LLM-free scheduled workers
+    starving_idle = [f for f in per_agent_flags if f["flag"] == "starving_idle"]
+    starving_no_llm = [f for f in per_agent_flags if f["flag"] == "starving_no_llm"]
+    total_starving = len(starving_idle) + len(starving_no_llm)  # legacy total
+    total_starving_idle = len(starving_idle)
+
+    stress_rising = [f for f in per_agent_flags if f.get("stress_trend") == "rising"]
 
     severity = "info"
     reasons = []
@@ -1900,9 +1963,19 @@ def get_kin_welfare_digest(
         if total_at_risk > 0:
             severity = "warning"
             reasons.append(f"{total_at_risk} agent(s) at welfare risk")
-        if total_starving >= starving_warning:
+        if total_starving_idle >= starving_warning:
             severity = "warning"
-            reasons.append(f"{total_starving} starving agents (active but receiving no work)")
+            reasons.append(f"{total_starving_idle} idle agents (dispatcher routing gap)")
+        if starving_no_llm:
+            reasons.append(f"{len(starving_no_llm)} LLM-free scheduled workers (expected, no action needed)")
+    if stress_rising:
+        rising_names = ", ".join(f["name"] for f in stress_rising[:3])
+        if severity == "info":
+            severity = "warning"
+        reasons.append(f"{len(stress_rising)} agent(s) with rising stress: {rising_names}")
+
+    # Persist daily snapshot for trend analysis
+    _write_welfare_snapshots(per_agent_flags)
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -1911,7 +1984,10 @@ def get_kin_welfare_digest(
         "summary_metrics": {
             "total_over_budget": total_over_budget,
             "total_starving": total_starving,
+            "total_starving_idle": total_starving_idle,
+            "total_starving_no_llm": len(starving_no_llm),
             "total_at_risk": total_at_risk,
+            "stress_rising": len(stress_rising),
             "department_count": len(department_rollup),
             "per_agent_flag_count": len(per_agent_flags),
         },
@@ -1924,12 +2000,14 @@ def format_kin_digest_message(digest):
     """Render a compact K.I.N. digest message for Telegram / system_notifications."""
     metrics = digest["summary_metrics"]
     lines = [
-        f"K.I.N. — crew welfare & budget digest",
-        f"Severity: *{digest['severity'].upper()}* · " f"{metrics['per_agent_flag_count']} agent flag(s)",
+        "K.I.N. — crew welfare & budget digest",
+        f"Severity: *{digest['severity'].upper()}* · {metrics['per_agent_flag_count']} agent flag(s)",
         "",
         f"• over-budget agents: {metrics['total_over_budget']}",
-        f"• starving agents: {metrics['total_starving']}",
+        f"• idle agents (no dispatch): {metrics.get('total_starving_idle', metrics['total_starving'])}",
+        f"• scheduled-job workers (LLM-free): {metrics.get('total_starving_no_llm', 0)}",
         f"• at welfare risk: {metrics['total_at_risk']}",
+        f"• stress trend rising: {metrics.get('stress_rising', 0)}",
         f"• departments scanned: {metrics['department_count']}",
     ]
     if digest.get("reasons"):

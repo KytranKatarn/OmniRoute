@@ -3746,6 +3746,67 @@ class AgentLoop:
                         "K.I.N. digest: Telegram dispatch failed: %s", tg_err
                     )
 
+            # Forward welfare violations to C.R.E.E.D. governance event log
+            # (fire-and-forget — never block the digest)
+            try:
+                import os as _os
+                import requests as _req
+
+                _creed_url = _os.getenv("CREED_API_URL", "http://192.168.1.200:8086")
+                _creed_token = _os.getenv("CREED_SERVICE_TOKEN", "")
+                _headers = {"Content-Type": "application/json"}
+                if _creed_token:
+                    _headers["Authorization"] = f"Bearer {_creed_token}"
+                for _flag in digest.get("per_agent_flags", []):
+                    _ft = _flag.get("flag", "")
+                    if _ft == "starving_idle":
+                        _ev = {
+                            "category": "accountability",
+                            "severity": "warning",
+                            "event_type": "agent_starvation",
+                            "agent_id": str(_flag["agent_id"]),
+                            "description": (
+                                f"Agent {_flag['name']} ({_flag['department']}) "
+                                "active but receiving no dispatch work"
+                            ),
+                        }
+                    elif _ft == "over_budget":
+                        _ev = {
+                            "category": "fairness",
+                            "severity": "warning",
+                            "event_type": "budget_overrun",
+                            "agent_id": str(_flag["agent_id"]),
+                            "description": (
+                                f"Agent {_flag['name']} used "
+                                f">{int(_flag.get('token_usage_pct', 0) * 100)}% "
+                                "of daily token budget"
+                            ),
+                        }
+                    elif _flag.get("stress_trend") == "rising" and _flag.get("stress_level", 0) > 0.8:
+                        _ev = {
+                            "category": "safety",
+                            "severity": "violation",
+                            "event_type": "welfare_stress_critical",
+                            "agent_id": str(_flag["agent_id"]),
+                            "description": (
+                                f"Agent {_flag['name']} critical stress "
+                                f"{_flag['stress_level']:.2f} (trend: rising)"
+                            ),
+                        }
+                    else:
+                        continue
+                    try:
+                        _req.post(
+                            f"{_creed_url}/api/v1/events",
+                            json=_ev,
+                            headers=_headers,
+                            timeout=5,
+                        )
+                    except Exception:
+                        pass
+            except Exception as _creed_err:
+                logger.debug("K.I.N. digest: C.R.E.E.D. bridge error: %s", _creed_err)
+
             logger.info(
                 "K.I.N. welfare digest: severity=%s flags=%d in %dms",
                 severity,

@@ -326,7 +326,12 @@
             if (!res.ok) throw new Error('HTTP ' + res.status);
             return res.json();
           })
-          .then(render)
+          .then(function (data) {
+            var agents = data.agents || data;
+            var directors = agents.filter(function (a) { return a.is_director; });
+            if (directors.length === 0) directors = agents.filter(function (a) { return !!a.acronym; });
+            render(directors);
+          })
           .catch(function (err2) {
             console.error('[ai-directors] Failed to load directors:', err2);
             var container = document.getElementById('directorsContainer');

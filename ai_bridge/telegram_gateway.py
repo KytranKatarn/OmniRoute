@@ -14,6 +14,7 @@ import logging
 import os
 from db import _get_db_password
 import secrets
+import sys
 import threading
 import time
 from datetime import datetime, timedelta
@@ -22,6 +23,14 @@ from typing import Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from db import get_db
+
+# Module-level import: resolve platform_v2 path once at startup rather than on
+# every _send_telegram_message call in a long-running process.
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'platform_v2'))
+try:
+    from services.telegram_service import send as _telegram_service_send
+except ImportError:
+    _telegram_service_send = None
 
 logger = logging.getLogger("telegram_gateway")
 
@@ -1077,7 +1086,6 @@ class TelegramGateway:
                         if self._matches_rule(notif, rule):
                             try:
                                 self._send_telegram_message(
-                                    rule["telegram_id"],
                                     f"[{notif['type'].upper()}] {notif['title']}\n{notif['message']}",
                                 )
                                 forwarded_ids.add(notif["id"])
@@ -1301,17 +1309,28 @@ class TelegramGateway:
         except Exception as e:
             logger.error(f"Failed to log telegram message: {e}")
 
-    def _send_telegram_message(self, chat_id: int, text: str):
-        """Send a message via Telegram Bot API (sync, for use from agent loop)."""
-        import requests
+    def _send_telegram_message(self, text: str) -> bool:
+        """Route through A.R.C.H.I.E. director report inbox instead of direct Telegram.
 
-        resp = requests.post(
-            f"https://api.telegram.org/bot{self.bot_token}/sendMessage",
-            json={"chat_id": chat_id, "text": text},
-            timeout=15,
-        )
-        if resp.status_code != 200:
-            logger.warning(f"Telegram send failed: {resp.text}")
+        # chat_id routing removed — unified-voice routes via director report inbox
+        """
+        if _telegram_service_send is None:
+            logger.error("telegram_gateway: telegram_service not available for redirect")
+            return False
+        try:
+            result = _telegram_service_send(
+                category="notification",
+                title="Notification",
+                message=text,
+                source_module="telegram_gateway",
+            )
+            if not result.get("success", False):
+                logger.warning(f"telegram_gateway: redirect returned non-success: {result}")
+                return False
+            return True
+        except Exception as e:
+            logger.error(f"telegram_gateway _send_telegram_message redirect failed: {e}")
+            return False
 
 
 def generate_link_code(user_id: int) -> str:

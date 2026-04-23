@@ -808,7 +808,7 @@ def _check_npm_health():
         import requests as req
 
         npm_url = os.getenv("NPM_API_URL", "http://192.168.1.200:81/api")
-        r = req.get(f"{npm_url.rstrip('/api')}/", timeout=3)
+        r = req.get(f"{npm_url.removesuffix('/api')}/", timeout=3)
         return r.status_code < 500
     except Exception as e:
         logger.debug("NPM health check failed: %s", e)

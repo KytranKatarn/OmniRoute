@@ -8,6 +8,7 @@ Functions:
     run_morning_briefing() — daily synthesis of overnight director reports
 """
 
+import hashlib
 import json
 import logging
 import os
@@ -153,14 +154,20 @@ def submit_director_report(
         summary: What happened
         details: Optional dict with extra context
     """
+    # 5-minute dedup window — same director + category + title = one report
+    window = int(time.time() // 300)
+    raw = f"{director_agent}:{category}:{title}:{window}"
+    dedup_key = hashlib.sha256(raw.encode()).hexdigest()[:32]
+
     try:
         from database import get_db_cursor
 
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """INSERT INTO director_reports
-                   (department, director_agent, severity, category, title, summary, details)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s)
+                   (department, director_agent, severity, category, title, summary, details, dedup_key)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                   ON CONFLICT (dedup_key) DO NOTHING
                    RETURNING id""",
                 (
                     department,
@@ -170,11 +177,20 @@ def submit_director_report(
                     title,
                     summary,
                     json.dumps(details) if details else "{}",
+                    dedup_key,
                 ),
             )
             report_id = cur.fetchone()
-            rid = report_id["id"] if isinstance(report_id, dict) else report_id[0]
             conn.commit()
+
+            if report_id is None:
+                logger.debug(
+                    "director_report deduped (key=%s): [%s] %s from %s — %s",
+                    dedup_key, severity, category, director_agent, title,
+                )
+                return None
+
+            rid = report_id["id"] if isinstance(report_id, dict) else report_id[0]
             logger.info(
                 "director_report #%d: [%s] %s from %s — %s",
                 rid, severity, category, director_agent, title,

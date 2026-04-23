@@ -65,6 +65,8 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+_COMMS_SERVICE_TOKEN = os.getenv("ARCHIE_COMMS_SERVICE_TOKEN", "")
+
 # ---------------------------------------------------------------------------
 # Category definitions
 # ---------------------------------------------------------------------------
@@ -199,6 +201,7 @@ def send(
                     "title": title,
                     "summary": message,
                 },
+                headers={"X-Service-Token": _COMMS_SERVICE_TOKEN},
                 timeout=5,
             )
             if _resp.ok:

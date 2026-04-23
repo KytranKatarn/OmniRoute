@@ -8,6 +8,7 @@ Runs as archie_comms container on :3002. Provides:
 - Collaboration engine (Claude bridge)
 """
 
+import hmac
 import logging
 import os
 
@@ -34,6 +35,8 @@ if not _secret_key:
         "in docker-compose / .env before starting."
     )
 app.secret_key = _secret_key
+
+ARCHIE_SERVICE_TOKEN = os.getenv("ARCHIE_COMMS_SERVICE_TOKEN", "")
 
 app.config["SESSION_COOKIE_DOMAIN"] = ".kytranempowerment.com"
 app.config["SESSION_COOKIE_NAME"] = "archie_comms_session"
@@ -187,6 +190,10 @@ def chat():
 @app.route("/api/director/report", methods=["POST"])
 def api_director_report():
     """Agent loop jobs call this to submit director reports UP the hierarchy."""
+    token = request.headers.get("X-Service-Token", "")
+    if ARCHIE_SERVICE_TOKEN and not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
+        return jsonify({"error": "Unauthorized"}), 401
+
     from services.briefing_service import submit_director_report
 
     data = request.get_json() or {}

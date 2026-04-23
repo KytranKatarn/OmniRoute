@@ -4655,7 +4655,7 @@ class AgentLoop:
 
         Project #240 task #1760 — fires every 2 min.
         Thresholds: load1 > 30, MemAvailable < 5GB, SwapFree < 500MB.
-        Dedup: one alert per category per 15 min.
+        Dedup: one alert per category per 1 hour (#2233 — was 15 min, caused Telegram flood).
         """
         start = time.time()
         try:
@@ -4671,7 +4671,7 @@ class AgentLoop:
             now = time.time()
             if not hasattr(self, "_watchdog_last_alert"):
                 self._watchdog_last_alert = {}
-            dedup_s = 15 * 60
+            dedup_s = 3600  # 1 hour between repeated alerts for same condition (#2233)
 
             triggered = []
             if load1 > 30 and now - self._watchdog_last_alert.get("load", 0) > dedup_s:

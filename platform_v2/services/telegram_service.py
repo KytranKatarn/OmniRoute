@@ -161,6 +161,7 @@ def send(
     source_module: str = None,
     chat_id: str = None,
     force: bool = False,
+    _privileged: bool = False,
 ) -> dict:
     """Send a categorized Telegram notification as A.R.C.H.I.E.
 

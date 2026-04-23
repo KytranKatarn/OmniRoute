@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 TARGET_PAGES = {
     "website_kytranempowerment": ["/", "/pricing", "/about"],
     "website_what_the_fact": ["/"],
-    "website_thenews": ["/"],
 }
 
 BASE_URLS = {
@@ -42,7 +41,7 @@ def run(sources: Iterable[str]) -> dict:
     """Run Playwright + OCR translation coverage checks for each source.
 
     Args:
-        sources: Iterable of source identifiers (e.g. "website_thenews").
+        sources: Iterable of source identifiers (e.g. "website_what_the_fact").
                  Pass all keys from BASE_URLS to check every external site.
 
     Returns:

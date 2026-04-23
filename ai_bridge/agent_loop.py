@@ -663,6 +663,18 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # A.R.C.H.I.E. triage consumer — classifies director_reports every 30s,
+        # escalates to Telegram only when warranted (Unified Voice Wave 2).
+        self.scheduler.add_job(
+            with_app_context(self._run_triage_consumer),
+            trigger=IntervalTrigger(seconds=30),
+            id="archie_triage_consumer",
+            name="Agent Loop: A.R.C.H.I.E. Triage Consumer",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         # K.I.N. — daily crew welfare + budget digest (Project #272 / Task #2106).
         # 02:45 UTC — after S.P.E.C.T.R.A. so routing anomalies are fresh.
         self.scheduler.add_job(
@@ -3662,6 +3674,62 @@ class AgentLoop:
     # ------------------------------------------------------------------
     # K.I.N. Welfare + Budget Digest (Project #272 / Task #2106)
     # ------------------------------------------------------------------
+
+    def _run_triage_consumer(self):
+        """A.R.C.H.I.E. triage consumer (Unified Voice Wave 2, #2264).
+
+        Fetches pending director_reports from archie-comms every 30s,
+        classifies each one using DB-driven policies + default rules,
+        marks it triaged. Only 'escalate'-classified reports reach Telegram
+        and are sent as A.R.C.H.I.E. — enforcing the unified voice contract.
+        """
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from services.director_report_service import (
+                classify_report,
+                get_pending_reports,
+                get_policies,
+                triage_report,
+            )
+            from services.telegram_service import send as telegram_send
+
+            reports = get_pending_reports(limit=10)
+            if not reports:
+                return
+
+            policies = get_policies()
+            escalated = 0
+            for report in reports:
+                action, reason = classify_report(report, policies)
+                triage_report(report["id"], action, reason)
+
+                if action == "escalate":
+                    try:
+                        telegram_send(
+                            category=report.get("category", "system"),
+                            title=f"[{report['severity'].upper()}] {report['title']}",
+                            message=(
+                                f"From: {report['director_agent']} ({report['department']})\n"
+                                f"Summary: {report['summary']}\n"
+                                f"Triage: Escalated — {reason}"
+                            ),
+                            source_agent="A.R.C.H.I.E.",
+                            force=True,
+                            _privileged=True,
+                        )
+                        escalated += 1
+                    except Exception as tg_err:
+                        logger.warning("triage_consumer: Telegram send failed: %s", tg_err)
+
+            logger.info(
+                "triage_consumer: processed=%d escalated=%d",
+                len(reports),
+                escalated,
+            )
+        except Exception as e:
+            logger.error("triage_consumer failed: %s", e)
 
     def _run_kin_welfare_digest(self):
         """Daily K.I.N. digest — welfare (stress/mood) + budget utilization.

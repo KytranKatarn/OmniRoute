@@ -217,6 +217,106 @@ def api_director_report():
     return jsonify({"error": "Failed to submit report"}), 500
 
 
+@app.route("/api/internal/director-reports", methods=["GET"])
+def api_internal_director_reports():
+    """Return pending director_reports ordered by severity then age."""
+    token = request.headers.get("X-Service-Token", "")
+    if ARCHIE_SERVICE_TOKEN and not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    from database import get_db_cursor
+
+    limit = min(int(request.args.get("limit", 20)), 100)
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT id, department, director_agent, severity, category,
+                   title, summary, details, created_at
+            FROM director_reports
+            WHERE triage_status = 'pending'
+            ORDER BY
+              CASE severity
+                WHEN 'critical' THEN 0 WHEN 'high' THEN 1
+                WHEN 'medium'   THEN 2 ELSE 3
+              END,
+              created_at ASC
+            LIMIT %s
+            """,
+            (limit,),
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+
+    for r in rows:
+        if r.get("created_at"):
+            r["created_at"] = r["created_at"].isoformat()
+    return jsonify({"reports": rows, "count": len(rows)})
+
+
+@app.route("/api/internal/director-reports/<int:report_id>/triage", methods=["POST"])
+def api_internal_triage_report(report_id):
+    """Apply a triage action to a pending director report."""
+    token = request.headers.get("X-Service-Token", "")
+    if ARCHIE_SERVICE_TOKEN and not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    from database import get_db_cursor
+
+    data = request.get_json() or {}
+    action = data.get("action")
+    if action not in ("resolve", "consolidate", "suppress", "escalate"):
+        return jsonify({"error": "Invalid action"}), 400
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            UPDATE director_reports
+            SET triage_status      = %s,
+                triage_action      = %s,
+                triage_reason      = %s,
+                triaged_at         = NOW(),
+                escalated          = %s,
+                escalation_channel = %s
+            WHERE id = %s
+            RETURNING id
+            """,
+            (
+                action,
+                action,
+                data.get("reason", ""),
+                action == "escalate",
+                "telegram" if action == "escalate" else None,
+                report_id,
+            ),
+        )
+        row = cur.fetchone()
+
+    if not row:
+        return jsonify({"error": "Report not found"}), 404
+    return jsonify({"success": True, "report_id": row["id"], "action": action})
+
+
+@app.route("/api/internal/triage-policies", methods=["GET"])
+def api_internal_triage_policies():
+    """Return active triage policies ordered by priority."""
+    token = request.headers.get("X-Service-Token", "")
+    if ARCHIE_SERVICE_TOKEN and not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    from database import get_db_cursor
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT severity, category_prefix, director_agent_pattern, action, reason
+            FROM triage_policies
+            WHERE active = TRUE
+            ORDER BY priority ASC
+            """
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+    return jsonify({"policies": rows})
+
+
 @app.route("/api/chat/send_message", methods=["POST"])
 def api_chat_send():
     """Chat endpoint — routes through unified conversation service.

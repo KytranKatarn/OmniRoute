@@ -328,6 +328,23 @@ def register_scan_routes(bp, admin_required):
                 )
                 proposal_id = cur.fetchone()["id"]
 
+                # Auto-create a Code session for this proposal
+                try:
+                    from tools.archie_chat.code_service import create_session_from_proposal as _create_code_session
+
+                    _severity = max_sev.get("severity", "medium")
+                    _title = "Fix: {} — {}".format(
+                        category,
+                        (file_path or "")[:60],
+                    )
+                    _create_code_session(
+                        proposal_id=proposal_id,
+                        title=_title,
+                        severity=_severity,
+                    )
+                except Exception as _e:
+                    logger.warning("Code session auto-create failed: %s", _e)
+
                 # Link issues back to the proposal
                 issue_ids = [i["id"] for i in group_issues]
                 cur.execute(

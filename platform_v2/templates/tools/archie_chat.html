@@ -277,6 +277,10 @@
                         <i data-lucide="users"></i>
                         Collaborate
                     </button>
+                    <button class="chat-mode-btn" data-mode="code" id="code-tab-btn" onclick="switchChatMode('code')">
+                        <i data-lucide="terminal"></i>
+                        Code
+                    </button>
                 </div>
             </div>
             <div class="status-right">
@@ -497,6 +501,63 @@
                 </div>
                 <div id="work-products-list"></div>
             </div>
+        </div>
+
+        <!-- Code Tab Container -->
+        <div id="code-container" style="display:none;flex:1;overflow:hidden">
+          <div style="display:flex;height:100%">
+
+            <!-- Left: Session Browser 200px -->
+            <div id="code-sidebar" style="width:200px;border-right:1px solid #1e293b;display:flex;flex-direction:column;background:#080d1a;flex-shrink:0">
+              <div style="padding:8px;border-bottom:1px solid #1e293b">
+                <div style="display:flex;gap:4px;margin-bottom:6px" id="code-view-btns">
+                  <button class="code-view-btn active" data-view="source">SOURCE</button>
+                  <button class="code-view-btn" data-view="project">PROJECT</button>
+                  <button class="code-view-btn" data-view="status">STATUS</button>
+                </div>
+                <div id="code-view-label" style="color:#64748b;font-size:9px;text-transform:uppercase;letter-spacing:1px">By Source</div>
+              </div>
+              <div id="code-session-list" style="flex:1;overflow-y:auto;padding:6px"></div>
+              <div style="padding:8px;border-top:1px solid #1e293b">
+                <button id="code-new-session-btn" class="code-action-btn" style="width:100%">+ New Session</button>
+              </div>
+            </div>
+
+            <!-- Center: Session Feed -->
+            <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+              <div id="code-session-header" style="padding:8px 12px;border-bottom:1px solid #1e293b;display:flex;align-items:center;gap:8px;font-size:11px;font-family:monospace">
+                <span id="code-session-status-badge" style="color:#475569">--</span>
+                <span id="code-session-title" style="color:#e2e8f0;flex:1"></span>
+                <span id="code-session-tier-badge" style="font-size:9px;padding:1px 6px;border-radius:3px;background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b44"></span>
+                <span id="code-session-proposal-badge" style="font-size:9px;padding:1px 6px;border-radius:3px;background:#8b5cf622;color:#8b5cf6;border:1px solid #8b5cf644"></span>
+              </div>
+              <div id="code-event-stream" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;font-family:monospace;font-size:11px">
+                <div id="code-empty-state" style="color:#475569;text-align:center;margin-top:40px">Select a session or create a new one</div>
+              </div>
+              <div id="code-raw-terminal" style="flex:1;display:none;background:#000;padding:8px;font-family:monospace;font-size:11px;color:#22c55e;overflow-y:auto"></div>
+              <div style="padding:8px;border-top:1px solid #1e293b;display:flex;gap:6px;align-items:center">
+                <input id="code-input" type="text" placeholder="Message A.R.C.H.I.E. or type a code instruction..."
+                       style="flex:1;background:#080d1a;border:1px solid #1e293b;border-radius:4px;padding:6px 10px;color:#e2e8f0;font-size:10px;font-family:monospace;outline:none">
+                <button id="code-raw-toggle" class="code-action-btn">RAW</button>
+                <button id="code-send-btn" class="code-action-btn code-action-btn--primary">SEND</button>
+              </div>
+            </div>
+
+            <!-- Right: Context Panel 160px -->
+            <div id="code-context-panel" style="width:160px;border-left:1px solid #1e293b;display:flex;flex-direction:column;background:#080d1a;padding:8px;gap:8px;flex-shrink:0;font-size:10px;font-family:monospace">
+              <div style="color:#64748b;font-size:9px;text-transform:uppercase;letter-spacing:1px">Session Context</div>
+              <div><div style="color:#64748b;font-size:9px;margin-bottom:3px">PROJECT</div><div id="ctx-project" style="color:#94a3b8">--</div></div>
+              <div><div style="color:#64748b;font-size:9px;margin-bottom:3px">PROPOSAL</div><div id="ctx-proposal" style="color:#94a3b8">--</div></div>
+              <div><div style="color:#64748b;font-size:9px;margin-bottom:3px">TIER</div><div id="ctx-tier" style="color:#f59e0b">--</div></div>
+              <div><div style="color:#64748b;font-size:9px;margin-bottom:3px">FILES CHANGED</div><div id="ctx-files" style="color:#94a3b8">--</div></div>
+              <div><div style="color:#64748b;font-size:9px;margin-bottom:3px">AGENT</div><div id="ctx-agent" style="color:#00d4ff">F.O.R.G.E.</div></div>
+              <div style="margin-top:auto;display:flex;flex-direction:column;gap:4px">
+                <button id="code-abort-btn" class="code-action-btn code-action-btn--danger" style="display:none">Abort</button>
+                <button id="code-repair-bay-btn" class="code-action-btn" style="display:none">Repair Bay</button>
+              </div>
+            </div>
+
+          </div>
         </div>
 
         <!-- Interjection Modal -->
@@ -2402,4 +2463,241 @@ setInterval(checkCommandStation, 10000);
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+<!-- Code Tab JS -->
+<script>
+(function() {
+  var activeSessionId = null;
+  var sseSource = null;
+  var rawMode = false;
+  var activeProposalId = null;
+
+  function renderSessionCard(s) {
+    var card = document.createElement('div');
+    card.className = 'code-session-card' + (s.id === activeSessionId ? ' active' : '');
+    card.dataset.id = s.id;
+
+    var statusEl = document.createElement('div');
+    statusEl.style.cssText = 'font-size:9px;margin-bottom:2px';
+    var statusMap = {active:'ACTIVE', paused:'PAUSED', completed:'DONE', failed:'FAILED'};
+    statusEl.textContent = statusMap[s.status] || s.status;
+    statusEl.style.color = s.status === 'active' ? '#22c55e' : s.status === 'paused' ? '#f59e0b' : '#475569';
+
+    var titleEl = document.createElement('div');
+    titleEl.style.cssText = 'font-size:10px;color:#94a3b8;word-break:break-all';
+    titleEl.textContent = s.title;
+
+    var metaEl = document.createElement('div');
+    metaEl.style.cssText = 'font-size:9px;color:#475569';
+    metaEl.textContent = 'Tier ' + s.tier + ' / ' + s.source;
+
+    card.appendChild(statusEl);
+    card.appendChild(titleEl);
+    card.appendChild(metaEl);
+    card.addEventListener('click', function() { loadSession(s.id); });
+    return card;
+  }
+
+  function renderEvent(evt) {
+    var wrap = document.createElement('div');
+    wrap.className = 'code-event-card code-event-' + (evt.event_type || 'message');
+
+    var label = document.createElement('div');
+    label.className = 'code-event-label';
+    label.textContent = (evt.event_type || '').toUpperCase();
+
+    var body = document.createElement('div');
+    body.className = 'code-event-body';
+    var c = evt.content || {};
+    body.textContent = c.text || (c.raw ? JSON.stringify(c.raw).slice(0, 500) : '');
+
+    wrap.appendChild(label);
+    wrap.appendChild(body);
+    return wrap;
+  }
+
+  function loadSessions() {
+    var view = document.querySelector('.code-view-btn.active');
+    var viewVal = view ? view.dataset.view : 'source';
+    fetch('/tools/archie-chat/api/code-sessions?view=' + viewVal)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var list = document.getElementById('code-session-list');
+        while (list.firstChild) list.removeChild(list.firstChild);
+        (data.sessions || []).forEach(function(s) {
+          list.appendChild(renderSessionCard(s));
+        });
+      })
+      .catch(function(e) { console.error('loadSessions error', e); });
+  }
+
+  function loadSession(id) {
+    activeSessionId = id;
+    if (sseSource) { sseSource.close(); sseSource = null; }
+
+    fetch('/tools/archie-chat/api/code-sessions/' + id)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var s = data.session || {};
+        activeProposalId = s.proposal_id || null;
+
+        var statusBadge = document.getElementById('code-session-status-badge');
+        var titleEl = document.getElementById('code-session-title');
+        var tierBadge = document.getElementById('code-session-tier-badge');
+        var proposalBadge = document.getElementById('code-session-proposal-badge');
+        var ctxTier = document.getElementById('ctx-tier');
+        var ctxProposal = document.getElementById('ctx-proposal');
+        var abortBtn = document.getElementById('code-abort-btn');
+        var repairBtn = document.getElementById('code-repair-bay-btn');
+
+        if (statusBadge) {
+          var statusMap = {active:'ACTIVE', paused:'PAUSED', completed:'DONE', failed:'FAILED'};
+          statusBadge.textContent = statusMap[s.status] || s.status;
+          statusBadge.style.color = s.status === 'active' ? '#22c55e' : '#475569';
+        }
+        if (titleEl) titleEl.textContent = s.title || '';
+        if (tierBadge) tierBadge.textContent = s.tier ? 'Tier ' + s.tier : '';
+        if (proposalBadge) proposalBadge.textContent = s.proposal_id ? 'Repair Bay #' + s.proposal_id : '';
+        if (ctxTier) ctxTier.textContent = s.tier === 1 ? '1 - Auto PR' : s.tier === 2 ? '2 - Human Review' : '--';
+        if (ctxProposal) ctxProposal.textContent = s.proposal_id ? '#' + s.proposal_id : '--';
+        if (abortBtn) abortBtn.style.display = s.status === 'active' ? '' : 'none';
+        if (repairBtn) repairBtn.style.display = s.proposal_id ? '' : 'none';
+
+        var stream = document.getElementById('code-event-stream');
+        if (stream) {
+          while (stream.firstChild) stream.removeChild(stream.firstChild);
+          if (data.events && data.events.length > 0) {
+            data.events.forEach(function(evt) { stream.appendChild(renderEvent(evt)); });
+          } else {
+            var msg = document.createElement('div');
+            msg.style.cssText = 'color:#475569;text-align:center;margin-top:40px';
+            msg.textContent = 'No events yet. Start the session to begin.';
+            stream.appendChild(msg);
+          }
+          stream.scrollTop = stream.scrollHeight;
+        }
+
+        sseSource = new EventSource('/tools/archie-chat/api/code-sessions/' + id + '/stream');
+        sseSource.onmessage = function(e) {
+          if (rawMode) return;
+          try {
+            var evt = JSON.parse(e.data);
+            var streamEl = document.getElementById('code-event-stream');
+            if (streamEl) {
+              streamEl.appendChild(renderEvent(evt));
+              streamEl.scrollTop = streamEl.scrollHeight;
+            }
+          } catch(err) {}
+        };
+
+        loadSessions();
+      })
+      .catch(function(e) { console.error('loadSession error', e); });
+  }
+
+  var sendBtn = document.getElementById('code-send-btn');
+  if (sendBtn) {
+    sendBtn.addEventListener('click', function() {
+      if (!activeSessionId) return;
+      var input = document.getElementById('code-input');
+      var text = input ? input.value.trim() : '';
+      if (!text) return;
+      fetch('/tools/archie-chat/api/code-sessions/' + activeSessionId + '/message', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text: text})
+      }).catch(function(e) { console.error('send error', e); });
+      if (input) input.value = '';
+    });
+  }
+
+  var codeInput = document.getElementById('code-input');
+  if (codeInput) {
+    codeInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        var btn = document.getElementById('code-send-btn');
+        if (btn) btn.click();
+      }
+    });
+  }
+
+  var rawToggle = document.getElementById('code-raw-toggle');
+  if (rawToggle) {
+    rawToggle.addEventListener('click', function() {
+      if (!activeSessionId) return;
+      rawMode = !rawMode;
+      var stream = document.getElementById('code-event-stream');
+      var terminal = document.getElementById('code-raw-terminal');
+      if (stream) stream.style.display = rawMode ? 'none' : '';
+      if (terminal) terminal.style.display = rawMode ? '' : 'none';
+      fetch('/tools/archie-chat/api/code-sessions/' + activeSessionId + '/mode', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({raw: rawMode})
+      }).catch(function(e) { console.error('mode error', e); });
+    });
+  }
+
+  var abortBtn = document.getElementById('code-abort-btn');
+  if (abortBtn) {
+    abortBtn.addEventListener('click', function() {
+      if (!activeSessionId) return;
+      fetch('/tools/archie-chat/api/code-sessions/' + activeSessionId + '/abort', {method: 'POST'})
+        .then(function() { loadSessions(); })
+        .catch(function(e) { console.error('abort error', e); });
+    });
+  }
+
+  var repairBtn = document.getElementById('code-repair-bay-btn');
+  if (repairBtn) {
+    repairBtn.addEventListener('click', function() {
+      if (activeProposalId) {
+        window.location.href = '/tools/repair-bay';
+      }
+    });
+  }
+
+  var newSessionBtn = document.getElementById('code-new-session-btn');
+  if (newSessionBtn) {
+    newSessionBtn.addEventListener('click', function() {
+      var title = prompt('Session title:');
+      if (!title || !title.trim()) return;
+      fetch('/tools/archie-chat/api/code-sessions', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title: title.trim(), source: 'user', tier: 2})
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        loadSessions();
+        if (d.session_id) loadSession(d.session_id);
+      })
+      .catch(function(e) { console.error('new session error', e); });
+    });
+  }
+
+  var viewBtns = document.getElementById('code-view-btns');
+  if (viewBtns) {
+    viewBtns.addEventListener('click', function(e) {
+      var btn = e.target.closest('.code-view-btn');
+      if (!btn) return;
+      viewBtns.querySelectorAll('.code-view-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var label = document.getElementById('code-view-label');
+      if (label) {
+        var v = btn.dataset.view || '';
+        label.textContent = 'By ' + v.charAt(0).toUpperCase() + v.slice(1);
+      }
+      loadSessions();
+    });
+  }
+
+  var codeTabBtn = document.getElementById('code-tab-btn');
+  if (codeTabBtn) {
+    codeTabBtn.addEventListener('click', function() {
+      setTimeout(loadSessions, 100);
+    });
+  }
+})();
+</script>
 {% endblock %}

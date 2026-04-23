@@ -24,6 +24,8 @@ function switchChatMode(mode) {
     document.getElementById('solo-chat-container').style.display = mode === 'solo' ? 'flex' : 'none';
     document.getElementById('dual-chat-container').style.display = mode === 'side-by-side' ? 'flex' : 'none';
     document.getElementById('collab-container').style.display = mode === 'collab' ? 'flex' : 'none';
+    var codeContainer = document.getElementById('code-container');
+    if (codeContainer) codeContainer.style.display = mode === 'code' ? 'flex' : 'none';
 
     // Load collab state if switching to collab mode
     if (mode === 'collab') {

@@ -115,6 +115,9 @@ google-api-python-client>=2.0
 
 # Game Studio Phase 4 — Multiplayer WebSockets
 flask-socketio>=5.3
+
+# Code Tab — lightweight raw WebSocket terminal
+flask-sock==0.7.0
 python-socketio>=5.10
 python-engineio>=4.8
 

@@ -3947,3 +3947,54 @@ body.font-large .messages-container{font-size:1.05rem}
 .p10-thread-item { padding: 0.3rem 0.5rem; font-size: 0.7rem; color: #aab; cursor: pointer; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .p10-thread-item:hover { background: rgba(96,165,250,0.05); }
 .p10-thread-item.active { background: rgba(96,165,250,0.12); color: var(--archie-accent, #60a5fa); }
+
+/* ============================================================
+   Code Tab — session browser, event feed, context panel
+   ============================================================ */
+.code-view-btn {
+  background: none;
+  border: 1px solid #1e293b;
+  color: #475569;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  cursor: pointer;
+  font-family: monospace;
+}
+.code-view-btn.active { background: #22c55e22; color: #22c55e; border-color: #22c55e44; }
+.code-action-btn {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 9px;
+  cursor: pointer;
+  font-family: monospace;
+  white-space: nowrap;
+}
+.code-action-btn--primary { background: #22c55e22; color: #22c55e; border-color: #22c55e44; }
+.code-action-btn--danger  { background: #f87171; color: #fff; border: none; }
+.code-session-card {
+  background: #0a0f1e;
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  padding: 6px;
+  margin-bottom: 4px;
+  cursor: pointer;
+}
+.code-session-card:hover  { border-color: #334155; }
+.code-session-card.active { border-color: #22c55e44; background: #0d1b2a; }
+.code-event-card {
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 10px;
+}
+.code-event-label { font-size: 9px; margin-bottom: 4px; color: #64748b; }
+.code-event-body  { color: #94a3b8; }
+.code-event-message     { background: #0d1b2a; border: 1px solid #00d4ff22; }
+.code-event-diff        { background: #0d1b2a; border: 1px solid #22c55e22; }
+.code-event-file_change { background: #0d1b2a; border: 1px solid #22c55e22; }
+.code-event-summary     { background: #0d1b2a; border: 1px solid #8b5cf622; }
+.code-event-error       { background: #0d1b2a; border: 1px solid #f8717122; }
+.code-event-terminal_raw { background: #0a0f1e; border: 1px solid #1e293b; }

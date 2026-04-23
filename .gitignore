@@ -166,3 +166,4 @@ scripts/debug/
 # publish_website.sh sweeps these into website/.../assets/portraits/
 # before each deploy. Staging output is runtime state, not source.
 platform_v2/static/media/thumbs/
+scripts/opencode

@@ -98,8 +98,13 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 
 ## saas_services (8)
 
-### Email Manager — `email_manager` · `/tools/email-manager` · ⛔
-- **Status**: Disabled. Stalwart mail server operational separately (mail.kytranempowerment.com).
+### Email Manager — `email_manager` · `/tools/email-manager` · ✅ · 🟢
+- **Capability**: 5-tab oversight dashboard — Overview (unread stats + 30s live feed), Inbox (per-mailbox IMAP browser), Sent, Agents (Stalwart provisioning), Settings (connection test). 48 mailboxes live: 38 AI agents + 10 business. IMAP sync job every 5 min.
+- **Backend**: `stalwart_service.py` (provision/delete/rotate via HTTPS admin API at 192.168.1.200:8443), `sync_jobs.py` (email_imap_sync via JobService), `mailbox_routes.py`, `overview_routes.py`, `inbox_routes.py`, `sent_routes.py`.
+- **Tables**: `email_mailboxes` (address, mailbox_type, owner_agent_id, provisioned, imap_password), `email_activity_log` (direction, from/to/subject/message_id, read_at).
+- **Key endpoints**: `POST /api/email/mailboxes/<id>/provision`, `POST /api/email/mailboxes/provision-all-agents`, `POST /api/email/mailboxes/rotate-all-passwords`.
+- **Stalwart PATCH gotcha**: body must be bare array `[{"action":"set","field":"secrets","value":[pw]}]` — NOT `{"changes":[...]}`.
+- **PRs**: #297 (Phase 1), #299 (Phase 2 IMAP credentials). KB: 260092–260095. 2026-04-24.
 
 ### Scheduler — `scheduler` · `/tools/scheduler` · ⛔
 - **Status**: Disabled.

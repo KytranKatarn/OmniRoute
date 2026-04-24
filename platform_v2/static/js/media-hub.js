@@ -79,6 +79,11 @@ document.addEventListener('DOMContentLoaded', function() {
     loadPrimaryMediaServer();
     loadDashboard();
     loadSettings();
+
+    // Allow M.A.V.E.N. pages (and any external link) to deep-link into a tab
+    // via ?tab=movies, ?tab=requests, etc.
+    const urlTab = new URLSearchParams(window.location.search).get('tab');
+    if (urlTab) switchTab(urlTab);
 });
 
 // Sort dropdown initialization
@@ -1468,6 +1473,13 @@ function createEpisodeCard(ep) {
     info.appendChild(meta);
     info.appendChild(epTitle);
 
+    if (ep.overview) {
+        const overview = document.createElement('div');
+        overview.className = 'episode-overview';
+        overview.textContent = ep.overview.length > 180 ? ep.overview.substring(0, 180) + '…' : ep.overview;
+        info.appendChild(overview);
+    }
+
     const status = document.createElement('div');
     status.className = ep.has_file ? 'episode-status available' : 'episode-status pending';
     const icon = document.createElement('i');
@@ -2124,6 +2136,21 @@ let allRequests = [];
 let currentRequestsFilter = 'active';
 let currentRequestsLimit = 10;
 let queueProgress = {};
+let requestRefreshInterval = null;
+const REQUEST_REFRESH_RATE = 30000; // 30s — polls while any item is processing
+
+function startRequestRefresh() {
+    if (!requestRefreshInterval) {
+        requestRefreshInterval = setInterval(loadRequests, REQUEST_REFRESH_RATE);
+    }
+}
+
+function stopRequestRefresh() {
+    if (requestRefreshInterval) {
+        clearInterval(requestRefreshInterval);
+        requestRefreshInterval = null;
+    }
+}
 
 async function loadRequests() {
     const container = document.getElementById('requestsList');
@@ -2148,6 +2175,9 @@ async function loadRequests() {
         if (data.success && data.requests) {
             allRequests = data.requests;
             renderFilteredRequests();
+            // Auto-refresh while any request is actively downloading
+            const hasProcessing = allRequests.some(r => r.status === 'processing');
+            hasProcessing ? startRequestRefresh() : stopRequestRefresh();
         } else {
             container.appendChild(createEmptyState('inbox', 'No media requests'));
         }
@@ -2280,7 +2310,7 @@ function createRequestCard(req) {
     if (req.overview) {
         const overview = document.createElement('div');
         overview.className = 'request-overview';
-        overview.textContent = req.overview.substring(0, 100) + (req.overview.length > 100 ? '...' : '');
+        overview.textContent = req.overview.length > 220 ? req.overview.substring(0, 220) + '…' : req.overview;
         info.appendChild(overview);
     }
 

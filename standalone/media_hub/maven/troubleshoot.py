@@ -510,6 +510,15 @@ def _require_admin():
         abort(403)
 
 
+@maven_bp.route("/api/status")
+@login_required
+def api_maven_status():
+    """Return the last cached M.A.V.E.N. diagnostic summary (no re-run).
+    Used by the nav badge to show a red dot when errors exist."""
+    from health_observer import _last_diagnostic
+    return jsonify({"success": True, "diagnostic": _last_diagnostic})
+
+
 @maven_bp.route("/api/troubleshoot")
 @login_required
 def api_troubleshoot():

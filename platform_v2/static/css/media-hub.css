@@ -1913,7 +1913,7 @@ body.tv-mode .install-app-btn {
     border: 1px solid var(--archie-border-subtle);
     border-radius: 16px;
     width: 90%;
-    max-width: 500px;
+    max-width: 660px;
     max-height: 80vh;
     overflow: hidden;
     transform: scale(0.95) translateY(10px);
@@ -1971,11 +1971,18 @@ body.tv-mode .install-app-btn {
     gap: 12px;
 }
 
+.episode-overview {
+    font-size: 0.78rem;
+    color: var(--archie-text-muted);
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
 .calendar-ep-poster {
-    width: 28px;
-    height: 42px;
+    width: 60px;
+    height: 90px;
     background: var(--archie-bg-secondary);
-    border-radius: 3px;
+    border-radius: 6px;
     object-fit: cover;
     flex-shrink: 0;
 }
@@ -2027,13 +2034,15 @@ body.tv-mode .install-app-btn {
 
 .service-card {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 14px;
-    padding: 16px;
+    gap: 10px;
+    padding: 20px 16px;
     background: var(--archie-bg-tertiary);
     border: 1px solid var(--archie-border-muted);
     border-radius: 10px;
     transition: all 0.2s ease;
+    text-align: center;
 }
 
 .service-card:hover { border-color: var(--archie-orange-alpha-30); }
@@ -2053,7 +2062,7 @@ body.tv-mode .install-app-btn {
 
 .service-icon i { width: 22px; height: 22px; }
 
-.service-info { flex: 1; min-width: 0; }
+.service-info { min-width: 0; width: 100%; }
 
 .service-name { font-weight: 600; color: var(--archie-text-secondary); margin-bottom: 2px; }
 
@@ -2061,11 +2070,13 @@ body.tv-mode .install-app-btn {
     font-size: 0.75rem;
     color: var(--archie-text-muted);
     font-family: 'JetBrains Mono', monospace;
+    word-break: break-all;
 }
 
 .service-status {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     font-size: 0.75rem;
     margin-top: 4px;
@@ -2076,7 +2087,7 @@ body.tv-mode .install-app-btn {
 .service-status.unknown { color: var(--archie-text-muted); }
 .service-status i { width: 14px; height: 14px; }
 
-.service-actions { display: flex; gap: 8px; }
+.service-actions { display: flex; gap: 8px; justify-content: center; width: 100%; }
 
 .settings-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 

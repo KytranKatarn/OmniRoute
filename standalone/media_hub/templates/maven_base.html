@@ -59,7 +59,29 @@
         .run-btn:hover { background: #60a5fa; }
     </style>
 </head>
+<style>
+    /* Hub tab nav bar */
+    nav.hub-tabs {
+        border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+        background: var(--surface); padding: 0 1.5rem;
+    }
+    nav.hub-tabs .inner {
+        max-width: 1200px; margin: 0 auto; display: flex; gap: 0; align-items: center;
+        overflow-x: auto; scrollbar-width: none;
+    }
+    nav.hub-tabs .inner::-webkit-scrollbar { display: none; }
+    nav.hub-tabs a {
+        display: flex; align-items: center; gap: 0.4rem; padding: 0.65rem 1rem;
+        font-size: 0.85rem; color: var(--muted); white-space: nowrap;
+        border-bottom: 2px solid transparent; transition: all 0.15s;
+        text-decoration: none; flex-shrink: 0;
+    }
+    nav.hub-tabs a:hover { color: var(--text); border-bottom-color: var(--muted); }
+    nav.hub-tabs a.active { color: var(--accent); border-bottom-color: var(--accent); }
+    nav.hub-tabs .sep { width: 1px; height: 20px; background: var(--border); margin: 0 0.5rem; flex-shrink: 0; }
+</style>
 <body>
+    <!-- M.A.V.E.N. top header -->
     <header class="top">
         <img src="{{ url_for('static', filename='img/kytran-logo.png') }}" alt="Kytran">
         <span class="brand">M.A.V.E.N.</span>
@@ -72,10 +94,41 @@
             <a class="nav" href="/maven/upgrades">Upgrades</a>
             <a class="nav" href="/maven/duplicates">Duplicates</a>
         {% endif %}
-        <a class="nav" href="/tools/media-hub">← Media Hub</a>
     </header>
+
+    <!-- Media Hub tab navigation — mirrors main hub for seamless navigation -->
+    <nav class="hub-tabs">
+        <div class="inner">
+            <a href="/tools/media-hub?tab=dashboard">📺 Dashboard</a>
+            <a href="/tools/media-hub?tab=movies">🎬 Movies</a>
+            <a href="/tools/media-hub?tab=shows">📡 Shows</a>
+            <a href="/tools/media-hub?tab=requests">📥 Requests</a>
+            <a href="/tools/media-hub?tab=calendar">📅 Calendar</a>
+            <a href="/tools/media-hub?tab=stats">📊 Stats</a>
+            <a href="/tools/media-hub?tab=settings">⚙️ Settings</a>
+        </div>
+    </nav>
+
     <main>
         {% block content %}{% endblock %}
     </main>
+
+<script>
+// Poll /maven/api/status on load and show a red badge on Troubleshoot if errors
+(async () => {
+    try {
+        const r = await fetch('/maven/api/status');
+        if (!r.ok) return;
+        const d = await r.json();
+        if (d.diagnostic?.overall === 'error') {
+            document.querySelectorAll('a.nav[href="/maven/troubleshoot"]').forEach(el => {
+                const badge = document.createElement('span');
+                badge.style.cssText = 'display:inline-block;width:7px;height:7px;border-radius:50%;background:#ef4444;margin-left:4px;vertical-align:middle;';
+                el.appendChild(badge);
+            });
+        }
+    } catch (_) {}
+})();
+</script>
 </body>
 </html>

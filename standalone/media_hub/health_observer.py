@@ -184,6 +184,68 @@ def indexer_health_probe() -> None:
                 )
 
 
+# --- M.A.V.E.N. diagnostic probe -------------------------------------------
+
+# Shared cache so GET /maven/api/status can return the last probe result
+# without re-running the full diagnostic on every request.
+_last_diagnostic: dict = {"overall": "unknown", "summary": {}, "generated_at": None, "errors": []}
+
+
+def maven_diagnostic_probe() -> None:
+    """Run the full M.A.V.E.N. troubleshoot diagnostic chain every 30 min.
+
+    On error-level findings:
+    - Logs each error to stdout (captured by docker logs / V.I.G.I.L.)
+    - Attempts to notify the platform hub via POST /api/notifications so
+      A.R.C.H.I.E. can escalate to the user via Telegram.
+    """
+    import os
+
+    global _last_diagnostic
+    try:
+        from maven.troubleshoot import run_diagnostic
+
+        report = run_diagnostic()
+        _last_diagnostic = {
+            "overall": report["overall"],
+            "summary": report["summary"],
+            "generated_at": report["generated_at"],
+            "errors": [c for c in report["checks"] if c["severity"] == "error"],
+        }
+
+        if report["overall"] == "error":
+            error_titles = [c["title"] for c in _last_diagnostic["errors"]]
+            log.warning(
+                "M.A.V.E.N. diagnostic: %d error(s) — %s",
+                len(error_titles),
+                ", ".join(error_titles[:3]),
+            )
+
+            # Best-effort: notify the A.R.C.H.I.E. platform hub
+            hub_url = os.getenv("ARCHIE_HUB_URL", "http://192.168.1.200:3000")
+            api_key = os.getenv("ARCHIE_INTERNAL_API_KEY", "")
+            if api_key:
+                try:
+                    requests.post(
+                        f"{hub_url}/api/notifications",
+                        json={
+                            "type": "warning",
+                            "title": "M.A.V.E.N. — Media Hub alert",
+                            "message": f"{len(error_titles)} issue(s): {', '.join(error_titles[:3])}",
+                            "source": "media_hub_maven",
+                            "priority": "high",
+                        },
+                        headers={"X-Internal-Key": api_key},
+                        timeout=5,
+                    )
+                except Exception:
+                    pass  # Platform unreachable — stdout log above is the fallback
+        else:
+            log.info("M.A.V.E.N. diagnostic: %s", report["overall"])
+    except Exception as exc:
+        log.error("maven_diagnostic_probe failed: %s", exc)
+
+
 # --- scheduler wiring ------------------------------------------------------
 
 _scheduler: Optional[BackgroundScheduler] = None
@@ -215,6 +277,16 @@ def start_scheduler() -> BackgroundScheduler:
         coalesce=True,
         next_run_time=datetime.utcnow(),
     )
+    _scheduler.add_job(
+        maven_diagnostic_probe,
+        "interval",
+        minutes=30,
+        id="maven_diagnostic",
+        max_instances=1,
+        coalesce=True,
+        # Offset 5 min from startup so service health runs first
+        next_run_time=datetime.utcnow().replace(second=0, microsecond=0),
+    )
     _scheduler.start()
-    log.info("media hub observer scheduler started (jobs: service_health, indexer_health, every 30m)")
+    log.info("media hub observer scheduler started (jobs: service_health, indexer_health, maven_diagnostic, every 30m)")
     return _scheduler

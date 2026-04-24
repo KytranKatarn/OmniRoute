@@ -33,7 +33,7 @@
         <h1>Media Hub — Profile</h1>
         <nav>
             <a href="/tools/media-hub/">← Library</a>
-            {% if current_user.is_admin %}<a href="{{ url_for('user_mgmt.admin_users') }}">Users</a>{% endif %}
+            {% if current_user.is_admin %}<a href="/tools/media-hub?tab=settings">⚙ Settings</a>{% endif %}
             <a href="{{ url_for('auth.logout') }}">Sign out</a>
         </nav>
     </header>

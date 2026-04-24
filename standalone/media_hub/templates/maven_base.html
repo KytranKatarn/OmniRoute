@@ -64,20 +64,20 @@
 {% set _back = "/tools/media-hub" %}
 {% set _i18n = "media_hub" %}
 
-{# Shortcuts strip: Chat only + user actions. Admin tools live in Settings tab. #}
+{# Shortcuts strip: Profile + Sign out only. Chat and admin tools are tabs. #}
 {% set header_shortcuts = [
-    ("Chat",     "message-circle", "/maven/chat"),
-    ("Profile",  "user",           "/profile"),
-    ("Sign out", "log-out",        "/logout")
+    ("Profile",  "user",     "/profile"),
+    ("Sign out", "log-out",  "/logout")
 ] %}
 
-{# Tab bar: mirrors main hub — Discover is a tab, Settings is admin-only #}
+{# Tab bar: mirrors main hub exactly #}
 {% set header_tabs = [
     ("dashboard", "Dashboard", "layout-dashboard"),
     ("movies",    "Movies",    "film"),
     ("shows",     "Shows",     "tv"),
     ("requests",  "Requests",  "message-square"),
     ("discover",  "Discover",  "sparkles"),
+    ("chat",      "Chat",      "message-circle"),
     ("calendar",  "Calendar",  "calendar"),
     ("stats",     "Stats",     "bar-chart-3")
 ] %}
@@ -103,6 +103,7 @@
     //  anything else → main hub at the requested tab
     window.lcarsHeaderSwitchTab = function(tabId) {
         if (tabId === 'discover') { window.location.href = '/maven/discover'; return; }
+        if (tabId === 'chat')     { window.location.href = '/maven/chat';     return; }
         window.location.href = '/tools/media-hub?tab=' + tabId;
     };
 

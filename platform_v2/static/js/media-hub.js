@@ -417,11 +417,13 @@ function initTabs() {
 // Bridge for LCARS header tab buttons (onclick="lcarsHeaderSwitchTab(id)")
 window.lcarsHeaderSwitchTab = function(tabId) {
     if (tabId === 'discover') { window.location.href = '/maven/discover'; return; }
+    if (tabId === 'chat')     { window.location.href = '/maven/chat';     return; }
     switchTab(tabId);
 };
 
 function switchTab(tabId) {
     if (tabId === 'discover') { window.location.href = '/maven/discover'; return; }
+    if (tabId === 'chat')     { window.location.href = '/maven/chat';     return; }
     focusedIndex = -1; // Reset keyboard focus
 
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));

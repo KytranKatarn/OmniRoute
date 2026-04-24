@@ -227,16 +227,18 @@ class OverseerrClient(RequestServiceInterface):
         Create a new media request.
 
         Args:
-            media_type: 'movie' or 'tv'
+            media_type: 'movie' or 'tv' (also accepts internal 'show')
             tmdb_id: TMDB ID of the media
             seasons: List of season numbers (for TV shows)
 
         Returns:
             API response
         """
-        data = {"mediaType": media_type, "mediaId": tmdb_id}
+        # Overseerr expects "tv"; our internal MediaType.SHOW.value is "show"
+        overseerr_type = "tv" if media_type == "show" else media_type
+        data = {"mediaType": overseerr_type, "mediaId": tmdb_id}
 
-        if media_type == "tv" and seasons:
+        if overseerr_type == "tv" and seasons:
             data["seasons"] = seasons
 
         result = self._request("/request", method="POST", json_data=data)

@@ -95,9 +95,9 @@ def create_imap_setting():
         cur.execute(
             """
             INSERT INTO email_imap_settings
-            (name, imap_host, imap_port, imap_user, imap_password_encrypted,
+            (name, imap_host, imap_port, imap_user, imap_password,
              encryption, folder, check_interval_minutes, auto_analyze, auto_file_kb,
-             smtp_host, smtp_port, smtp_user, smtp_password_encrypted,
+             smtp_host, smtp_port, smtp_user, smtp_password,
              smtp_encryption, from_email, from_name, reply_to, user_id)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -174,11 +174,11 @@ def update_imap_setting(setting_id):
                 params.append(data[field])
 
         if "imap_password" in data and data["imap_password"]:
-            updates.append("imap_password_encrypted = %s")
+            updates.append("imap_password = %s")
             params.append(data["imap_password"])
 
         if "smtp_password" in data and data["smtp_password"]:
-            updates.append("smtp_password_encrypted = %s")
+            updates.append("smtp_password = %s")
             params.append(data["smtp_password"])
 
         if not updates:
@@ -292,7 +292,7 @@ def test_imap_setting(setting_id):
             if encryption == "tls":
                 mailbox.starttls()
 
-        mailbox.login(setting["imap_user"], setting["imap_password_encrypted"])
+        mailbox.login(setting["imap_user"], setting["imap_password"])
         status, data = mailbox.select(setting.get("folder", "INBOX"), readonly=True)
         message_count = int(data[0]) if status == "OK" else 0
         mailbox.close()
@@ -322,7 +322,7 @@ def test_smtp_setting(setting_id):
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
-            """SELECT smtp_host, smtp_port, smtp_user, smtp_password_encrypted,
+            """SELECT smtp_host, smtp_port, smtp_user, smtp_password,
                       smtp_encryption, from_email
                FROM email_imap_settings WHERE id = %s AND user_id = %s""",
             (setting_id, current_user.id),
@@ -361,8 +361,8 @@ def test_smtp_setting(setting_id):
                 if encryption == "tls":
                     server.starttls()
 
-            if setting.get("smtp_user") and setting.get("smtp_password_encrypted"):
-                server.login(setting["smtp_user"], setting["smtp_password_encrypted"])
+            if setting.get("smtp_user") and setting.get("smtp_password"):
+                server.login(setting["smtp_user"], setting["smtp_password"])
 
             server.quit()
             test_result = "success"
@@ -1172,7 +1172,7 @@ def send_draft(draft_id):
         smtp = None
         if account_id:
             cur.execute(
-                """SELECT smtp_host, smtp_port, smtp_user, smtp_password_encrypted,
+                """SELECT smtp_host, smtp_port, smtp_user, smtp_password,
                           smtp_encryption AS encryption, from_email, from_name, reply_to
                    FROM email_imap_settings
                    WHERE id = %s AND smtp_host IS NOT NULL""",
@@ -1227,7 +1227,7 @@ def send_draft(draft_id):
                 if smtp["encryption"] == "tls":
                     server.starttls()
             try:
-                server.login(smtp["smtp_user"], smtp["smtp_password_encrypted"])
+                server.login(smtp["smtp_user"], smtp["smtp_password"])
                 server.send_message(msg)
             finally:
                 server.quit()

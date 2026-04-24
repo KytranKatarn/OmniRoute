@@ -1,0 +1,465 @@
+{% extends "base.html" %}
+
+{% block title %}Email HQ{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/email-manager.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set cat_accent = '#00d4ff' %}
+{% set cat_accent_rgb = '0,212,255' %}
+{% set cat_accent_dark = '#0099bb' %}
+{% set cat_label = 'AI COMMAND' %}
+{% set module_title = 'EMAIL HQ' %}
+{% set header_shortcuts = [
+    ("A.R.C.H.I.E.", "bot", "/tools/archie-chat"),
+    ("Consciousness", "brain", "/tools/consciousness"),
+    ("Dept HQ", "building", "/tools/department-hq"),
+    ("Repair Bay", "wrench", "/tools/repair-bay"),
+    ("Email HQ", "mail", "/tools/email-manager")
+] %}
+{% set header_tabs = [
+    ("overview", "Overview", "activity"),
+    ("inbox", "Inbox", "inbox"),
+    ("sent", "Sent", "send"),
+    ("agents", "Agents", "users"),
+    ("settings", "Settings", "settings")
+] %}
+{% include 'includes/lcars-header.html' %}
+
+<div class="dp-container">
+    <div class="dp-header">
+        <div>
+            <div class="dp-title">Email HQ</div>
+            <div class="dp-subtitle">Stalwart Mail Integration &bull; Agent Mailboxes &bull; Provisioning &bull; Activity Feed</div>
+        </div>
+    </div>
+
+    <!-- ── OVERVIEW TAB ────────────────────────────────────────── -->
+    <div id="tab-overview" class="tab-content" style="display:block;">
+        <div class="em-stats-row" id="em-stats-row">
+            <div class="em-stat-card unread">
+                <div class="em-stat-value" id="em-stat-unread">—</div>
+                <div class="em-stat-label">Unread</div>
+            </div>
+            <div class="em-stat-card sent">
+                <div class="em-stat-value" id="em-stat-sent">—</div>
+                <div class="em-stat-label">Sent Today</div>
+            </div>
+            <div class="em-stat-card provisioned">
+                <div class="em-stat-value" id="em-stat-provisioned">—</div>
+                <div class="em-stat-label">Provisioned</div>
+            </div>
+            <div class="em-stat-card pending">
+                <div class="em-stat-value" id="em-stat-pending">—</div>
+                <div class="em-stat-label">Not Provisioned</div>
+            </div>
+        </div>
+
+        <div class="em-feed" id="em-feed">
+            <div class="em-feed-header">Recent Email Activity</div>
+            <div id="em-feed-body">
+                <div class="em-empty">Loading…</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── INBOX TAB ───────────────────────────────────────────── -->
+    <div id="tab-inbox" class="tab-content" style="display:none;">
+        <div class="em-split">
+            <div class="em-sidebar" id="em-inbox-sidebar"></div>
+            <div class="em-main" id="em-inbox-main"><div class="em-empty">Select a mailbox</div></div>
+        </div>
+    </div>
+
+    <!-- ── SENT TAB ────────────────────────────────────────────── -->
+    <div id="tab-sent" class="tab-content" style="display:none;">
+        <div class="em-split">
+            <div class="em-sidebar" id="em-sent-sidebar"></div>
+            <div class="em-main" id="em-sent-main"><div class="em-empty">Select a mailbox</div></div>
+        </div>
+    </div>
+
+    <!-- ── AGENTS TAB ──────────────────────────────────────────── -->
+    <div id="tab-agents" class="tab-content" style="display:none;">
+        <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;color:var(--archie-muted)">All mailboxes — AI agents, business, and human</span>
+            <button class="em-bulk-btn" onclick="provisionAllAgents()">Provision All AI Agents</button>
+        </div>
+        <table class="em-agents-table">
+            <thead><tr>
+                <th>Address</th><th>Name</th><th>Type</th><th>Status</th><th>Action</th>
+            </tr></thead>
+            <tbody id="em-agents-table-body"></tbody>
+        </table>
+    </div>
+
+    <!-- ── SETTINGS TAB ────────────────────────────────────────── -->
+    <div id="tab-settings" class="tab-content" style="display:none;">
+        <div class="em-empty" style="height:200px;">Stalwart settings — coming in Task 6</div>
+    </div>
+</div>
+
+<script>
+(function () {
+    // ── helpers ───────────────────────────────────────────────────
+    function clearEl(el) {
+        while (el.firstChild) el.removeChild(el.firstChild);
+    }
+
+    function emptyMsg(text) {
+        var d = document.createElement('div');
+        d.className = 'em-empty';
+        d.textContent = text;
+        return d;
+    }
+
+    // ── Tab switching ─────────────────────────────────────────────
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(function(el) {
+            el.style.display = 'none';
+        });
+        var target = document.getElementById('tab-' + tabId);
+        if (target) target.style.display = 'block';
+
+        document.querySelectorAll('[data-tab]').forEach(function(btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId);
+        });
+
+        if (tabId === 'overview') loadEmailOverview();
+        if (tabId === 'agents') loadEmailAgents();
+        if (tabId === 'inbox') loadEmailInboxSidebar();
+        if (tabId === 'sent') loadEmailSentSidebar();
+    }
+
+    window.switchEmailTab = switchTab;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('[data-tab]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                switchTab(btn.getAttribute('data-tab'));
+            });
+        });
+        loadEmailOverview();
+        setInterval(loadEmailOverview, 30000);
+    });
+
+    // ── Overview: stats ──────────────────────────────────────────
+    function loadEmailOverview() {
+        fetch('/tools/email-manager/api/email/overview/stats')
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                var map = {
+                    'em-stat-unread': d.unread,
+                    'em-stat-sent': d.sent_today,
+                    'em-stat-provisioned': d.provisioned,
+                    'em-stat-pending': d.not_provisioned
+                };
+                Object.keys(map).forEach(function(id) {
+                    var el = document.getElementById(id);
+                    if (el) el.textContent = map[id] !== undefined ? map[id] : '0';
+                });
+            })
+            .catch(function() {
+                ['em-stat-unread','em-stat-sent','em-stat-provisioned','em-stat-pending'].forEach(function(id) {
+                    var el = document.getElementById(id);
+                    if (el) el.textContent = '0';
+                });
+            });
+
+        fetch('/tools/email-manager/api/email/overview/feed')
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                var feed = document.getElementById('em-feed-body');
+                if (!feed) return;
+                clearEl(feed);
+
+                if (!d.events || !d.events.length) {
+                    feed.appendChild(emptyMsg('No email activity yet'));
+                    return;
+                }
+
+                d.events.forEach(function(ev) {
+                    var row = document.createElement('div');
+                    row.className = 'em-feed-row';
+
+                    var agent = document.createElement('span');
+                    agent.className = 'em-feed-agent';
+                    agent.textContent = ev.mailbox_display || ev.mailbox_address || '';
+
+                    var dir = document.createElement('span');
+                    dir.className = 'em-feed-dir ' + (ev.direction || '');
+                    dir.textContent = ev.direction === 'sent' ? '↗ SENT' : '↙ RECV';
+
+                    var subj = document.createElement('span');
+                    subj.className = 'em-feed-subject';
+                    subj.textContent = ev.subject || '(no subject)';
+
+                    var time = document.createElement('span');
+                    time.className = 'em-feed-time';
+                    time.textContent = ev.logged_at ? new Date(ev.logged_at).toLocaleTimeString() : '';
+
+                    row.appendChild(agent);
+                    row.appendChild(dir);
+                    row.appendChild(subj);
+                    row.appendChild(time);
+                    feed.appendChild(row);
+                });
+            })
+            .catch(function() {
+                var feed = document.getElementById('em-feed-body');
+                if (feed) {
+                    clearEl(feed);
+                    feed.appendChild(emptyMsg('No email activity yet'));
+                }
+            });
+    }
+
+    // ── Agents tab ────────────────────────────────────────────────
+    function loadEmailAgents() {
+        fetch('/tools/email-manager/api/email/mailboxes')
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                var el = document.getElementById('em-agents-table-body');
+                if (!el) return;
+                clearEl(el);
+                var groups = {ai_agent: [], business: [], human_agent: []};
+                (d.mailboxes || []).forEach(function(m) {
+                    if (groups[m.mailbox_type]) groups[m.mailbox_type].push(m);
+                });
+                var hasAny = false;
+                ['ai_agent', 'business', 'human_agent'].forEach(function(type) {
+                    groups[type].forEach(function(m) {
+                        hasAny = true;
+                        var tr = document.createElement('tr');
+                        var tdAddr = document.createElement('td');
+                        tdAddr.textContent = m.address;
+                        var tdName = document.createElement('td');
+                        tdName.textContent = m.display_name || m.agent_name || '';
+                        var tdType = document.createElement('td');
+                        tdType.textContent = type.replace(/_/g, ' ');
+                        var tdStatus = document.createElement('td');
+                        var badge = document.createElement('span');
+                        badge.className = 'em-status-badge ' + (m.provisioned ? 'active' : 'pending');
+                        badge.textContent = m.provisioned ? '✅ Active' : '⏳ Pending';
+                        tdStatus.appendChild(badge);
+                        var tdAction = document.createElement('td');
+                        if (!m.provisioned) {
+                            var btn = document.createElement('button');
+                            btn.className = 'em-provision-btn';
+                            btn.textContent = 'Provision';
+                            btn.onclick = (function(id, addr) {
+                                return function() { provisionMailbox(id, addr); };
+                            }(m.id, m.address));
+                            tdAction.appendChild(btn);
+                        }
+                        tr.appendChild(tdAddr); tr.appendChild(tdName); tr.appendChild(tdType);
+                        tr.appendChild(tdStatus); tr.appendChild(tdAction);
+                        el.appendChild(tr);
+                    });
+                });
+                if (!hasAny) {
+                    var tr = document.createElement('tr');
+                    var td = document.createElement('td');
+                    td.colSpan = 5;
+                    td.textContent = 'No mailboxes found';
+                    td.style.textAlign = 'center';
+                    td.style.padding = '20px';
+                    tr.appendChild(td);
+                    el.appendChild(tr);
+                }
+            })
+            .catch(function() {
+                var el = document.getElementById('em-agents-table-body');
+                if (!el) return;
+                clearEl(el);
+                var tr = document.createElement('tr');
+                var td = document.createElement('td');
+                td.colSpan = 5;
+                td.textContent = 'Failed to load mailboxes';
+                td.style.textAlign = 'center';
+                td.style.padding = '20px';
+                tr.appendChild(td);
+                el.appendChild(tr);
+            });
+    }
+
+    function provisionMailbox(id, address) {
+        if (!confirm('Provision ' + address + '?')) return;
+        fetch('/tools/email-manager/api/email/mailboxes/' + id + '/provision', {method: 'POST'})
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.success) { loadEmailAgents(); }
+                else { alert('Failed: ' + (d.error || 'unknown')); }
+            });
+    }
+
+    window.provisionAllAgents = function() {
+        if (!confirm('Provision all pending AI agent mailboxes?')) return;
+        fetch('/tools/email-manager/api/email/mailboxes/provision-all-agents', {method: 'POST'})
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                alert('Provisioned: ' + d.provisioned + ' | Failed: ' + d.failed);
+                loadEmailAgents();
+            });
+    };
+
+    // ── Inbox tab ─────────────────────────────────────────────────
+    function loadEmailInbox(address) {
+        var url = '/tools/email-manager/api/email/inbox/messages' +
+                  (address ? '?address=' + encodeURIComponent(address) : '');
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                var main = document.getElementById('em-inbox-main');
+                if (!main) return;
+                clearEl(main);
+                if (!d.messages || !d.messages.length) {
+                    main.appendChild(emptyMsg('No messages'));
+                    return;
+                }
+                d.messages.forEach(function(m) {
+                    var row = document.createElement('div');
+                    row.className = 'em-msg-row';
+                    var from = document.createElement('div');
+                    from.className = 'em-msg-from';
+                    from.textContent = m.from_address || '(unknown)';
+                    var subj = document.createElement('div');
+                    subj.className = 'em-msg-subject';
+                    subj.textContent = m.subject || '(no subject)';
+                    var time = document.createElement('span');
+                    time.className = 'em-msg-time';
+                    time.textContent = m.logged_at ? new Date(m.logged_at).toLocaleString() : '';
+                    row.appendChild(from);
+                    row.appendChild(subj);
+                    row.appendChild(time);
+                    main.appendChild(row);
+                });
+            })
+            .catch(function() {
+                var main = document.getElementById('em-inbox-main');
+                if (main) { clearEl(main); main.appendChild(emptyMsg('Failed to load messages')); }
+            });
+    }
+
+    function loadEmailInboxSidebar() {
+        fetch('/tools/email-manager/api/email/mailboxes')
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                var sb = document.getElementById('em-inbox-sidebar');
+                if (!sb) return;
+                clearEl(sb);
+                var all = document.createElement('div');
+                all.className = 'em-sidebar-item active';
+                var n = document.createElement('span');
+                n.className = 'em-sidebar-name';
+                n.textContent = '📥 All Inboxes';
+                all.appendChild(n);
+                all.onclick = function() {
+                    sb.querySelectorAll('.em-sidebar-item').forEach(function(el) { el.classList.remove('active'); });
+                    all.classList.add('active');
+                    loadEmailInbox('');
+                };
+                sb.appendChild(all);
+                (d.mailboxes || []).filter(function(m) { return m.provisioned; }).forEach(function(m) {
+                    var item = document.createElement('div');
+                    item.className = 'em-sidebar-item';
+                    var name = document.createElement('span');
+                    name.className = 'em-sidebar-name';
+                    name.textContent = m.display_name || m.address;
+                    item.appendChild(name);
+                    item.onclick = (function(addr, el) {
+                        return function() {
+                            sb.querySelectorAll('.em-sidebar-item').forEach(function(i) { i.classList.remove('active'); });
+                            el.classList.add('active');
+                            loadEmailInbox(addr);
+                        };
+                    }(m.address, item));
+                    sb.appendChild(item);
+                });
+                loadEmailInbox('');
+            });
+    }
+
+    // ── Sent tab ──────────────────────────────────────────────────
+    function loadEmailSent(address) {
+        var url = '/tools/email-manager/api/email/sent/messages' +
+                  (address ? '?address=' + encodeURIComponent(address) : '');
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                var main = document.getElementById('em-sent-main');
+                if (!main) return;
+                clearEl(main);
+                if (!d.messages || !d.messages.length) {
+                    main.appendChild(emptyMsg('No sent messages'));
+                    return;
+                }
+                d.messages.forEach(function(m) {
+                    var row = document.createElement('div');
+                    row.className = 'em-msg-row';
+                    var to = document.createElement('div');
+                    to.className = 'em-msg-from';
+                    to.textContent = 'To: ' + (m.to_address || '(unknown)');
+                    var subj = document.createElement('div');
+                    subj.className = 'em-msg-subject';
+                    subj.textContent = m.subject || '(no subject)';
+                    var time = document.createElement('span');
+                    time.className = 'em-msg-time';
+                    time.textContent = m.logged_at ? new Date(m.logged_at).toLocaleString() : '';
+                    row.appendChild(to);
+                    row.appendChild(subj);
+                    row.appendChild(time);
+                    main.appendChild(row);
+                });
+            })
+            .catch(function() {
+                var main = document.getElementById('em-sent-main');
+                if (main) { clearEl(main); main.appendChild(emptyMsg('Failed to load messages')); }
+            });
+    }
+
+    function loadEmailSentSidebar() {
+        fetch('/tools/email-manager/api/email/mailboxes')
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                var sb = document.getElementById('em-sent-sidebar');
+                if (!sb) return;
+                clearEl(sb);
+                var all = document.createElement('div');
+                all.className = 'em-sidebar-item active';
+                var n = document.createElement('span');
+                n.className = 'em-sidebar-name';
+                n.textContent = '📤 All Sent';
+                all.appendChild(n);
+                all.onclick = function() {
+                    sb.querySelectorAll('.em-sidebar-item').forEach(function(el) { el.classList.remove('active'); });
+                    all.classList.add('active');
+                    loadEmailSent('');
+                };
+                sb.appendChild(all);
+                (d.mailboxes || []).filter(function(m) { return m.provisioned; }).forEach(function(m) {
+                    var item = document.createElement('div');
+                    item.className = 'em-sidebar-item';
+                    var name = document.createElement('span');
+                    name.className = 'em-sidebar-name';
+                    name.textContent = m.display_name || m.address;
+                    item.appendChild(name);
+                    item.onclick = (function(addr, el) {
+                        return function() {
+                            sb.querySelectorAll('.em-sidebar-item').forEach(function(i) { i.classList.remove('active'); });
+                            el.classList.add('active');
+                            loadEmailSent(addr);
+                        };
+                    }(m.address, item));
+                    sb.appendChild(item);
+                });
+                loadEmailSent('');
+            });
+    }
+
+}());
+</script>
+{% endblock %}

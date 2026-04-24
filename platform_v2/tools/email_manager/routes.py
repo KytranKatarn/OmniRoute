@@ -15,7 +15,9 @@ Author: A.R.C.H.I.E. Platform
 Date: 2026-01-17
 """
 
-from flask import Blueprint, render_template, request, jsonify, current_app
+from functools import wraps
+
+from flask import Blueprint, render_template, request, jsonify, current_app, abort
 from flask_login import login_required, current_user
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -27,6 +29,29 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import re
+
+try:
+    from rbac import Permission, has_permission
+except ImportError:
+    Permission = None
+    has_permission = None
+
+
+def admin_required(f):
+    """Decorator to require admin access."""
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if has_permission and Permission:
+            if not has_permission(Permission.ADMIN_ACCESS, current_user):
+                abort(403)
+        else:
+            if not getattr(current_user, "is_admin", False):
+                abort(403)
+        return f(*args, **kwargs)
+
+    return decorated_function
+
 
 # Import user context helpers
 try:

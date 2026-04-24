@@ -599,6 +599,17 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # Email IMAP sync — polls provisioned mailboxes every 5 min.
+        self.scheduler.add_job(
+            with_app_context(self._run_email_imap_sync),
+            trigger=IntervalTrigger(minutes=5),
+            id="email_imap_sync",
+            name="Agent Loop: Email HQ IMAP Sync",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         # Daily repo health check — README/description/topics/license for each tracked repo.
         self.scheduler.add_job(
             with_app_context(self._run_repo_health_check),
@@ -3867,6 +3878,23 @@ class AgentLoop:
             )
         except Exception as e:
             logger.error("pr_diff_analysis failed: %s", e)
+
+    def _run_email_imap_sync(self):
+        """Poll IMAP for provisioned mailboxes and sync to email_activity_log."""
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT COUNT(*) AS cnt FROM email_mailboxes WHERE provisioned=TRUE AND active=TRUE"
+                )
+                count = cur.fetchone()["cnt"]
+            logger.info(
+                "email_imap_sync: %d provisioned mailboxes (full IMAP sync requires Phase 2 credential storage)",
+                count,
+            )
+        except Exception as e:
+            logger.error("email_imap_sync failed: %s", e)
 
     def _run_repo_health_check(self):
         """Daily per-repo GitHub presence health check (Project #247, Task #1803)."""

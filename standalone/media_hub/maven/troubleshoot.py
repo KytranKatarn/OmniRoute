@@ -14,6 +14,8 @@ Checks (in order — cheap → expensive):
     5. Prowlarr /api/v1/indexerstatus — currently-failing indexers
     6. SABnzbd queue status (paused? disk space?)
     7. SABnzbd warnings feed
+    8. Radarr + Sonarr queue — importBlocked items (downloaded but not moved
+       into library; common cause: hardlinks across different filesystems)
 
 Exposed as:
     GET  /maven/api/troubleshoot  (JSON, admin-only)
@@ -394,6 +396,79 @@ def _sabnzbd_queue() -> List[CheckResult]:
     return results
 
 
+def _arr_import_blocked() -> List[CheckResult]:
+    """Check Radarr + Sonarr queues for importBlocked items — downloads that
+    finished but couldn't be moved into the library.
+
+    Common cause: copyUsingHardlinks=true when /downloads and /movies are on
+    different filesystems. Hardlinks across filesystems fail (EXDEV), and
+    Radarr v6.1's .NET 8 fallback-copy hits a UnixFileMode bug (EACCES).
+    Fix: set copyUsingHardlinks=false in Radarr/Sonarr media management.
+    """
+    results = []
+    for service_type, scan_cmd in [
+        ("radarr", "DownloadedMoviesScan"),
+        ("sonarr", "DownloadedEpisodesScan"),
+    ]:
+        rows = _rows_for_type(service_type)
+        if not rows:
+            continue
+        for sid, stype, name, host, port, use_ssl, enc, *_ in rows:
+            key = _decrypt_key(enc)
+            if not key:
+                continue
+            scheme = "https" if use_ssl else "http"
+            base = f"{scheme}://{host}:{port}"
+            try:
+                r = requests.get(
+                    f"{base}/api/v3/queue?pageSize=50&includeMovie=true",
+                    headers={"X-Api-Key": key},
+                    timeout=8,
+                )
+                if r.status_code != 200:
+                    continue
+                recs = r.json().get("records", [])
+                blocked = [x for x in recs if x.get("trackedDownloadState") == "importBlocked"]
+                if not blocked:
+                    results.append(CheckResult(
+                        id=f"{stype}_import_blocked",
+                        title=f"{name} import queue",
+                        severity="ok",
+                        detail="no importBlocked items",
+                    ))
+                    continue
+                for item in blocked:
+                    title = item.get("title", "?")[:60]
+                    msgs = []
+                    for sm in item.get("statusMessages", []):
+                        msgs += [m for m in sm.get("messages", []) if m]
+                        if sm.get("title") and not sm.get("messages"):
+                            msgs.append(sm["title"])
+                    detail = "; ".join(msgs) or "Failed to import — check Radarr/Sonarr logs"
+                    results.append(CheckResult(
+                        id=f"{stype}_import_blocked_{item.get('id', '?')}",
+                        title=f"{name}: importBlocked — {title}",
+                        severity="error",
+                        detail=detail,
+                        fix=(
+                            "1. Check if /downloads and /movies are on different filesystems "
+                            "(stat -f /downloads vs /movies — different IDs = different FS). "
+                            "If so: PUT /api/v3/config/mediamanagement with copyUsingHardlinks=false. "
+                            f"2. Retry: POST {base}/api/v3/command "
+                            + '{"name":"' + scan_cmd + '"}. '
+                            "3. If still blocked: copy the file manually into the library folder "
+                            "then POST /api/v3/command {\"name\":\"RescanMovie\",\"movieId\":…}."
+                        ),
+                        meta={
+                            "output_path": item.get("outputPath", ""),
+                            "queue_id": item.get("id"),
+                        },
+                    ))
+            except Exception as e:
+                log.error("%s import_blocked check failed: %s", stype, e)
+    return results
+
+
 # --- public API ------------------------------------------------------------
 
 def run_diagnostic() -> dict:
@@ -407,6 +482,7 @@ def run_diagnostic() -> dict:
     checks += _arr_health("radarr")
     checks += _prowlarr_indexers()
     checks += _sabnzbd_queue()
+    checks += _arr_import_blocked()
 
     summary = {"ok": 0, "warning": 0, "error": 0}
     for c in checks:

@@ -3710,6 +3710,12 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
 
             _job_service = JobService(scheduler=_scheduler)
             register_budget_jobs(_job_service)
+            try:
+                from tools.email_manager.sync_jobs import register_email_sync_jobs
+
+                register_email_sync_jobs(_job_service)
+            except Exception as _e:
+                logger.warning("[Startup] Email sync jobs skipped: %s", _e)
             app.config["JOB_SERVICE"] = _job_service
             logger.info("[Startup] JobService initialized with budget reset jobs")
         except Exception as e:

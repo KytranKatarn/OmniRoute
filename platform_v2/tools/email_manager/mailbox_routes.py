@@ -54,8 +54,9 @@ def register_mailbox_routes(bp, admin_required):
         if result["ok"]:
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
-                    "UPDATE email_mailboxes SET provisioned=TRUE, provisioned_at=NOW(), updated_at=NOW() WHERE id=%s",
-                    (mailbox_id,),
+                    "UPDATE email_mailboxes SET provisioned=TRUE, provisioned_at=NOW(), "
+                    "imap_password=%s, updated_at=NOW() WHERE id=%s",
+                    (result.get("password"), mailbox_id),
                 )
             return jsonify({"success": True, "address": row["address"]})
         return jsonify({"success": False, "error": result.get("error")}), 500
@@ -80,8 +81,9 @@ def register_mailbox_routes(bp, admin_required):
             if result["ok"]:
                 with get_db_cursor(commit=True) as (conn, cur):
                     cur.execute(
-                        "UPDATE email_mailboxes SET provisioned=TRUE, provisioned_at=NOW(), updated_at=NOW() WHERE id=%s",
-                        (row["id"],),
+                        "UPDATE email_mailboxes SET provisioned=TRUE, provisioned_at=NOW(), "
+                        "imap_password=%s, updated_at=NOW() WHERE id=%s",
+                        (result.get("password"), row["id"]),
                     )
                 provisioned += 1
             else:
@@ -89,6 +91,62 @@ def register_mailbox_routes(bp, admin_required):
                 logger.error("Failed to provision %s: %s", row["address"], result.get("error"))
 
         return jsonify({"provisioned": provisioned, "failed": failed, "skipped": len(pending) - provisioned - failed})
+
+    @bp.route("/api/email/mailboxes/<int:mailbox_id>/rotate-password", methods=["POST"])
+    @login_required
+    @admin_required
+    def email_rotate_mailbox_password(mailbox_id):
+        """Generate a new password for an already-provisioned mailbox and save it."""
+        from .stalwart_service import update_password
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT address FROM email_mailboxes WHERE id = %s AND active = TRUE AND provisioned = TRUE",
+                (mailbox_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "Mailbox not found or not provisioned"}), 404
+
+        result = update_password(row["address"])
+        if result["ok"]:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE email_mailboxes SET imap_password=%s, updated_at=NOW() WHERE id=%s",
+                    (result["password"], mailbox_id),
+                )
+            return jsonify({"success": True, "address": row["address"]})
+        return jsonify({"success": False, "error": result.get("error")}), 500
+
+    @bp.route("/api/email/mailboxes/rotate-all-passwords", methods=["POST"])
+    @login_required
+    @admin_required
+    def email_rotate_all_passwords():
+        """Rotate passwords for all provisioned mailboxes that have no saved imap_password."""
+        from .stalwart_service import update_password
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT id, address FROM email_mailboxes "
+                "WHERE provisioned = TRUE AND active = TRUE AND imap_password IS NULL"
+            )
+            pending = cur.fetchall()
+
+        rotated = failed = 0
+        for row in pending:
+            result = update_password(row["address"])
+            if result["ok"]:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "UPDATE email_mailboxes SET imap_password=%s, updated_at=NOW() WHERE id=%s",
+                        (result["password"], row["id"]),
+                    )
+                rotated += 1
+            else:
+                failed += 1
+                logger.error("Failed to rotate password for %s: %s", row["address"], result.get("error"))
+
+        return jsonify({"rotated": rotated, "failed": failed})
 
     @bp.route("/api/email/mailboxes", methods=["POST"])
     @login_required

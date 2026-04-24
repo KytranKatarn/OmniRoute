@@ -143,6 +143,33 @@ def delete_mailbox(address: str) -> dict:
         return {"ok": False, "error": str(exc)}
 
 
+def update_password(address: str, password: str = None) -> dict:
+    """Set a new password for an existing Stalwart mailbox.
+
+    Returns {ok: bool, password: str, error: str}.
+    """
+    local_part = address.split("@")[0]
+    _password = password or secrets.token_urlsafe(20)
+    try:
+        resp = requests.patch(
+            f"{_BASE}/api/principal/{local_part}",
+            auth=_auth(),
+            json=[{"action": "set", "field": "secrets", "value": [_password]}],
+            timeout=10,
+            verify=False,
+        )
+        if resp.status_code in (200, 204):
+            logger.info("Stalwart: rotated password for %s", address)
+            return {"ok": True, "password": _password}
+        err = resp.text[:300]
+        logger.error("Stalwart update_password failed for %s: %s %s", address, resp.status_code, err)
+        return {"ok": False, "error": f"{resp.status_code}: {err}"}
+    except requests.exceptions.ConnectionError as exc:
+        return {"ok": False, "error": f"Connection refused: {exc}"}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
 def get_mailbox(address: str) -> dict | None:
     """Fetch a single mailbox account. Returns the account dict or None."""
     local_part = address.split("@")[0]

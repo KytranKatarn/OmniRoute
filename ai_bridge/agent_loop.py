@@ -588,6 +588,17 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # F.O.R.G.E. AI diff analysis — processes up to 3 pending PR reviews every 10 min.
+        self.scheduler.add_job(
+            with_app_context(self._run_pr_diff_analysis),
+            trigger=IntervalTrigger(minutes=10),
+            id="forge_pr_diff_analysis",
+            name="Agent Loop: F.O.R.G.E. PR Diff Analysis",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         # C.O.D.E.X. — event auto-documentation (Project #272 Phase 2 / Task #2108).
         # Runs every 30 min; template-based, no LLM. Scans project_decisions
         # for undocumented rows and writes a vault_note per ADR.
@@ -3808,6 +3819,21 @@ class AgentLoop:
             )
         except Exception as e:
             logger.error("pr_review_poll failed: %s", e)
+
+    def _run_pr_diff_analysis(self):
+        """Phase 2: F.O.R.G.E. AI code review of pending PRs (Project #247, Task #1800)."""
+        try:
+            from tools.repair_bay.services.pr_diff_analyzer import analyze_pending_prs
+
+            result = analyze_pending_prs(max_prs=3)
+            logger.info(
+                "pr_diff_analysis: processed=%d failed=%d skipped=%d",
+                result.get("processed"),
+                result.get("failed"),
+                result.get("skipped"),
+            )
+        except Exception as e:
+            logger.error("pr_diff_analysis failed: %s", e)
 
     def _run_dep_drift_audit(self):
         """Daily drift audit — requirements.txt vs running container pip freeze.

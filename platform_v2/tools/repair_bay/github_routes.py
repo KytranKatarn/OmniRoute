@@ -602,6 +602,48 @@ def register_github_routes(bp, admin_required):
         closed = sync_closed_prs()
         return jsonify({**poll_result, "closed_synced": closed})
 
+    @bp.route("/api/forge/pr-reviews/<int:pr_number>/analyze", methods=["POST"])
+    @login_required
+    @admin_required
+    def forge_pr_review_analyze(pr_number):
+        """Trigger immediate F.O.R.G.E. AI review for a specific PR.
+
+        Calls the analyzer internals directly on the requested PR — bypasses
+        the pending queue so it always processes this exact PR, not the oldest one.
+        """
+        from .services.pr_review_service import (
+            get_review,
+            mark_review_started,
+            mark_review_done,
+            mark_review_pending,
+        )
+        from .services.pr_diff_analyzer import _fetch_diff, _build_prompt, _run_forge_review
+
+        review = get_review(pr_number)
+        if not review:
+            return jsonify({"error": f"PR #{pr_number} not found in pr_reviews"}), 404
+
+        if review.get("review_status") == "in_progress":
+            return jsonify({"error": "review already in progress", "status": "in_progress"}), 409
+
+        repo = review.get("repo", "KytranKatarn/archie-platform")
+        try:
+            mark_review_started(pr_number, repo)
+            diff = _fetch_diff(review["diff_url"])
+            prompt = _build_prompt(review, diff)
+            summary = _run_forge_review(prompt)
+
+            if not summary:
+                mark_review_pending(pr_number, repo)
+                return jsonify({"success": False, "error": "F.O.R.G.E. returned empty response"}), 500
+
+            mark_review_done(pr_number, summary, repo)
+            return jsonify({"success": True, "pr_number": pr_number, "summary": summary})
+
+        except Exception as exc:
+            mark_review_pending(pr_number, repo)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
     @bp.route("/api/forge/pr-reviews/<int:pr_number>/skip", methods=["POST"])
     @login_required
     @admin_required

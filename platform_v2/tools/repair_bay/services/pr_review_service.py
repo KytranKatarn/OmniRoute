@@ -129,12 +129,22 @@ def sync_closed_prs(repo: str = None) -> int:
 
 
 def get_pending_reviews(limit: int = 10) -> list:
-    """Return open PRs with review_status='pending', oldest first."""
+    """Return open PRs ready for AI review, oldest first.
+
+    Includes rows stuck in 'in_progress' for >20 minutes so they can be retried.
+    """
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
             SELECT * FROM pr_reviews
-            WHERE review_status = 'pending' AND state = 'open'
+            WHERE state = 'open'
+              AND (
+                review_status = 'pending'
+                OR (
+                    review_status = 'in_progress'
+                    AND updated_at < NOW() - INTERVAL '20 minutes'
+                )
+              )
             ORDER BY created_at ASC
             LIMIT %s
             """,
@@ -167,6 +177,15 @@ def mark_review_skipped(pr_number: int, repo: str = None) -> None:
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             "UPDATE pr_reviews SET review_status='skipped', updated_at=NOW() WHERE pr_number=%s AND repo=%s",
+            (pr_number, repo or _DEFAULT_REPO),
+        )
+
+
+def mark_review_pending(pr_number: int, repo: str = None) -> None:
+    """Reset a review back to pending so it will be re-processed next cycle."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE pr_reviews SET review_status='pending', updated_at=NOW() WHERE pr_number=%s AND repo=%s",
             (pr_number, repo or _DEFAULT_REPO),
         )
 

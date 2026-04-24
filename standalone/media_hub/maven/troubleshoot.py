@@ -517,6 +517,34 @@ def api_troubleshoot():
     return jsonify(run_diagnostic())
 
 
+@maven_bp.route("/api/retry-scan", methods=["POST"])
+@login_required
+def api_retry_scan():
+    """Trigger DownloadedMoviesScan + DownloadedEpisodesScan on Radarr/Sonarr."""
+    _require_admin()
+    results = []
+    for service_type, scan_cmd in [
+        ("radarr", "DownloadedMoviesScan"),
+        ("sonarr", "DownloadedEpisodesScan"),
+    ]:
+        for _, stype, name, host, port, use_ssl, enc, *_ in _rows_for_type(service_type):
+            key = _decrypt_key(enc)
+            if not key:
+                continue
+            scheme = "https" if use_ssl else "http"
+            try:
+                r = requests.post(
+                    f"{scheme}://{host}:{port}/api/v3/command",
+                    headers={"X-Api-Key": key},
+                    json={"name": scan_cmd},
+                    timeout=5,
+                )
+                results.append({"service": name, "ok": r.status_code in (200, 201)})
+            except Exception as e:
+                results.append({"service": name, "ok": False, "error": str(e)})
+    return jsonify({"success": True, "results": results})
+
+
 @maven_bp.route("/troubleshoot")
 @login_required
 def troubleshoot_page():

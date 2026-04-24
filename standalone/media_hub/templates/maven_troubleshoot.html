@@ -26,6 +26,25 @@
     {% if check.fix %}
     <div class="fix">{{ check.fix }}</div>
     {% endif %}
+    {% if "import_blocked" in check.id and check.severity == "error" %}
+    <button class="run-btn" style="margin-top:0.5rem"
+            onclick="retryImportScan(this)">Retry Import Scan</button>
+    {% endif %}
 </div>
 {% endfor %}
+
+<script>
+async function retryImportScan(btn) {
+    btn.disabled = true;
+    btn.textContent = 'Scanning…';
+    try {
+        const r = await fetch('/maven/api/retry-scan', {method: 'POST'});
+        const d = await r.json();
+        const allOk = d.results && d.results.every(x => x.ok);
+        btn.textContent = allOk ? 'Scan triggered — reload in 30s' : 'Partial failure — check logs';
+    } catch (e) {
+        btn.textContent = 'Request failed';
+    }
+}
+</script>
 {% endblock %}

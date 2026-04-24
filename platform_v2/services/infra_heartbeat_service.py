@@ -65,7 +65,7 @@ CRITICAL_CONTAINERS: Dict[str, Dict[str, Any]] = {
     "nginx_proxy_manager": {
         "description": "NPM reverse proxy — gates all *.kytranempowerment.com subdomains",
         "tcp_probes": [80, 443],
-        "http_probe": "http://127.0.0.1:81/api",
+        "http_probe": "http://nginx_proxy_manager:81/api",
         "auto_restart_safe": True,
         "compose_service": "nginx_proxy_manager",
     },

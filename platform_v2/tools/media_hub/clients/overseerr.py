@@ -255,7 +255,8 @@ class OverseerrClient(RequestServiceInterface):
         Returns:
             Media status information
         """
-        endpoint = f"/{media_type}/{tmdb_id}"
+        overseerr_type = "tv" if media_type == "show" else media_type
+        endpoint = f"/{overseerr_type}/{tmdb_id}"
         return self._request(endpoint)
 
     def get_discover(self, media_type: str = "movie", page: int = 1) -> List[MediaItem]:

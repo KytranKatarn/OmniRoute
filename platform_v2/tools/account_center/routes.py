@@ -2625,3 +2625,77 @@ def api_revoke_subscription(user_id):
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 2FA Backup Codes (#2063)
+# ---------------------------------------------------------------------------
+
+
+@account_center_bp.route("/api/security/backup-codes/generate", methods=["POST"])
+@login_required
+def generate_backup_codes_route():
+    """Generate new 2FA backup codes for the current user."""
+    from services.auth_service import generate_backup_codes
+
+    codes = generate_backup_codes(current_user.id)
+    return jsonify({"success": True, "codes": codes})
+
+
+@account_center_bp.route("/api/security/backup-codes/count", methods=["GET"])
+@login_required
+def backup_codes_count():
+    """Return how many unused backup codes the current user has."""
+    from psycopg2.extras import RealDictCursor
+    from database import get_db_connection
+
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                "SELECT COUNT(*) AS cnt FROM user_backup_codes WHERE user_id=%s AND used_at IS NULL",
+                (current_user.id,),
+            )
+            row = cur.fetchone()
+        finally:
+            cur.close()
+    return jsonify({"unused_count": row["cnt"] if row else 0})
+
+
+# ---------------------------------------------------------------------------
+# Password Reset — public routes, no login required (#2063)
+# ---------------------------------------------------------------------------
+
+
+@account_center_bp.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    """Initiate email-based password reset."""
+    if request.method == "GET":
+        return render_template("tools/account_center/forgot_password.html")
+    email = (request.form.get("email") or "").strip()
+    if not email:
+        return jsonify({"error": "Email required"}), 400
+    from services.auth_service import initiate_password_reset
+
+    base_url = request.host_url.rstrip("/")
+    initiate_password_reset(email, base_url)
+    return jsonify(
+        {
+            "success": True,
+            "message": "If that email exists, a reset link has been sent.",
+        }
+    )
+
+
+@account_center_bp.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password_via_token(token):
+    """Complete password reset from email link."""
+    if request.method == "GET":
+        return render_template("tools/account_center/reset_password.html", token=token)
+    new_password = request.form.get("password", "")
+    from services.auth_service import complete_password_reset
+
+    ok, err = complete_password_reset(token, new_password)
+    if ok:
+        return jsonify({"success": True, "message": "Password updated. You can now log in."})
+    return jsonify({"success": False, "error": err}), 400

@@ -421,3 +421,210 @@ def list_devices(status=None):
             return [dict(r) for r in cur.fetchall()]
         finally:
             cur.close()
+
+
+# ---------------------------------------------------------------------------
+# 2FA Backup Codes (#2063)
+# ---------------------------------------------------------------------------
+
+
+def generate_backup_codes(user_id: int) -> list:
+    """Generate 10 one-time 2FA backup codes. Replaces any existing unused codes."""
+    from database import get_db_cursor
+
+    codes = []
+    for _ in range(10):
+        raw = secrets.token_hex(4).upper()
+        codes.append(f"{raw[:4]}-{raw[4:]}")
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        # Delete old codes and insert new ones in a single transaction
+        cur.execute("DELETE FROM user_backup_codes WHERE user_id = %s", (user_id,))
+        for code in codes:
+            code_hash = hashlib.sha256(code.encode()).hexdigest()
+            cur.execute(
+                "INSERT INTO user_backup_codes (user_id, code_hash) VALUES (%s, %s)",
+                (user_id, code_hash),
+            )
+
+    log_auth_event(user_id, "backup_codes_generated", "system")
+    return codes
+
+
+def verify_backup_code(user_id: int, code: str) -> bool:
+    """Verify a backup code and mark it as used. Uses timing-safe comparison."""
+    import hmac as _hmac
+    import hashlib as _hashlib
+    from database import get_db_cursor
+
+    target = _hashlib.sha256(code.strip().upper().encode()).hexdigest()
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "SELECT id, code_hash FROM user_backup_codes WHERE user_id = %s AND used_at IS NULL",
+            (user_id,),
+        )
+        rows = cur.fetchall()
+        matched = next(
+            (r for r in rows if _hmac.compare_digest(r["code_hash"], target)),
+            None,
+        )
+        if not matched:
+            log_auth_event(user_id, "backup_code_failed", "system")
+            return False
+        cur.execute(
+            "UPDATE user_backup_codes SET used_at = NOW() WHERE id = %s",
+            (matched["id"],),
+        )
+
+    log_auth_event(user_id, "backup_code_used", "system")
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Password Reset — email-based (#2063)
+# ---------------------------------------------------------------------------
+
+
+def _send_reset_email(to_address: str, reset_url: str) -> None:
+    """Send password reset email via Stalwart SMTP."""
+    import smtplib
+    import os
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    smtp_host = os.getenv("SMTP_HOST", "192.168.1.200")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user = os.getenv("SMTP_USER", "archie")
+    smtp_pass = os.getenv("SMTP_PASSWORD", "")
+    if not smtp_pass:
+        raise RuntimeError("SMTP_PASSWORD not configured — cannot send reset email")
+    smtp_from = os.getenv("SMTP_FROM", "archie@kytranempowerment.com")
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "A.R.C.H.I.E. Platform — Password Reset"
+    msg["From"] = f"A.R.C.H.I.E. Platform <{smtp_from}>"
+    msg["To"] = to_address
+
+    text = (
+        "You requested a password reset for your A.R.C.H.I.E. Platform account.\n\n"
+        f"Click the link below to reset your password (expires in 1 hour):\n\n"
+        f"{reset_url}\n\n"
+        "If you did not request this, ignore this email.\n"
+    )
+    html = (
+        "<p>You requested a password reset for your A.R.C.H.I.E. Platform account.</p>"
+        f"<p><a href='{reset_url}'>Reset your password</a></p>"
+        "<p>This link expires in 1 hour. If you did not request this, ignore this email.</p>"
+    )
+    msg.attach(MIMEText(text, "plain"))
+    msg.attach(MIMEText(html, "html"))
+
+    with smtplib.SMTP(smtp_host, smtp_port) as server:
+        server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.send_message(msg)
+
+
+def initiate_password_reset(email: str, base_url: str = "https://platform.kytranempowerment.com") -> bool:
+    """Create a password reset token and email it to the user.
+
+    Returns True always — silent success prevents email enumeration.
+    """
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                "SELECT id, email FROM users WHERE email = %s AND is_active = TRUE",
+                (email.strip().lower(),),
+            )
+            user = cur.fetchone()
+        finally:
+            cur.close()
+
+    if not user:
+        return True  # Silent — don't reveal whether email exists
+
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    expires_at = datetime.utcnow() + timedelta(hours=1)
+
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        try:
+            # Invalidate any existing tokens for this user
+            cur.execute(
+                "UPDATE password_reset_tokens SET used_at = NOW() " "WHERE user_id = %s AND used_at IS NULL",
+                (user["id"],),
+            )
+            cur.execute(
+                "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) " "VALUES (%s, %s, %s)",
+                (user["id"], token_hash, expires_at),
+            )
+            conn.commit()
+        finally:
+            cur.close()
+
+    reset_url = f"{base_url}/tools/account-center/reset-password/{token}"
+    try:
+        _send_reset_email(user["email"], reset_url)
+    except Exception as exc:
+        logger.error("Password reset email failed: %s", exc)
+        return False
+
+    return True
+
+
+def complete_password_reset(token: str, new_password: str) -> tuple:
+    """Validate a reset token and update the user's password.
+
+    Returns (success: bool, error_message: str). error_message is empty on success.
+    """
+    from werkzeug.security import generate_password_hash
+
+    token_hash = hashlib.sha256(token.strip().encode()).hexdigest()
+
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """SELECT t.id, t.user_id, t.expires_at
+                   FROM password_reset_tokens t
+                   WHERE t.token_hash = %s AND t.used_at IS NULL""",
+                (token_hash,),
+            )
+            row = cur.fetchone()
+        finally:
+            cur.close()
+
+    if not row:
+        return False, "Invalid or expired reset link."
+
+    from datetime import timezone
+
+    if row["expires_at"].replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        return False, "Reset link has expired. Please request a new one."
+
+    valid, msg = validate_password_complexity(new_password)
+    if not valid:
+        return False, msg
+
+    pw_hash = generate_password_hash(new_password)
+
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "UPDATE users SET password_hash = %s WHERE id = %s",
+                (pw_hash, row["user_id"]),
+            )
+            cur.execute(
+                "UPDATE password_reset_tokens SET used_at = NOW() WHERE id = %s",
+                (row["id"],),
+            )
+            conn.commit()
+        finally:
+            cur.close()
+
+    log_auth_event(row["user_id"], "password_reset_completed", "system")
+    return True, ""

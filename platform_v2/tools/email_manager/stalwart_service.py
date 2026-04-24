@@ -60,7 +60,13 @@ def test_connection() -> dict:
     if not _PASS:
         return {"ok": False, "error": "STALWART_ADMIN_PASSWORD not set in environment"}
     try:
-        resp = requests.get(f"{_BASE}/api/health", auth=_auth(), timeout=5, verify=False)
+        resp = requests.get(
+            f"{_BASE}/api/principal",
+            auth=_auth(),
+            params={"limit": "1"},
+            timeout=5,
+            verify=False,
+        )
         return {"ok": resp.status_code == 200, "status": resp.status_code}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}

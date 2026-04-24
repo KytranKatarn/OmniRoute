@@ -60,24 +60,12 @@
     {% set cat_label = 'APPLICATIONS & CONCEPTS' %}
     {% set module_title = 'MEDIA HUB' %}
     {% if standalone %}
-        {# Standalone deployment — the platform sibling-app links don't exist
-           on this host. Surface M.A.V.E.N. skills + user actions instead. #}
+        {# Standalone: Chat in strip, admin tools moved into Settings tab #}
         {% set header_shortcuts = [
             ("Chat", "message-circle", "/maven/chat"),
-            ("Discover", "sparkles", "/maven/discover")
+            ("Profile", "user", "/profile"),
+            ("Sign out", "log-out", "/logout")
         ] %}
-        {% if current_user.is_authenticated and current_user.is_admin %}
-            {% set header_shortcuts = header_shortcuts + [
-                ("Troubleshoot", "activity", "/maven/troubleshoot"),
-                ("Upgrades", "arrow-up-circle", "/maven/upgrades"),
-                ("Duplicates", "copy", "/maven/duplicates")
-            ] %}
-        {% endif %}
-        {% set header_shortcuts = header_shortcuts + [("Profile", "user", "/profile")] %}
-        {% if current_user.is_authenticated and current_user.is_admin %}
-            {% set header_shortcuts = header_shortcuts + [("Users", "users", "/admin/users")] %}
-        {% endif %}
-        {% set header_shortcuts = header_shortcuts + [("Sign out", "log-out", "/logout")] %}
     {% else %}
         {% set header_shortcuts = [
             ("DOC", "stethoscope", "/tools/doc"),
@@ -89,13 +77,16 @@
     {% endif %}
     {% set header_tabs = [
         ("dashboard", "Dashboard", "layout-dashboard"),
-        ("movies", "Movies", "film"),
-        ("shows", "Shows", "tv"),
-        ("requests", "Requests", "message-square"),
-        ("calendar", "Calendar", "calendar"),
-        ("stats", "Stats", "bar-chart-3"),
-        ("settings", "Settings", "settings")
+        ("movies",    "Movies",    "film"),
+        ("shows",     "Shows",     "tv"),
+        ("requests",  "Requests",  "message-square"),
+        ("discover",  "Discover",  "sparkles"),
+        ("calendar",  "Calendar",  "calendar"),
+        ("stats",     "Stats",     "bar-chart-3")
     ] %}
+    {% if current_user.is_authenticated and current_user.is_admin %}
+        {% set header_tabs = header_tabs + [("settings", "Settings", "settings")] %}
+    {% endif %}
     {% include 'includes/lcars-header.html' %}
 
     <div class="media-hub-content">
@@ -685,6 +676,31 @@
                         </div>
                         <div style="flex: 1 !important; padding: 16px !important;">
             <div class="settings-layout">
+                <!-- Admin Tools (admin-only) -->
+                {% if current_user.is_authenticated and current_user.is_admin %}
+                <div class="settings-section">
+                    <h2><i data-lucide="shield"></i> Admin Tools</h2>
+                    <p class="section-desc">Diagnostics, content management, and user administration.</p>
+                    <div class="services-grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
+                        <a href="/maven/troubleshoot" class="service-card" style="text-decoration:none;">
+                            <div class="service-icon"><i data-lucide="activity"></i></div>
+                            <div class="service-info"><div class="service-name">Troubleshoot</div><div class="service-url">Diagnose download stack</div></div>
+                        </a>
+                        <a href="/maven/duplicates" class="service-card" style="text-decoration:none;">
+                            <div class="service-icon"><i data-lucide="copy"></i></div>
+                            <div class="service-info"><div class="service-name">Duplicates</div><div class="service-url">Find & remove duplicate files</div></div>
+                        </a>
+                        <a href="/maven/upgrades" class="service-card" style="text-decoration:none;">
+                            <div class="service-icon"><i data-lucide="arrow-up-circle"></i></div>
+                            <div class="service-info"><div class="service-name">Upgrades</div><div class="service-url">Quality upgrade recommendations</div></div>
+                        </a>
+                        <a href="/admin/users" class="service-card" style="text-decoration:none;">
+                            <div class="service-icon"><i data-lucide="users"></i></div>
+                            <div class="service-info"><div class="service-name">User Management</div><div class="service-url">Manage access & accounts</div></div>
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
                 <!-- Services Configuration -->
                 <div class="settings-section">
                     <h2><i data-lucide="server"></i><span data-i18n="media_hub.connected_services"> Connected Services</span></h2>

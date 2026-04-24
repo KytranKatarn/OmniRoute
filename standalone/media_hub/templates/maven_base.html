@@ -64,33 +64,26 @@
 {% set _back = "/tools/media-hub" %}
 {% set _i18n = "media_hub" %}
 
-{# Shortcuts strip: M.A.V.E.N. skills + user actions #}
+{# Shortcuts strip: Chat only + user actions. Admin tools live in Settings tab. #}
 {% set header_shortcuts = [
-    ("Chat",     "message-circle",  "/maven/chat"),
-    ("Discover", "sparkles",        "/maven/discover")
-] %}
-{% if current_user.is_authenticated and current_user.is_admin %}
-    {% set header_shortcuts = header_shortcuts + [
-        ("Troubleshoot", "activity",      "/maven/troubleshoot"),
-        ("Upgrades",     "arrow-up-circle", "/maven/upgrades"),
-        ("Duplicates",   "copy",           "/maven/duplicates")
-    ] %}
-{% endif %}
-{% set header_shortcuts = header_shortcuts + [
-    ("Profile",  "user",     "/profile"),
-    ("Sign out", "log-out",  "/logout")
+    ("Chat",     "message-circle", "/maven/chat"),
+    ("Profile",  "user",           "/profile"),
+    ("Sign out", "log-out",        "/logout")
 ] %}
 
-{# Tab bar: navigate back into the main hub #}
+{# Tab bar: mirrors main hub — Discover is a tab, Settings is admin-only #}
 {% set header_tabs = [
     ("dashboard", "Dashboard", "layout-dashboard"),
     ("movies",    "Movies",    "film"),
     ("shows",     "Shows",     "tv"),
     ("requests",  "Requests",  "message-square"),
+    ("discover",  "Discover",  "sparkles"),
     ("calendar",  "Calendar",  "calendar"),
-    ("stats",     "Stats",     "bar-chart-3"),
-    ("settings",  "Settings",  "settings")
+    ("stats",     "Stats",     "bar-chart-3")
 ] %}
+{% if current_user.is_authenticated and current_user.is_admin %}
+    {% set header_tabs = header_tabs + [("settings", "Settings", "settings")] %}
+{% endif %}
 
 {% include 'includes/lcars-header.html' %}
 
@@ -104,9 +97,12 @@
     // Init Lucide icons
     if (window.lucide) lucide.createIcons();
 
-    // On M.A.V.E.N. pages, clicking a hub tab navigates there instead of
-    // calling the main hub's tab switcher (which doesn't exist here).
+    // On M.A.V.E.N. pages, tab clicks navigate appropriately:
+    //  discover  → /maven/discover  (M.A.V.E.N. skill page)
+    //  settings  → main hub settings tab (admin tools live there)
+    //  anything else → main hub at the requested tab
     window.lcarsHeaderSwitchTab = function(tabId) {
+        if (tabId === 'discover') { window.location.href = '/maven/discover'; return; }
         window.location.href = '/tools/media-hub?tab=' + tabId;
     };
 

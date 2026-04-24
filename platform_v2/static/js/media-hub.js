@@ -414,7 +414,14 @@ function initTabs() {
     });
 }
 
+// Bridge for LCARS header tab buttons (onclick="lcarsHeaderSwitchTab(id)")
+window.lcarsHeaderSwitchTab = function(tabId) {
+    if (tabId === 'discover') { window.location.href = '/maven/discover'; return; }
+    switchTab(tabId);
+};
+
 function switchTab(tabId) {
+    if (tabId === 'discover') { window.location.href = '/maven/discover'; return; }
     focusedIndex = -1; // Reset keyboard focus
 
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));

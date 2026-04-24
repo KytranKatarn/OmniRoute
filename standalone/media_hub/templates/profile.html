@@ -48,6 +48,12 @@
             </dl>
         </section>
 
+        {% if current_user.is_sso %}
+        <section class="card">
+            <h2>Password</h2>
+            <p style="color:#94a3b8;font-size:.9rem;">Your account uses <strong>Sign in with Kytran Empowerment</strong> — password management is handled by the platform.</p>
+        </section>
+        {% else %}
         <section class="card">
             <h2>Change password</h2>
             {% if error %}<div class="msg error">{{ error }}</div>{% endif %}
@@ -62,6 +68,7 @@
                 <button type="submit">Update password</button>
             </form>
         </section>
+        {% endif %}
     </main>
 </body>
 </html>

@@ -108,16 +108,19 @@ def profile():
     error = None
     notice = None
     if request.method == "POST":
-        current_pw = request.form.get("current_password") or ""
-        new_pw = request.form.get("new_password") or ""
-        confirm = request.form.get("confirm_password") or ""
-        if not authenticate(current_user.username, current_pw):
-            error = "Current password is wrong."
-        elif len(new_pw) < 8:
-            error = "New password must be at least 8 characters."
-        elif new_pw != confirm:
-            error = "New password and confirmation do not match."
+        if current_user.is_sso:
+            error = "SSO accounts cannot change their password here."
         else:
-            set_password(current_user.id, new_pw)
-            notice = "Password changed."
+            current_pw = request.form.get("current_password") or ""
+            new_pw = request.form.get("new_password") or ""
+            confirm = request.form.get("confirm_password") or ""
+            if not authenticate(current_user.username, current_pw):
+                error = "Current password is wrong."
+            elif len(new_pw) < 8:
+                error = "New password must be at least 8 characters."
+            elif new_pw != confirm:
+                error = "New password and confirmation do not match."
+            else:
+                set_password(current_user.id, new_pw)
+                notice = "Password changed."
     return render_template("profile.html", error=error, notice=notice)

@@ -3,6 +3,11 @@ services:
     image: lscr.io/linuxserver/plex:1.43.0
     container_name: media_plex
     network_mode: host
+    extra_hosts:
+      - "plex.tv:35.172.142.61"
+      - "app.plex.tv:172.64.151.205"
+      - "clients.plex.tv:172.64.151.205"
+      - "status.plex.tv:76.76.21.164"
     environment:
       - PUID=1000
       - PGID=1000

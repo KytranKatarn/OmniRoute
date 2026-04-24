@@ -6,129 +6,128 @@
     <title>{% block title %}M.A.V.E.N.{% endblock %} — Media Hub</title>
     <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/kytran-logo.png') }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='icons/apple-touch-icon-180.png') }}">
+    <!-- Full LCARS CSS stack — matches main Media Hub exactly -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/animations.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/archie-breakpoints.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-modals.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/media-hub.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tv-mode.css') }}">
+    <!-- Lucide icons (CDN — not copied into standalone) -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <style>
-        :root {
-            color-scheme: dark;
-            --bg: #0a0f1c; --surface: #0f172a; --surface-2: #1e293b;
-            --border: #1e293b; --accent: #3b82f6;
-            --text: #e2e8f0; --muted: #94a3b8;
-            --ok: #22c55e; --warn: #f59e0b; --err: #ef4444;
+        /* M.A.V.E.N. page content area */
+        .maven-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem 4rem;
         }
-        * { box-sizing: border-box; }
-        body { margin: 0; background: var(--bg); color: var(--text);
-               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-               line-height: 1.55; }
-        a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
-        header.top { padding: 1.25rem 1.5rem; display: flex; align-items: center;
-                     gap: 0.75rem; max-width: 1200px; margin: 0 auto; }
-        header.top img { width: 36px; height: 36px; }
-        header.top .brand { font-weight: 700; letter-spacing: 0.02em; font-size: 1.05rem; }
-        header.top .dim { color: var(--muted); font-size: 0.85rem; margin-left: 0.5rem; }
-        header.top .spacer { flex: 1; }
-        header.top a.nav { color: var(--muted); margin-left: 1rem; font-size: 0.9rem; }
-        header.top a.nav:hover { color: var(--text); text-decoration: none; }
-        main { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
-        h1 { margin: 0 0 0.25rem; font-size: 1.75rem; letter-spacing: -0.01em; }
-        .byline { color: var(--muted); margin-bottom: 2rem; font-size: 0.95rem; }
-        .card { background: var(--surface); border: 1px solid var(--border);
+        /* Shared content card styles (used by troubleshoot, upgrades, etc.) */
+        .card { background: var(--archie-bg-elevated); border: 1px solid var(--archie-border-subtle);
                 border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 0.75rem; }
+        .byline { color: var(--archie-text-muted); margin-bottom: 2rem; font-size: 0.95rem; }
+        h1 { margin: 0 0 0.25rem; font-size: 1.75rem; color: var(--archie-text-primary); }
         .pill { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px;
-                font-size: 0.75rem; font-weight: 600; letter-spacing: 0.03em;
-                text-transform: uppercase; }
-        .pill.ok    { background: rgba(34,197,94,0.15);  color: var(--ok); }
-        .pill.warning { background: rgba(245,158,11,0.15); color: var(--warn); }
-        .pill.error { background: rgba(239,68,68,0.15);  color: var(--err); }
+                font-size: 0.75rem; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; }
+        .pill.ok      { background: rgba(34,197,94,0.15);  color: #22c55e; }
+        .pill.warning { background: rgba(245,158,11,0.15); color: #f59e0b; }
+        .pill.error   { background: rgba(239,68,68,0.15);  color: #ef4444; }
         .title-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.35rem; }
-        .title-row h3 { margin: 0; font-size: 1.1rem; }
-        .detail { color: var(--muted); font-size: 0.95rem; }
-        .fix { margin-top: 0.5rem; font-size: 0.85rem; color: #cbd5e1;
-               background: rgba(59,130,246,0.08); border-left: 3px solid var(--accent);
+        .title-row h3 { margin: 0; font-size: 1.1rem; color: var(--archie-text-primary); }
+        .detail { color: var(--archie-text-muted); font-size: 0.95rem; }
+        .fix { margin-top: 0.5rem; font-size: 0.85rem; color: var(--archie-text-secondary);
+               background: rgba(59,130,246,0.08); border-left: 3px solid var(--archie-blue, #3b82f6);
                padding: 0.55rem 0.8rem; border-radius: 6px; font-family: ui-monospace, Menlo, monospace; }
-        .summary { display: flex; gap: 0.75rem; margin-bottom: 2rem; flex-wrap: wrap; }
+        .summary { display: flex; gap: 0.75rem; margin-bottom: 2rem; flex-wrap: wrap; align-items: center; }
         .summary .pill { font-size: 0.85rem; padding: 0.4rem 1rem; }
-        .stat { color: var(--muted); font-size: 0.85rem; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-                gap: 1rem; }
-        .poster { aspect-ratio: 2/3; background: var(--surface-2) center/cover;
-                  border-radius: 8px; margin-bottom: 0.5rem; }
-        .back { color: var(--muted); font-size: 0.85rem; }
-        .run-btn { background: var(--accent); color: #0a0f1c; border: none;
+        .stat { color: var(--archie-text-muted); font-size: 0.85rem; }
+        .spacer { flex: 1; }
+        .run-btn { background: var(--archie-blue, #3b82f6); color: #fff; border: none;
                    padding: 0.6rem 1.2rem; border-radius: 8px; font-weight: 600;
                    cursor: pointer; font-family: inherit; font-size: 0.95rem; }
-        .run-btn:hover { background: #60a5fa; }
+        .run-btn:hover { opacity: 0.85; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+        .poster { aspect-ratio: 2/3; background: var(--archie-bg-secondary, #1e293b) center/cover;
+                  border-radius: 8px; margin-bottom: 0.5rem; }
     </style>
 </head>
-<style>
-    /* Hub tab nav bar */
-    nav.hub-tabs {
-        border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
-        background: var(--surface); padding: 0 1.5rem;
-    }
-    nav.hub-tabs .inner {
-        max-width: 1200px; margin: 0 auto; display: flex; gap: 0; align-items: center;
-        overflow-x: auto; scrollbar-width: none;
-    }
-    nav.hub-tabs .inner::-webkit-scrollbar { display: none; }
-    nav.hub-tabs a {
-        display: flex; align-items: center; gap: 0.4rem; padding: 0.65rem 1rem;
-        font-size: 0.85rem; color: var(--muted); white-space: nowrap;
-        border-bottom: 2px solid transparent; transition: all 0.15s;
-        text-decoration: none; flex-shrink: 0;
-    }
-    nav.hub-tabs a:hover { color: var(--text); border-bottom-color: var(--muted); }
-    nav.hub-tabs a.active { color: var(--accent); border-bottom-color: var(--accent); }
-    nav.hub-tabs .sep { width: 1px; height: 20px; background: var(--border); margin: 0 0.5rem; flex-shrink: 0; }
-</style>
 <body>
-    <!-- M.A.V.E.N. top header -->
-    <header class="top">
-        <img src="{{ url_for('static', filename='img/kytran-logo.png') }}" alt="Kytran">
-        <span class="brand">M.A.V.E.N.</span>
-        <span class="dim">Media Hub</span>
-        <span class="spacer"></span>
-        <a class="nav" href="/maven/chat">Chat</a>
-        <a class="nav" href="/maven/discover">Discover</a>
-        {% if current_user.is_authenticated and current_user.is_admin %}
-            <a class="nav" href="/maven/troubleshoot">Troubleshoot</a>
-            <a class="nav" href="/maven/upgrades">Upgrades</a>
-            <a class="nav" href="/maven/duplicates">Duplicates</a>
-        {% endif %}
-    </header>
 
-    <!-- Media Hub tab navigation — mirrors main hub for seamless navigation -->
-    <nav class="hub-tabs">
-        <div class="inner">
-            <a href="/tools/media-hub?tab=dashboard">📺 Dashboard</a>
-            <a href="/tools/media-hub?tab=movies">🎬 Movies</a>
-            <a href="/tools/media-hub?tab=shows">📡 Shows</a>
-            <a href="/tools/media-hub?tab=requests">📥 Requests</a>
-            <a href="/tools/media-hub?tab=calendar">📅 Calendar</a>
-            <a href="/tools/media-hub?tab=stats">📊 Stats</a>
-            <a href="/tools/media-hub?tab=settings">⚙️ Settings</a>
-        </div>
-    </nav>
+{# ── LCARS header — identical structure to main Media Hub ─────────────────── #}
+{% set _module = "M.A.V.E.N." %}
+{% set cat_label = "MEDIA HUB" %}
+{% set _back = "/tools/media-hub" %}
+{% set _i18n = "media_hub" %}
 
-    <main>
-        {% block content %}{% endblock %}
-    </main>
+{# Shortcuts strip: M.A.V.E.N. skills + user actions #}
+{% set header_shortcuts = [
+    ("Chat",     "message-circle",  "/maven/chat"),
+    ("Discover", "sparkles",        "/maven/discover")
+] %}
+{% if current_user.is_authenticated and current_user.is_admin %}
+    {% set header_shortcuts = header_shortcuts + [
+        ("Troubleshoot", "activity",      "/maven/troubleshoot"),
+        ("Upgrades",     "arrow-up-circle", "/maven/upgrades"),
+        ("Duplicates",   "copy",           "/maven/duplicates")
+    ] %}
+{% endif %}
+{% set header_shortcuts = header_shortcuts + [
+    ("Profile",  "user",     "/profile"),
+    ("Sign out", "log-out",  "/logout")
+] %}
 
+{# Tab bar: navigate back into the main hub #}
+{% set header_tabs = [
+    ("dashboard", "Dashboard", "layout-dashboard"),
+    ("movies",    "Movies",    "film"),
+    ("shows",     "Shows",     "tv"),
+    ("requests",  "Requests",  "message-square"),
+    ("calendar",  "Calendar",  "calendar"),
+    ("stats",     "Stats",     "bar-chart-3"),
+    ("settings",  "Settings",  "settings")
+] %}
+
+{% include 'includes/lcars-header.html' %}
+
+{# ── Page content ─────────────────────────────────────────────────────────── #}
+<div class="maven-content">
+    {% block content %}{% endblock %}
+</div>
+
+<script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script>
-// Poll /maven/api/status on load and show a red badge on Troubleshoot if errors
-(async () => {
-    try {
-        const r = await fetch('/maven/api/status');
-        if (!r.ok) return;
-        const d = await r.json();
-        if (d.diagnostic?.overall === 'error') {
-            document.querySelectorAll('a.nav[href="/maven/troubleshoot"]').forEach(el => {
-                const badge = document.createElement('span');
-                badge.style.cssText = 'display:inline-block;width:7px;height:7px;border-radius:50%;background:#ef4444;margin-left:4px;vertical-align:middle;';
-                el.appendChild(badge);
-            });
-        }
-    } catch (_) {}
-})();
+    // Init Lucide icons
+    if (window.lucide) lucide.createIcons();
+
+    // On M.A.V.E.N. pages, clicking a hub tab navigates there instead of
+    // calling the main hub's tab switcher (which doesn't exist here).
+    window.lcarsHeaderSwitchTab = function(tabId) {
+        window.location.href = '/tools/media-hub?tab=' + tabId;
+    };
+
+    // Red badge on Troubleshoot strip button when diagnostic has errors
+    (async () => {
+        try {
+            const r = await fetch('/maven/api/status');
+            if (!r.ok) return;
+            const d = await r.json();
+            if (d.diagnostic?.overall === 'error') {
+                document.querySelectorAll('a.lcars-strip-btn[href="/maven/troubleshoot"]').forEach(el => {
+                    const b = document.createElement('span');
+                    b.className = 'lcars-strip-badge';
+                    b.style.display = 'flex';
+                    b.textContent = '!';
+                    el.appendChild(b);
+                });
+            }
+        } catch (_) {}
+    })();
 </script>
+
 </body>
 </html>

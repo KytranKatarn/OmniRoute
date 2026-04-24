@@ -252,6 +252,27 @@ def send(
                 ]]
             }
 
+    elif reply_markup is None and category == "pr_reviewed":
+        import re as _re
+        # Extract GitHub PR URL from message body
+        _gh_match = _re.search(
+            r"GitHub PR: (https://github\.com/\S+)",
+            message or "",
+        )
+        if _gh_match:
+            reply_markup = {
+                "inline_keyboard": [[
+                    {
+                        "text": "🔧 View in Repair Bay",
+                        "url": "http://192.168.1.200:3000/tools/repair-bay#pr-review",
+                    },
+                    {
+                        "text": "View on GitHub ↗",
+                        "url": _gh_match.group(1),
+                    },
+                ]]
+            }
+
     try:
         _payload = {
             "chat_id": target,

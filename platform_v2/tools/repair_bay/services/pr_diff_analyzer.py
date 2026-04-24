@@ -55,6 +55,7 @@ def analyze_pending_prs(max_prs: int = 3) -> dict:
 
             if summary:
                 mark_review_done(pr_number, summary, repo)
+                _notify_pr_reviewed(pr_number, repo, review.get("title", ""), summary)
                 processed += 1
             else:
                 logger.warning("[PR Review] F.O.R.G.E. returned empty summary for PR #%s", pr_number)
@@ -146,3 +147,53 @@ def _run_forge_review(prompt: str) -> str | None:
     except Exception as exc:
         logger.error("[PR Review] F.O.R.G.E. dispatch error: %s", exc)
         raise
+
+
+def _notify_pr_reviewed(pr_number: int, repo: str, title: str, ai_summary: str) -> None:
+    """Submit a PR review completion notification to the director_reports inbox.
+
+    Routes through the Unified Voice triage consumer, which adds URL keyboard
+    buttons (View in Repair Bay + View on GitHub) before sending to Telegram.
+    """
+    import re as _re
+    from services.director_report_service import submit_via_inbox
+
+    verdict = "REVIEWED"
+    if ai_summary:
+        u = ai_summary.upper()
+        if "VERDICT: APPROVE" in u:
+            verdict = "APPROVE"
+        elif "VERDICT: REQUEST CHANGES" in u:
+            verdict = "REQUEST CHANGES"
+        elif "VERDICT: NEEDS REVIEW" in u:
+            verdict = "NEEDS REVIEW"
+
+    snippet = ""
+    if ai_summary:
+        m = _re.search(r"SUMMARY\s*([\s\S]{1,200})", ai_summary, _re.IGNORECASE)
+        if m:
+            snippet = m.group(1).strip()
+
+    _repo = repo or "KytranKatarn/archie-platform"
+    github_url = f"https://github.com/{_repo}/pull/{pr_number}/files"
+    platform_url = "http://192.168.1.200:3000/tools/repair-bay#pr-review"
+
+    message = (
+        f"VERDICT: {verdict}\n\n" f"{snippet}\n\n" f"View in Repair Bay: {platform_url}\n" f"GitHub PR: {github_url}"
+    )
+
+    try:
+        submit_via_inbox(
+            category="pr_reviewed",
+            title=f"F.O.R.G.E. Review: {verdict} — {_repo}#{pr_number}: {title[:60]}",
+            message=message,
+            source_agent="F.O.R.G.E.",
+            severity="info",
+            department="Engineering & Technology",
+        )
+    except Exception as exc:
+        logger.warning(
+            "[PR Review] Failed to submit Telegram notification for PR #%s: %s",
+            pr_number,
+            exc,
+        )

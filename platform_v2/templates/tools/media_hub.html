@@ -90,12 +90,6 @@
     {% include 'includes/lcars-header.html' %}
 
     <div class="media-hub-content">
-                <!-- Service Badges -->
-                <div class="header-services" id="media-service-badges">
-                    {% for svc in services %}
-                    <span class="svc-badge{% if svc.health_status == 'healthy' %} online{% elif svc.health_status == 'unhealthy' %} offline{% endif %}" id="svc-{{ svc.service_type }}"><span class="dot"></span> {{ svc.name }}</span>
-                    {% endfor %}
-                </div>
 
                 <!-- Scanline Overlay -->
                 <div class="scanline-overlay"></div>
@@ -701,6 +695,16 @@
                     </div>
                 </div>
                 {% endif %}
+                <!-- Service Health Status -->
+                <div class="settings-section">
+                    <h2><i data-lucide="activity"></i> Service Status</h2>
+                    <div class="header-services" id="media-service-badges" style="flex-wrap:wrap;gap:8px;margin-top:0.5rem;">
+                        {% for svc in services %}
+                        <span class="svc-badge{% if svc.health_status == 'healthy' %} online{% elif svc.health_status == 'unhealthy' %} offline{% endif %}" id="svc-{{ svc.service_type }}"><span class="dot"></span> {{ svc.name }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
                 <!-- Services Configuration -->
                 <div class="settings-section">
                     <h2><i data-lucide="server"></i><span data-i18n="media_hub.connected_services"> Connected Services</span></h2>

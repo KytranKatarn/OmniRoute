@@ -17,6 +17,14 @@ logger = logging.getLogger(__name__)
 _DEFAULT_REPO = os.getenv("GITHUB_REPO", "KytranKatarn/archie-platform")
 
 
+def get_tracked_repos() -> list:
+    """Return repos to poll. Reads GITHUB_REPOS (comma-separated) or falls back to GITHUB_REPO."""
+    repos_env = os.getenv("GITHUB_REPOS", "").strip()
+    if repos_env:
+        return [r.strip() for r in repos_env.split(",") if r.strip()]
+    return [_DEFAULT_REPO]
+
+
 # ---------------------------------------------------------------------------
 # Polling
 # ---------------------------------------------------------------------------

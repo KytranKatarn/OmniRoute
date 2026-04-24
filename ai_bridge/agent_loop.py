@@ -599,6 +599,33 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # Daily repo health check — README/description/topics/license for each tracked repo.
+        self.scheduler.add_job(
+            with_app_context(self._run_repo_health_check),
+            "cron",
+            hour=6,
+            minute=0,
+            id="forge_repo_health_check",
+            name="Agent Loop: F.O.R.G.E. Repo Health Check",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
+        # Weekly GitHub public presence audit via F.O.R.G.E. (Project #247 / Task #1803).
+        self.scheduler.add_job(
+            with_app_context(self._run_github_presence_audit),
+            "cron",
+            day_of_week="sun",
+            hour=3,
+            minute=0,
+            id="forge_github_presence_audit",
+            name="Agent Loop: F.O.R.G.E. GitHub Presence Audit",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         # C.O.D.E.X. — event auto-documentation (Project #272 Phase 2 / Task #2108).
         # Runs every 30 min; template-based, no LLM. Scans project_decisions
         # for undocumented rows and writes a vault_note per ADR.
@@ -3804,19 +3831,25 @@ class AgentLoop:
     # ------------------------------------------------------------------
 
     def _run_pr_review_poll(self):
-        """Poll GitHub for open PRs and upsert into pr_reviews (Project #247 Phase 1)."""
+        """Poll GitHub for open PRs across all tracked repos (Project #247)."""
         try:
-            import sys
-            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
-            from tools.repair_bay.services.pr_review_service import poll_open_prs, sync_closed_prs
-
-            result = poll_open_prs()
-            closed = sync_closed_prs()
-            logger.info(
-                "pr_review_poll: polled=%d inserted=%d updated=%d closed_synced=%d",
-                result.get("polled", 0), result.get("inserted", 0),
-                result.get("updated", 0), closed,
+            from tools.repair_bay.services.pr_review_service import (
+                poll_open_prs,
+                sync_closed_prs,
+                get_tracked_repos,
             )
+
+            for repo in get_tracked_repos():
+                result = poll_open_prs(repo=repo)
+                closed = sync_closed_prs(repo=repo)
+                logger.info(
+                    "pr_review_poll [%s]: polled=%d inserted=%d updated=%d closed_synced=%d",
+                    repo,
+                    result.get("polled"),
+                    result.get("inserted"),
+                    result.get("updated"),
+                    closed,
+                )
         except Exception as e:
             logger.error("pr_review_poll failed: %s", e)
 
@@ -3834,6 +3867,21 @@ class AgentLoop:
             )
         except Exception as e:
             logger.error("pr_diff_analysis failed: %s", e)
+
+    def _run_repo_health_check(self):
+        """Daily per-repo GitHub presence health check (Project #247, Task #1803)."""
+        try:
+            from tools.repair_bay.services.repo_health_service import run_health_checks
+
+            result = run_health_checks()
+            logger.info(
+                "repo_health_check: checked=%d healthy=%d unhealthy=%d",
+                result.get("checked"),
+                result.get("healthy"),
+                result.get("unhealthy"),
+            )
+        except Exception as e:
+            logger.error("repo_health_check failed: %s", e)
 
     def _run_dep_drift_audit(self):
         """Daily drift audit — requirements.txt vs running container pip freeze.
@@ -3936,6 +3984,24 @@ class AgentLoop:
                 )
             except Exception:
                 pass
+
+    # ------------------------------------------------------------------
+    # F.O.R.G.E. GitHub Presence Audit (Project #247 / Task #1803)
+    # ------------------------------------------------------------------
+
+    def _run_github_presence_audit(self):
+        """Weekly F.O.R.G.E. audit of KytranKatarn GitHub public presence (Project #247, Task #1803)."""
+        try:
+            from tools.repair_bay.services.github_presence_service import run_presence_audit
+
+            result = run_presence_audit()
+            logger.info(
+                "github_presence_audit: repos=%d success=%s",
+                result.get("repo_count"),
+                result.get("success"),
+            )
+        except Exception as e:
+            logger.error("github_presence_audit failed: %s", e)
 
     # ------------------------------------------------------------------
     # C.O.D.E.X. Event Auto-Documentation (Project #272 Phase 2 / Task #2108)

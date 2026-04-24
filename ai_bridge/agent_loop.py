@@ -63,160 +63,41 @@ def log_governance_event(event_type, action, outcome, details=None, event_catego
 def _send_approval_telegram(
     approval_id: int, action_type: str, action_data: dict, reason: str
 ):
-    """Push Telegram notification with Approve/Deny/Defer buttons for tier-2 items."""
+    """Route an approval request through the director_reports inbox.
+
+    The triage consumer detects category='approval_request' and escalates
+    immediately with Approve/Deny/Defer inline keyboard markup.
+    """
+    import sys as _sys
+    import os as _os
+
+    platform_path = _os.path.join(_os.path.dirname(__file__), "..", "platform_v2")
+    if platform_path not in _sys.path:
+        _sys.path.insert(0, platform_path)
     try:
-        import requests as _req
+        from services.director_report_service import submit_via_inbox
 
-        bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-        if not bot_token:
-            return
-
-        # Build context-aware message
-        lines = [f"\u26a0\ufe0f *Approval Request #{approval_id}*\n"]
-        if action_type == "cloud_throughput_escalation":
-            agent = action_data.get("original_agent", "?")
-            model = action_data.get("escalated_model", "?")
-            provider = action_data.get("escalated_provider", "?")
-            cap = action_data.get("capability", "?")
-            module = action_data.get("module_id", "?")
-            lines.append(f"Type: Cloud Escalation")
-            lines.append(f"Agent: {agent} (busy)")
-            lines.append(f"Escalate to: {model} ({provider})")
-            lines.append(f"Capability: {cap}")
-            lines.append(f"Module: {module}")
-        elif action_type == "create_agent":
-            cap = action_data.get("capability", "?")
-            department = action_data.get("department", action_data.get("station_code", "?"))
-            lines.append(f"Type: Create New Agent")
-            lines.append(f"Capability: {cap}")
-            lines.append(f"Department: {department}")
-        elif action_type == "contractor_dispatch":
-            def _md_escape(s):
-                return (
-                    str(s)
-                    .replace("`", "'")
-                    .replace("*", "")
-                    .replace("_", "-")
-                )
-
-            agent = _md_escape(action_data.get("agent", "?"))
-            provider = _md_escape(action_data.get("provider", "?"))
-            model = _md_escape(action_data.get("model", "?"))
-            cap = _md_escape(action_data.get("capability", "?"))
-            module = _md_escape(action_data.get("module_id", "?"))
-            est_cost = action_data.get("estimated_cost", 0)
-            threshold = action_data.get("threshold", 0)
-            preview = _md_escape(action_data.get("prompt_preview", "")[:180])
-            lines.append("Type: Contractor Dispatch")
-            lines.append(f"Agent: `{agent}`")
-            lines.append(f"Provider: `{provider}` / `{model}`")
-            lines.append(f"Capability: {cap}")
-            lines.append(f"Module: {module}")
-            lines.append("")
-            lines.append(f"*Estimated cost:* `${est_cost:.4f}`")
-            lines.append(f"*Threshold:* `${threshold:.4f}`")
-            if preview:
-                lines.append("")
-                lines.append("Prompt preview:")
-                lines.append(f"`{preview}`")
-        elif action_type.startswith("compliance_fix_"):
-            rule_id = action_data.get("rule_id", "?")
-            severity = action_data.get("severity", "?")
-            fix_def = action_data.get("fix_def", {})
-            fix_type = fix_def.get("type", "?")
-            ai_review = action_data.get("ai_review", {})
-            lines.append(f"Type: Compliance Fix")
-            lines.append(f"Rule: `{rule_id}`")
-            lines.append(f"Severity: *{severity}*")
-            lines.append(f"Fix type: `{fix_type}`")
-            # Show the actual command/change being applied
-            if fix_type == "command":
-                cmd = fix_def.get("command", "")[:200]
-                lines.append(f"\n*Command:*\n`{cmd}`")
-            elif fix_type == "sysctl":
-                lines.append(f"Set: `{fix_def.get('param','?')} = {fix_def.get('value','?')}`")
-            elif fix_type == "file_line":
-                path = fix_def.get("path", "?")
-                line_val = fix_def.get("line", "")[:100]
-                lines.append(f"File: `{path}`")
-                lines.append(f"Line: `{line_val}`")
-            elif fix_type == "service":
-                lines.append(f"Service: `{fix_def.get('action','?')} {fix_def.get('service','?')}`")
-            # AI review reasoning
-            if ai_review:
-                risk = ai_review.get("risk_level", "?")
-                reasoning = ai_review.get("reasoning", "")[:300]
-                lines.append(f"\n*AI Review:* `{risk}` risk")
-                if reasoning:
-                    lines.append(f"_{reasoning}_")
-        else:
-            lines.append(f"Type: {action_type}")
-
+        lines = [f"Approval #{approval_id} required for: {action_type}"]
         if reason:
-            lines.append(f"\nReason: {reason}")
+            lines.append(f"Reason: {reason}")
+        if action_data:
+            for k, v in list(action_data.items())[:3]:
+                lines.append(f"{k}: {v}")
 
-        text = "\n".join(lines)
-
-        keyboard = {
-            "inline_keyboard": [
-                [
-                    {"text": "Approve", "callback_data": f"esc_approve_{approval_id}"},
-                    {"text": "Deny", "callback_data": f"esc_deny_{approval_id}"},
-                    {"text": "Defer 1hr", "callback_data": f"esc_defer_{approval_id}"},
-                ]
-            ]
-        }
-
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT telegram_id FROM telegram_users "
-            "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
+        submit_via_inbox(
+            category="approval_request",
+            title=f"Approval Required \u2014 {action_type} #{approval_id}",
+            message="\n".join(lines),
+            source_agent="A.R.C.H.I.E.",
+            severity="critical",
+            department="Executive Office",
         )
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-
-        sent = 0
-        for row in rows:
-            resp = _req.post(
-                f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                json={
-                    "chat_id": row[0],
-                    "text": text,
-                    "parse_mode": "Markdown",
-                    "reply_markup": keyboard,
-                },
-                timeout=15,
-            )
-            if resp.status_code == 200 and resp.json().get("ok"):
-                sent += 1
-            else:
-                try:
-                    body = resp.json()
-                    err = body.get("description", resp.text[:200])
-                    code = body.get("error_code", resp.status_code)
-                except Exception:
-                    err = resp.text[:200]
-                    code = resp.status_code
-                logger.warning(
-                    f"Telegram sendMessage failed for #{approval_id} "
-                    f"chat={row[0]} code={code} err={err}"
-                )
-        if sent:
-            logger.info(
-                f"Telegram approval notification sent for #{approval_id} "
-                f"({sent}/{len(rows)} recipients)"
-            )
-        else:
-            logger.warning(
-                f"Telegram approval notification FAILED for #{approval_id} "
-                f"— 0/{len(rows)} recipients received the message"
-            )
-    except Exception as e:
-        logger.warning(f"Telegram approval notification failed: {e}")
-
-
+        logger.info(
+            "Approval #%s submitted to director_reports inbox (category=approval_request)",
+            approval_id,
+        )
+    except Exception as exc:
+        logger.error("Failed to submit approval #%s to inbox: %s", approval_id, exc)
 def _validate_approval_request(
     action_type: str, action_data: dict
 ) -> Optional[str]:

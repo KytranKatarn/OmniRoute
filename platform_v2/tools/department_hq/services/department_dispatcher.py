@@ -5372,40 +5372,18 @@ class DepartmentDispatcher:
             conn.close()
 
             # 2. Send Telegram with buttons for cross_station + free_cloud
-            # TODO: migrate to telegram_service — needs reply_markup support
-            # This block uses inline_keyboard buttons for escalation approval,
-            # which the unified telegram_service doesn't support yet.
             if advisory_type in ("cross_station", "free_cloud") and buttons:
                 try:
-                    import os
-                    import requests as _req
+                    from services.telegram_service import send_with_buttons
 
-                    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-                    if bot_token:
-                        tg_text = f"{emoji} *{title}*\n\n{message}"
-
-                        payload = {
-                            "text": tg_text,
-                            "parse_mode": "Markdown",
-                            "reply_markup": {"inline_keyboard": [buttons]},
-                        }
-
-                        tconn = self._get_db()
-                        tcur = tconn.cursor()
-                        tcur.execute(
-                            "SELECT telegram_id FROM telegram_users "
-                            "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
-                        )
-                        trows = tcur.fetchall()
-                        tcur.close()
-                        tconn.close()
-                        for trow in trows:
-                            payload["chat_id"] = trow[0]
-                            _req.post(
-                                f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                                json=payload,
-                                timeout=15,
-                            )
+                    send_with_buttons(
+                        category="agent",
+                        title=title,
+                        message=message,
+                        buttons=buttons,
+                        source_agent="A.R.C.H.I.E.",
+                        source_department="Executive Office",
+                    )
                 except Exception as tg_err:
                     logger.debug(f"[BridgeDispatcher] Telegram advisory skipped: {tg_err}")
 

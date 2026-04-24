@@ -214,11 +214,19 @@ def run_triage():
     - critical/high → escalate to Kytran (Telegram if offline, chat if online)
     - medium → log, escalate only if pattern repeats
     - low → ignore (included in next morning briefing)
+
+    Race-condition guard: SELECT ... FOR UPDATE SKIP LOCKED ensures that when
+    two gunicorn workers run simultaneously, each worker claims a disjoint set
+    of rows. The row is marked escalated=TRUE inside the same transaction as
+    the SELECT lock, so a second worker never sees the same row as claimable.
     """
     try:
         from database import get_db_cursor
 
         with get_db_cursor() as (conn, cur):
+            # FOR UPDATE SKIP LOCKED: this worker claims up to 10 rows atomically.
+            # Any other concurrent worker will skip these locked rows and get its
+            # own disjoint batch — preventing double-send to Telegram.
             cur.execute(
                 """SELECT id, department, director_agent, severity, category, title, summary
                    FROM director_reports
@@ -229,13 +237,28 @@ def run_triage():
                        WHEN 'high' THEN 2
                        ELSE 3
                    END, created_at ASC
-                   LIMIT 10"""
+                   LIMIT 10
+                   FOR UPDATE SKIP LOCKED"""
             )
             reports = cur.fetchall()
 
-        if not reports:
-            return 0
+            if not reports:
+                return 0
 
+            # Claim all rows immediately (mark escalated=TRUE) while the locks are
+            # held. This prevents any concurrent worker from selecting the same rows
+            # even if our Telegram send takes a moment.
+            report_ids = [r["id"] if isinstance(r, dict) else r[0] for r in reports]
+            cur.execute(
+                """UPDATE director_reports
+                   SET escalated = TRUE, escalation_channel = 'telegram', escalated_at = NOW()
+                   WHERE id = ANY(%s)""",
+                (report_ids,),
+            )
+            conn.commit()
+
+        # Locks are now released. Send Telegram notifications outside the
+        # transaction — network I/O should never hold DB locks.
         escalated = 0
         for r in reports:
             rid = r["id"] if isinstance(r, dict) else r[0]
@@ -265,6 +288,10 @@ def _escalate_report(report_id, department, director_agent, title, summary, seve
 
     Kytran sees both. In chat he can click in and discuss inline; Telegram
     is the push notification. Failure in one path doesn't break the other.
+
+    Note: the DB row is already marked escalated=TRUE by run_triage() inside
+    its FOR UPDATE SKIP LOCKED transaction before this function is called.
+    This function handles only the Telegram send + chat mirror (network I/O).
     """
     try:
         from services.telegram_service import send
@@ -280,17 +307,6 @@ def _escalate_report(report_id, department, director_agent, title, summary, seve
 
         # Mirror into chat inbox — never block the escalation on this path.
         _mirror_to_chat(director_agent, title, summary, severity, report_id)
-
-        from database import get_db_cursor
-
-        with get_db_cursor() as (conn, cur):
-            cur.execute(
-                """UPDATE director_reports
-                   SET escalated = TRUE, escalation_channel = 'telegram', escalated_at = NOW()
-                   WHERE id = %s""",
-                (report_id,),
-            )
-            conn.commit()
 
     except Exception as e:
         logger.error("briefing_service: _escalate_report failed for #%d: %s", report_id, e)

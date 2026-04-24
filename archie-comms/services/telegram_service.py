@@ -162,6 +162,7 @@ def send(
     source_module: str = None,
     chat_id: str = None,
     force: bool = False,
+    reply_markup: dict = None,
 ) -> dict:
     """Send a categorized Telegram notification as A.R.C.H.I.E.
 
@@ -236,15 +237,33 @@ def send(
         )
         return {"sent": False, "reason": "no chat_id configured"}
 
+    # Approval requests get Approve/Deny/Defer buttons (keyboard markup)
+    if reply_markup is None and category == "approval_request":
+        import re as _re
+        # Extract approval ID from title e.g. "Approval Required — create_agent #42"
+        _m = _re.search(r"#(\d+)", title or "")
+        if _m:
+            _aid = _m.group(1)
+            reply_markup = {
+                "inline_keyboard": [[
+                    {"text": "Approve",   "callback_data": f"esc_approve_{_aid}"},
+                    {"text": "Deny",      "callback_data": f"esc_deny_{_aid}"},
+                    {"text": "Defer 1hr", "callback_data": f"esc_defer_{_aid}"},
+                ]]
+            }
+
     try:
+        _payload = {
+            "chat_id": target,
+            "text": text,
+            "parse_mode": "Markdown",
+            "disable_web_page_preview": True,
+        }
+        if reply_markup is not None:
+            _payload["reply_markup"] = reply_markup
         resp = requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
-            json={
-                "chat_id": target,
-                "text": text,
-                "parse_mode": "Markdown",
-                "disable_web_page_preview": True,
-            },
+            json=_payload,
             timeout=10,
         )
         _last_sent[category] = time.time()

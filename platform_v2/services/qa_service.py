@@ -387,12 +387,9 @@ def create_suite_from_yaml(file_path, suite_type="internal", user_id=None):
 def _send_qa_telegram_alert(suite_name, run_id, total, passed, failed, errors, results):
     """Send a Telegram alert when a QA run has failures.
 
-    Skips silently if TELEGRAM_BOT_TOKEN is not set or no authorized users exist.
+    Routes through telegram_service.send_agent() so all outbound messages go via
+    the A.R.C.H.I.E. unified voice (director_report_service inbox).
     """
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    if not token:
-        return
-
     # Build failure list (max 5)
     failure_lines = []
     for r in results:
@@ -408,37 +405,23 @@ def _send_qa_telegram_alert(suite_name, run_id, total, passed, failed, errors, r
                     failure_lines.append(f"  _...and {remaining} more_")
                 break
 
-    message = (
-        "\U0001f534 *P.R.O.B.E. QA Alert*\n\n"
-        f"Suite: *{suite_name}*\n"
-        f"Run ID: `{run_id}`\n"
+    body = (
+        f"Suite: *{suite_name}* | Run ID: `{run_id}`\n"
         f"Passed: {passed} | Failed: {failed} | Errors: {errors} | Total: {total}\n\n"
         "Failed tests:\n" + "\n".join(failure_lines)
     )
 
-    # Fetch authorized Telegram users
-    with get_db_cursor() as (conn, cur):
-        cur.execute("SELECT telegram_id FROM telegram_users WHERE is_authorized = true")
-        users = [row[0] for row in cur.fetchall()]
+    try:
+        from services.telegram_service import send_agent
 
-    if not users:
-        logger.debug("No authorized Telegram users for QA alert")
-        return
-
-    api_url = f"https://api.telegram.org/bot{token}/sendMessage"
-    for chat_id in users:
-        try:
-            http_requests.post(
-                api_url,
-                json={
-                    "chat_id": chat_id,
-                    "text": message,
-                    "parse_mode": "Markdown",
-                },
-                timeout=10,
-            )
-        except Exception as exc:
-            logger.warning("Failed to send QA alert to %s: %s", chat_id, exc)
+        send_agent(
+            "P.R.O.B.E. QA Alert",
+            body,
+            source_agent="P.R.O.B.E.",
+            source_department="Engineering & Technology",
+        )
+    except Exception as exc:
+        logger.warning("Failed to send QA alert via telegram_service: %s", exc)
 
 
 def _create_proposals_from_failures(suite_name, run_id, results):

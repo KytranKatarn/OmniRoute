@@ -116,6 +116,9 @@ def health():
 @app.route("/api/send", methods=["POST"])
 def api_send():
     """Platform calls this to send a message through A.R.C.H.I.E.'s voice."""
+    token = request.headers.get("X-Service-Token", "")
+    if not ARCHIE_SERVICE_TOKEN or not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
+        return jsonify({"error": "Unauthorized"}), 401
     from services.telegram_service import send
 
     data = request.get_json() or {}
@@ -223,7 +226,7 @@ def api_director_report():
 def api_internal_director_reports():
     """Return pending director_reports ordered by severity then age."""
     token = request.headers.get("X-Service-Token", "")
-    if ARCHIE_SERVICE_TOKEN and not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
+    if not ARCHIE_SERVICE_TOKEN or not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
         return jsonify({"error": "Unauthorized"}), 401
 
     from database import get_db_cursor
@@ -258,7 +261,7 @@ def api_internal_director_reports():
 def api_internal_triage_report(report_id):
     """Apply a triage action to a pending director report."""
     token = request.headers.get("X-Service-Token", "")
-    if ARCHIE_SERVICE_TOKEN and not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
+    if not ARCHIE_SERVICE_TOKEN or not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
         return jsonify({"error": "Unauthorized"}), 401
 
     from database import get_db_cursor
@@ -301,7 +304,7 @@ def api_internal_triage_report(report_id):
 def api_internal_triage_policies():
     """Return active triage policies ordered by priority."""
     token = request.headers.get("X-Service-Token", "")
-    if ARCHIE_SERVICE_TOKEN and not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
+    if not ARCHIE_SERVICE_TOKEN or not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
         return jsonify({"error": "Unauthorized"}), 401
 
     from database import get_db_cursor
@@ -323,7 +326,7 @@ def api_internal_triage_policies():
 def api_internal_triage_policies_create():
     """Create a new triage policy."""
     token = request.headers.get("X-Service-Token", "")
-    if ARCHIE_SERVICE_TOKEN and not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
+    if not ARCHIE_SERVICE_TOKEN or not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
         return jsonify({"error": "Unauthorized"}), 401
 
     from database import get_db_cursor
@@ -361,7 +364,7 @@ def api_internal_triage_policies_create():
 def api_internal_triage_policies_delete(policy_id):
     """Delete a triage policy by id."""
     token = request.headers.get("X-Service-Token", "")
-    if ARCHIE_SERVICE_TOKEN and not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
+    if not ARCHIE_SERVICE_TOKEN or not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
         return jsonify({"error": "Unauthorized"}), 401
 
     from database import get_db_cursor

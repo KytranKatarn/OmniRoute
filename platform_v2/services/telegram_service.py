@@ -232,21 +232,11 @@ def send(
     caller_is_privileged = _privileged or (source_agent in _PRIVILEGED_SOURCES)
 
     if not caller_is_privileged:
-        logger.warning(
-            "telegram_service.send() unprivileged caller '%s' — routing to director report inbox",
-            source_agent,
+        raise PermissionError(
+            f"telegram_service.send() called by unprivileged source '{source_agent}'. "
+            f"Use director_report_service.submit_via_inbox() instead. "
+            f"Add to _PRIVILEGED_SOURCES only if this caller IS A.R.C.H.I.E.'s voice."
         )
-        from services.director_report_service import submit_via_inbox
-
-        result = submit_via_inbox(
-            category=category,
-            title=title,
-            message=message,
-            source_agent=source_agent,
-            department=source_department or "Unknown",
-        )
-        _audit_send(category, title, source_agent, route="inbox", suppressed=True)
-        return result
     # ─────────────────────────────────────────────────────────────────────────
 
     token = _get_token()
@@ -430,45 +420,161 @@ def _log_message(
 
 
 # ---------------------------------------------------------------------------
-# Convenience shortcuts
+# Convenience shortcuts — route to director_reports inbox (not Telegram directly)
 # ---------------------------------------------------------------------------
 def send_security(title: str, message: str, **kwargs) -> dict:
-    """Send a critical security alert via V.I.G.I.L. (never throttled)."""
-    kwargs.setdefault("source_agent", "V.I.G.I.L.")
-    kwargs.setdefault("source_department", "Security & Compliance")
-    return send("security", title, message, force=True, **kwargs)
+    """Critical security alert via V.I.G.I.L. — writes to director_reports inbox."""
+    from services.director_report_service import submit_via_inbox
+
+    return submit_via_inbox(
+        category="security",
+        title=title,
+        message=message,
+        source_agent=kwargs.get("source_agent", "V.I.G.I.L."),
+        severity="critical",
+        department=kwargs.get("source_department", "Security & Compliance"),
+    )
 
 
 def send_system(title: str, message: str, **kwargs) -> dict:
-    """Send a system/infrastructure alert via B.A.S.E."""
-    kwargs.setdefault("source_agent", "B.A.S.E.")
-    kwargs.setdefault("source_department", "Operations & Infrastructure")
-    return send("system", title, message, **kwargs)
+    """Infrastructure alert via B.A.S.E. — writes to director_reports inbox."""
+    from services.director_report_service import submit_via_inbox
+
+    return submit_via_inbox(
+        category="system",
+        title=title,
+        message=message,
+        source_agent=kwargs.get("source_agent", "B.A.S.E."),
+        severity="warning",
+        department=kwargs.get("source_department", "Operations & Infrastructure"),
+    )
 
 
 def send_forge(title: str, message: str, **kwargs) -> dict:
-    """Send a F.O.R.G.E. pipeline notification."""
-    kwargs.setdefault("source_agent", "F.O.R.G.E.")
-    kwargs.setdefault("source_department", "Engineering & Technology")
-    return send("forge", title, message, **kwargs)
+    """F.O.R.G.E. pipeline notification — writes to director_reports inbox."""
+    from services.director_report_service import submit_via_inbox
+
+    return submit_via_inbox(
+        category="forge",
+        title=title,
+        message=message,
+        source_agent=kwargs.get("source_agent", "F.O.R.G.E."),
+        severity="info",
+        department=kwargs.get("source_department", "Engineering & Technology"),
+    )
 
 
 def send_agent(title: str, message: str, **kwargs) -> dict:
-    """Send an agent lifecycle notification via K.I.N."""
-    kwargs.setdefault("source_agent", "K.I.N.")
-    kwargs.setdefault("source_department", "Human Resources & Culture")
-    return send("agent", title, message, **kwargs)
+    """Agent lifecycle notification via K.I.N. — writes to director_reports inbox."""
+    from services.director_report_service import submit_via_inbox
+
+    return submit_via_inbox(
+        category="agent",
+        title=title,
+        message=message,
+        source_agent=kwargs.get("source_agent", "K.I.N."),
+        severity="info",
+        department=kwargs.get("source_department", "Human Resources & Culture"),
+    )
 
 
 def send_sync(title: str, message: str, **kwargs) -> dict:
-    """Send a background sync notification via C.O.D.E.X."""
-    kwargs.setdefault("source_agent", "C.O.D.E.X.")
-    kwargs.setdefault("source_department", "Documentation & Knowledge")
-    return send("sync", title, message, **kwargs)
+    """Background sync notification via C.O.D.E.X. — writes to director_reports inbox."""
+    from services.director_report_service import submit_via_inbox
+
+    return submit_via_inbox(
+        category="sync",
+        title=title,
+        message=message,
+        source_agent=kwargs.get("source_agent", "C.O.D.E.X."),
+        severity="info",
+        department=kwargs.get("source_department", "Documentation & Knowledge"),
+    )
 
 
 def send_info(title: str, message: str, **kwargs) -> dict:
-    """Send an informational notification from A.R.C.H.I.E. directly."""
+    """Informational notification from A.R.C.H.I.E. directly (privileged — bypasses inbox)."""
     kwargs.setdefault("source_agent", "A.R.C.H.I.E.")
     kwargs.setdefault("source_department", "Executive Office")
     return send("info", title, message, **kwargs)
+
+
+def send_with_buttons(
+    category: str,
+    title: str,
+    message: str,
+    buttons: list,
+    source_agent: str = "A.R.C.H.I.E.",
+    source_department: str = "Executive Office",
+) -> dict:
+    """Send a Telegram message with an inline keyboard (reply_markup).
+
+    This is a privileged call — callers must be A.R.C.H.I.E. or an
+    authorized dispatcher component that sends escalation approval buttons.
+    All other notification needs must use submit_via_inbox().
+
+    Args:
+        category:          Notification category (e.g. 'agent', 'system').
+        title:             Short title for the message.
+        message:           Body text (Markdown supported).
+        buttons:           List of InlineKeyboardButton dicts for one button row,
+                           e.g. [{"text": "Approve", "callback_data": "esc_approve_1"}].
+        source_agent:      Sending agent name (must be privileged).
+        source_department: Originating department.
+
+    Returns:
+        dict: {sent: bool, reason: str (if failed)}
+    """
+    token = _get_token()
+    if not token:
+        return {"sent": False, "reason": "no bot token configured"}
+
+    cat_info = CATEGORIES.get(category, CATEGORIES["info"])
+    emoji = cat_info["icon"]
+    tg_text = f"{emoji} *{title}*\n\n{message}"
+
+    target = _get_chat_id()
+    if not target:
+        logger.debug("send_with_buttons: no chat_id configured")
+        return {"sent": False, "reason": "no chat_id configured"}
+
+    # Fetch all authorized users so escalation buttons reach every admin
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                "SELECT telegram_id FROM telegram_users " "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
+            )
+            rows = cur.fetchall()
+        chat_ids = [r[0] for r in rows] if rows else [target]
+    except Exception:
+        chat_ids = [target]
+
+    payload_base = {
+        "text": tg_text,
+        "parse_mode": "Markdown",
+        "reply_markup": {"inline_keyboard": [buttons]},
+    }
+
+    sent_count = 0
+    for cid in chat_ids:
+        try:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={**payload_base, "chat_id": cid},
+                timeout=15,
+            )
+            if resp.ok:
+                sent_count += 1
+        except Exception as exc:
+            logger.debug("send_with_buttons to %s failed: %s", cid, exc)
+
+    logger.info(
+        "[telegram_service] send_with_buttons category=%s title=%r sent_to=%d/%d",
+        category,
+        title,
+        sent_count,
+        len(chat_ids),
+    )
+    return {"sent": sent_count > 0, "sent_count": sent_count}

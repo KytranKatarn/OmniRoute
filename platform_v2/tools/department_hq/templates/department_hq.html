@@ -411,12 +411,27 @@
               <div style="flex:1;">
                 <h3 style="color:#fbbf24;font-family:'Orbitron',sans-serif;font-size:0.75rem;letter-spacing:2px;margin-bottom:12px;">DIRECTOR REPORTS</h3>
                 <div id="coms-reports" style="max-height:500px;overflow-y:auto;"></div>
-                <h3 style="color:#a78bfa;font-family:'Orbitron',sans-serif;font-size:0.75rem;letter-spacing:2px;margin:16px 0 8px;display:flex;align-items:center;gap:8px;">
-                  TRIAGE INBOX
-                  <span id="coms-inbox-badge" style="display:none;background:#a78bfa;color:#000;border-radius:10px;padding:1px 7px;font-size:0.65rem;font-weight:700;"></span>
-                  <button onclick="loadComsInbox()" style="margin-left:auto;padding:2px 8px;background:rgba(167,139,250,0.15);border:1px solid rgba(167,139,250,0.4);border-radius:4px;color:#a78bfa;font-size:0.65rem;cursor:pointer;">↻</button>
-                </h3>
-                <div id="coms-inbox" style="max-height:400px;overflow-y:auto;"></div>
+                <!-- COMs Unified Inbox — split pane (#2268) -->
+                <h3 style="color:#a78bfa;font-family:'Orbitron',sans-serif;font-size:0.75rem;letter-spacing:2px;margin:16px 0 8px;">TRIAGE INBOX</h3>
+                <div class="coms-inbox-header">
+                  <span style="font-size:12px;color:var(--archie-muted,#64748b)">INBOX</span>
+                  <span class="coms-pending-badge empty" id="coms-pending-count">0</span>
+                  <label class="coms-show-all-label">
+                    <input type="checkbox" id="coms-show-all" onchange="window.loadComsInbox()">
+                    Show resolved
+                  </label>
+                  <button class="coms-mark-all-btn" onclick="window.comsMarkAllResolved()">
+                    Mark all resolved
+                  </button>
+                </div>
+                <div class="coms-inbox-split">
+                  <div class="coms-inbox-list" id="coms-inbox-list">
+                    <div class="coms-inbox-empty-state">Loading...</div>
+                  </div>
+                  <div class="coms-inbox-detail empty" id="coms-inbox-detail">
+                    Select a report to view details
+                  </div>
+                </div>
                 <h3 style="color:#60a5fa;font-family:'Orbitron',sans-serif;font-size:0.75rem;letter-spacing:2px;margin:16px 0 8px;display:flex;align-items:center;gap:8px;">
                   CLASSIFICATION RULES
                   <button onclick="loadComsPolicies()" style="padding:2px 8px;background:rgba(96,165,250,0.15);border:1px solid rgba(96,165,250,0.4);border-radius:4px;color:#60a5fa;font-size:0.65rem;cursor:pointer;">↻</button>
@@ -1132,12 +1147,16 @@ async function _dhqRejectHire(approvalId, btn) {
     var _origSwitch = window.onLcarsTabSwitch;
     window.onLcarsTabSwitch = function(tabId) {
         _origSwitch(tabId);
-        if (tabId === 'coms' && !comsLoaded) {
-            loadComsFeed();
-            loadComsReports();
-            window.loadComsInbox();
-            window.loadComsPolicies();
-            comsLoaded = true;
+        if (tabId === 'coms') {
+            if (!comsLoaded) {
+                loadComsFeed();
+                loadComsReports();
+                window.loadComsPolicies();
+                comsLoaded = true;
+            }
+            window._startComsInboxPoll();
+        } else {
+            window._stopComsInboxPoll();
         }
     };
 
@@ -1254,82 +1273,217 @@ async function _dhqRejectHire(approvalId, btn) {
         }
     }
 
-    // ── Triage Inbox (#2261) ─────────────────────────────────────────────────
-    function _comsMsg(box, text) {
-        var d = document.createElement('div');
-        d.style.cssText = 'color:#4b5563;font-size:0.7rem;padding:8px;';
-        d.textContent = text;
-        box.appendChild(d);
+    // ── COMs Unified Inbox split pane (#2268) ────────────────────────────────
+    window._comsSelectedId = null;
+    window._comsInboxTimer = null;
+
+    function _comsSevClass(s) {
+        if (s === 'critical') return 'sev-critical';
+        if (s === 'high') return 'sev-high';
+        if (s === 'warning') return 'sev-warning';
+        return 'sev-info';
     }
 
-    window.loadComsInbox = async function() {
-        var box = document.getElementById('coms-inbox');
-        if (!box) return;
-        box.textContent = '';
-        _comsMsg(box, 'Loading…');
-        try {
-            var resp = await fetch('/api/department-hq/api/coms/director-reports/pending');
-            box.textContent = '';
-            if (!resp.ok) { _comsMsg(box, 'Inbox unavailable.'); return; }
-            var data = await resp.json();
-            var badge = document.getElementById('coms-inbox-badge');
-            if (badge) { badge.textContent = data.count; badge.style.display = data.count > 0 ? '' : 'none'; }
-            var reports = data.reports || [];
-            if (reports.length === 0) {
-                var empty = document.createElement('div');
-                empty.style.cssText = 'color:#4b5563;font-size:0.7rem;padding:8px;font-style:italic;';
-                empty.textContent = 'No pending reports.';
-                box.appendChild(empty); return;
-            }
-            var sevColors = {critical:'#ef4444',high:'#f59e0b',medium:'#a78bfa',low:'#4b5563'};
-            reports.forEach(function(r) {
-                var card = document.createElement('div');
-                card.style.cssText = 'padding:8px 10px;border-left:2px solid '+(sevColors[r.severity]||'#a78bfa')+';background:#111827;border-radius:0 6px 6px 0;margin-bottom:6px;';
-                var meta = document.createElement('div');
-                meta.style.cssText = 'display:flex;justify-content:space-between;font-size:0.65rem;margin-bottom:2px;';
-                var agent = document.createElement('span');
-                agent.style.color = sevColors[r.severity] || '#a78bfa';
-                agent.textContent = (r.director_agent||'') + ' [' + (r.severity||'').toUpperCase() + ']';
-                var dept = document.createElement('span');
-                dept.style.color = '#64748b';
-                dept.textContent = r.department || '';
-                meta.appendChild(agent); meta.appendChild(dept);
-                var title = document.createElement('div');
-                title.style.cssText = 'font-size:0.75rem;color:#e0e0e0;font-weight:500;margin-bottom:4px;';
-                title.textContent = r.title || '';
-                var summary = document.createElement('div');
-                summary.style.cssText = 'font-size:0.7rem;color:#9ca3af;margin-bottom:6px;';
-                summary.textContent = (r.summary||'').substring(0, 100);
-                var btns = document.createElement('div');
-                btns.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;';
-                [['suppress','#9ca3af','rgba(75,85,99,0.3)','#374151'],
-                 ['consolidate','#60a5fa','rgba(96,165,250,0.15)','rgba(96,165,250,0.4)'],
-                 ['resolve','#10b981','rgba(16,185,129,0.15)','rgba(16,185,129,0.4)'],
-                 ['escalate','#ef4444','rgba(239,68,68,0.15)','rgba(239,68,68,0.4)']].forEach(function(b) {
-                    var btn = document.createElement('button');
-                    btn.style.cssText = 'padding:2px 8px;background:'+b[2]+';border:1px solid '+b[3]+';border-radius:4px;color:'+b[1]+';font-size:0.65rem;cursor:pointer;';
-                    btn.textContent = b[0].charAt(0).toUpperCase()+b[0].slice(1);
-                    btn.setAttribute('data-id', r.id);
-                    btn.setAttribute('data-action', b[0]);
-                    btn.addEventListener('click', function() { _comsAckReport(this.getAttribute('data-id'), this.getAttribute('data-action')); });
-                    btns.appendChild(btn);
+    function _comsRelTime(ts) {
+        if (!ts) return '—';
+        var diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+        if (diff < 60) return diff + 's ago';
+        if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+        if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+        return Math.floor(diff / 86400) + 'd ago';
+    }
+
+    window.loadComsInbox = function() {
+        var showAll = document.getElementById('coms-show-all') &&
+                      document.getElementById('coms-show-all').checked;
+        var url = showAll
+            ? '/api/department-hq/api/coms/director-reports'
+            : '/api/department-hq/api/coms/director-reports/pending';
+
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var reports = data.reports || data || [];
+                var listEl = document.getElementById('coms-inbox-list');
+                var badge = document.getElementById('coms-pending-count');
+                var pending = reports.filter(function(r) {
+                    return r.triage_status === 'pending' || !r.triage_status;
                 });
-                card.appendChild(meta); card.appendChild(title); card.appendChild(summary); card.appendChild(btns);
-                box.appendChild(card);
-            });
-        } catch(e2) {
-            box.textContent = '';
-            _comsMsg(box, 'Inbox unavailable.');
-        }
+
+                if (badge) {
+                    badge.textContent = pending.length;
+                    badge.className = 'coms-pending-badge' + (pending.length === 0 ? ' empty' : '');
+                }
+
+                if (!listEl) return;
+                listEl.textContent = '';
+
+                if (reports.length === 0) {
+                    var empty = document.createElement('div');
+                    empty.className = 'coms-inbox-empty-state';
+                    empty.textContent = 'Inbox clear ✓';
+                    listEl.appendChild(empty);
+                    return;
+                }
+
+                reports.forEach(function(r) {
+                    var row = document.createElement('div');
+                    row.className = 'coms-inbox-row' + (r.id === window._comsSelectedId ? ' active' : '');
+                    row.dataset.id = r.id;
+                    row.onclick = (function(rep) {
+                        return function() { window.comsSelectReport(rep); };
+                    }(r));
+
+                    var sev = document.createElement('div');
+                    sev.className = 'cir-severity ' + _comsSevClass(r.severity);
+                    sev.textContent = '● ' + (r.severity || 'info').toUpperCase() +
+                        '  ·  ' + (r.director_agent || r.source_agent || '?');
+
+                    var titleEl = document.createElement('div');
+                    titleEl.className = 'cir-title';
+                    titleEl.textContent = r.title || '';
+
+                    var metaEl = document.createElement('div');
+                    metaEl.className = 'cir-meta';
+                    metaEl.textContent = _comsRelTime(r.created_at);
+
+                    row.appendChild(sev);
+                    row.appendChild(titleEl);
+                    row.appendChild(metaEl);
+                    listEl.appendChild(row);
+                });
+
+                if (window._comsSelectedId) {
+                    var sel = reports.find(function(r) { return r.id === window._comsSelectedId; });
+                    if (sel) window._comsRenderDetail(sel);
+                }
+            })
+            .catch(function(err) { console.error('[COMs inbox]', err); });
     };
 
-    async function _comsAckReport(id, action) {
-        await fetch('/api/department-hq/api/coms/director-reports/' + id + '/ack', {
-            method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({action: action})
+    window.comsSelectReport = function(report) {
+        window._comsSelectedId = report.id;
+        document.querySelectorAll('.coms-inbox-row').forEach(function(el) {
+            el.classList.toggle('active', parseInt(el.dataset.id, 10) === report.id);
         });
+        window._comsRenderDetail(report);
+    };
+
+    window._comsRenderDetail = function(r) {
+        var el = document.getElementById('coms-inbox-detail');
+        if (!el) return;
+        el.className = 'coms-inbox-detail';
+        el.textContent = '';
+
+        var sev = document.createElement('div');
+        sev.className = 'coms-detail-severity ' + _comsSevClass(r.severity);
+        sev.textContent = '● ' + (r.severity || 'INFO').toUpperCase();
+        el.appendChild(sev);
+
+        var titleEl = document.createElement('div');
+        titleEl.className = 'coms-detail-title';
+        titleEl.textContent = r.title || '';
+        el.appendChild(titleEl);
+
+        var meta = document.createElement('div');
+        meta.className = 'coms-detail-meta';
+        [
+            ['Agent', r.director_agent || r.source_agent || '—'],
+            ['Department', r.department || '—'],
+            ['Received', _comsRelTime(r.created_at)],
+            ['Status', r.triage_status || 'pending'],
+        ].forEach(function(pair) {
+            var label = document.createElement('span');
+            label.textContent = pair[0];
+            var value = document.createElement('span');
+            value.textContent = pair[1];
+            meta.appendChild(label);
+            meta.appendChild(value);
+        });
+        el.appendChild(meta);
+
+        var summary = document.createElement('div');
+        summary.className = 'coms-detail-summary';
+        summary.textContent = r.summary || r.message || '—';
+        el.appendChild(summary);
+
+        var actions = document.createElement('div');
+        actions.className = 'coms-detail-actions';
+        [
+            {action: 'escalate',    label: 'Escalate →', cls: 'escalate'},
+            {action: 'suppress',    label: 'Suppress',         cls: 'suppress'},
+            {action: 'resolve',     label: 'Resolve ✓',   cls: 'resolve'},
+            {action: 'consolidate', label: 'Consolidate',      cls: 'consolidate'},
+        ].forEach(function(b) {
+            var btn = document.createElement('button');
+            btn.className = 'coms-action-btn ' + b.cls;
+            btn.textContent = b.label;
+            btn.onclick = (function(reportId, action) {
+                return function() { window.comsAck(reportId, action); };
+            }(r.id, b.action));
+            actions.appendChild(btn);
+        });
+        el.appendChild(actions);
+
+        var link = document.createElement('a');
+        link.className = 'coms-open-archie-link';
+        link.href = 'https://archie.kytranempowerment.com';
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = 'Open in A.R.C.H.I.E. ↗';
+        el.appendChild(link);
+    };
+
+    window.comsAck = function(id, action) {
+        fetch('/api/department-hq/api/coms/director-reports/' + id + '/ack', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: action, reason: 'Manual ' + action + ' from platform inbox'}),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function() {
+            window._comsSelectedId = null;
+            var detail = document.getElementById('coms-inbox-detail');
+            if (detail) {
+                detail.className = 'coms-inbox-detail empty';
+                detail.textContent = 'Select a report to view details';
+            }
+            window.loadComsInbox();
+        })
+        .catch(function(err) { console.error('[COMs ack]', err); });
+    };
+
+    window.comsMarkAllResolved = function() {
+        if (!confirm('Mark all pending reports as resolved?')) return;
+        fetch('/api/department-hq/api/coms/director-reports/pending')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var reports = data.reports || data || [];
+                var pending = reports.filter(function(r) {
+                    return r.triage_status === 'pending' || !r.triage_status;
+                });
+                return Promise.all(pending.map(function(r) {
+                    return fetch('/api/department-hq/api/coms/director-reports/' + r.id + '/ack', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({action: 'resolve', reason: 'Bulk resolve from platform inbox'}),
+                    });
+                }));
+            })
+            .then(function() { window.loadComsInbox(); })
+            .catch(function(err) { console.error('[COMs mark-all]', err); });
+    };
+
+    window._startComsInboxPoll = function() {
         window.loadComsInbox();
-    }
+        clearInterval(window._comsInboxTimer);
+        window._comsInboxTimer = setInterval(window.loadComsInbox, 10000);
+    };
+
+    window._stopComsInboxPoll = function() {
+        clearInterval(window._comsInboxTimer);
+    };
+    // ─────────────────────────────────────────────────────────────────────────
 
     // ── Classification Rules (#2262 / #2263) ────────────────────────────────
     window.loadComsPolicies = async function() {

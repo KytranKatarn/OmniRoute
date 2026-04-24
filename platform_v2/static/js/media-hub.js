@@ -2123,6 +2123,7 @@ async function loadShows(append = false) {
 let allRequests = [];
 let currentRequestsFilter = 'active';
 let currentRequestsLimit = 10;
+let queueProgress = {};
 
 async function loadRequests() {
     const container = document.getElementById('requestsList');
@@ -2132,8 +2133,15 @@ async function loadRequests() {
     container.appendChild(createLoadingElement('Loading requests...'));
 
     try {
-        const response = await fetch(`${API_BASE}/requests`);
+        const [response, progressResponse] = await Promise.all([
+            fetch(`${API_BASE}/requests`),
+            fetch(`${API_BASE}/requests/queue-progress`).catch(() => null)
+        ]);
         const data = await response.json();
+        if (progressResponse?.ok) {
+            const pd = await progressResponse.json();
+            if (pd.success) queueProgress = pd.progress || {};
+        }
 
         container.textContent = '';
 
@@ -2279,6 +2287,24 @@ function createRequestCard(req) {
     info.appendChild(title);
     info.appendChild(meta);
     info.appendChild(status);
+
+    // Download progress bar for processing items
+    if (req.status === 'processing' && req.tmdb_id) {
+        const p = queueProgress[String(req.tmdb_id)];
+        if (p && p.percent >= 0) {
+            const bar = document.createElement('div');
+            bar.className = 'download-progress';
+            const fill = document.createElement('div');
+            fill.className = 'download-progress-bar';
+            fill.style.width = `${p.percent}%`;
+            bar.appendChild(fill);
+            const label = document.createElement('span');
+            label.className = 'download-progress-text';
+            label.textContent = p.eta ? `${p.percent}% · ${p.eta}` : `${p.percent}%`;
+            info.appendChild(bar);
+            info.appendChild(label);
+        }
+    }
 
     card.appendChild(poster);
     card.appendChild(info);

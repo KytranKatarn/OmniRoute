@@ -542,6 +542,24 @@ def api_retry_scan():
                 results.append({"service": name, "ok": r.status_code in (200, 201)})
             except Exception as e:
                 results.append({"service": name, "ok": False, "error": str(e)})
+
+    # Also trigger Plex library scan so newly imported files appear immediately
+    for _, stype, name, host, port, use_ssl, enc, *_ in _rows_for_type("plex"):
+        key = _decrypt_key(enc)
+        if not key:
+            continue
+        scheme = "https" if use_ssl else "http"
+        try:
+            r = requests.get(
+                f"{scheme}://{host}:{port}/library/sections/all/refresh",
+                params={"X-Plex-Token": key},
+                timeout=8,
+                verify=False,
+            )
+            results.append({"service": name, "ok": r.status_code in (200, 201)})
+        except Exception as e:
+            results.append({"service": name, "ok": False, "error": str(e)})
+
     return jsonify({"success": True, "results": results})
 
 

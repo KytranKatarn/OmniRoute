@@ -912,6 +912,45 @@ def api_requests():
         return jsonify({"success": False, "error": str(e), "requests": []})
 
 
+@media_hub_bp.route("/api/requests/queue-progress")
+def api_requests_queue_progress():
+    """Return download percentage per tmdb_id for items currently in
+    Radarr/Sonarr queues. Used by the requests tab to show progress bars."""
+    progress = {}
+
+    for service_type, arr_type in [("radarr", "movie"), ("sonarr", "tv")]:
+        cfg = get_service_config(service_type)
+        if not cfg or not cfg.get("api_key"):
+            continue
+        try:
+            import requests as req_lib
+
+            scheme = "https" if cfg["use_ssl"] else "http"
+            r = req_lib.get(
+                f"{scheme}://{cfg['host']}:{cfg['port']}/api/v3/queue"
+                "?pageSize=50&includeMovie=true&includeSeries=true",
+                headers={"X-Api-Key": cfg["api_key"]},
+                timeout=5,
+            )
+            if r.status_code != 200:
+                continue
+            for item in r.json().get("records", []):
+                tmdb_id = (item.get("movie") or {}).get("tmdbId") or (item.get("series") or {}).get("tmdbId")
+                size = item.get("size", 0)
+                sizeleft = item.get("sizeleft", 0)
+                if tmdb_id and size > 0:
+                    pct = round((1 - sizeleft / size) * 100)
+                    progress[str(tmdb_id)] = {
+                        "percent": max(0, min(100, pct)),
+                        "eta": item.get("timeleft"),
+                        "status": item.get("trackedDownloadState"),
+                    }
+        except Exception as e:
+            logger.debug(f"queue-progress {service_type} error: {e}")
+
+    return jsonify({"success": True, "progress": progress})
+
+
 @media_hub_bp.route("/api/requests", methods=["POST"])
 def api_create_request():
     """Create a new media request"""

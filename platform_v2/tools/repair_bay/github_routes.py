@@ -653,3 +653,43 @@ def register_github_routes(bp, admin_required):
 
         mark_review_skipped(pr_number)
         return jsonify({"success": True})
+
+    @bp.route("/api/forge/pr-reviews/<int:pr_number>/merge", methods=["POST"])
+    @login_required
+    @admin_required
+    def forge_pr_review_merge(pr_number):
+        """Merge a PR via GitHub API (squash merge). State syncs on next poll cycle."""
+        import requests as _req
+        import os
+
+        from .services.pr_review_service import get_review
+
+        review = get_review(pr_number)
+        if not review:
+            return jsonify({"error": f"PR #{pr_number} not found"}), 404
+
+        github_token = os.getenv("GITHUB_TOKEN", "")
+        if not github_token:
+            return jsonify({"error": "GITHUB_TOKEN not configured"}), 500
+
+        repo = review.get("repo", "KytranKatarn/archie-platform")
+        title = review.get("title", f"PR #{pr_number}")
+
+        resp = _req.put(
+            f"https://api.github.com/repos/{repo}/pulls/{pr_number}/merge",
+            headers={
+                "Authorization": f"token {github_token}",
+                "Accept": "application/vnd.github.v3+json",
+            },
+            json={
+                "commit_title": f"Merge PR #{pr_number}: {title}",
+                "merge_method": "squash",
+            },
+            timeout=15,
+        )
+
+        if resp.status_code in (200, 201):
+            return jsonify({"success": True, "merged": True, "message": resp.json().get("message", "Merged")})
+        else:
+            err = resp.json().get("message", resp.text[:200])
+            return jsonify({"success": False, "merged": False, "error": err}), resp.status_code

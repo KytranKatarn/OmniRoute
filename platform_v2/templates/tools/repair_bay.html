@@ -22,6 +22,7 @@
 ] %}
 {% set header_tabs = [
     ("reviews", "Reviews", "message-square"),
+    ("pr-review", "PR Review", "git-pull-request"),
     ("proposals", "Repairs", "wrench"),
     ("scan", "Diagnose", "shield-check"),
     ("sandbox", "Test Bay", "test-tube-2"),
@@ -252,6 +253,40 @@
         </div>
       </div>
     </div>
+
+        <!-- ── PR Review Tab (#1801) ── -->
+        <div id="tab-pr-review" class="tab-content">
+          <div class="lcars-frame">
+            <div class="lcars-sidebar" style="background:var(--cat-accent,#00ffff)">
+              <div class="lcars-bar"></div><div class="lcars-bar"></div>
+            </div>
+            <div class="lcars-main">
+              <div class="lcars-header-bar" style="border-color:var(--cat-accent,#00ffff)">
+                <span class="lcars-title">PR REVIEWS</span>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <button class="dp-btn" onclick="window.loadPRReviews()">
+                    <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Refresh
+                  </button>
+                  <button class="dp-btn"
+                    onclick="fetch('/tools/repair-bay/api/forge/pr-reviews/poll',{method:'POST'}).then(function(){window.loadPRReviews();}).catch(function(e){console.error('[PR Poll]',e);})">
+                    Poll GitHub
+                  </button>
+                </div>
+              </div>
+              <div style="padding:12px">
+                <div class="dp-pr-split">
+                  <div class="dp-pr-list" id="prReviewList">
+                    <div class="dp-pr-empty-state">Loading...</div>
+                  </div>
+                  <div class="dp-pr-detail dp-pr-detail--empty" id="prReviewDetail">
+                    Select a PR to view the review
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- ── End PR Review Tab ── -->
 
     <!-- Proposals Tab -->
     <div id="tab-proposals" class="tab-content">
@@ -2441,6 +2476,7 @@ function loadVulnerabilities() {
 
 // Tab switching with hash navigation
 function switchTab(tabId) {
+    window._stopPRReviewPoll();
     document.querySelectorAll('.tab-content').forEach(function(el) {
         el.classList.remove('active');
     });
@@ -2457,6 +2493,7 @@ function switchTab(tabId) {
     // static/js/repair-bay-main.js and internally nudge any relevant inline
     // legacy loaders (loadSandboxes/loadTestRuns/loadProposals/etc).
     if (tabId === 'reviews') loadReviews();
+    else if (tabId === 'pr-review') { window._startPRReviewPoll(); }
     if (tabId === 'proposals') loadRepairs();
     if (tabId === 'scan') loadDiagnose();
     if (tabId === 'sandbox') loadTestBay();

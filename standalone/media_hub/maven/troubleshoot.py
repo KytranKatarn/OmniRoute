@@ -526,6 +526,32 @@ def api_troubleshoot():
     return jsonify(run_diagnostic())
 
 
+@maven_bp.route("/api/overseerr-sync", methods=["POST"])
+@login_required
+def api_overseerr_sync():
+    """Trigger Overseerr availability-sync + radarr-scan so media that was
+    manually imported gets marked available without waiting for the nightly run."""
+    _require_admin()
+    results = []
+    for _, stype, name, host, port, use_ssl, enc, *_ in _rows_for_type("overseerr", "jellyseerr"):
+        key = _decrypt_key(enc)
+        if not key:
+            continue
+        scheme = "https" if use_ssl else "http"
+        base = f"{scheme}://{host}:{port}"
+        for job in ("availability-sync", "radarr-scan"):
+            try:
+                r = requests.post(
+                    f"{base}/api/v1/settings/jobs/{job}/run",
+                    headers={"X-Api-Key": key},
+                    timeout=8,
+                )
+                results.append({"service": name, "job": job, "ok": r.status_code == 200})
+            except Exception as e:
+                results.append({"service": name, "job": job, "ok": False, "error": str(e)})
+    return jsonify({"success": True, "results": results})
+
+
 @maven_bp.route("/api/retry-scan", methods=["POST"])
 @login_required
 def api_retry_scan():

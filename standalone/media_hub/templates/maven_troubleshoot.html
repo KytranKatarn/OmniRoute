@@ -14,6 +14,8 @@
     <span class="stat">generated {{ report.generated_at }}</span>
     <span class="spacer" style="flex:1"></span>
     <button class="run-btn" onclick="location.reload()">Re-run</button>
+    <button class="run-btn" style="background:#7c3aed;margin-left:0.5rem"
+            onclick="syncOverseerr(this)">Sync Overseerr</button>
 </div>
 
 {% for check in report.checks %}
@@ -34,6 +36,19 @@
 {% endfor %}
 
 <script>
+async function syncOverseerr(btn) {
+    btn.disabled = true;
+    btn.textContent = 'Syncing…';
+    try {
+        const r = await fetch('/maven/api/overseerr-sync', {method: 'POST'});
+        const d = await r.json();
+        const allOk = d.results && d.results.every(x => x.ok);
+        btn.textContent = allOk ? 'Synced — refresh Requests tab in ~30s' : 'Partial failure';
+    } catch (e) {
+        btn.textContent = 'Failed';
+    }
+}
+
 async function retryImportScan(btn) {
     btn.disabled = true;
     btn.textContent = 'Scanning…';

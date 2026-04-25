@@ -13,6 +13,8 @@ Env vars required:
     KYTRAN_REDIRECT_URI    — Callback URL for this product
 """
 
+import base64
+import hashlib
 import os
 import secrets
 from functools import wraps
@@ -61,12 +63,25 @@ class KytranAuth:
             session["oauth_state"] = state
             session["oauth_next"] = request.args.get("next", "/")
 
+            # PKCE — generate code_verifier and S256 code_challenge
+            code_verifier = secrets.token_urlsafe(64)
+            code_challenge = (
+                base64.urlsafe_b64encode(
+                    hashlib.sha256(code_verifier.encode()).digest()
+                )
+                .rstrip(b"=")
+                .decode()
+            )
+            session["oauth_code_verifier"] = code_verifier
+
             authorize_url = (
                 f"{sdk.auth_url}/oauth/authorize"
                 f"?client_id={sdk.client_id}"
                 f"&redirect_uri={sdk.redirect_uri}"
                 f"&response_type=code"
                 f"&state={state}"
+                f"&code_challenge={code_challenge}"
+                f"&code_challenge_method=S256"
             )
             return redirect(authorize_url)
 
@@ -81,16 +96,21 @@ class KytranAuth:
                 error = request.args.get("error", "unknown")
                 return f"Authorization failed: {error}", 400
 
+            code_verifier = session.pop("oauth_code_verifier", None)
+            token_payload = {
+                "grant_type": "authorization_code",
+                "code": code,
+                "client_id": sdk.client_id,
+                "client_secret": sdk.client_secret,
+                "redirect_uri": sdk.redirect_uri,
+            }
+            if code_verifier:
+                token_payload["code_verifier"] = code_verifier
+
             try:
                 token_resp = requests.post(
                     f"{sdk.auth_url}/oauth/token",
-                    data={
-                        "grant_type": "authorization_code",
-                        "code": code,
-                        "client_id": sdk.client_id,
-                        "client_secret": sdk.client_secret,
-                        "redirect_uri": sdk.redirect_uri,
-                    },
+                    data=token_payload,
                     timeout=10,
                 )
                 if token_resp.status_code != 200:

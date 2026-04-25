@@ -13,10 +13,11 @@ Env vars required:
     KYTRAN_REDIRECT_URI    — Callback URL for this product
 """
 
-import os
-import time
+import base64
 import hashlib
+import os
 import secrets
+import time
 from functools import wraps
 
 import requests
@@ -41,6 +42,7 @@ class KytranAuth:
         self.client_secret = None
         self.auth_url = None
         self.redirect_uri = None
+        self.internal_url = None
         self.app = None
         self._on_login = None
         if app:
@@ -53,6 +55,11 @@ class KytranAuth:
         self.client_secret = app.config.get("KYTRAN_CLIENT_SECRET") or os.environ.get("KYTRAN_CLIENT_SECRET", "")
         self.auth_url = app.config.get("KYTRAN_AUTH_URL") or os.environ.get("KYTRAN_AUTH_URL", "https://platform.kytranempowerment.com")
         self.redirect_uri = app.config.get("KYTRAN_REDIRECT_URI") or os.environ.get("KYTRAN_REDIRECT_URI", "")
+        self.internal_url = (
+            app.config.get("KYTRAN_AUTH_INTERNAL_URL")
+            or os.environ.get("KYTRAN_AUTH_INTERNAL_URL", "")
+            or self.auth_url
+        )
 
         self._register_routes(app)
 
@@ -71,16 +78,28 @@ class KytranAuth:
             state = secrets.token_urlsafe(32)
             next_url = request.args.get("next", "/dashboard")
 
+            # PKCE — generate code_verifier and S256 code_challenge
+            code_verifier = secrets.token_urlsafe(64)
+            code_challenge = (
+                base64.urlsafe_b64encode(
+                    hashlib.sha256(code_verifier.encode()).digest()
+                )
+                .rstrip(b"=")
+                .decode()
+            )
+
             # Store state in memory (not session — avoids cookie issues behind proxies)
             _clean_expired_states()
             _pending_states[state] = {
                 "next": next_url,
                 "expires": time.time() + 600,  # 10 min expiry
+                "code_verifier": code_verifier,
             }
 
             # Also store in session as backup
             session["oauth_state"] = state
             session["oauth_next"] = next_url
+            session["oauth_code_verifier"] = code_verifier
 
             authorize_url = (
                 f"{sdk.auth_url}/oauth/authorize"
@@ -88,6 +107,8 @@ class KytranAuth:
                 f"&redirect_uri={sdk.redirect_uri}"
                 f"&response_type=code"
                 f"&state={state}"
+                f"&code_challenge={code_challenge}"
+                f"&code_challenge_method=S256"
             )
             return redirect(authorize_url)
 
@@ -113,22 +134,32 @@ class KytranAuth:
             else:
                 next_url = session.pop("oauth_next", "/dashboard")
 
+            # Retrieve PKCE verifier (from state store, fall back to session)
+            code_verifier = (
+                state_data.get("code_verifier") if state_data
+                else session.pop("oauth_code_verifier", None)
+            )
+
             code = request.args.get("code")
             if not code:
                 error = request.args.get("error", "unknown")
                 return f"Authorization failed: {error}", 400
 
             # Exchange code for token
+            token_payload = {
+                "grant_type": "authorization_code",
+                "code": code,
+                "client_id": sdk.client_id,
+                "client_secret": sdk.client_secret,
+                "redirect_uri": sdk.redirect_uri,
+            }
+            if code_verifier:
+                token_payload["code_verifier"] = code_verifier
+
             try:
                 token_resp = requests.post(
-                    f"{sdk.auth_url}/oauth/token",
-                    data={
-                        "grant_type": "authorization_code",
-                        "code": code,
-                        "client_id": sdk.client_id,
-                        "client_secret": sdk.client_secret,
-                        "redirect_uri": sdk.redirect_uri,
-                    },
+                    f"{sdk.internal_url}/oauth/token",
+                    data=token_payload,
                     timeout=15,
                 )
                 if token_resp.status_code != 200:
@@ -152,7 +183,7 @@ class KytranAuth:
             # Get user info
             try:
                 userinfo_resp = requests.get(
-                    f"{sdk.auth_url}/oauth/userinfo",
+                    f"{sdk.internal_url}/oauth/userinfo",
                     headers={"Authorization": f"Bearer {access_token}"},
                     timeout=15,
                 )

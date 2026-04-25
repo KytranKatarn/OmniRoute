@@ -9,6 +9,8 @@ Endpoints:
 Tables: oauth_clients, oauth_codes (created by Task 1 migration)
 """
 
+import base64
+import hashlib
 import secrets
 from datetime import datetime, timedelta
 
@@ -17,6 +19,12 @@ from flask import Blueprint, redirect, request, jsonify
 from flask_login import login_required, current_user
 
 from database import get_db_cursor
+
+
+def _verify_pkce_s256(code_verifier: str, code_challenge: str) -> bool:
+    computed = base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest()).rstrip(b"=").decode()
+    return computed == code_challenge
+
 
 oauth_provider_bp = Blueprint("oauth_provider", __name__, url_prefix="/oauth")
 
@@ -59,15 +67,31 @@ def authorize():
     if row["redirect_uri"] != redirect_uri:
         return jsonify({"error": "redirect_uri mismatch"}), 400
 
+    # Capture optional PKCE parameters
+    code_challenge = request.args.get("code_challenge") or None
+    code_challenge_method = request.args.get("code_challenge_method", "S256") if code_challenge else None
+    if code_challenge_method and code_challenge_method not in ("S256", "plain"):
+        return jsonify({"error": "unsupported code_challenge_method"}), 400
+
     # Generate code and store with 5-minute expiry
     code = secrets.token_urlsafe(48)
     expires_at = datetime.utcnow() + timedelta(minutes=5)
 
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            """INSERT INTO oauth_codes (code, client_id, user_id, redirect_uri, expires_at)
-               VALUES (%s, %s, %s, %s, %s)""",
-            (code, client_id, current_user.id, redirect_uri, expires_at),
+            """INSERT INTO oauth_codes
+                   (code, client_id, user_id, redirect_uri, expires_at,
+                    code_challenge, code_challenge_method)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+            (
+                code,
+                client_id,
+                current_user.id,
+                redirect_uri,
+                expires_at,
+                code_challenge,
+                code_challenge_method,
+            ),
         )
 
     # Redirect back to the client with the code + state (OAuth 2.0 spec)
@@ -92,6 +116,7 @@ def token():
     client_id = data.get("client_id")
     client_secret = data.get("client_secret")
     redirect_uri = data.get("redirect_uri")
+    code_verifier = data.get("code_verifier") or None
 
     if grant_type != "authorization_code":
         return jsonify({"error": "unsupported_grant_type"}), 400
@@ -113,7 +138,8 @@ def token():
     # Validate and consume the authorization code
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            """SELECT user_id, redirect_uri, expires_at, used
+            """SELECT user_id, redirect_uri, expires_at, used,
+                      code_challenge, code_challenge_method
                FROM oauth_codes
                WHERE code = %s AND client_id = %s""",
             (code, client_id),
@@ -129,6 +155,18 @@ def token():
             return jsonify({"error": "code_expired"}), 400
         if code_row["redirect_uri"] != redirect_uri:
             return jsonify({"error": "redirect_uri_mismatch"}), 400
+
+        # Verify PKCE if the code was issued with a challenge
+        if code_row["code_challenge"]:
+            if not code_verifier:
+                return jsonify({"error": "code_verifier required for PKCE"}), 400
+            method = code_row["code_challenge_method"] or "S256"
+            if method == "S256":
+                if not _verify_pkce_s256(code_verifier, code_row["code_challenge"]):
+                    return jsonify({"error": "invalid_pkce_verifier"}), 400
+            elif method == "plain":
+                if code_verifier != code_row["code_challenge"]:
+                    return jsonify({"error": "invalid_pkce_verifier"}), 400
 
         user_id = code_row["user_id"]
 

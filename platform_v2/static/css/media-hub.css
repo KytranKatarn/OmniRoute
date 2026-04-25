@@ -4172,9 +4172,6 @@ body.light-mode .stat-value { color: #1a1a1a; }
 .season-tabs::-webkit-scrollbar-track { background: transparent; }
 .season-tabs::-webkit-scrollbar-thumb { background: var(--archie-border-subtle); border-radius: 2px; }
 
-.season-tab-full { display: inline; }
-.season-tab-short { display: none; }
-
 .season-tab {
     display: flex;
     align-items: center;
@@ -4505,8 +4502,6 @@ body.light-mode .stat-value { color: #1a1a1a; }
     .episode-browser-header { padding: 10px 12px; }
     .season-tabs { padding: 6px 8px; }
     .season-tab { padding: 6px 12px; font-size: 0.8rem; }
-    .season-tab-full { display: none; }
-    .season-tab-short { display: inline; }
     .episode-list { max-height: 200px; padding: 6px; }
     .episode-card { padding: 8px 10px; gap: 10px; }
     .episode-number { width: 28px; height: 28px; font-size: 0.8rem; }

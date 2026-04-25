@@ -3380,15 +3380,7 @@ async function loadSeasonsAsTabs(seriesId, showTitle, seasonTabs, episodeList) {
                 const tab = document.createElement('button');
                 tab.className = 'season-tab' + (index === 0 ? ' active' : '');
                 tab.dataset.seasonNumber = season.season_number;
-                // Full label on desktop, abbreviated on mobile
-                const fullSpan = document.createElement('span');
-                fullSpan.className = 'season-tab-full';
-                fullSpan.textContent = season.name;
-                const shortSpan = document.createElement('span');
-                shortSpan.className = 'season-tab-short';
-                shortSpan.textContent = season.season_number === 0 ? 'Sp' : `S${season.season_number}`;
-                tab.appendChild(fullSpan);
-                tab.appendChild(shortSpan);
+                tab.textContent = season.season_number === 0 ? 'Sp' : `S${season.season_number}`;
 
                 // Episode count badge
                 if (season.episode_count) {

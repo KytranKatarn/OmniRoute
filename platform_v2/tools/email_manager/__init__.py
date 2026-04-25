@@ -26,3 +26,8 @@ register_inbox_routes(email_manager_bp, admin_required)
 from .sent_routes import register_sent_routes  # noqa: F401, E402
 
 register_sent_routes(email_manager_bp, admin_required)
+
+# Compose/Send routes
+from .compose_routes import register_compose_routes  # noqa: F401, E402
+
+register_compose_routes(email_manager_bp, admin_required)

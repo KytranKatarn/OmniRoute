@@ -68,6 +68,9 @@
 
     <!-- ── INBOX TAB ───────────────────────────────────────────── -->
     <div id="tab-inbox" class="tab-content" style="display:none;">
+        <div style="margin-bottom:10px;display:flex;justify-content:flex-end;">
+            <button class="em-bulk-btn" onclick="openComposeModal()">✉ Compose</button>
+        </div>
         <div class="em-split">
             <div class="em-sidebar" id="em-inbox-sidebar"></div>
             <div class="em-main" id="em-inbox-main"><div class="em-empty">Select a mailbox</div></div>
@@ -99,6 +102,47 @@
     <!-- ── SETTINGS TAB ────────────────────────────────────────── -->
     <div id="tab-settings" class="tab-content" style="display:none;">
         <div class="em-empty" style="height:200px;">Stalwart settings — coming in Task 6</div>
+    </div>
+</div>
+
+<!-- ── COMPOSE MODAL ──────────────────────────────────────────── -->
+<div id="compose-modal" class="bm-overlay" style="display:none;">
+    <div class="bm-shell">
+        <div class="bm-frame"></div>
+        <div class="bm-content" style="--bm-accent:#00d4ff;min-width:480px;max-width:600px;width:90vw;">
+            <div class="bm-header" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>Compose Email</span>
+                <button onclick="closeComposeModal()" style="background:none;border:none;color:var(--archie-muted);cursor:pointer;font-size:18px;line-height:1;">✕</button>
+            </div>
+            <div class="bm-body" style="padding:16px 20px;">
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:11px;color:var(--archie-muted);display:block;margin-bottom:4px;letter-spacing:.08em;">FROM</label>
+                    <select id="compose-from" style="width:100%;background:var(--archie-surface);color:var(--archie-text);border:1px solid var(--archie-border);padding:8px;border-radius:4px;font-size:13px;"></select>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:11px;color:var(--archie-muted);display:block;margin-bottom:4px;letter-spacing:.08em;">TO</label>
+                    <input id="compose-to" type="email" placeholder="recipient@example.com"
+                           style="width:100%;background:var(--archie-surface);color:var(--archie-text);border:1px solid var(--archie-border);padding:8px;border-radius:4px;font-size:13px;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:11px;color:var(--archie-muted);display:block;margin-bottom:4px;letter-spacing:.08em;">SUBJECT</label>
+                    <input id="compose-subject" type="text" placeholder="Subject"
+                           style="width:100%;background:var(--archie-surface);color:var(--archie-text);border:1px solid var(--archie-border);padding:8px;border-radius:4px;font-size:13px;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:11px;color:var(--archie-muted);display:block;margin-bottom:4px;letter-spacing:.08em;">MESSAGE</label>
+                    <textarea id="compose-body" rows="8" placeholder="Write your message…"
+                              style="width:100%;background:var(--archie-surface);color:var(--archie-text);border:1px solid var(--archie-border);padding:8px;border-radius:4px;font-size:13px;font-family:inherit;box-sizing:border-box;resize:vertical;"></textarea>
+                </div>
+                <div id="compose-status" style="font-size:12px;margin-bottom:4px;display:none;"></div>
+            </div>
+            <div class="bm-footer" style="display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;">
+                <button onclick="closeComposeModal()"
+                        style="background:var(--archie-surface);color:var(--archie-muted);border:1px solid var(--archie-border);padding:8px 16px;border-radius:4px;cursor:pointer;font-size:13px;">Cancel</button>
+                <button id="compose-send-btn" onclick="sendCompose()"
+                        style="background:#00d4ff;color:#000;border:none;padding:8px 20px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600;">Send</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -459,6 +503,83 @@
                 loadEmailSent('');
             });
     }
+
+    // ── Compose modal ─────────────────────────────────────────────
+    window.openComposeModal = function() {
+        fetch('/tools/email-manager/api/email/compose/mailboxes')
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                var sel = document.getElementById('compose-from');
+                clearEl(sel);
+                (d.mailboxes || []).forEach(function(m) {
+                    var opt = document.createElement('option');
+                    opt.value = m.address;
+                    opt.textContent = m.display_name ? m.display_name + ' <' + m.address + '>' : m.address;
+                    sel.appendChild(opt);
+                });
+            });
+        ['compose-to', 'compose-subject', 'compose-body'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        var status = document.getElementById('compose-status');
+        if (status) { status.style.display = 'none'; status.textContent = ''; }
+        var btn = document.getElementById('compose-send-btn');
+        if (btn) { btn.disabled = false; btn.textContent = 'Send'; }
+        document.getElementById('compose-modal').style.display = 'flex';
+    };
+
+    window.closeComposeModal = function() {
+        document.getElementById('compose-modal').style.display = 'none';
+    };
+
+    window.sendCompose = function() {
+        var fromEl = document.getElementById('compose-from');
+        var from_address = fromEl ? fromEl.value : '';
+        var to_address = (document.getElementById('compose-to').value || '').trim();
+        var subject = (document.getElementById('compose-subject').value || '').trim();
+        var body = (document.getElementById('compose-body').value || '').trim();
+        var status = document.getElementById('compose-status');
+        var btn = document.getElementById('compose-send-btn');
+
+        if (!to_address || !subject) {
+            status.style.display = 'block';
+            status.style.color = '#ff6b6b';
+            status.textContent = 'To and Subject are required.';
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        status.style.display = 'block';
+        status.style.color = 'var(--archie-muted)';
+        status.textContent = 'Sending…';
+
+        fetch('/tools/email-manager/api/email/compose/send', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({from_address: from_address, to_address: to_address, subject: subject, body: body})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.success) {
+                status.style.color = '#4ade80';
+                status.textContent = '✓ Sent successfully.';
+                setTimeout(function() { closeComposeModal(); loadEmailSentSidebar(); }, 1200);
+            } else {
+                status.style.color = '#ff6b6b';
+                status.textContent = d.error || 'Send failed.';
+                btn.disabled = false;
+                btn.textContent = 'Send';
+            }
+        })
+        .catch(function() {
+            status.style.color = '#ff6b6b';
+            status.textContent = 'Network error — please try again.';
+            btn.disabled = false;
+            btn.textContent = 'Send';
+        });
+    };
 
 }());
 </script>

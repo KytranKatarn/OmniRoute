@@ -1,0 +1,66 @@
+"""Rolling aggregate outlet bias scores — recomputed after each ingest pass.
+
+Aggregates the last 30 days of article bias_scores per source and writes
+to wtf.outlet_bias_scores (one row per source, upserted each run).
+"""
+import logging
+import os
+from sqlalchemy import text
+
+logger = logging.getLogger(__name__)
+WINDOW_DAYS = int(os.environ.get("WTF_OUTLET_BIAS_WINDOW_DAYS", "30"))
+
+_BANDS = [
+    (-0.6, "left"),
+    (-0.2, "center-left"),
+    (0.2, "center"),
+    (0.6, "center-right"),
+    (1.01, "right"),
+]
+
+
+def _band(score: float) -> str:
+    for threshold, name in _BANDS:
+        if score < threshold:
+            return name
+    return "right"
+
+
+def recompute_outlet_bias(engine) -> dict:
+    """Recompute rolling outlet bias for all sources. Returns stats dict."""
+    S = os.environ.get("WTF_SCHEMA", "wtf")
+    updated = 0
+    try:
+        with engine.begin() as c:
+            rows = c.execute(
+                text(f"""
+                    SELECT a.source_id,
+                           COUNT(*)                    AS n,
+                           AVG(b.score)                AS avg_score
+                    FROM {S}.articles a
+                    JOIN {S}.bias_scores b ON b.article_id = a.id
+                    WHERE a.ingested_at >= now() - INTERVAL '{WINDOW_DAYS} days'
+                    GROUP BY a.source_id
+                """)
+            ).fetchall()
+
+            for row in rows:
+                sid, n, avg = row[0], int(row[1]), float(row[2])
+                c.execute(
+                    text(f"""
+                        INSERT INTO {S}.outlet_bias_scores
+                            (source_id, article_count, avg_score, band, window_days, computed_at)
+                        VALUES (:sid, :n, :avg, :band, :wd, now())
+                        ON CONFLICT (source_id) DO UPDATE SET
+                            article_count = EXCLUDED.article_count,
+                            avg_score     = EXCLUDED.avg_score,
+                            band          = EXCLUDED.band,
+                            computed_at   = EXCLUDED.computed_at
+                    """),
+                    {"sid": sid, "n": n, "avg": round(avg, 3), "band": _band(avg), "wd": WINDOW_DAYS},
+                )
+                updated += 1
+        logger.info("outlet_bias: updated %d sources", updated)
+    except Exception as exc:
+        logger.warning("outlet_bias recompute failed: %s", exc)
+    return {"updated": updated}

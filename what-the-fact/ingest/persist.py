@@ -11,8 +11,8 @@ def _schema() -> str:
     return os.environ.get("WTF_SCHEMA", "wtf")
 
 
-def upsert_article(engine, source_id: int, article: dict, bias: dict) -> bool:
-    """Insert article + bias_score + audit entry, then cluster. Returns True on insert, False on dedupe."""
+def upsert_article(engine, source_id: int, article: dict, bias: dict, source_slug: str = "") -> bool:
+    """Insert article + bias_score + audit entry, then cluster + fact-check. Returns True on insert, False on dedupe."""
     S = _schema()
     aid = None
     with engine.begin() as c:
@@ -51,6 +51,13 @@ def upsert_article(engine, source_id: int, article: dict, bias: dict) -> bool:
         find_or_create_cluster(engine, aid, article["title"], article["published_at"])
     except Exception as exc:
         logger.warning("clustering failed for article %d: %s", aid, exc)
+
+    # Fact-check claims (non-fatal)
+    try:
+        from ingest.factcheck import factcheck_article
+        factcheck_article(engine, aid, article.get("body", ""), source_slug)
+    except Exception as exc:
+        logger.warning("factcheck failed for article %d: %s", aid, exc)
 
     return True
 

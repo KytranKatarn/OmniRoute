@@ -70,7 +70,7 @@ def _process_source(engine, slug, name, url, rss_url, bias_lean, fetch_fn, stats
         try:
             article = canonicalize(raw)
             bias = score_bias(article["title"], article["body"])
-            inserted = upsert_article(engine, sid, article, bias)
+            inserted = upsert_article(engine, sid, article, bias, source_slug=slug)
             if inserted:
                 stats["inserted"] += 1
                 creed_emit("wtf.article.ingested", {
@@ -90,6 +90,14 @@ def run_once(engine) -> dict:
     for slug, name, url, rss_url, bias_lean, fetch_fn in SOURCES:
         _process_source(engine, slug, name, url, rss_url, bias_lean, fetch_fn, stats)
     log.info("run_once: %s", stats)
+
+    # Recompute rolling outlet bias scores after each pass
+    try:
+        from ingest.outlet_bias import recompute_outlet_bias
+        recompute_outlet_bias(engine)
+    except Exception as exc:
+        log.warning("outlet_bias recompute failed: %s", exc)
+
     return stats
 
 

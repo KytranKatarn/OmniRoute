@@ -140,3 +140,51 @@ def get_cluster(cluster_id: int):
             "bias_band": r["band"],
         } for r in articles],
     })
+
+
+@api.get("/sources")
+def list_sources():
+    """List all registered sources with rolling outlet bias scores."""
+    S = _schema()
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT s.id, s.slug, s.name, s.url, s.rss_feed, s.bias_lean,
+                   s.country, s.language,
+                   ob.avg_score, ob.band AS computed_band, ob.article_count,
+                   ob.computed_at
+            FROM {S}.sources s
+            LEFT JOIN {S}.outlet_bias_scores ob ON ob.source_id = s.id
+            ORDER BY s.name
+        """)).mappings().all()
+    return jsonify({"sources": [{
+        "id": r["id"], "slug": r["slug"], "name": r["name"],
+        "url": r["url"], "rss_feed": r["rss_feed"],
+        "seeded_bias_lean": r["bias_lean"],
+        "computed_bias": {
+            "band": r["computed_band"],
+            "avg_score": r["avg_score"],
+            "article_count": r["article_count"],
+            "computed_at": r["computed_at"].isoformat() if r["computed_at"] else None,
+        } if r["computed_band"] else None,
+    } for r in rows]})
+
+
+@api.get("/articles/<int:article_id>/fact-checks")
+def get_fact_checks(article_id: int):
+    """Get fact-check claims + verdicts for an article."""
+    S = _schema()
+    with _db().begin() as c:
+        exists = c.execute(text(f"SELECT 1 FROM {S}.articles WHERE id=:id"), {"id": article_id}).scalar()
+        if not exists:
+            return jsonify({"error": "not_found"}), 404
+        rows = c.execute(text(f"""
+            SELECT id, claim, verdict, evidence, checker, checked_at
+            FROM {S}.fact_checks
+            WHERE article_id = :id
+            ORDER BY checked_at
+        """), {"id": article_id}).mappings().all()
+    return jsonify({"article_id": article_id, "fact_checks": [{
+        "id": r["id"], "claim": r["claim"], "verdict": r["verdict"],
+        "evidence": r["evidence"], "checker": r["checker"],
+        "checked_at": r["checked_at"].isoformat(),
+    } for r in rows]})

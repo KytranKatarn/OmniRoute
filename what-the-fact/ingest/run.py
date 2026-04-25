@@ -21,7 +21,7 @@ from shared.creed_events import emit as creed_emit
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("wtf-ingest")
-POLL_SECS = int(os.environ.get("WTF_POLL_SECS", "3600"))
+POLL_SECS = int(os.environ.get("WTF_POLL_SECS", "1800"))  # 30-min default for breaking news
 
 # Source registry — (slug, name, site_url, rss_url, bias_lean, fetch_fn)
 # Bias leans seeded from AllSides / Media Bias Fact Check, 2024 ratings.

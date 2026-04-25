@@ -19,11 +19,25 @@ class Source(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class StoryCluster(Base):
+    __tablename__ = "story_clusters"
+    __table_args__ = {"schema": "wtf"}
+    id = Column(Integer, primary_key=True)
+    representative_title = Column(String(1024), nullable=False)
+    earliest_published_at = Column(DateTime, nullable=False)
+    latest_published_at = Column(DateTime, nullable=False)
+    article_count = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    articles = relationship("Article", back_populates="cluster")
+
+
 class Article(Base):
     __tablename__ = "articles"
     __table_args__ = {"schema": "wtf"}
     id = Column(Integer, primary_key=True)
     source_id = Column(Integer, ForeignKey("wtf.sources.id"), nullable=False)
+    cluster_id = Column(Integer, ForeignKey("wtf.story_clusters.id"), nullable=True)
     external_id = Column(String(512), nullable=False)          # canonical URL or GUID
     title = Column(String(1024), nullable=False)
     body = Column(Text, nullable=False)
@@ -31,6 +45,7 @@ class Article(Base):
     published_at = Column(DateTime, nullable=False)
     ingested_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     source = relationship("Source")
+    cluster = relationship("StoryCluster", back_populates="articles")
     # unique(source_id, external_id) enforced in migration
 
 

@@ -29,7 +29,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 COPY standalone/media_hub/database.py    /app/database.py
 COPY standalone/media_hub/app.py         /app/app.py
 COPY standalone/media_hub/auth_routes.py /app/auth_routes.py
-COPY standalone/media_hub/kytran_auth.py /app/kytran_auth.py
+COPY kytran-auth/kytran_auth.py           /app/kytran_auth.py
 COPY standalone/media_hub/users.py       /app/users.py
 COPY standalone/media_hub/user_routes.py /app/user_routes.py
 COPY standalone/media_hub/health_observer.py /app/health_observer.py

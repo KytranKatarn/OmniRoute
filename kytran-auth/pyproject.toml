@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "kytran-sdk"
+version = "1.0.0"
+description = "Kytran SSO OAuth 2.0 client SDK for Flask apps"
+requires-python = ">=3.9"
+dependencies = ["requests", "flask"]
+
+[project.urls]
+Source = "https://github.com/KytranKatarn/archie-platform/tree/main/kytran-auth"

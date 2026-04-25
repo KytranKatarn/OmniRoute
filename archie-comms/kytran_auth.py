@@ -9,7 +9,7 @@ Usage:
 Env vars required:
     KYTRAN_CLIENT_ID       — OAuth client ID (e.g., "kso")
     KYTRAN_CLIENT_SECRET   — OAuth client secret
-    KYTRAN_AUTH_URL        — ARCHIE hub URL (e.g., "http://192.168.1.200:3000")
+    KYTRAN_AUTH_URL         — ARCHIE hub URL (e.g., "https://platform.kytranempowerment.com")
     KYTRAN_REDIRECT_URI    — Callback URL for this product
 """
 
@@ -17,10 +17,23 @@ import base64
 import hashlib
 import os
 import secrets
+import time
 from functools import wraps
 
 import requests
 from flask import redirect, request, session, url_for, jsonify
+
+# In-memory state store (survives across requests in same process)
+# Format: {state_token: {"next": url, "expires": timestamp}}
+_pending_states = {}
+
+
+def _clean_expired_states():
+    """Remove states older than 10 minutes."""
+    now = time.time()
+    expired = [k for k, v in _pending_states.items() if now - v["expires"] > 0]
+    for k in expired:
+        _pending_states.pop(k, None)
 
 
 class KytranAuth:
@@ -29,6 +42,7 @@ class KytranAuth:
         self.client_secret = None
         self.auth_url = None
         self.redirect_uri = None
+        self.internal_url = None
         self.app = None
         self._on_login = None
         if app:
@@ -39,8 +53,13 @@ class KytranAuth:
         self.app = app
         self.client_id = app.config.get("KYTRAN_CLIENT_ID") or os.environ.get("KYTRAN_CLIENT_ID", "")
         self.client_secret = app.config.get("KYTRAN_CLIENT_SECRET") or os.environ.get("KYTRAN_CLIENT_SECRET", "")
-        self.auth_url = app.config.get("KYTRAN_AUTH_URL") or os.environ.get("KYTRAN_AUTH_URL", "http://192.168.1.200:3000")
+        self.auth_url = app.config.get("KYTRAN_AUTH_URL") or os.environ.get("KYTRAN_AUTH_URL", "https://platform.kytranempowerment.com")
         self.redirect_uri = app.config.get("KYTRAN_REDIRECT_URI") or os.environ.get("KYTRAN_REDIRECT_URI", "")
+        self.internal_url = (
+            app.config.get("KYTRAN_AUTH_INTERNAL_URL")
+            or os.environ.get("KYTRAN_AUTH_INTERNAL_URL", "")
+            or self.auth_url
+        )
 
         self._register_routes(app)
 
@@ -51,9 +70,13 @@ class KytranAuth:
 
         @app.route("/auth/kytran/login")
         def kytran_login():
+            # Already logged in? Skip OAuth, go straight to destination
+            if "kytran_user" in session:
+                next_url = request.args.get("next", "/dashboard")
+                return redirect(next_url)
+
             state = secrets.token_urlsafe(32)
-            session["oauth_state"] = state
-            session["oauth_next"] = request.args.get("next", "/")
+            next_url = request.args.get("next", "/dashboard")
 
             # PKCE — generate code_verifier and S256 code_challenge
             code_verifier = secrets.token_urlsafe(64)
@@ -64,6 +87,18 @@ class KytranAuth:
                 .rstrip(b"=")
                 .decode()
             )
+
+            # Store state in memory (not session — avoids cookie issues behind proxies)
+            _clean_expired_states()
+            _pending_states[state] = {
+                "next": next_url,
+                "expires": time.time() + 600,  # 10 min expiry
+                "code_verifier": code_verifier,
+            }
+
+            # Also store in session as backup
+            session["oauth_state"] = state
+            session["oauth_next"] = next_url
             session["oauth_code_verifier"] = code_verifier
 
             authorize_url = (
@@ -80,15 +115,37 @@ class KytranAuth:
         @app.route("/auth/kytran/callback")
         def kytran_callback():
             state = request.args.get("state")
-            if state != session.pop("oauth_state", None):
-                return "Invalid state parameter", 400
+
+            # Validate state: check in-memory store first, then session as fallback
+            state_data = _pending_states.pop(state, None) if state else None
+            session_state = session.pop("oauth_state", None)
+
+            if not state_data and state != session_state:
+                # Both checks failed — invalid state
+                return (
+                    "<h2>Session Expired</h2>"
+                    "<p>Your login session expired. Please try again.</p>"
+                    f'<p><a href="/auth/kytran/login?next=/dashboard">Sign in with Kytran</a></p>'
+                ), 400
+
+            next_url = "/dashboard"
+            if state_data:
+                next_url = state_data.get("next", "/dashboard")
+            else:
+                next_url = session.pop("oauth_next", "/dashboard")
+
+            # Retrieve PKCE verifier (from state store, fall back to session)
+            code_verifier = (
+                state_data.get("code_verifier") if state_data
+                else session.pop("oauth_code_verifier", None)
+            )
 
             code = request.args.get("code")
             if not code:
                 error = request.args.get("error", "unknown")
                 return f"Authorization failed: {error}", 400
 
-            code_verifier = session.pop("oauth_code_verifier", None)
+            # Exchange code for token
             token_payload = {
                 "grant_type": "authorization_code",
                 "code": code,
@@ -101,41 +158,60 @@ class KytranAuth:
 
             try:
                 token_resp = requests.post(
-                    f"{sdk.auth_url}/oauth/token",
+                    f"{sdk.internal_url}/oauth/token",
                     data=token_payload,
-                    timeout=10,
+                    timeout=15,
                 )
                 if token_resp.status_code != 200:
-                    return f"Token exchange failed: {token_resp.text}", 400
+                    return (
+                        "<h2>Login Failed</h2>"
+                        f"<p>Token exchange error. Please try again.</p>"
+                        f'<p><a href="/auth/kytran/login?next=/dashboard">Try again</a></p>'
+                    ), 400
                 token_data = token_resp.json()
             except Exception as e:
-                return f"Token exchange error: {e}", 500
+                return (
+                    "<h2>Login Failed</h2>"
+                    f"<p>Could not connect to auth server. Please try again.</p>"
+                    f'<p><a href="/auth/kytran/login?next=/dashboard">Try again</a></p>'
+                ), 500
 
             access_token = token_data.get("access_token")
             if not access_token:
                 return "No access token received", 400
 
+            # Get user info
             try:
                 userinfo_resp = requests.get(
-                    f"{sdk.auth_url}/oauth/userinfo",
+                    f"{sdk.internal_url}/oauth/userinfo",
                     headers={"Authorization": f"Bearer {access_token}"},
-                    timeout=10,
+                    timeout=15,
                 )
                 if userinfo_resp.status_code != 200:
-                    return f"Userinfo failed: {userinfo_resp.text}", 400
+                    return (
+                        "<h2>Login Failed</h2>"
+                        f"<p>Could not retrieve user info. Please try again.</p>"
+                        f'<p><a href="/auth/kytran/login?next=/dashboard">Try again</a></p>'
+                    ), 400
                 userinfo = userinfo_resp.json()
             except Exception as e:
                 return f"Userinfo error: {e}", 500
 
+            # Check entitlements
             entitlements = userinfo.get("entitlements", [])
             if sdk.client_id not in entitlements:
-                return (
-                    "<h2>Subscription Required</h2>"
-                    "<p>Your account does not have access to this product.</p>"
-                    f"<p>Subscribed products: {', '.join(entitlements) or 'none'}</p>"
-                    f"<p><a href='{sdk.auth_url}'>Manage subscriptions</a></p>"
-                ), 403
+                # Check if any entitlement starts with the base product name
+                base = sdk.client_id.replace("-viewer", "").replace("-pro", "").replace("-ai", "")
+                has_access = any(e.startswith(base) for e in entitlements)
+                if not has_access and userinfo.get("role") != "admin":
+                    return (
+                        "<h2>Subscription Required</h2>"
+                        "<p>Your account does not have access to this product.</p>"
+                        f"<p>Subscribed products: {', '.join(entitlements) or 'none'}</p>"
+                        f"<p><a href='{sdk.auth_url}'>Manage subscriptions</a></p>"
+                    ), 403
 
+            # Store user in session
             session["kytran_user"] = {
                 "sub": userinfo.get("sub"),
                 "username": userinfo.get("username"),
@@ -143,14 +219,12 @@ class KytranAuth:
                 "name": userinfo.get("name"),
                 "role": userinfo.get("role"),
                 "entitlements": entitlements,
-                "product_tiers": userinfo.get("product_tiers", {}),
                 "access_token": access_token,
             }
 
             if sdk._on_login:
                 sdk._on_login(session["kytran_user"])
 
-            next_url = session.pop("oauth_next", "/")
             return redirect(next_url)
 
     def on_login(self, callback):

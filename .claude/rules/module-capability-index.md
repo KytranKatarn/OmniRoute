@@ -99,12 +99,13 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 ## saas_services (8)
 
 ### Email Manager — `email_manager` · `/tools/email-manager` · ✅ · 🟢
-- **Capability**: 5-tab oversight dashboard — Overview (unread stats + 30s live feed), Inbox (per-mailbox IMAP browser), Sent, Agents (Stalwart provisioning), Settings (connection test). 48 mailboxes live: 38 AI agents + 10 business. IMAP sync job every 5 min.
-- **Backend**: `stalwart_service.py` (provision/delete/rotate via HTTPS admin API at 192.168.1.200:8443), `sync_jobs.py` (email_imap_sync via JobService), `mailbox_routes.py`, `overview_routes.py`, `inbox_routes.py`, `sent_routes.py`.
+- **Capability**: 5-tab oversight dashboard — Overview (unread stats + 30s live feed), Inbox (per-mailbox IMAP browser + **✉ Compose button**), Sent, Agents (Stalwart provisioning), Settings (connection test). 48 mailboxes live: 38 AI agents + 10 business. IMAP sync job every 5 min.
+- **Backend**: `stalwart_service.py` (provision/delete/rotate), `sync_jobs.py` (IMAP sync 5 min), `mailbox_routes.py`, `overview_routes.py`, `inbox_routes.py`, `sent_routes.py`, **`compose_routes.py`** (Phase 3 send).
 - **Tables**: `email_mailboxes` (address, mailbox_type, owner_agent_id, provisioned, imap_password), `email_activity_log` (direction, from/to/subject/message_id, read_at).
+- **Compose/Send**: `POST /api/email/compose/send` `{from_address, to_address, subject, body}` — sends via Stalwart :587 STARTTLS → outpost Postfix relay → internet. `GET /api/email/compose/mailboxes` — provisioned From addresses.
 - **Key endpoints**: `POST /api/email/mailboxes/<id>/provision`, `POST /api/email/mailboxes/provision-all-agents`, `POST /api/email/mailboxes/rotate-all-passwords`.
 - **Stalwart PATCH gotcha**: body must be bare array `[{"action":"set","field":"secrets","value":[pw]}]` — NOT `{"changes":[...]}`.
-- **PRs**: #297 (Phase 1), #299 (Phase 2 IMAP credentials). KB: 260092–260095. 2026-04-24.
+- **PRs**: #297 (Phase 1), #299 (Phase 2 IMAP), #321 (Phase 3 Compose/Send). KB: 260092–260095, 260190. 2026-04-25.
 
 ### Scheduler — `scheduler` · `/tools/scheduler` · ⛔
 - **Status**: Disabled.
@@ -225,8 +226,13 @@ These are standalone products surfaced as modules with `/external/` routes. All 
 
 ### What The Fact — `what_the_fact` · `/external/wtf` · ✅
 - **Deployment**: VPS, 3 containers — wtf-consumer (port 8103, what-the-fact.com), wtf-tech (port 8104, what-the-fact.tech), wtf-ingest (internal). Supersedes TheNews (retired 2026-04-18).
-- **Capability**: AI-powered transparent news with bias scoring, fact-check summaries, audit trails. MVP source: CBC English RSS. Kytran SSO on the tech dev portal.
-- **Source**: `/mnt/archie_brain/what-the-fact/` · schema `wtf` on hub Postgres
+- **SP2 Capability** (2026-04-25, PRs #329-#332): **10 Canadian sources** with bias profiles (left→right), RSS ingestion every 30 min, **story clustering** (Jaccard title similarity, 24h window), **extractive summarization** (headline/brief/full per cluster), **bias scoring** per article + rolling outlet averages, **fact-checking** (claim extraction + heuristic verdicts).
+- **Pipeline**: RSS fetch → canonicalize → bias_score → upsert → cluster → summarize → factcheck → outlet_bias recompute
+- **API (wtf-tech)**: `GET /api/v1/articles`, `/articles/<id>`, `/articles/<id>/fact-checks`, `/clusters`, `/clusters/<id>`, `/sources`
+- **Schema**: `wtf.sources` (rss_feed, bias_lean), `wtf.articles` (cluster_id), `wtf.story_clusters`, `wtf.summaries`, `wtf.bias_scores`, `wtf.outlet_bias_scores`, `wtf.fact_checks`
+- **Pending migrations on VPS**: 002–005 (run `psql $WTF_DATABASE_URL < migrations/00N_*.sql` in order)
+- **LLM upgrade paths**: replace extractive summarizer + heuristic fact-checker with Bridge dispatch for accuracy
+- **Source**: `/mnt/archie_brain/what-the-fact/` · schema `wtf` on hub Postgres · KB: 260192
 
 ### Kytran Legal Watch — `kytran_legal_watch` · `/external/legal` · ✅
 - **Deployment**: VPS, port 8100, legal.kytranempowerment.com

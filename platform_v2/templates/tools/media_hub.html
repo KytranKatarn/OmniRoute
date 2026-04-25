@@ -60,10 +60,12 @@
     {% set cat_label = 'APPLICATIONS & CONCEPTS' %}
     {% set module_title = 'MEDIA HUB' %}
     {% if standalone %}
-        {# Standalone: only user actions in strip — Chat is now a tab #}
+        {# Standalone: Discover + Chat in strip, admin tools in Settings tab #}
         {% set header_shortcuts = [
-            ("Profile", "user", "/profile"),
-            ("Sign out", "log-out", "/logout")
+            ("Discover", "sparkles",       "/maven/discover"),
+            ("Chat",     "message-circle", "/maven/chat"),
+            ("Profile",  "user",           "/profile"),
+            ("Sign out", "log-out",        "/logout")
         ] %}
     {% else %}
         {% set header_shortcuts = [
@@ -79,8 +81,6 @@
         ("movies",    "Movies",    "film"),
         ("shows",     "Shows",     "tv"),
         ("requests",  "Requests",  "message-square"),
-        ("discover",  "Discover",  "sparkles"),
-        ("chat",      "Chat",      "message-circle"),
         ("calendar",  "Calendar",  "calendar"),
         ("stats",     "Stats",     "bar-chart-3")
     ] %}

@@ -80,7 +80,7 @@
     <!-- Tab row -->
     <div class="lcars-header-tabs" id="lcarsHeaderTabs">
       {% for tab_id, tab_label, tab_icon in _tabs %}
-      <button class="lcars-header-tab{% if loop.first %} active{% endif %}"
+      <button class="lcars-header-tab{% if (active_tab is defined and tab_id == active_tab) or (active_tab is not defined and loop.first) %} active{% endif %}"
               data-tab="{{ tab_id }}"
               onclick="if(window.lcarsHeaderSwitchTab)lcarsHeaderSwitchTab('{{ tab_id }}')">
         <i data-lucide="{{ tab_icon }}" style="width:14px;height:14px;"></i>

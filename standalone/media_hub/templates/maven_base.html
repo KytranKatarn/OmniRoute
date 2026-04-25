@@ -64,26 +64,31 @@
 {% set _back = "/tools/media-hub" %}
 {% set _i18n = "media_hub" %}
 
-{# Shortcuts strip: Profile + Sign out only. Chat and admin tools are tabs. #}
+{# Strip: Discover + Chat as shortcut icons, plus user actions #}
 {% set header_shortcuts = [
-    ("Profile",  "user",     "/profile"),
-    ("Sign out", "log-out",  "/logout")
+    ("Discover", "sparkles",       "/maven/discover"),
+    ("Chat",     "message-circle", "/maven/chat"),
+    ("Profile",  "user",           "/profile"),
+    ("Sign out", "log-out",        "/logout")
 ] %}
 
-{# Tab bar: mirrors main hub exactly #}
+{# Tab bar: same order as main hub — navigates back into hub SPA #}
 {% set header_tabs = [
     ("dashboard", "Dashboard", "layout-dashboard"),
     ("movies",    "Movies",    "film"),
     ("shows",     "Shows",     "tv"),
     ("requests",  "Requests",  "message-square"),
-    ("discover",  "Discover",  "sparkles"),
-    ("chat",      "Chat",      "message-circle"),
     ("calendar",  "Calendar",  "calendar"),
     ("stats",     "Stats",     "bar-chart-3")
 ] %}
 {% if current_user.is_authenticated and current_user.is_admin %}
     {% set header_tabs = header_tabs + [("settings", "Settings", "settings")] %}
 {% endif %}
+
+{# Active tab detection — highlights the correct tab based on current M.A.V.E.N. page.
+   None of the hub tabs match (/maven/*), so we pass empty string → all tabs unlit,
+   which clearly signals "you are outside the main hub". #}
+{% set active_tab = "" %}
 
 {% include 'includes/lcars-header.html' %}
 

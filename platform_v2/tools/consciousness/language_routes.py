@@ -461,7 +461,6 @@ def _run_translate_bg(languages, module_id, parent_job_id):
                         lang,
                         parent_job_id=parent_job_id,
                         batch_offset=batch_offset,
-                        model="qwen3-coder-cpu",
                     )
                     lang_batches = (len(strings) + BATCH_SIZE - 1) // BATCH_SIZE
                     batch_offset += lang_batches

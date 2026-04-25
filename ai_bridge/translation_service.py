@@ -336,7 +336,7 @@ def batch_translate(
         if batch_ok > 0:
             try:
                 batch_stats = store_translations(
-                    batch_results, language, model or "qwen3-coder-cpu", source_label
+                    batch_results, language, model or "codex", source_label
                 )
                 total_ok += batch_stats.get("inserted", 0) + batch_stats.get("updated", 0)
                 total_fail += batch_stats.get("failed", 0)

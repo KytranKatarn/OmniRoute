@@ -863,6 +863,7 @@ def api_requests():
                     # Keep the one with better status or more recent
                     existing = seen_tmdb_ids[tmdb_id]
                     status_priority = {
+                        "completed": 5,
                         "available": 4,
                         "processing": 3,
                         "approved": 2,

@@ -38,7 +38,7 @@ ACME_DIRECTORY = os.getenv(
     "ACME_DIRECTORY",
     "https://acme-v02.api.letsencrypt.org/directory",
 )
-HOSTINGER_API_BASE = "https://api.hostinger.com"
+HOSTINGER_API_BASE = "https://developers.hostinger.com"
 HOSTINGER_API_KEY = os.getenv("HOSTINGER_API_KEY", "")
 
 DNS_PROPAGATION_TIMEOUT = 300  # seconds
@@ -378,7 +378,7 @@ def _hostinger_headers() -> dict:
 
 def _hostinger_get_records(domain: str) -> list[dict]:
     """GET all DNS records for the domain."""
-    url = f"{HOSTINGER_API_BASE}/api/dns/v1/zones/{domain}/records"
+    url = f"{HOSTINGER_API_BASE}/api/dns/v1/zones/{domain}"
     resp = requests.get(url, headers=_hostinger_headers(), timeout=30)
     resp.raise_for_status()
     return resp.json()
@@ -386,9 +386,9 @@ def _hostinger_get_records(domain: str) -> list[dict]:
 
 def _hostinger_put_records(domain: str, records: list[dict]) -> None:
     """PUT (replace) all DNS records for the domain."""
-    url = f"{HOSTINGER_API_BASE}/api/dns/v1/zones/{domain}/records"
+    url = f"{HOSTINGER_API_BASE}/api/dns/v1/zones/{domain}"
     resp = requests.put(
-        url, headers=_hostinger_headers(), json={"overwrite": True, "records": records}, timeout=30
+        url, headers=_hostinger_headers(), json={"overwrite": True, "zone": records}, timeout=30
     )
     if resp.status_code not in (200, 201, 204):
         raise RuntimeError(
@@ -403,12 +403,12 @@ def _add_acme_txt_record(domain: str, txt_value: str) -> None:
         "Fetched %d existing DNS records for %s", len(records), domain
     )
 
-    # Add the challenge TXT record
+    # Add the challenge TXT record (Hostinger API v1 zone format)
     records.append(
         {
-            "type": "TXT",
             "name": "_acme-challenge",
-            "content": txt_value,
+            "type": "TXT",
+            "records": [{"content": txt_value}],
             "ttl": 60,
         }
     )

@@ -414,10 +414,17 @@ function initTabs() {
     });
 }
 
+function _activateLcarsTab(tabId) {
+    document.querySelectorAll('.lcars-header-tab').forEach(t => t.classList.remove('active'));
+    const t = document.querySelector(`.lcars-header-tab[data-tab="${tabId}"]`);
+    if (t) t.classList.add('active');
+}
+
 // Bridge for LCARS header tab buttons (onclick="lcarsHeaderSwitchTab(id)")
 window.lcarsHeaderSwitchTab = function(tabId) {
     if (tabId === 'discover') { window.location.href = '/maven/discover'; return; }
     if (tabId === 'chat')     { window.location.href = '/maven/chat';     return; }
+    _activateLcarsTab(tabId);
     switchTab(tabId);
 };
 
@@ -426,6 +433,7 @@ function switchTab(tabId) {
     if (tabId === 'chat')     { window.location.href = '/maven/chat';     return; }
     focusedIndex = -1; // Reset keyboard focus
 
+    _activateLcarsTab(tabId);
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
     const targetTab = document.querySelector(`.nav-tab[data-tab="${tabId}"]`);
     if (targetTab) targetTab.classList.add('active');

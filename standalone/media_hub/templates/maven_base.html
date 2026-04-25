@@ -58,11 +58,13 @@
 </head>
 <body>
 
-{# ── LCARS header — identical structure to main Media Hub ─────────────────── #}
-{% set _module = "M.A.V.E.N." %}
-{% set cat_label = "MEDIA HUB" %}
-{% set _back = "/tools/media-hub" %}
-{% set _i18n = "media_hub" %}
+{# ── LCARS header — identical to main Media Hub ─────────────────────────── #}
+{% set module_title    = "MEDIA HUB" %}
+{% set cat_label       = "M.A.V.E.N." %}
+{% set module_back_url = "/tools/media-hub" %}
+{% set cat_accent      = "#00ffff" %}
+{% set cat_accent_rgb  = "0,255,255" %}
+{% set _i18n           = "media_hub" %}
 
 {# Strip: Discover + Chat as shortcut icons, plus user actions #}
 {% set header_shortcuts = [

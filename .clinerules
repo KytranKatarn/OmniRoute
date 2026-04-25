@@ -1,0 +1,49 @@
+# A.R.C.H.I.E. Platform — Cline Rules
+
+## Platform
+- Hub: 192.168.1.200 | Port: 3000 | User is REMOTE — never use localhost
+- Restart: `docker compose restart archie_platform`
+- Logs: `docker logs -f archie_platform`
+- DB: `docker exec -it archie_database psql -U archie -d archie`
+
+## Architecture (3 Core Systems)
+1. **Autonomy** — scheduled jobs (`ai_bridge/agent_loop.py`)
+2. **Department HQ** — agents, dispatch, fleet (`platform_v2/tools/department_hq/`)
+3. **AI Bridge** — model routing, embeddings (`ai_bridge/`)
+
+## Key Rules
+- All LLM inference via Bridge dispatcher — NEVER call Ollama directly from modules
+- All agent mutations via `platform_v2/services/agent_service.py` — no direct SQL on agent tables
+- Two `.env` files: root `.env` AND `platform_v2/.env` must both be updated
+- Module permissions: add to BOTH `rbac.py` AND `module_registry.py`
+- Black auto-formats Python — re-stage after first commit if hook fails
+
+## Branching
+- `feat/` `fix/` `chore/` `auto/` prefixes — never commit directly to main
+- After changes: `docker compose restart archie_platform` → browser test → PR
+
+## Key Files
+```
+platform_v2/app.py                    Flask app
+platform_v2/module_registry.py        Module definitions
+platform_v2/rbac.py                   Permissions
+platform_v2/database.py               DB connection (get_db_cursor)
+ai_bridge/archie_bridge.py            AI routing
+platform_v2/tools/department_hq/services/department_dispatcher.py  Dispatch entry
+platform_v2/services/agent_service.py Agent CRUD
+```
+
+## DB Gotchas
+- `unified_projects.name` (NOT title) | `unified_tasks.priority` is INTEGER
+- `project_decisions` uses `decision`/`context` (NOT description/rationale)
+- JSONB fields need `psycopg2.Json()` wrapper
+
+## Available Local Models (Ollama @ 192.168.1.200:11434)
+- `qwen2.5-coder:7b` — fast coding (default for Cline)
+- `deepseek-coder-v2:16b` — heavy coding tasks
+- `mistral:7b` — translation / general
+- `qwen2.5:7b` — analysis / classify
+- `phi3.5:latest` — lightweight general
+
+## Stop After 2 Failed Attempts
+If a change doesn't work after 2 tries, stop and explain what failed.

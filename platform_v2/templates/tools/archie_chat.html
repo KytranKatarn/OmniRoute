@@ -1768,6 +1768,78 @@ function sendArchieMessage() {
     };
 })();
 
+// ============================================================
+// STT — Web Speech API voice input (#2258)
+// ============================================================
+(function () {
+    var _recognition = null;
+    var _listening = false;
+
+    function _showVoiceStatus(show) {
+        var el = document.getElementById('voice-status');
+        if (el) el.style.display = show ? 'flex' : 'none';
+        var btn = document.getElementById('voice-input-btn');
+        if (btn) btn.classList.toggle('listening', show);
+    }
+
+    window.toggleVoiceInput = function () {
+        var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) return;
+
+        if (_listening && _recognition) {
+            _recognition.stop();
+            return;
+        }
+
+        _recognition = new SR();
+        _recognition.lang = document.documentElement.lang || 'en-US';
+        _recognition.interimResults = true;
+        _recognition.maxAlternatives = 1;
+
+        var input = document.getElementById('messageInput');
+        var interim = '';
+
+        _recognition.onstart = function () {
+            _listening = true;
+            _showVoiceStatus(true);
+            var txt = document.getElementById('voice-status-text');
+            if (txt) txt.textContent = 'Listening…';
+        };
+
+        _recognition.onresult = function (e) {
+            var final = '';
+            interim = '';
+            for (var i = e.resultIndex; i < e.results.length; i++) {
+                if (e.results[i].isFinal) {
+                    final += e.results[i][0].transcript;
+                } else {
+                    interim += e.results[i][0].transcript;
+                }
+            }
+            if (input) input.value = final || interim;
+        };
+
+        _recognition.onerror = function (e) {
+            _listening = false;
+            _showVoiceStatus(false);
+            var txt = document.getElementById('voice-status-text');
+            if (txt) { txt.textContent = 'Error: ' + e.error; setTimeout(function () { txt.textContent = 'Listening…'; }, 2000); }
+        };
+
+        _recognition.onend = function () {
+            _listening = false;
+            _showVoiceStatus(false);
+            // Auto-submit if a final transcript landed
+            if (input && input.value.trim()) {
+                var form = document.getElementById('chatForm');
+                if (form) form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            }
+        };
+
+        _recognition.start();
+    };
+}());
+
 // Initialize
 loadStatus();
 loadSuggestions();

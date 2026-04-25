@@ -105,8 +105,9 @@ class PlexClient(MediaServerInterface):
         art_path = item.get("art", "")
         backdrop_url = f"{self.base_url}{art_path}?X-Plex-Token={self.token}" if art_path else None
 
-        # Parse rating
-        rating = item.get("rating")
+        # Parse rating — Plex uses "rating" (critic) or "audienceRating" (audience);
+        # some shows only have one or neither
+        rating = item.get("rating") or item.get("audienceRating")
         if rating:
             rating = float(rating)
 

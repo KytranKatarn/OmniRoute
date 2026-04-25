@@ -1053,10 +1053,10 @@ function createPosterCard(item, showRequestButton = false) {
 
     // Use placeholder initially
     img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 450"%3E%3Crect fill="%231a1a2e" width="300" height="450"/%3E%3C/svg%3E';
-    img.dataset.src = item.poster_url || '/static/img/no-poster.png';
-    img.onerror = function() { this.src = '/static/img/no-poster.png'; };
+    img.dataset.src = item.poster_url || '';
+    img.onerror = function() { this.style.opacity = '0'; };
 
-    lazyLoadImage(img);
+    if (img.dataset.src) lazyLoadImage(img);
     imgContainer.appendChild(img);
 
     // Quality badges

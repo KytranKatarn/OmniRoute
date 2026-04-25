@@ -46,7 +46,7 @@
 <div class="grid">
     {% for m in report.movies %}
     <div class="card discover-card" style="padding:0.75rem;"
-         onclick="openDiscover('{{ m.tmdb_id }}','movie','{{ m.title | replace("'","&#39;") }}','{{ m.year }}',{{ m.vote_average or 0 }},'{{ m.poster or '' }}','{{ m.overview | replace("'","&#39;") | replace('"',"&quot;") }}')"
+         onclick="openDiscover({{ m.tmdb_id or 0 }},'movie','{{ m.title | replace("'","&#39;") }}','{{ m.year }}',{{ m.vote_average or 0 }},'{{ m.poster or '' }}','{{ m.overview | replace("'","&#39;") | replace('"',"&quot;") }}')"
     >
         {% if m.poster %}
         <div class="poster" style="background-image:url('https://image.tmdb.org/t/p/w342{{ m.poster }}');"></div>
@@ -68,7 +68,7 @@
 <div class="grid">
     {% for s in report.tv %}
     <div class="card discover-card" style="padding:0.75rem;"
-         onclick="openDiscover('{{ s.tmdb_id }}','tv','{{ s.title | replace("'","&#39;") }}','{{ s.year }}',{{ s.vote_average or 0 }},'{{ s.poster or '' }}','{{ s.overview | replace("'","&#39;") | replace('"',"&quot;") }}')"
+         onclick="openDiscover({{ s.tmdb_id or 0 }},'tv','{{ s.title | replace("'","&#39;") }}','{{ s.year }}',{{ s.vote_average or 0 }},'{{ s.poster or '' }}','{{ s.overview | replace("'","&#39;") | replace('"',"&quot;") }}')"
     >
         {% if s.poster %}
         <div class="poster" style="background-image:url('https://image.tmdb.org/t/p/w342{{ s.poster }}');"></div>

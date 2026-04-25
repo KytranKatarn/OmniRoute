@@ -30,6 +30,22 @@ class StoryCluster(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     articles = relationship("Article", back_populates="cluster")
+    summary = relationship("Summary", back_populates="cluster", uselist=False)
+
+
+class Summary(Base):
+    __tablename__ = "summaries"
+    __table_args__ = {"schema": "wtf"}
+    id = Column(Integer, primary_key=True)
+    cluster_id = Column(Integer, ForeignKey("wtf.story_clusters.id"), nullable=False, unique=True)
+    headline = Column(String(256), nullable=False)
+    brief = Column(Text, nullable=False)
+    full_text = Column(Text, nullable=False)
+    summarizer = Column(String(32), nullable=False, default="extractive-v1")
+    article_ids = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    cluster = relationship("StoryCluster", back_populates="summary")
 
 
 class Article(Base):

@@ -40,6 +40,7 @@ def find_or_create_cluster(engine, article_id: int, title: str, published_at: da
     S = os.environ.get("WTF_SCHEMA", "wtf")
     tokens = _tokens(title)
     window_start = published_at - timedelta(hours=CLUSTER_WINDOW_HOURS)
+    result_cid = None
 
     with engine.begin() as c:
         rows = c.execute(
@@ -81,22 +82,32 @@ def find_or_create_cluster(engine, article_id: int, title: str, published_at: da
                 "article %d → cluster %d (jaccard=%.2f title=%r)",
                 article_id, best_id, best_score, title[:60],
             )
-            return best_id
+            result_cid = best_id
+        else:
+            # No matching cluster — create one
+            row = c.execute(
+                text(f"""
+                    INSERT INTO {S}.story_clusters
+                        (representative_title, earliest_published_at, latest_published_at)
+                    VALUES (:t, :p, :p)
+                    RETURNING id
+                """),
+                {"t": title[:1024], "p": published_at},
+            ).fetchone()
+            cid = row[0]
+            c.execute(
+                text(f"UPDATE {S}.articles SET cluster_id = :cid WHERE id = :aid"),
+                {"cid": cid, "aid": article_id},
+            )
+            logger.debug("article %d → new cluster %d title=%r", article_id, cid, title[:60])
+            result_cid = cid
 
-        # No matching cluster — create one
-        row = c.execute(
-            text(f"""
-                INSERT INTO {S}.story_clusters
-                    (representative_title, earliest_published_at, latest_published_at)
-                VALUES (:t, :p, :p)
-                RETURNING id
-            """),
-            {"t": title[:1024], "p": published_at},
-        ).fetchone()
-        cid = row[0]
-        c.execute(
-            text(f"UPDATE {S}.articles SET cluster_id = :cid WHERE id = :aid"),
-            {"cid": cid, "aid": article_id},
-        )
-        logger.debug("article %d → new cluster %d title=%r", article_id, cid, title[:60])
-        return cid
+    # Re-summarize cluster after tx commits (non-fatal)
+    if result_cid is not None:
+        try:
+            from ingest.summarize import summarize_cluster
+            summarize_cluster(engine, result_cid)
+        except Exception as exc:
+            logger.warning("summarization failed for cluster %d: %s", result_cid, exc)
+
+    return result_cid

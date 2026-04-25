@@ -3978,65 +3978,20 @@ class DepartmentDispatcher:
                 created_by_agent_id=2,
             )
 
-            # Re-open the conn for the remaining inserts into sibling tables
-            # (agent_skills / agent_budgets / agent_creation_events) which
-            # are NOT owned by agent_service.
-            conn = self._get_db()
-            cur = conn.cursor()
-
-            # 2. INSERT into agent_skills
+            # 2-5. Delegate sibling-table writes to agent_service (single-writer).
+            # agent_emotional_state is already seeded by create_agent()
+            # (stress=0.1, energy=0.9, mood='neutral') — no duplicate needed.
             for skill in suggested_skills:
-                cur.execute(
-                    """
-                    INSERT INTO agent_skills (
-                        agent_id, skill_name, skill_category,
-                        proficiency_level
-                    ) VALUES (%s, %s, %s, 3)
-                    ON CONFLICT (agent_id, skill_name) DO NOTHING
-                    """,
-                    (new_agent_id, skill, capability),
-                )
+                agent_service.add_skill(new_agent_id, skill, level=3, category=capability)
 
-            # 3. INSERT into agent_budgets
-            cur.execute(
-                """
-                INSERT INTO agent_budgets (
-                    agent_id, token_limit_per_day, task_queue_limit,
-                    can_create_sub_agents, max_sub_agents
-                ) VALUES (%s, 100000, 10, FALSE, 0)
-                ON CONFLICT (agent_id) DO NOTHING
-                """,
-                (new_agent_id,),
-            )
+            agent_service.init_budget(new_agent_id)
 
-            # 4. agent_emotional_state is already seeded by
-            # agent_service.create_agent() (stress=0.1, energy=0.9,
-            # mood='neutral') — Project #241 Track C.3 dropped the
-            # duplicate insert here. The old code used trigger_event=
-            # 'initial_creation' which isn't tracked by create_agent;
-            # that signal is lost but it was informational only.
-
-            # 5. INSERT into agent_creation_events
-            cur.execute(
-                """
-                INSERT INTO agent_creation_events (
-                    parent_agent_id, child_agent_id,
-                    creation_reason, creation_source,
-                    capabilities_requested, station_requested,
-                    is_approved, approved_at
-                ) VALUES (
-                    2, %s,
-                    %s, 'dispatcher',
-                    %s, %s,
-                    TRUE, NOW()
-                )
-                """,
-                (
-                    new_agent_id,
-                    reason,
-                    json.dumps(suggested_skills),
-                    department,
-                ),
+            agent_service.log_creation_event(
+                child_agent_id=new_agent_id,
+                reason=reason,
+                source="dispatcher",
+                capabilities=suggested_skills,
+                department=department,
             )
 
             # 6. INSERT into governance_audit_log

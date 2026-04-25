@@ -2194,3 +2194,64 @@ def get_welfare_cache() -> Dict:
                 },
             }
     return cache
+
+
+# ---------------------------------------------------------------------------
+# Sibling-table ownership — agent_skills / agent_budgets / agent_creation_events
+# ---------------------------------------------------------------------------
+
+
+def init_budget(
+    agent_id: int,
+    token_limit: int = 100000,
+    task_queue_limit: int = 10,
+    can_create_sub_agents: bool = False,
+    max_sub_agents: int = 0,
+) -> None:
+    """Seed initial agent_budgets row for a new agent. No-op if already exists."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """INSERT INTO agent_budgets
+                   (agent_id, token_limit_per_day, task_queue_limit,
+                    can_create_sub_agents, max_sub_agents)
+               VALUES (%s, %s, %s, %s, %s)
+               ON CONFLICT (agent_id) DO NOTHING""",
+            (agent_id, token_limit, task_queue_limit, can_create_sub_agents, max_sub_agents),
+        )
+    logger.info("Agent #%d budget initialized (queue_limit=%d)", agent_id, task_queue_limit)
+
+
+def log_creation_event(
+    child_agent_id: int,
+    reason: str,
+    source: str = "agent_service",
+    capabilities: list = None,
+    department: str = None,
+    parent_agent_id: int = 2,
+    approved: bool = True,
+) -> int:
+    """Insert an agent_creation_events record. Returns the new event ID."""
+    import json as _json
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """INSERT INTO agent_creation_events
+                   (parent_agent_id, child_agent_id, creation_reason,
+                    creation_source, capabilities_requested, station_requested,
+                    is_approved, approved_at)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+               RETURNING id""",
+            (
+                parent_agent_id,
+                child_agent_id,
+                reason,
+                source,
+                _json.dumps(capabilities or []),
+                department,
+                approved,
+            ),
+        )
+        row = cur.fetchone()
+        event_id = row[0] if row else None
+    logger.info("Agent #%d creation event logged (source=%s, id=%s)", child_agent_id, source, event_id)
+    return event_id

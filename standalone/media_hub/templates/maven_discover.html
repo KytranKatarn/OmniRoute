@@ -1,6 +1,39 @@
 {% extends "maven_base.html" %}
 {% block title %}Discover{% endblock %}
 {% block content %}
+<style>
+    .discover-card { cursor: pointer; transition: border-color 0.15s; }
+    .discover-card:hover { border-color: var(--archie-blue, #3b82f6); }
+
+    /* Detail modal */
+    .disc-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000;
+                    display:flex; align-items:center; justify-content:center; padding:1rem; }
+    .disc-modal  { background:var(--archie-bg-elevated,#1e293b); border:1px solid var(--archie-border-subtle,#334155);
+                   border-radius:16px; max-width:560px; width:100%; max-height:90vh;
+                   overflow-y:auto; padding:1.5rem; position:relative; }
+    .disc-modal-layout { display:flex; gap:1.25rem; }
+    .disc-modal-poster { width:120px; flex-shrink:0; aspect-ratio:2/3;
+                         background:var(--archie-bg-secondary,#0f172a) center/cover;
+                         border-radius:8px; }
+    .disc-modal-info { flex:1; min-width:0; }
+    .disc-modal-title { font-size:1.15rem; font-weight:700; margin:0 0 0.25rem;
+                        color:var(--archie-text-primary,#e2e8f0); }
+    .disc-modal-meta  { font-size:0.8rem; color:var(--archie-text-muted,#94a3b8); margin-bottom:0.75rem; }
+    .disc-modal-overview { font-size:0.9rem; color:var(--archie-text-secondary,#cbd5e1);
+                           line-height:1.55; margin-bottom:1.25rem; }
+    .disc-modal-actions { display:flex; gap:0.75rem; flex-wrap:wrap; }
+    .disc-close { position:absolute; top:1rem; right:1rem; background:none; border:none;
+                  color:var(--archie-text-muted,#94a3b8); font-size:1.25rem; cursor:pointer; }
+    .disc-close:hover { color:var(--archie-text-primary,#e2e8f0); }
+    .btn-request { background:var(--archie-blue,#3b82f6); color:#fff; border:none;
+                   padding:0.55rem 1.1rem; border-radius:8px; font-weight:600;
+                   cursor:pointer; font-size:0.9rem; }
+    .btn-request:disabled { opacity:0.6; cursor:default; }
+    .btn-cancel  { background:transparent; color:var(--archie-text-muted,#94a3b8);
+                   border:1px solid var(--archie-border-subtle,#334155);
+                   padding:0.55rem 1.1rem; border-radius:8px; cursor:pointer; font-size:0.9rem; }
+</style>
+
 <h1>Discover
     {% if report.user.display_name or report.user.username %}
         <span class="dim" style="font-weight:400;">for {{ report.user.display_name or report.user.username }}</span>
@@ -12,7 +45,9 @@
 <h2 style="margin:2rem 0 1rem;">Movies</h2>
 <div class="grid">
     {% for m in report.movies %}
-    <div class="card" style="padding:0.75rem;">
+    <div class="card discover-card" style="padding:0.75rem;"
+         onclick="openDiscover('{{ m.tmdb_id }}','movie','{{ m.title | replace("'","&#39;") }}','{{ m.year }}',{{ m.vote_average or 0 }},'{{ m.poster or '' }}','{{ m.overview | replace("'","&#39;") | replace('"',"&quot;") }}')"
+    >
         {% if m.poster %}
         <div class="poster" style="background-image:url('https://image.tmdb.org/t/p/w342{{ m.poster }}');"></div>
         {% else %}
@@ -21,8 +56,8 @@
         <div class="title-row">
             <h3 style="font-size:1rem;">{{ m.title }}{% if m.year %} ({{ m.year }}){% endif %}</h3>
         </div>
-        {% if m.vote_average %}<div class="stat">&#9733; {{ '%.1f' | format(m.vote_average) }} · {{ m.vote_count }} votes</div>{% endif %}
-        <div class="detail" style="font-size:0.85rem; margin-top:0.4rem;">{{ m.overview[:140] }}{% if m.overview|length > 140 %}…{% endif %}</div>
+        {% if m.vote_average %}<div class="stat">&#9733; {{ '%.1f' | format(m.vote_average) }}</div>{% endif %}
+        <div class="detail" style="font-size:0.85rem; margin-top:0.4rem;">{{ m.overview[:120] }}{% if m.overview|length > 120 %}…{% endif %}</div>
     </div>
     {% endfor %}
 </div>
@@ -32,7 +67,9 @@
 <h2 style="margin:2rem 0 1rem;">TV</h2>
 <div class="grid">
     {% for s in report.tv %}
-    <div class="card" style="padding:0.75rem;">
+    <div class="card discover-card" style="padding:0.75rem;"
+         onclick="openDiscover('{{ s.tmdb_id }}','tv','{{ s.title | replace("'","&#39;") }}','{{ s.year }}',{{ s.vote_average or 0 }},'{{ s.poster or '' }}','{{ s.overview | replace("'","&#39;") | replace('"',"&quot;") }}')"
+    >
         {% if s.poster %}
         <div class="poster" style="background-image:url('https://image.tmdb.org/t/p/w342{{ s.poster }}');"></div>
         {% else %}
@@ -41,8 +78,8 @@
         <div class="title-row">
             <h3 style="font-size:1rem;">{{ s.title }}{% if s.year %} ({{ s.year }}){% endif %}</h3>
         </div>
-        {% if s.vote_average %}<div class="stat">&#9733; {{ '%.1f' | format(s.vote_average) }} · {{ s.vote_count }} votes</div>{% endif %}
-        <div class="detail" style="font-size:0.85rem; margin-top:0.4rem;">{{ s.overview[:140] }}{% if s.overview|length > 140 %}…{% endif %}</div>
+        {% if s.vote_average %}<div class="stat">&#9733; {{ '%.1f' | format(s.vote_average) }}</div>{% endif %}
+        <div class="detail" style="font-size:0.85rem; margin-top:0.4rem;">{{ s.overview[:120] }}{% if s.overview|length > 120 %}…{% endif %}</div>
     </div>
     {% endfor %}
 </div>
@@ -56,4 +93,65 @@
     </div>
 </div>
 {% endif %}
+
+<!-- Detail modal -->
+<div id="discoverOverlay" class="disc-overlay" style="display:none" onclick="closeDiscover(event)">
+  <div class="disc-modal">
+    <button class="disc-close" onclick="closeDiscover(null)">✕</button>
+    <div class="disc-modal-layout">
+      <div id="discPoster" class="disc-modal-poster"></div>
+      <div class="disc-modal-info">
+        <div id="discTitle" class="disc-modal-title"></div>
+        <div id="discMeta"  class="disc-modal-meta"></div>
+        <div id="discOverview" class="disc-modal-overview"></div>
+        <div class="disc-modal-actions">
+          <button id="discRequestBtn" class="btn-request" onclick="requestDiscover()">Request</button>
+          <button class="btn-cancel" onclick="closeDiscover(null)">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let _discItem = {};
+
+function openDiscover(tmdb_id, media_type, title, year, rating, poster, overview) {
+    _discItem = { tmdb_id, media_type, title, year, rating, poster, overview };
+    document.getElementById('discTitle').textContent = title + (year ? ' (' + year + ')' : '');
+    document.getElementById('discMeta').textContent = (rating ? '⭐ ' + rating.toFixed(1) : '') +
+        (media_type === 'tv' ? '  ·  TV Series' : '  ·  Movie');
+    document.getElementById('discOverview').textContent = overview || 'No overview available.';
+    const posterEl = document.getElementById('discPoster');
+    posterEl.style.backgroundImage = poster ? "url('https://image.tmdb.org/t/p/w342" + poster + "')" : '';
+    const btn = document.getElementById('discRequestBtn');
+    btn.disabled = false;
+    btn.textContent = 'Request';
+    document.getElementById('discoverOverlay').style.display = 'flex';
+}
+
+function closeDiscover(e) {
+    if (e && e.target !== document.getElementById('discoverOverlay')) return;
+    document.getElementById('discoverOverlay').style.display = 'none';
+}
+
+async function requestDiscover() {
+    const btn = document.getElementById('discRequestBtn');
+    btn.disabled = true;
+    btn.textContent = 'Requesting…';
+    try {
+        const r = await fetch('/tools/media-hub/api/requests', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({media_type: _discItem.media_type, tmdb_id: _discItem.tmdb_id})
+        });
+        const d = await r.json();
+        btn.textContent = d.success ? '✓ Requested!' : (d.error || 'Failed');
+        if (d.success) setTimeout(() => closeDiscover(null), 1500);
+    } catch (e) {
+        btn.textContent = 'Error — try again';
+        btn.disabled = false;
+    }
+}
+</script>
 {% endblock %}

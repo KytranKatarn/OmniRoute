@@ -2184,9 +2184,10 @@ async function loadRequests() {
         if (data.success && data.requests) {
             allRequests = data.requests;
             renderFilteredRequests();
-            // Auto-refresh while any request is actively downloading
-            const hasProcessing = allRequests.some(r => r.status === 'processing');
-            hasProcessing ? startRequestRefresh() : stopRequestRefresh();
+            // Auto-refresh while any request is in-flight (approved = grabbed by arr,
+            // processing = importing, either can transition to available)
+            const inFlight = allRequests.some(r => ['processing', 'approved'].includes(r.status));
+            inFlight ? startRequestRefresh() : stopRequestRefresh();
         } else {
             container.appendChild(createEmptyState('inbox', 'No media requests'));
         }
@@ -2278,9 +2279,10 @@ function createRequestCard(req) {
 
     const poster = document.createElement('img');
     poster.className = 'request-poster';
-    poster.src = req.poster_url || '/static/img/no-poster.png';
+    poster.src = req.poster_url || '';
     poster.alt = '';
     poster.loading = 'lazy';
+    poster.onerror = function() { this.style.display = 'none'; };
 
     const info = document.createElement('div');
     info.className = 'request-info';

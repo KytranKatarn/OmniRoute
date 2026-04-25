@@ -906,6 +906,20 @@ def api_requests():
                     except Exception as e:
                         logger.debug(f"TMDB enrichment failed for request {req.get('id')}: {e}")
 
+        # Fallback: fetch poster from Overseerr detail endpoint for items
+        # still missing poster_url (happens when TMDB API key is not configured)
+        for req in deduplicated:
+            if not req.get("poster_url") and req.get("tmdb_id"):
+                try:
+                    media_type = "tv" if req.get("media_type") in ("show", "tv") else "movie"
+                    detail = overseerr.get_media_status(req["tmdb_id"], media_type)
+                    if detail and detail.get("posterPath"):
+                        req["poster_url"] = f"https://image.tmdb.org/t/p/w342{detail['posterPath']}"
+                    if detail and not req.get("title") or req.get("title") == "Unknown":
+                        req["title"] = detail.get("title") or detail.get("name") or req.get("title", "Unknown")
+                except Exception:
+                    pass
+
         return jsonify({"success": True, "requests": deduplicated})
     except Exception as e:
         logger.error(f"Error getting requests: {e}")

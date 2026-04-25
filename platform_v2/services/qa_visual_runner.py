@@ -97,12 +97,20 @@ class VisualRunner:
         finally:
             await page.close()
 
-    async def _snapshot(self, context, base_url, path, selectors, breakpoint_px):
+    async def _snapshot(self, context, base_url, path, selectors, breakpoint_px, screenshot_name=None):
+        """Capture CSS computed-style snapshot + optional pixel screenshot.
+
+        Returns:
+            (css_snap dict, screenshot_relative_path or None)
+        """
+        import os
+        import time as _time
+
         page = await context.new_page()
         try:
             await page.set_viewport_size({"width": breakpoint_px, "height": 1024})
             await page.goto(f"{base_url}{path}", wait_until="networkidle", timeout=20000)
-            return await page.evaluate(
+            css_snap = await page.evaluate(
                 """
                 (args) => {
                     const { selectors, trackedProps, trackedVars } = args;
@@ -135,6 +143,17 @@ class VisualRunner:
                     "trackedVars": TRACKED_CSS_VARS,
                 },
             )
+
+            screenshot_path = None
+            if screenshot_name:
+                ss_dir = "/tmp/qa_reports/screenshots"
+                os.makedirs(ss_dir, exist_ok=True)
+                filename = f"{screenshot_name}_{breakpoint_px}_{int(_time.time())}.png"
+                filepath = os.path.join(ss_dir, filename)
+                await page.screenshot(path=filepath, full_page=True)
+                screenshot_path = f"qa_reports/screenshots/{filename}"
+
+            return css_snap, screenshot_path
         finally:
             await page.close()
 
@@ -172,8 +191,16 @@ class VisualRunner:
             for bp in breakpoints:
                 test_name = f"{name_base}-bp{bp}"
                 url = f"{base_url}{path}"
+                ss_name = f"{snapshot_name}-bp{bp}"
                 try:
-                    snap = await self._snapshot(context, base_url, path, selectors, int(bp))
+                    snap, screenshot_path = await self._snapshot(
+                        context,
+                        base_url,
+                        path,
+                        selectors,
+                        int(bp),
+                        screenshot_name=ss_name,
+                    )
                 except Exception as e:
                     results.append(
                         {
@@ -196,6 +223,7 @@ class VisualRunner:
                             "test_type": "visual_snapshot",
                             "status": "skip",
                             "url": url,
+                            "screenshot_path": screenshot_path,
                             "error_message": (
                                 f"No baseline for '{snapshot_name}' @ {bp}px. " "Accept this run to create one."
                             ),
@@ -217,6 +245,7 @@ class VisualRunner:
                             "test_type": "visual_snapshot",
                             "status": "pass",
                             "url": url,
+                            "screenshot_path": screenshot_path,
                             "assertions": {
                                 "snapshot_name": snapshot_name,
                                 "breakpoint": int(bp),
@@ -230,6 +259,7 @@ class VisualRunner:
                             "test_type": "visual_snapshot",
                             "status": "fail",
                             "url": url,
+                            "screenshot_path": screenshot_path,
                             "error_message": format_diffs(diffs)[:500],
                             "assertions": {
                                 "snapshot_name": snapshot_name,

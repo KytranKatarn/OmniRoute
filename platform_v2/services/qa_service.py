@@ -390,10 +390,12 @@ def _send_qa_telegram_alert(suite_name, run_id, total, passed, failed, errors, r
     Routes through telegram_service.send_agent() so all outbound messages go via
     the A.R.C.H.I.E. unified voice (director_report_service inbox).
     """
+    FAIL_STATUSES = {"fail", "failed", "error"}
+
     # Build failure list (max 5)
     failure_lines = []
     for r in results:
-        if r.get("status") in ("failed", "error"):
+        if r.get("status") in FAIL_STATUSES:
             name = r.get("test_name", "unknown")
             err = r.get("error_message", "no details")
             if len(err) > 120:
@@ -410,6 +412,21 @@ def _send_qa_telegram_alert(suite_name, run_id, total, passed, failed, errors, r
         f"Passed: {passed} | Failed: {failed} | Errors: {errors} | Total: {total}\n\n"
         "Failed tests:\n" + "\n".join(failure_lines)
     )
+
+    # Visual regression section — call out CSS/style diffs explicitly
+    visual_fails = [r for r in results if r.get("test_type") == "visual_snapshot" and r.get("status") in FAIL_STATUSES]
+    if visual_fails:
+        body += "\n\n🔴 *Visual Regressions:*\n"
+        for r in visual_fails[:4]:
+            name = r.get("test_name", "?")
+            diffs = (r.get("assertions") or {}).get("diffs") or []
+            if diffs:
+                summary = "; ".join(f"{d['selector']}[{d['property']}]" for d in diffs[:3])
+                if len(diffs) > 3:
+                    summary += f" (+{len(diffs) - 3} more)"
+            else:
+                summary = r.get("error_message", "unknown diff")[:100]
+            body += f"  `{name}`: {summary}\n"
 
     try:
         from services.telegram_service import send_agent

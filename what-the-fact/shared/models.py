@@ -12,6 +12,8 @@ class Source(Base):
     slug = Column(String(64), unique=True, nullable=False)    # "cbc_english"
     name = Column(String(128), nullable=False)
     url = Column(String(512), nullable=False)
+    rss_feed = Column(String(512), nullable=True)
+    bias_lean = Column(String(16), nullable=True)             # left|center-left|center|center-right|right
     country = Column(String(8), nullable=False, default="CA")
     language = Column(String(8), nullable=False, default="en")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

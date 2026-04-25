@@ -480,7 +480,7 @@ print(json.dumps(results))
 
 
 def _authenticate(session, base_url, auth):
-    """POST to /login with username/password form data."""
+    """POST to /login then verify the session cookie is active on /dashboard."""
     login_url = f"{base_url}/login"
     payload = {
         "username": auth["username"],
@@ -489,7 +489,16 @@ def _authenticate(session, base_url, auth):
     resp = session.post(login_url, data=payload, allow_redirects=True, timeout=30)
     if resp.status_code >= 400:
         raise RuntimeError(f"Login returned status {resp.status_code} for user {auth['username']}")
-    logger.info("Authenticated as %s (status %s)", auth["username"], resp.status_code)
+
+    # Verify the session cookie actually works — a 302 here means the login
+    # silently failed (wrong credentials, platform still starting up, etc.)
+    verify = session.get(f"{base_url}/dashboard", allow_redirects=False, timeout=10)
+    if verify.status_code in (301, 302):
+        raise RuntimeError(
+            f"Auth verification failed for {auth['username']}: "
+            f"/dashboard returned {verify.status_code} — platform may be starting up"
+        )
+    logger.info("Authenticated as %s (verified: dashboard %s)", auth["username"], verify.status_code)
 
 
 def _run_api_test(test, base_url, session, auth):

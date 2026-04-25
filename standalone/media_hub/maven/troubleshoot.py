@@ -469,6 +469,131 @@ def _arr_import_blocked() -> List[CheckResult]:
     return results
 
 
+# --- request pipeline check ------------------------------------------------
+
+_STUCK_PENDING_HOURS = 2    # warn if pending this long without approval
+_STUCK_APPROVED_HOURS = 2   # error if approved this long without entering arr queue
+
+_REQUEST_STATUS = {1: "pending", 2: "approved", 3: "declined", 4: "failed", 5: "completed"}
+_MEDIA_STATUS   = {1: "unknown", 2: "pending", 3: "processing", 4: "partial", 5: "available"}
+
+
+def _check_request_pipeline() -> List[CheckResult]:
+    """Query Overseerr for requests stuck at pending or approved.
+
+    Pending > 2h usually means auto-approval is disabled — the request will
+    never reach Radarr/Sonarr without a human approving it in Overseerr.
+
+    Approved > 2h with no queue entry in Radarr/Sonarr means the arr push
+    failed silently — common when Overseerr → Radarr/Sonarr connection drifts
+    (API key rotated, container restarted, etc.).
+    """
+    rows = _rows_for_type("overseerr", "jellyseerr")
+    if not rows:
+        return []
+
+    results = []
+    for sid, stype, name, host, port, use_ssl, enc, *_ in rows:
+        key = _decrypt_key(enc)
+        if not key:
+            continue
+        scheme = "https" if use_ssl else "http"
+        base = f"{scheme}://{host}:{port}"
+        try:
+            r = requests.get(
+                f"{base}/api/v1/request",
+                headers={"X-Api-Key": key},
+                params={"take": 100, "skip": 0},
+                timeout=10,
+            )
+            if r.status_code != 200:
+                results.append(CheckResult(
+                    id="overseerr_req_list",
+                    title=f"{name} request list",
+                    severity="error",
+                    detail=f"HTTP {r.status_code}: {r.text[:100]}",
+                    fix=f"Check Overseerr is running at {base}",
+                ))
+                continue
+
+            all_requests = r.json().get("results", [])
+            now = datetime.utcnow().replace(tzinfo=timezone.utc)
+            stuck_pending: list = []
+            stuck_approved: list = []
+
+            for req in all_requests:
+                req_status = req.get("status")
+                media = req.get("media") or {}
+                media_status = media.get("status", 0)
+
+                # Skip anything already moving through the pipeline
+                if media_status in (3, 4, 5) or req_status in (3, 4, 5):
+                    continue
+
+                try:
+                    created_at = datetime.fromisoformat(
+                        req.get("createdAt", "").replace("Z", "+00:00")
+                    )
+                    age_h = (now - created_at).total_seconds() / 3600
+                except Exception:
+                    age_h = 0
+
+                title = (
+                    media.get("title") or media.get("name")
+                    or f"tmdb:{media.get('tmdbId', '?')}"
+                )[:60]
+
+                if req_status == 1 and age_h >= _STUCK_PENDING_HOURS:
+                    stuck_pending.append((title, age_h))
+                elif req_status == 2 and age_h >= _STUCK_APPROVED_HOURS:
+                    stuck_approved.append((title, age_h))
+
+            if not stuck_pending and not stuck_approved:
+                results.append(CheckResult(
+                    id="overseerr_pipeline",
+                    title=f"{name} request pipeline",
+                    severity="ok",
+                    detail=f"{len(all_requests)} request(s) — all progressing normally",
+                ))
+
+            for title, age_h in stuck_pending:
+                results.append(CheckResult(
+                    id=f"overseerr_pending_{title[:20].replace(' ','_')}",
+                    title=f"Request stuck pending: {title}",
+                    severity="warning",
+                    detail=f"pending for {age_h:.1f}h with no approval",
+                    fix=(
+                        f"Enable auto-approval in Overseerr: {base}/settings/main → "
+                        "scroll to 'Default Permissions' → enable 'Auto-Approve'. "
+                        "Or approve the request manually in Overseerr → Requests."
+                    ),
+                ))
+
+            for title, age_h in stuck_approved:
+                results.append(CheckResult(
+                    id=f"overseerr_approved_{title[:20].replace(' ','_')}",
+                    title=f"Request approved, not downloading: {title}",
+                    severity="error",
+                    detail=f"approved for {age_h:.1f}h but not found in Radarr/Sonarr queue",
+                    fix=(
+                        "Use 'Fix Stuck Requests' (POST /maven/api/fix-stuck-requests) to "
+                        "trigger targeted searches in Radarr/Sonarr. Also check Prowlarr "
+                        "indexer status above — if all indexers are failing, no results "
+                        "can be found regardless of how many times we search."
+                    ),
+                ))
+
+        except Exception as e:
+            results.append(CheckResult(
+                id="overseerr_pipeline_err",
+                title=f"{name} pipeline check",
+                severity="error",
+                detail=f"probe exception: {e}",
+            ))
+
+    return results
+
+
 # --- public API ------------------------------------------------------------
 
 def run_diagnostic() -> dict:
@@ -483,6 +608,10 @@ def run_diagnostic() -> dict:
     checks += _prowlarr_indexers()
     checks += _sabnzbd_queue()
     checks += _arr_import_blocked()
+    checks += _check_request_pipeline()
+    # Disk space check (imported here to avoid circular import at module level)
+    from .quality import check_disk_space as _check_disk_space
+    checks += _check_disk_space()
 
     summary = {"ok": 0, "warning": 0, "error": 0}
     for c in checks:
@@ -596,6 +725,205 @@ def api_retry_scan():
             results.append({"service": name, "ok": False, "error": str(e)})
 
     return jsonify({"success": True, "results": results})
+
+
+@maven_bp.route("/api/fix-stuck-requests", methods=["POST"])
+@login_required
+def api_fix_stuck_requests():
+    """Unstick approved-but-not-downloading requests.
+
+    Strategy (in order):
+    1. Pull approved requests from Overseerr, look each one up in Radarr/Sonarr
+       by TMDB ID, and trigger a targeted search for items that are already
+       monitored but have no queue entry.
+    2. Run DownloadedMoviesScan + DownloadedEpisodesScan to import anything
+       already downloaded but stuck in importBlocked.
+    3. Run Overseerr availability-sync + radarr-scan to re-push any approved
+       requests that never reached the arr services.
+    4. Trigger a Plex library refresh so newly imported files appear immediately.
+    """
+    _require_admin()
+    results = []
+
+    # Step 1 — targeted arr searches for approved requests
+    overseerr_rows = _rows_for_type("overseerr", "jellyseerr")
+    approved_movies: list = []   # tmdb IDs
+    approved_tv: list = []       # tmdb IDs
+
+    for _, stype, name, host, port, use_ssl, enc, *_ in overseerr_rows:
+        key = _decrypt_key(enc)
+        if not key:
+            continue
+        scheme = "https" if use_ssl else "http"
+        try:
+            r = requests.get(
+                f"{scheme}://{host}:{port}/api/v1/request",
+                headers={"X-Api-Key": key},
+                params={"take": 100, "skip": 0, "filter": "approved"},
+                timeout=10,
+            )
+            if r.status_code != 200:
+                results.append({"step": "overseerr_fetch", "ok": False,
+                                 "error": f"HTTP {r.status_code}"})
+                continue
+            for req in r.json().get("results", []):
+                media = req.get("media") or {}
+                media_status = media.get("status", 0)
+                if media_status in (3, 4, 5):
+                    continue   # already progressing
+                tmdb_id = media.get("tmdbId")
+                if not tmdb_id:
+                    continue
+                if req.get("type") == "movie":
+                    approved_movies.append(tmdb_id)
+                else:
+                    approved_tv.append(tmdb_id)
+        except Exception as e:
+            results.append({"step": "overseerr_fetch", "ok": False, "error": str(e)})
+
+    # Trigger targeted Radarr search for each approved movie
+    for _, stype, name, host, port, use_ssl, enc, *_ in _rows_for_type("radarr"):
+        key = _decrypt_key(enc)
+        if not key or not approved_movies:
+            continue
+        scheme = "https" if use_ssl else "http"
+        base = f"{scheme}://{host}:{port}"
+        try:
+            all_movies_r = requests.get(
+                f"{base}/api/v3/movie",
+                headers={"X-Api-Key": key},
+                timeout=10,
+            )
+            if all_movies_r.status_code != 200:
+                continue
+            radarr_id_map = {m["tmdbId"]: m["id"] for m in all_movies_r.json()
+                             if m.get("tmdbId") and m.get("id")}
+            ids_to_search = [radarr_id_map[t] for t in approved_movies
+                             if t in radarr_id_map]
+            if ids_to_search:
+                sr = requests.post(
+                    f"{base}/api/v3/command",
+                    headers={"X-Api-Key": key},
+                    json={"name": "MoviesSearch", "movieIds": ids_to_search},
+                    timeout=8,
+                )
+                results.append({
+                    "step": "radarr_search", "service": name,
+                    "count": len(ids_to_search),
+                    "ok": sr.status_code in (200, 201),
+                })
+        except Exception as e:
+            results.append({"step": "radarr_search", "service": name,
+                            "ok": False, "error": str(e)})
+
+    # Trigger targeted Sonarr search for each approved TV request
+    for _, stype, name, host, port, use_ssl, enc, *_ in _rows_for_type("sonarr"):
+        key = _decrypt_key(enc)
+        if not key or not approved_tv:
+            continue
+        scheme = "https" if use_ssl else "http"
+        base = f"{scheme}://{host}:{port}"
+        try:
+            all_series_r = requests.get(
+                f"{base}/api/v3/series",
+                headers={"X-Api-Key": key},
+                timeout=10,
+            )
+            if all_series_r.status_code != 200:
+                continue
+            sonarr_id_map = {s["tmdbId"]: s["id"] for s in all_series_r.json()
+                             if s.get("tmdbId") and s.get("id")}
+            for tmdb_id in approved_tv:
+                sonarr_id = sonarr_id_map.get(tmdb_id)
+                if not sonarr_id:
+                    continue
+                sr = requests.post(
+                    f"{base}/api/v3/command",
+                    headers={"X-Api-Key": key},
+                    json={"name": "SeriesSearch", "seriesId": sonarr_id},
+                    timeout=8,
+                )
+                results.append({
+                    "step": "sonarr_search", "service": name,
+                    "tmdb_id": tmdb_id,
+                    "ok": sr.status_code in (200, 201),
+                })
+        except Exception as e:
+            results.append({"step": "sonarr_search", "service": name,
+                            "ok": False, "error": str(e)})
+
+    # Step 2 — scan for already-downloaded but not-imported files
+    for service_type, scan_cmd in [
+        ("radarr", "DownloadedMoviesScan"),
+        ("sonarr", "DownloadedEpisodesScan"),
+    ]:
+        for _, stype, name, host, port, use_ssl, enc, *_ in _rows_for_type(service_type):
+            key = _decrypt_key(enc)
+            if not key:
+                continue
+            scheme = "https" if use_ssl else "http"
+            try:
+                r = requests.post(
+                    f"{scheme}://{host}:{port}/api/v3/command",
+                    headers={"X-Api-Key": key},
+                    json={"name": scan_cmd},
+                    timeout=5,
+                )
+                results.append({"step": scan_cmd, "service": name,
+                                 "ok": r.status_code in (200, 201)})
+            except Exception as e:
+                results.append({"step": scan_cmd, "service": name,
+                                "ok": False, "error": str(e)})
+
+    # Step 3 — Overseerr availability-sync + radarr-scan
+    for _, stype, name, host, port, use_ssl, enc, *_ in overseerr_rows:
+        key = _decrypt_key(enc)
+        if not key:
+            continue
+        scheme = "https" if use_ssl else "http"
+        for job in ("availability-sync", "radarr-scan"):
+            try:
+                r = requests.post(
+                    f"{scheme}://{host}:{port}/api/v1/settings/jobs/{job}/run",
+                    headers={"X-Api-Key": key},
+                    timeout=8,
+                )
+                results.append({"step": f"overseerr_{job}", "service": name,
+                                 "ok": r.status_code == 200})
+            except Exception as e:
+                results.append({"step": f"overseerr_{job}", "service": name,
+                                "ok": False, "error": str(e)})
+
+    # Step 4 — Plex library refresh
+    for _, stype, name, host, port, use_ssl, enc, *_ in _rows_for_type("plex"):
+        key = _decrypt_key(enc)
+        if not key:
+            continue
+        scheme = "https" if use_ssl else "http"
+        try:
+            r = requests.get(
+                f"{scheme}://{host}:{port}/library/sections/all/refresh",
+                params={"X-Plex-Token": key},
+                timeout=8,
+                verify=False,
+            )
+            results.append({"step": "plex_refresh", "service": name,
+                             "ok": r.status_code in (200, 201)})
+        except Exception as e:
+            results.append({"step": "plex_refresh", "service": name,
+                            "ok": False, "error": str(e)})
+
+    ok_count = sum(1 for r in results if r.get("ok"))
+    return jsonify({
+        "success": True,
+        "results": results,
+        "summary": f"{ok_count}/{len(results)} actions succeeded",
+        "note": (
+            "Searches have been triggered. Downloads appear in SABnzbd within "
+            "60–120s if Prowlarr finds results. Run /maven/api/troubleshoot "
+            "again in a few minutes to verify progress."
+        ),
+    })
 
 
 @maven_bp.route("/troubleshoot")

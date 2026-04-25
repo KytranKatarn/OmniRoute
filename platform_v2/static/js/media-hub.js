@@ -471,7 +471,7 @@ function switchTab(tabId) {
             loadCalendar();
             break;
         case 'stats':
-            loadStatistics();
+            loadStatistics(true); // always fetch fresh — bypass stale localStorage cache
             break;
     }
 }
@@ -2676,14 +2676,14 @@ async function requestMedia(item) {
 
 async function loadStatistics(forceRefresh = false) {
     // Show loading state in individual sections
-    const sections = ['qualityBreakdown', 'featuresGrid', 'storageBreakdown', 'genresBreakdown', 'recentAdditions', 'topRatedGrid'];
+    const sections = ['qualityBreakdown', 'featuresGrid', 'storageBreakdown', 'genresBreakdown', 'statsRecentAdditions', 'topRatedGrid'];
     sections.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.innerHTML = '<div class="breakdown-placeholder">Loading...</div>';
     });
 
     // Load from cache first for instant display (unless force refresh)
-    const cached = !forceRefresh && cacheGet('statistics', 3600000); // 1 hour cache
+    const cached = !forceRefresh && cacheGet('statistics', 300000); // 5 min cache
     if (cached && cached.data) {
         renderStatistics(cached.data);
         console.log(`[Media Hub] Statistics loaded from cache`);
@@ -2721,7 +2721,7 @@ async function loadStatistics(forceRefresh = false) {
 }
 
 function showStatsError(message) {
-    const sections = ['qualityBreakdown', 'featuresGrid', 'storageBreakdown', 'genresBreakdown', 'recentAdditions', 'topRatedGrid'];
+    const sections = ['qualityBreakdown', 'featuresGrid', 'storageBreakdown', 'genresBreakdown', 'statsRecentAdditions', 'topRatedGrid'];
     sections.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.innerHTML = `<div class="breakdown-placeholder">${message}</div>`;
@@ -2908,7 +2908,7 @@ function renderGenresBreakdown(genres) {
 }
 
 function renderRecentAdditions(recentData) {
-    const container = document.getElementById('recentAdditions');
+    const container = document.getElementById('statsRecentAdditions');
     if (!container) return;
 
     if (!recentData || !recentData.by_day) {

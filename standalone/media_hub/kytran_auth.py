@@ -20,7 +20,16 @@ import secrets
 from functools import wraps
 
 import requests
-from flask import redirect, request, session, url_for, jsonify
+from flask import flash, redirect, request, session, url_for, jsonify
+from flask_login import current_user as _flask_login_current_user
+
+
+def _login_url():
+    """Return the login URL, falling back to /login if auth.login isn't registered."""
+    try:
+        return url_for("auth.login")
+    except Exception:
+        return "/login"
 
 
 class KytranAuth:
@@ -61,7 +70,16 @@ class KytranAuth:
         def kytran_login():
             state = secrets.token_urlsafe(32)
             session["oauth_state"] = state
-            session["oauth_next"] = request.args.get("next", "/")
+            # Validate and store next URL — reject cross-origin targets (open redirect)
+            from urllib.parse import urlparse, urljoin as _urljoin
+            _raw_next = request.args.get("next") or "/"
+            _ref = urlparse(request.host_url)
+            _test = urlparse(_urljoin(request.host_url, _raw_next))
+            session["oauth_next"] = (
+                _raw_next
+                if _test.scheme in ("http", "https") and _ref.netloc == _test.netloc
+                else "/"
+            )
 
             # PKCE — generate code_verifier and S256 code_challenge
             code_verifier = secrets.token_urlsafe(64)
@@ -89,12 +107,17 @@ class KytranAuth:
         def kytran_callback():
             state = request.args.get("state")
             if state != session.pop("oauth_state", None):
-                return "Invalid state parameter", 400
+                flash(
+                    "Sign-in failed: your session expired mid-flow. Please try again.",
+                    "error",
+                )
+                return redirect(_login_url())
 
             code = request.args.get("code")
             if not code:
                 error = request.args.get("error", "unknown")
-                return f"Authorization failed: {error}", 400
+                flash(f"Sign-in was not completed: {error}.", "error")
+                return redirect(_login_url())
 
             code_verifier = session.pop("oauth_code_verifier", None)
             token_payload = {
@@ -114,14 +137,20 @@ class KytranAuth:
                     timeout=10,
                 )
                 if token_resp.status_code != 200:
-                    return f"Token exchange failed: {token_resp.text}", 400
+                    flash(
+                        "Sign-in failed: could not complete token exchange. Please try again.",
+                        "error",
+                    )
+                    return redirect(_login_url())
                 token_data = token_resp.json()
-            except Exception as e:
-                return f"Token exchange error: {e}", 500
+            except Exception:
+                flash("Sign-in failed: network error during token exchange.", "error")
+                return redirect(_login_url())
 
             access_token = token_data.get("access_token")
             if not access_token:
-                return "No access token received", 400
+                flash("Sign-in failed: no access token received. Please try again.", "error")
+                return redirect(_login_url())
 
             try:
                 userinfo_resp = requests.get(
@@ -130,19 +159,25 @@ class KytranAuth:
                     timeout=10,
                 )
                 if userinfo_resp.status_code != 200:
-                    return f"Userinfo failed: {userinfo_resp.text}", 400
+                    flash(
+                        "Sign-in failed: could not retrieve your profile. Please try again.",
+                        "error",
+                    )
+                    return redirect(_login_url())
                 userinfo = userinfo_resp.json()
-            except Exception as e:
-                return f"Userinfo error: {e}", 500
+            except Exception:
+                flash("Sign-in failed: network error fetching profile.", "error")
+                return redirect(_login_url())
 
             entitlements = userinfo.get("entitlements", [])
             if sdk.enforce_entitlement and sdk.client_id not in entitlements:
-                return (
-                    "<h2>Subscription Required</h2>"
-                    "<p>Your account does not have access to this product.</p>"
-                    f"<p>Subscribed products: {', '.join(entitlements) or 'none'}</p>"
-                    f"<p><a href='{sdk.auth_url}'>Manage subscriptions</a></p>"
-                ), 403
+                flash(
+                    f"Access not enabled for this product. "
+                    f"Your subscriptions: {', '.join(entitlements) or 'none'}. "
+                    f"Manage at {sdk.auth_url}.",
+                    "error",
+                )
+                return redirect(_login_url())
 
             session["kytran_user"] = {
                 "sub": userinfo.get("sub"),
@@ -157,6 +192,19 @@ class KytranAuth:
 
             if sdk._on_login:
                 sdk._on_login(session["kytran_user"])
+
+            # Verify Flask-Login session was actually established.
+            # _on_login may silently fail (DB error, inactive account) and skip
+            # login_user() — if so, redirecting would bounce the user back to
+            # login with no explanation, creating a confusing loop.
+            if not _flask_login_current_user.is_authenticated:
+                session.pop("kytran_user", None)
+                flash(
+                    "Sign-in failed: your Kytran account could not be linked "
+                    "to a Media Hub profile. Please contact admin.",
+                    "error",
+                )
+                return redirect(_login_url())
 
             next_url = session.pop("oauth_next", "/")
             return redirect(next_url)

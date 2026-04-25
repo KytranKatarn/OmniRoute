@@ -166,6 +166,8 @@ def create_app() -> Flask:
         "maven.discover_page":     "30 per minute",
         "user_mgmt.admin_users":   "30 per minute",
         "user_mgmt.profile":       "30 per minute",
+        "maven.api_quality_report":   "10 per minute; 60 per hour",
+        "maven.api_upgrade_oversized": "5 per minute; 20 per hour",
     }
     for view_name, rate in _maven_limits.items():
         if view_name in app.view_functions:

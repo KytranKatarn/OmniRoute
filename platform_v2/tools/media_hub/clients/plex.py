@@ -99,11 +99,11 @@ class PlexClient(MediaServerInterface):
         """Parse Plex media item to unified format"""
         # Get poster URL
         poster_path = item.get("thumb", "")
-        poster_url = f"{self.base_url}{poster_path}?X-Plex-Token={self.token}" if poster_path else None
+        poster_url = f"/tools/media-hub/api/proxy/thumb?s=plex&path={poster_path}" if poster_path else None
 
         # Get backdrop URL
         art_path = item.get("art", "")
-        backdrop_url = f"{self.base_url}{art_path}?X-Plex-Token={self.token}" if art_path else None
+        backdrop_url = f"/tools/media-hub/api/proxy/thumb?s=plex&path={art_path}" if art_path else None
 
         # Parse rating — Plex uses "rating" (critic) or "audienceRating" (audience);
         # some shows only have one or neither
@@ -404,7 +404,7 @@ class PlexClient(MediaServerInterface):
                             "name": item.get("title", f"Season {item.get('index', 0)}"),
                             "season_number": item.get("index", 0),
                             "episode_count": item.get("leafCount", 0),
-                            "poster_url": (f"{self.base_url}{thumb}?X-Plex-Token={self.token}" if thumb else None),
+                            "poster_url": (f"/tools/media-hub/api/proxy/thumb?s=plex&path={thumb}" if thumb else None),
                             "overview": item.get("summary", ""),
                             "year": item.get("year"),
                         }
@@ -475,7 +475,7 @@ class PlexClient(MediaServerInterface):
                         "overview": item.get("summary", ""),
                         "runtime_minutes": runtime_minutes,
                         "quality": quality,
-                        "poster_url": (f"{self.base_url}{thumb}?X-Plex-Token={self.token}" if thumb else None),
+                        "poster_url": (f"/tools/media-hub/api/proxy/thumb?s=plex&path={thumb}" if thumb else None),
                         "air_date": item.get("originallyAvailableAt"),
                         "has_file": len(media_list) > 0,
                         "played": played,
@@ -549,7 +549,7 @@ class PlexClient(MediaServerInterface):
                             "id": str(coll.get("ratingKey", "")),
                             "title": coll.get("title", ""),
                             "summary": coll.get("summary", ""),
-                            "poster_url": (f"{self.base_url}{thumb}?X-Plex-Token={self.token}" if thumb else None),
+                            "poster_url": (f"/tools/media-hub/api/proxy/thumb?s=plex&path={thumb}" if thumb else None),
                             "backdrop_url": (f"{self.base_url}{art}?X-Plex-Token={self.token}" if art else None),
                             "child_count": coll.get("childCount", 0),
                             "library_type": lib_type,

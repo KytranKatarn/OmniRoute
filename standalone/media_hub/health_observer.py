@@ -246,6 +246,68 @@ def maven_diagnostic_probe() -> None:
         log.error("maven_diagnostic_probe failed: %s", exc)
 
 
+# --- quality probe (every 12h) --------------------------------------------
+
+def quality_probe() -> None:
+    """Run movie quality + disk space audit every 12h.
+
+    Logs flagged movies and attempts to notify the A.R.C.H.I.E. hub so
+    A.R.C.H.I.E. can escalate to Kytran via Telegram.
+    """
+    import os
+
+    try:
+        from maven.quality import _get_movie_quality_report, check_disk_space
+
+        flagged = [m for m in _get_movie_quality_report() if m.flagged]
+        disk_issues = [c for c in check_disk_space() if c.severity != "ok"]
+
+        if not flagged and not disk_issues:
+            log.info("quality_probe: all movies within guidelines, disk healthy")
+            return
+
+        msgs = []
+        for c in disk_issues:
+            log.warning("quality_probe: disk — %s: %s", c.title, c.detail)
+            msgs.append(f"{c.title}: {c.detail}")
+
+        for m in flagged[:5]:
+            log.warning(
+                "quality_probe: flagged — %s (%s) %s %.1fGB: %s",
+                m.title, m.year, m.quality, m.size_gb, m.reason,
+            )
+            msgs.append(f"{m.title} {m.size_gb:.0f}GB")
+
+        if len(flagged) > 5:
+            msgs.append(f"…+{len(flagged) - 5} more")
+
+        hub_url = os.getenv("ARCHIE_HUB_URL", "http://192.168.1.200:3000")
+        api_key = os.getenv("ARCHIE_INTERNAL_API_KEY", "")
+        if api_key:
+            try:
+                requests.post(
+                    f"{hub_url}/api/notifications",
+                    json={
+                        "type": "warning",
+                        "title": "M.A.V.E.N. — Quality alert",
+                        "message": (
+                            f"{len(flagged)} oversized movie(s). "
+                            f"{'; '.join(msgs[:3])}. "
+                            f"Run /maven/api/upgrade-oversized to fix."
+                        ),
+                        "source": "media_hub_maven_quality",
+                        "priority": "normal",
+                    },
+                    headers={"X-Internal-Key": api_key},
+                    timeout=5,
+                )
+            except Exception:
+                pass  # hub unreachable — stdout log is the fallback
+
+    except Exception as exc:
+        log.error("quality_probe failed: %s", exc)
+
+
 # --- scheduler wiring ------------------------------------------------------
 
 _scheduler: Optional[BackgroundScheduler] = None
@@ -287,6 +349,14 @@ def start_scheduler() -> BackgroundScheduler:
         # Offset 5 min from startup so service health runs first
         next_run_time=datetime.utcnow().replace(second=0, microsecond=0),
     )
+    _scheduler.add_job(
+        quality_probe,
+        "interval",
+        hours=12,
+        id="quality_probe",
+        max_instances=1,
+        coalesce=True,
+    )
     _scheduler.start()
-    log.info("media hub observer scheduler started (jobs: service_health, indexer_health, maven_diagnostic, every 30m)")
+    log.info("media hub observer scheduler started (jobs: service_health, indexer_health, maven_diagnostic every 30m; quality_probe every 12h)")
     return _scheduler

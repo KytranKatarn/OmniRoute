@@ -139,7 +139,15 @@
         <h1>Media Hub</h1>
         <div class="byline">created by Kytran</div>
 
-        <a href="{{ url_for('kytran_login', next=request.args.get('next', '')) }}" class="sso-btn">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% for category, message in messages %}
+            <div class="error" style="{% if category == 'info' %}border-color:#3b82f6;color:#93c5fd;background:rgba(59,130,246,0.1){% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endwith %}
+
+        <a href="{{ url_for('kytran_login', next=request.args.get('next') or '') }}" class="sso-btn">
             <img src="{{ url_for('static', filename='img/kytran-logo.png') }}" alt="">
             Sign in with Kytran Empowerment
         </a>

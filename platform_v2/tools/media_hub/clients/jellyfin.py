@@ -104,8 +104,10 @@ class JellyfinClient(MediaServerInterface):
         return ok
 
     def _get_image_url(self, item_id: str, image_type: str = "Primary") -> Optional[str]:
-        """Get image URL for an item"""
-        return f"{self.base_url}/Items/{item_id}/Images/{image_type}?api_key={self.api_key}"
+        """Get image URL via server-side proxy so it works on HTTPS / external access."""
+        if not item_id:
+            return None
+        return f"/tools/media-hub/api/proxy/thumb?s=jellyfin&id={item_id}&type={image_type}"
 
     def _parse_media_item(self, item: Dict, media_type: Optional[MediaType] = None) -> MediaItem:
         """Parse Jellyfin media item to unified format"""

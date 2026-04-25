@@ -60,13 +60,26 @@ def _overseerr_discover(path: str, limit: int = 20) -> List[Dict]:
         return []
 
 
+# Overseerr mediaInfo.status codes
+_STATUS_LABELS = {
+    1: "pending",
+    2: "approved",
+    3: "processing",
+    4: "partial",
+    5: "available",
+}
+
+
 def _not_in_library(item: Dict) -> bool:
-    """True if this item is worth recommending — excludes things already
-    available (status 5 = AVAILABLE, 4 = PARTIALLY_AVAILABLE) or already
-    being processed (3 = PROCESSING). Overseerr status codes, not arbitrary."""
+    """True if this item is worth recommending (show Request button).
+
+    Excludes anything already in the pipeline: pending (1), approved (2),
+    processing (3), partially available (4), or fully available (5).
+    status=None means never requested — show the button.
+    """
     info = item.get("mediaInfo") or {}
     status = info.get("status")
-    return status not in (3, 4, 5)
+    return status not in (1, 2, 3, 4, 5)
 
 
 def _shape(item: Dict, media_type: str) -> Dict:
@@ -77,6 +90,7 @@ def _shape(item: Dict, media_type: str) -> Dict:
         or item.get("firstAirDate")
         or ""
     )[:4]
+    media_status = (item.get("mediaInfo") or {}).get("status")
     return {
         "media_type": media_type,
         "tmdb_id": item.get("id"),
@@ -86,7 +100,8 @@ def _shape(item: Dict, media_type: str) -> Dict:
         "poster": item.get("posterPath"),
         "vote_average": item.get("voteAverage"),
         "vote_count": item.get("voteCount"),
-        "status": (item.get("mediaInfo") or {}).get("status"),
+        "status": media_status,
+        "request_status": _STATUS_LABELS.get(media_status),
     }
 
 

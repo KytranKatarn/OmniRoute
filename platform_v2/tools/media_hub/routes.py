@@ -7,7 +7,11 @@ Provides unified access to Plex/Jellyfin library, Sonarr/Radarr management,
 Overseerr requests, and SABnzbd downloads.
 """
 
+import re
+import threading
+
 from flask import render_template, jsonify, request
+from flask_login import login_required
 from . import media_hub_bp
 from .encryption import encrypt_api_key, decrypt_api_key, get_key_source
 from .discovery import discover_all_api_keys
@@ -16,6 +20,9 @@ from database import get_db_cursor
 import logging
 import traceback
 import time
+
+# Allowlist for Plex thumbnail paths — blocks path traversal / SSRF
+_PLEX_PATH_RE = re.compile(r"^/library/[a-zA-Z0-9/_.-]+$")
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +44,13 @@ _tmdb_enrichment_cache = {}
 # process-local per gunicorn worker because Plex/Jellyfin responses don't vary
 # by Flask user session.
 _response_cache = {}  # {key: (timestamp, (body, status, mimetype))}
+
+# Image proxy cache — avoids hitting Plex/Jellyfin on every page load.
+# Bounded to 500 entries; images are 50–500KB so worst-case ~250MB.
+_proxy_cache = {}  # {cache_key: (timestamp, bytes, content_type)}
+_proxy_cache_lock = threading.Lock()
+_PROXY_CACHE_TTL = 86400  # 24h
+_PROXY_CACHE_MAX = 500
 
 
 def cached_response(ttl_seconds):
@@ -994,6 +1008,10 @@ def api_create_request():
             use_ssl=overseerr_config["use_ssl"],
         )
         result = overseerr.create_request(media_type, tmdb_id, seasons)
+        if not result or result.get("error"):
+            err = result.get("error", "Overseerr rejected the request") if result else "No response from Overseerr"
+            logger.error(f"Overseerr create_request failed: {err}")
+            return jsonify({"success": False, "error": err}), 502
         return jsonify({"success": True, "result": result})
     except Exception as e:
         logger.error(f"Error creating request: {e}")
@@ -1023,6 +1041,56 @@ def api_delete_request(request_id):
     except Exception as e:
         logger.error(f"Error deleting request: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@media_hub_bp.route("/api/requests/history")
+@login_required
+def api_requests_history():
+    """Completed/available requests from Overseerr — used by the History tab."""
+    overseerr_config = get_service_config("overseerr") or get_service_config("jellyseerr")
+    if not overseerr_config or not overseerr_config.get("api_key"):
+        return jsonify({"success": False, "error": "Overseerr not configured", "requests": []})
+
+    try:
+        from .clients.overseerr import OverseerrClient
+        from .clients.tmdb import TMDBClient
+
+        overseerr = OverseerrClient(
+            host=overseerr_config["host"],
+            port=overseerr_config["port"],
+            api_key=overseerr_config["api_key"],
+            use_ssl=overseerr_config["use_ssl"],
+        )
+
+        # Fetch all requests; filter client-side to available/completed
+        all_requests = overseerr.get_requests()
+        history = [r.to_dict() for r in all_requests if r.status in ("available", "completed")]
+
+        # Enrich with TMDB metadata
+        tmdb = TMDBClient()
+        if tmdb.is_configured():
+            for req in history:
+                tmdb_id = req.get("tmdb_id")
+                if not tmdb_id:
+                    continue
+                try:
+                    details = (
+                        tmdb.get_movie_details(tmdb_id)
+                        if req["media_type"] == "movie"
+                        else tmdb.get_tv_details(tmdb_id)
+                    )
+                    if details:
+                        for field in ("poster_url", "backdrop_url", "overview", "rating", "genres", "runtime"):
+                            if details.get(field) and not req.get(field):
+                                req[field] = details[field]
+                except Exception:
+                    pass
+
+        history.sort(key=lambda r: r.get("requested_at") or "", reverse=True)
+        return jsonify({"success": True, "requests": history, "total": len(history)})
+    except Exception as e:
+        logger.error(f"Error getting request history: {e}")
+        return jsonify({"success": False, "error": str(e), "requests": []})
 
 
 @media_hub_bp.route("/api/requests/<int:request_id>/retry", methods=["POST"])
@@ -1977,6 +2045,95 @@ def api_stream_info(media_id):
 
 
 # =============================================================================
+# IMAGE PROXY ENDPOINT
+# =============================================================================
+
+
+@media_hub_bp.route("/api/proxy/thumb")
+@login_required
+def api_proxy_thumb():
+    """Server-side proxy for Plex/Jellyfin thumbnails.
+
+    Fetches images from the LAN media server and streams them back through our
+    domain, so browsers on HTTPS (media.kytranempowerment.com) can load them
+    without hitting a mixed-content block or a private LAN IP directly.
+
+    Query params:
+        s    — source: 'plex' or 'jellyfin'
+        path — Plex: /library/metadata/<id>/thumb/<thumb>
+        id   — Jellyfin: item UUID
+        type — Jellyfin: image type (default: Primary)
+    """
+    import requests as _requests
+    from flask import Response as _Response
+
+    source = request.args.get("s", "plex")
+    cache_key = (
+        f"{source}:{request.args.get('path', '')}" f"{request.args.get('id', '')}{request.args.get('type', 'Primary')}"
+    )
+
+    # Return cached image if still fresh
+    cached = _proxy_cache.get(cache_key)
+    if cached and (time.time() - cached[0]) < _PROXY_CACHE_TTL:
+        return _Response(
+            cached[1],
+            content_type=cached[2],
+            headers={"Cache-Control": "public, max-age=86400", "X-Cache": "HIT"},
+        )
+
+    try:
+        if source == "plex":
+            config = get_service_config("plex")
+            if not config or not config.get("api_key"):
+                return "", 404
+            path = request.args.get("path", "")
+            if not path or not _PLEX_PATH_RE.match(path):
+                return "", 400
+            scheme = "https" if config["use_ssl"] else "http"
+            url = f"{scheme}://{config['host']}:{config['port']}{path}?X-Plex-Token={config['api_key']}"
+
+        elif source == "jellyfin":
+            config = get_service_config("jellyfin")
+            if not config or not config.get("api_key"):
+                return "", 404
+            item_id = request.args.get("id", "")
+            img_type = request.args.get("type", "Primary")
+            if not item_id:
+                return "", 400
+            scheme = "https" if config["use_ssl"] else "http"
+            url = (
+                f"{scheme}://{config['host']}:{config['port']}"
+                f"/Items/{item_id}/Images/{img_type}"
+                f"?api_key={config['api_key']}&maxWidth=400"
+            )
+        else:
+            return "", 400
+
+        resp = _requests.get(url, timeout=8, verify=False)
+        if resp.status_code != 200:
+            return "", 404
+
+        content_type = resp.headers.get("Content-Type", "image/jpeg")
+        image_bytes = resp.content
+
+        # Evict oldest entry when cache is full, then store (lock for thread safety)
+        with _proxy_cache_lock:
+            if len(_proxy_cache) >= _PROXY_CACHE_MAX:
+                oldest = min(_proxy_cache, key=lambda k: _proxy_cache[k][0])
+                _proxy_cache.pop(oldest, None)
+            _proxy_cache[cache_key] = (time.time(), image_bytes, content_type)
+
+        return _Response(
+            image_bytes,
+            content_type=content_type,
+            headers={"Cache-Control": "public, max-age=86400", "X-Cache": "MISS"},
+        )
+    except Exception as e:
+        logger.debug(f"proxy/thumb error: {e}")
+        return "", 502
+
+
+# =============================================================================
 # DOWNLOAD CONTROL ENDPOINTS
 # =============================================================================
 
@@ -2328,27 +2485,32 @@ def api_library_recent_activity():
         movies_count = 0
         episodes_count = 0
 
+        def _parse_added_at(value):
+            """Parse added_at from either a Unix timestamp (int/float) or ISO string."""
+            if value is None:
+                return None
+            try:
+                if isinstance(value, (int, float)):
+                    return datetime.fromtimestamp(value)
+                return datetime.fromisoformat(str(value).replace("Z", "+00:00")).replace(tzinfo=None)
+            except (ValueError, OSError, OverflowError):
+                return None
+
         for movie in movies:
             if movie.added_at:
-                try:
-                    added = datetime.fromisoformat(movie.added_at.replace("Z", "+00:00"))
-                    if added.replace(tzinfo=None) >= cutoff:
-                        date_str = added.strftime("%Y-%m-%d")
-                        by_day[date_str] = by_day.get(date_str, 0) + 1
-                        movies_count += 1
-                except (ValueError, AttributeError):
-                    pass
+                added = _parse_added_at(movie.added_at)
+                if added and added >= cutoff:
+                    date_str = added.strftime("%Y-%m-%d")
+                    by_day[date_str] = by_day.get(date_str, 0) + 1
+                    movies_count += 1
 
         for show in shows:
             if show.added_at:
-                try:
-                    added = datetime.fromisoformat(show.added_at.replace("Z", "+00:00"))
-                    if added.replace(tzinfo=None) >= cutoff:
-                        date_str = added.strftime("%Y-%m-%d")
-                        by_day[date_str] = by_day.get(date_str, 0) + 1
-                        episodes_count += 1
-                except (ValueError, AttributeError):
-                    pass
+                added = _parse_added_at(show.added_at)
+                if added and added >= cutoff:
+                    date_str = added.strftime("%Y-%m-%d")
+                    by_day[date_str] = by_day.get(date_str, 0) + 1
+                    episodes_count += 1
 
         return jsonify(
             {

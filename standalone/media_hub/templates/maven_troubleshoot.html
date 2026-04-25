@@ -16,6 +16,12 @@
     <button class="run-btn" onclick="location.reload()">Re-run</button>
     <button class="run-btn" style="background:#7c3aed;margin-left:0.5rem"
             onclick="syncOverseerr(this)">Sync Overseerr</button>
+    <button class="run-btn" style="background:#0891b2;margin-left:0.5rem"
+            onclick="fixStuckRequests(this)">Fix Stuck Requests</button>
+    <a href="/maven/api/quality-report" target="_blank"
+       class="run-btn" style="background:#065f46;margin-left:0.5rem;text-decoration:none">Quality Report</a>
+    <button class="run-btn" style="background:#9a3412;margin-left:0.5rem"
+            onclick="upgradeOversized(this)">Upgrade Oversized</button>
 </div>
 
 {% for check in report.checks %}
@@ -32,34 +38,50 @@
     <button class="run-btn" style="margin-top:0.5rem"
             onclick="retryImportScan(this)">Retry Import Scan</button>
     {% endif %}
+    {% if ("overseerr_approved" in check.id or "overseerr_pending" in check.id) and check.severity in ("error","warning") %}
+    <button class="run-btn" style="margin-top:0.5rem;background:#0891b2"
+            onclick="fixStuckRequests(this)">Fix Stuck Requests</button>
+    {% endif %}
+    {% if "disk_" in check.id and check.severity != "ok" %}
+    <button class="run-btn" style="margin-top:0.5rem;background:#9a3412"
+            onclick="upgradeOversized(this)">Free Space — Upgrade Oversized</button>
+    {% endif %}
 </div>
 {% endfor %}
 
 <script>
-async function syncOverseerr(btn) {
+async function apiPost(url, btn, loadingText, successText) {
     btn.disabled = true;
-    btn.textContent = 'Syncing…';
+    btn.textContent = loadingText;
     try {
-        const r = await fetch('/maven/api/overseerr-sync', {method: 'POST'});
+        const r = await fetch(url, {method: 'POST'});
         const d = await r.json();
-        const allOk = d.results && d.results.every(x => x.ok);
-        btn.textContent = allOk ? 'Synced — refresh Requests tab in ~30s' : 'Partial failure';
+        btn.textContent = successText(d);
     } catch (e) {
-        btn.textContent = 'Failed';
+        btn.textContent = 'Failed — check logs';
     }
+    setTimeout(() => { btn.disabled = false; }, 5000);
 }
 
-async function retryImportScan(btn) {
-    btn.disabled = true;
-    btn.textContent = 'Scanning…';
-    try {
-        const r = await fetch('/maven/api/retry-scan', {method: 'POST'});
-        const d = await r.json();
-        const allOk = d.results && d.results.every(x => x.ok);
-        btn.textContent = allOk ? 'Scan triggered — reload in 30s' : 'Partial failure — check logs';
-    } catch (e) {
-        btn.textContent = 'Request failed';
-    }
+function syncOverseerr(btn) {
+    apiPost('/maven/api/overseerr-sync', btn, 'Syncing…',
+        d => (d.results||[]).every(x=>x.ok) ? 'Synced ✓' : 'Partial — check logs');
+}
+
+function retryImportScan(btn) {
+    apiPost('/maven/api/retry-scan', btn, 'Scanning…',
+        d => (d.results||[]).every(x=>x.ok) ? 'Scan triggered — reload in 30s' : 'Partial — check logs');
+}
+
+function fixStuckRequests(btn) {
+    apiPost('/maven/api/fix-stuck-requests', btn, 'Fixing…',
+        d => d.summary || 'Done — check SABnzbd in 2min');
+}
+
+function upgradeOversized(btn) {
+    if (!confirm('This will delete oversized movie files and re-download them in a better format. Continue?')) return;
+    apiPost('/maven/api/upgrade-oversized', btn, 'Upgrading…',
+        d => `${d.total_freed_gb}GB freed, ${d.search_triggered} searching`);
 }
 </script>
 {% endblock %}

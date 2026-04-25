@@ -260,6 +260,18 @@ def delete_user(user_id: int) -> None:
         cur.execute("DELETE FROM media_hub_users WHERE id = %s", (user_id,))
 
 
+def is_sso_only_account(username: str) -> bool:
+    """Return True if a user with this username exists but has no local password
+    (SSO-only account). Used to give a better error on the local login form."""
+    with get_db_cursor(cursor_factory=None) as (_conn, cur):
+        cur.execute(
+            "SELECT password_hash FROM media_hub_users WHERE username = %s AND is_active = TRUE",
+            (username,),
+        )
+        row = cur.fetchone()
+    return row is not None and row[0] is None
+
+
 def bootstrap_admin_if_empty() -> None:
     """If the users table is empty and MEDIA_HUB_ADMIN_PASSWORD is set,
     create the initial admin. Safe to call on every app boot — no-ops

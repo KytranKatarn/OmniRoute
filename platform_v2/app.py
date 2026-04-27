@@ -2208,6 +2208,13 @@ from procure_dispatch import procure_dispatch_bp  # noqa: E402
 
 app.register_blueprint(procure_dispatch_bp)
 
+# S.I.G.N.A.L. dispatch — /api/signal/dispatch is the hub-side surface for KBS
+# social media content generation. Routes {capability, prompt, platform, tone}
+# through Bridge dispatcher → S.I.G.N.A.L. (Marketing & Comms). ADR-518.
+from signal_dispatch import signal_dispatch_bp  # noqa: E402
+
+app.register_blueprint(signal_dispatch_bp)
+
 # Standalone Product API — compliance report receiver
 from api_standalone import init_standalone_api  # noqa: E402
 

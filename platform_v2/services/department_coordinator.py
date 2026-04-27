@@ -89,6 +89,11 @@ CAPABILITY_DEPARTMENT_MAP = {
     "support": "Customer Success & Support",
     "research": "Research & Development",
     "research_synthesis": "Research & Development",
+    # Marketing & Communications (S.I.G.N.A.L.) — social media content generation
+    # ADR-518: all social content routes through dispatcher, never direct Ollama
+    "social_content": "Marketing & Communications",
+    "social_media": "Marketing & Communications",
+    "social_scheduling": "Marketing & Communications",
 }
 
 

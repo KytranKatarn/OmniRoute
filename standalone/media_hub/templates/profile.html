@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Media Hub — Profile</title>
     <link rel="stylesheet" href="{{ url_for('media_hub.static', filename='standalone/lcars-frames.css') }}">
+    <script>window.MEDIA_HUB_LANG = {{ current_lang | tojson }};</script>
+    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
     <style>
         :root { color-scheme: dark; }
         body { margin:0; font-family:'Antonio',system-ui,sans-serif; background:#0a0a0f; color:#e0f0ff; }
@@ -69,6 +71,66 @@
             </form>
         </section>
         {% endif %}
+        <!-- Language preference -->
+        <section class="card">
+            <h2 data-i18n="lang.label">Language</h2>
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-top:.5rem;">
+                {% for code, label in [('en','English'),('fr','Français'),('es','Español')] %}
+                <button onclick="setLang('{{ code }}')"
+                    style="padding:.4rem 1.1rem;border-radius:8px;border:1px solid #1e293b;font-family:inherit;font-size:.9rem;font-weight:600;cursor:pointer;
+                           background:{% if current_lang == code %}#0ea5e9{% else %}rgba(255,255,255,.04){% endif %};
+                           color:{% if current_lang == code %}#0a0a0f{% else %}#e0f0ff{% endif %};">{{ label }}</button>
+                {% endfor %}
+            </div>
+            <script>
+            function setLang(lang) {
+                fetch('/api/preferences', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({key: 'language', value: lang})
+                }).then(function() { location.reload(); });
+            }
+            </script>
+        </section>
+
+        <!-- Watchlist -->
+        <section class="card">
+            <h2 data-i18n="watchlist.title">Watchlist</h2>
+            <div id="watchlist-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.9rem;margin-top:.75rem;"></div>
+            <p id="watchlist-empty" style="color:#94a3b8;font-size:.875rem;display:none;" data-i18n="watchlist.empty">Your watchlist is empty.</p>
+        </section>
+        <script>
+        (async function() {
+            var grid  = document.getElementById('watchlist-grid');
+            var empty = document.getElementById('watchlist-empty');
+            try {
+                var r = await fetch('/api/watchlist');
+                if (!r.ok) return;
+                var data = await r.json();
+                if (!data.items.length) { empty.style.display = ''; return; }
+                data.items.forEach(function(item) {
+                    var wrap  = document.createElement('div');
+                    wrap.style.cssText = 'display:flex;flex-direction:column;gap:.3rem;';
+                    var thumb = document.createElement('div');
+                    thumb.style.cssText = 'aspect-ratio:2/3;border-radius:8px;background:#1e293b center/cover no-repeat;'
+                        + (item.poster_url ? "background-image:url('" + item.poster_url + "');" : '');
+                    var title = document.createElement('p');
+                    title.style.cssText = 'margin:0;font-size:.75rem;color:#e0f0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+                    title.textContent   = item.title + (item.year ? ' (' + item.year + ')' : '');
+                    var btn   = document.createElement('button');
+                    btn.textContent    = window.t ? window.t('watchlist.remove') : 'Remove';
+                    btn.style.cssText  = 'padding:.25rem;background:rgba(220,38,38,.15);color:#fca5a5;border:1px solid rgba(220,38,38,.3);border-radius:6px;cursor:pointer;font-size:.7rem;font-family:inherit;';
+                    btn.onclick = (function(id, w) { return async function() {
+                        await fetch('/api/watchlist/' + id, {method: 'DELETE'});
+                        w.remove();
+                        if (!grid.children.length) empty.style.display = '';
+                    }; })(item.id, wrap);
+                    wrap.appendChild(thumb); wrap.appendChild(title); wrap.appendChild(btn);
+                    grid.appendChild(wrap);
+                });
+            } catch(e) { console.warn('watchlist load error', e); }
+        })();
+        </script>
     </main>
 </body>
 </html>

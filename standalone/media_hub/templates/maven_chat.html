@@ -82,6 +82,21 @@
     .chat-hint { color: var(--archie-text-muted); font-size: 0.8rem; margin-top: 0.5rem; }
     code { background: var(--archie-bg-secondary); padding: 2px 6px; border-radius: 4px;
            font-size: 0.85em; color: var(--archie-gold, #f59e0b); }
+    .msg.action-ok {
+        align-self: flex-start;
+        background: rgba(34,197,94,0.1);
+        border-left: 3px solid #22c55e;
+        color: #86efac;
+    }
+    .msg.action-confirm {
+        align-self: flex-start;
+        background: rgba(239,68,68,0.08);
+        border-left: 3px solid #f97316;
+        color: var(--archie-text-primary);
+        padding: 0.75rem 1rem;
+    }
+    .run-btn.danger { background: #ef4444; }
+    .run-btn.danger:hover { background: #dc2626; }
 </style>
 
 <h1>Chat with M.A.V.E.N.</h1>
@@ -95,7 +110,7 @@
                placeholder="e.g. What horror movies do we have?">
         <button type="submit" class="run-btn" id="chat-send">Send</button>
     </form>
-    <p class="chat-hint">Running on <code>{{ default_model }}</code> · First response may take a few seconds (cold load)</p>
+    <p class="chat-hint">Powered by <strong>M.A.V.E.N.</strong> · Media Analysis &amp; Viewing Experience Navigator · First response may take a few seconds</p>
 </div>
 
 <script>
@@ -144,10 +159,38 @@
             if (j.error) {
                 addMsg("maven", j.error, "error");
             } else {
-                const meta = j.model + (j.total_duration_ms
+                const meta = "M.A.V.E.N." + (j.total_duration_ms
                     ? ` · ${(j.total_duration_ms / 1000).toFixed(1)}s` : "");
                 addMsg("maven", j.reply, "maven", meta);
                 history.push({role: "assistant", content: j.reply});
+
+                if (j.action) {
+                    const a = j.action;
+                    if (a.type === "request") {
+                        const st = addMsg("maven", "⏳ Submitting request…", "pending");
+                        fetch("/maven/api/action", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(a)})
+                            .then(r => r.json()).then(aj => { st.remove(); addMsg("maven", aj.message || (aj.ok?"Done.":"Failed."), aj.ok?"action-ok":"error"); });
+                    } else if (a.type === "delete") {
+                        const confirmEl = document.createElement("div");
+                        confirmEl.className = "msg action-confirm";
+                        const label = document.createElement("strong");
+                        label.textContent = "⚠️ Delete '" + a.title + "' (" + a.media_type + ") and remove all files?";
+                        const btnYes = document.createElement("button");
+                        btnYes.className = "run-btn danger"; btnYes.textContent = "Yes, delete it";
+                        const btnNo = document.createElement("button");
+                        btnNo.className = "run-btn"; btnNo.textContent = "Cancel"; btnNo.style.marginLeft = "8px";
+                        confirmEl.appendChild(label); confirmEl.appendChild(document.createElement("br"));
+                        confirmEl.appendChild(btnYes); confirmEl.appendChild(btnNo);
+                        log.appendChild(confirmEl); confirmEl.scrollIntoView({behavior:"smooth", block:"end"});
+                        btnNo.onclick = () => { confirmEl.remove(); addMsg("maven","Deletion cancelled.","maven"); };
+                        btnYes.onclick = () => {
+                            confirmEl.remove();
+                            const st = addMsg("maven","⏳ Deleting…","pending");
+                            fetch("/maven/api/action", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(a)})
+                                .then(r => r.json()).then(aj => { st.remove(); addMsg("maven", aj.message||(aj.ok?"Deleted.":"Failed."), aj.ok?"action-ok":"error"); });
+                        };
+                    }
+                }
             }
         } catch (err) {
             pending.remove();

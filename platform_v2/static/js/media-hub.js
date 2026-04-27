@@ -2792,7 +2792,7 @@ function renderQualityBreakdown(breakdown) {
             <span class="quality-bar-label">${quality}</span>
             <div class="quality-bar-container">
                 <div class="quality-bar-fill quality-${quality.toLowerCase().replace('p', '')}" style="width: ${percent}%">
-                    ${percent > 15 ? Math.round(percent) + '%' : ''}
+                    ${count > 0 && percent >= 8 ? Math.round(percent) + '%' : ''}
                 </div>
             </div>
             <span class="quality-bar-count">${count}</span>
@@ -2830,7 +2830,7 @@ function renderFeaturesGrid(data) {
         <div class="feature-card">
             <div class="feature-icon hd">HD+</div>
             <div class="feature-info">
-                <span class="feature-value">${(data.quality_breakdown?.['4K'] || 0) + (data.quality_breakdown?.['1080p'] || 0)}</span>
+                <span class="feature-value">${(data.quality_breakdown?.['4K'] || 0) + (data.quality_breakdown?.['1080p'] || 0) + (data.quality_breakdown?.['720p'] || 0)}</span>
                 <span class="feature-label">HD or Better</span>
             </div>
         </div>

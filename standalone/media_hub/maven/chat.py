@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import requests
 from flask import jsonify, render_template, request
@@ -36,7 +37,7 @@ OLLAMA_URL = os.environ.get("MAVEN_OLLAMA_URL", "http://192.168.1.200:11434")
 # that family members don't notice the turnaround. Agent record uses
 # qwen2.5:7b as its default; we downgrade here deliberately. Override via
 # MAVEN_CHAT_MODEL for experimentation.
-DEFAULT_MODEL = os.environ.get("MAVEN_CHAT_MODEL", "llama3.2:3b")
+DEFAULT_MODEL = os.environ.get("MAVEN_CHAT_MODEL", "qwen2.5:7b")
 
 # System prompt — M.A.V.E.N. persona, consistent with the hub agent record
 # (agent #27, display_name="Camille Dubois (M.A.V.E.N.)", News & Media).
@@ -50,16 +51,30 @@ You help the household:
   * decide what to watch next
   * troubleshoot the media stack (Sonarr, Radarr, Prowlarr, SABnzbd)
   * clean up duplicates or upgrade to better quality versions
+  * request new movies or TV shows to be downloaded
+  * delete movies or TV shows from the library
 
 Be concise. Recommend from the household's library when you can. When you
 don't know, say so — then point the user at /maven/troubleshoot,
-/maven/upgrades, or /maven/discover (the three skill pages already shipped)
-instead of guessing.
+/maven/upgrades, or /maven/discover instead of guessing.
 
 Never invent titles. Never invent library contents. If the user asks for
 something you haven't been told is in their library, say "I don't see that
-locally" and suggest they search via /maven/discover or request it via
-Overseerr."""
+locally" and offer to request it.
+
+ACTION TAGS — append exactly one tag at the END of your reply when the user
+explicitly asks you to request or delete something. Do NOT add a tag unless
+the user clearly asked for the action.
+
+  To request/download a new title:
+    [ACTION:request|Exact Title|tv]      ← TV show
+    [ACTION:request|Exact Title|movie]   ← movie
+
+  To delete a title from the library:
+    [ACTION:delete|Exact Title|tv]
+    [ACTION:delete|Exact Title|movie]
+
+Use the exact title as the user stated it. One tag per response only."""
 
 
 # --- library-context snapshot (task #2250, phase 2 of #2238) --------------
@@ -129,15 +144,82 @@ def _fetch_plex_recent(count: int = 40) -> str:
     )
 
 
+def _fetch_download_stats() -> str:
+    """Fetch Sonarr monitored-show progress + SABnzbd queue status.
+    Returns a compact summary string for the system prompt. Returns '' on error."""
+    lines: List[str] = []
+
+    # Sonarr — episode file counts per series
+    sonarr_rows = _rows_for_type("sonarr")
+    if sonarr_rows:
+        _, _, _, host, port, use_ssl, enc, *_ = sonarr_rows[0]
+        key = _decrypt_key(enc)
+        scheme = "https" if use_ssl else "http"
+        base = f"{scheme}://{host}:{port}"
+        try:
+            r = requests.get(f"{base}/api/v3/series", headers={"X-Api-Key": key}, timeout=8)
+            if r.status_code == 200:
+                series_list = r.json()
+                monitored = [s for s in series_list if s.get("monitored")]
+                total_f = sum(s.get("episodeFileCount", 0) for s in monitored)
+                total_e = sum(s.get("episodeCount", 0) for s in monitored)
+                pct = round(total_f / total_e * 100) if total_e else 0
+                lines.append(f"TV download progress: {total_f}/{total_e} episodes ({pct}%)")
+                # Show per-series breakdown for incomplete shows
+                incomplete = [
+                    s for s in monitored
+                    if s.get("episodeCount", 0) > 0
+                    and s.get("episodeFileCount", 0) < s.get("episodeCount", 0)
+                ]
+                incomplete.sort(key=lambda s: s.get("episodeFileCount", 0) / max(s.get("episodeCount", 1), 1))
+                for s in incomplete[:6]:
+                    f = s.get("episodeFileCount", 0)
+                    t = s.get("episodeCount", 0)
+                    p = round(f / t * 100) if t else 0
+                    lines.append(f"  - {s['title']}: {f}/{t} ({p}%)")
+        except Exception as e:
+            log.debug("download_stats sonarr error: %s", e)
+
+    # SABnzbd — queue status
+    sab_rows = _rows_for_type("sabnzbd")
+    if sab_rows:
+        _, _, _, host, port, use_ssl, enc, *_ = sab_rows[0]
+        key = _decrypt_key(enc)
+        scheme = "https" if use_ssl else "http"
+        base = f"{scheme}://{host}:{port}"
+        try:
+            r = requests.get(
+                f"{base}/api",
+                params={"mode": "queue", "output": "json", "apikey": key},
+                timeout=5,
+            )
+            if r.status_code == 200:
+                sq = r.json().get("queue", {})
+                status = sq.get("status", "?")
+                speed = sq.get("speed", "0")
+                slots = sq.get("noofslots", 0)
+                if status == "Downloading" and slots:
+                    lines.append(f"SABnzbd: downloading {slots} item(s) at {speed}")
+                else:
+                    lines.append(f"SABnzbd: {status.lower()} ({slots} queued)")
+        except Exception as e:
+            log.debug("download_stats sabnzbd error: %s", e)
+
+    if not lines:
+        return ""
+    return "Download status:\n" + "\n".join(lines)
+
+
 def _library_context() -> str:
-    """Cached wrapper around _fetch_plex_recent. Opt-out via
-    MAVEN_CHAT_CONTEXT_OFF=1."""
+    """Cached wrapper around _fetch_plex_recent + _fetch_download_stats.
+    Opt-out via MAVEN_CHAT_CONTEXT_OFF=1."""
     if os.environ.get("MAVEN_CHAT_CONTEXT_OFF", "").lower() in ("1", "true"):
         return ""
     now = time.time()
     if now - float(_CONTEXT_CACHE["ts"]) < _CONTEXT_TTL_SEC and _CONTEXT_CACHE["text"]:
         return str(_CONTEXT_CACHE["text"])
-    text = _fetch_plex_recent()
+    parts = [p for p in [_fetch_plex_recent(), _fetch_download_stats()] if p]
+    text = "\n\n".join(parts)
     _CONTEXT_CACHE["ts"] = now
     _CONTEXT_CACHE["text"] = text
     return text
@@ -228,6 +310,212 @@ def _bridge_dispatch(
     }
 
 
+# ---------------------------------------------------------------------------
+# Action parsing + execution
+# ---------------------------------------------------------------------------
+
+_ACTION_RE = re.compile(r"\[ACTION:(request|delete)\|([^\|\]]+)(?:\|(tv|movie))?\]", re.IGNORECASE)
+
+# Fallback: detect obvious request/delete intent directly from user message
+# so actions fire even if the LLM forgets to emit the tag.
+_REQUEST_RE = re.compile(
+    r"(?:please\s+)?(?:can you\s+)?(?:request|add|download|get me|fetch)\s+[\"']?(.+?)[\"']?"
+    r"(?:\s+(?:season\s*\d+|s\d+|for me|please|now))*\s*$",
+    re.IGNORECASE,
+)
+_DELETE_RE = re.compile(
+    r"(?:please\s+)?(?:can you\s+)?(?:delete|remove)\s+[\"']?(.+?)[\"']?"
+    r"(?:\s+(?:from (?:the )?library|please|now))*\s*$",
+    re.IGNORECASE,
+)
+
+
+_MOVIE_HINTS = re.compile(r"\b(movie|film|cinema)\b", re.IGNORECASE)
+_TV_HINTS = re.compile(r"\b(show|series|season|episode|tv)\b", re.IGNORECASE)
+
+
+def _sniff_media_type(text: str) -> str:
+    """Return 'movie', 'tv', or 'auto' based on keywords in the message."""
+    if _MOVIE_HINTS.search(text):
+        return "movie"
+    if _TV_HINTS.search(text):
+        return "tv"
+    return "auto"  # let Overseerr pick the best match
+
+
+def _detect_intent(user_msg: str) -> Optional[Dict]:
+    """Detect clear request/delete intent in user message as LLM tag fallback."""
+    m = _REQUEST_RE.match(user_msg.strip())
+    if m:
+        title = m.group(1).strip().rstrip("?!.")
+        if len(title) >= 2 and title.lower() not in ("it", "that", "this", "something"):
+            media_type = _sniff_media_type(user_msg)
+            return {"type": "request", "title": title, "media_type": media_type}
+    m = _DELETE_RE.match(user_msg.strip())
+    if m:
+        title = m.group(1).strip().rstrip("?!.")
+        if len(title) >= 2 and title.lower() not in ("it", "that", "this"):
+            media_type = _sniff_media_type(user_msg)
+            return {"type": "delete", "title": title, "media_type": media_type}
+    return None
+
+
+def _parse_action(reply: str) -> Tuple[str, Optional[Dict]]:
+    """Strip the first [ACTION:...] tag from reply text and return (clean_text, action_dict).
+    Media type is optional — defaults to 'tv' for request, 'movie' not assumed."""
+    m = _ACTION_RE.search(reply)
+    if not m:
+        return reply, None
+    action = {
+        "type": m.group(1).lower(),
+        "title": m.group(2).strip(),
+        "media_type": (m.group(3) or "tv").lower(),
+    }
+    clean = _ACTION_RE.sub("", reply).strip()
+    return clean, action
+
+
+def _svc(service_type: str) -> Optional[Dict]:
+    """Return {key, host, port, ssl} for a service or None."""
+    rows = _rows_for_type(service_type)
+    if not rows:
+        return None
+    _, _, _, host, port, use_ssl, enc, *_ = rows[0]
+    key = _decrypt_key(enc)
+    return {"key": key, "host": host, "port": port, "ssl": use_ssl}
+
+
+def execute_action(action_type: str, title: str, media_type: str) -> Dict:
+    """Execute a request or delete action. Returns {ok, message}."""
+    if action_type == "request":
+        return _do_request(title, media_type)
+    if action_type == "delete":
+        return _do_delete(title, media_type)
+    return {"ok": False, "message": f"Unknown action: {action_type}"}
+
+
+def _do_request(title: str, media_type: str) -> Dict:
+    """Search Overseerr for title and submit a request."""
+    svc = _svc("overseerr")
+    if not svc:
+        return {"ok": False, "message": "Overseerr not configured"}
+    scheme = "https" if svc["ssl"] else "http"
+    base = f"{scheme}://{svc['host']}:{svc['port']}"
+    hdrs = {"X-Api-Key": svc["key"], "Content-Type": "application/json"}
+
+    # Search for the title
+    try:
+        r = requests.get(f"{base}/api/v1/search", params={"query": title, "page": 1, "language": "en"},
+                         headers=hdrs, timeout=10)
+        r.raise_for_status()
+        results = r.json().get("results", [])
+    except Exception as e:
+        return {"ok": False, "message": f"Overseerr search failed: {e}"}
+
+    # Pick best match — "auto" takes the top result regardless of type
+    if media_type == "auto":
+        match = results[0] if results else None
+    else:
+        want = "tv" if media_type == "tv" else "movie"
+        match = next((x for x in results if x.get("mediaType") == want), None)
+    if not match:
+        match = results[0] if results else None
+    if not match:
+        return {"ok": False, "message": f"No results found for '{title}' on Overseerr"}
+
+    # Resolve want from the actual match (covers auto-detection case)
+    want = match.get("mediaType", "tv")  # Overseerr returns "movie" or "tv"
+    tmdb_id = match.get("id")
+    found_title = match.get("title") or match.get("name") or title
+    media_info = match.get("mediaInfo") or {}
+
+    # Already available?
+    if media_info.get("status") == 5:
+        return {"ok": True, "message": f"✅ '{found_title}' is already in the library"}
+    # Already requested?
+    if media_info.get("status") in (2, 3, 4):
+        return {"ok": True, "message": f"⏳ '{found_title}' is already requested/downloading"}
+
+    # For TV shows, get season numbers from the match details
+    seasons_payload: list = []
+    if want == "tv":
+        try:
+            det = requests.get(f"{base}/api/v1/tv/{tmdb_id}", headers=hdrs, timeout=10).json()
+            seasons_payload = [
+                s["seasonNumber"]
+                for s in det.get("seasons", [])
+                if s.get("seasonNumber", 0) > 0
+            ]
+        except Exception:
+            pass  # fall back to empty list — Overseerr accepts this for some versions
+
+    # Submit request
+    body: Dict = {"mediaType": want, "mediaId": tmdb_id}
+    if want == "tv" and seasons_payload:
+        body["seasons"] = seasons_payload
+    try:
+        r2 = requests.post(f"{base}/api/v1/request", json=body, headers=hdrs, timeout=10)
+        r2.raise_for_status()
+        return {"ok": True, "message": f"✅ Requested '{found_title}' — Overseerr will pick it up shortly"}
+    except requests.HTTPError as e:
+        body = e.response.text[:200] if e.response else str(e)
+        return {"ok": False, "message": f"Request failed: {body}"}
+    except Exception as e:
+        return {"ok": False, "message": f"Request failed: {e}"}
+
+
+def _do_delete(title: str, media_type: str) -> Dict:
+    """Find title in Radarr or Sonarr and delete it (files included)."""
+    if media_type == "auto":
+        # Try both — check Sonarr first, then Radarr
+        result = _do_delete(title, "tv")
+        if not result["ok"] and "not found" in result["message"]:
+            result = _do_delete(title, "movie")
+        return result
+    if media_type == "movie":
+        svc = _svc("radarr")
+        if not svc:
+            return {"ok": False, "message": "Radarr not configured"}
+        scheme = "https" if svc["ssl"] else "http"
+        base = f"{scheme}://{svc['host']}:{svc['port']}"
+        hdrs = {"X-Api-Key": svc["key"]}
+        try:
+            movies = requests.get(f"{base}/api/v3/movie", headers=hdrs, timeout=10).json()
+            title_lower = title.lower()
+            match = next((m for m in movies if title_lower in m.get("title", "").lower()), None)
+            if not match:
+                return {"ok": False, "message": f"'{title}' not found in Radarr"}
+            movie_id = match["id"]
+            found_title = match["title"]
+            requests.delete(f"{base}/api/v3/movie/{movie_id}",
+                            params={"deleteFiles": "true", "addImportExclusion": "false"},
+                            headers=hdrs, timeout=10).raise_for_status()
+            return {"ok": True, "message": f"🗑️ '{found_title}' deleted from library (files removed)"}
+        except Exception as e:
+            return {"ok": False, "message": f"Delete failed: {e}"}
+    else:
+        svc = _svc("sonarr")
+        if not svc:
+            return {"ok": False, "message": "Sonarr not configured"}
+        scheme = "https" if svc["ssl"] else "http"
+        base = f"{scheme}://{svc['host']}:{svc['port']}"
+        hdrs = {"X-Api-Key": svc["key"]}
+        try:
+            series = requests.get(f"{base}/api/v3/series", headers=hdrs, timeout=10).json()
+            title_lower = title.lower()
+            match = next((s for s in series if title_lower in s.get("title", "").lower()), None)
+            if not match:
+                return {"ok": False, "message": f"'{title}' not found in Sonarr"}
+            series_id = match["id"]
+            found_title = match["title"]
+            requests.delete(f"{base}/api/v3/series/{series_id}",
+                            params={"deleteFiles": "true"},
+                            headers=hdrs, timeout=10).raise_for_status()
+            return {"ok": True, "message": f"🗑️ '{found_title}' deleted from library (files removed)"}
+        except Exception as e:
+            return {"ok": False, "message": f"Delete failed: {e}"}
+
+
 def run_chat(user_messages: List[Dict[str, str]], model: str = DEFAULT_MODEL) -> Dict:
     """Public entry point. Prepends the system prompt, dispatches, returns
     a shape the route + future agent wiring can both consume."""
@@ -279,12 +567,20 @@ def run_chat(user_messages: List[Dict[str, str]], model: str = DEFAULT_MODEL) ->
             resp = _chat_completion(cleaned, model=model)
         msg = resp.get("message", {}) or {}
         bridge_meta = resp.get("_bridge") or {}
+        raw_reply = msg.get("content", "").strip()
+        clean_reply, action = _parse_action(raw_reply)
+        # Fallback: if LLM didn't emit a tag, detect intent from last user message
+        if action is None:
+            last_user = next(
+                (m["content"] for m in reversed(cleaned) if m.get("role") == "user"), ""
+            )
+            action = _detect_intent(last_user)
         return {
-            "reply": msg.get("content", "").strip(),
+            "reply": clean_reply,
+            "action": action,  # None or {type, title, media_type}
             "model": model,
             "total_duration_ms": (resp.get("total_duration") or 0) // 1_000_000,
             "eval_count": resp.get("eval_count"),
-            # When the bridge path fires these are populated; otherwise None.
             "agent": bridge_meta.get("agent"),
             "tier": bridge_meta.get("tier"),
             "cost": bridge_meta.get("cost"),
@@ -310,6 +606,25 @@ def api_chat():
     result = run_chat(messages, model=model)
     status = 502 if result.get("error") else 200
     return jsonify(result), status
+
+
+@maven_bp.route("/api/action", methods=["POST"])
+@login_required
+def api_action():
+    """Execute a confirmed M.A.V.E.N. action (request or delete)."""
+    data = request.get_json(silent=True) or {}
+    action_type = (data.get("type") or "").lower()
+    title = (data.get("title") or "").strip()
+    media_type = (data.get("media_type") or "movie").lower()
+
+    if not action_type or not title:
+        return jsonify({"ok": False, "message": "Missing action type or title"}), 400
+    if action_type not in ("request", "delete"):
+        return jsonify({"ok": False, "message": f"Unknown action: {action_type}"}), 400
+
+    result = execute_action(action_type, title, media_type)
+    log.info("maven action %s '%s' (%s): %s", action_type, title, media_type, result.get("message"))
+    return jsonify(result), 200 if result.get("ok") else 502
 
 
 @maven_bp.route("/chat")

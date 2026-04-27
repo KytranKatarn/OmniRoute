@@ -94,11 +94,34 @@
 
 {% include 'includes/lcars-header.html' %}
 
+{# Language selector — fixed top-right, adjacent to the LCARS strip #}
+<div style="position:fixed;top:0.55rem;right:11.5rem;z-index:9999;display:flex;align-items:center;gap:0.3rem;">
+  <select id="lang-select"
+    style="background:#0f172a;color:#94a3b8;border:1px solid #1e293b;border-radius:6px;
+           padding:0.2rem 0.4rem;font-size:0.7rem;font-family:inherit;cursor:pointer;"
+    onchange="setLang(this.value)">
+    <option value="en"{% if current_lang == 'en' %} selected{% endif %}>EN</option>
+    <option value="fr"{% if current_lang == 'fr' %} selected{% endif %}>FR</option>
+    <option value="es"{% if current_lang == 'es' %} selected{% endif %}>ES</option>
+  </select>
+</div>
+<script>
+  window.MEDIA_HUB_LANG = {{ current_lang | tojson }};
+  function setLang(lang) {
+    fetch('/api/preferences', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({key: 'language', value: lang})
+    }).then(function() { location.reload(); });
+  }
+</script>
+
 {# ── Page content ─────────────────────────────────────────────────────────── #}
 <div class="maven-content">
     {% block content %}{% endblock %}
 </div>
 
+<script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script>
     // Init Lucide icons

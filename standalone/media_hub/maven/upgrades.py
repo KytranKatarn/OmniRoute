@@ -119,11 +119,11 @@ def run_scan() -> dict:
     return {
         "episodes": {
             "count": len(episodes),
-            "items": episodes[:50],  # cap response; full list on demand later
+            "results": episodes[:50],  # cap response; full list on demand later
         },
         "movies": {
             "count": len(movies),
-            "items": movies[:50],
+            "results": movies[:50],
         },
     }
 

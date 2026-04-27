@@ -3224,12 +3224,12 @@ body.light-mode .stat-value { color: #1a1a1a; }
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    padding-right: 12px;
+    padding-right: 8px;
     font-size: 0.75rem;
     font-weight: 600;
     color: #000;
     transition: width 0.6s ease;
-    min-width: fit-content;
+    min-width: 32px;
 }
 
 .quality-bar-fill.quality-4k { background: linear-gradient(90deg, #FFD700, #FFA500); }

@@ -97,8 +97,9 @@ class PlexClient(MediaServerInterface):
 
     def _parse_media_item(self, item: Dict, media_type: MediaType) -> MediaItem:
         """Parse Plex media item to unified format"""
-        # Get poster URL
-        poster_path = item.get("thumb", "")
+        # For episodes use the show poster (grandparentThumb); fall back to episode thumb
+        is_episode = bool(item.get("grandparentTitle") or item.get("parentIndex"))
+        poster_path = item.get("grandparentThumb") or item.get("thumb", "") if is_episode else item.get("thumb", "")
         poster_url = f"/tools/media-hub/api/proxy/thumb?s=plex&path={poster_path}" if poster_path else None
 
         # Get backdrop URL

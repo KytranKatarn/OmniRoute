@@ -31,8 +31,10 @@ COPY standalone/media_hub/app.py         /app/app.py
 COPY standalone/media_hub/auth_routes.py /app/auth_routes.py
 COPY kytran-auth/kytran_auth.py           /app/kytran_auth.py
 COPY standalone/media_hub/users.py       /app/users.py
-COPY standalone/media_hub/user_routes.py /app/user_routes.py
-COPY standalone/media_hub/health_observer.py /app/health_observer.py
+COPY standalone/media_hub/user_routes.py        /app/user_routes.py
+COPY standalone/media_hub/watchlist_routes.py   /app/watchlist_routes.py
+COPY standalone/media_hub/preferences_routes.py /app/preferences_routes.py
+COPY standalone/media_hub/health_observer.py    /app/health_observer.py
 COPY standalone/media_hub/maven/         /app/maven/
 COPY standalone/media_hub/templates/     /app/templates/
 COPY standalone/media_hub/scripts/       /app/scripts/
@@ -61,7 +63,8 @@ COPY platform_v2/static/css/archie-breakpoints.css /app/static/css/archie-breakp
 COPY platform_v2/static/css/mobile.css             /app/static/css/mobile.css
 COPY platform_v2/static/js/media-hub.js        /app/static/js/media-hub.js
 COPY platform_v2/static/js/media-hub-sw.js     /app/static/js/media-hub-sw.js
-COPY platform_v2/static/js/lcars-header.js     /app/static/js/lcars-header.js
+COPY platform_v2/static/js/lcars-header.js          /app/static/js/lcars-header.js
+COPY standalone/media_hub/static/js/i18n.js         /app/static/js/i18n.js
 COPY platform_v2/static/manifest.json          /app/static/manifest.json
 COPY platform_v2/static/icons/                 /app/static/icons/
 

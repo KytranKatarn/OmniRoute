@@ -326,6 +326,53 @@ def get_primary_media_server():
     return None, None
 
 
+def get_all_media_servers() -> list:
+    """Return [(client, server_type)] for ALL enabled Plex/Jellyfin servers.
+    Primary server first; used for federated search."""
+    from .clients.plex import PlexClient
+    from .clients.jellyfin import JellyfinClient
+
+    servers = []
+    try:
+        all_svcs = get_all_services()
+    except Exception:
+        return servers
+
+    seen_types: set = set()
+    # Primary first, then remaining
+    ordered = sorted(all_svcs, key=lambda s: (not s.get("is_primary"), s.get("id", 0)))
+    for svc in ordered:
+        stype = svc.get("service_type")
+        if stype not in ("plex", "jellyfin") or not svc.get("is_enabled"):
+            continue
+        if stype in seen_types:
+            continue  # one client per type is enough for search
+        seen_types.add(stype)
+        config = get_service_config(stype)
+        if not config or not config.get("api_key"):
+            continue
+        try:
+            if stype == "plex":
+                client = PlexClient(
+                    host=config["host"],
+                    port=config["port"],
+                    api_key=config["api_key"],
+                    use_ssl=config["use_ssl"],
+                )
+            else:
+                client = JellyfinClient(
+                    host=config["host"],
+                    port=config["port"],
+                    api_key=config["api_key"],
+                    use_ssl=config["use_ssl"],
+                )
+            servers.append((client, stype))
+        except Exception as e:
+            logger.warning(f"get_all_media_servers: could not build {stype} client: {e}")
+
+    return servers
+
+
 # =============================================================================
 # PAGE ROUTES
 # =============================================================================
@@ -469,24 +516,29 @@ def api_search():
         return jsonify({"success": False, "error": "Query too short", "results": []})
 
     results = []
-    library_ids = set()  # Track items found in library
+    library_tmdb_ids: set = set()
+    library_title_keys: set = set()  # (title.lower(), year) fallback dedup
 
-    # 1. Search local library first (Plex/Jellyfin)
-    media_server, server_type = get_primary_media_server()
-    if media_server:
+    def _tkey(d: dict) -> tuple:
+        return (str(d.get("title") or "").lower(), d.get("year"))
+
+    # 1. Search ALL configured media servers (Plex + Jellyfin), primary first
+    for media_server, server_type in get_all_media_servers():
         try:
             library_results = media_server.search_library(query, media_type)
             for item in library_results[:20]:
                 item_dict = item.to_dict()
+                tkey = _tkey(item_dict)
+                if (item.tmdb_id and item.tmdb_id in library_tmdb_ids) or tkey in library_title_keys:
+                    continue  # already found on another server
                 item_dict["source"] = server_type
                 item_dict["in_library"] = True
                 results.append(item_dict)
-
-                # Track by TMDB ID for deduplication
                 if item.tmdb_id:
-                    library_ids.add(item.tmdb_id)
+                    library_tmdb_ids.add(item.tmdb_id)
+                library_title_keys.add(tkey)
         except Exception as e:
-            logger.error(f"Library search error: {e}")
+            logger.error(f"Library search error ({server_type}): {e}")
 
     # 2. Search Overseerr/Jellyseerr for discovery
     overseerr_config = get_service_config("overseerr") or get_service_config("jellyseerr")
@@ -503,13 +555,12 @@ def api_search():
             discovery_results = overseerr.search(query)
 
             for item in discovery_results:
-                # Skip if already in library
-                if item.tmdb_id and item.tmdb_id in library_ids:
+                item_dict_check = item.to_dict()
+                if (item.tmdb_id and item.tmdb_id in library_tmdb_ids) or _tkey(item_dict_check) in library_title_keys:
                     continue
 
-                item_dict = item.to_dict()
-                item_dict["source"] = "overseerr"
-                results.append(item_dict)
+                item_dict_check["source"] = "overseerr"
+                results.append(item_dict_check)
 
                 # Limit total results
                 if len(results) >= 30:

@@ -14,9 +14,9 @@
     <span class="stat">{{ report.movies.count }} movies · {{ report.episodes.count }} episodes</span>
 </div>
 
-{% if report.movies.items %}
+{% if report.movies.results %}
 <h2 style="margin-top:2rem;">Movies</h2>
-{% for m in report.movies.items %}
+{% for m in report.movies.results %}
 <div class="card">
     <div class="title-row">
         <span class="pill warning">{{ m.current_quality or 'unknown' }}</span>
@@ -29,9 +29,9 @@
 {% endfor %}
 {% endif %}
 
-{% if report.episodes.items %}
+{% if report.episodes.results %}
 <h2 style="margin-top:2rem;">Episodes</h2>
-{% for e in report.episodes.items %}
+{% for e in report.episodes.results %}
 <div class="card">
     <div class="title-row">
         <span class="pill warning">{{ e.current_quality or 'unknown' }}</span>
@@ -49,7 +49,7 @@
 {% endfor %}
 {% endif %}
 
-{% if not report.movies.items and not report.episodes.items %}
+{% if not report.movies.results and not report.episodes.results %}
 <div class="card">
     <div class="detail">Nothing to upgrade — your library is already at or above cutoff.</div>
 </div>

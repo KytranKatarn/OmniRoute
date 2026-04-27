@@ -189,6 +189,7 @@ def indexer_health_probe() -> None:
 # Shared cache so GET /maven/api/status can return the last probe result
 # without re-running the full diagnostic on every request.
 _last_diagnostic: dict = {"overall": "unknown", "summary": {}, "generated_at": None, "errors": []}
+_seen_grab_ids: set = set()  # in-memory dedup for grab notifications
 
 
 def maven_diagnostic_probe() -> None:
@@ -555,6 +556,119 @@ def download_client_health_probe() -> None:
             pass
 
 
+# --- stale queue probe (every 30 minutes) ----------------------------------
+
+def stale_queue_probe() -> None:
+    """Remove Sonarr queue items stuck as completed/warning with no eligible files.
+
+    Root cause: manual file moves (or import failures) leave download folders
+    empty while Sonarr still tracks them as 'completed/warning'. Sonarr re-adds
+    them from SABnzbd history on every RefreshMonitoredDownloads cycle, creating
+    a permanent warning loop. This probe detects and clears both sides.
+    """
+    import os
+
+    rows = _services_rows()
+    by_type = {r[1]: r for r in rows}
+    sonarr_row = by_type.get("sonarr")
+    if not sonarr_row:
+        return
+
+    _, _, _, host, port, use_ssl, enc, _ = sonarr_row
+    sonarr_key = _decrypt(enc)
+    scheme = "https" if use_ssl else "http"
+    base = f"{scheme}://{host}:{port}/api/v3"
+
+    VIDEO_EXT = {".mkv", ".mp4", ".avi", ".m4v"}
+
+    try:
+        queue = requests.get(
+            f"{base}/queue", params={"pageSize": 200}, headers={"X-Api-Key": sonarr_key}, timeout=10
+        ).json()
+
+        stale_ids: list[int] = []
+        for item in queue.get("records", []):
+            if item.get("status") != "completed" or item.get("trackedDownloadStatus") != "warning":
+                continue
+            # Check if the download folder is empty of video files
+            for msg in item.get("statusMessages", []):
+                for text in msg.get("messages", []):
+                    if "No files found are eligible for import" in text:
+                        # Extract folder path and check disk
+                        import re as _re
+                        m = _re.search(r"import in (.+?)$", text)
+                        if m:
+                            folder = m.group(1).strip().rstrip("/")
+                            has_video = False
+                            try:
+                                for root, _, files in os.walk(folder):
+                                    if any(
+                                        os.path.splitext(f)[1].lower() in VIDEO_EXT
+                                        for f in files
+                                    ):
+                                        has_video = True
+                                        break
+                            except OSError:
+                                pass
+                            if not has_video:
+                                stale_ids.append(item["id"])
+
+        if not stale_ids:
+            log.info("stale_queue_probe: queue clean")
+            return
+
+        # Bulk-remove stale items from Sonarr queue (keep files, no blocklist)
+        requests.delete(
+            f"{base}/queue/bulk",
+            json={"ids": stale_ids, "removeFromClient": False, "blocklist": False},
+            headers={"X-Api-Key": sonarr_key},
+            timeout=15,
+        )
+        log.warning("stale_queue_probe: removed %d stale completed/warning item(s)", len(stale_ids))
+
+        # Also purge SABnzbd history so Sonarr doesn't re-add them
+        sab_row = by_type.get("sabnzbd")
+        if sab_row:
+            _, _, _, sab_host, sab_port, sab_ssl, sab_enc, _ = sab_row
+            sab_key = _decrypt(sab_enc)
+            sab_scheme = "https" if sab_ssl else "http"
+            sab_base = f"{sab_scheme}://{sab_host}:{sab_port}"
+            try:
+                resp = requests.get(
+                    f"{sab_base}/api",
+                    params={"mode": "history", "name": "delete", "value": "all",
+                            "del_files": "0", "output": "json", "apikey": sab_key},
+                    timeout=10,
+                )
+                if resp.json().get("status"):
+                    log.warning("stale_queue_probe: SABnzbd history purged")
+            except Exception as e:
+                log.warning("stale_queue_probe: SABnzbd history purge failed: %s", e)
+
+        # Notify hub
+        hub_url = os.getenv("ARCHIE_HUB_URL", "http://192.168.1.200:3000")
+        api_key_env = os.getenv("ARCHIE_INTERNAL_API_KEY", "")
+        if api_key_env:
+            try:
+                requests.post(
+                    f"{hub_url}/api/notifications",
+                    json={
+                        "type": "info",
+                        "title": "M.A.V.E.N. — Stale queue cleared",
+                        "message": f"{len(stale_ids)} completed/warning item(s) had empty download folders — removed from queue and SABnzbd history",
+                        "source": "media_hub_maven_stale_queue",
+                        "priority": "normal",
+                    },
+                    headers={"X-Internal-Key": api_key_env},
+                    timeout=5,
+                )
+            except Exception:
+                pass
+
+    except Exception as e:
+        log.warning("stale_queue_probe: error: %s", e)
+
+
 # --- library coverage probe (every 2 hours) --------------------------------
 
 def library_coverage_probe() -> None:
@@ -752,6 +866,103 @@ def arr_database_probe() -> None:
             pass
 
 
+# --- grab notify probe (every 5 min) ----------------------------------------
+
+def grab_notify_probe() -> None:
+    """Detect Overseerr requests that transitioned to processing (3) or
+    available (5) in the last 10 minutes and fire a Telegram notification
+    via the A.R.C.H.I.E. hub notification API. In-memory dedup prevents
+    duplicate alerts within a container lifecycle."""
+    import os
+    from datetime import timezone
+
+    global _seen_grab_ids
+
+    rows = _services_rows()
+    by_type = {r[1]: r for r in rows}
+
+    overseerr_row = by_type.get("overseerr") or by_type.get("jellyseerr")
+    if not overseerr_row:
+        return
+
+    _, stype, _, host, port, use_ssl, enc, _ = overseerr_row
+    key = _decrypt(enc)
+    if not key:
+        return
+
+    scheme = "https" if use_ssl else "http"
+    base = f"{scheme}://{host}:{port}"
+
+    try:
+        r = requests.get(
+            f"{base}/api/v1/request",
+            params={"sort": "modified", "take": 20},
+            headers={"X-Api-Key": key},
+            timeout=8,
+        )
+        if r.status_code != 200:
+            log.warning("grab_notify_probe: overseerr HTTP %s", r.status_code)
+            return
+        results = r.json().get("results", [])
+    except Exception as e:
+        log.warning("grab_notify_probe: request failed: %s", e)
+        return
+
+    cutoff = datetime.now(tz=timezone.utc).timestamp() - 600  # 10 min
+    STATUS_LABEL = {3: "downloading now 📥", 5: "available ✅"}
+
+    hub_url = os.getenv("ARCHIE_HUB_URL", "http://192.168.1.200:3000")
+    api_key_env = os.getenv("ARCHIE_INTERNAL_API_KEY", "")
+
+    for req in results:
+        req_id = req.get("id")
+        status = req.get("status")
+        if req_id is None or status not in STATUS_LABEL:
+            continue
+        if req_id in _seen_grab_ids:
+            continue
+
+        updated_raw = req.get("updatedAt", "")
+        try:
+            if isinstance(updated_raw, (int, float)):
+                updated_ts = float(updated_raw)
+            else:
+                from datetime import datetime as _dt
+                updated_ts = _dt.fromisoformat(
+                    str(updated_raw).replace("Z", "+00:00")
+                ).timestamp()
+        except Exception:
+            continue
+
+        if updated_ts < cutoff:
+            continue
+
+        _seen_grab_ids.add(req_id)
+        media = req.get("media", {})
+        title = media.get("title") or media.get("originalTitle") or f"request #{req_id}"
+        media_type = "movie" if media.get("mediaType") == "movie" else "TV"
+        label = STATUS_LABEL[status]
+        message = f"M.A.V.E.N. grabbed {title} ({media_type}) — {label}"
+        log.info("grab_notify_probe: %s", message)
+
+        if api_key_env:
+            try:
+                requests.post(
+                    f"{hub_url}/api/notifications",
+                    json={
+                        "type": "info",
+                        "title": "M.A.V.E.N. — Media grabbed",
+                        "message": message,
+                        "source": "media_hub_maven_grab",
+                        "priority": "normal",
+                    },
+                    headers={"X-Internal-Key": api_key_env},
+                    timeout=5,
+                )
+            except Exception:
+                pass
+
+
 # --- scheduler wiring ------------------------------------------------------
 
 _scheduler: Optional[BackgroundScheduler] = None
@@ -837,11 +1048,30 @@ def start_scheduler() -> BackgroundScheduler:
         coalesce=True,
         next_run_time=datetime.utcnow(),
     )
+    _scheduler.add_job(
+        stale_queue_probe,
+        "interval",
+        minutes=30,
+        id="stale_queue",
+        max_instances=1,
+        coalesce=True,
+        next_run_time=datetime.utcnow(),
+    )
+    _scheduler.add_job(
+        grab_notify_probe,
+        "interval",
+        minutes=5,
+        id="grab_notify",
+        max_instances=1,
+        coalesce=True,
+        next_run_time=datetime.utcnow(),
+    )
     _scheduler.start()
     log.info(
         "media hub observer scheduler started ("
+        "every 5m: grab_notify; "
         "every 30m: service_health, indexer_health, maven_diagnostic, download_pipeline, "
-        "download_client_health, arr_database; "
+        "download_client_health, arr_database, stale_queue; "
         "every 2h: library_coverage; every 12h: quality_probe)"
     )
     return _scheduler

@@ -123,13 +123,32 @@ def create_app() -> Flask:
     from maven import maven_bp  # noqa: E402
     app.register_blueprint(maven_bp)
 
-    # Jinja flag so shared templates (platform_v2/templates/tools/media_hub.html)
-    # can distinguish standalone deployment from platform-embedded mode and
-    # swap out cross-module UI that doesn't make sense here (other-app
-    # shortcuts in the LCARS strip, etc.).
+    from watchlist_routes import watchlist_bp  # noqa: E402
+    from preferences_routes import preferences_bp  # noqa: E402
+    app.register_blueprint(watchlist_bp)
+    app.register_blueprint(preferences_bp)
+
     @app.context_processor
     def _inject_standalone_flag():
         return {"standalone": True}
+
+    @app.context_processor
+    def _inject_current_lang():
+        lang = "en"
+        if current_user.is_authenticated:
+            try:
+                from database import get_db_cursor
+                with get_db_cursor(commit=False) as (conn, cur):
+                    cur.execute(
+                        "SELECT value FROM user_preferences WHERE user_id=%s AND key='language'",
+                        (current_user.id,),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        lang = row["value"]
+            except Exception:
+                pass
+        return {"current_lang": lang}
 
     # Scheduled health observers (project #279 tasks #2243, #2244). APScheduler
     # runs in-process alongside gunicorn. Opt-out: MEDIA_HUB_DISABLE_OBSERVERS=1.
@@ -167,7 +186,12 @@ def create_app() -> Flask:
         "user_mgmt.admin_users":   "30 per minute",
         "user_mgmt.profile":       "30 per minute",
         "maven.api_quality_report":   "10 per minute; 60 per hour",
-        "maven.api_upgrade_oversized": "5 per minute; 20 per hour",
+        "maven.api_upgrade_oversized":    "5 per minute; 20 per hour",
+        "watchlist.list_watchlist":        "60 per minute",
+        "watchlist.add_to_watchlist":      "30 per minute",
+        "watchlist.remove_from_watchlist": "30 per minute",
+        "preferences.get_preferences":     "60 per minute",
+        "preferences.set_preference":      "20 per minute",
     }
     for view_name, rate in _maven_limits.items():
         if view_name in app.view_functions:

@@ -8,6 +8,7 @@ Analyzes traffic patterns for suspicious activity:
   - DNS tunneling (long domains, high query rate, unique subdomains)
 """
 
+import ipaddress
 import logging
 import time
 from datetime import datetime, timedelta
@@ -36,6 +37,11 @@ DNS_TUNNEL_UNIQUE_SUBDOMAINS = 50  # distinct subdomains under one parent (raise
 
 # Hub IP excluded from bandwidth spike alerts (it's a server)
 HUB_IP = "192.168.1.200"
+
+# Subnets always exempt from anomaly detection (internal infrastructure)
+TRUSTED_SUBNETS = [
+    ipaddress.ip_network("192.168.48.0/24"),  # Docker internal — containers generate false positives
+]
 
 # Known legitimate domains with long names or many subdomains — NOT tunneling
 DNS_TUNNEL_WHITELIST = {
@@ -325,10 +331,21 @@ def _get_trusted_ips() -> set:
         return set()
 
 
+def _is_trusted(ip: str, trusted: set) -> bool:
+    """Return True if ip is in the trusted IP set or a trusted subnet."""
+    if ip in trusted:
+        return True
+    try:
+        addr = ipaddress.ip_address(ip)
+        return any(addr in net for net in TRUSTED_SUBNETS)
+    except ValueError:
+        return False
+
+
 def _filter_trusted(findings: list, trusted: set) -> tuple:
-    """Split findings into (kept, suppressed) based on trusted IP set."""
-    kept = [f for f in findings if f.get("device_ip") not in trusted]
-    suppressed = [f for f in findings if f.get("device_ip") in trusted]
+    """Split findings into (kept, suppressed) based on trusted IPs and subnets."""
+    kept = [f for f in findings if not _is_trusted(f.get("device_ip", ""), trusted)]
+    suppressed = [f for f in findings if _is_trusted(f.get("device_ip", ""), trusted)]
     return kept, suppressed
 
 

@@ -64,7 +64,7 @@ Route visual/design work to Claude Design — it doesn't touch Claude Code budge
 
 - Embedding loop: ENABLED, runs every 30 min, 200 items/batch
 - Analysis loop: ENABLED, runs every 30 min, 10 items/batch, uses mistral:7b
-- Translate loop: ENABLED but blocked (no agent has translate skill)
+- Translate loop: ENABLED, idle (all 8 languages fully translated — R.O.S.E.T.T.A. Lv5 handles when new keys added)
 - Loops CANNOT auto-disable (kill switches removed 2026-04-02, Decision #369)
 - MCP sessions store to knowledge_base directly (not ai_conversations)
 

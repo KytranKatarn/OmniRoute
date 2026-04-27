@@ -147,6 +147,13 @@ _API_GENERATE_ALLOWLIST: set[str] = {
     # is for inference, not eviction. Pre-existing false positive surfaced
     # when jobs.py was first modified for #2235.
     "platform_v2/tools/department_hq/jobs.py",
+    # model_service.py — lifecycle manager (load + unload via keep_alive).
+    # Uses /api/generate with keep_alive="5m" to warm a model and keep_alive=0
+    # to evict it from VRAM. Neither is user-facing inference; eviction is the
+    # only documented Ollama API path for VRAM management. Cannot route through
+    # build_options() which is inference-only. Added with VRAM-aware eviction
+    # fix (migration 354 / Project #286).
+    "platform_v2/services/model_service.py",
 }
 
 

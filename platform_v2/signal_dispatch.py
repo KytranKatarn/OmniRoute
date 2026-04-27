@@ -37,9 +37,9 @@ Supported capabilities (seeded in migration 353):
 from __future__ import annotations
 
 import logging
+import os
 
-import jwt
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, jsonify, request
 
 from database import get_db_cursor
 
@@ -60,38 +60,19 @@ _TONE_HINTS = {
 }
 
 
-def _resolve_user_from_bearer() -> tuple[int | None, dict | str]:
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return None, "Bearer token required"
-    token = auth_header[7:]
-    secret = current_app.config.get("SECRET_KEY", "fallback-secret")
-    try:
-        payload = jwt.decode(token, secret, algorithms=["HS256"])
-    except jwt.ExpiredSignatureError:
-        return None, "Token expired"
-    except jwt.InvalidTokenError:
-        return None, "Invalid token"
-    user_id = payload.get("sub")
-    if not user_id:
-        return None, "Invalid token payload"
-    with get_db_cursor() as (conn, cur):
-        cur.execute(
-            "SELECT id, username, role FROM users WHERE id = %s AND is_active = TRUE",
-            (user_id,),
-        )
-        user = cur.fetchone()
-    if not user:
-        return None, "User not found"
-    return int(user["id"]), user
+def _check_api_key() -> bool:
+    """Validate Bearer API key against ARCHIE_API_KEY env var."""
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        auth = auth[7:]
+    valid = os.getenv("ARCHIE_API_KEY", "dev-api-key-change-in-production")
+    return auth == valid
 
 
 @signal_dispatch_bp.route("/dispatch", methods=["POST"])
 def dispatch_signal():
-    user_id, user_or_err = _resolve_user_from_bearer()
-    if user_id is None:
-        return jsonify({"error": user_or_err}), 401
-    user = user_or_err
+    if not _check_api_key():
+        return jsonify({"error": "Invalid or missing API key"}), 401
 
     data = request.get_json(silent=True) or {}
     capability = (data.get("capability") or "social_content").strip()
@@ -173,7 +154,7 @@ def dispatch_signal():
                 "department": meta.get("agent_department") or getattr(result, "department", None),
                 "duration_ms": int(getattr(result, "duration_ms", 0) or 0),
                 "cost": cost,
-                "user": user["username"],
+                "source": "kbs",
             }
         ),
         200,

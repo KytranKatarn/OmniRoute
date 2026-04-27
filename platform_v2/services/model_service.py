@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 _DEFAULT_OLLAMA_HOST = "host.docker.internal:11434"
 _CACHE_TTL_SECONDS = 30
 _DEFAULT_RAM_BUDGET_GB = 102.4  # 80% of 128 GB
+_DEFAULT_VRAM_BUDGET_GB = 8.0  # Quadro M4000 full 8 GB
 
 # Models required by the Consciousness / embedding pipeline — never evict first
 CONSCIOUSNESS_MODELS = {"arctic-embed-cpu:latest", "mistral:7b"}
@@ -123,6 +124,13 @@ class ModelService:
         used = sum(m.get("size_gb", 0.0) for m in self._loaded_cache)
         return self.ram_budget_gb - used
 
+    def get_available_vram(self) -> float:
+        """Return GB of GPU VRAM still free."""
+        if not self._is_cache_fresh():
+            self._refresh_cache()
+        used = sum(m.get("size_vram", 0) / (1024**3) for m in self._loaded_cache)
+        return max(0.0, _DEFAULT_VRAM_BUDGET_GB - used)
+
     def is_model_loaded(self, model: str) -> bool:
         """Return True if *model* is currently loaded."""
         if not self._is_cache_fresh():
@@ -149,35 +157,56 @@ class ModelService:
 
     def ensure_capacity(self, needed_gb: float) -> bool:
         """
-        Free enough RAM for *needed_gb* by evicting low-priority models.
+        Free enough RAM and VRAM for *needed_gb* by evicting low-priority models.
+
+        Checks both RAM budget and VRAM budget (GPU). Models with active size_vram
+        occupy GPU; they must be evicted when a new GPU model needs to load.
 
         Eviction order:
-          1. LOWEST / LOW priority first
+          1. LOWEST / LOW priority first (GPU models evicted before RAM-only models
+             when VRAM is the bottleneck)
           2. MEDIUM priority if still not enough
           3. Returns False if PROTECTED / HIGH models block eviction
         """
-        if self.get_available_ram() >= needed_gb:
+
+        def _capacity_ok() -> bool:
+            ram_ok = self.get_available_ram() >= needed_gb
+            # For VRAM: we need 90% of GPU budget free to safely load a large model.
+            # We use budget threshold rather than needed_gb because needed_gb is a RAM
+            # estimate — actual VRAM footprint for quantized models is different.
+            # Small models (<= 4 GB) typically run on CPU; skip the VRAM check.
+            vram_threshold = _DEFAULT_VRAM_BUDGET_GB * 0.9
+            vram_ok = needed_gb <= 4.0 or self.get_available_vram() >= vram_threshold
+            return ram_ok and vram_ok
+
+        if _capacity_ok():
             return True
 
         if not self._is_cache_fresh():
             self._refresh_cache()
 
-        # Sort loaded models by priority ascending (cheapest to evict first)
+        # Sort loaded models by priority ascending (cheapest to evict first).
+        # Within the same priority, prefer evicting GPU models first when VRAM
+        # is the binding constraint — they free both VRAM and RAM.
+        vram_tight = self.get_available_vram() < needed_gb
         candidates = sorted(
             self._loaded_cache,
-            key=lambda m: self.get_model_priority(m["name"]),
+            key=lambda m: (
+                self.get_model_priority(m["name"]),
+                # GPU models get a slight eviction preference when VRAM is tight
+                0 if (vram_tight and m.get("size_vram", 0) > 0) else 1,
+            ),
         )
 
         for model_info in candidates:
             name = model_info["name"]
-            priority = self.get_model_priority(name)
-            if priority >= ModelPriority.PROTECTED:
-                continue  # cannot evict
+            if self.get_model_priority(name) >= ModelPriority.PROTECTED:
+                continue
             self.unload_model(name)
-            if self.get_available_ram() >= needed_gb:
+            if _capacity_ok():
                 return True
 
-        return self.get_available_ram() >= needed_gb
+        return _capacity_ok()
 
     def load_model(self, model: str) -> bool:
         """Load *model* via /api/generate with keep_alive=5m."""

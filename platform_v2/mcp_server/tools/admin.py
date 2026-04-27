@@ -62,126 +62,12 @@ async def assign_agent_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     if not agent_id or not station_code:
         return {"success": False, "error": "agent_id and station_code are required"}
 
-    conn, cur = get_db_connection()
-    if not conn:
-        return {"success": False, "error": "Database connection failed"}
-
-    try:
-        # Get station ID from code
-        cur.execute(
-            """
-            SELECT id, station_name FROM bridge_stations
-            WHERE station_code = %s AND is_active = TRUE
-        """,
-            (station_code.upper(),),
-        )
-        station = cur.fetchone()
-
-        if not station:
-            return {
-                "success": False,
-                "error": f"Station '{station_code}' not found or inactive",
-            }
-
-        # Verify agent exists and is active
-        cur.execute(
-            """
-            SELECT id, name, status FROM agents
-            WHERE id = %s
-        """,
-            (agent_id,),
-        )
-        agent = cur.fetchone()
-
-        if not agent:
-            return {"success": False, "error": f"Agent ID {agent_id} not found"}
-
-        if agent["status"] != "active":
-            return {
-                "success": False,
-                "error": f"Agent '{agent['name']}' is not active (status: {agent['status']})",
-            }
-
-        # Check if agent is already assigned to this station
-        cur.execute(
-            """
-            SELECT id FROM station_assignments
-            WHERE agent_id = %s AND station_id = %s AND is_active = TRUE
-        """,
-            (agent_id, station["id"]),
-        )
-        existing = cur.fetchone()
-
-        if existing:
-            # Update existing assignment
-            cur.execute(
-                """
-                UPDATE station_assignments
-                SET assignment_type = %s,
-                    shift_preference = %s,
-                    notes = %s,
-                    assigned_at = NOW()
-                WHERE id = %s
-                RETURNING id
-            """,
-                (assignment_type, shift_preference, notes, existing["id"]),
-            )
-            assignment_id = cur.fetchone()["id"]
-            action = "updated"
-        else:
-            # Deactivate any current assignment for this agent
-            cur.execute(
-                """
-                UPDATE station_assignments
-                SET is_active = FALSE
-                WHERE agent_id = %s AND is_active = TRUE
-            """,
-                (agent_id,),
-            )
-
-            # Create new assignment
-            cur.execute(
-                """
-                INSERT INTO station_assignments
-                (station_id, agent_id, assignment_type, shift_preference, priority, assigned_by, notes)
-                VALUES (%s, %s, %s, %s, 10, %s, %s)
-                RETURNING id
-            """,
-                (
-                    station["id"],
-                    agent_id,
-                    assignment_type,
-                    shift_preference,
-                    user_id,
-                    notes,
-                ),
-            )
-            assignment_id = cur.fetchone()["id"]
-            action = "created"
-
-        conn.commit()
-
-        return {
-            "success": True,
-            "action": action,
-            "assignment_id": assignment_id,
-            "agent": {"id": agent["id"], "name": agent["name"]},
-            "station": {
-                "id": station["id"],
-                "name": station["station_name"],
-                "code": station_code.upper(),
-            },
-            "assignment_type": assignment_type,
-            "shift_preference": shift_preference,
-        }
-
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Error assigning agent: {e}")
-        return {"success": False, "error": str(e)}
-    finally:
-        cur.close()
-        conn.close()
+    # station_assignments table dropped — agents belong to departments via agents.department
+    return {
+        "success": False,
+        "error": "Station assignments have been replaced by department membership. Use Department HQ to manage agent departments.",
+        "deprecated": True,
+    }
 
 
 register_tool(
@@ -250,77 +136,13 @@ async def unassign_agent_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     if not agent_id:
         return {"success": False, "error": "agent_id is required"}
 
-    conn, cur = get_db_connection()
-    if not conn:
-        return {"success": False, "error": "Database connection failed"}
-
-    try:
-        # Get current assignment
-        cur.execute(
-            """
-            SELECT sa.id, sa.station_id, bs.station_name, bs.station_code, a.name
-            FROM station_assignments sa
-            JOIN bridge_stations bs ON sa.station_id = bs.id
-            JOIN agents a ON sa.agent_id = a.id
-            WHERE sa.agent_id = %s AND sa.is_active = TRUE
-        """,
-            (agent_id,),
-        )
-        assignment = cur.fetchone()
-
-        if not assignment:
-            return {
-                "success": False,
-                "error": f"Agent {agent_id} has no active station assignment",
-            }
-
-        # Check if agent is fixed (ARCHIE or Kytran on Command)
-        cur.execute(
-            """
-            SELECT is_fixed FROM station_assignments
-            WHERE id = %s
-        """,
-            (assignment["id"],),
-        )
-        check = cur.fetchone()
-
-        if check and check["is_fixed"]:
-            return {
-                "success": False,
-                "error": f"Cannot unassign {assignment['name']} - they have a fixed assignment",
-            }
-
-        # Deactivate assignment
-        cur.execute(
-            """
-            UPDATE station_assignments
-            SET is_active = FALSE
-            WHERE id = %s
-        """,
-            (assignment["id"],),
-        )
-
-        conn.commit()
-
-        return {
-            "success": True,
-            "message": f"Unassigned {assignment['name']} from {assignment['station_name']}",
-            "agent_id": agent_id,
-            "agent_name": assignment["name"],
-            "previous_station": {
-                "id": assignment["station_id"],
-                "name": assignment["station_name"],
-                "code": assignment["station_code"],
-            },
-        }
-
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Error unassigning agent: {e}")
-        return {"success": False, "error": str(e)}
-    finally:
-        cur.close()
-        conn.close()
+    # station_assignments table dropped — agents belong to departments via agents.department
+    return {
+        "success": False,
+        "error": "Station assignments have been replaced by department membership. Use Department HQ to manage agent departments.",
+        "deprecated": True,
+        "agent_id": agent_id,
+    }
 
 
 register_tool(
@@ -401,25 +223,21 @@ async def get_system_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
         )
         status["sections"]["agents"]["by_department"] = [dict(r) for r in cur.fetchall()]
 
-        # Station assignments
+        # Department coverage (station_assignments dropped — agents use agents.department directly)
         cur.execute(
             """
-            SELECT
-                bs.station_code,
-                bs.station_name,
-                COUNT(sa.id) as assigned_agents
-            FROM bridge_stations bs
-            LEFT JOIN station_assignments sa ON bs.id = sa.station_id AND sa.is_active = TRUE
-            WHERE bs.is_active = TRUE
-            GROUP BY bs.id, bs.station_code, bs.station_name
-            ORDER BY bs.id
-        """
+            SELECT department, COUNT(*) as agent_count
+            FROM agents
+            WHERE shift_state = 'active' AND department IS NOT NULL
+            GROUP BY department
+            ORDER BY department
+            """
         )
-        stations = [dict(r) for r in cur.fetchall()]
+        dept_coverage = [dict(r) for r in cur.fetchall()]
         status["sections"]["stations"] = {
-            "total": len(stations),
-            "coverage": [s for s in stations if s["assigned_agents"] > 0],
-            "empty": [s["station_code"] for s in stations if s["assigned_agents"] == 0],
+            "total": len(dept_coverage),
+            "coverage": dept_coverage,
+            "empty": [],
         }
 
         # Improvement proposals

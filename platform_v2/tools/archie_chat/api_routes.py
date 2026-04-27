@@ -212,17 +212,12 @@ def register_routes(bp, admin_required):
 
                 with _gc() as (conn, cur):
                     cur.execute(
-                        """SELECT a.display_name, sa.station_code
-                           FROM agents a
-                           LEFT JOIN station_assignments sa
-                               ON sa.agent_id = a.id AND sa.is_active = TRUE
-                           WHERE a.name = %s LIMIT 1""",
+                        """SELECT display_name FROM agents WHERE name = %s LIMIT 1""",
                         (result.agent_used,),
                     )
                     row = cur.fetchone()
                     if row:
                         agent_display_name = row["display_name"]
-                        agent_station = row["station_code"]
             except Exception:
                 log.warning("Failed to look up agent display info for %s", result.agent_used)
 

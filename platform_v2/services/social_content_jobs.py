@@ -158,9 +158,50 @@ def generate_event_draft(topic: str, platform: str = "both", tone: str = "profes
             _notify_telegram(content, plat, account_name, draft_id, _KYTRAN_TENANT_ID)
 
 
+_KBS_URL = os.getenv("KBS_APP_URL", "http://kbs_app:8090")
+_COMMS_TOKEN = os.getenv("ARCHIE_COMMS_SERVICE_TOKEN", "")
+
+
+def _call_kbs_maintenance(endpoint: str) -> dict:
+    """POST to a KBS maintenance endpoint with service token auth."""
+    import json as _json
+
+    url = f"{_KBS_URL}{endpoint}"
+    try:
+        req = urllib.request.Request(
+            url,
+            data=b"{}",
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {_COMMS_TOKEN}"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return _json.loads(resp.read())
+    except Exception as exc:
+        logger.warning("[SocialJobs] KBS %s failed: %s", endpoint, exc)
+        return {}
+
+
+def refresh_social_tokens() -> None:
+    """Refresh expiring OAuth tokens for all tenants — runs every 90 minutes."""
+    logger.info("[SocialJobs] Token refresh starting")
+    result = _call_kbs_maintenance("/api/social/refresh-tokens")
+    logger.info(
+        "[SocialJobs] Token refresh done — refreshed=%s errors=%s", result.get("refreshed", 0), result.get("errors", 0)
+    )
+
+
+def publish_scheduled_posts() -> None:
+    """Publish due scheduled posts — runs every 5 minutes."""
+    result = _call_kbs_maintenance("/api/social/publish-scheduled")
+    published = result.get("published", 0)
+    if published:
+        logger.info("[SocialJobs] Scheduled publisher: %d posts published", published)
+
+
 def register_social_content_jobs(scheduler) -> None:
-    """Register weekly content generation job with APScheduler."""
+    """Register all social content jobs with APScheduler."""
     from apscheduler.triggers.cron import CronTrigger
+    from apscheduler.triggers.interval import IntervalTrigger
 
     scheduler.add_job(
         generate_weekly_content,
@@ -171,4 +212,22 @@ def register_social_content_jobs(scheduler) -> None:
         max_instances=1,
         coalesce=True,
     )
-    logger.info("[SocialJobs] Registered weekly content job (Monday 08:00)")
+    scheduler.add_job(
+        refresh_social_tokens,
+        trigger=IntervalTrigger(minutes=90),
+        id="social_token_refresh",
+        name="Agent Loop: Social Token Refresh",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        publish_scheduled_posts,
+        trigger=IntervalTrigger(minutes=5),
+        id="social_publish_scheduled",
+        name="Agent Loop: Social Scheduled Publisher",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    logger.info("[SocialJobs] Registered: weekly content + token refresh (90m) + scheduled publisher (5m)")

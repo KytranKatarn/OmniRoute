@@ -627,7 +627,7 @@ def renew_wildcard_cert(
                 {
                     "type": "TXT",
                     "name": "_acme-challenge",
-                    "content": tv,
+                    "records": [{"content": tv}],
                     "ttl": 60,
                 }
             )

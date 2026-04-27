@@ -98,6 +98,35 @@ def _build_stats():
                 }
             )
 
+        # 3b. Welfare snapshot trend (last 7 days) — agents with persistent flags
+        cur.execute(
+            """
+            SELECT a.name, a.department,
+                   ws.flag,
+                   COUNT(*) as flag_days,
+                   ROUND(AVG(ws.avg_stress)::numeric, 3) as avg_stress_trend
+            FROM agent_welfare_snapshots ws
+            JOIN agents a ON a.id = ws.agent_id
+            WHERE ws.snapshot_date >= CURRENT_DATE - INTERVAL '7 days'
+              AND ws.flag IS NOT NULL
+              AND ws.flag NOT IN ('healthy', 'starving_no_llm')
+            GROUP BY a.name, a.department, ws.flag
+            HAVING COUNT(*) >= 2
+            ORDER BY flag_days DESC, avg_stress_trend DESC
+            LIMIT 20
+        """
+        )
+        welfare_alerts = [
+            {
+                "agent": r["name"],
+                "department": r["department"],
+                "flag": r["flag"],
+                "days_flagged": r["flag_days"],
+                "avg_stress_trend": float(r["avg_stress_trend"] or 0),
+            }
+            for r in cur.fetchall()
+        ]
+
         # 4. Job health (last 24h) by department
         cur.execute(
             """
@@ -190,6 +219,8 @@ def _build_stats():
             "by_department": welfare,
             "high_stress_total": high_stress_total,
             "platform_status": ("red" if high_stress_total > 5 else ("yellow" if high_stress_total > 0 else "green")),
+            "persistent_alerts": welfare_alerts,
+            "persistent_alert_count": len(welfare_alerts),
         },
         "jobs": {
             "by_department": job_health,

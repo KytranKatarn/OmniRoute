@@ -305,6 +305,7 @@ def increment_usage(agent_id, tier=None):
 
     - ``total_tasks_this_month`` is incremented by 1
     - ``opus_usage_this_month`` is incremented by 1 IFF ``tier == 'opus'``
+    - An ``agent_activity_events`` row is inserted for mini-consciousness tracking
     """
     if not agent_id:
         return
@@ -320,6 +321,10 @@ def increment_usage(agent_id, tier=None):
                 updated_at = NOW()
                WHERE id = %s""",
             (tier, agent_id),
+        )
+        cur.execute(
+            "INSERT INTO agent_activity_events (event_type, agent_id, data) VALUES (%s, %s, %s::jsonb)",
+            ("dispatch", agent_id, json.dumps({"tier": tier})),
         )
 
 
@@ -1884,6 +1889,30 @@ def _get_agent_welfare_outliers(over_budget_threshold: float = 0.90):
         return []
 
 
+def _get_agent_work_summary() -> dict:
+    """Return basic work session stats for K.I.N. digest."""
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT
+                    COUNT(*) FILTER (WHERE status = 'active')                                       AS active_sessions,
+                    COUNT(*) FILTER (WHERE status = 'completed'
+                                       AND completed_at > NOW() - INTERVAL '24 hours')              AS completed_today,
+                    COUNT(DISTINCT agent_id) FILTER (WHERE status = 'active' AND agent_id IS NOT NULL) AS agents_working
+                FROM work_sessions"""
+            )
+            row = cur.fetchone()
+            if row:
+                return {
+                    "active_sessions": int(row["active_sessions"] or 0),
+                    "completed_today": int(row["completed_today"] or 0),
+                    "agents_working": int(row["agents_working"] or 0),
+                }
+    except Exception as e:
+        logger.warning("_get_agent_work_summary failed: %s", e)
+    return {"active_sessions": 0, "completed_today": 0, "agents_working": 0}
+
+
 def _write_welfare_snapshots(per_agent_flags: list) -> None:
     """Upsert today's welfare snapshot row for each flagged agent (migration 155)."""
     if not per_agent_flags:
@@ -1977,10 +2006,14 @@ def get_kin_welfare_digest(
     # Persist daily snapshot for trend analysis
     _write_welfare_snapshots(per_agent_flags)
 
+    # Work session activity (mini-consciousness layer)
+    work_activity = _get_agent_work_summary()
+
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "department_rollup": department_rollup,
         "per_agent_flags": per_agent_flags,
+        "work_activity": work_activity,
         "summary_metrics": {
             "total_over_budget": total_over_budget,
             "total_starving": total_starving,
@@ -1990,6 +2023,7 @@ def get_kin_welfare_digest(
             "stress_rising": len(stress_rising),
             "department_count": len(department_rollup),
             "per_agent_flag_count": len(per_agent_flags),
+            "agents_working_now": work_activity["agents_working"],
         },
         "severity": severity,
         "reasons": reasons,

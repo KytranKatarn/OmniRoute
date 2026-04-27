@@ -1197,16 +1197,12 @@ Respond with ONLY valid JSON:
             )
 
             try:
-                # prefer_model typo — canonical kwarg is prefer_agent. The
-                # caller wanted qwen2.5-coder:7b; the agent using that model
-                # is W.A.T.C.H. (Analytics). If that mapping changes, update
-                # here. Task #2129 tracks adding native prefer_model support.
+                # W.A.T.C.H. wins via skill match (code_analysis Lv4 added 2026-04-27)
                 result = dispatch_json(
                     capability="code_analysis",
                     prompt=prompt,
                     module_id="repo_relevance_analyzer",
                     system_prompt=system_prompt,
-                    prefer_agent="W.A.T.C.H.",
                 )
 
                 if not result:

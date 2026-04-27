@@ -113,7 +113,7 @@ def dispatch_signal():
             system_prompt=system,
         )
     except Exception as e:
-        log.exception("signal dispatch failed for user %s", user_id)
+        log.exception("signal dispatch failed")
         return jsonify({"error": f"dispatch failed: {e}"}), 502
 
     if not getattr(result, "success", False):
@@ -159,3 +159,56 @@ def dispatch_signal():
         ),
         200,
     )
+
+
+@signal_dispatch_bp.route("/draft-notify", methods=["POST"])
+def draft_notify():
+    """Send a social draft to Telegram for quick approve/discard.
+
+    Called by KBS after generating and saving a draft post.
+    Sends the content as a Telegram message with inline buttons.
+
+    Body: {content, platform, account_name, draft_id, tenant_id}
+    """
+    if not _check_api_key():
+        return jsonify({"error": "Invalid or missing API key"}), 401
+
+    data = request.get_json(silent=True) or {}
+    content = (data.get("content") or "").strip()[:1000]
+    platform = (data.get("platform") or "social").strip()
+    account_name = (data.get("account_name") or "").strip()
+    draft_id = data.get("draft_id")
+    tenant_id = data.get("tenant_id")
+
+    if not content or draft_id is None or tenant_id is None:
+        return jsonify({"error": "content, draft_id, tenant_id required"}), 400
+
+    platform_label = {"linkedin": "LinkedIn", "twitter": "Twitter / X", "both": "LinkedIn + Twitter"}.get(
+        platform, platform.title()
+    )
+    preview = content[:280] + ("…" if len(content) > 280 else "")
+
+    title = f"✨ S.I.G.N.A.L. Draft — {platform_label}"
+    if account_name:
+        title += f" ({account_name})"
+
+    message = f"{preview}"
+
+    buttons = [
+        {"text": "✅ Post Now", "callback_data": f"social_pub_{draft_id}_{tenant_id}"},
+        {"text": "🗑 Discard", "callback_data": f"social_dis_{draft_id}_{tenant_id}"},
+    ]
+
+    try:
+        from services.telegram_service import send_with_buttons
+
+        send_with_buttons(
+            category="social_draft",
+            title=title,
+            message=message,
+            buttons=buttons,
+        )
+        return jsonify({"sent": True, "draft_id": draft_id}), 200
+    except Exception as e:
+        log.exception("draft_notify send failed")
+        return jsonify({"error": str(e)}), 502

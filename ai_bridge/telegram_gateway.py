@@ -119,6 +119,9 @@ class TelegramGateway:
             app.add_handler(
                 CallbackQueryHandler(self._node_callback, pattern=r"^node_")
             )
+            app.add_handler(
+                CallbackQueryHandler(self._social_callback, pattern=r"^social_")
+            )
             app.add_handler(CallbackQueryHandler(self._callback_handler))
             app.add_handler(
                 MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message)
@@ -821,6 +824,65 @@ class TelegramGateway:
             )
         except Exception as e:
             logger.debug(f"[TelegramGateway] Advisory send failed: {e}")
+
+    # ------------------------------------------------------------------
+    # Social Media Draft Approval via Telegram (Project #286)
+    # ------------------------------------------------------------------
+
+    async def _social_callback(self, update, context):
+        """Handle social draft approve/discard buttons from Telegram.
+
+        callback_data formats:
+            social_pub_{draft_id}_{tenant_id}   — publish the draft
+            social_dis_{draft_id}_{tenant_id}   — discard (delete) the draft
+        """
+        import urllib.request as _urlreq
+        import json as _json
+
+        query = update.callback_query
+        await query.answer()
+
+        user_info = self._get_authorized_user(query.from_user.id)
+        if not user_info:
+            await query.edit_message_text("Unauthorized.")
+            return
+
+        data = query.data  # e.g. "social_pub_42_9908"
+        try:
+            parts = data.split("_")   # ["social", "pub"|"dis", draft_id, tenant_id]
+            action = parts[1]         # "pub" or "dis"
+            draft_id = int(parts[2])
+            tenant_id = int(parts[3])
+        except (IndexError, ValueError):
+            await query.edit_message_text("Invalid callback data.")
+            return
+
+        kbs_url = os.getenv("KBS_APP_URL", "http://kbs_app:8090")
+        token = os.getenv("ARCHIE_COMMS_SERVICE_TOKEN", "")
+        endpoint = f"{kbs_url}/api/social/telegram-callback"
+        payload = _json.dumps({
+            "action": "publish" if action == "pub" else "discard",
+            "draft_id": draft_id,
+            "tenant_id": tenant_id,
+        }).encode()
+
+        try:
+            req = _urlreq.Request(
+                endpoint,
+                data=payload,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+                method="POST",
+            )
+            with _urlreq.urlopen(req, timeout=30) as resp:
+                result = _json.loads(resp.read())
+            if action == "pub":
+                platform = result.get("platform", "social media")
+                await query.edit_message_text(f"✅ Published to {platform}!")
+            else:
+                await query.edit_message_text("🗑 Draft discarded.")
+        except Exception as exc:
+            logger.error("[TelegramGateway] social callback failed: %s", exc)
+            await query.edit_message_text(f"❌ Action failed: {exc}")
 
     # ------------------------------------------------------------------
     # Email Interaction via Telegram

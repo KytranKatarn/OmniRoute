@@ -347,6 +347,21 @@ async def store_memory_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
         logger.info(f"Stored memory ID {memory_id}: {title[:50]}...")
 
+        # Platform event trigger — vault_notes tagged 'announcement' auto-queue a social draft
+        if memory_type == "vault_note" and "announcement" in (tags or []):
+            try:
+                import threading
+                from services.social_content_jobs import generate_event_draft
+
+                topic = title or content[:120]
+                threading.Thread(
+                    target=generate_event_draft,
+                    kwargs={"topic": topic, "platform": "both", "tone": "professional"},
+                    daemon=True,
+                ).start()
+            except Exception as _evt_err:
+                logger.warning("social event trigger failed (non-blocking): %s", _evt_err)
+
         return {
             "success": True,
             "memory_id": memory_id,

@@ -3723,6 +3723,12 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
                 register_email_sync_jobs(_job_service)
             except Exception as _e:
                 logger.warning("[Startup] Email sync jobs skipped: %s", _e)
+            try:
+                from services.social_content_jobs import register_social_content_jobs
+
+                register_social_content_jobs(_scheduler)
+            except Exception as _e:
+                logger.warning("[Startup] Social content jobs skipped: %s", _e)
             app.config["JOB_SERVICE"] = _job_service
             logger.info("[Startup] JobService initialized with budget reset jobs")
         except Exception as e:

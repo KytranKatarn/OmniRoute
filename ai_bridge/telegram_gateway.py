@@ -430,6 +430,67 @@ class TelegramGateway:
     # Message Handlers
     # ------------------------------------------------------------------
 
+    def _detect_social_intent(self, text: str):
+        """Return (topic, platform) if text is a social post request, else None."""
+        import re
+
+        text_lower = text.lower().strip()
+        patterns = [
+            (r'(?:write|create|draft|make|compose)\s+(?:a\s+)?(?:linkedin\s+post|linkedin\s+update)\s+(?:about\s+)?(.+)', "linkedin"),
+            (r'(?:write|create|draft|make|compose)\s+(?:a\s+)?tweet\s+(?:about\s+)?(.+)', "twitter"),
+            (r'post\s+(?:something\s+)?(?:on\s+linkedin\s+)?about\s+(.+)', "linkedin"),
+            (r'tweet\s+about\s+(.+)', "twitter"),
+            (r'(?:write|create|draft|make|compose)\s+(?:a\s+)?(?:social\s+(?:media\s+)?)?post\s+(?:about\s+)?(.+)', "both"),
+            (r'(?:s\.i\.g\.n\.a\.l\.|signal)[,:\s]+(?:write|post|create|draft)\s+(?:about\s+)?(.+)', "both"),
+        ]
+        for pattern, platform in patterns:
+            m = re.match(pattern, text_lower, re.IGNORECASE)
+            if m:
+                topic = m.group(1).strip().rstrip(".!?")
+                if len(topic) > 5:
+                    return topic, platform
+        return None
+
+    async def _handle_social_request(self, update, topic: str, platform: str) -> None:
+        """Generate a social draft via S.I.G.N.A.L. and send to Telegram for approval."""
+        import json
+        import urllib.request as _urlreq
+
+        await update.message.reply_text(f"✍️ S.I.G.N.A.L. is writing your {platform} post…")
+
+        api_key = os.getenv("ARCHIE_API_KEY", "dev-api-key-change-in-production")
+        kytran_tenant_id = int(os.getenv("KBS_KYTRAN_TENANT_ID", "9908"))
+
+        account_map = {
+            "linkedin": (int(os.getenv("KBS_KYTRAN_LINKEDIN_ID", "1")), "Kytran Katarn"),
+            "twitter": (int(os.getenv("KBS_KYTRAN_TWITTER_ID", "2")), "Kytran"),
+            "both": (int(os.getenv("KBS_KYTRAN_LINKEDIN_ID", "1")), "Kytran Katarn"),
+        }
+        account_id, account_name = account_map.get(platform, account_map["linkedin"])
+
+        try:
+            # Generate content
+            payload = json.dumps({"capability": "social_content", "prompt": f"Write a social media post about: {topic}", "platform": platform, "tone": "professional"}).encode()
+            req = _urlreq.Request("http://localhost:3000/api/signal/dispatch", data=payload, headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}, method="POST")
+            with _urlreq.urlopen(req, timeout=60) as resp:
+                data = json.loads(resp.read())
+            content = data.get("response", "").strip()
+            if not content:
+                await update.message.reply_text("⚠️ S.I.G.N.A.L. returned an empty response. Try again.")
+                return
+
+            # Save to KBS DB
+            from services.social_content_jobs import _save_draft, _notify_telegram
+            draft_id = _save_draft(content, account_id, kytran_tenant_id)
+            if draft_id:
+                _notify_telegram(content, platform if platform != "both" else "linkedin", account_name, draft_id, kytran_tenant_id)
+            else:
+                await update.message.reply_text(f"✅ S.I.G.N.A.L. wrote:\n\n{content}\n\n_(draft could not be saved to KBS)_", parse_mode="Markdown")
+
+        except Exception as exc:
+            logger.error("[TelegramGateway] social request failed: %s", exc)
+            await update.message.reply_text(f"❌ Generation failed: {exc}")
+
     async def _handle_message(self, update, context):
         """Handle regular text messages — route through orchestration."""
         # Check for pending email reply FIRST
@@ -447,6 +508,13 @@ class TelegramGateway:
 
         text = update.message.text
         self._log_message(user_info["id"], "in", "text", text)
+
+        # Intercept social post requests before general orchestration
+        social = self._detect_social_intent(text)
+        if social:
+            topic, platform = social
+            await self._handle_social_request(update, topic, platform)
+            return
 
         response = self._orchestrate_message(
             text, user_info["user_id"], voice_mode=True

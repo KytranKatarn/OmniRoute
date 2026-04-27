@@ -108,9 +108,139 @@ def on_sso_login(user_data):
     logger.info("SSO login accepted: %s (admin)", user_data.get("username"))
 
 
+def _fetch_agent_status():
+    """Return list of active AI agents. Called by /api/status."""
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT a.display_name, a.shift_state,
+                       COALESCE(a.department, 'Unknown') AS department
+                FROM agents a
+                WHERE a.worker_type = 'ai'
+                  AND a.shift_state NOT IN ('decommissioned', 'barracked', 'off_duty')
+                ORDER BY a.shift_state, a.display_name
+                LIMIT 15
+                """,
+            )
+            return [dict(r) for r in cur.fetchall()]
+    except Exception as exc:
+        logger.error("_fetch_agent_status failed: %s", exc)
+        return []
+
+
+def _fetch_platform_health():
+    """Return basic platform health dict. Called by /api/status."""
+    health = {}
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT 1")
+        health["db"] = "healthy"
+    except Exception:
+        health["db"] = "error"
+    return health
+
+
+def _call_platform_delegation_submit(capability, reason, args=None):
+    """POST to platform internal delegation endpoint. Returns response dict.
+
+    Extracted as a function so tests can monkeypatch without touching requests.
+    Raises on HTTP error or network failure — caller handles.
+    """
+    import requests as _req
+    import os as _os
+
+    platform_url = _os.getenv("PLATFORM_INTERNAL_URL", "http://192.168.1.200:3000")
+    api_key = _os.getenv("INTERNAL_API_KEY", "")
+    resp = _req.post(
+        f"{platform_url}/api/internal/delegation/submit",
+        json={"capability": capability, "reason": reason, "args": args or {}},
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _call_platform_delegation_status(task_id):
+    """GET platform delegation status. Returns response dict."""
+    import requests as _req
+    import os as _os
+
+    platform_url = _os.getenv("PLATFORM_INTERNAL_URL", "http://192.168.1.200:3000")
+    api_key = _os.getenv("INTERNAL_API_KEY", "")
+    resp = _req.get(
+        f"{platform_url}/api/internal/delegation/{task_id}/status",
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _call_platform_repair_count():
+    """GET improvement_proposals count from platform."""
+    import requests as _req
+    import os as _os
+
+    platform_url = _os.getenv("PLATFORM_INTERNAL_URL", "http://192.168.1.200:3000")
+    api_key = _os.getenv("INTERNAL_API_KEY", "")
+    resp = _req.get(
+        f"{platform_url}/api/internal/repair/count",
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=5,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _tmux_capture_claude_code(lines=50):
+    """Capture last N lines from the claude-code tmux session.
+
+    Returns list of strings. Empty list if session not found or tmux unavailable.
+    """
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["tmux", "capture-pane", "-p", "-t", "claude-code", "-J"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            return []
+        all_lines = result.stdout.splitlines()
+        non_empty = [l for l in all_lines if l.strip()]
+        return non_empty[-lines:]
+    except Exception as exc:
+        logger.error("_tmux_capture_claude_code failed: %s", exc)
+        return []
+
+
 @app.route("/api/health")
 def health():
     return jsonify({"status": "ok", "service": "archie_comms", "version": "1.0.0"})
+
+
+@app.route("/api/status")
+def api_status():
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+
+    return jsonify(
+        {
+            "agents": _fetch_agent_status(),
+            "platform": _fetch_platform_health(),
+            "anomaly_count": 0,
+        }
+    )
 
 
 @app.route("/api/send", methods=["POST"])
@@ -378,35 +508,62 @@ def api_internal_triage_policies_delete(policy_id):
 
 
 @app.route("/api/chat/send_message", methods=["POST"])
-def api_chat_send():
-    """Chat endpoint — routes through unified conversation service.
+def api_chat_send_message():
+    """SSE streaming endpoint. Emits token events then a done event."""
+    import json as _json
+    from flask import Response, session as flask_session, stream_with_context
 
-    All messages persisted to unified_conversations/unified_messages.
-    Script match for instant responses, LLM for full personality.
-    Conversation context carried across messages.
-    """
-    from flask import session
+    user_id = flask_session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
 
-    if "user_id" not in session and "kytran_user" not in session:
-        return jsonify({"error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    message = (data.get("message") or "").strip()
+    conversation_id = data.get("conversation_id")
+    terminal_context = data.get("terminal_context") or None
+    is_plan_request = bool(data.get("is_plan_request", False))
 
-    data = request.get_json() or {}
-    message = data.get("message", "").strip()
     if not message:
         return jsonify({"error": "Empty message"}), 400
 
-    user_id = session.get("user_id", 2)  # default to Kytran
-    agent_target = data.get("agent_target")
+    from services.conversation_service import stream_send_message
 
-    from services.conversation_service import send_message
+    def generate():
+        try:
+            for item in stream_send_message(user_id, message, "web", conversation_id, terminal_context=terminal_context, is_plan_request=is_plan_request):
+                if isinstance(item, dict) and item.get("type") == "delegation_detected":
+                    # Fire delegation to platform, emit delegation_queued
+                    try:
+                        result = _call_platform_delegation_submit(
+                            item["capability"], item["reason"]
+                        )
+                        queued_evt = {
+                            "type": "delegation_queued",
+                            "task_id": result.get("task_id"),
+                            "capability": item["capability"],
+                            "reason": item["reason"],
+                        }
+                        yield f"data: {_json.dumps(queued_evt)}\n\n"
+                    except Exception as exc:
+                        logger.error("delegation fire failed: %s", exc)
+                        yield f"data: {_json.dumps({'type': 'delegation_failed', 'reason': item.get('reason', '')})}\n\n"
+                elif isinstance(item, dict):
+                    yield f"data: {_json.dumps(item)}\n\n"
+                else:
+                    yield f"data: {_json.dumps({'type': 'token', 'content': item})}\n\n"
+        except Exception as exc:
+            logger.error("SSE generate failed: %s", exc)
+            yield f"data: {_json.dumps({'type': 'error', 'message': 'Stream failed'})}\n\n"
 
-    result = send_message(
-        user_id=user_id,
-        message=message,
-        channel="platform",
-        agent_target=agent_target,
+    return Response(
+        stream_with_context(generate()),
+        content_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
     )
-    return jsonify(result)
 
 
 @app.route("/api/chat/escalate", methods=["POST"])
@@ -504,6 +661,150 @@ def api_chat_new():
 
     conv_id = new_conversation(user_id, topic=data.get("topic"))
     return jsonify({"conversation_id": conv_id})
+
+
+@app.route("/api/chat/sessions/<int:conv_id>/summarize", methods=["POST"])
+def api_chat_summarize(conv_id):
+    """Called via sendBeacon on session close. Stores KB summary."""
+    from flask import session as flask_session
+
+    user_id = flask_session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    # Verify conversation belongs to this user (prevent IDOR)
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT id FROM unified_conversations WHERE id = %s AND user_id = %s",
+                (conv_id, user_id),
+            )
+            if not cur.fetchone():
+                return jsonify({"error": "Not found"}), 404
+    except Exception as exc:
+        logger.error("api_chat_summarize: ownership check failed: %s", exc)
+        return jsonify({"success": False}), 500
+
+    from services.conversation_service import summarize_conversation
+
+    try:
+        summarize_conversation(conv_id)
+        return jsonify({"success": True})
+    except Exception as exc:
+        logger.error("api_chat_summarize %d failed: %s", conv_id, exc)
+        return jsonify({"success": False}), 500
+
+
+@app.route("/api/terminal/token", methods=["POST"])
+def api_terminal_token():
+    """Mint a one-time token for ttyd auth proxy access."""
+    import secrets
+    from datetime import datetime, timezone, timedelta
+    from flask import session as flask_session
+
+    user_id = flask_session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO terminal_auth_tokens (token, user_id, expires_at)
+                VALUES (%s, %s, %s)
+                """,
+                (token, user_id, expires_at),
+            )
+    except Exception as exc:
+        logger.error("api_terminal_token: DB insert failed: %s", exc)
+        return jsonify({"error": "Token generation failed"}), 500
+
+    return jsonify({
+        "token": token,
+        "url": f"https://terminal.kytranempowerment.com?token={token}",
+        "expires_in": 300,
+    })
+
+
+@app.route("/api/terminal/snapshot")
+def api_terminal_snapshot():
+    """Return last 50 lines from the claude-code tmux session."""
+    from flask import session as flask_session
+    from datetime import datetime, timezone
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+
+    lines = _tmux_capture_claude_code()
+    return jsonify({
+        "lines": lines,
+        "session": "claude-code",
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+
+@app.route("/api/delegation/submit", methods=["POST"])
+def api_delegation_submit():
+    """Proxy delegation submission to platform. Auth: session cookie."""
+    from flask import session as flask_session
+
+    user_id = flask_session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.get_json(silent=True) or {}
+    capability = (data.get("capability") or "general").strip()
+    reason = (data.get("reason") or "").strip()
+    args = data.get("args") or {}
+
+    if not reason:
+        return jsonify({"error": "reason required"}), 400
+
+    try:
+        result = _call_platform_delegation_submit(capability, reason, args)
+        return jsonify(result), 200
+    except Exception as exc:
+        logger.error("api_delegation_submit: platform call failed: %s", exc)
+        return jsonify({"error": "Platform delegation unavailable"}), 503
+
+
+@app.route("/api/delegation/<int:task_id>/status")
+def api_delegation_status(task_id):
+    """Proxy delegation status from platform. Auth: session cookie."""
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+
+    try:
+        result = _call_platform_delegation_status(task_id)
+        return jsonify(result), 200
+    except Exception as exc:
+        logger.error("api_delegation_status %d: platform call failed: %s", task_id, exc)
+        return jsonify({"error": "Status unavailable"}), 503
+
+
+@app.route("/api/repair/count")
+def api_repair_count():
+    """Proxy repair proposal count from platform."""
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+
+    try:
+        result = _call_platform_repair_count()
+        return jsonify(result)
+    except Exception as exc:
+        logger.error("api_repair_count failed: %s", exc)
+        return jsonify({"count": 0})
 
 
 def start_background_services():

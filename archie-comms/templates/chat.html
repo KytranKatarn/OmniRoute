@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>A.R.C.H.I.E. Comms</title>
+    <title>A.R.C.H.I.E. Command Center</title>
     <link rel="icon" type="image/png" href="/static/favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;500;700&family=Orbitron:wght@400;700;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/lcars-header.css">
-    <link rel="stylesheet" href="/static/css/comms.css">
-    <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+    <link rel="stylesheet" href="/static/css/archie-chat.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
 {% set cat_accent = '#00ffff' %}
@@ -28,121 +28,81 @@
 {% include 'lcars-header.html' %}
 
 <!-- ═══════════════════════════════════════════════════════════════
-     TAB: CHAT (default)
+     TAB: CHAT — Command Center
      ═══════════════════════════════════════════════════════════════ -->
 <div id="panel-chat" class="comms-panel active">
-<div class="comms-frame">
-    <!-- LCARS vertical sidebar segments -->
-    <div class="comms-frame-sidebar">
-        <div class="comms-frame-elbow-top"></div>
-        <div class="comms-frame-seg1"></div>
-        <div class="comms-frame-seg2"></div>
-        <div class="comms-frame-seg3"></div>
-        <div class="comms-frame-seg-fill"></div>
-        <div class="comms-frame-elbow-bottom"></div>
+
+<div class="ac-layout" id="ac-layout">
+
+  <!-- Left: Session sidebar -->
+  <div class="ac-sidebar-left">
+    <div class="ac-sidebar-header">Conversations</div>
+    <div class="ac-session-list" id="ac-session-list"></div>
+    <div class="ac-new-session" id="ac-new-session">+ New Conversation</div>
+  </div>
+
+  <!-- Center: Chat -->
+  <div class="ac-chat-center">
+    <div class="ac-chat-header">
+      <span>&#9679; A.R.C.H.I.E. &middot; ONLINE</span>
+      <span class="ac-focus-toggle" id="ac-focus-toggle" title="Focus Mode">&#8863;</span>
     </div>
-    <div class="comms-frame-content">
-<div class="ac-app">
+    <div style="position:relative;flex:1;overflow:hidden;display:flex;flex-direction:column;">
+      <div class="ac-message-list" id="ac-message-list"></div>
+      <div class="ac-jump-latest" id="ac-jump-latest">&#8595; Jump to latest</div>
+    </div>
+    <!-- Quick-action coding shortcuts -->
+    <div class="ac-quick-actions" id="ac-quick-actions">
+      <button class="ac-quick-btn" data-cmd="/review " type="button">Review Code</button>
+      <button class="ac-quick-btn" data-cmd="/test" type="button">Run Tests</button>
+      <button class="ac-quick-btn" data-cmd="/plan " type="button">Plan Feature</button>
+    </div>
+    <div class="ac-input-bar">
+      <textarea class="ac-input" id="ac-input" rows="1"
+        placeholder="Ask ARCHIE anything&#8230; or delegate a task to her team"
+      ></textarea>
+      <button class="ac-send-btn" id="ac-send-btn">SEND &#8629;</button>
+    </div>
+  </div>
 
-    <!-- LEFT — Conversation Sidebar -->
-    <aside id="ac-sidebar" class="ac-sidebar">
-        <div class="ac-sidebar-header">
-            <button id="ac-new-chat-btn" class="ac-new-chat-btn" title="New Conversation">
-                <span>+</span> New Chat
-            </button>
-        </div>
-
-        <div class="ac-sidebar-section">
-            <div class="ac-sidebar-label">STATUS</div>
-            <div class="ac-status-row">
-                <span class="ac-status-dot online"></span>
-                <span class="ac-status-val" id="archie-mood">Online — Focused</span>
-            </div>
-            <div class="ac-status-row dim">
-                <span>Agents:</span>
-                <span class="ac-status-val" id="agent-count">47 active</span>
-            </div>
-            <div class="ac-status-row dim">
-                <span>Watchdog:</span>
-                <span class="ac-status-val online" id="watchdog-val">Healthy</span>
-            </div>
-        </div>
-
-        <div class="ac-sidebar-label">CONVERSATIONS</div>
-        <div id="ac-conversation-list" class="ac-conversation-list">
-            <!-- Injected by JS -->
-        </div>
-
-        <div class="ac-sidebar-footer">
-            <label class="ac-target-label" for="ac-target-select">Route to</label>
-            <select id="ac-target-select" class="ac-target-select">
-                <option value="auto">Auto (A.R.C.H.I.E. decides)</option>
-                <optgroup label="Departments">
-                    <option value="executive">Executive Office</option>
-                    <option value="engineering">Engineering & Technology</option>
-                    <option value="security">Security & Compliance</option>
-                    <option value="operations">Operations & Infrastructure</option>
-                    <option value="creative">Creative & Design</option>
-                    <option value="research">Research & Development</option>
-                    <option value="analytics">Analytics & Intelligence</option>
-                </optgroup>
-            </select>
-        </div>
-    </aside>
-
-    <!-- CENTER — Chat Area -->
-    <main id="ac-chat-area" class="ac-chat-area">
-        <div id="ac-messages" class="ac-messages">
-            <!-- Welcome message -->
-            <div class="ac-message ac-message-assistant">
-                <div class="ac-agent-avatar">
-                    <span class="ac-avatar-initials">A</span>
-                </div>
-                <div class="ac-message-bubble">
-                    <div class="ac-message-meta">
-                        <span class="ac-agent-name">A.R.C.H.I.E.</span>
-                        <span class="ac-dept-badge">Executive Office</span>
-                    </div>
-                    <div class="ac-message-text">Good to see you, Kytran. I'm here and ready. What are we working on?</div>
-                </div>
-            </div>
-        </div>
-
-        <div id="ac-thinking" class="ac-thinking" style="display:none;">
-            <div class="ac-thinking-dots"><span></span><span></span><span></span></div>
-            <span class="ac-thinking-label">A.R.C.H.I.E. is thinking...</span>
-        </div>
-
-        <div class="ac-input-area">
-            <div class="ac-input-row">
-                <button id="ac-sidebar-toggle" class="ac-sidebar-toggle" title="Toggle sidebar">&#9776;</button>
-                <textarea id="ac-message-input" class="ac-message-input"
-                    placeholder="Talk to A.R.C.H.I.E...." rows="1" autocomplete="off"></textarea>
-                <button id="ac-send-btn" class="ac-send-btn" title="Send" disabled>
-                    <span>&#9654;</span>
-                </button>
-            </div>
-        </div>
-    </main>
-
-    <!-- RIGHT — Flight Deck (collapsible) -->
-    <aside id="ac-flight-deck" class="ac-flight-deck">
-        <div class="ac-fd-header">
-            <span class="ac-fd-title">FLIGHT DECK</span>
-            <button id="ac-fd-close" class="ac-fd-close">&times;</button>
-        </div>
-        <div id="ac-fd-steps" class="ac-fd-steps">
-            <!-- Pipeline steps injected by JS -->
-        </div>
-        <div id="ac-fd-total" class="ac-fd-total"></div>
-    </aside>
-
-    <button id="ac-fd-toggle" class="ac-fd-toggle" title="Show Flight Deck">&#9881;</button>
+  <!-- Right: Status panel -->
+  <div class="ac-sidebar-right">
+    <div class="ac-status-section">
+      <div class="ac-status-section-title">Agent Activity</div>
+      <div id="ac-agents"></div>
+    </div>
+    <div class="ac-status-section">
+      <div class="ac-status-section-title">Platform</div>
+      <div id="ac-platform"></div>
+    </div>
+    <div class="ac-status-section">
+      <div class="ac-status-section-title">Repair Bay</div>
+      <div id="ac-repair-bay"></div>
+    </div>
+    <button class="ac-terminal-link ac-terminal-trigger" type="button">Open Terminal &#8594;</button>
+  </div>
 
 </div>
-    <div class="comms-frame-bottom"></div>
-    </div><!-- /comms-frame-content -->
-</div><!-- /comms-frame -->
+
+<!-- Terminal slide-over overlay -->
+<div class="ac-terminal-overlay" id="ac-terminal-overlay"></div>
+
+<!-- Terminal drawer panel -->
+<div class="ac-terminal-drawer" id="ac-terminal-drawer">
+  <div class="ac-terminal-header">
+    <div class="ac-terminal-status-dot" id="ac-terminal-status-dot"></div>
+    <span class="ac-terminal-title">Claude Code Terminal</span>
+    <button class="ac-terminal-close" id="ac-terminal-close" type="button" aria-label="Close terminal">&#10005;</button>
+  </div>
+  <iframe
+    class="ac-terminal-iframe"
+    id="ac-terminal-iframe"
+    data-src="lazy"
+    allow="clipboard-read; clipboard-write"
+    title="Claude Code terminal"
+  ></iframe>
+</div>
+
 </div><!-- /panel-chat -->
 
 <!-- TAB: HISTORY -->
@@ -172,17 +132,16 @@
                 title="Claude Terminal"></iframe>
     </div>
 </div>
+
 <script>
 // Lazy-load TTYd only when terminal tab is activated (saves resources)
 (function() {
     var ttydLoaded = false;
-    var origSwitch = window.onLcarsTabSwitch;
     window.onLcarsTabSwitch = function(tabId) {
         if (tabId === 'terminal' && !ttydLoaded) {
             ttydLoaded = true;
             document.getElementById('ttyd-frame').src = 'http://192.168.1.200:7681';
         }
-        // Call original panel switcher
         document.querySelectorAll('.comms-panel').forEach(function(p) {
             p.classList.toggle('active', p.id === 'panel-' + tabId);
         });
@@ -193,7 +152,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="/static/js/lcars-header.js"></script>
-<script src="/static/js/comms.js"></script>
+<script src="/static/js/archie-chat.js"></script>
 <script>if(window.lucide)lucide.createIcons();</script>
 </body>
 </html>

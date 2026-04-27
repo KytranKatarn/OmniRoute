@@ -219,6 +219,50 @@ def _call_ollama(system_prompt, user_prompt):
         return result.get("response", "").strip() or None
 
 
+def _stream_ollama(system_prompt, user_prompt):
+    """Yield str tokens from Ollama streaming API.
+
+    Mirrors _call_ollama config. Yields a single error string on failure
+    so callers always receive output without raising.
+    """
+    # requests is a listed archie_comms dep (requirements.txt) — intentional deviation from _call_ollama's urllib
+    import requests as _requests
+
+    ollama_host = os.getenv("OLLAMA_HOST", "http://192.168.1.200:11434")
+    if ollama_host and not ollama_host.startswith("http"):
+        ollama_host = f"http://{ollama_host}"
+    model = os.getenv("ARCHIE_VOICE_MODEL", "dolphin3-8k:latest")
+    url = f"{ollama_host}/api/chat"
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "stream": True,
+        "options": {"num_predict": 1024, "temperature": 0.7, "num_gpu": -1},
+        "keep_alive": "5m",
+    }
+    try:
+        with _requests.post(url, json=payload, stream=True, timeout=120) as resp:
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                token = data.get("message", {}).get("content", "")
+                if token:
+                    yield token
+                if data.get("done"):
+                    break
+    except Exception as exc:
+        logger.error("_stream_ollama failed: %s", exc)
+        yield "[ARCHIE is temporarily unavailable. Please try again.]"
+
+
 def _template_fallback(category, title, raw_message, source_agent=None):
     """Original template format — used when LLM is unavailable.
     Inline icon map to avoid importing telegram_service (keeps Flask-free).

@@ -34,24 +34,28 @@
             </div>
         </div>
         <div class="terminal-actions">
-            <button class="terminal-btn" onclick="document.getElementById('tty').src=document.getElementById('tty').src">Reconnect</button>
+            <button class="terminal-btn" onclick="fetch('/api/terminal/token',{method:'POST'}).then(r=>r.json()).then(d=>{document.getElementById('tty').src=d.url;})">Reconnect</button>
             <a href="https://archie.kytranempowerment.com/chat" class="terminal-btn">A.R.C.H.I.E. Chat</a>
             <a href="/claude" class="terminal-btn muted">Back</a>
         </div>
     </div>
-    <div class="terminal-frame" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;">
-        <div style="text-align:center;max-width:500px;">
-            <div style="font-size:2.5rem;margin-bottom:12px;">&#128433;</div>
-            <div style="font-family:'Orbitron',sans-serif;font-size:0.85rem;color:#a78bfa;letter-spacing:2px;margin-bottom:8px;">CLAUDE CLI TERMINAL</div>
-            <p style="color:#9ca3af;font-size:0.8rem;line-height:1.6;margin-bottom:24px;">
-                Persistent tmux session with Claude Code. Your session survives browser disconnects.
-            </p>
-            <a href="http://192.168.1.200:7681" target="_blank"
-               style="display:inline-flex;align-items:center;gap:10px;padding:14px 36px;background:#a78bfa;color:#000;text-decoration:none;font-weight:700;font-size:0.9rem;border-radius:6px;box-shadow:0 4px 25px rgba(167,139,250,0.3);transition:transform 0.2s;">
-                Launch Terminal
-            </a>
-            <p style="color:#4b5563;font-size:0.68rem;margin-top:16px;">Opens in a new window at 192.168.1.200:7681 (local network)</p>
-        </div>
+    <div class="terminal-frame">
+      <iframe
+        id="tty"
+        style="width:100%;height:100%;border:none;"
+        allow="clipboard-read; clipboard-write"
+        title="Claude Code terminal"
+      ></iframe>
     </div>
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    try {
+      const resp = await fetch('/api/terminal/token', { method: 'POST' });
+      if (!resp.ok) { console.error('Terminal: token mint failed', resp.status); return; }
+      const data = await resp.json();
+      document.getElementById('tty').src = data.url;
+    } catch (e) { console.error('Terminal load failed:', e); }
+  });
+</script>
 </body>
 </html>

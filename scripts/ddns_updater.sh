@@ -6,7 +6,7 @@
 set -euo pipefail
 
 DOMAIN="kytranempowerment.com"
-SUBDOMAINS=("archie" "platform" "adguard" "nagios" "plex" "n8n" "voice" "store" "mediahub" "consciousness" "bridge" "brainstorm" "server" "business" "proxy" "mail" "mail-admin" "webmail" "mesh" "creed")
+SUBDOMAINS=("archie" "platform" "adguard" "nagios" "plex" "n8n" "voice" "store" "mediahub" "consciousness" "bridge" "brainstorm" "server" "business" "proxy" "mail" "mail-admin" "webmail" "mesh" "creed" "terminal")
 IP_FILE="/mnt/archie_brain/scripts/.ddns_last_ip"
 LOG_FILE="/mnt/archie_brain/scripts/ddns_updater.log"
 ENV_FILE="/mnt/archie_brain/.env"

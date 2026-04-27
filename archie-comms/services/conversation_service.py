@@ -18,6 +18,13 @@ Usage:
 
 import json
 import logging
+
+# Module-level imports so tests can monkeypatch these names
+try:
+    from services.archie_voice_service import _get_system_prompt, _stream_ollama
+except Exception:  # service may not be importable in test environments
+    _get_system_prompt = None  # type: ignore[assignment]
+    _stream_ollama = None  # type: ignore[assignment]
 import os
 import time
 import uuid as _uuid_mod
@@ -759,3 +766,235 @@ def search_conversations(user_id, query, team_id=None, limit=20):
     except Exception as e:
         logger.error("conversation_service: search_conversations failed: %s", e)
         return []
+
+
+# ---------------------------------------------------------------------------
+# Sub-C Delegation Helpers (Task #2351)
+# ---------------------------------------------------------------------------
+import re as _re
+
+_DELEGATE_RE = _re.compile(
+    r'\{\{DELEGATE\s+capability="([^"]+)"\s+reason="([^"]*?)"\s*\}\}',
+    _re.DOTALL,
+)
+
+_PLANNING_SYSTEM_PROMPT = (
+    "[FEATURE PLANNING] The user wants to plan a software feature. Your job:\n"
+    "1. Decompose the feature into 3-5 concrete implementation tasks (ordered).\n"
+    "2. Present the plan clearly in your response.\n"
+    "3. Include ONE {{DELEGATE}} marker for the FIRST task only:\n"
+    '   {{DELEGATE capability="code_review" reason="implement: <task 1 description>"}}\n\n'
+    "Format: 'Here is the plan for [feature]:\\n1. [Task 1]...\\nDelegating task 1 to "
+    "F.O.R.G.E. now.'\n"
+    "Only include one {{DELEGATE}} marker. The user will kick off remaining tasks manually."
+)
+
+_DELEGATION_SYSTEM_PROMPT = (
+    "[DELEGATION] When the user explicitly asks you to delegate a task to an agent "
+    "or the platform, include this marker anywhere in your response: "
+    '{{DELEGATE capability="X" reason="Y"}} '
+    "Valid capabilities: code_review, health_check, run_qa_suite, documentation, "
+    "analyze, check_dep_drift, run_misroute_audit, summarize, research, security, general. "
+    "Example: If the user says 'ask F.O.R.G.E. to review the dispatch code', respond "
+    "naturally AND include: {{DELEGATE capability=\"code_review\" reason=\"review dispatch "
+    'routing code for gaps"}} '
+    "Only include {{DELEGATE}} when the user explicitly asks you to delegate. Never "
+    "include it for regular conversation."
+)
+
+
+# ---------------------------------------------------------------------------
+# Sub-A KB Memory Helpers and Streaming (Task #2349)
+# ---------------------------------------------------------------------------
+
+
+def _fetch_kb_conversation_memory(limit=5):
+    """Fetch recent conversation_memory entries from knowledge_base.
+
+    Isolated as its own function so tests can monkeypatch the DB call.
+    """
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT title, content
+                FROM knowledge_base
+                WHERE knowledge_type = 'conversation_memory'
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            return [dict(r) for r in cur.fetchall()]
+    except Exception as exc:
+        logger.error("_fetch_kb_conversation_memory failed: %s", exc)
+        return []
+
+
+def get_session_context(user_id, limit=5):
+    """Return KB memory prefix to inject into ARCHIE system prompt.
+
+    Returns empty string when no entries exist or on DB error.
+    """
+    rows = _fetch_kb_conversation_memory(limit)
+    if not rows:
+        return ""
+    parts = [f"- {r['title']}: {r['content']}" for r in rows]
+    return "[ARCHIE MEMORY] Recent conversation context:\n" + "\n".join(parts)
+
+
+def summarize_conversation(conv_id):
+    """Generate a 2-3 sentence summary and store to knowledge_base.
+
+    Called when a chat session closes. Silently returns if fewer than
+    2 messages exist (nothing worth summarising).
+    """
+    messages = get_conversation_messages(conv_id, limit=50)
+    if len(messages) < 2:
+        return
+
+    lines = []
+    for m in messages:
+        role = "User" if m.get("direction") == "inbound" else "ARCHIE"
+        lines.append(f"{role}: {m.get('content', '')}")
+    transcript = "\n".join(lines)[:3000]
+
+    title = f"Conversation {conv_id}"
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT title FROM unified_conversations WHERE id = %s", (conv_id,)
+            )
+            row = cur.fetchone()
+            if row and row["title"]:
+                title = row["title"]
+    except Exception as exc:
+        logger.error("summarize_conversation: title fetch failed: %s", exc)
+
+    # Note: archie_comms is a standalone container — it uses direct Ollama
+    # rather than the platform Bridge dispatcher (ADR-013 applies to platform_v2
+    # modules; standalone containers call platform APIs or Ollama directly).
+    # This mirrors the existing send_message() pattern in this same file.
+    from services.archie_voice_service import _call_ollama
+
+    system = (
+        "Summarize this conversation in 2-3 sentences. "
+        "Be factual and concise. Focus on decisions made and tasks discussed."
+    )
+    summary = _call_ollama(system, f"Conversation:\n\n{transcript}")
+    if not summary:
+        return
+
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO knowledge_base
+                    (knowledge_type, title, content, category, importance_score, created_at)
+                VALUES (%s, %s, %s, %s, %s, NOW())
+                """,
+                ("conversation_memory", title, summary, "chat_history", 0.75),
+            )
+    except Exception as exc:
+        logger.error("summarize_conversation: KB store failed: %s", exc)
+
+
+def stream_send_message(user_id, message, channel="web", conversation_id=None, terminal_context=None, is_plan_request=False):
+    """Generator: yield str tokens then a final dict with type='done'.
+
+    Usage in Flask SSE route::
+
+        for item in stream_send_message(user_id, message):
+            if isinstance(item, dict):
+                yield f"data: {json.dumps(item)}\\n\\n"
+            else:
+                yield f"data: {json.dumps({'type':'token','content':item})}\\n\\n"
+    """
+    conv_id = conversation_id or get_or_create_conversation(user_id)
+    if conv_id is None:
+        yield {"type": "error", "message": "Failed to create conversation"}
+        yield {"type": "done", "conversation_id": None}
+        return
+
+    save_message(conv_id, channel, "inbound", "user", message, {"role": "user"})
+
+    memory_prefix = get_session_context(user_id)
+
+    history = get_conversation_messages(conv_id, limit=10)
+    history_text = ""
+    if history:
+        history_text = "\n\nRecent conversation:\n"
+        for msg in history[-10:]:
+            role_label = "User" if msg.get("direction") == "inbound" else "ARCHIE"
+            history_text += f"{role_label}: {msg.get('content', '')}\n"
+
+    system_prompt = (_get_system_prompt() if _get_system_prompt else None) or "You are A.R.C.H.I.E., an AI Chief Operating Officer."
+    if memory_prefix:
+        system_prompt = f"{memory_prefix}\n\n{system_prompt}"
+    system_prompt = f"{system_prompt}\n\n{_DELEGATION_SYSTEM_PROMPT}"
+    if is_plan_request:
+        system_prompt = f"{_PLANNING_SYSTEM_PROMPT}\n\n{system_prompt}"
+    if terminal_context:
+        terminal_lines = terminal_context.strip()
+        system_prompt = (
+            f"[TERMINAL CONTEXT] Last lines from claude-code terminal session:\n"
+            f"{terminal_lines}\n\n"
+            f"You can reference this terminal state in your response.\n\n"
+            f"{system_prompt}"
+        )
+    user_prompt = f"{history_text}\nUser: {message}\nARCHIE:"
+
+    full_parts = []
+    stream_error = None
+    streamer = _stream_ollama if _stream_ollama else iter([])
+    try:
+        for token in streamer(system_prompt, user_prompt):
+            full_parts.append(token)
+    except Exception as exc:
+        logger.error("stream_send_message: stream error: %s", exc)
+        stream_error = exc
+    finally:
+        complete_text = "".join(full_parts)
+
+        # Strip {{DELEGATE}} markers and collect delegation events
+        delegation_events = []
+
+        def _collect_delegate(m):
+            delegation_events.append({
+                "type": "delegation_detected",
+                "capability": m.group(1).strip(),
+                "reason": m.group(2).strip(),
+            })
+            return ""
+
+        clean_text = _DELEGATE_RE.sub(_collect_delegate, complete_text).strip()
+
+        # Yield clean tokens before done — re-emit each original token with markers stripped
+        for raw_token in full_parts:
+            clean_token = _DELEGATE_RE.sub("", raw_token)
+            if clean_token:
+                yield clean_token
+
+        if stream_error:
+            yield {"type": "error", "message": "Stream interrupted"}
+
+        if clean_text:
+            save_message(
+                conv_id,
+                channel,
+                "outbound",
+                "archie",
+                clean_text,
+                {"role": "assistant", "conversation_id": conv_id},
+            )
+
+        # Yield done first, then any delegation events
+        yield {"type": "done", "conversation_id": conv_id}
+        for evt in delegation_events:
+            yield evt

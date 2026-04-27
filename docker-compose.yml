@@ -762,6 +762,21 @@ services:
     entrypoint: ["zap.sh", "-daemon", "-host", "0.0.0.0", "-port", "8090", "-config", "api.addrs.addr.name=.*", "-config", "api.addrs.addr.regex=true", "-config", "api.disablekey=true"]
     restart: unless-stopped
 
+  archie_browser:
+    build: ./archie-browser
+    container_name: archie_browser
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://archie:${DB_PASSWORD}@archie_database:5432/archie
+      - BROWSER_ENCRYPTION_KEY=${BROWSER_ENCRYPTION_KEY}
+    dns:
+      - 192.168.1.200
+      - 1.1.1.1
+    networks:
+      - archie_internal
+    expose:
+      - "4242"
+
 secrets:
   db_password:
     file: ./secrets/database/password.txt

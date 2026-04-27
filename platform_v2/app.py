@@ -2275,6 +2275,10 @@ from api_gateway import api_gateway_bp  # noqa: E402
 
 app.register_blueprint(api_gateway_bp)
 
+from tools.department_hq.browser_routes import browser_bp  # noqa: E402
+
+app.register_blueprint(browser_bp)
+
 # NOTE: fleet_proxy (B.E.A.C.O.N. dashboard routing via *.fleet.kytranempowerment.com)
 # was removed 2026-04-18 — project #173 cancelled, DNS cleaned up 2026-04-13,
 # see task #2144 for the full fleet observability triad context.
@@ -3824,6 +3828,137 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
         else:
             app.config["TELEGRAM_GATEWAY"] = None
             logger.info("Telegram gateway not configured (no TELEGRAM_BOT_TOKEN)")
+
+
+# ── Internal Delegation API (Sub-C #2351) ──────────────────────────
+import os as _os_delegation
+from functools import wraps as _wraps_delegation
+
+
+def _require_internal_key(f):
+    """Protect internal endpoints with INTERNAL_API_KEY bearer token."""
+
+    @_wraps_delegation(f)
+    def decorated(*args, **kwargs):
+        _key = _os_delegation.getenv("INTERNAL_API_KEY", "")
+        _auth = request.headers.get("Authorization", "")
+        if not _key or _auth != f"Bearer {_key}":
+            return jsonify({"error": "Unauthorized"}), 401
+        return f(*args, **kwargs)
+
+    return decorated
+
+
+@app.route("/api/internal/delegation/submit", methods=["POST"])
+@_require_internal_key
+def api_internal_delegation_submit():
+    """Submit a task for delegation via web_chat source."""
+    import psycopg2.extras as _psyext
+    from database import get_db_cursor
+
+    data = request.get_json(silent=True) or {}
+    capability = (data.get("capability") or "general").strip()
+    reason = (data.get("reason") or "").strip()
+    args = data.get("args") or {}
+    priority = int(data.get("priority") or 5)
+
+    if not reason:
+        return jsonify({"error": "reason required"}), 400
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO unified_tasks
+                    (title, description, status, priority, task_type,
+                     delegation_source, delegation_args)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    f"{capability}: {reason[:80]}",
+                    reason,
+                    "pending",
+                    priority,
+                    "implementation",
+                    "web_chat",
+                    _psyext.Json({"capability": capability, "args": args}),
+                ),
+            )
+            task_id = cur.fetchone()["id"]
+    except Exception as exc:
+        logger.error("api_internal_delegation_submit failed: %s", exc)
+        return jsonify({"error": "DB insert failed"}), 500
+
+    return (
+        jsonify(
+            {
+                "task_id": task_id,
+                "status": "queued",
+                "capability": capability,
+                "reason": reason,
+            }
+        ),
+        201,
+    )
+
+
+@app.route("/api/internal/delegation/<int:task_id>/status")
+@_require_internal_key
+def api_internal_delegation_status(task_id):
+    """Return current status and work_notes for a delegated task."""
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT t.id, t.title, t.status, t.blockers, t.created_at, t.updated_at,
+                       (t.delegation_args->>'capability') AS capability,
+                       (SELECT string_agg(wn.content, E'\n' ORDER BY wn.created_at)
+                        FROM work_notes wn WHERE wn.task_id = t.id) AS work_notes
+                FROM unified_tasks t
+                WHERE t.id = %s AND t.delegation_source = 'web_chat'
+                """,
+                (task_id,),
+            )
+            row = cur.fetchone()
+    except Exception as exc:
+        logger.error("api_internal_delegation_status %d failed: %s", task_id, exc)
+        return jsonify({"error": "DB query failed"}), 500
+
+    if not row:
+        return jsonify({"error": "Not found"}), 404
+
+    return jsonify(
+        {
+            "task_id": row["id"],
+            "status": row["status"],
+            "capability": row["capability"],
+            "work_notes": row["work_notes"],
+            "title": row["title"],
+            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+        }
+    )
+
+
+@app.route("/api/internal/repair/count")
+@_require_internal_key
+def api_internal_repair_count():
+    """Return count of open improvement proposals."""
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT COUNT(*) AS cnt FROM improvement_proposals "
+                "WHERE status IN ('pending', 'pending_approval', 'approved')"
+            )
+            return jsonify({"count": cur.fetchone()["cnt"]})
+    except Exception as exc:
+        logger.error("api_internal_repair_count failed: %s", exc)
+        return jsonify({"count": 0})
 
 
 # ============================================================================

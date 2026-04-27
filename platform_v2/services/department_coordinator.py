@@ -94,6 +94,12 @@ CAPABILITY_DEPARTMENT_MAP = {
     "social_content": "Marketing & Communications",
     "social_media": "Marketing & Communications",
     "social_scheduling": "Marketing & Communications",
+    # Browser agent capabilities (archie_browser container, Task 6 2026-04-27)
+    "web_interaction": "Marketing & Communications",
+    "linkedin_post": "Marketing & Communications",
+    "linkedin_profile_edit": "Marketing & Communications",
+    "meta_portal_setup": "Marketing & Communications",
+    "twitter_post": "Marketing & Communications",
 }
 
 

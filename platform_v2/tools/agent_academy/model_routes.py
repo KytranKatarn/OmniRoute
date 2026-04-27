@@ -187,6 +187,13 @@ def register_model_routes(bp, admin_required):
         if not agent_id:
             return jsonify({"error": "agent_id required"}), 400
 
+        # Reject obviously malformed or test-marker prompts
+        _TEST_MARKERS = ("CONFIRM-TEST", "e2e-", "test-marker", "placeholder")
+        if system_prompt and len(system_prompt.strip()) < 30:
+            return jsonify({"error": "system_prompt too short — must be at least 30 characters"}), 400
+        if any(m.lower() in system_prompt.lower() for m in _TEST_MARKERS):
+            return jsonify({"error": "system_prompt contains a test marker — use a real prompt"}), 400
+
         from services.agent_service import get_agent, update_agent
 
         agent = get_agent(agent_id)

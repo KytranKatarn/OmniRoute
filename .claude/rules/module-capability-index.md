@@ -152,9 +152,34 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 ## applications_concepts (5)
 
 ### Media Hub — `media_hub` · `/tools/media-hub` · ✅ · 🟢
-- **Capability**: 5,851 LOC · 47 routes · 9 client modules. Unified federation: Plex + Jellyfin libraries, Overseerr requests, SABnzbd downloads, Prowlarr search, Sonarr/Radarr media mgmt, TMDB enrichment w/ LRU cache, encrypted API key storage, auto-discovery.
+- **Capability**: Unified federation: Plex + Jellyfin libraries, Overseerr requests, SABnzbd downloads, Prowlarr search, Sonarr/Radarr media mgmt, TMDB enrichment w/ LRU cache, encrypted API key storage, auto-discovery.
 - **Tables**: `media_hub_services`, `media_hub_requests`
 - **Audit**: KB 256846 · **Rules**: `media-home.md`
+- **Standalone** (media.kytranempowerment.com port 8105): fully extracted. Own DB (`media_hub_services`, `media_hub_users`, `user_watchlist`, `user_preferences`). See KB 261305 for full session detail (PR #335, 2026-04-27).
+
+### Media Hub Standalone — M.A.V.E.N. Agent + Probes (2026-04-27, PR #335)
+**M.A.V.E.N. probes** (health_observer.py, all run at startup):
+- `grab_notify_probe` (5m) — Overseerr status 3/5 → Telegram via hub /api/notifications
+- `download_pipeline_probe` (30m) — SABnzbd stalls + ETA 00:00:00 stuck items
+- `download_client_health_probe` (30m) — auto-resyncs stale SABnzbd API keys in Radarr/Sonarr
+- `library_coverage_probe` (2h) — finds 0%-coverage shows, triggers scan
+- `arr_database_probe` (30m) — detects DB vacuum errors, auto-restarts container
+- `stale_queue_probe` (30m) — clears completed/warning Sonarr queue + purges SABnzbd history
+
+**M.A.V.E.N. chat actions** (`POST /maven/api/action`):
+- "request X" / "add X" → searches Overseerr + auto-submits request (TV fetches seasons)
+- "delete X" → shows red confirm card → deletes from Radarr/Sonarr with files
+- Media type detected from keywords (movie/film → movie, show/series → tv, else auto)
+- Download stats injected into system prompt (Sonarr per-show progress + SABnzbd status)
+
+**Phase-2 features shipped**:
+- qwen2.5:7b as chat model
+- Federated search (all Plex+Jellyfin, dedup by tmdb_id+(title,year))
+- Watchlist: `user_watchlist` table, GET/POST/DELETE `/api/watchlist`, profile grid
+- User preferences: `user_preferences` table, `/api/preferences`
+- i18n: EN/FR/ES in `/static/js/i18n.js`, language selector in header + profile page
+- Mistake: SABnzbd `set_config` unreliable — edit sabnzbd.ini directly (KB 261306)
+- Mistake: Stale Sonarr queue loop requires purging SABnzbd history too (KB 261307)
 
 ### Family Tree — `family_tree` · `/tools/family-tree` · ✅ · 🟢
 - **Capability**: 4,971 LOC · 44 routes across 7 sub-modules. Person/relationship CRUD (recursive), GEDCOM import/export, face detection + clustering + colorization, OCR, DNA matching, **AI research hints (Bridge dispatch)**, dedup/merge with conflict resolution, timeline narrative generation.

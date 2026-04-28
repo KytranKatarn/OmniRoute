@@ -79,19 +79,28 @@ def execute_spec(spec, session=None, suite_id=None, run_id=None):
     if session is None:
         session = http_requests.Session()
 
-    # Authenticate if credentials provided
+    # Authenticate if credentials provided — retry up to 3 times to handle
+    # platform startup window (scheduler may fire before gunicorn is ready)
     if auth.get("username") and auth.get("password"):
-        try:
-            _authenticate(session, base_url, auth)
-        except Exception as e:
-            logger.error("Authentication failed: %s", e)
-            # Return error result for all tests if auth fails
+        auth_error = None
+        for attempt in range(3):
+            try:
+                _authenticate(session, base_url, auth)
+                auth_error = None
+                break
+            except Exception as e:
+                auth_error = e
+                if attempt < 2:
+                    logger.warning("Auth attempt %d/3 failed (%s) — retrying in 20s", attempt + 1, e)
+                    time.sleep(20)
+        if auth_error is not None:
+            logger.error("Authentication failed after 3 attempts: %s", auth_error)
             return [
                 {
                     "test_name": t.get("name", f"test_{i}"),
                     "test_type": t.get("type", "unknown"),
                     "status": "error",
-                    "error_message": f"Authentication failed: {e}",
+                    "error_message": f"Authentication failed after 3 attempts: {auth_error}",
                 }
                 for i, t in enumerate(tests)
             ]

@@ -241,6 +241,10 @@ def update_agent(agent_id, **fields):
     if "shift_state" in fields and fields["shift_state"] not in VALID_SHIFT_STATES:
         raise ValueError(f"Invalid shift_state: {fields['shift_state']}")
 
+    # Sync status with shift_state so portrait tab and other status filters stay consistent
+    if "shift_state" in fields and "status" not in fields:
+        fields["status"] = "decommissioned" if fields["shift_state"] == "decommissioned" else "active"
+
     # Build dynamic UPDATE
     set_clauses = []
     params = []

@@ -90,7 +90,7 @@ ALLOWED_DISPATCHER_PATHS = (
 # consumer files keep their api/generate string literals (now inside
 # _node_url(opts[...]) expressions) but consume the helper.
 
-_API_GENERATE_RE = re.compile(r"api/(generate|chat)(?!\w)")
+_API_GENERATE_RE = re.compile(r"api/(generate|chat)(?![\w/])")
 
 # Files allowed to reference api/generate or api/chat. Add new entries
 # ONLY with a follow-up task ID explaining why the file is still raw.
@@ -120,13 +120,6 @@ _API_GENERATE_ALLOWLIST: set[str] = {
     # messages / new). Not Ollama inference. Follow-up to refine the guardrail
     # regex so route decorators no longer trigger: task #2228.
     "archie-comms/app_comms.py",
-    # archie-comms voice service — intentionally Flask-free, standalone container
-    # cannot import tools.department_hq.services. Both _call_ollama (blocking)
-    # and _stream_ollama (streaming, Task 2 of ARCHIE Chat Overhaul #288) call
-    # Ollama directly with num_gpu=0 (CPU-only inference on comms path).
-    # Follow-up: route through hub S.I.G.N.A.L. dispatch endpoint once #288
-    # Phase 2 lands.
-    "archie-comms/services/archie_voice_service.py",
     # Media Hub standalone — M.A.V.E.N. chat surface (task #2238, phase 1)
     # talks to Ollama directly at 192.168.1.200:11434 because the standalone
     # container doesn't ship tools.department_hq.services.ollama_options.

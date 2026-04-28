@@ -422,11 +422,37 @@ def _log_message(
 # ---------------------------------------------------------------------------
 # Convenience shortcuts — route to director_reports inbox (not Telegram directly)
 # ---------------------------------------------------------------------------
-def send_security(title: str, message: str, **kwargs) -> dict:
-    """Critical security alert via V.I.G.I.L. — writes to director_reports inbox."""
+
+
+def _inbox_send(
+    category: str,
+    title: str,
+    message: str,
+    source_agent: str,
+    severity: str,
+    department: str,
+    cooldown_hours: float = 0,
+) -> dict:
+    """Shared helper: submit_via_inbox + governance audit log."""
     from services.director_report_service import submit_via_inbox
 
-    return submit_via_inbox(
+    result = submit_via_inbox(
+        category=category,
+        title=title,
+        message=message,
+        source_agent=source_agent,
+        severity=severity,
+        department=department,
+        cooldown_hours=cooldown_hours,
+    )
+    suppressed = result.get("routed_to") == "suppressed_duplicate"
+    _audit_send(category, title, source_agent, route="inbox", suppressed=suppressed)
+    return result
+
+
+def send_security(title: str, message: str, **kwargs) -> dict:
+    """Critical security alert via V.I.G.I.L. — writes to director_reports inbox."""
+    return _inbox_send(
         category="security",
         title=title,
         message=message,
@@ -437,24 +463,26 @@ def send_security(title: str, message: str, **kwargs) -> dict:
 
 
 def send_system(title: str, message: str, **kwargs) -> dict:
-    """Infrastructure alert via B.A.S.E. — writes to director_reports inbox."""
-    from services.director_report_service import submit_via_inbox
+    """Infrastructure alert via B.A.S.E. — writes to director_reports inbox.
 
-    return submit_via_inbox(
+    Persistent conditions (same title + source) are suppressed after the first
+    report within the cooldown window (default 2h) to prevent watchdog floods.
+    Pass cooldown_hours=0 to disable dedup for one-shot events.
+    """
+    return _inbox_send(
         category="system",
         title=title,
         message=message,
         source_agent=kwargs.get("source_agent", "B.A.S.E."),
         severity="warning",
         department=kwargs.get("source_department", "Operations & Infrastructure"),
+        cooldown_hours=kwargs.get("cooldown_hours", 2.0),
     )
 
 
 def send_forge(title: str, message: str, **kwargs) -> dict:
     """F.O.R.G.E. pipeline notification — writes to director_reports inbox."""
-    from services.director_report_service import submit_via_inbox
-
-    return submit_via_inbox(
+    return _inbox_send(
         category="forge",
         title=title,
         message=message,
@@ -466,9 +494,7 @@ def send_forge(title: str, message: str, **kwargs) -> dict:
 
 def send_agent(title: str, message: str, **kwargs) -> dict:
     """Agent lifecycle notification via K.I.N. — writes to director_reports inbox."""
-    from services.director_report_service import submit_via_inbox
-
-    return submit_via_inbox(
+    return _inbox_send(
         category="agent",
         title=title,
         message=message,
@@ -480,9 +506,7 @@ def send_agent(title: str, message: str, **kwargs) -> dict:
 
 def send_sync(title: str, message: str, **kwargs) -> dict:
     """Background sync notification via C.O.D.E.X. — writes to director_reports inbox."""
-    from services.director_report_service import submit_via_inbox
-
-    return submit_via_inbox(
+    return _inbox_send(
         category="sync",
         title=title,
         message=message,

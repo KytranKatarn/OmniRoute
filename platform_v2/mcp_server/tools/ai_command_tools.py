@@ -1473,6 +1473,28 @@ async def get_system_alerts_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
     except Exception as e:
         logger.warning("get_system_alerts: director_reports query failed: %s", e)
 
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT 'anomaly' AS source, severity,
+                       title, description AS detail,
+                       created_at::text AS created_at
+                FROM anomaly_detections
+                WHERE created_at > NOW() - INTERVAL '%s hours'
+                  AND acknowledged = FALSE
+                  AND (%s IS NULL OR severity = %s)
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (since_hours, severity, severity, limit),
+            )
+            alerts += [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        logger.warning("get_system_alerts: anomaly_detections query failed: %s", e)
+
     alerts.sort(key=lambda x: x.get("created_at") or "", reverse=True)
     top = alerts[:limit]
     return {"success": True, "alerts": top, "count": len(top)}

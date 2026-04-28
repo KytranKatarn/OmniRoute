@@ -4,13 +4,20 @@ Provides get_pending_reports(), triage_report(), classify_report(),
 get_policies(), and submit_via_inbox() for the triage consumer job.
 """
 
+import hashlib
 import logging
 import os
 import time as _time
+import threading
 
 import requests
 
 logger = logging.getLogger(__name__)
+
+# In-process dedup cache: (category, source_agent, title_hash) -> last_submitted_epoch
+# Used by submit_via_inbox when cooldown_hours > 0 to suppress repeated watchdog reports.
+_dedup_cache: dict = {}
+_dedup_lock = threading.Lock()
 
 _COMMS_BASE = os.getenv("ARCHIE_COMMS_URL", "http://archie_comms:3002")
 _TOKEN = os.getenv("ARCHIE_COMMS_SERVICE_TOKEN", "")
@@ -69,8 +76,29 @@ def submit_via_inbox(
     source_agent: str = None,
     severity: str = "medium",
     department: str = "Unknown",
+    cooldown_hours: float = 0,
 ) -> dict:
-    """Write a message to the director_reports inbox (for privilege-redirected callers)."""
+    """Write a message to the director_reports inbox (for privilege-redirected callers).
+
+    When cooldown_hours > 0, repeated reports with the same category+source_agent+title
+    are suppressed within the cooldown window — prevents watchdog floods for persistent
+    conditions (e.g. B.A.S.E. stuck-agent reports every 10 minutes).
+    """
+    dedup_key = None
+    if cooldown_hours > 0:
+        title_hash = hashlib.md5(title.encode(), usedforsecurity=False).hexdigest()[:8]
+        dedup_key = (category, source_agent or "unknown", title_hash)
+        now = _time.time()
+        with _dedup_lock:
+            last = _dedup_cache.get(dedup_key, 0)
+            if now - last < cooldown_hours * 3600:
+                logger.debug(
+                    "submit_via_inbox: suppressed duplicate '%s/%s' (cooldown %.1fh)",
+                    category,
+                    title[:40],
+                    cooldown_hours,
+                )
+                return {"success": True, "routed_to": "suppressed_duplicate"}
     try:
         resp = requests.post(
             f"{_COMMS_BASE}/api/director/report",
@@ -86,6 +114,9 @@ def submit_via_inbox(
             timeout=_TIMEOUT,
         )
         resp.raise_for_status()
+        if dedup_key is not None:
+            with _dedup_lock:
+                _dedup_cache[dedup_key] = _time.time()
         return {"success": True, "routed_to": "inbox"}
     except Exception as e:
         logger.error("submit_via_inbox failed: %s", e)

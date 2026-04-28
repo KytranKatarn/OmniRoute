@@ -150,3 +150,22 @@ def test_single_writer_guardrail_does_not_false_match_on_api_generated(tmp_path)
         f"regex should not match api/generated_code or api/chat_history:\n"
         f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
+
+
+def test_single_writer_guardrail_does_not_false_match_on_flask_routes(tmp_path):
+    """Flask route definitions like @app.route('/api/chat/sessions') must not trip the guardrail."""
+    script = REPO / "scripts" / "check_agent_single_writer.py"
+    benign = tmp_path / "flask_routes.py"
+    benign.write_text(
+        '@app.route("/api/chat/sessions")\n' '@app.route("/api/chat/messages")\n' 'URL = "/api/chat/history"\n'
+    )
+    result = subprocess.run(
+        [sys.executable, str(script), str(benign)],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        f"Flask route paths like /api/chat/sessions should NOT trip the guardrail:\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    )

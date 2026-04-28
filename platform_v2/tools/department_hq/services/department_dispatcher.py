@@ -397,8 +397,8 @@ class DispatchResult:
     success: bool
     response: str
     agent_name: str
-    agent_id: Optional[int]
-    model_used: str
+    agent_id: Optional[int] = None
+    model_used: str = ""
     station_code: str = "Engineering & Technology"  # now holds department name (legacy name kept for compat)
     capability: str = ""
     duration_ms: int = 0

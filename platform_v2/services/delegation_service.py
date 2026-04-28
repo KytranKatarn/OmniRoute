@@ -39,6 +39,8 @@ KNOWN_TOOL_CAPABILITIES = {
     "check_platform_health",
     "check_dep_drift",
     "run_misroute_to_proposal_adapter",
+    "deploy_static",
+    "deploy_vps",
 }
 
 VALID_DELEGATION_SOURCES = {
@@ -236,6 +238,28 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
                 f"mismatched={len(result.get('mismatched', []))}"
             ),
             "result": result,
+        }
+
+    if capability in ("deploy_static", "deploy_vps"):
+        from services.deploy_service import run_deploy_pipeline
+
+        result = run_deploy_pipeline(capability, payload)
+        return {
+            "success": result.success,
+            "summary": (
+                f"{capability} {payload.get('domain', '?')}: "
+                + ("success" if result.success else f"failed — {result.error}")
+                + (f" [retried]" if result.retried else "")
+                + (f" [rolled_back]" if result.rolled_back else "")
+            ),
+            "result": {
+                "domain": result.domain,
+                "backup_id": result.backup_id,
+                "retried": result.retried,
+                "rolled_back": result.rolled_back,
+                "error": result.error,
+                "metadata": result.metadata,
+            },
         }
 
     return {

@@ -18,6 +18,72 @@ from .generator import NIGHTLY_CAP, process_missing_gap
 
 logger = logging.getLogger("agent_loop")
 
+# Maps EXTERNAL_SCAN_SOURCES labels to their deploy context.
+# After a successful bundle export, deploy_static is dispatched automatically.
+_DEPLOY_CONTEXT_BY_LABEL: dict[str, dict] = {
+    "website_kytranempowerment": {
+        "domain": "kytranempowerment.com",
+        "source_path": "/mnt/archie_brain/website/kytranempowerment.com",
+        "changed_files": ["data/translations.json"],
+        "verify_url": "https://kytranempowerment.com/data/translations.json",
+        "is_translation": True,
+    },
+    "website_creed": {
+        "domain": "creed-ai.org",
+        "source_path": "/mnt/standalone/websites/creed-ai.org",
+        "changed_files": ["data/translations.json"],
+        "verify_url": "https://creed-ai.org/data/translations.json",
+        "is_translation": True,
+    },
+    # WTF consumer — VPS container, bind-mounted translations
+    "website_what_the_fact": {
+        "domain": "what-the-fact.com",
+        "source_path": "/mnt/standalone/websites/what-the-fact.com",
+        "changed_files": ["data/translations.json"],
+        "verify_url": "https://what-the-fact.com/static/data/translations.json",
+        "is_translation": True,
+        "container_name": "wtf_consumer",
+        "_capability": "deploy_vps",
+    },
+    # Watch products — VPS containers, serve static/data/ path
+    "product_civic_watch": {
+        "domain": "civic.kytranempowerment.com",
+        "source_path": "/mnt/standalone/kytran-civic-watch",
+        "changed_files": ["static/data/translations.json"],
+        "verify_url": "https://civic.kytranempowerment.com/data/translations.json",
+        "is_translation": True,
+        "container_name": "kytran_watch_api",
+        "_capability": "deploy_vps",
+    },
+    "product_gov_watch": {
+        "domain": "gov.kytranempowerment.com",
+        "source_path": "/mnt/standalone/kytran-gov-watch",
+        "changed_files": ["static/data/translations.json"],
+        "verify_url": "https://gov.kytranempowerment.com/static/data/translations.json",
+        "is_translation": True,
+        "container_name": "kytran_gov_watch",
+        "_capability": "deploy_vps",
+    },
+    "product_legal_watch": {
+        "domain": "legal.kytranempowerment.com",
+        "source_path": "/mnt/standalone/kytran-legal-watch",
+        "changed_files": ["static/data/translations.json"],
+        "verify_url": "https://legal.kytranempowerment.com/data/translations.json",
+        "is_translation": True,
+        "container_name": "kytran_legal_api",
+        "_capability": "deploy_vps",
+    },
+    "product_market_watch": {
+        "domain": "market.kytranempowerment.com",
+        "source_path": "/mnt/standalone/kytran-market-watch",
+        "changed_files": ["static/data/translations.json"],
+        "verify_url": "https://market.kytranempowerment.com/static/data/translations.json",
+        "is_translation": True,
+        "container_name": "kytran_market_api",
+        "_capability": "deploy_vps",
+    },
+}
+
 
 def _upsert_gap(result: ScannerResult) -> None:
     with get_db_cursor(commit=True) as (conn, cur):
@@ -190,6 +256,23 @@ def run_translation_coverage_scan(sources: Optional[list] = None) -> dict:
             count = _export_bundle(label, bundle_path)
             if count is not None:
                 totals["bundles_written"] += 1
+                if label in _DEPLOY_CONTEXT_BY_LABEL:
+                    try:
+                        from services.deploy_service import run_deploy_pipeline
+
+                        deploy_ctx = dict(_DEPLOY_CONTEXT_BY_LABEL[label])
+                        capability = deploy_ctx.pop("_capability", "deploy_static")
+                        deploy_result = run_deploy_pipeline(capability, deploy_ctx)
+                        if deploy_result.success:
+                            logger.info("[TranslationScan] deploy_static succeeded for %s", label)
+                        else:
+                            logger.warning(
+                                "[TranslationScan] deploy_static failed for %s: %s",
+                                label,
+                                deploy_result.error,
+                            )
+                    except Exception:  # noqa: BLE001 — deploy failure must not abort the scan
+                        logger.exception("[TranslationScan] deploy failed for %s", label)
         except Exception as e:  # noqa: BLE001 — per-source export must not abort the scan
             logger.warning("[TranslationScan] bundle export failed for %s: %s", label, e)
 

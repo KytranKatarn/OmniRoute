@@ -122,6 +122,8 @@ CAPABILITY_DEPARTMENT_MAP = {
     "api_design": "Engineering & Technology",
     "deployment": "Engineering & Technology",
     # Operations & Infrastructure
+    "deploy_static": "Operations & Infrastructure",  # Hostinger zip deploy (B.A.S.E. Lv5)
+    "deploy_vps": "Operations & Infrastructure",  # VPS SSH rsync + docker rebuild (B.A.S.E. Lv5)
     "operations": "Operations & Infrastructure",
     "system_monitoring": "Operations & Infrastructure",
     "backup": "Operations & Infrastructure",

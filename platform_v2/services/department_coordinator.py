@@ -171,6 +171,8 @@ CAPABILITY_DEPARTMENT_MAP = {
     "drawdown_management": "Finance & Accounting",
     "fundamental_analysis": "Finance & Accounting",
     # Operations & Infrastructure
+    "deploy_static": "Operations & Infrastructure",  # Hostinger zip deploy (B.A.S.E. Lv5)
+    "deploy_vps": "Operations & Infrastructure",  # VPS SSH rsync + docker rebuild (B.A.S.E. Lv5)
     "facilities_management": "Operations & Infrastructure",
     "grounds_maintenance": "Operations & Infrastructure",
     "capacity_modeling": "Operations & Infrastructure",

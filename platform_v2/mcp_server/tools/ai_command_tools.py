@@ -1189,7 +1189,7 @@ check status. Streaming to Telegram/Comms is handled by Phase 3 of #276.
                 "description": (
                     "The capability tag. Known-tool capabilities (run_qa_suite, "
                     "run_misroute_audit, check_dep_drift, health_check, "
-                    "run_misroute_to_proposal_adapter) invoke services directly. "
+                    "run_misroute_to_proposal_adapter, deploy_static, deploy_vps) invoke services directly. "
                     "Unknown tags flow through the DHQ dispatcher."
                 ),
             },
@@ -1231,6 +1231,177 @@ check status. Streaming to Telegram/Comms is handled by Phase 3 of #276.
         "required": ["capability", "reason"],
     },
     handler=delegate_task_handler,
+    requires_permission="write",
+)
+
+
+# ============================================================================
+# TOOL: DEPLOY SITE (B.A.S.E.)
+# ============================================================================
+
+# Domain → deploy context. Single source of truth for the deploy_site tool.
+_DEPLOY_SITE_MAP: Dict[str, Dict] = {
+    "kytranempowerment.com": {
+        "capability": "deploy_static",
+        "domain": "kytranempowerment.com",
+        "source_path": "/mnt/archie_brain/website/kytranempowerment.com",
+        "changed_files": ["data/translations.json"],
+        "verify_url": "https://kytranempowerment.com/data/translations.json",
+        "is_translation": True,
+    },
+    "creed-ai.org": {
+        "capability": "deploy_static",
+        "domain": "creed-ai.org",
+        "source_path": "/mnt/standalone/websites/creed-ai.org",
+        "changed_files": ["data/translations.json"],
+        "verify_url": "https://creed-ai.org/data/translations.json",
+        "is_translation": True,
+    },
+    "what-the-fact.com": {
+        "capability": "deploy_vps",
+        "domain": "what-the-fact.com",
+        "source_path": "/mnt/standalone/websites/what-the-fact.com",
+        "changed_files": ["data/translations.json"],
+        "verify_url": "https://what-the-fact.com/static/data/translations.json",
+        "is_translation": True,
+        "container_name": "wtf_consumer",
+    },
+    "what-the-fact.tech": {
+        "capability": "deploy_vps",
+        "domain": "what-the-fact.tech",
+        "source_path": "/mnt/standalone/websites/what-the-fact.com",
+        "changed_files": ["data/translations.json"],
+        "verify_url": "https://what-the-fact.tech/static/data/translations.json",
+        "is_translation": True,
+        "container_name": "wtf_tech",
+    },
+    "civic.kytranempowerment.com": {
+        "capability": "deploy_vps",
+        "domain": "civic.kytranempowerment.com",
+        "source_path": "/mnt/standalone/kytran-civic-watch",
+        "changed_files": ["static/data/translations.json"],
+        "verify_url": "https://civic.kytranempowerment.com/data/translations.json",
+        "is_translation": True,
+        "container_name": "kytran_watch_api",
+    },
+    "gov.kytranempowerment.com": {
+        "capability": "deploy_vps",
+        "domain": "gov.kytranempowerment.com",
+        "source_path": "/mnt/standalone/kytran-gov-watch",
+        "changed_files": ["static/data/translations.json"],
+        "verify_url": "https://gov.kytranempowerment.com/static/data/translations.json",
+        "is_translation": True,
+        "container_name": "kytran_gov_watch",
+    },
+    "legal.kytranempowerment.com": {
+        "capability": "deploy_vps",
+        "domain": "legal.kytranempowerment.com",
+        "source_path": "/mnt/standalone/kytran-legal-watch",
+        "changed_files": ["static/data/translations.json"],
+        "verify_url": "https://legal.kytranempowerment.com/data/translations.json",
+        "is_translation": True,
+        "container_name": "kytran_legal_api",
+    },
+    "market.kytranempowerment.com": {
+        "capability": "deploy_vps",
+        "domain": "market.kytranempowerment.com",
+        "source_path": "/mnt/standalone/kytran-market-watch",
+        "changed_files": ["static/data/translations.json"],
+        "verify_url": "https://market.kytranempowerment.com/static/data/translations.json",
+        "is_translation": True,
+        "container_name": "kytran_market_api",
+    },
+}
+
+
+async def deploy_site_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Deploy a site by domain name via the Autonomous Deploy Pipeline.
+
+    Resolves deploy context from _DEPLOY_SITE_MAP and calls run_deploy_pipeline()
+    directly. B.A.S.E. handles zip/upload/rsync, verify, retry, and rollback.
+    """
+    domain = (arguments.get("domain") or "").strip().lower()
+    reason = arguments.get("reason", f"Manual deploy via mcp deploy_site for {domain}")
+
+    if not domain:
+        return {
+            "success": False,
+            "error": "domain is required",
+            "available_domains": sorted(_DEPLOY_SITE_MAP.keys()),
+        }
+
+    ctx = _DEPLOY_SITE_MAP.get(domain)
+    if ctx is None:
+        return {
+            "success": False,
+            "error": f"Unknown domain: {domain!r}",
+            "available_domains": sorted(_DEPLOY_SITE_MAP.keys()),
+        }
+
+    capability = ctx["capability"]
+    deploy_ctx = dict(ctx)
+    deploy_ctx.pop("capability", None)
+    deploy_ctx["reason"] = reason
+
+    try:
+        from services.deploy_service import run_deploy_pipeline
+
+        result = run_deploy_pipeline(capability, deploy_ctx)
+        return {
+            "success": result.success,
+            "domain": domain,
+            "capability": capability,
+            "summary": (
+                f"{capability} {domain}: "
+                + ("success" if result.success else f"failed — {result.error}")
+                + (" [retried]" if result.retried else "")
+                + (" [rolled_back]" if result.rolled_back else "")
+            ),
+            "backup_id": result.backup_id,
+            "error": result.error if not result.success else None,
+        }
+    except Exception as e:
+        logger.error(f"Error in deploy_site for {domain}: {e}")
+        return {"success": False, "error": str(e), "domain": domain}
+
+
+register_tool(
+    name="deploy_site",
+    category="ai_command",
+    description="""Deploy a website by domain name via the Autonomous Deploy Pipeline.
+
+B.A.S.E. (Operations & Infrastructure) handles the full pipeline:
+risk check → pre-deploy snapshot → execute → verify → retry → rollback + Telegram alert.
+
+Supported domains:
+  kytranempowerment.com  (deploy_static — Hostinger API)
+  creed-ai.org           (deploy_static — Hostinger API)
+  what-the-fact.com      (deploy_vps — wtf_consumer container)
+  what-the-fact.tech     (deploy_vps — wtf_tech container)
+  civic.kytranempowerment.com   (deploy_vps — kytran_watch_api)
+  gov.kytranempowerment.com     (deploy_vps — kytran_gov_watch)
+  legal.kytranempowerment.com   (deploy_vps — kytran_legal_api)
+  market.kytranempowerment.com  (deploy_vps — kytran_market_api)
+
+For deploy_static: always deploys full site (partial deploys destroy public_html).
+For deploy_vps: rsyncs changed translation files + rebuilds container via SSH.
+Risky files (.py, Dockerfile, .sql) trigger Telegram approval instead of deploying.
+""",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "domain": {
+                "type": "string",
+                "description": "Domain name to deploy (e.g. 'kytranempowerment.com'). Omit to see available domains.",
+            },
+            "reason": {
+                "type": "string",
+                "description": "Why this deploy is being triggered (surfaces in logs and Telegram alerts)",
+            },
+        },
+        "required": ["domain"],
+    },
+    handler=deploy_site_handler,
     requires_permission="write",
 )
 

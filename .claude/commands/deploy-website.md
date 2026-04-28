@@ -1,69 +1,129 @@
 ---
 name: deploy-website
-description: Deploy a static website to Hostinger shared hosting. Tries API first, falls back to FTP.
-allowed-tools: Bash, mcp__hostinger-api__hosting_deployStaticWebsite
-argument: Domain name (e.g., kytranempowerment.com). Omit to see available sites.
+description: Deploy a website via the A.R.C.H.I.E. Autonomous Deploy Pipeline. B.A.S.E. handles zip, upload, verify, retry, and rollback. Covers Hostinger static sites and VPS Docker products.
+allowed-tools: mcp__archie__delegate_task
+argument: Domain name or "all". Omit to see available sites.
 ---
 
-# Deploy Website to Hostinger
+# Deploy Website via Autonomous Deploy Pipeline
+
+All deploys go through `mcp__archie__delegate_task` — B.A.S.E. runs the full pipeline
+(risk check → snapshot → execute → verify → retry → rollback + alert on failure).
+Claude does not zip, upload, or SSH. One MCP call, platform does the rest.
 
 ## Domain Map
 
-| Domain | Local Source |
-|--------|-------------|
-| kytranempowerment.com | /mnt/standalone/websites/kytranempowerment.com/ |
-| creed-ai.org | /mnt/standalone/websites/creed-ai.org/ |
-| what-the-fact.com | /mnt/standalone/websites/what-the-fact.com/ |
-| what-the-fact.tech | /mnt/standalone/websites/what-the-fact.com/ |
+| Domain | Capability | Container / Account |
+|--------|-----------|---------------------|
+| kytranempowerment.com | deploy_static | Hostinger API |
+| creed-ai.org | deploy_static | Hostinger API |
+| what-the-fact.com | deploy_vps | wtf_consumer |
+| what-the-fact.tech | deploy_vps | wtf_tech |
+| civic.kytranempowerment.com | deploy_vps | kytran_watch_api |
+| gov.kytranempowerment.com | deploy_vps | kytran_gov_watch |
+| legal.kytranempowerment.com | deploy_vps | kytran_legal_api |
+| market.kytranempowerment.com | deploy_vps | kytran_market_api |
+
+## Deploy Context by Domain
+
+```
+kytranempowerment.com:
+  source_path: /mnt/archie_brain/website/kytranempowerment.com
+  changed_files: ["data/translations.json"]
+  verify_url: https://kytranempowerment.com/data/translations.json
+
+creed-ai.org:
+  source_path: /mnt/standalone/websites/creed-ai.org
+  changed_files: ["data/translations.json"]
+  verify_url: https://creed-ai.org/data/translations.json
+
+what-the-fact.com:
+  source_path: /mnt/standalone/websites/what-the-fact.com
+  changed_files: ["data/translations.json"]
+  verify_url: https://what-the-fact.com/static/data/translations.json
+  container_name: wtf_consumer
+
+what-the-fact.tech:
+  source_path: /mnt/standalone/websites/what-the-fact.com
+  changed_files: ["data/translations.json"]
+  verify_url: https://what-the-fact.tech/static/data/translations.json
+  container_name: wtf_tech
+
+civic.kytranempowerment.com:
+  source_path: /mnt/standalone/kytran-civic-watch
+  changed_files: ["static/data/translations.json"]
+  verify_url: https://civic.kytranempowerment.com/data/translations.json
+  container_name: kytran_watch_api
+
+gov.kytranempowerment.com:
+  source_path: /mnt/standalone/kytran-gov-watch
+  changed_files: ["static/data/translations.json"]
+  verify_url: https://gov.kytranempowerment.com/static/data/translations.json
+  container_name: kytran_gov_watch
+
+legal.kytranempowerment.com:
+  source_path: /mnt/standalone/kytran-legal-watch
+  changed_files: ["static/data/translations.json"]
+  verify_url: https://legal.kytranempowerment.com/data/translations.json
+  container_name: kytran_legal_api
+
+market.kytranempowerment.com:
+  source_path: /mnt/standalone/kytran-market-watch
+  changed_files: ["static/data/translations.json"]
+  verify_url: https://market.kytranempowerment.com/static/data/translations.json
+  container_name: kytran_market_api
+```
 
 ## Steps
 
 ### 1. Parse Argument
 
-If `$ARGUMENTS` is empty, list the available domains above and ask which to deploy. Accept "all" to deploy all 4.
+If `$ARGUMENTS` is empty, list the domain map above and ask which to deploy. Accept "all" to deploy all 8.
 
 If `$ARGUMENTS` is a domain, validate it's in the domain map. If not, show available domains.
 
-### 2. Resolve Source Path
+### 2. Delegate to Platform
 
-Map the domain to its local source path from the table above.
+For each domain to deploy, call `mcp__archie__delegate_task` with:
+- `capability`: from the domain map above (`deploy_static` or `deploy_vps`)
+- `reason`: "Manual deploy triggered via /deploy-website for {domain}"
+- `delegation_source`: "claude"
+- `args`: the deploy context for that domain (source_path, changed_files, verify_url, container_name if VPS)
 
-### 3. Try Hostinger API First
-
-Create a zip archive:
-```bash
-cd SOURCE_PATH && zip -r /tmp/DOMAIN_deploy.zip . -x ".git/*" ".github/*" "CONTRIBUTING.md" "SECURITY.md" "CODE_OF_CONDUCT.md" "CHANGELOG.md" "LICENSE" "README.md" ".gitignore"
+Example for kytranempowerment.com:
+```
+mcp__archie__delegate_task(
+    capability="deploy_static",
+    reason="Manual deploy triggered via /deploy-website for kytranempowerment.com",
+    delegation_source="claude",
+    args={
+        "domain": "kytranempowerment.com",
+        "source_path": "/mnt/archie_brain/website/kytranempowerment.com",
+        "changed_files": ["data/translations.json"],
+        "verify_url": "https://kytranempowerment.com/data/translations.json",
+        "is_translation": True
+    }
+)
 ```
 
-Call `mcp__hostinger-api__hosting_deployStaticWebsite` with the domain and archive path.
+For "all": call once per domain in sequence (not parallel — VPS has one SSH connection).
 
-If the response shows `deploy.status: "success"` — done. Clean up the zip and report success.
+### 3. Report
 
-### 4. FTP Fallback (if API fails)
-
-If the API returns an error (typically 500 on extract), fall back to FTP:
-
-```bash
-lftp -u u982576611,"$HOSTINGER_FTP_PASS" ftp://45.84.207.23 -e "set ssl:verify-certificate no; mirror -R --exclude .git/ --exclude .github/ --exclude CONTRIBUTING.md --exclude SECURITY.md --exclude CODE_OF_CONDUCT.md --exclude CHANGELOG.md --exclude LICENSE --exclude README.md --exclude .gitignore SOURCE_PATH domains/DOMAIN/public_html/; quit"
+Print a summary table:
+```
+Domain                          | Capability     | Result
+kytranempowerment.com           | deploy_static  | ✅ success
+creed-ai.org                    | deploy_static  | ✅ success
+...
 ```
 
-If `HOSTINGER_FTP_PASS` env var is not set, tell the user:
-> "FTP password not found. Set it with: `export HOSTINGER_FTP_PASS='your-password'`"
-
-### 5. Verify
-
-Check the site returns HTTP 200:
-```bash
-curl -s -o /dev/null -w "%{http_code}" https://DOMAIN/
-```
-
-### 6. Report
-
-Print: domain, method used (API or FTP), HTTP status, success/failure.
+If any domain fails, say what the error was and that Repair Bay has a proposal queued.
 
 ## Notes
 
-- FTP uses `lftp` mirror which only syncs changed files (fast incremental deploys)
-- Hostinger API upload works but extract has been broken since 2026-04-14 (returns 500)
-- All 4 domains share the same Hostinger account (u982576611)
-- The zip is cleaned up after deploy regardless of method
+- B.A.S.E. (agent_id=139) owns all deploys — verify, retry, rollback are automatic
+- Risky files (.py, Dockerfile, .sql) trigger a Telegram approval request instead of deploying
+- Pre-deploy snapshot stored in knowledge_base for rollback
+- deploy_static always deploys the FULL site (partial deploys break public_html)
+- The pipeline runs async in the platform — the delegate_task call returns a task_id immediately

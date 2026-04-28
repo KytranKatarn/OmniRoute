@@ -151,3 +151,38 @@ def register_deploy_routes(bp, admin_required):
         file_paths = data.get("file_paths")
         health = _run_pre_deploy_health_check(file_paths=file_paths)
         return jsonify({"success": True, **health})
+
+    @bp.route("/api/deploy/execute", methods=["POST"])
+    @login_required
+    @admin_required
+    def deploy_execute():
+        """Dispatch a deploy via B.A.S.E. through the Department HQ deploy pipeline.
+
+        JSON body:
+          capability   (str) — "deploy_static" | "deploy_vps"
+          domain       (str) — domain or VPS container key
+          source_path  (str) — local source directory
+          changed_files (list[str]) — relative paths of changed files
+          verify_url   (str, optional) — URL to verify after deploy
+          is_translation (bool, optional) — check for Mock values if True
+          container_name (str, optional) — VPS container key (deploy_vps only)
+        """
+        from services.deploy_service import run_deploy_pipeline
+
+        payload = request.get_json(force=True, silent=True) or {}
+        capability = payload.get("capability", "deploy_static")
+
+        if capability not in ("deploy_static", "deploy_vps"):
+            return jsonify({"success": False, "error": f"Unknown capability: {capability}"}), 400
+
+        result = run_deploy_pipeline(capability, payload)
+
+        return jsonify(
+            {
+                "success": result.success,
+                "domain": payload.get("domain"),
+                "capability": capability,
+                "error": result.error if not result.success else None,
+                "metadata": result.metadata if result.success else {},
+            }
+        )

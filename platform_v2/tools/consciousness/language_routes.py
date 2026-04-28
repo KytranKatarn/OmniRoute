@@ -54,10 +54,26 @@ EXTERNAL_SCAN_SOURCES = [
         "/mnt/archie_brain/website/creed-ai.org/data/translations.json",
     ),
     # ── Watch products (VPS-hosted, scanned from hub filesystem mirror) ──
-    ("product_civic_watch", "/mnt/standalone/kytran-civic-watch", None),
-    ("product_gov_watch", "/mnt/standalone/kytran-gov-watch", None),
-    ("product_legal_watch", "/mnt/standalone/kytran-legal-watch", None),
-    ("product_market_watch", "/mnt/standalone/kytran-market-watch", None),
+    (
+        "product_civic_watch",
+        "/mnt/standalone/kytran-civic-watch",
+        "/mnt/standalone/kytran-civic-watch/static/data/translations.json",
+    ),
+    (
+        "product_gov_watch",
+        "/mnt/standalone/kytran-gov-watch",
+        "/mnt/standalone/kytran-gov-watch/static/data/translations.json",
+    ),
+    (
+        "product_legal_watch",
+        "/mnt/standalone/kytran-legal-watch",
+        "/mnt/standalone/kytran-legal-watch/static/data/translations.json",
+    ),
+    (
+        "product_market_watch",
+        "/mnt/standalone/kytran-market-watch",
+        "/mnt/standalone/kytran-market-watch/static/data/translations.json",
+    ),
     # ── What The Fact (brand) — frontend + backend ──
     (
         "website_what_the_fact",

@@ -2052,7 +2052,7 @@ def register_language_routes(bp, admin_required):
             cur.execute(
                 """SELECT id, title, status, priority, created_at, completed_at
                    FROM unified_tasks
-                   WHERE capability IN ('translate','semantic_describe')
+                   WHERE (title ILIKE '%translate%' OR title ILIKE '%semantic_describe%')
                      AND status IN ('pending','in_progress','completed')
                    ORDER BY
                      CASE status WHEN 'in_progress' THEN 0

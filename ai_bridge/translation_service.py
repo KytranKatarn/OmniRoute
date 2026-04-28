@@ -44,6 +44,7 @@ SUPPORTED_LANGUAGES = {
     "zh": "Simplified Chinese (Mandarin)",
     "ar": "Arabic",
     "he": "Hebrew",
+    "ai": "AI Semantic",
 }
 
 # How many strings to translate per LLM call

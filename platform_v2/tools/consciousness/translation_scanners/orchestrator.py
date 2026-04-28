@@ -122,6 +122,33 @@ def run_translation_coverage_scan(sources: Optional[list] = None) -> dict:
             _upsert_gap(result)
             totals["gaps_found"] += 1
 
+    # Pass 2b: live domain audit (HTTP fetch + data-i18n key extraction)
+    # Runs against all active EXTERNAL_DOMAINS. Isolated so a network failure
+    # on one domain does not abort the rest of the scan.
+    try:
+        from .domain_audit_scanner import DomainAuditScanner
+
+        domain_gaps = 0
+        for result in DomainAuditScanner().scan():
+            _upsert_gap(result)
+            totals["gaps_found"] += 1
+            domain_gaps += 1
+        totals["domain_gaps_found"] = domain_gaps
+        logger.info("[TranslationScan] domain audit: %d gaps found", domain_gaps)
+    except Exception:  # noqa: BLE001
+        logger.exception("[TranslationScan] domain audit pass failed")
+
+    # Gap routing — batch domain gaps to R.O.S.E.T.T.A. via delegate_task
+    try:
+        from .gap_batcher import route_domain_gaps_to_translate
+
+        batch_summary = route_domain_gaps_to_translate()
+        totals["domain_batches_sent"] = batch_summary["batches_sent"]
+        totals["domain_gaps_routed"] = batch_summary["gaps_routed"]
+        logger.info("[TranslationScan] gap batcher: %s", batch_summary)
+    except Exception:  # noqa: BLE001
+        logger.exception("[TranslationScan] gap batching failed")
+
     # Pass 3: semantic quality on stale rows. Semantic scan depends on the
     # embedding model and the back-translation dispatcher — both can fail
     # transiently. Isolate per-source so one bad source doesn't abort the
@@ -168,6 +195,14 @@ def run_translation_coverage_scan(sources: Optional[list] = None) -> dict:
 
     totals["duration_ms"] = int((time.time() - start) * 1000)
     logger.info("[TranslationScan] complete %s", totals)
+
+    # Store audit vault_note in knowledge_base
+    try:
+        from .audit_summary import store_audit_summary
+
+        store_audit_summary(totals)
+    except Exception:  # noqa: BLE001
+        logger.exception("[TranslationScan] audit summary storage failed")
 
     # Admin Telegram summary — best-effort
     try:

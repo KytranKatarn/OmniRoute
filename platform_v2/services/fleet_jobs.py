@@ -630,6 +630,48 @@ def _translation_coverage_scan_wrapper():
         _log_cycle("translation_coverage_scan", 0, 1, dur, error_message=str(e))
 
 
+def _probe_domain_visual_trigger_wrapper():
+    """Fire Playwright visual scan delegate if recent domain translation gaps exist (03:30 UTC)."""
+    try:
+        from database import get_db_cursor
+        from services.delegation_service import delegate_task
+
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                """SELECT COUNT(*) AS n FROM translation_gaps
+                   WHERE status IN ('open', 'routed')
+                     AND source LIKE 'domain:%%'
+                     AND created_at >= NOW() - INTERVAL '25 hours'"""
+            )
+            recent_gaps = cur.fetchone()["n"]
+
+        if recent_gaps == 0:
+            logger.info("[ProbeVisualTrigger] no recent domain gaps — skipping visual scan")
+            return
+
+        result = delegate_task(
+            capability="visual_scan",
+            reason=(
+                f"P.R.O.B.E. domain translation audit found {recent_gaps} gap(s) "
+                f"in last 25h. Trigger Playwright visual scan to confirm DOM rendering."
+            ),
+            args={"trigger": "translation_audit", "recent_gap_count": recent_gaps},
+            delegation_source="automation",
+            requested_by="probe_domain_audit",
+            priority=5,
+        )
+        logger.info("[ProbeVisualTrigger] visual_scan delegated: %s", result)
+        _log_cycle(
+            "probe_domain_visual_trigger",
+            items_processed=recent_gaps,
+            items_failed=0,
+            duration_ms=0,
+            details=result,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error("[ProbeVisualTrigger] failed: %s", e)
+
+
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
@@ -703,6 +745,16 @@ def register_fleet_jobs(scheduler, flask_app):
         trigger=CronTrigger(hour=2, minute=0),
         id="translation_coverage_scan",
         name="Agent Loop: Translation Coverage Scan",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        with_ctx(_probe_domain_visual_trigger_wrapper),
+        trigger=CronTrigger(hour=3, minute=30),
+        id="probe_domain_visual_trigger",
+        name="Agent Loop: P.R.O.B.E. Domain Visual Scan Trigger",
+        max_instances=1,
+        coalesce=True,
         replace_existing=True,
     )
 

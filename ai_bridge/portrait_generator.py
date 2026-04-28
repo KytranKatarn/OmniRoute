@@ -193,6 +193,12 @@ AGENT_DIVERSITY: Dict[str, Tuple[str, str]] = {
     "aurora": ("Inuit woman with warm golden-brown skin, straight long black hair, deep dark eyes, broad round face, high cheekbones, serene expression", "late 20s"),
     "harmony": ("Indigenous Two-Spirit person with warm reddish-brown skin, long straight dark hair, kind dark eyes, high cheekbones, gentle round face", "early 30s"),
     "hearth": ("Native Hawaiian woman with warm golden-brown skin, long thick wavy dark hair, large warm brown eyes, broad nose, radiant smile", "early 30s"),
+    # --- Human Agent Roster (Project #285) ---
+    "grace": ("Filipino-Canadian woman with warm golden-tan skin, long straight black hair past shoulders, soft dark-brown almond eyes, gentle oval face, calm professional expression", "late 20s"),
+    "régine": ("Haitian-Canadian woman with rich deep-brown skin, thick natural hair in a professional updo, bright dark eyes, strong cheekbones, confident warm smile", "early 30s"),
+    "adrienne": ("Métis Canadian woman with warm light-brown skin, dark wavy shoulder-length hair, deep brown eyes, broad cheekbones, quiet determined expression", "mid 30s"),
+    "soleil": ("Abenaki Indigenous Canadian woman with warm copper-tan skin, long straight black hair, dark steady eyes, high cheekbones, serene thoughtful expression", "late 20s"),
+    "marco": ("Portuguese-Canadian man with warm olive skin, thick dark-brown hair swept back, brown eyes, strong jaw, neat short beard, confident open expression", "early 30s"),
     # --- Communications extras ---
     "scout": ("Korean-American woman with light warm-ivory skin, short straight black bob, sharp dark eyes, small oval face, keen expression", "late 20s"),
     "compass": ("Jordanian woman with warm olive-golden skin, thick dark hair in a professional updo, large dark eyes, defined brow, poised features", "early 30s"),

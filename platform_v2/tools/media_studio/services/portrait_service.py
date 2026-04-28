@@ -314,7 +314,7 @@ def generate_canonical(agent_id: int, prompt_override: Optional[str] = None) -> 
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
-            SELECT a.name, a.display_name,
+            SELECT a.name, a.display_name, a.first_name, a.last_name,
                    p.identity_prompt, p.face_seed
             FROM agents a
             LEFT JOIN agent_portraits p ON p.agent_id = a.id
@@ -327,15 +327,25 @@ def generate_canonical(agent_id: int, prompt_override: Optional[str] = None) -> 
             return {"error": "Agent not found"}
 
     agent_name = row["name"]
-    display_name = row["display_name"]
+    # Resolve the display label: prefer display_name, then first+last, then code name
+    full_name = (
+        row["display_name"]
+        or (f"{row['first_name']} {row['last_name']}" if row.get("first_name") and row.get("last_name") else None)
+        or agent_name
+    )
     identity_prompt = prompt_override or row.get("identity_prompt")
 
+    # Regenerate if stored prompt still contains the legacy "None" placeholder
+    if identity_prompt and "of None," in identity_prompt:
+        identity_prompt = None
+
     if not identity_prompt:
-        if agent_name in AGENT_DIVERSITY:
-            desc, age = AGENT_DIVERSITY[agent_name]
-            identity_prompt = _build_identity_prompt(display_name, desc, age)
+        diversity = AGENT_DIVERSITY.get(agent_name.lower())
+        if diversity:
+            desc, age = diversity
+            identity_prompt = _build_identity_prompt(full_name, desc, age)
         else:
-            identity_prompt = _build_identity_prompt(display_name, "person with distinctive features", "adult")
+            identity_prompt = _build_identity_prompt(full_name, "person with distinctive features", "adult")
 
     _ensure_portrait_record(agent_id, identity_prompt)
     seed = row.get("face_seed") or -1

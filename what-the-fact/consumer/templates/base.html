@@ -8,11 +8,23 @@
 <body>
   <header class="wtf-header">
     <a href="/" class="wtf-brand">What The Fact</a>
-    <nav><a href="https://what-the-fact.tech">Transparency</a></nav>
+    <nav><a href="https://what-the-fact.tech" data-i18n="nav.transparency">Transparency</a></nav>
+    <div class="lang-switcher" style="display:flex;gap:0.5rem;margin-left:1rem">
+      <button class="lang-btn" data-lang="en" style="background:none;border:1px solid #30363d;color:#e6edf3;padding:0.2rem 0.5rem;border-radius:3px;cursor:pointer;font-size:0.75rem">EN</button>
+      <button class="lang-btn" data-lang="fr" style="background:none;border:1px solid #30363d;color:#e6edf3;padding:0.2rem 0.5rem;border-radius:3px;cursor:pointer;font-size:0.75rem">FR</button>
+      <button class="lang-btn" data-lang="es" style="background:none;border:1px solid #30363d;color:#e6edf3;padding:0.2rem 0.5rem;border-radius:3px;cursor:pointer;font-size:0.75rem">ES</button>
+    </div>
   </header>
   <main>{% block content %}{% endblock %}</main>
   <footer class="wtf-footer">
-    <span>Built on radical transparency. <a href="https://what-the-fact.tech">How we score bias →</a></span>
+    <span data-i18n="footer.copyright">Built on radical transparency.</span> <a href="https://what-the-fact.tech" data-i18n="nav.transparency">How we score bias →</a>
   </footer>
+  <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
+  <script>
+    fetch('/static/data/translations.json')
+      .then(function(r){return r.json();})
+      .then(function(data){I18n.init(data);})
+      .catch(function(){I18n.init({});});
+  </script>
 </body>
 </html>

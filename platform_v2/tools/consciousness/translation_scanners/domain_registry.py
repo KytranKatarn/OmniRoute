@@ -47,7 +47,7 @@ EXTERNAL_DOMAINS: list[dict] = [
         ],
         "active_languages": ["en", "fr", "es", "ai"],
         "deploy_method": "vps",
-        "active": False,  # enable after Watch products i18n plan ships
+        "active": True,
     },
     {
         "name": "kytran_civic_watch",
@@ -57,7 +57,7 @@ EXTERNAL_DOMAINS: list[dict] = [
         ],
         "active_languages": ["en", "fr", "es", "ai"],
         "deploy_method": "vps",
-        "active": False,
+        "active": True,
     },
     {
         "name": "kytran_legal_watch",
@@ -67,7 +67,7 @@ EXTERNAL_DOMAINS: list[dict] = [
         ],
         "active_languages": ["en", "fr", "es", "ai"],
         "deploy_method": "vps",
-        "active": False,
+        "active": True,
     },
     {
         "name": "kytran_market_watch",
@@ -77,7 +77,7 @@ EXTERNAL_DOMAINS: list[dict] = [
         ],
         "active_languages": ["en", "fr", "es", "ai"],
         "deploy_method": "vps",
-        "active": False,
+        "active": True,
     },
     {
         "name": "what_the_fact_com",
@@ -87,7 +87,7 @@ EXTERNAL_DOMAINS: list[dict] = [
         ],
         "active_languages": ["en", "fr", "es", "ai"],
         "deploy_method": "vps",
-        "active": False,
+        "active": True,
     },
     {
         "name": "what_the_fact_tech",
@@ -97,6 +97,6 @@ EXTERNAL_DOMAINS: list[dict] = [
         ],
         "active_languages": ["en", "fr", "es", "ai"],
         "deploy_method": "vps",
-        "active": False,
+        "active": True,
     },
 ]

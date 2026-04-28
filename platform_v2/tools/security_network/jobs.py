@@ -248,6 +248,26 @@ def check_ssl_expiry():
             except Exception:
                 pass  # Can't check this domain
 
+        # Also sweep security_ssl_monitors (covers external domains not in NPM)
+        try:
+            from tools.security_network.security_service import refresh_ssl_monitors
+
+            refresh_result = refresh_ssl_monitors()
+            for alert in refresh_result.get("alerts", []):
+                days_left = alert.get("days_until_expiry", 99)
+                domain = alert.get("domain", "unknown")
+                if days_left <= 14:
+                    priority = "critical" if days_left <= 3 else "high" if days_left <= 7 else "normal"
+                    create_security_alert(
+                        "ssl_expiry",
+                        f"SSL cert expiring: {domain}",
+                        f"Certificate for {domain} expires in {days_left} days",
+                        priority=priority,
+                        telegram=True,
+                    )
+        except Exception as mon_err:
+            logger.warning(f"SSL monitor refresh failed: {mon_err}")
+
     except Exception as e:
         logger.warning(f"Failed: {e}")
 

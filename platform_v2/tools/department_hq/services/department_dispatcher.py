@@ -2012,6 +2012,34 @@ class DepartmentDispatcher:
         except Exception:
             return False
 
+    # Minimum seconds a host must be continuously busy before cloud escalation fires.
+    ESCALATION_GRACE_SECONDS = 60
+
+    def _get_hub_busy_duration(self) -> float:
+        """Return how many seconds the hub ComfyUI has been continuously busy.
+
+        Looks at the oldest running image_generation bridge_job on the hub.
+        Returns 0 if no running job is found (treat as not busy).
+        """
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT EXTRACT(EPOCH FROM (NOW() - MIN(created_at)))
+                FROM bridge_jobs
+                WHERE job_type = 'image_generation'
+                  AND status = 'running'
+                  AND metadata->>'target_host' = 'hub'
+                """,
+            )
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            return float(row[0]) if row and row[0] is not None else 0.0
+        except Exception:
+            return 0.0
+
     def _escalate_image_to_cloud(
         self,
         agent_name: str,
@@ -2198,7 +2226,30 @@ class DepartmentDispatcher:
         comfyui_host, node_db_id = self._select_comfyui_host()
 
         if comfyui_host is None:
-            # All local ComfyUI busy → escalate to cloud
+            # All local ComfyUI busy — check grace period before escalating to cloud.
+            # If the hub only just started a job (< ESCALATION_GRACE_SECONDS), the
+            # request is likely a duplicate or ComfyUI is warming up. Return a soft
+            # failure so the caller can queue for local retry instead of burning cloud.
+            busy_seconds = self._get_hub_busy_duration()
+            if busy_seconds < self.ESCALATION_GRACE_SECONDS:
+                logger.info(
+                    "[ImageEscalation] Hub ComfyUI busy for only %.0fs "
+                    "(grace period: %ds) — deferring cloud escalation",
+                    busy_seconds,
+                    self.ESCALATION_GRACE_SECONDS,
+                )
+                return DispatchResult(
+                    success=False,
+                    response="ComfyUI temporarily busy — request deferred for local retry",
+                    error=(
+                        f"ComfyUI busy for {busy_seconds:.0f}s " f"(escalation grace: {self.ESCALATION_GRACE_SECONDS}s)"
+                    ),
+                    agent_name=agent_name,
+                    station_code=station_code,
+                    capability=capability,
+                    provider="comfyui_deferred",
+                )
+            # Busy beyond grace period → escalate to cloud
             return self._escalate_image_to_cloud(
                 agent_name,
                 agent,

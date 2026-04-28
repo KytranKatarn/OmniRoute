@@ -375,7 +375,7 @@ def _run_translate_bg(languages, module_id, parent_job_id):
     Uses a single bridge job for the entire pipeline. batch_translate() updates
     the parent job's progress at batch level so only one agent slot is consumed.
     """
-    from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+    from tools.department_hq.services.department_dispatcher import get_dispatcher
 
     dispatcher = get_dispatcher()
     completed_langs = 0
@@ -1417,7 +1417,7 @@ def register_language_routes(bp, admin_required):
                 )
 
             # Create parent bridge job
-            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             job_id = dispatcher.create_job(

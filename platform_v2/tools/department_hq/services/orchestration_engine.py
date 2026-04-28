@@ -1693,32 +1693,16 @@ Please try again or use the Team Management module directly.""",
             "User message: " + message[:500]
         )
         try:
-            _classify_opts = build_options(
-                model="qwen25-classify:latest",
-                target_node=None,
-                prompt_tokens_hint=len(prompt) // 4,
-                keep_alive="5m",
+            from .department_dispatcher import dispatch
+
+            result_obj = dispatch(
+                capability="classify",
+                prompt=prompt,
+                module_id="orchestration",
+                context={"task": "preference_extraction"},
             )
-            ollama_base = _node_url_for_orchestration(_classify_opts["target_node_id"])
-            logger.info(
-                "placement: node=%s model=%s placement=%s reason=%s",
-                _classify_opts["target_node_id"],
-                _classify_opts["model"],
-                _classify_opts["placement"],
-                _classify_opts["reason"],
-            )
-            resp = requests.post(
-                f"{ollama_base}/api/generate",
-                json={
-                    "model": _classify_opts["model"],
-                    "prompt": prompt,
-                    "stream": False,
-                    "keep_alive": _classify_opts["keep_alive"],
-                },
-                timeout=10,
-            )
-            if resp.ok:
-                result = resp.json().get("response", "").strip()
+            if result_obj.success:
+                result = (result_obj.response or "").strip()
                 if result and result.upper() != "NONE" and len(result) < 200:
                     conn = get_db()
                     cur = conn.cursor()

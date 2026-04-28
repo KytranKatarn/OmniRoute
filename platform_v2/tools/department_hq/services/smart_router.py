@@ -101,7 +101,7 @@ DEFAULT_MODEL_CONFIGS = {
     "vision": ModelConfig(
         tier="vision",
         provider="ollama",
-        model_name="minicpm-v",
+        model_name="minicpm-v-cpu",
         input_cost_per_1m=0.0,
         output_cost_per_1m=0.0,
         max_tokens=4096,

@@ -321,11 +321,29 @@ def _get_trusted_ips() -> set:
     backups that look like exfiltration, overnight sync traffic, per-app
     subdomain queries. Exempting them stops the flood without disabling
     the detector for unknown/quarantined devices where it matters.
+
+    MAC-aware: if a trusted DHCP device gets a new lease before the ARP
+    scan updates its row, we still exempt it by matching the known MAC
+    against any current network_devices entry.
     """
     try:
         with get_db_cursor() as (conn, cur):
-            cur.execute("SELECT host(ip_address) AS ip FROM network_devices WHERE security_zone = 'trusted'")
-            return {row["ip"] for row in cur.fetchall()}
+            cur.execute(
+                "SELECT host(ip_address) AS ip, mac_address " "FROM network_devices WHERE security_zone = 'trusted'"
+            )
+            rows = cur.fetchall()
+            trusted_ips = {row["ip"] for row in rows}
+            trusted_macs = [row["mac_address"].lower() for row in rows if row["mac_address"]]
+            # MAC fallback: exempt any IP that shares a MAC with a trusted device.
+            # Covers DHCP address changes on IoT devices (e.g. robot vacuum) where
+            # the ARP scan may not have updated network_devices yet.
+            if trusted_macs:
+                cur.execute(
+                    "SELECT DISTINCT host(ip_address) AS ip " "FROM network_devices WHERE LOWER(mac_address) = ANY(%s)",
+                    (trusted_macs,),
+                )
+                trusted_ips.update(row["ip"] for row in cur.fetchall())
+            return trusted_ips
     except Exception as e:
         logger.error("[AnomalyDetection] trusted-IP lookup failed: %s", e)
         return set()

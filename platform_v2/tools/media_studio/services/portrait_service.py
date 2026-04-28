@@ -226,7 +226,8 @@ def get_all_agent_portraits() -> List[Dict]:
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
-            SELECT a.id, a.name, a.display_name, a.avatar_url,
+            SELECT a.id, a.name, a.first_name, a.last_name, a.display_name,
+                   a.worker_type, a.avatar_url,
                    a.updated_at AS avatar_updated_at,
                    p.id AS portrait_id, p.canonical_image_path, p.identity_prompt,
                    p.face_seed, p.ip_adapter_ref_path, p.approved,
@@ -234,7 +235,7 @@ def get_all_agent_portraits() -> List[Dict]:
             FROM agents a
             LEFT JOIN agent_portraits p ON p.agent_id = a.id
             WHERE a.shift_state != 'decommissioned'
-            ORDER BY a.display_name
+            ORDER BY COALESCE(a.display_name, a.first_name || ' ' || a.last_name, a.name)
             """
         )
         rows = [dict(r) for r in cur.fetchall()]

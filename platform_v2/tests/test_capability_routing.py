@@ -1,0 +1,213 @@
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from services.department_coordinator import CAPABILITY_DEPARTMENT_MAP
+import subprocess
+
+
+def _db(sql):
+    r = subprocess.run(
+        ["docker", "exec", "archie_database", "psql", "-U", "archie", "-d", "archie", "-t", "-c", sql],
+        capture_output=True,
+        text=True,
+    )
+    return r.stdout.strip()
+
+
+NEW_CAPABILITIES = [
+    "ci_cd_pipeline",
+    "container_orchestration",
+    "deployment_automation",
+    "infrastructure_as_code",
+    "infrastructure_architecture",
+    "api_architecture",
+    "api_integration",
+    "api_documentation",
+    "database_design",
+    "distributed_systems",
+    "algorithm_design",
+    "algorithmic_modeling",
+    "code_quality_analysis",
+    "bug_reporting",
+    "edge_computing",
+    "keyboard_navigation",
+    "framework_implementation",
+    "feature_prioritization",
+    "encryption",
+    "cryptographic_auditing",
+    "key_management",
+    "alert_management",
+    "incident_management",
+    "data_analysis",
+    "data_visualization",
+    "anomaly_detection",
+    "competitive_analysis",
+    "ai_research",
+    "intelligence_gathering",
+    "backtesting",
+    "digital_marketing",
+    "keyword_research",
+    "campaign_management",
+    "campaign_conceptualization",
+    "content_strategy",
+    "audience_targeting",
+    "copywriting",
+    "crisis_communication",
+    "community_building",
+    "community_relations",
+    "engagement_management",
+    "creative_writing",
+    "creative_direction",
+    "brand_strategy",
+    "content_architecture",
+    "accessible_ui_design",
+    "dashboard_design",
+    "knowledge_base_curation",
+    "information_design",
+    "briefing_preparation",
+    "experimental_design",
+    "comparative_research",
+    "competitive_research",
+    "financial_reporting",
+    "budgeting",
+    "cost_analysis",
+    "cost_estimation",
+    "expense_tracking",
+    "cash_flow_management",
+    "drawdown_management",
+    "fundamental_analysis",
+    "facilities_management",
+    "grounds_maintenance",
+    "capacity_modeling",
+    "infrastructure_planning",
+    "bim_modeling",
+    "arctic_infrastructure",
+    "inventory_management",
+    "itinerary_planning",
+    "booking_management",
+    "coaching",
+    "employee_relations",
+    "habit_formation",
+    "event_organization",
+    "executive_scheduling",
+    "customer_onboarding",
+    "customer_advocacy",
+    "churn_prevention",
+    "conflict_resolution",
+    "bilingual_communication",
+    "cultural_mediation",
+    "cultural_intelligence",
+    "asl_communication",
+    "guest_experience",
+    "hospitality_operations",
+    "health_data_analysis",
+    "biometric_monitoring",
+    "audit_management",
+]
+
+VALID_DEPTS = {
+    "Engineering & Technology",
+    "Security & Compliance",
+    "Analytics & Intelligence",
+    "Marketing & Communications",
+    "Creative & Design",
+    "Documentation & Knowledge",
+    "Research & Development",
+    "Finance & Accounting",
+    "Operations & Infrastructure",
+    "Logistics & Supply Chain",
+    "Human Resources & Culture",
+    "Customer Success & Support",
+    "Diplomatic & External Relations",
+    "Medical & Wellness",
+    "Legal & Regulatory",
+}
+
+
+def test_all_capabilities_mapped_in_coordinator():
+    missing = [c for c in NEW_CAPABILITIES if c not in CAPABILITY_DEPARTMENT_MAP]
+    assert not missing, f"Missing from coordinator map: {missing}"
+
+
+def test_capability_departments_are_valid():
+    for cap in NEW_CAPABILITIES:
+        dept = CAPABILITY_DEPARTMENT_MAP.get(cap)
+        assert dept in VALID_DEPTS, f"{cap} maps to unknown dept: {dept}"
+
+
+def test_all_capabilities_mapped_in_dispatcher():
+    """Dispatcher has its own CAPABILITY_DEPARTMENT_MAP — must match coordinator.
+
+    Parses the dict from source using ast to avoid import-time side effects
+    (DB connections, relative imports, Docker-only modules).
+    Note: ast.literal_eval is safe — it only evaluates Python literals, no
+    code execution.
+    """
+    import ast
+    import re
+
+    dispatcher_path = "/mnt/archie_brain/platform_v2/tools/department_hq/services/department_dispatcher.py"
+    with open(dispatcher_path) as f:
+        source = f.read()
+
+    # Extract the CAPABILITY_DEPARTMENT_MAP dict literal from source.
+    match = re.search(
+        r"CAPABILITY_DEPARTMENT_MAP\s*=\s*(\{.*?\n\})",
+        source,
+        re.DOTALL,
+    )
+    assert match, "Could not find CAPABILITY_DEPARTMENT_MAP in dispatcher"
+    dispatcher_map = ast.literal_eval(match.group(1))
+
+    missing = [c for c in NEW_CAPABILITIES if c not in dispatcher_map]
+    assert not missing, f"Missing from dispatcher map: {missing}"
+
+
+def test_director_skills_seeded():
+    """Each director must have skills for their department's capabilities."""
+    checks = [
+        (136, "ci_cd_pipeline"),
+        (3, "encryption"),
+        (137, "data_analysis"),
+        (141, "digital_marketing"),
+        (138, "creative_writing"),
+        (146, "knowledge_base_curation"),
+        (140, "experimental_design"),
+        (144, "budgeting"),
+        (139, "facilities_management"),
+        (143, "inventory_management"),
+        (145, "coaching"),
+        (142, "customer_onboarding"),
+        (149, "cultural_mediation"),
+        (148, "health_data_analysis"),
+        (3, "audit_management"),  # V.I.G.I.L. owns audit_management
+    ]
+    missing = []
+    for agent_id, skill in checks:
+        count = _db(f"SELECT COUNT(*) FROM agent_skills " f"WHERE agent_id={agent_id} AND skill_name='{skill}'")
+        if count.strip() == "0":
+            missing.append(f"agent {agent_id} missing skill {skill}")
+    assert not missing, f"Skills not seeded: {missing}"
+
+
+def test_hire_proposals_cleared():
+    count = _db(
+        "SELECT COUNT(*) FROM autonomy_approval_queue " "WHERE action_type='hire_candidate' AND status='pending'"
+    )
+    assert count.strip() == "0", f"Still {count.strip()} pending hire proposals"
+
+
+def test_creed_violations_table_exists():
+    result = _db("SELECT COUNT(*) FROM information_schema.tables " "WHERE table_name='creed_violations'")
+    assert result.strip() == "1", "creed_violations table not found"
+
+
+def test_creed_violations_insert_works():
+    _db(
+        "INSERT INTO creed_violations (agent_name, violation_type, severity) "
+        "VALUES ('TEST', 'test_violation', 'low')"
+    )
+    count = _db("SELECT COUNT(*) FROM creed_violations WHERE agent_name='TEST'")
+    _db("DELETE FROM creed_violations WHERE agent_name='TEST'")
+    assert count.strip() == "1"

@@ -1,0 +1,30 @@
+services:
+  archie_browser:
+    build: .
+    container_name: archie_browser
+    restart: unless-stopped
+    ports:
+      - "4242:4242"
+    environment:
+      DB_HOST: ${DB_HOST:-archie_database}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-archie}
+      DB_USER: ${DB_USER:-archie}
+      DB_PASSWORD: ${DB_PASSWORD}
+      BROWSER_ENCRYPTION_KEY: ${BROWSER_ENCRYPTION_KEY}
+      BROWSER_API_KEY: ${BROWSER_API_KEY}
+      SCREENSHOTS_DIR: /app/screenshots
+    volumes:
+      - browser_screenshots:/app/screenshots
+    dns:
+      - 192.168.1.200
+      - 1.1.1.1
+    networks:
+      - archie_network
+
+volumes:
+  browser_screenshots:
+
+networks:
+  archie_network:
+    external: true

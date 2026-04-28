@@ -19,6 +19,7 @@ SKILL_CATEGORIES = {
     "translation": "Language translation, i18n",
     "vision": "Image analysis, visual tasks",
     "lightweight": "Simple tasks, notifications, status checks",
+    "web_interaction": "Browser automation, social media posting, web form fill",
 }
 
 

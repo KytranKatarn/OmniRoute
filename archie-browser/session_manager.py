@@ -5,6 +5,8 @@ import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
+from cryptography.fernet import InvalidToken
+
 logger = logging.getLogger(__name__)
 
 _fernet_cache: dict = {}
@@ -38,6 +40,7 @@ def _get_conn():
 
 def load_session(agent_id: int, platform: str) -> Optional[dict]:
     """Load and decrypt storageState. Returns dict or None."""
+    conn = None
     try:
         conn = _get_conn()
         cur = conn.cursor()
@@ -48,64 +51,114 @@ def load_session(agent_id: int, platform: str) -> Optional[dict]:
         )
         row = cur.fetchone()
         cur.close()
-        conn.close()
         if not row or not row["session_data_encrypted"] or row["status"] == "expired":
             return None
         return json.loads(_decrypt(row["session_data_encrypted"]))
-    except Exception as exc:
-        logger.warning("load_session(%s, %s) failed: %s", agent_id, platform, exc)
+    except InvalidToken:
+        logger.error("load_session(%s, %s): decryption failed -- key mismatch or corrupt data", agent_id, platform)
         return None
+    except Exception as exc:
+        logger.warning("load_session(%s, %s) failed: %s", agent_id, platform, type(exc).__name__)
+        return None
+    finally:
+        if conn:
+            conn.close()
 
 
 def save_session(agent_id: int, platform: str, storage_state: dict) -> None:
     """Encrypt and upsert storageState."""
     encrypted = _encrypt(json.dumps(storage_state))
     expires_at = datetime.now(timezone.utc) + timedelta(days=30)
-    conn = _get_conn()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO agent_browser_sessions
-            (agent_id, platform, session_data_encrypted, status, last_used_at,
-             session_expires_at, updated_at)
-        VALUES (%s, %s, %s, 'active', NOW(), %s, NOW())
-        ON CONFLICT (agent_id, platform) DO UPDATE SET
-            session_data_encrypted = EXCLUDED.session_data_encrypted,
-            status = 'active',
-            last_used_at = NOW(),
-            session_expires_at = EXCLUDED.session_expires_at,
-            updated_at = NOW()
-        """,
-        (agent_id, platform, encrypted, expires_at),
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+    conn = None
+    try:
+        conn = _get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO agent_browser_sessions
+                (agent_id, platform, session_data_encrypted, status, last_used_at,
+                 session_expires_at, updated_at)
+            VALUES (%s, %s, %s, 'active', NOW(), %s, NOW())
+            ON CONFLICT (agent_id, platform) DO UPDATE SET
+                session_data_encrypted = EXCLUDED.session_data_encrypted,
+                status = 'active',
+                last_used_at = NOW(),
+                session_expires_at = EXCLUDED.session_expires_at,
+                updated_at = NOW()
+            """,
+            (agent_id, platform, encrypted, expires_at),
+        )
+        conn.commit()
+        cur.close()
+    except Exception as exc:
+        logger.error("save_session(%s, %s) failed: %s", agent_id, platform, type(exc).__name__)
+        raise
+    finally:
+        if conn:
+            conn.close()
 
 
 def save_credentials(agent_id: int, platform: str, username: str, password: str) -> None:
     """Encrypt and store login credentials."""
     enc_pass = _encrypt(password)
-    conn = _get_conn()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO agent_browser_sessions (agent_id, platform, username, password_encrypted, status)
-        VALUES (%s, %s, %s, %s, 'missing')
-        ON CONFLICT (agent_id, platform) DO UPDATE SET
-            username = EXCLUDED.username,
-            password_encrypted = EXCLUDED.password_encrypted,
-            updated_at = NOW()
-        """,
-        (agent_id, platform, username, enc_pass),
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+    conn = None
+    try:
+        conn = _get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO agent_browser_sessions (agent_id, platform, username, password_encrypted, status)
+            VALUES (%s, %s, %s, %s, 'missing')
+            ON CONFLICT (agent_id, platform) DO UPDATE SET
+                username = EXCLUDED.username,
+                password_encrypted = EXCLUDED.password_encrypted,
+                updated_at = NOW()
+            """,
+            (agent_id, platform, username, enc_pass),
+        )
+        conn.commit()
+        cur.close()
+    except Exception as exc:
+        logger.error("save_credentials(%s, %s) failed: %s", agent_id, platform, type(exc).__name__)
+        raise
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_credentials(agent_id: int, platform: str) -> Optional[dict]:
+    """Return decrypted {username, password} or None if not found."""
+    conn = None
+    try:
+        conn = _get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT username, password_encrypted FROM agent_browser_sessions "
+            "WHERE agent_id = %s AND platform = %s",
+            (agent_id, platform),
+        )
+        row = cur.fetchone()
+        cur.close()
+        if not row or not row["username"] or not row["password_encrypted"]:
+            return None
+        return {
+            "username": row["username"],
+            "password": _decrypt(row["password_encrypted"]),
+        }
+    except InvalidToken:
+        logger.error("get_credentials(%s, %s): decryption failed -- key mismatch or corrupt data", agent_id, platform)
+        return None
+    except Exception as exc:
+        logger.warning("get_credentials(%s, %s) failed: %s", agent_id, platform, type(exc).__name__)
+        return None
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_session_status(agent_id: int, platform: str) -> dict:
     """Return status dict for an agent/platform session."""
+    conn = None
     try:
         conn = _get_conn()
         cur = conn.cursor()
@@ -116,18 +169,58 @@ def get_session_status(agent_id: int, platform: str) -> dict:
         )
         row = cur.fetchone()
         cur.close()
-        conn.close()
         if not row:
-            return {"status": "missing", "agent_id": agent_id, "platform": platform}
+            return {"status": "missing", "last_used": None}
         return {
             "status": row["status"],
-            "agent_id": agent_id,
-            "platform": platform,
             "last_used": row["last_used_at"].isoformat() if row["last_used_at"] else None,
-            "expires": row["session_expires_at"].isoformat() if row["session_expires_at"] else None,
+            "expires_at": row["session_expires_at"].isoformat() if row["session_expires_at"] else None,
         }
     except Exception as exc:
-        return {"status": "error", "error": str(exc)}
+        return {"status": "error", "error": type(exc).__name__}
+    finally:
+        if conn:
+            conn.close()
+
+
+def refresh_session(agent_id: int, platform: str) -> dict:
+    """Signal that a session refresh is needed. Returns success/failure dict."""
+    creds = get_credentials(agent_id, platform)
+    if not creds:
+        return {
+            "success": False,
+            "error": f"No credentials found for agent {agent_id} on {platform}",
+        }
+    return {
+        "success": True,
+        "message": "refresh_pending",
+        "agent_id": agent_id,
+        "platform": platform,
+    }
+
+
+def mark_error(agent_id: int, platform: str, error: str) -> None:
+    """Set status='error' on the session row."""
+    conn = None
+    try:
+        conn = _get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE agent_browser_sessions
+            SET status = 'error', updated_at = NOW()
+            WHERE agent_id = %s AND platform = %s
+            """,
+            (agent_id, platform),
+        )
+        conn.commit()
+        cur.close()
+        logger.warning("mark_error(%s, %s): %s", agent_id, platform, str(error)[:200])
+    except Exception as exc:
+        logger.error("mark_error DB write failed: %s", type(exc).__name__)
+    finally:
+        if conn:
+            conn.close()
 
 
 def setup_session(agent_id: int, platform: str, username: str, password: str) -> dict:

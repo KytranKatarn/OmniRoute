@@ -44,6 +44,7 @@ from .approvals_routes import register_approvals_routes  # noqa: E402
 from .chat_routes import register_chat_routes as register_agent_chat  # noqa: E402
 from .creed_routes import register_creed_routes  # noqa: E402
 from .coms_routes import register_coms_routes  # noqa: E402
+from .browser_routes import register_browser_routes  # noqa: E402
 
 # Fleet routes (migrated from A.R.M.A.D.A.)
 from .fleet_dashboard_routes import register_dashboard_routes as register_fleet_dashboard  # noqa: E402
@@ -73,6 +74,7 @@ register_approvals_routes(department_hq_bp, admin_required)
 register_agent_chat(department_hq_bp, admin_required)
 register_creed_routes(department_hq_bp, admin_required)
 register_coms_routes(department_hq_bp, admin_required)
+register_browser_routes(department_hq_bp, admin_required)
 
 # Fleet routes — all under /tools/department-hq/api/fleet/*
 register_fleet_dashboard(department_hq_bp, login_required)

@@ -694,3 +694,70 @@
         padding: 4px 6px;
     }
 }
+
+/* ── Consciousness Languages Tab — Translation Command Center ── */
+.cs-lang-container{padding:1.5rem;max-width:1400px;margin:0 auto}
+.cs-lang-stats-bar{display:flex;gap:2rem;padding:1rem 1.5rem;background:var(--archie-surface,#0d1117);border:1px solid var(--archie-border,#30363d);border-radius:8px;margin-bottom:2rem;flex-wrap:wrap}
+.cs-lang-stat{display:flex;flex-direction:column;align-items:center}
+.cs-lang-stat-value{font-size:2rem;font-weight:700;color:#8b5cf6;font-family:'Orbitron',sans-serif}
+.cs-lang-stat-label{font-size:.75rem;color:var(--archie-text-muted,#8b949e);text-transform:uppercase}
+.cs-lang-section{margin-bottom:2.5rem}
+.cs-lang-section-title{font-family:'Orbitron',sans-serif;color:#8b5cf6;font-size:1.1rem;margin-bottom:.25rem}
+.cs-lang-section-sub{color:var(--archie-text-muted,#8b949e);font-size:.85rem;margin-bottom:1rem}
+.cs-lang-loading{color:#8b949e;padding:1rem;font-size:.9rem}
+.cs-lang-error{color:#f87171;padding:1rem;font-size:.9rem}
+.cs-lang-empty{color:#4ade80;padding:1rem;font-size:.9rem}
+/* Matrix */
+.cs-lang-matrix{width:100%;border-collapse:collapse;font-size:.8rem}
+.cs-lang-matrix th{background:#161b22;padding:.5rem;border:1px solid #30363d;text-align:center}
+.cs-lang-matrix-lang{writing-mode:vertical-rl;transform:rotate(180deg);font-size:.7rem;min-width:40px}
+.cs-lang-domain-name{font-weight:600;padding:.5rem;white-space:nowrap}
+.cs-lang-cell{text-align:center;padding:.4rem .2rem;border:1px solid #30363d;font-size:.75rem;transition:opacity .15s}
+.cs-lang-cell:hover{opacity:.8}
+.cs-lang-cell-green{background:rgba(34,197,94,.2);color:#4ade80}
+.cs-lang-cell-yellow{background:rgba(234,179,8,.2);color:#facc15}
+.cs-lang-cell-red{background:rgba(239,68,68,.2);color:#f87171}
+.cs-lang-cell-roadmap{background:#161b22;color:#484f58}
+.cs-lang-cell-source{background:rgba(139,92,246,.15);color:#a78bfa}
+.cs-lang-inactive{opacity:.5}
+.cs-lang-coming-soon{font-size:.65rem;background:#30363d;padding:.1rem .3rem;border-radius:3px;margin-left:.4rem}
+.cs-lang-legend{display:flex;gap:1rem;margin-top:.75rem;flex-wrap:wrap;font-size:.75rem}
+.cs-lang-legend-green{color:#4ade80}.cs-lang-legend-yellow{color:#facc15}
+.cs-lang-legend-red{color:#f87171}.cs-lang-legend-grey{color:#484f58}
+/* Gap feed */
+.cs-lang-filters{display:flex;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap}
+.cs-lang-select{background:#161b22;border:1px solid #30363d;color:#e6edf3;padding:.4rem .75rem;border-radius:4px;font-size:.85rem}
+.cs-lang-btn{background:#8b5cf6;color:#fff;border:none;padding:.4rem 1rem;border-radius:4px;cursor:pointer;font-size:.85rem}
+.cs-lang-btn:hover{background:#7c3aed}
+.cs-lang-btn-sm{padding:.2rem .6rem;font-size:.75rem}
+.cs-lang-gap-table{width:100%;border-collapse:collapse;font-size:.8rem}
+.cs-lang-gap-table th,.cs-lang-gap-table td{padding:.4rem .6rem;border:1px solid #30363d;text-align:left}
+.cs-lang-gap-table th{background:#161b22;color:#8b5cf6}
+.cs-lang-key{font-family:'IBM Plex Mono',monospace;font-size:.75rem}
+.cs-lang-snippet{font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#8b949e}
+.cs-lang-gap-type-badge{padding:.1rem .4rem;border-radius:3px;font-size:.7rem}
+.cs-lang-gap-missing .cs-lang-gap-type-badge{background:rgba(239,68,68,.2);color:#f87171}
+.cs-lang-gap-quality_suspect .cs-lang-gap-type-badge{background:rgba(234,179,8,.2);color:#facc15}
+.cs-lang-gap-count{font-size:.8rem;color:#8b949e;margin-bottom:.5rem}
+/* Queue */
+.cs-lang-queue-list{display:flex;flex-direction:column;gap:.5rem}
+.cs-lang-queue-item{display:flex;align-items:center;gap:1rem;padding:.6rem 1rem;border-radius:4px;border:1px solid #30363d;font-size:.85rem}
+.cs-lang-task-active{border-color:#8b5cf6;background:rgba(139,92,246,.1)}
+.cs-lang-task-pending{border-color:#30363d}
+.cs-lang-task-done{opacity:.5}
+.cs-lang-task-status{font-size:.7rem;font-weight:700;text-transform:uppercase;width:80px}
+.cs-lang-task-active .cs-lang-task-status{color:#8b5cf6}
+.cs-lang-task-pending .cs-lang-task-status{color:#8b949e}
+.cs-lang-task-done .cs-lang-task-status{color:#4ade80}
+.cs-lang-task-title{flex:1}
+.cs-lang-task-date{font-size:.75rem;color:#8b949e}
+/* Dialects */
+.cs-lang-dialects-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem;margin-top:1rem}
+.cs-lang-dialect-card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;position:relative}
+.cs-lang-dialect-active{border-color:#8b5cf6}
+.cs-lang-dialect-roadmap{opacity:.6}
+.cs-lang-dialect-code{font-family:'Orbitron',sans-serif;font-size:1.4rem;color:#8b5cf6;font-weight:700}
+.cs-lang-dialect-name{font-weight:600;margin:.25rem 0;color:#e6edf3}
+.cs-lang-dialect-note{font-size:.8rem;color:#8b949e;line-height:1.4}
+.cs-lang-dialect-badge{position:absolute;top:.5rem;right:.5rem;font-size:.65rem;background:#30363d;padding:.1rem .4rem;border-radius:3px;color:#8b949e}
+.cs-lang-roadmap{background:rgba(139,92,246,.2);color:#a78bfa}

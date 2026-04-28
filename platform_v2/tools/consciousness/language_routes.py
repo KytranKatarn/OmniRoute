@@ -493,6 +493,35 @@ def _run_translate_bg(languages, module_id, parent_job_id):
         )
 
 
+ALL_LANGS_ORDERED = ["en", "fr", "es", "pt", "de", "zh", "ar", "he", "ai"]
+
+
+def _build_coverage_matrix(
+    domains: list[dict],
+    gap_counts: dict[str, int],
+    total_keys: dict[str, int],
+) -> dict:
+    """Return {domain_name: {lang: {status, coverage_pct, gap_count}}}."""
+    matrix: dict = {}
+    for domain in domains:
+        name = domain["name"]
+        active_langs = domain.get("active_languages") or []
+        total = total_keys.get(name, 0)
+        matrix[name] = {}
+        for lang in ALL_LANGS_ORDERED:
+            if lang not in active_langs:
+                matrix[name][lang] = {"status": "roadmap", "coverage_pct": None, "gap_count": None}
+                continue
+            if lang == "en":
+                matrix[name][lang] = {"status": "source", "coverage_pct": 100, "gap_count": 0}
+                continue
+            gaps = gap_counts.get(f"{name}:{lang}", 0)
+            pct = round(((total - gaps) / total) * 100) if total > 0 else 0
+            status = "green" if pct >= 95 else ("yellow" if pct >= 70 else "red")
+            matrix[name][lang] = {"status": status, "coverage_pct": pct, "gap_count": gaps}
+    return matrix
+
+
 def register_language_routes(bp, admin_required):
     """Register all language/translation routes on the consciousness blueprint."""
 
@@ -1906,3 +1935,157 @@ def register_language_routes(bp, admin_required):
                 cur.close()
             if conn:
                 conn.close()
+
+    # ── Languages Tab — Translation Command Center ────────────────────────
+
+    @bp.route("/api/translations/coverage-matrix")
+    @admin_required
+    def translation_coverage_matrix():
+        """9×8 coverage matrix: domain_registry × 9 languages."""
+        try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                "SELECT name, display_name, is_active, active_languages, last_audit_at "
+                "FROM translation_domain_registry ORDER BY is_active DESC, name"
+            )
+            domains = [dict(r) for r in cur.fetchall()]
+            cur.execute(
+                """SELECT REPLACE(source,'domain:','') AS domain_name, language,
+                          COUNT(*) AS gap_count
+                   FROM translation_gaps
+                   WHERE status IN ('open','routed') AND source LIKE 'domain:%%'
+                   GROUP BY domain_name, language"""
+            )
+            gap_counts = {f"{r['domain_name']}:{r['language']}": r["gap_count"] for r in cur.fetchall()}
+            cur.execute(
+                """SELECT REPLACE(source,'domain:','') AS domain_name,
+                          COUNT(DISTINCT key) AS total_keys
+                   FROM translation_gaps WHERE source LIKE 'domain:%%'
+                   GROUP BY domain_name"""
+            )
+            total_keys = {r["domain_name"]: r["total_keys"] for r in cur.fetchall()}
+            cur.close()
+            conn.close()
+            matrix = _build_coverage_matrix(domains, gap_counts, total_keys)
+            return jsonify(
+                {
+                    "success": True,
+                    "matrix": matrix,
+                    "domains": domains,
+                    "summary": {
+                        "total_open_gaps": sum(gap_counts.values()),
+                        "domains_active": sum(1 for d in domains if d["is_active"]),
+                        "domains_total": len(domains),
+                    },
+                }
+            )
+        except Exception as e:
+            logger.error(f"Coverage matrix error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/translations/gap-feed")
+    @admin_required
+    def translation_gap_feed():
+        """Paginated domain gap feed, filterable by domain/language/type."""
+        domain = request.args.get("domain", "")
+        language = request.args.get("language", "")
+        gap_type = request.args.get("gap_type", "")
+        page = max(1, int(request.args.get("page", 1)))
+        per_page = min(100, max(1, int(request.args.get("per_page", 50))))
+        offset = (page - 1) * per_page
+        try:
+            conditions = ["status IN ('open','routed')", "source LIKE 'domain:%%'"]
+            params: list = []
+            if domain:
+                conditions.append("source = %s")
+                params.append(f"domain:{domain}")
+            if language:
+                conditions.append("language = %s")
+                params.append(language)
+            if gap_type:
+                conditions.append("gap_type = %s")
+                params.append(gap_type)
+            where = " AND ".join(conditions)
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(f"SELECT COUNT(*) AS n FROM translation_gaps WHERE {where}", params)
+            total = cur.fetchone()["n"]
+            cur.execute(
+                f"SELECT id, source, gap_type, language, key, snippet, "
+                f"status, task_id, created_at "
+                f"FROM translation_gaps WHERE {where} "
+                f"ORDER BY created_at DESC LIMIT %s OFFSET %s",
+                params + [per_page, offset],
+            )
+            gaps = [dict(r) for r in cur.fetchall()]
+            cur.close()
+            conn.close()
+            return jsonify({"success": True, "gaps": gaps, "total": total, "page": page, "per_page": per_page})
+        except Exception as e:
+            logger.error(f"Gap feed error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/translations/rosetta-queue")
+    @admin_required
+    def rosetta_work_queue():
+        """R.O.S.E.T.T.A. active and pending translation tasks."""
+        try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """SELECT id, title, status, priority, created_at, completed_at
+                   FROM unified_tasks
+                   WHERE capability IN ('translate','semantic_describe')
+                     AND status IN ('pending','in_progress','completed')
+                   ORDER BY
+                     CASE status WHEN 'in_progress' THEN 0
+                                 WHEN 'pending' THEN 1 ELSE 2 END,
+                     created_at DESC
+                   LIMIT 30"""
+            )
+            tasks = [dict(r) for r in cur.fetchall()]
+            cur.close()
+            conn.close()
+            return jsonify({"success": True, "tasks": tasks})
+        except Exception as e:
+            logger.error(f"Rosetta queue error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/translations/dispatch-gap", methods=["POST"])
+    @admin_required
+    def dispatch_translation_gap():
+        """Dispatch a single gap to R.O.S.E.T.T.A. immediately."""
+        from services.delegation_service import delegate_task
+
+        body = request.get_json(silent=True) or {}
+        gap_id = body.get("gap_id")
+        domain = body.get("domain", "")
+        language = body.get("language", "")
+        key = body.get("key", "")
+        if not all([gap_id, language, key]):
+            return jsonify({"success": False, "error": "gap_id, language, key required"}), 400
+        try:
+            cap = "semantic_describe" if language == "ai" else "translate"
+            result = delegate_task(
+                capability=cap,
+                reason=f"Manual dispatch: key='{key}' lang='{language}' domain:{domain}",
+                args={"language": language, "keys": [key], "sources": [f"domain:{domain}"], "gap_ids": [gap_id]},
+                delegation_source="user_cli",
+                requested_by="consciousness_languages_tab",
+                priority=7,
+            )
+            if result.get("success"):
+                conn = _get_db()
+                cur = conn.cursor()
+                cur.execute(
+                    "UPDATE translation_gaps SET status='routed', task_id=%s WHERE id=%s",
+                    (result.get("task_id"), gap_id),
+                )
+                conn.commit()
+                cur.close()
+                conn.close()
+            return jsonify(result)
+        except Exception as e:
+            logger.error(f"dispatch-gap error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500

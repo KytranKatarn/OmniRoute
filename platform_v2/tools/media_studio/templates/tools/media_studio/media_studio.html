@@ -2771,7 +2771,7 @@
                     info.className = 'ms-portrait-info';
                     var name = document.createElement('span');
                     name.className = 'ms-portrait-name';
-                    name.textContent = agent.display_name;
+                    name.textContent = agent.display_name || agent.name || '—';
                     info.appendChild(name);
 
                     var status = document.createElement('span');

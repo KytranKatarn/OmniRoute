@@ -17,6 +17,8 @@ def _schema():
     return os.environ.get("WTF_SCHEMA", "wtf")
 
 
+_PLATFORM = "https://platform.kytranempowerment.com"
+
 TEAM_AGENTS = [
     {
         "name": "F.A.C.T.",
@@ -25,6 +27,8 @@ TEAM_AGENTS = [
         "model": "gemma3:12b",
         "description": "F.A.C.T. leads every ingest cycle — selecting the stories most worth investigating deeply, coordinating the team, and ensuring coverage is fair and complete.",
         "coming_soon": False,
+        "portrait_url": _PLATFORM + "/static/media/images/2026-04-20/c78a58f0-ee5.png",
+        "accent_colour": "#dc2626",
     },
     {
         "name": "B.I.A.S.",
@@ -33,6 +37,8 @@ TEAM_AGENTS = [
         "model": "gemma2:9b",
         "description": "B.I.A.S. reads every priority article and scores it on the political spectrum, surfacing the trigger phrases and framing choices that reveal editorial perspective.",
         "coming_soon": False,
+        "portrait_url": _PLATFORM + "/static/media/images/2026-04-20/05821aee-a2e.png",
+        "accent_colour": "#f59e0b",
     },
     {
         "name": "V.E.R.I.F.Y.",
@@ -41,6 +47,8 @@ TEAM_AGENTS = [
         "model": "gemma2:9b",
         "description": "V.E.R.I.F.Y. extracts verifiable claims from each article and assigns a verdict — verified, mixed, disputed, or unverifiable — with reasoning.",
         "coming_soon": False,
+        "portrait_url": _PLATFORM + "/static/media/images/2026-04-20/5d0d0525-a4e.png",
+        "accent_colour": "#10b981",
     },
     {
         "name": "L.O.C.A.L.",
@@ -49,6 +57,8 @@ TEAM_AGENTS = [
         "model": "llama3.2:3b",
         "description": "L.O.C.A.L. maps every story to a Canadian province, tracks coverage gaps across regions, and identifies news deserts where communities go unheard.",
         "coming_soon": False,
+        "portrait_url": "",
+        "accent_colour": "#3b82f6",
     },
     {
         "name": "I.N.K.",
@@ -57,6 +67,8 @@ TEAM_AGENTS = [
         "model": "dolphin3",
         "description": "I.N.K. will detect investigative story threads across article clusters — finding the through-line when the same story unfolds across days and outlets.",
         "coming_soon": True,
+        "portrait_url": _PLATFORM + "/static/media/images/2026-04-20/9e1efa5f-5a7.png",
+        "accent_colour": "#6b7280",
     },
     {
         "name": "D.R.A.F.T.",
@@ -65,6 +77,8 @@ TEAM_AGENTS = [
         "model": "dolphin3",
         "description": "D.R.A.F.T. will generate WTF editorial summaries — translating dense news cycles into plain-language explainers.",
         "coming_soon": True,
+        "portrait_url": _PLATFORM + "/static/media/images/2026-04-20/70bc27b1-ede.png",
+        "accent_colour": "#6b7280",
     },
     {
         "name": "P.U.B.L.I.S.H.",
@@ -73,6 +87,8 @@ TEAM_AGENTS = [
         "model": "mistral:7b",
         "description": "P.U.B.L.I.S.H. will push top stories to social media and newsletter subscribers, bringing AI journalism to where Canadians actually consume news.",
         "coming_soon": True,
+        "portrait_url": _PLATFORM + "/static/media/images/2026-04-20/e7149ec2-f73.png",
+        "accent_colour": "#6b7280",
     },
 ]
 

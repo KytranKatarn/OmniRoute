@@ -25,25 +25,27 @@ def execute(page, params: dict) -> dict:
     if not any([tagline, description, website, industry]):
         raise ValueError("At least one field required: tagline, description, website, industry")
 
-    admin_url = f"https://www.linkedin.com/company/{company_slug}/admin/overview/"
-    page.goto(admin_url, wait_until="domcontentloaded")
+    # Navigate to company page — LinkedIn auto-redirects admins to admin view
+    company_url = f"https://www.linkedin.com/company/{company_slug}/"
+    page.goto(company_url, wait_until="domcontentloaded")
     page.wait_for_timeout(3000)
     _screenshot(page, "company_before")
 
-    # Dismiss any open modal
     try:
         page.keyboard.press("Escape")
         page.wait_for_timeout(500)
     except Exception:
         pass
 
-    # Click "Edit page" button
+    # Click "Edit Page" — appears in left sidebar on admin view
     opened = False
     for btn in [
-        lambda: page.get_by_role("button", name="Edit page", exact=False).first.click(timeout=8000),
+        lambda: page.get_by_role("link", name="Edit Page", exact=True).click(timeout=8000),
+        lambda: page.locator('a:has-text("Edit Page")').first.click(timeout=8000),
         lambda: page.get_by_role("link", name="Edit page", exact=False).first.click(timeout=8000),
-        lambda: page.locator('button:has-text("Edit page")').first.click(timeout=8000),
-        lambda: page.locator('a:has-text("Edit page")').first.click(timeout=8000),
+        lambda: page.locator('nav a:has-text("Edit")').first.click(timeout=6000),
+        # Fallback: top-right edit button on public view
+        lambda: page.get_by_role("button", name="Edit page", exact=False).first.click(timeout=6000),
         lambda: page.locator('[data-control-name="page_edit"]').first.click(timeout=6000),
     ]:
         try:
@@ -63,7 +65,7 @@ def execute(page, params: dict) -> dict:
     updated_fields = []
     errors = []
 
-    # Tagline
+    # Tagline is on the default "Page info" tab
     if tagline:
         for field in [
             lambda: page.get_by_label("Tagline", exact=False).first.fill(tagline, timeout=6000),
@@ -77,12 +79,29 @@ def execute(page, params: dict) -> dict:
             except Exception:
                 continue
 
-    # Description
+    # Description, website, industry are under "About → Details" tab in the edit modal
+    if description or website or industry:
+        for details_btn in [
+            lambda: page.get_by_role("button", name="Details", exact=True).click(timeout=6000),
+            lambda: page.locator('button:has-text("Details")').first.click(timeout=6000),
+            lambda: page.get_by_text("Details", exact=True).first.click(timeout=6000),
+        ]:
+            try:
+                details_btn()
+                page.wait_for_timeout(1500)
+                break
+            except Exception:
+                continue
+
+    # Description / Overview
     if description:
         for field in [
+            lambda: page.get_by_label("Overview", exact=False).first.fill(description, timeout=6000),
             lambda: page.get_by_label("Description", exact=False).first.fill(description, timeout=6000),
+            lambda: page.locator('textarea[id*="overview"]').first.fill(description, timeout=5000),
             lambda: page.locator('textarea[id*="description"]').first.fill(description, timeout=5000),
             lambda: page.locator('textarea[name*="description"]').first.fill(description, timeout=5000),
+            lambda: page.locator('textarea').last.fill(description, timeout=5000),
         ]:
             try:
                 field()

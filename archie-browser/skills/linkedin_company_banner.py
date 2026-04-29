@@ -118,8 +118,8 @@ def execute(page, params: dict) -> dict:
     if not os.path.exists(banner_path):
         raise ValueError(f"banner_path not found: {banner_path}")
 
-    admin_url = f"https://www.linkedin.com/company/{company_slug}/admin/overview/"
-    page.goto(admin_url, wait_until="domcontentloaded")
+    company_url = f"https://www.linkedin.com/company/{company_slug}/"
+    page.goto(company_url, wait_until="domcontentloaded")
     page.wait_for_timeout(3000)
     _screenshot(page, "company_banner_before")
 

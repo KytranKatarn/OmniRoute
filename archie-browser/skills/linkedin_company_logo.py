@@ -23,8 +23,8 @@ def execute(page, params: dict) -> dict:
     if not os.path.exists(logo_path):
         raise ValueError(f"logo_path not found: {logo_path}")
 
-    admin_url = f"https://www.linkedin.com/company/{company_slug}/admin/overview/"
-    page.goto(admin_url, wait_until="domcontentloaded")
+    company_url = f"https://www.linkedin.com/company/{company_slug}/"
+    page.goto(company_url, wait_until="domcontentloaded")
     page.wait_for_timeout(3000)
     _screenshot(page, "company_logo_before")
 

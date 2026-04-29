@@ -33,7 +33,14 @@ def _decrypt(ciphertext: str) -> str:
 def _get_conn():
     import psycopg2
     import psycopg2.extras
-    conn = psycopg2.connect(os.getenv("DATABASE_URL", ""))
+    dsn = os.getenv("DATABASE_URL") or psycopg2.extensions.make_dsn(
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=int(os.getenv("DB_PORT", "5432")),
+        dbname=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
+    )
+    conn = psycopg2.connect(dsn)
     conn.cursor_factory = psycopg2.extras.RealDictCursor
     return conn
 

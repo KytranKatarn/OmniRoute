@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% block title %}Faith — A.R.C.H.I.E.{% endblock %}
+{% block content %}
+<div class="module-container">
+  <div class="module-header">
+    <h1 class="module-title">FAITH</h1>
+    <p class="module-subtitle">F.A.I.T.H. — Faithful AI for Inspired Theological Heritage</p>
+    <div class="module-nav" id="faithNav">
+      <button class="module-tab active" onclick="switchFaithTab('chat', this)">Chat</button>
+      <button class="module-tab" onclick="switchFaithTab('practices', this)">Practices</button>
+      <button class="module-tab" onclick="switchFaithTab('journal', this)">Journal</button>
+    </div>
+  </div>
+
+  <!-- TAB: Chat -->
+  <div id="faith-tab-chat" class="module-tab-panel">
+    <div id="faithMessages" class="chat-messages" style="min-height:300px;max-height:500px;overflow-y:auto;padding:12px;margin-bottom:12px;background:var(--archie-surface);border-radius:4px;"></div>
+    <div id="faithCrisisAlert" style="display:none;background:#2a0000;border:1px solid #f44;border-radius:4px;padding:10px;margin-bottom:10px;color:#fcc;">
+      <strong>Crisis resources:</strong> Text HOME to 741741 &middot; Call/text 988
+      <button onclick="document.getElementById('faithCrisisAlert').style.display='none'" style="float:right;background:none;border:none;color:#f44;cursor:pointer;">&times;</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <textarea id="faithInput" placeholder="Ask F.A.I.T.H. about scripture, faith, prayer, doubt..." rows="2" class="form-control" style="flex:1;resize:none;"></textarea>
+      <button onclick="faithSendChat()" class="btn btn-primary">Send</button>
+    </div>
+    <div style="text-align:right;">
+      <button onclick="openEmmanuelModal()" class="btn btn-secondary btn-sm">Connect with Emmanuel &rarr;</button>
+    </div>
+  </div>
+
+  <!-- TAB: Practices -->
+  <div id="faith-tab-practices" class="module-tab-panel" style="display:none;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:16px;">
+      <div class="card" style="cursor:pointer;text-align:center;padding:16px;" onclick="loadDevotional()">
+        <div style="font-size:2em;">📅</div>
+        <h4>Daily Devotional</h4>
+        <p style="font-size:12px;color:var(--archie-text-muted);">Scripture + reflection for today</p>
+      </div>
+      <div class="card" style="cursor:pointer;text-align:center;padding:16px;" onclick="openPrayerModal()">
+        <div style="font-size:2em;">🙏</div>
+        <h4>Guided Prayer</h4>
+        <p style="font-size:12px;color:var(--archie-text-muted);">Structured prayer in 4 movements</p>
+      </div>
+      <div class="card" style="cursor:pointer;text-align:center;padding:16px;" onclick="openScriptureModal()">
+        <div style="font-size:2em;">📜</div>
+        <h4>Scripture Search</h4>
+        <p style="font-size:12px;color:var(--archie-text-muted);">Find verses by topic or emotion</p>
+      </div>
+      <div class="card" style="cursor:pointer;text-align:center;padding:16px;" onclick="openLectioModal()">
+        <div style="font-size:2em;">✨</div>
+        <h4>Lectio Divina</h4>
+        <p style="font-size:12px;color:var(--archie-text-muted);">Guided slow reading of scripture</p>
+      </div>
+      <div class="card" style="cursor:pointer;text-align:center;padding:16px;" onclick="openCheckinModal()">
+        <div style="font-size:2em;">💚</div>
+        <h4>Faith Check-In</h4>
+        <p style="font-size:12px;color:var(--archie-text-muted);">How is your faith today?</p>
+      </div>
+    </div>
+    <div id="practiceResult" style="display:none;background:var(--archie-surface);border-radius:4px;padding:16px;white-space:pre-wrap;line-height:1.6;"></div>
+  </div>
+
+  <!-- TAB: Journal -->
+  <div id="faith-tab-journal" class="module-tab-panel" style="display:none;">
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <button onclick="showJournalForm()" class="btn btn-primary">+ New Entry</button>
+      <button onclick="loadJournal()" class="btn btn-secondary">Refresh</button>
+    </div>
+    <div id="journalForm" style="display:none;background:var(--archie-surface);border-radius:4px;padding:16px;margin-bottom:12px;">
+      <input id="journalTitle" type="text" placeholder="Title (optional)" class="form-control" style="margin-bottom:8px;width:100%;">
+      <textarea id="journalContent" placeholder="Your reflection..." rows="4" class="form-control" style="margin-bottom:8px;width:100%;"></textarea>
+      <input id="journalScripture" type="text" placeholder="Scripture reference (optional)" class="form-control" style="margin-bottom:8px;width:100%;">
+      <div style="display:flex;gap:8px;">
+        <button onclick="saveJournal()" class="btn btn-primary">Save</button>
+        <button onclick="document.getElementById('journalForm').style.display='none'" class="btn btn-secondary">Cancel</button>
+      </div>
+    </div>
+    <div id="journalEntries"></div>
+  </div>
+
+  <!-- Emmanuel modal -->
+  <div id="emmanuelModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:var(--archie-bg);border:1px solid var(--archie-primary);border-radius:8px;padding:24px;max-width:480px;width:90%;">
+      <h3 style="margin-bottom:4px;">Connect with Emmanuel Adeyemi</h3>
+      <p style="color:var(--archie-text-muted);font-size:13px;margin-bottom:12px;">Spiritual Care Coordinator &amp; Chaplain — he will respond by email.</p>
+      <textarea id="emmanuelMsg" placeholder="Share what's on your heart..." rows="4" class="form-control" style="width:100%;margin-bottom:10px;"></textarea>
+      <div style="display:flex;gap:8px;">
+        <button onclick="sendEmmanuel()" class="btn btn-primary">Send</button>
+        <button onclick="closeEmmanuelModal()" class="btn btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const FAITH_BASE = "/tools/faith/api/faith";
+
+function switchFaithTab(tab, btn) {
+  document.querySelectorAll(".module-tab-panel").forEach(function(p) { p.style.display = "none"; });
+  document.querySelectorAll(".module-tab").forEach(function(b) { b.classList.remove("active"); });
+  document.getElementById("faith-tab-" + tab).style.display = "block";
+  if (btn) btn.classList.add("active");
+  if (tab === "journal") loadJournal();
+}
+
+async function faithSendChat() {
+  var input = document.getElementById("faithInput");
+  var msg = input.value.trim();
+  if (!msg) return;
+  appendMsg("You", escHtml(msg));
+  input.value = "";
+  var loadEl = appendMsg("F.A.I.T.H.", "...");
+  try {
+    var res = await fetch(FAITH_BASE + "/chat", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({message: msg})});
+    var data = await res.json();
+    var responseHtml = data.response ? escHtml(data.response).replace(/\n/g,"<br>") : "Sorry, I could not respond.";
+    setHtml(loadEl.querySelector(".msg-body"), responseHtml);
+    if (data.crisis_detected) document.getElementById("faithCrisisAlert").style.display = "block";
+  } catch (err) {
+    setHtml(loadEl.querySelector(".msg-body"), "Error contacting F.A.I.T.H. Please try again.");
+  }
+}
+
+function appendMsg(sender, bodyHtml) {
+  var container = document.getElementById("faithMessages");
+  var wrap = document.createElement("div");
+  wrap.className = "chat-message";
+  wrap.style.marginBottom = "12px";
+  var strong = document.createElement("strong");
+  strong.textContent = sender + ": ";
+  var body = document.createElement("span");
+  body.className = "msg-body";
+  setHtml(body, bodyHtml);
+  wrap.appendChild(strong);
+  wrap.appendChild(body);
+  container.appendChild(wrap);
+  container.scrollTop = container.scrollHeight;
+  return wrap;
+}
+
+async function loadDevotional() {
+  showPracticeResult("Loading today's devotional...");
+  try {
+    var res = await fetch(FAITH_BASE + "/devotional");
+    var data = await res.json();
+    showPracticeResult(data.response || "Could not load devotional.");
+  } catch (err) {
+    showPracticeResult("Error loading devotional.");
+  }
+}
+
+function showPracticeResult(text) {
+  var el = document.getElementById("practiceResult");
+  el.style.display = "block";
+  setHtml(el, escHtml(text).replace(/\n/g,"<br>").replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>"));
+}
+
+async function openScriptureModal() {
+  var query = prompt("What are you looking for? (topic, emotion, or situation)");
+  if (!query) return;
+  showPracticeResult("Searching scripture...");
+  try {
+    var res = await fetch(FAITH_BASE + "/scripture-search", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({query: query})});
+    var data = await res.json();
+    showPracticeResult(data.response || "No results found.");
+  } catch (err) {
+    showPracticeResult("Error searching scripture.");
+  }
+}
+
+async function openPrayerModal() {
+  var type = prompt("Prayer type (general / thanksgiving / confession / intercession / lament)", "general") || "general";
+  showPracticeResult("Preparing your prayer...");
+  try {
+    var res = await fetch(FAITH_BASE + "/prayer", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({type: type})});
+    var data = await res.json();
+    showPracticeResult(data.response || "Could not generate prayer.");
+  } catch (err) {
+    showPracticeResult("Error generating prayer.");
+  }
+}
+
+async function openLectioModal() {
+  var passage = prompt("Which passage? (leave blank for Psalm 23)") || "Psalm 23";
+  showPracticeResult("Preparing Lectio Divina...");
+  try {
+    var res = await fetch(FAITH_BASE + "/lectio", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({passage: passage})});
+    var data = await res.json();
+    showPracticeResult(data.response || "Could not load Lectio Divina.");
+  } catch (err) {
+    showPracticeResult("Error loading Lectio Divina.");
+  }
+}
+
+async function openCheckinModal() {
+  var score = prompt("How is your faith today? Rate 1 (struggling) to 5 (flourishing)");
+  if (!score || isNaN(parseInt(score))) return;
+  var reflection = prompt("Optional: share a brief reflection") || "";
+  try {
+    var res = await fetch(FAITH_BASE + "/checkin", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({score: parseInt(score), reflection: reflection})});
+    var data = await res.json();
+    alert(data.success ? "Check-in saved. Thank you." : "Could not save check-in.");
+  } catch (err) {
+    alert("Error saving check-in.");
+  }
+}
+
+async function loadJournal() {
+  try {
+    var res = await fetch(FAITH_BASE + "/journal");
+    var data = await res.json();
+    var container = document.getElementById("journalEntries");
+    if (!data.entries || data.entries.length === 0) {
+      setHtml(container, "<p style='color:var(--archie-text-muted)'>No entries yet. Start writing.</p>");
+      return;
+    }
+    var html = data.entries.map(function(e) {
+      return "<div style='border:1px solid var(--archie-border);border-radius:4px;padding:12px;margin-bottom:8px;'>" +
+        "<div style='font-size:11px;color:var(--archie-text-muted);margin-bottom:4px;'>" + escHtml(new Date(e.created_at).toLocaleDateString()) + "</div>" +
+        (e.title ? "<h4 style='margin:0 0 6px;color:var(--archie-primary)'>" + escHtml(e.title) + "</h4>" : "") +
+        "<p style='margin:0 0 6px;'>" + escHtml(e.content) + "</p>" +
+        (e.scripture_ref ? "<div style='font-size:11px;color:var(--archie-success);'>📖 " + escHtml(e.scripture_ref) + "</div>" : "") +
+        "</div>";
+    }).join("");
+    setHtml(container, html);
+  } catch (err) {
+    setHtml(document.getElementById("journalEntries"), "<p style='color:var(--archie-text-muted)'>Error loading journal.</p>");
+  }
+}
+
+function showJournalForm() { document.getElementById("journalForm").style.display = "block"; }
+
+async function saveJournal() {
+  var content = document.getElementById("journalContent").value.trim();
+  if (!content) { alert("Please write something first."); return; }
+  try {
+    var res = await fetch(FAITH_BASE + "/journal", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
+      title: document.getElementById("journalTitle").value.trim(),
+      content: content,
+      scripture_ref: document.getElementById("journalScripture").value.trim(),
+      tags: []
+    })});
+    var data = await res.json();
+    if (data.success) {
+      document.getElementById("journalForm").style.display = "none";
+      document.getElementById("journalContent").value = "";
+      document.getElementById("journalTitle").value = "";
+      document.getElementById("journalScripture").value = "";
+      loadJournal();
+    }
+  } catch (err) {
+    alert("Error saving journal entry.");
+  }
+}
+
+function openEmmanuelModal() { document.getElementById("emmanuelModal").style.display = "flex"; }
+function closeEmmanuelModal() { document.getElementById("emmanuelModal").style.display = "none"; }
+
+async function sendEmmanuel() {
+  var message = document.getElementById("emmanuelMsg").value.trim();
+  if (!message) { alert("Please write a message."); return; }
+  try {
+    var res = await fetch(FAITH_BASE + "/connect-chaplain", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({message: message})});
+    var data = await res.json();
+    alert(data.message || "Sent.");
+    closeEmmanuelModal();
+    document.getElementById("emmanuelMsg").value = "";
+  } catch (err) {
+    alert("Error sending message.");
+  }
+}
+</script>
+{% endblock %}

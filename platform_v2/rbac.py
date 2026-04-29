@@ -104,6 +104,9 @@ class Permission(Enum):
     READ_ALL = "read:all"
     WRITE_ALL = "write:all"
 
+    # Applications permissions
+    FAITH_ACCESS = "faith:access"
+
     # Autonomy permissions
     AUTONOMY_MANAGE = "autonomy:manage"
 

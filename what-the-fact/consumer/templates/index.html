@@ -124,6 +124,8 @@ L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
 }).addTo(map);
 
 var provinceLayer = null;
+var clusterLayer = null;
+var pinLayer = null;
 var WTF_TECH_URL = {{ wtf_tech_url | tojson }};
 
 function esc(s) {
@@ -235,9 +237,103 @@ function timeAgo(iso) {
   return Math.floor(mins / 60) + "h ago";
 }
 
+var PROVINCE_CENTROIDS = {
+  "ON":[51.25,-85.32],"QC":[53.00,-70.00],"BC":[53.73,-127.65],
+  "AB":[53.93,-116.58],"SK":[52.94,-106.45],"MB":[56.42,-98.74],
+  "NB":[46.57,-66.46],"NS":[44.68,-63.74],"NL":[53.14,-57.66],
+  "PE":[46.51,-63.42],"YT":[64.28,-135.00],"NT":[64.28,-119.18],"NU":[70.30,-83.11]
+};
+var PROVINCE_COLOURS = {
+  "ON":"#0af","QC":"#a78bfa","AB":"#f59e0b","BC":"#4ade80",
+  "SK":"#34d399","MB":"#60a5fa","NS":"#f97316","NB":"#f97316",
+  "NL":"#94a3b8","PE":"#94a3b8","YT":"#94a3b8","NT":"#94a3b8","NU":"#94a3b8"
+};
+
+function loadArticlesGeo() {
+  fetch(WTF_TECH_URL + "/api/v1/articles/geo")
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var articles = data.articles || [];
+
+      // Layer 2: Province cluster badges
+      if (clusterLayer) map.removeLayer(clusterLayer);
+      clusterLayer = L.layerGroup();
+      var provinceCounts = {};
+      articles.forEach(function(a) {
+        if (a.province_code) {
+          provinceCounts[a.province_code] = (provinceCounts[a.province_code] || 0) + 1;
+        }
+      });
+      Object.keys(provinceCounts).forEach(function(pc) {
+        var centroid = PROVINCE_CENTROIDS[pc];
+        if (!centroid) return;
+        var count = provinceCounts[pc];
+        var radius = Math.min(6 + count * 0.4, 20);
+        var colour = PROVINCE_COLOURS[pc] || "#9ca3af";
+        var circle = L.circleMarker(centroid, {
+          radius: radius,
+          fillColor: colour,
+          fillOpacity: 0.85,
+          color: "#ffffff",
+          weight: 1.5,
+        });
+        circle.bindTooltip(pc + " · " + count + " stories");
+        circle.on("click", function() { map.setView(centroid, 6); });
+        clusterLayer.addLayer(circle);
+        var label = L.marker(centroid, {
+          icon: L.divIcon({
+            html: "<div style='font-size:9px;font-family:monospace;color:#fff;text-align:center;line-height:1;margin-top:-3px;'>" + count + "</div>",
+            className: "",
+            iconSize: [20, 12],
+            iconAnchor: [10, 6],
+          }),
+          interactive: false,
+        });
+        clusterLayer.addLayer(label);
+      });
+      clusterLayer.addTo(map);
+
+      // Layer 3: Individual bias pins (hidden at zoom < 5)
+      if (pinLayer) map.removeLayer(pinLayer);
+      pinLayer = L.layerGroup();
+      var currentZoom = map.getZoom();
+      var pinOpacity = currentZoom >= 5 ? 0.9 : 0;
+      articles.forEach(function(a) {
+        if (!a.lat || !a.lng) return;
+        var colour = BIAS_COLOURS[a.bias_band] || BIAS_COLOURS["center"];
+        var pin = L.circleMarker([a.lat, a.lng], {
+          radius: 5,
+          fillColor: colour,
+          fillOpacity: pinOpacity,
+          color: colour,
+          weight: 1,
+          opacity: pinOpacity,
+        });
+        pin.bindTooltip(esc(a.source_name || "") + " — " + esc(a.bias_band || "center"));
+        pin.on("click", function() { window.location = "/article/" + a.id; });
+        pinLayer.addLayer(pin);
+      });
+      pinLayer.addTo(map);
+
+      // Zoom listener: reveal pins at zoom >= 5
+      map.off("zoomend.pins");
+      map.on("zoomend.pins", function() {
+        var opacity = map.getZoom() >= 5 ? 0.9 : 0;
+        pinLayer.eachLayer(function(layer) {
+          layer.setStyle({ fillOpacity: opacity, opacity: opacity });
+        });
+      });
+    })
+    .catch(function(e) {
+      console.warn("WTF geo pins load failed:", e);
+    });
+}
+
 loadMapData();
 loadAgentActivity();
+loadArticlesGeo();
 setInterval(loadMapData, 1800000);      // refresh map every 30 min
 setInterval(loadAgentActivity, 60000);  // refresh activity every 1 min
+setInterval(loadArticlesGeo, 1800000);  // refresh geo pins every 30 min
 </script>
 {% endblock %}

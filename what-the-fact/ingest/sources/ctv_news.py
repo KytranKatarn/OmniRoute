@@ -1,12 +1,11 @@
-"""CTV News RSS fetcher."""
-from .rss_generic import fetch_rss
+"""CTV News RSS fetcher — RSS discontinued as of 2026-04-29, all URLs 404."""
 
 SOURCE_SLUG = "ctv_news"
 SOURCE_NAME = "CTV News"
 SOURCE_URL = "https://www.ctvnews.ca"
-RSS_URL = "https://www.ctvnews.ca/rss/ctvnews-ca-top-stories-1.822066"
+RSS_URL = ""  # RSS feed discontinued
 BIAS_LEAN = "center"
 
 
 def fetch_articles() -> list[dict]:
-    return fetch_rss(RSS_URL, SOURCE_SLUG)
+    return []

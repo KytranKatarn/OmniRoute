@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+body { background: #0a0a12; color: #e0e0e0; font-family: 'IBM Plex Mono', monospace, sans-serif; margin: 0; }
+.wtf-trans-hero { background: #050d1a; padding: 30px 20px; text-align: center; border-bottom: 2px solid #a0f; }
+.wtf-trans-hero h1 { font-size: 22px; letter-spacing: 3px; color: #a0f; margin: 0 0 8px; }
+.wtf-trans-hero p { font-size: 12px; color: #666; max-width: 600px; margin: 0 auto; line-height: 1.6; }
+.wtf-trans-stats { display: flex; gap: 0; border-bottom: 1px solid #112233; }
+.wtf-stat { flex: 1; padding: 20px; text-align: center; border-right: 1px solid #112233; }
+.wtf-stat:last-child { border-right: none; }
+.wtf-stat-num { font-size: 28px; color: #0af; font-weight: bold; }
+.wtf-stat-label { font-size: 10px; color: #555; letter-spacing: 1px; margin-top: 4px; }
+.wtf-trans-container { max-width: 860px; margin: 0 auto; padding: 30px 16px; }
+.wtf-section { margin-bottom: 36px; }
+.wtf-section-title { font-size: 14px; letter-spacing: 2px; color: #a0f; border-bottom: 1px solid #1a0a3a; padding-bottom: 8px; margin-bottom: 16px; }
+.wtf-method-block { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 16px; margin-bottom: 12px; }
+.wtf-method-block h4 { font-size: 12px; color: #0af; margin: 0 0 8px; }
+.wtf-method-block p, .wtf-method-block li { font-size: 11px; color: #888; line-height: 1.7; }
+.wtf-method-block ul { margin: 0; padding-left: 16px; }
+.wtf-code { background: #050e18; border: 1px solid #1a2a3a; border-radius: 3px; padding: 10px; font-family: monospace; font-size: 10px; color: #4a9; overflow-x: auto; margin: 8px 0; }
+.wtf-band-row { display: flex; align-items: center; gap: 10px; margin: 4px 0; font-size: 11px; }
+.wtf-band-chip { width: 70px; padding: 2px 6px; border-radius: 2px; font-size: 9px; text-align: center; flex-shrink: 0; }
+.wtf-agent-card { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 12px; margin-bottom: 10px; }
+.wtf-agent-card h4 { color: #f80; font-size: 12px; margin: 0 0 4px; }
+.wtf-agent-card .model { color: #4a9; font-size: 10px; font-family: monospace; margin-bottom: 8px; }
+.wtf-agent-card .prompt-preview { background: #050e18; border-radius: 3px; padding: 8px; font-size: 10px; color: #666; font-style: italic; line-height: 1.5; }
+.wtf-flag-box { background: #0a1020; border: 1px solid #a0f; border-radius: 4px; padding: 16px; text-align: center; }
+.wtf-flag-box h4 { color: #a0f; font-size: 13px; margin: 0 0 8px; }
+.wtf-flag-box p { font-size: 11px; color: #888; margin-bottom: 12px; }
+.wtf-flag-btn { background: #1a0a3a; border: 1px solid #a0f; color: #a0f; padding: 8px 16px; border-radius: 3px; text-decoration: none; font-size: 11px; font-family: inherit; cursor: pointer; }
+</style>
+
+<!-- Hero -->
+<div class="wtf-trans-hero">
+  <h1>RADICAL TRANSPARENCY</h1>
+  <p>We publish exactly how we score every article — every trigger term, every threshold, every prompt. If you think we got it wrong, tell us.</p>
+</div>
+
+<!-- Live Stats (last 7 days) -->
+<div class="wtf-trans-stats">
+  <div class="wtf-stat">
+    <div class="wtf-stat-num">{{ stats.total_articles or 0 }}</div>
+    <div class="wtf-stat-label">ARTICLES (7 DAYS)</div>
+  </div>
+  <div class="wtf-stat">
+    <div class="wtf-stat-num">{{ stats.ai_analyzed or 0 }}</div>
+    <div class="wtf-stat-label">AI ANALYZED</div>
+  </div>
+  <div class="wtf-stat">
+    <div class="wtf-stat-num">{{ stats.geolocated or 0 }}</div>
+    <div class="wtf-stat-label">GEOLOCATED</div>
+  </div>
+  <div class="wtf-stat">
+    <div class="wtf-stat-num">{{ stats.total_sources or 0 }}</div>
+    <div class="wtf-stat-label">SOURCES MONITORED</div>
+  </div>
+</div>
+
+<div class="wtf-trans-container">
+
+  <!-- Bias Scoring -->
+  <div class="wtf-section">
+    <div class="wtf-section-title">BIAS SCORING METHODOLOGY</div>
+
+    <div class="wtf-method-block">
+      <h4>Two-Tier System</h4>
+      <p>Every article receives a heuristic bias score on ingest. Priority articles (high cross-source overlap or strong heuristic signal) receive a full LLM analysis from B.I.A.S.</p>
+      <ul>
+        <li><strong>Tier 1 (Heuristic):</strong> Keyword frequency analysis against a weighted trigger-phrase list. Fast, runs on every article.</li>
+        <li><strong>Tier 2 (LLM):</strong> B.I.A.S. (gemma2:9b) reads title + body and returns a structured score with rationale and trigger phrases. Runs on priority articles.</li>
+      </ul>
+    </div>
+
+    <div class="wtf-method-block">
+      <h4>Bias Band Thresholds</h4>
+      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#0a1a40;color:#3b82f6">LEFT</span><span style="color:#888">score &lt; &minus;0.6</span></div>
+      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#0a1530;color:#93c5fd">CENTER-LEFT</span><span style="color:#888">&minus;0.6 &le; score &lt; &minus;0.2</span></div>
+      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#1a1a1a;color:#9ca3af">CENTER</span><span style="color:#888">&minus;0.2 &le; score &lt; 0.2</span></div>
+      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#2a1010;color:#fca5a5">CENTER-RIGHT</span><span style="color:#888">0.2 &le; score &lt; 0.6</span></div>
+      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#2a0a0a;color:#ef4444">RIGHT</span><span style="color:#888">score &ge; 0.6</span></div>
+    </div>
+
+    <div class="wtf-method-block">
+      <h4>F.A.C.T. Priority Scoring</h4>
+      <p>F.A.C.T. (gemma3:12b) assigns a priority score to each article each cycle. Articles scoring &ge; 1 join the AI analysis queue (up to 10 per cycle):</p>
+      <div class="wtf-code">score += 3  # same story in 3+ outlets
+score += 2  # heuristic bias |score| &gt; 0.5
+score += 1  # breaking keyword in title</div>
+    </div>
+  </div>
+
+  <!-- Fact-Check -->
+  <div class="wtf-section">
+    <div class="wtf-section-title">FACT-CHECK METHODOLOGY</div>
+    <div class="wtf-method-block">
+      <h4>V.E.R.I.F.Y. Claim Extraction</h4>
+      <p>V.E.R.I.F.Y. (gemma2:9b) reads priority articles and extracts verifiable factual claims. Each claim receives a verdict:</p>
+      <ul>
+        <li><strong>verified</strong> — claim confirmed by public record or widely accepted source</li>
+        <li><strong>mixed</strong> — claim is partly true or requires context</li>
+        <li><strong>disputed</strong> — claim contradicts known evidence</li>
+        <li><strong>unverifiable</strong> — claim cannot be confirmed or denied with available sources</li>
+      </ul>
+      <p>V.E.R.I.F.Y. does not have internet access. Verdicts are based on the model's training data. We flag this limitation prominently.</p>
+    </div>
+  </div>
+
+  <!-- Geolocation -->
+  <div class="wtf-section">
+    <div class="wtf-section-title">GEOLOCATION METHODOLOGY</div>
+    <div class="wtf-method-block">
+      <h4>L.O.C.A.L. Geo Extraction</h4>
+      <p>L.O.C.A.L. (llama3.2:3b) runs on every article and extracts the primary Canadian province and city. If the agent returns no confident result, a heuristic regex fallback scans for province names and city names in the title and first 500 characters of body text.</p>
+      <p>Coverage goal: &ge; 80% of articles have <code>province_code</code> populated within 24 hours of ingest.</p>
+    </div>
+  </div>
+
+  <!-- Agent Model Cards -->
+  <div class="wtf-section">
+    <div class="wtf-section-title">AGENT MODEL CARDS</div>
+
+    <div class="wtf-agent-card">
+      <h4>F.A.C.T. &mdash; Orchestrator</h4>
+      <div class="model">gemma3:12b &middot; News &amp; Media dept</div>
+      <div class="prompt-preview">"You are F.A.C.T. (Factual Analysis, Credibility &amp; Transparency), orchestrator of the What The Fact AI newsroom. Score each article for priority analysis&hellip;"</div>
+    </div>
+
+    <div class="wtf-agent-card" style="border-color:#f80;">
+      <h4 style="color:#f80;">B.I.A.S. &mdash; Bias Analyst</h4>
+      <div class="model">gemma2:9b &middot; News &amp; Media dept</div>
+      <div class="prompt-preview">"Analyze the bias of this Canadian news article. Return ONLY valid JSON: {score: float -1 to 1, band: string, rationale: string, trigger_phrases: list, confidence: float}"</div>
+    </div>
+
+    <div class="wtf-agent-card" style="border-color:#4a9;">
+      <h4 style="color:#4a9;">V.E.R.I.F.Y. &mdash; Fact-Checker</h4>
+      <div class="model">gemma2:9b &middot; News &amp; Media dept</div>
+      <div class="prompt-preview">"Fact-check the claims in this Canadian news article. Return ONLY valid JSON: {claims: [{text, verdict, reasoning}], overall_verdict: string, confidence: float}"</div>
+    </div>
+
+    <div class="wtf-agent-card">
+      <h4>L.O.C.A.L. &mdash; Geographic Intelligence Analyst</h4>
+      <div class="model">llama3.2:3b &middot; News &amp; Media dept</div>
+      <div class="prompt-preview">"Extract the primary Canadian location from this news article. Return ONLY valid JSON: {province_code, city, lat, lng, geo_scope, geo_confidence}"</div>
+    </div>
+  </div>
+
+  <!-- Known Limitations -->
+  <div class="wtf-section">
+    <div class="wtf-section-title">KNOWN LIMITATIONS</div>
+    <div class="wtf-method-block">
+      <ul>
+        <li>LLM analysis is based on training data &mdash; models do not have internet access or real-time fact databases.</li>
+        <li>Bias scoring reflects the LLM's interpretation, which may not match human expert consensus.</li>
+        <li>Geolocation misses international stories and articles with no explicit location mention.</li>
+        <li>Not all articles receive full AI analysis &mdash; only priority articles (top 10/cycle) get LLM treatment.</li>
+        <li>Outlet bias profiles are rolling averages; new outlets may be miscategorized early.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Flag a Score -->
+  <div class="wtf-section">
+    <div class="wtf-section-title">FLAG A SCORE</div>
+    <div class="wtf-flag-box">
+      <h4>Think we got it wrong?</h4>
+      <p>Flag any article score you believe is inaccurate. All flags are reviewed by V.E.R.I.F.Y. and factored into model improvement.</p>
+      <p style="font-size:10px;color:#555;">Use the "Flag this score" button on any article page, or POST to <code style="color:#a0f;">/api/v1/flag</code></p>
+    </div>
+  </div>
+
+  <!-- Live Scorer CTA -->
+  <div class="wtf-section">
+    <div class="wtf-section-title">LIVE ARTICLE SCORER</div>
+    <div class="wtf-method-block">
+      <h4>Score any text</h4>
+      <p>Submit any news text to the WTF pipeline and get a full bias + fact-check + geo analysis. Rate limit: 5 requests/day per IP.</p>
+      <p><a href="/score" style="color:#a0f;">Try the live scorer &rarr;</a></p>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

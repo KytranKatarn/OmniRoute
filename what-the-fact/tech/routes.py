@@ -1,6 +1,9 @@
 import os
+import threading
+import time
 import requests
-from flask import Blueprint, render_template, session, abort, redirect, url_for
+from collections import defaultdict
+from flask import Blueprint, current_app, render_template, session, abort, redirect, url_for
 from sqlalchemy import create_engine, text
 
 bp = Blueprint("wtf_tech", __name__)
@@ -21,6 +24,23 @@ def _schema():
 @bp.get("/")
 def index():
     return render_template("index.html")
+
+
+@bp.get("/transparency")
+def methodology():
+    """Public methodology / radical transparency page."""
+    S = _schema()
+    with _db().connect() as c:
+        stats = c.execute(text(f"""
+            SELECT
+                COUNT(*) AS total_articles,
+                COUNT(*) FILTER (WHERE ai_analyzed = TRUE) AS ai_analyzed,
+                COUNT(*) FILTER (WHERE province_code IS NOT NULL) AS geolocated,
+                (SELECT COUNT(*) FROM {S}.sources) AS total_sources
+            FROM {S}.articles
+            WHERE published_at >= NOW() - INTERVAL '7 days'
+        """)).fetchone()
+    return render_template("methodology.html", stats=stats)
 
 
 @bp.get("/transparency/<int:article_id>")
@@ -163,3 +183,124 @@ def analyze_article(article_id: int):
             )
 
     return jsonify({"ok": True, "results": results, "article_id": article_id})
+
+
+# ---------------------------------------------------------------------------
+# In-memory rate limiter for /api/v1/score
+# ---------------------------------------------------------------------------
+_score_calls: dict[str, list[float]] = defaultdict(list)
+_score_lock = threading.Lock()
+_SCORE_LIMIT = 5       # requests per day per IP
+_SCORE_WINDOW = 86400  # 24 hours in seconds
+
+
+def _check_rate_limit(ip: str) -> bool:
+    """Returns True if request is allowed, False if rate-limited. Thread-safe."""
+    now = time.time()
+    with _score_lock:
+        _score_calls[ip] = [t for t in _score_calls[ip] if now - t < _SCORE_WINDOW]
+        if len(_score_calls[ip]) >= _SCORE_LIMIT:
+            return False
+        _score_calls[ip].append(now)
+        return True
+
+
+@bp.post("/api/v1/score")
+def score():
+    """Live article scorer — rate-limited at 5 req/day per IP.
+
+    Request JSON: { "text": "article body here" }
+    Response: { "ok": true, "bias": {...}, "factcheck": {...}, "geo": {...}, "processing_ms": N }
+    """
+    from flask import jsonify, request as freq
+
+    HUB_URL = os.environ.get("WTF_HUB_URL", "")
+    HUB_TOKEN = os.environ.get("WTF_HUB_TOKEN", "")
+    if not HUB_URL or not HUB_TOKEN:
+        return jsonify({"ok": False, "error": "scorer not available"}), 503
+
+    client_ip = freq.headers.get("X-Forwarded-For", freq.remote_addr or "unknown").split(",")[0].strip()
+    if not _check_rate_limit(client_ip):
+        return jsonify({
+            "ok": False,
+            "error": "Rate limit exceeded. 5 free scores per day per IP.",
+            "limit": _SCORE_LIMIT,
+            "window_hours": 24,
+        }), 429
+
+    data = freq.get_json(force=True, silent=True) or {}
+    text_body = (data.get("text") or "")[:5000]
+    if not text_body:
+        return jsonify({"ok": False, "error": "text is required"}), 400
+
+    hub_timeout = int(os.environ.get("WTF_HUB_TIMEOUT", "10"))
+    start = time.time()
+    results = {}
+    for task in ("bias", "factcheck", "geo"):
+        try:
+            resp = requests.post(
+                f"{HUB_URL}/tools/wtf-hub/api/analyze",
+                json={"task": task, "article_id": 0, "title": "", "body": text_body},
+                headers={"Authorization": f"Bearer {HUB_TOKEN}"},
+                timeout=hub_timeout,
+            )
+            resp.raise_for_status()
+            d = resp.json()
+            if d.get("ok"):
+                results[task] = d.get("result")
+        except Exception as exc:
+            current_app.logger.warning("[WTF score] task=%s failed: %s", task, exc)
+
+    processing_ms = int((time.time() - start) * 1000)
+    return jsonify({
+        "ok": True,
+        "bias": results.get("bias"),
+        "factcheck": results.get("factcheck"),
+        "geo": results.get("geo"),
+        "analyzed_by": "BIAS_LLM + VERIFY_LLM + LOCAL_LLM",
+        "processing_ms": processing_ms,
+    })
+
+
+@bp.post("/api/v1/flag")
+def flag_score():
+    """User error-flagging endpoint — writes to wtf.score_flags.
+
+    Request JSON: { "article_id": 123, "flag_type": "bias_wrong", "reason": "..." }
+    Response: { "ok": true, "message": "Flag received. Thank you." }
+    """
+    from flask import jsonify, request as freq
+
+    data = freq.get_json(force=True, silent=True) or {}
+    article_id = data.get("article_id")
+    flag_type = data.get("flag_type", "other")
+    reason = (data.get("reason") or "")[:500]
+    client_ip = freq.headers.get("X-Forwarded-For", freq.remote_addr or "unknown").split(",")[0].strip()
+
+    valid_flag_types = {"bias_wrong", "fact_wrong", "geo_wrong", "other"}
+    if flag_type not in valid_flag_types:
+        flag_type = "other"
+
+    S = _schema()
+    try:
+        with _db().begin() as c:
+            c.execute(text(f"""
+                INSERT INTO {S}.score_flags (article_id, user_ip, flag_type, reason)
+                VALUES (:aid, :ip, :ft, :r)
+            """), {
+                "aid": article_id if isinstance(article_id, int) else None,
+                "ip": client_ip[:45],
+                "ft": flag_type,
+                "r": reason or None,
+            })
+    except Exception as exc:
+        bp.logger.error("[WTF flag] DB write failed: %s", exc)
+        return jsonify({"ok": False, "error": "flag could not be saved"}), 500
+
+    return jsonify({"ok": True, "message": "Flag received. Thank you for helping improve WTF."})
+
+
+@bp.get("/score")
+def score_page():
+    from flask import render_template as _rt
+    return _rt("score.html")

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+body { background: #0a0a12; color: #e0e0e0; font-family: 'IBM Plex Mono', monospace, sans-serif; }
+.wtf-score-container { max-width: 700px; margin: 40px auto; padding: 0 16px; }
+h1 { font-size: 18px; letter-spacing: 3px; color: #a0f; margin-bottom: 8px; }
+p { font-size: 11px; color: #666; margin-bottom: 20px; }
+textarea { width: 100%; height: 180px; background: #060d14; border: 1px solid #1a3a5a; color: #e0e0e0; padding: 12px; border-radius: 3px; font-family: inherit; font-size: 11px; box-sizing: border-box; resize: vertical; }
+.wtf-score-btn { background: #0a1a3a; border: 1px solid #a0f; color: #a0f; padding: 10px 20px; border-radius: 3px; cursor: pointer; font-size: 12px; font-family: inherit; margin-top: 10px; }
+.wtf-score-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+#wtf-score-result { margin-top: 16px; background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 14px; display: none; }
+.wtf-score-limit { font-size: 10px; color: #555; margin-top: 8px; }
+pre { font-size: 10px; color: #4a9; white-space: pre-wrap; word-break: break-word; }
+</style>
+<div class="wtf-score-container">
+  <h1>LIVE ARTICLE SCORER</h1>
+  <p>Paste any news text to get a full B.I.A.S. + V.E.R.I.F.Y. + L.O.C.A.L. analysis. Rate limit: 5 requests per day.</p>
+  <textarea id="wtf-text" placeholder="Paste news article text here…"></textarea>
+  <br>
+  <button class="wtf-score-btn" id="wtf-score-btn" onclick="scoreText()">Analyze Text →</button>
+  <div class="wtf-score-limit">5 free analyses per day per IP · <a href="/transparency" style="color:#a0f;">Methodology</a></div>
+  <div id="wtf-score-result">
+    <pre id="wtf-score-content"></pre>
+  </div>
+</div>
+<script>
+async function scoreText() {
+  const text = document.getElementById("wtf-text").value.trim();
+  if (!text) return;
+  const btn = document.getElementById("wtf-score-btn");
+  const result = document.getElementById("wtf-score-result");
+  const content = document.getElementById("wtf-score-content");
+  btn.disabled = true;
+  btn.textContent = "Analyzing…";
+  result.style.display = "block";
+  content.textContent = "Dispatching to B.I.A.S. + V.E.R.I.F.Y. + L.O.C.A.L. — may take up to 90 seconds…";
+  try {
+    const resp = await fetch("/api/v1/score", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({text})
+    });
+    const data = await resp.json();
+    if (resp.status === 429) {
+      content.textContent = "Rate limit reached: " + data.error;
+    } else if (data.ok) {
+      content.textContent = JSON.stringify(data, null, 2);
+    } else {
+      content.textContent = "Error: " + (data.error || "unknown");
+    }
+  } catch(e) {
+    content.textContent = "Network error: " + e.message;
+  }
+  btn.disabled = false;
+  btn.textContent = "Analyze Text →";
+}
+</script>
+{% endblock %}

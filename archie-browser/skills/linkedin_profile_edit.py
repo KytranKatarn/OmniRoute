@@ -9,48 +9,213 @@ _SCREENSHOTS_DIR = os.getenv("SCREENSHOTS_DIR", "/tmp/browser_screenshots")
 os.makedirs(_SCREENSHOTS_DIR, exist_ok=True)
 
 
+def _screenshot(page, name):
+    path = f"{_SCREENSHOTS_DIR}/{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+    page.screenshot(path=path)
+    return path
+
+
+def _click_first(page, attempts, label="button"):
+    for fn in attempts:
+        try:
+            fn()
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def _fill_modal_field(page, field_label_hints, value, timeout=10000):
+    """Try multiple strategies to fill a field inside an open modal."""
+    for hint in field_label_hints:
+        try:
+            page.get_by_label(hint, exact=False).first.fill(value, timeout=timeout)
+            return True
+        except Exception:
+            pass
+    # Fallback: input/textarea with matching id fragment
+    for frag in field_label_hints:
+        try:
+            page.locator(f'input[id*="{frag}"], textarea[id*="{frag}"]').first.fill(value, timeout=5000)
+            return True
+        except Exception:
+            pass
+    return False
+
+
 def execute(page, params: dict) -> dict:
     headline = params.get("headline", "").strip()
     about = params.get("about", "").strip()
+    industry = params.get("industry", "Technology, Information and Internet").strip()
 
     if not headline and not about:
         raise ValueError("At least one of headline or about is required")
 
     page.goto("https://www.linkedin.com/in/me/", wait_until="domcontentloaded")
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(3000)
+
+    # Close any stuck modal from a previous run
+    try:
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(500)
+    except Exception:
+        pass
+
+    _screenshot(page, "profile_before")
 
     updated_fields = []
+    errors = []
+
+    # ── HEADLINE ──────────────────────────────────────────────────────────────
     if headline:
-        try:
-            page.get_by_role("button", name="Edit intro").click(timeout=10000)
-        except Exception:
-            page.locator('[aria-label="Edit intro"]').click(timeout=10000)
-        page.wait_for_timeout(1500)
+        opened = _click_first(page, [
+            # Current LinkedIn UI — pencil near name/headline
+            lambda: page.locator('[aria-label*="Edit your name"]').first.click(timeout=8000),
+            lambda: page.locator('[aria-label*="Edit intro"]').first.click(timeout=8000),
+            lambda: page.get_by_role("button", name="Edit intro", exact=False).first.click(timeout=8000),
+            # Pencil icon at top-right of intro card (circle button near profile photo)
+            lambda: page.locator('section.artdeco-card button.artdeco-button--circle').first.click(timeout=8000),
+            lambda: page.locator('div.pv-text-details__left-panel').locator('..').locator('button').first.click(timeout=8000),
+        ], "headline edit button")
 
-        headline_field = page.locator('#single-line-text-form-component-profileEditFormElement-SUMMARY-headline')
-        if not headline_field.is_visible():
-            headline_field = page.get_by_label("Headline")
-        headline_field.fill(headline, timeout=10000)
-        page.get_by_role("button", name="Save").click(timeout=10000)
-        page.wait_for_timeout(2000)
-        updated_fields.append("headline")
+        if opened:
+            page.wait_for_timeout(2000)
+            _screenshot(page, "headline_modal_open")
+            filled = _fill_modal_field(page,
+                ["headline", "Headline", "SUMMARY-headline", "professional-headline"],
+                headline)
+            if filled:
+                # Industry is a required field — fill it to unblock Save
+                try:
+                    ind_field = page.get_by_label("Industry", exact=False).first
+                    ind_field.fill(industry, timeout=5000)
+                    page.wait_for_timeout(800)
+                    # Select first autocomplete suggestion
+                    page.locator('[role="option"]').first.click(timeout=4000)
+                    page.wait_for_timeout(500)
+                except Exception:
+                    pass  # Industry may already be set or not required in this account
+                _click_first(page, [
+                    lambda: page.get_by_role("button", name="Save", exact=True).last.click(timeout=8000),
+                    lambda: page.locator('button[aria-label="Save"]').last.click(timeout=5000),
+                ], "save headline")
+                page.wait_for_timeout(2000)
+                # Dismiss any post-save modal (e.g. "verify your profile")
+                for dismiss in [
+                    lambda: page.get_by_role("button", name="No thanks", exact=False).click(timeout=3000),
+                    lambda: page.keyboard.press("Escape"),
+                ]:
+                    try:
+                        dismiss()
+                        page.wait_for_timeout(500)
+                        break
+                    except Exception:
+                        pass
+                page.wait_for_timeout(1000)
+                updated_fields.append("headline")
+            else:
+                errors.append("headline_field_not_found")
+        else:
+            errors.append("headline_edit_button_not_found")
+            _screenshot(page, "headline_button_fail")
 
+    # ── ABOUT ─────────────────────────────────────────────────────────────────
     if about:
-        page.locator('section[data-section="summary"] button[aria-label*="Edit"]').first.click(timeout=10000)
-        page.wait_for_timeout(1000)
-        ta = page.locator('textarea[id*="summary"], div.ql-editor[data-placeholder*="summary"]').first
-        ta.clear()
-        ta.fill(about, timeout=10000)
-        page.locator('button[aria-label="Save"]').first.click(timeout=10000)
-        page.wait_for_timeout(2000)
-        updated_fields.append("about")
+        # Check if About section already exists
+        has_about = False
+        try:
+            page.locator("#about").first.wait_for(state="attached", timeout=3000)
+            has_about = True
+        except Exception:
+            pass
 
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    screenshot_path = f"{_SCREENSHOTS_DIR}/linkedin_profile_{ts}.png"
-    page.screenshot(path=screenshot_path)
+        if has_about:
+            # Scroll to About, then click its edit pencil
+            try:
+                page.locator("#about").first.scroll_into_view_if_needed(timeout=5000)
+                page.wait_for_timeout(1000)
+            except Exception:
+                pass
+            def _js_click_about_edit():
+                result = page.evaluate("""() => {
+                    const h = document.getElementById('about');
+                    if (!h) return false;
+                    const section = h.closest('section');
+                    if (!section) return false;
+                    const btns = section.querySelectorAll('button');
+                    for (const b of btns) {
+                        const lbl = (b.getAttribute('aria-label') || b.textContent || '').toLowerCase();
+                        if (lbl.includes('edit')) { b.click(); return true; }
+                    }
+                    return false;
+                }""")
+                if not result:
+                    raise Exception("about edit button not found via JS")
+
+            opened = _click_first(page, [
+                _js_click_about_edit,
+                lambda: page.locator('[aria-label="Edit About section"]').click(timeout=5000),
+                lambda: page.locator('[aria-label*="Edit about"]').first.click(timeout=5000),
+                lambda: page.locator('section:has(#about)').get_by_role("button").filter(has_text="Edit").first.click(timeout=5000),
+            ], "about edit button")
+        else:
+            # Add About section via "Add profile section"
+            opened = _click_first(page, [
+                lambda: page.get_by_role("button", name="Add profile section", exact=False).click(timeout=8000),
+                lambda: page.locator('button:has-text("Add profile section")').click(timeout=8000),
+            ], "add profile section")
+            if opened:
+                page.wait_for_timeout(1500)
+                _screenshot(page, "add_section_menu")
+                # Look for About option in the dropdown/modal
+                _click_first(page, [
+                    lambda: page.get_by_role("button", name="About", exact=True).click(timeout=6000),
+                    lambda: page.get_by_role("menuitem", name="About", exact=False).click(timeout=6000),
+                    lambda: page.locator('button:has-text("About")').first.click(timeout=6000),
+                    lambda: page.get_by_text("About", exact=True).first.click(timeout=6000),
+                ], "about menu item")
+
+        if opened:
+            page.wait_for_timeout(2000)
+            _screenshot(page, "about_modal_open")
+            # Fill the about textarea — try multiple approaches
+            filled = False
+            for sel in [
+                'textarea[id*="summary"]',
+                'textarea[id*="about"]',
+                'div.ql-editor',
+                '[contenteditable="true"]',
+                'textarea',
+            ]:
+                try:
+                    loc = page.locator(sel).last
+                    loc.wait_for(state="visible", timeout=5000)
+                    loc.click(timeout=3000)
+                    loc.fill(about, timeout=15000)
+                    filled = True
+                    break
+                except Exception:
+                    pass
+
+            if filled:
+                page.wait_for_timeout(500)
+                _click_first(page, [
+                    lambda: page.get_by_role("button", name="Save", exact=True).last.click(timeout=8000),
+                    lambda: page.locator('button[aria-label="Save"]').last.click(timeout=5000),
+                ], "save about")
+                page.wait_for_timeout(2000)
+                updated_fields.append("about")
+            else:
+                errors.append("about_field_not_found")
+        else:
+            errors.append("about_section_button_not_found")
+            _screenshot(page, "about_button_fail")
+
+    final_screenshot = _screenshot(page, "profile_after")
     return {
-        "success": True,
-        "result": f"Updated LinkedIn profile fields: {', '.join(updated_fields)}",
+        "success": len(updated_fields) > 0,
+        "result": f"Updated: {', '.join(updated_fields)}" if updated_fields else "No fields updated",
         "updated_fields": updated_fields,
-        "screenshot_path": screenshot_path,
+        "errors": errors,
+        "screenshot_path": final_screenshot,
     }

@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sys
 from typing import Optional
 
@@ -167,6 +168,8 @@ def main() -> None:
     # Find active brainstorm session
     screen_dir, _state_dir = find_session_dir()
 
+    element_not_found = False
+
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as pw:
@@ -181,7 +184,6 @@ def main() -> None:
         page.screenshot(path=tmp_ss, full_page=True)
 
         if screen_dir:
-            import shutil
             ss_dest = os.path.join(screen_dir, "inspect_screenshot.png")
             shutil.copy2(tmp_ss, ss_dest)
             # Write brainstorm screen pointing at the screenshot
@@ -207,8 +209,12 @@ def main() -> None:
             )
             user_input = input(">>> ").strip()
             if user_input.startswith("x="):
-                parts = user_input.split()
-                xy = (int(parts[0][2:]), int(parts[1][2:]))
+                try:
+                    parts = user_input.split()
+                    xy = (int(parts[0][2:]), int(parts[1][2:]))
+                except (IndexError, ValueError):
+                    print("[inspect] ERROR: coordinates must be 'x=N y=M' e.g. 'x=456 y=789'", file=sys.stderr)
+                    sys.exit(1)
             elif user_input.startswith("text="):
                 selector = f':text("{user_input[5:]}")'
             else:
@@ -216,29 +222,29 @@ def main() -> None:
 
         # Inspect the element
         details = get_element_details(page, selector=selector, xy=xy)
+        element_not_found = not details["found"]
 
-        if not details["found"]:
-            label = selector or f"x={xy[0]},y={xy[1]}"
+        if element_not_found:
+            label = selector or (f"x={xy[0]},y={xy[1]}" if xy else "unknown")
             print(f"[inspect] ERROR: No element found for '{label}'", file=sys.stderr)
-            browser.close()
-            sys.exit(1)
 
-        # Draw highlight on screenshot
-        highlighted_path = "/tmp/inspect_highlighted.png"
-        draw_highlight(tmp_ss, highlighted_path, details["bounding_box"])
-        if screen_dir:
-            import shutil
-            shutil.copy2(highlighted_path, os.path.join(screen_dir, "inspect_highlighted.png"))
-            # Update brainstorm screen with highlighted version
-            html_path = os.path.join(screen_dir, "inspect_result.html")
-            with open(html_path, "w") as f:
-                f.write(
-                    f'<h2>{details["tag"]}#{details["id"]} .{" .".join(details["classes"][:3])}</h2>'
-                    '<p class="subtitle">Element identified — see JSON output in terminal</p>'
-                    '<img src="inspect_highlighted.png" style="max-width:100%;border:1px solid rgba(255,255,255,.1);border-radius:6px">'
-                )
+        if not element_not_found:
+            # Draw highlight on screenshot
+            highlighted_path = "/tmp/inspect_highlighted.png"
+            draw_highlight(tmp_ss, highlighted_path, details["bounding_box"])
+            if screen_dir:
+                shutil.copy2(highlighted_path, os.path.join(screen_dir, "inspect_highlighted.png"))
+                # Update brainstorm screen with highlighted version
+                html_path = os.path.join(screen_dir, "inspect_result_highlighted.html")
+                with open(html_path, "w") as f:
+                    f.write(
+                        f'<h2>{details["tag"]}#{details["id"]} .{" .".join(details["classes"][:3])}</h2>'
+                        '<p class="subtitle">Element identified — see JSON output in terminal</p>'
+                        '<img src="inspect_highlighted.png" style="max-width:100%;border:1px solid rgba(255,255,255,.1);border-radius:6px">'
+                    )
 
-        browser.close()
+    if element_not_found:
+        sys.exit(1)
 
     # Output JSON
     output = json.dumps(details, indent=2)

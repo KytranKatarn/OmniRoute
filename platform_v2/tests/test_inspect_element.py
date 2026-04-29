@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-import tempfile
 from unittest.mock import patch
 
 # The script is in scripts/, not on the Python path — import it directly

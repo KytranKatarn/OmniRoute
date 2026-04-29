@@ -46,10 +46,11 @@ def _fill_modal_field(page, field_label_hints, value, timeout=10000):
 def execute(page, params: dict) -> dict:
     headline = params.get("headline", "").strip()
     about = params.get("about", "").strip()
+    location = params.get("location", "").strip()
     industry = params.get("industry", "Technology, Information and Internet").strip()
 
-    if not headline and not about:
-        raise ValueError("At least one of headline or about is required")
+    if not headline and not about and not location:
+        raise ValueError("At least one of headline, about, or location is required")
 
     page.goto("https://www.linkedin.com/in/me/", wait_until="domcontentloaded")
     page.wait_for_timeout(3000)
@@ -66,8 +67,8 @@ def execute(page, params: dict) -> dict:
     updated_fields = []
     errors = []
 
-    # ── HEADLINE ──────────────────────────────────────────────────────────────
-    if headline:
+    # ── HEADLINE + LOCATION (both use the same intro modal) ──────────────────
+    if headline or location:
         opened = _click_first(page, [
             # Current LinkedIn UI — pencil near name/headline
             lambda: page.locator('[aria-label*="Edit your name"]').first.click(timeout=8000),
@@ -81,42 +82,98 @@ def execute(page, params: dict) -> dict:
         if opened:
             page.wait_for_timeout(2000)
             _screenshot(page, "headline_modal_open")
-            filled = _fill_modal_field(page,
-                ["headline", "Headline", "SUMMARY-headline", "professional-headline"],
-                headline)
-            if filled:
-                # Industry is a required field — fill it to unblock Save
+
+            # Headline (optional)
+            if headline:
+                filled = _fill_modal_field(page,
+                    ["headline", "Headline", "SUMMARY-headline", "professional-headline"],
+                    headline)
+                if filled:
+                    updated_fields.append("headline")
+                else:
+                    errors.append("headline_field_not_found")
+
+            # Industry — required field, fill to unblock Save
+            try:
+                ind_field = page.get_by_label("Industry", exact=False).first
+                ind_field.fill(industry, timeout=5000)
+                page.wait_for_timeout(800)
+                page.locator('[role="option"]').first.click(timeout=4000)
+                page.wait_for_timeout(500)
+            except Exception:
+                pass
+
+            # Location — scroll modal down to reveal Country/City fields
+            if location:
                 try:
-                    ind_field = page.get_by_label("Industry", exact=False).first
-                    ind_field.fill(industry, timeout=5000)
+                    # Scroll the modal body to bottom to reveal location fields
+                    page.evaluate("""() => {
+                        const modals = document.querySelectorAll('[role="dialog"], .artdeco-modal__content');
+                        for (const m of modals) { m.scrollTop = m.scrollHeight; }
+                    }""")
                     page.wait_for_timeout(800)
-                    # Select first autocomplete suggestion
-                    page.locator('[role="option"]').first.click(timeout=4000)
+                except Exception:
+                    pass
+
+                # Country/Region — select Canada
+                try:
+                    page.get_by_label("Country/Region", exact=False).first.select_option(
+                        label="Canada", timeout=4000)
                     page.wait_for_timeout(500)
                 except Exception:
-                    pass  # Industry may already be set or not required in this account
-                _click_first(page, [
-                    lambda: page.get_by_role("button", name="Save", exact=True).last.click(timeout=8000),
-                    lambda: page.locator('button[aria-label="Save"]').last.click(timeout=5000),
-                ], "save headline")
-                page.wait_for_timeout(2000)
-                # Dismiss any post-save modal (e.g. "verify your profile")
-                for dismiss in [
-                    lambda: page.get_by_role("button", name="No thanks", exact=False).click(timeout=3000),
-                    lambda: page.keyboard.press("Escape"),
-                ]:
                     try:
-                        dismiss()
+                        page.locator('select[id*="country"], select[id*="region"]').first.select_option(
+                            label="Canada", timeout=3000)
                         page.wait_for_timeout(500)
-                        break
                     except Exception:
                         pass
-                page.wait_for_timeout(1000)
-                updated_fields.append("headline")
-            else:
-                errors.append("headline_field_not_found")
+
+                # City field
+                city_filled = False
+                for city_sel in [
+                    lambda: page.get_by_label("City", exact=False).first,
+                    lambda: page.locator('input[id*="city"]').first,
+                    lambda: page.locator('input[placeholder*="ity"]').first,
+                ]:
+                    try:
+                        f = city_sel()
+                        f.scroll_into_view_if_needed(timeout=3000)
+                        f.fill(location, timeout=4000)
+                        page.wait_for_timeout(800)
+                        try:
+                            page.locator('[role="option"]').first.click(timeout=3000)
+                        except Exception:
+                            pass
+                        city_filled = True
+                        break
+                    except Exception:
+                        continue
+
+                if city_filled:
+                    updated_fields.append("location")
+                else:
+                    errors.append("location_field_not_found")
+
+            # Save
+            _click_first(page, [
+                lambda: page.get_by_role("button", name="Save", exact=True).last.click(timeout=8000),
+                lambda: page.locator('button[aria-label="Save"]').last.click(timeout=5000),
+            ], "save intro")
+            page.wait_for_timeout(2000)
+            # Dismiss post-save modal
+            for dismiss in [
+                lambda: page.get_by_role("button", name="No thanks", exact=False).click(timeout=3000),
+                lambda: page.keyboard.press("Escape"),
+            ]:
+                try:
+                    dismiss()
+                    page.wait_for_timeout(500)
+                    break
+                except Exception:
+                    pass
+            page.wait_for_timeout(1000)
         else:
-            errors.append("headline_edit_button_not_found")
+            errors.append("intro_edit_button_not_found")
             _screenshot(page, "headline_button_fail")
 
     # ── ABOUT ─────────────────────────────────────────────────────────────────

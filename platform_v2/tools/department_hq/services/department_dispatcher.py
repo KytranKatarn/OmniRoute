@@ -1926,8 +1926,25 @@ class DepartmentDispatcher:
         # Fall back to hub ComfyUI
         hub_host = os.getenv("COMFYUI_HOST", "http://archie_comfyui:8188")
         if not self._is_image_host_busy("hub"):
-            logger.info("[ImageEscalation] Hub ComfyUI available: %s", hub_host)
-            return hub_host, None
+            from ai_bridge.comfyui_service import ComfyUIService
+
+            hub_svc = ComfyUIService(host=hub_host)
+
+            if hub_svc.is_healthy():
+                logger.info("[ImageEscalation] Hub ComfyUI available: %s", hub_host)
+                return hub_host, None
+
+            if hub_svc.is_stopped():
+                logger.info("[ImageEscalation] Hub ComfyUI stopped — attempting wake")
+                woke = hub_svc.wake_if_stopped()
+                if woke:
+                    logger.info("[ImageEscalation] Hub ComfyUI woke successfully")
+                    return hub_host, None
+                # wake_if_stopped returned False — still not healthy after 90s (or Docker unavailable)
+                logger.info("[ImageEscalation] Hub ComfyUI waking/unavailable — deferring to queue")
+                return "waking", None
+
+            logger.info("[ImageEscalation] Hub ComfyUI unreachable (not stopped, not healthy)")
 
         logger.info("[ImageEscalation] All local ComfyUI hosts busy")
         return None, None
@@ -2227,41 +2244,60 @@ class DepartmentDispatcher:
         # --- Escalation: find best available ComfyUI host ---
         comfyui_host, node_db_id = self._select_comfyui_host()
 
-        if comfyui_host is None:
-            # All local ComfyUI busy — check grace period before escalating to cloud.
-            # If the hub only just started a job (< ESCALATION_GRACE_SECONDS), the
-            # request is likely a duplicate or ComfyUI is warming up. Return a soft
-            # failure so the caller can queue for local retry instead of burning cloud.
+        if comfyui_host in (None, "waking"):
+            waking = comfyui_host == "waking"
             busy_seconds = self._get_hub_busy_duration()
-            if busy_seconds < self.ESCALATION_GRACE_SECONDS:
-                logger.info(
-                    "[ImageEscalation] Hub ComfyUI busy for only %.0fs "
-                    "(grace period: %ds) — deferring cloud escalation",
-                    busy_seconds,
-                    self.ESCALATION_GRACE_SECONDS,
+
+            if waking or busy_seconds < self.ESCALATION_GRACE_SECONDS:
+                reason = (
+                    "ComfyUI is starting up (~90s)"
+                    if waking
+                    else f"ComfyUI busy for {busy_seconds:.0f}s (grace: {self.ESCALATION_GRACE_SECONDS}s)"
                 )
+                logger.info("[ImageEscalation] Deferring — %s", reason)
+                try:
+                    from services.telegram_service import send_info
+
+                    queue_id = (context or {}).get("queue_id", "unknown")
+                    send_info(
+                        "Image Generation Queued",
+                        f"A generation request (queue #{queue_id}) is waiting for local ComfyUI.\n"
+                        f"Reason: {reason}\n"
+                        f"No cloud escalation — job will retry automatically.",
+                    )
+                except Exception as tg_err:
+                    logger.warning("[ImageEscalation] Telegram notify failed: %s", tg_err)
                 return DispatchResult(
                     success=False,
-                    response="ComfyUI temporarily busy — request deferred for local retry",
-                    error=(
-                        f"ComfyUI busy for {busy_seconds:.0f}s " f"(escalation grace: {self.ESCALATION_GRACE_SECONDS}s)"
-                    ),
+                    response=f"Local ComfyUI unavailable — {reason}. Job queued for retry.",
+                    error=reason,
                     agent_name=agent_name,
                     station_code=station_code,
                     capability=capability,
                     provider="comfyui_deferred",
                 )
-            # Busy beyond grace period → escalate to cloud
-            return self._escalate_image_to_cloud(
-                agent_name,
-                agent,
-                prompt,
-                context,
-                station_code,
-                capability,
-                module_id,
-                user_id,
-                job_id,
+
+            # Genuinely busy beyond grace period — notify and defer, no auto-cloud escalation
+            logger.info("[ImageEscalation] All local ComfyUI busy beyond grace — notifying operator")
+            try:
+                from services.telegram_service import send_info
+
+                queue_id = (context or {}).get("queue_id", "unknown")
+                send_info(
+                    "Image Generation — Local Capacity Full",
+                    f"Queue #{queue_id}: all local ComfyUI hosts have been busy for {busy_seconds:.0f}s.\n"
+                    f"Job deferred. Reply 'approve image escalation #{queue_id}' to route to cloud.",
+                )
+            except Exception as tg_err:
+                logger.warning("[ImageEscalation] Telegram notify failed: %s", tg_err)
+            return DispatchResult(
+                success=False,
+                response=f"All local ComfyUI busy for {busy_seconds:.0f}s. Operator notified — awaiting approval for cloud.",
+                error=f"ComfyUI busy {busy_seconds:.0f}s, cloud escalation requires operator approval",
+                agent_name=agent_name,
+                station_code=station_code,
+                capability=capability,
+                provider="comfyui_capacity_full",
             )
 
         # --- Instantiate ComfyUI service with selected host ---

@@ -150,7 +150,6 @@ def submit_generation(
             user_id=user_id,
             priority="normal",
             prefer_gpu=True,
-            prefer_agent="Pixel",
         )
 
         # Conditional queue update: only stamp 'dispatched' if nothing else
@@ -452,7 +451,7 @@ def get_dashboard_stats(user_id: int) -> Dict:
 
 
 def generate_via_comfyui(queue_id: int) -> Optional[int]:
-    """Direct ComfyUI generation — called when Bridge assigns to local Pixel.
+    """Direct ComfyUI generation — called when Bridge routes an image_generation job to a local ComfyUI node.
 
     Builds workflow, submits to ComfyUI API, polls for completion,
     retrieves output file, calls on_generation_complete.
@@ -512,7 +511,7 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
 
 
 def generate_video_via_comfyui(queue_id: int) -> Optional[int]:
-    """Direct ComfyUI AnimateDiff generation — called when Bridge assigns video to local Pixel.
+    """Direct ComfyUI AnimateDiff generation — called when Bridge routes a video_generation job to a local ComfyUI node.
 
     Builds AnimateDiff workflow, submits to ComfyUI API, polls for completion,
     retrieves output file, calls on_generation_complete.

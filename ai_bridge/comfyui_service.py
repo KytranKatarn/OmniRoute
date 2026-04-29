@@ -21,6 +21,8 @@ import copy
 import json
 import logging
 import os
+import socket
+import subprocess
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -135,6 +137,68 @@ class ComfyUIService:
         if self._healthy is None:
             self.health_check()
         return self._healthy
+
+    # Container lifecycle constants
+    COMFYUI_CONTAINER_NAME = os.getenv("COMFYUI_CONTAINER_NAME", "archie_comfyui")
+    COMFYUI_WAKE_TIMEOUT = 90  # seconds to wait for health after start
+
+    def is_stopped(self) -> bool:
+        """Return True if ComfyUI container is not running (port unreachable).
+        Distinguishes stopped from busy: a busy ComfyUI responds slowly but
+        responds; a stopped one raises ConnectionRefusedError immediately."""
+        try:
+            if "://" in self.host:
+                url = self.host.split("://", 1)[1]
+            else:
+                url = self.host
+            host, _, port_str = url.rpartition(":")
+            port = int(port_str) if port_str else 8188
+            host = host or "archie_comfyui"
+            s = socket.create_connection((host, port), timeout=2)
+            s.close()
+            return False  # port open → container running
+        except ConnectionRefusedError:
+            return True  # port actively refused — container definitely stopped
+        except (socket.timeout, OSError):
+            return True  # could be transient network blip; caller will attempt docker start (no-op if running)
+
+    def wake_if_stopped(self) -> bool:
+        """Start the ComfyUI container if stopped, wait up to 90s for health.
+        Returns True if ComfyUI is healthy after the call, False otherwise.
+        No-op (returns True) if ComfyUI is already running.
+
+        WARNING: Blocks the calling thread for up to COMFYUI_WAKE_TIMEOUT seconds.
+        Do NOT call from a synchronous web request handler — offload to a background thread.
+        """
+        if not self.is_stopped():
+            return self.is_healthy
+
+        logger.info("[ComfyUI] Container stopped — attempting docker start %s", self.COMFYUI_CONTAINER_NAME)
+        try:
+            result = subprocess.run(
+                ["docker", "start", self.COMFYUI_CONTAINER_NAME],
+                capture_output=True, text=True, timeout=15,
+            )
+            if result.returncode != 0:
+                logger.warning("[ComfyUI] docker start failed: %s", result.stderr.strip())
+                return False
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            logger.warning("[ComfyUI] docker start unavailable: %s", e)
+            return False
+
+        logger.info("[ComfyUI] Container started — waiting up to %ds for health", self.COMFYUI_WAKE_TIMEOUT)
+        deadline = time.time() + self.COMFYUI_WAKE_TIMEOUT
+        while time.time() < deadline:
+            try:
+                if self.is_healthy:
+                    logger.info("[ComfyUI] Health confirmed after wake")
+                    return True
+            except Exception as e:
+                logger.debug("[ComfyUI] Health probe error during wake: %s", e)
+            time.sleep(5)
+
+        logger.warning("[ComfyUI] Timed out waiting for health after wake")
+        return False
 
     def get_models(self) -> Dict:
         """Get available checkpoint models from ComfyUI."""

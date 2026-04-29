@@ -72,3 +72,89 @@ class TestFindSessionDir:
 
         result = find_session_dir(log_path=str(log))
         assert result == ("/good/content", "/good/state")
+
+
+class TestGetElementDetails:
+    def test_extracts_tag_and_id_from_page(self):
+        """get_element_details returns tag, id, classes for a found element."""
+        from inspect_element import get_element_details
+        from unittest.mock import MagicMock
+
+        mock_page = MagicMock()
+        mock_page.evaluate.side_effect = [
+            {
+                "tag": "DIV",
+                "id": "roster-header",
+                "classes": ["lcars-header", "sc-live"],
+                "text": "AI Roster",
+                "rect": {"x": 10.0, "y": 20.0, "width": 800.0, "height": 48.0},
+                "styles": {
+                    "width": "800px",
+                    "height": "48px",
+                    "padding": "8px 16px",
+                    "margin": "0px",
+                    "font-size": "18px",
+                    "font-family": "Orbitron, sans-serif",
+                    "color": "rgb(0, 229, 255)",
+                    "background-color": "rgba(0, 0, 0, 0)",
+                    "border": "none",
+                    "border-radius": "0px",
+                    "display": "flex",
+                    "position": "relative",
+                    "top": "auto",
+                    "left": "auto",
+                    "flex": "0 0 auto",
+                    "gap": "0px",
+                    "z-index": "auto",
+                    "opacity": "1",
+                    "overflow": "visible",
+                    "box-shadow": "none",
+                },
+                "found": True,
+            }
+        ]
+
+        result = get_element_details(mock_page, selector="#roster-header")
+
+        assert result["tag"] == "DIV"
+        assert result["id"] == "roster-header"
+        assert "lcars-header" in result["classes"]
+        assert result["bounding_box"]["width"] == 800.0
+        assert result["computed_css"]["font-size"] == "18px"
+        assert result["found"] is True
+
+    def test_returns_not_found_for_missing_selector(self):
+        """get_element_details returns found=False when selector matches nothing."""
+        from inspect_element import get_element_details
+        from unittest.mock import MagicMock
+
+        mock_page = MagicMock()
+        mock_page.evaluate.return_value = {"found": False}
+
+        result = get_element_details(mock_page, selector=".nonexistent-class")
+
+        assert result["found"] is False
+
+    def test_supports_xy_coordinates(self):
+        """get_element_details accepts x,y coordinates and uses elementFromPoint."""
+        from inspect_element import get_element_details
+        from unittest.mock import MagicMock
+
+        mock_page = MagicMock()
+        mock_page.evaluate.return_value = {
+            "tag": "IMG",
+            "id": "",
+            "classes": ["agent-avatar"],
+            "text": "",
+            "rect": {"x": 50.0, "y": 100.0, "width": 64.0, "height": 64.0},
+            "styles": {"border-radius": "50%", "width": "64px"},
+            "found": True,
+        }
+
+        result = get_element_details(mock_page, xy=(200, 350))
+
+        assert result["tag"] == "IMG"
+        assert result["found"] is True
+        # Verify the correct evaluate call was made with elementFromPoint
+        call_args = mock_page.evaluate.call_args[0][0]
+        assert "elementFromPoint" in call_args

@@ -53,3 +53,69 @@ def find_session_dir(
             continue
 
     return screen_dir, state_dir
+
+
+_CSS_PROPS = [
+    "width", "height", "padding", "margin", "font-size", "font-family",
+    "color", "background-color", "border", "border-radius", "display",
+    "position", "top", "left", "flex", "gap", "z-index", "opacity",
+    "overflow", "box-shadow",
+]
+
+_ELEMENT_JS = """
+({ selector, x, y, props }) => {
+    const el = selector
+        ? document.querySelector(selector)
+        : document.elementFromPoint(x, y);
+    if (!el) return { found: false };
+    const cs = window.getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    return {
+        found: true,
+        tag: el.tagName,
+        id: el.id || '',
+        classes: Array.from(el.classList),
+        text: (el.textContent || '').trim().slice(0, 100),
+        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        styles: Object.fromEntries(props.map(p => [p, cs.getPropertyValue(p).trim()])),
+    };
+}
+"""
+
+
+def get_element_details(
+    page,
+    selector: Optional[str] = None,
+    xy: Optional[tuple[int, int]] = None,
+) -> dict:
+    """Inspect an element on a Playwright page by CSS selector or page coordinates.
+
+    Pass exactly one of `selector` or `xy`. Returns a dict with:
+    - found (bool)
+    - tag, id, classes, text
+    - bounding_box: {x, y, width, height}
+    - computed_css: {property: value} for the 20 layout/visual properties
+    """
+    if selector is None and xy is None:
+        raise ValueError("Pass either selector= or xy=")
+
+    js_args = {
+        "selector": selector,
+        "x": xy[0] if xy else None,
+        "y": xy[1] if xy else None,
+        "props": _CSS_PROPS,
+    }
+    raw = page.evaluate(_ELEMENT_JS, js_args)
+
+    if not raw.get("found"):
+        return {"found": False}
+
+    return {
+        "found": True,
+        "tag": raw["tag"],
+        "id": raw.get("id", ""),
+        "classes": raw.get("classes", []),
+        "text": raw.get("text", ""),
+        "bounding_box": raw.get("rect", {}),
+        "computed_css": raw.get("styles", {}),
+    }

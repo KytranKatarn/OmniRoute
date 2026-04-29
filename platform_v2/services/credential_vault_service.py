@@ -63,6 +63,8 @@ class CredentialVault:
         """Store (insert or update) credentials. Returns row id."""
         if agent_id is None and user_id is None:
             raise ValueError("Pass either agent_id or user_id")
+        if agent_id is not None and user_id is not None:
+            raise ValueError("Pass agent_id OR user_id, not both")
 
         encrypted = self._encrypt(password)
         update_clause = """
@@ -115,6 +117,8 @@ class CredentialVault:
         """Return credential dict with password decrypted, or None if not found."""
         if agent_id is None and user_id is None:
             raise ValueError("Pass either agent_id or user_id")
+        if agent_id is not None and user_id is not None:
+            raise ValueError("Pass agent_id OR user_id, not both")
 
         with get_db_cursor() as (_conn, cur):
             if agent_id is not None:

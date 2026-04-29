@@ -167,7 +167,16 @@ def provision(
                 break
 
         page.click('button[type="submit"]')
-        page.wait_for_timeout(3000)
+        # Wait for LinkedIn to redirect away from signup page — confirms form was accepted
+        try:
+            page.wait_for_url(
+                lambda url: "signup" not in url and "linkedin.com" in url,
+                timeout=15000,
+            )
+            print("[provision] Signup form accepted")
+        except Exception:
+            print("[provision] WARNING: Could not confirm signup redirect — credentials will be stored but account may not exist", file=sys.stderr)
+        page.wait_for_timeout(2000)
 
         # Store credentials immediately after form submission
         account_id = vault.store_credentials(

@@ -32,6 +32,49 @@ class TestEncryption:
                 CredentialVault()
 
 
+class TestStoreCredentials:
+    def test_raises_when_both_agent_and_user_id_given(self):
+        """store_credentials raises ValueError when both agent_id and user_id are passed."""
+        from services.credential_vault_service import CredentialVault
+        from unittest.mock import patch
+
+        vault = CredentialVault(vault_key=None)
+        with patch("services.credential_vault_service.get_db_cursor"):
+            with pytest.raises(ValueError, match="not both"):
+                vault.store_credentials(
+                    platform="linkedin",
+                    email="a@b.com",
+                    password="pw",
+                    agent_id=141,
+                    user_id=2,
+                )
+
+    def test_password_is_encrypted_in_db_call(self):
+        """store_credentials passes encrypted (not plaintext) password to the DB."""
+        from services.credential_vault_service import CredentialVault
+        from unittest.mock import patch, MagicMock
+
+        vault = CredentialVault(vault_key=None)
+        mock_cur = MagicMock()
+        mock_cur.__enter__ = MagicMock(return_value=(MagicMock(), mock_cur))
+        mock_cur.__exit__ = MagicMock(return_value=False)
+        mock_cur.fetchone.return_value = {"id": 1}
+
+        with patch("services.credential_vault_service.get_db_cursor", return_value=mock_cur):
+            vault.store_credentials(
+                platform="linkedin",
+                email="signal@kytranempowerment.com",
+                password="plaintext_pw",
+                agent_id=141,
+            )
+
+        call_args = mock_cur.execute.call_args[0]
+        params = call_args[1]
+        stored_password = params[4]  # 5th param is encrypted_password
+        assert stored_password != "plaintext_pw"
+        assert vault._decrypt(stored_password) == "plaintext_pw"
+
+
 class TestSessionCookies:
     def test_save_and_load_cookies(self, tmp_path):
         """save_session_cookies writes JSON; load_session_cookies reads it back."""

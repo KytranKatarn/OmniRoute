@@ -89,7 +89,8 @@ def _post_personal(page, content: str) -> str:
             break
 
     page.wait_for_selector('div[role="textbox"]', timeout=10000)
-    page.fill('div[role="textbox"]', content)
+    page.locator('div[role="textbox"]').click()
+    page.keyboard.type(content)
     page.wait_for_timeout(1000)
 
     for sel in [
@@ -124,7 +125,8 @@ def _post_company(page, content: str) -> str:
             break
 
     page.wait_for_selector('div[role="textbox"]', timeout=10000)
-    page.fill('div[role="textbox"]', content)
+    page.locator('div[role="textbox"]').click()
+    page.keyboard.type(content)
     page.wait_for_timeout(1000)
 
     for sel in [

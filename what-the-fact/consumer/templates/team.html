@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+body { background: #0a0a12; color: #e0e0e0; font-family: 'IBM Plex Mono', monospace, sans-serif; margin: 0; }
+.wtf-team-hero { background: #050d1a; padding: 30px 20px; text-align: center; border-bottom: 1px solid #112233; }
+.wtf-team-hero h1 { font-size: 22px; letter-spacing: 3px; color: #0af; margin: 0 0 8px; }
+.wtf-team-hero p { font-size: 12px; color: #666; max-width: 500px; margin: 0 auto; line-height: 1.6; }
+.wtf-team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; padding: 24px 16px; max-width: 1200px; margin: 0 auto; }
+.wtf-team-card { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 20px; position: relative; }
+.wtf-team-card--active { border-color: #0af; }
+.wtf-team-card--coming { border-color: #333; opacity: 0.7; }
+.wtf-team-card--teaser { border-color: #a0f; border-style: dashed; }
+.wtf-team-name { font-size: 20px; font-weight: bold; color: #0af; letter-spacing: 1px; margin-bottom: 4px; }
+.wtf-team-card--coming .wtf-team-name { color: #666; }
+.wtf-team-expansion { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; line-height: 1.4; }
+.wtf-team-role { font-size: 11px; color: #888; margin-bottom: 8px; }
+.wtf-team-model { display: inline-block; background: #0a1520; border: 1px solid #1a3a5a; color: #4a9; font-size: 9px; padding: 2px 7px; border-radius: 2px; margin-bottom: 10px; font-family: monospace; }
+.wtf-team-desc { font-size: 11px; color: #888; line-height: 1.6; }
+.wtf-team-badge { position: absolute; top: 12px; right: 12px; font-size: 9px; padding: 2px 7px; border-radius: 2px; }
+.wtf-badge-active { background: #0a2a1a; color: #4a9; }
+.wtf-badge-soon { background: #1a1a1a; color: #555; }
+.wtf-badge-phase2 { background: #1a0a3a; color: #a0f; }
+.wtf-team-portrait { width: 48px; height: 48px; border-radius: 50%; background: #0a1a2a; border: 2px solid #1a3a5a; display: flex; align-items: center; justify-content: center; font-size: 18px; margin-bottom: 12px; }
+</style>
+
+<div class="wtf-team-hero">
+  <h1>THE AI NEWSROOM</h1>
+  <p>What The Fact is powered by a team of AI agents — each with a specific role in bringing Canadians accurate, bias-transparent journalism. No opinion writers. No editorial agenda. Just data.</p>
+</div>
+
+<div class="wtf-team-grid">
+  {% for agent in agents %}
+  <div class="wtf-team-card {% if agent.coming_soon %}wtf-team-card--coming{% else %}wtf-team-card--active{% endif %}">
+    {% if agent.coming_soon %}
+    <span class="wtf-team-badge wtf-badge-soon">Coming Soon</span>
+    {% else %}
+    <span class="wtf-team-badge wtf-badge-active">Active</span>
+    {% endif %}
+    <div class="wtf-team-portrait">🤖</div>
+    <div class="wtf-team-name">{{ agent.name }}</div>
+    <div class="wtf-team-expansion">{{ agent.full }}</div>
+    <div class="wtf-team-role">{{ agent.role }}</div>
+    <span class="wtf-team-model">{{ agent.model }}</span>
+    <div class="wtf-team-desc">{{ agent.description }}</div>
+  </div>
+  {% endfor %}
+
+  <!-- A.U.R.O.R.A. Phase 2 teaser -->
+  <div class="wtf-team-card wtf-team-card--teaser">
+    <span class="wtf-team-badge wtf-badge-phase2">Phase 2</span>
+    <div class="wtf-team-portrait">🌌</div>
+    <div class="wtf-team-name" style="color:#a0f;">A.U.R.O.R.A.</div>
+    <div class="wtf-team-expansion">Atmospheric &amp; Universal Resource for Observation, Research &amp; Analysis</div>
+    <div class="wtf-team-role">Weather Intelligence</div>
+    <span class="wtf-team-model">qwen2.5:7b</span>
+    <div class="wtf-team-desc">Environment Canada + NASA EarthData + NOAA. Weather intelligence integrated into every story — because in Canada, the weather IS the news.</div>
+  </div>
+</div>
+{% endblock %}

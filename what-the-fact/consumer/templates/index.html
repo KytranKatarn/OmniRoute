@@ -1,13 +1,243 @@
 {% extends "base.html" %}
 {% block content %}
-<ul class="wtf-list">
-{% for a in articles %}
-  <li>
-    <a href="/article/{{ a.id }}">{{ a.title }}</a>
-    <span class="wtf-source">{{ a.source }}</span>
-    <span class="wtf-bias wtf-bias-{{ a.band }}">{{ a.band }}</span>
-    <time>{{ a.published_at.strftime('%Y-%m-%d') }}</time>
-  </li>
-{% endfor %}
-</ul>
+<style>
+:root {
+  --wtf-bg: #0a0a12;
+  --wtf-accent: #0af;
+  --wtf-left: #3b82f6;
+  --wtf-center-left: #93c5fd;
+  --wtf-center: #9ca3af;
+  --wtf-center-right: #fca5a5;
+  --wtf-right: #ef4444;
+}
+body { background: var(--wtf-bg); color: #e0e0e0; font-family: 'IBM Plex Mono', monospace, sans-serif; margin: 0; }
+#wtf-map-zone { background: #050d1a; padding: 12px; border-bottom: 1px solid #112233; }
+#wtf-map-zone h2 { font-size: 10px; letter-spacing: 3px; color: var(--wtf-accent); margin: 0 0 8px; }
+#wtf-canada-map { height: 300px; border-radius: 4px; border: 1px solid #1a3a5a; }
+#wtf-main { display: flex; min-height: 400px; }
+#wtf-editorial { flex: 0 0 38%; background: #060d14; padding: 14px; border-right: 1px solid #112233; overflow-y: auto; }
+#wtf-feed { flex: 1; background: #060a10; padding: 14px; overflow-y: auto; }
+.wtf-section-label { font-size: 10px; letter-spacing: 2px; color: var(--wtf-accent); margin: 0 0 10px; }
+.wtf-activity-item { background: #0a1520; border-radius: 3px; padding: 8px; margin-bottom: 6px; display: flex; gap: 8px; align-items: flex-start; }
+.wtf-agent-icon { width: 24px; height: 24px; border-radius: 50%; background: #1a2a3a; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: bold; flex-shrink: 0; }
+.wtf-activity-text { font-size: 11px; color: #aaa; }
+.wtf-activity-time { font-size: 9px; color: #555; }
+.wtf-top-story { font-size: 11px; color: #ccc; padding: 5px 0; border-bottom: 1px solid #112233; }
+.wtf-article-card { background: #0a1520; border-radius: 3px; padding: 10px; margin-bottom: 8px; border-left: 3px solid #333; }
+.wtf-article-card--left { border-left-color: var(--wtf-left); }
+.wtf-article-card--center-left { border-left-color: var(--wtf-center-left); }
+.wtf-article-card--center { border-left-color: var(--wtf-center); }
+.wtf-article-card--center-right { border-left-color: var(--wtf-center-right); }
+.wtf-article-card--right { border-left-color: var(--wtf-right); }
+.wtf-card-meta { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 10px; color: #666; }
+.wtf-card-title { font-size: 12px; color: #e0e0e0; text-decoration: none; display: block; }
+.wtf-card-title:hover { color: var(--wtf-accent); }
+.wtf-card-badge { font-size: 9px; padding: 2px 6px; border-radius: 2px; }
+.wtf-badge-ai { background: #0a2a1a; color: #4a9; }
+.wtf-badge-quick { background: #1a1a0a; color: #aa9; }
+.wtf-bias-pill { font-size: 9px; padding: 2px 6px; border-radius: 2px; }
+.wtf-bias-left { background: #0a1a40; color: var(--wtf-left); }
+.wtf-bias-center-left { background: #0a1530; color: var(--wtf-center-left); }
+.wtf-bias-center { background: #1a1a1a; color: var(--wtf-center); }
+.wtf-bias-center-right { background: #2a1010; color: var(--wtf-center-right); }
+.wtf-bias-right { background: #2a0a0a; color: var(--wtf-right); }
+</style>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+
+<!-- Zone 1: Canada Map -->
+<div id="wtf-map-zone">
+  <h2>LIVE — CANADA NEWS MAP</h2>
+  <div id="wtf-canada-map"></div>
+</div>
+
+<!-- Zone 2 + 3 -->
+<div id="wtf-main">
+
+  <!-- Zone 2: Editorial Desk -->
+  <div id="wtf-editorial">
+    <div class="wtf-section-label">EDITORIAL DESK</div>
+
+    <div class="wtf-section-label" style="margin-top:12px;">LIVE AGENT ACTIVITY</div>
+    <div id="wtf-activity-feed">
+      <div class="wtf-activity-item" style="color:#555;font-size:11px;">Loading agent activity...</div>
+    </div>
+
+    <div class="wtf-section-label" style="margin-top:14px;">F.A.C.T. TOP STORIES</div>
+    <div id="wtf-top-stories">
+      {% for a in articles[:5] %}
+      <div class="wtf-top-story">
+        <a href="/article/{{ a.id }}" style="color:#ccc;text-decoration:none;">{{ a.title[:80] }}</a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Zone 3: News Feed -->
+  <div id="wtf-feed">
+    <div class="wtf-section-label">LATEST NEWS</div>
+    {% for a in articles %}
+    {% set band = (a.band or 'center') | replace(' ', '-') %}
+    <div class="wtf-article-card wtf-article-card--{{ band }}">
+      <div class="wtf-card-meta">
+        <span>{{ a.source or '' }}{% if a.province_code %} &middot; {{ a.province_code }}{% endif %}</span>
+        <span class="wtf-bias-pill wtf-bias-{{ band }}">{{ band.upper() }}</span>
+      </div>
+      <a class="wtf-card-title" href="/article/{{ a.id }}">{{ a.title }}</a>
+      <div style="margin-top:5px;">
+        {% if a.ai_analyzed %}
+        <span class="wtf-card-badge wtf-badge-ai">AI Analyzed</span>
+        {% else %}
+        <span class="wtf-card-badge wtf-badge-quick">Quick Score</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+// GeoJSON uses property key "name"; Yukon is "Yukon Territory" in this dataset
+var PROVINCE_CODES = {
+  "Alberta":"AB","British Columbia":"BC","Manitoba":"MB","New Brunswick":"NB",
+  "Newfoundland and Labrador":"NL","Nova Scotia":"NS","Northwest Territories":"NT",
+  "Nunavut":"NU","Ontario":"ON","Prince Edward Island":"PE","Quebec":"QC",
+  "Saskatchewan":"SK","Yukon":"YT","Yukon Territory":"YT"
+};
+var BIAS_COLOURS = {
+  "left":"#3b82f6","center-left":"#93c5fd","center":"#9ca3af",
+  "center-right":"#fca5a5","right":"#ef4444"
+};
+
+var map = L.map("wtf-canada-map", {
+  center: [60, -96], zoom: 3,
+  zoomControl: true,
+  attributionControl: false
+});
+
+L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+  subdomains: "abcd", maxZoom: 19
+}).addTo(map);
+
+var provinceLayer = null;
+var WTF_TECH_URL = {{ wtf_tech_url | tojson }};
+
+function esc(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function buildActivityItem(ev) {
+  var AGENT_COLOURS = {"B.I.A.S.":"#f80","V.E.R.I.F.Y.":"#4a9","L.O.C.A.L.":"#0af"};
+  var col = AGENT_COLOURS[ev.agent] || "#888";
+  var ago = ev.ts ? timeAgo(ev.ts) : "";
+  var item = document.createElement("div");
+  item.className = "wtf-activity-item";
+
+  var icon = document.createElement("div");
+  icon.className = "wtf-agent-icon";
+  icon.style.cssText = "border:1px solid " + col + ";color:" + col;
+  icon.textContent = ev.agent[0];
+
+  var body = document.createElement("div");
+
+  var line1 = document.createElement("div");
+  line1.className = "wtf-activity-text";
+  line1.style.color = col;
+  line1.textContent = ev.agent + " · " + (ev.result || "").toLowerCase();
+
+  var line2 = document.createElement("div");
+  line2.className = "wtf-activity-text";
+  line2.textContent = ev.title || "";
+
+  var line3 = document.createElement("div");
+  line3.className = "wtf-activity-time";
+  line3.textContent = (ev.source || "") + " · " + ago;
+
+  body.appendChild(line1);
+  body.appendChild(line2);
+  body.appendChild(line3);
+  item.appendChild(icon);
+  item.appendChild(body);
+  return item;
+}
+
+function loadMapData() {
+  Promise.all([
+    fetch("/static/canada-provinces.geojson").then(function(r){ return r.json(); }),
+    fetch(WTF_TECH_URL + "/api/v1/map-data").then(function(r){ return r.json(); })
+  ]).then(function(results) {
+    var geo = results[0];
+    var data = results[1];
+    var provinces = data.provinces || {};
+
+    if (provinceLayer) map.removeLayer(provinceLayer);
+    provinceLayer = L.geoJSON(geo, {
+      style: function(feature) {
+        var name = feature.properties.name || "";
+        var pc = PROVINCE_CODES[name] || "";
+        var pd = provinces[pc];
+        var colour = pd ? (BIAS_COLOURS[pd.band] || "#9ca3af") : "#1a3a5a";
+        var opacity = pd ? Math.min(0.3 + pd.articles / 50, 0.85) : 0.15;
+        return { fillColor: colour, fillOpacity: opacity, color: "#1a3a5a", weight: 1 };
+      },
+      onEachFeature: function(feature, layer) {
+        var name = feature.properties.name || "";
+        var pc = PROVINCE_CODES[name] || "";
+        var pd = provinces[pc];
+        if (pd) {
+          layer.bindTooltip(
+            "<b>" + esc(name) + "</b><br>" +
+            pd.articles + " stories · " + esc(pd.band) +
+            "<br>Top: " + esc(pd.dominant_outlet)
+          );
+        }
+        layer.on("click", function() {
+          if (pc) window.location = "/?province=" + encodeURIComponent(pc);
+        });
+      }
+    }).addTo(map);
+  }).catch(function(e) {
+    console.warn("WTF map load failed:", e);
+  });
+}
+
+function loadAgentActivity() {
+  fetch(WTF_TECH_URL + "/api/v1/agent-activity")
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      var feed = document.getElementById("wtf-activity-feed");
+      while (feed.firstChild) feed.removeChild(feed.firstChild);
+      if (!data.events || data.events.length === 0) {
+        var msg = document.createElement("div");
+        msg.style.cssText = "color:#555;font-size:11px;";
+        msg.textContent = "No recent AI activity";
+        feed.appendChild(msg);
+        return;
+      }
+      data.events.forEach(function(ev) {
+        feed.appendChild(buildActivityItem(ev));
+      });
+    })
+    .catch(function(e) {
+      console.warn("WTF activity load failed:", e);
+    });
+}
+
+function timeAgo(iso) {
+  var d = new Date(iso), now = new Date();
+  var mins = Math.floor((now - d) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return mins + " min ago";
+  return Math.floor(mins / 60) + "h ago";
+}
+
+loadMapData();
+loadAgentActivity();
+setInterval(loadMapData, 1800000);      // refresh map every 30 min
+setInterval(loadAgentActivity, 60000);  // refresh activity every 1 min
+</script>
 {% endblock %}

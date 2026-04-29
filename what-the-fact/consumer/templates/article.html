@@ -1,23 +1,191 @@
 {% extends "base.html" %}
 {% block title %}{{ a.title }} — What The Fact{% endblock %}
 {% block content %}
-<article class="wtf-article">
-  <h1>{{ a.title }}</h1>
-  <p class="wtf-meta">
-    <span class="wtf-source">{{ a.source }}</span> ·
-    <time>{{ a.published_at.strftime('%Y-%m-%d %H:%M') }}</time> ·
-    {% if a.band %}
-      <span class="wtf-bias wtf-bias-{{ a.band }}">{{ a.band }}</span>
-      ({{ "%.2f"|format(a.score) }})
+<style>
+/* Article page — dark theme */
+.wtf-art-container { max-width: 860px; margin: 0 auto; padding: 20px 16px; }
+.wtf-art-header { margin-bottom: 20px; }
+.wtf-art-meta { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; font-size: 11px; color: #666; }
+.wtf-art-title { font-size: 20px; font-weight: bold; color: #e8e8e8; line-height: 1.4; margin-bottom: 12px; }
+.wtf-art-badge { font-size: 10px; padding: 3px 8px; border-radius: 3px; font-weight: bold; }
+.wtf-badge-ai  { background: #0a2a1a; color: #4a9; border: 1px solid #1a4a2a; }
+.wtf-badge-quick { background: #1a1a0a; color: #aa9; border: 1px solid #2a2a1a; }
+
+/* Bias panel */
+.wtf-bias-panel { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 14px; margin-bottom: 14px; }
+.wtf-panel-label { font-size: 10px; letter-spacing: 2px; color: #0af; margin-bottom: 10px; }
+.wtf-bias-bar-wrap { background: #0a1520; border-radius: 3px; height: 8px; margin: 8px 0; position: relative; overflow: visible; }
+.wtf-bias-bar { height: 8px; border-radius: 3px; background: linear-gradient(to right,#3b82f6,#9ca3af,#ef4444); }
+.wtf-bias-marker { position: absolute; top: -4px; width: 2px; height: 16px; background: #fff; border-radius: 1px; transform: translateX(-50%); }
+.wtf-band-label { font-size: 13px; font-weight: bold; margin-bottom: 6px; }
+.wtf-rationale { font-size: 11px; color: #888; line-height: 1.5; margin: 6px 0; }
+.wtf-trigger-phrase { display: inline-block; background: #1a1020; color: #f80; font-size: 10px; padding: 2px 6px; border-radius: 2px; margin: 2px; }
+.wtf-band-left         { color: #3b82f6; }
+.wtf-band-center-left  { color: #93c5fd; }
+.wtf-band-center       { color: #9ca3af; }
+.wtf-band-center-right { color: #fca5a5; }
+.wtf-band-right        { color: #ef4444; }
+
+/* Fact-check panel */
+.wtf-factcheck-panel { background: #060d14; border: 1px solid #1a4a2a; border-radius: 4px; padding: 14px; margin-bottom: 14px; }
+.wtf-claim { background: #0a1520; border-radius: 3px; padding: 8px; margin-bottom: 6px; }
+.wtf-claim-text { font-size: 11px; color: #ccc; margin-bottom: 4px; }
+.wtf-verdict { font-size: 10px; padding: 2px 6px; border-radius: 2px; font-weight: bold; display: inline-block; }
+.wtf-verdict--verified     { background: #0a2a1a; color: #4a9; }
+.wtf-verdict--mostly_true  { background: #0a2010; color: #6ab; }
+.wtf-verdict--mixed        { background: #2a1a0a; color: #fa0; }
+.wtf-verdict--disputed     { background: #2a0a0a; color: #f44; }
+.wtf-verdict--unverifiable { background: #1a1a1a; color: #888; }
+.wtf-claim-reason { font-size: 10px; color: #666; margin-top: 3px; }
+
+/* Bylines */
+.wtf-bylines { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+.wtf-byline { background: #0a1520; border-radius: 3px; padding: 6px 10px; font-size: 10px; }
+
+/* Article body */
+.wtf-art-body { font-size: 13px; line-height: 1.7; color: #ccc; margin-bottom: 20px; white-space: pre-wrap; }
+
+/* Deep Dive */
+.wtf-deep-dive-btn { background: #0a2a3a; border: 1px solid #0af; color: #0af; padding: 8px 16px; border-radius: 3px; cursor: pointer; font-size: 12px; font-family: inherit; }
+.wtf-deep-dive-btn:hover { background: #0a3a4a; }
+.wtf-deep-dive-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.wtf-how-scored { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 12px; margin: 12px 0; font-size: 11px; color: #666; }
+.wtf-how-scored summary { cursor: pointer; color: #0af; }
+.wtf-cross-source { font-size: 11px; color: #0af; text-decoration: none; }
+</style>
+
+<div class="wtf-art-container">
+
+  <!-- Header -->
+  <div class="wtf-art-header">
+    <div class="wtf-art-meta">
+      <span>{{ a.source_name or '' }}</span>
+      {% if a.province_code %}<span>&#x1F4CD; {{ a.province_code }}</span>{% endif %}
+      {% if a.published_at %}<span>{{ a.published_at.strftime('%Y-%m-%d') if a.published_at and a.published_at.strftime is defined else (a.published_at or '')[:10] }}</span>{% endif %}
+      {% if a.ai_analyzed %}
+        <span class="wtf-art-badge wtf-badge-ai">AI Analyzed</span>
+      {% else %}
+        <span class="wtf-art-badge wtf-badge-quick">Quick Score</span>
+      {% endif %}
+    </div>
+    <h1 class="wtf-art-title">{{ a.title }}</h1>
+    {% if a.url %}
+    <a href="{{ a.url }}" target="_blank" rel="noopener" style="font-size:11px;color:#555;">Original article &#x2197;</a>
     {% endif %}
-  </p>
-  <div class="wtf-body">{{ a.body }}</div>
-  {% if a.rationale %}
-    <aside class="wtf-transparency">
-      <strong>Why this bias band?</strong> {{ a.rationale }}
-      <a href="https://what-the-fact.tech/transparency/{{ a.id }}">Full audit trail →</a>
-    </aside>
+  </div>
+
+  <!-- Bias Panel -->
+  {% if a.bias_band %}
+  <div class="wtf-bias-panel">
+    <div class="wtf-panel-label">B.I.A.S. ANALYSIS</div>
+    {% set band_class = (a.bias_band or 'center').lower().replace(' ', '-') %}
+    <div class="wtf-band-label wtf-band-{{ band_class }}">{{ (a.bias_band or 'CENTER').upper() }}</div>
+    {% set score_val = (a.bias_score or 0)|float %}
+    {% set pct = ((score_val + 1) / 2 * 100)|int %}
+    <div class="wtf-bias-bar-wrap">
+      <div class="wtf-bias-bar" style="width:100%"></div>
+      <div class="wtf-bias-marker" style="left:{{ pct }}%"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:#555;margin-bottom:6px;">
+      <span>LEFT</span><span>CENTER</span><span>RIGHT</span>
+    </div>
+    {% if a.bias_rationale %}
+    <div class="wtf-rationale">{{ a.bias_rationale }}</div>
+    {% endif %}
+    {% if a.trigger_phrases %}
+    <div style="margin-top:6px;">
+      {% for phrase in a.trigger_phrases %}
+      <span class="wtf-trigger-phrase">{{ phrase }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
   {% endif %}
-  <p class="wtf-source-link"><a href="{{ a.url }}" rel="noopener" target="_blank">Read at source →</a></p>
-</article>
+
+  <!-- Fact-check Panel -->
+  {% if a.fact_check_claims %}
+  <div class="wtf-factcheck-panel">
+    <div class="wtf-panel-label">V.E.R.I.F.Y. FACT-CHECK</div>
+    {% if a.overall_verdict %}
+    <div style="margin-bottom:8px;font-size:12px;color:#aaa;">
+      Overall: <strong>{{ a.overall_verdict.replace('_',' ').title() }}</strong>
+    </div>
+    {% endif %}
+    {% for claim in a.fact_check_claims %}
+    {% set verdict_key = claim.verdict | default('unverifiable') %}
+    <div class="wtf-claim">
+      <div class="wtf-claim-text">{{ claim.text | default('') }}</div>
+      <span class="wtf-verdict wtf-verdict--{{ verdict_key }}">{{ verdict_key.upper().replace('_',' ') }}</span>
+      {% if claim.reasoning %}
+      <div class="wtf-claim-reason">{{ claim.reasoning }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Agent Bylines + Deep Dive -->
+  <div class="wtf-bylines">
+    {% if a.ai_analyzed %}
+      <div class="wtf-byline" style="border-left:2px solid #f80;">&#x1F916; <strong>B.I.A.S.</strong> &mdash; Bias Analyst</div>
+      <div class="wtf-byline" style="border-left:2px solid #4a9;">&#x2713; <strong>V.E.R.I.F.Y.</strong> &mdash; Fact-Checker</div>
+      <div class="wtf-byline" style="border-left:2px solid #0af;">&#x1F4CD; <strong>L.O.C.A.L.</strong> &mdash; Geo Analyst</div>
+    {% else %}
+      <div class="wtf-byline" style="border-left:2px solid #555;">&#x26A1; Quick Score &mdash; not yet AI analyzed</div>
+      <button class="wtf-deep-dive-btn" id="wtf-dive-btn" onclick="deepDive({{ a.id }})">&#x1F50D; Deep Dive &mdash; Full AI Analysis</button>
+    {% endif %}
+  </div>
+
+  <!-- Deep Dive result area -->
+  <div id="wtf-deep-dive-result" style="display:none;background:#060d14;border:1px solid #0af;border-radius:4px;padding:12px;margin-bottom:14px;font-size:11px;color:#ccc;"></div>
+
+  <!-- Article Body -->
+  {% if a.body %}
+  <div class="wtf-art-body">{{ a.body }}</div>
+  {% endif %}
+
+  <!-- How We Scored This -->
+  <details class="wtf-how-scored">
+    <summary>How we scored this article</summary>
+    <p style="margin-top:8px;">WTF uses a two-tier system: every article gets a heuristic bias score from keyword analysis, and priority articles (high overlap across 3+ outlets or strong heuristic signal) get full LLM analysis from B.I.A.S. and V.E.R.I.F.Y.</p>
+    <p><a href="{{ wtf_tech_url }}/transparency/{{ a.id }}" style="color:#a0f;">Full audit trail for this article &#x2192;</a></p>
+  </details>
+
+  <!-- Cross-source -->
+  {% if a.cluster_id %}
+  <div style="margin-top:12px;">
+    <a class="wtf-cross-source" href="{{ wtf_tech_url }}/clusters/{{ a.cluster_id }}">
+      Compare with other outlets covering this story &#x2192;
+    </a>
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+async function deepDive(articleId) {
+  var btn = document.getElementById('wtf-dive-btn');
+  var result = document.getElementById('wtf-deep-dive-result');
+  if (btn) { btn.disabled = true; btn.textContent = 'Analyzing…'; }
+  result.style.display = 'block';
+  result.textContent = 'Dispatching to B.I.A.S. + V.E.R.I.F.Y. + L.O.C.A.L. — this may take up to 90 seconds…';
+  try {
+    var resp = await fetch('{{ wtf_tech_url }}/api/v1/articles/' + articleId + '/analyze', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'}
+    });
+    var data = await resp.json();
+    if (data.ok) {
+      result.textContent = '✓ Analysis complete — reloading page…';
+      setTimeout(function() { location.reload(); }, 2000);
+    } else {
+      result.textContent = 'Analysis failed: ' + (data.error || 'unknown error');
+      if (btn) { btn.disabled = false; btn.textContent = '🔍 Deep Dive — Full AI Analysis'; }
+    }
+  } catch(e) {
+    result.textContent = 'Network error: ' + e.message;
+    if (btn) { btn.disabled = false; btn.textContent = '🔍 Deep Dive — Full AI Analysis'; }
+  }
+}
+</script>
 {% endblock %}

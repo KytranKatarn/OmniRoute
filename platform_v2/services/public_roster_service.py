@@ -196,3 +196,51 @@ def get_public_roster_live():
     except Exception as e:
         logger.error("get_public_roster_live failed: %s", e)
         return {"success": False, "agents": [], "error": str(e)}
+
+
+_KYTRAN_DATA_DIR = os.getenv(
+    "KYTRAN_WEBSITE_DATA_DIR",
+    "/mnt/archie_brain/website/kytranempowerment.com/data",
+)
+
+
+def write_directory_snapshot() -> bool:
+    """Write directory-fallback.json and directors.json to the website data directory.
+
+    Pulls current agent data from the DB and writes two static files so the
+    CDN-served directory and AI-Directors pages don't depend on a live hub call.
+    Called before portrait deploys so the snapshot is always fresh in the zip.
+    Returns True on success, False on any error.
+    """
+    import json
+    from datetime import datetime, timezone
+
+    try:
+        roster = get_public_roster()
+        agents = roster.get("agents", [])
+        generated_at = datetime.now(timezone.utc).isoformat()
+
+        os.makedirs(_KYTRAN_DATA_DIR, exist_ok=True)
+
+        # Full roster — directory.js reads this as primary
+        fallback_path = os.path.join(_KYTRAN_DATA_DIR, "directory-fallback.json")
+        with open(fallback_path, "w", encoding="utf-8") as f:
+            json.dump({"agents": agents, "generated_at": generated_at}, f, ensure_ascii=False, indent=2)
+
+        # Directors only — ai-directors.js reads this as primary
+        directors = [a for a in agents if a.get("is_director")]
+        directors_path = os.path.join(_KYTRAN_DATA_DIR, "directors.json")
+        with open(directors_path, "w", encoding="utf-8") as f:
+            json.dump({"agents": directors, "generated_at": generated_at}, f, ensure_ascii=False, indent=2)
+
+        logger.info(
+            "[DirectorySnapshot] Wrote %d agents + %d directors to %s",
+            len(agents),
+            len(directors),
+            _KYTRAN_DATA_DIR,
+        )
+        return True
+
+    except Exception as exc:
+        logger.error("[DirectorySnapshot] write_directory_snapshot failed: %s", exc)
+        return False

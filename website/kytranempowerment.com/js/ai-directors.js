@@ -301,8 +301,8 @@
     });
   }
 
-  var API_URL = 'https://platform.kytranempowerment.com/api/public/directory';
-  var FALLBACK_URL = 'data/directors.json';
+  var API_URL = 'data/directors.json';
+  var FALLBACK_URL = 'https://platform.kytranempowerment.com/api/public/directory';
 
   function init() {
     fetch(API_URL)

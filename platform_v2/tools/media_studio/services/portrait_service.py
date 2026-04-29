@@ -12,6 +12,7 @@ from typing import Dict, List, Optional
 
 from database import get_db_cursor
 from services import agent_service
+from services.deploy_service import run_deploy_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,16 @@ CREED_PORTRAIT_DIR = os.getenv(
     "/mnt/archie_brain/website/creed-ai.org/assets/portraits",
 )
 WEBSITE_THUMB_STAGING = os.path.join(_PLATFORM_DIR, "static", "media", "thumbs")
+
+# Source path roots for full-site deploys (deploy_service zips the entire tree)
+KYTRAN_DEPLOY_SOURCE = os.getenv(
+    "KYTRAN_DEPLOY_SOURCE",
+    "/mnt/archie_brain/website/kytranempowerment.com",
+)
+CREED_DEPLOY_SOURCE = os.getenv(
+    "CREED_DEPLOY_SOURCE",
+    "/mnt/archie_brain/website/creed-ai.org",
+)
 WEBSITE_THUMB_SIZE = (400, 400)
 WEBSITE_THUMB_JPEG_QUALITY = 82
 
@@ -149,6 +160,67 @@ def _sync_all_site_thumbs(
         logger.warning("[Portrait] Could not sync thumb to creed-ai.org: %s", exc)
 
     return primary, sites_written
+
+
+def _deploy_portrait_to_sites(website_thumb: str, stem: str, agent_name: str) -> None:
+    """Deploy portrait JPEG to all public sites via deploy_service pipeline.
+
+    Runs inside a background thread (called from approve_canonical). Never
+    raises — errors are logged and run_deploy_pipeline handles Telegram
+    alerting + Repair Bay proposal on failure.
+    """
+    SITE_CONFIGS = [
+        {
+            "domain": "kytranempowerment.com",
+            "source_path": KYTRAN_DEPLOY_SOURCE,
+        },
+        {
+            "domain": "creed-ai.org",
+            "source_path": CREED_DEPLOY_SOURCE,
+        },
+    ]
+
+    for cfg in SITE_CONFIGS:
+        portrait_path = os.path.join(cfg["source_path"], "assets", "portraits", f"{stem}.jpg")
+        if not os.path.isfile(portrait_path):
+            logger.info(
+                "[Portrait] Skipping %s — portrait not present at %s",
+                cfg["domain"],
+                portrait_path,
+            )
+            continue
+
+        try:
+            result = run_deploy_pipeline(
+                "deploy_static",
+                {
+                    "domain": cfg["domain"],
+                    "source_path": cfg["source_path"],
+                    "changed_files": [f"assets/portraits/{stem}.jpg"],
+                    "verify_url": f"https://{cfg['domain']}/assets/portraits/{stem}.jpg",
+                    "reason": f"Portrait approved for agent {agent_name}",
+                },
+            )
+            if result.success:
+                logger.info(
+                    "[Portrait] Deploy to %s succeeded for %s",
+                    cfg["domain"],
+                    agent_name,
+                )
+            else:
+                logger.error(
+                    "[Portrait] Deploy to %s failed for %s: %s",
+                    cfg["domain"],
+                    agent_name,
+                    result.error,
+                )
+        except Exception as exc:
+            logger.error(
+                "[Portrait] Unexpected error deploying to %s for %s: %s",
+                cfg["domain"],
+                agent_name,
+                exc,
+            )
 
 
 def _push_portrait_via_api(local_path: str) -> None:

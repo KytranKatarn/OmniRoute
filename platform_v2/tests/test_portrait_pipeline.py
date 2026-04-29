@@ -104,3 +104,110 @@ class TestSyncAllSiteThumbs:
         assert result == str(primary)
         assert "kytranempowerment.com" in sites
         assert "creed-ai.org" not in sites
+
+
+class TestDeployPortraitToSites:
+    def test_calls_run_deploy_pipeline_for_kytranempowerment(self, tmp_path):
+        """_deploy_portrait_to_sites calls run_deploy_pipeline for kytranempowerment.com."""
+        from tools.media_studio.services.portrait_service import _deploy_portrait_to_sites
+
+        kytran_portraits = tmp_path / "kytranempowerment" / "assets" / "portraits"
+        kytran_portraits.mkdir(parents=True)
+        (kytran_portraits / "portrait.jpg").write_bytes(b"fake jpeg")
+
+        mock_result = MagicMock()
+        mock_result.success = True
+        mock_result.error = None
+
+        with patch(
+            "tools.media_studio.services.portrait_service.run_deploy_pipeline",
+            return_value=mock_result,
+        ) as mock_deploy, patch(
+            "tools.media_studio.services.portrait_service.KYTRAN_DEPLOY_SOURCE",
+            str(tmp_path / "kytranempowerment"),
+        ), patch(
+            "tools.media_studio.services.portrait_service.CREED_DEPLOY_SOURCE",
+            str(tmp_path / "creed"),
+        ):
+            _deploy_portrait_to_sites("any.jpg", "portrait", "TEST_AGENT")
+
+        calls = mock_deploy.call_args_list
+        domains = [c.args[1]["domain"] for c in calls if len(c.args) > 1 and "domain" in c.args[1]]
+        assert "kytranempowerment.com" in domains
+
+    def test_calls_run_deploy_pipeline_for_creed(self, tmp_path):
+        """_deploy_portrait_to_sites calls run_deploy_pipeline for creed-ai.org."""
+        from tools.media_studio.services.portrait_service import _deploy_portrait_to_sites
+
+        creed_portraits = tmp_path / "creed" / "assets" / "portraits"
+        creed_portraits.mkdir(parents=True)
+        (creed_portraits / "portrait.jpg").write_bytes(b"fake jpeg")
+
+        mock_result = MagicMock()
+        mock_result.success = True
+
+        with patch(
+            "tools.media_studio.services.portrait_service.run_deploy_pipeline",
+            return_value=mock_result,
+        ) as mock_deploy, patch(
+            "tools.media_studio.services.portrait_service.KYTRAN_DEPLOY_SOURCE",
+            str(tmp_path / "kytranempowerment"),
+        ), patch(
+            "tools.media_studio.services.portrait_service.CREED_DEPLOY_SOURCE",
+            str(tmp_path / "creed"),
+        ):
+            _deploy_portrait_to_sites("any.jpg", "portrait", "TEST_AGENT")
+
+        calls = mock_deploy.call_args_list
+        domains = [c.args[1]["domain"] for c in calls if len(c.args) > 1 and "domain" in c.args[1]]
+        assert "creed-ai.org" in domains
+
+    def test_skips_domain_when_portrait_file_missing(self, tmp_path):
+        """_deploy_portrait_to_sites skips a domain if the portrait JPEG is not in that site dir."""
+        from tools.media_studio.services.portrait_service import _deploy_portrait_to_sites
+
+        mock_result = MagicMock()
+        mock_result.success = True
+
+        with patch(
+            "tools.media_studio.services.portrait_service.run_deploy_pipeline",
+            return_value=mock_result,
+        ) as mock_deploy, patch(
+            "tools.media_studio.services.portrait_service.KYTRAN_DEPLOY_SOURCE",
+            str(tmp_path / "kytranempowerment"),  # portraits dir does not exist
+        ), patch(
+            "tools.media_studio.services.portrait_service.CREED_DEPLOY_SOURCE",
+            str(tmp_path / "creed"),  # portraits dir does not exist
+        ):
+            _deploy_portrait_to_sites("any.jpg", "portrait", "TEST_AGENT")
+
+        assert mock_deploy.call_count == 0
+
+    def test_continues_second_site_if_first_fails(self, tmp_path):
+        """_deploy_portrait_to_sites continues to creed even if kytranempowerment deploy fails."""
+        from tools.media_studio.services.portrait_service import _deploy_portrait_to_sites
+
+        for domain_dir in ("kytranempowerment", "creed"):
+            d = tmp_path / domain_dir / "assets" / "portraits"
+            d.mkdir(parents=True)
+            (d / "portrait.jpg").write_bytes(b"fake jpeg")
+
+        failed = MagicMock()
+        failed.success = False
+        failed.error = "Hostinger 500"
+        ok = MagicMock()
+        ok.success = True
+
+        with patch(
+            "tools.media_studio.services.portrait_service.run_deploy_pipeline",
+            side_effect=[failed, ok],
+        ) as mock_deploy, patch(
+            "tools.media_studio.services.portrait_service.KYTRAN_DEPLOY_SOURCE",
+            str(tmp_path / "kytranempowerment"),
+        ), patch(
+            "tools.media_studio.services.portrait_service.CREED_DEPLOY_SOURCE",
+            str(tmp_path / "creed"),
+        ):
+            _deploy_portrait_to_sites("any.jpg", "portrait", "TEST_AGENT")
+
+        assert mock_deploy.call_count == 2

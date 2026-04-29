@@ -146,6 +146,7 @@ CAPABILITY_DEPARTMENT_MAP = {
     "community_building": "Marketing & Communications",
     "community_relations": "Marketing & Communications",
     "engagement_management": "Marketing & Communications",
+    "social_post_draft": "Marketing & Communications",  # S.I.G.N.A.L. drafts
     # Creative & Design
     "creative_writing": "Creative & Design",
     "creative_direction": "Creative & Design",
@@ -171,6 +172,7 @@ CAPABILITY_DEPARTMENT_MAP = {
     "drawdown_management": "Finance & Accounting",
     "fundamental_analysis": "Finance & Accounting",
     # Operations & Infrastructure
+    "social_account_provision": "Operations & Infrastructure",  # B.A.S.E. provisions
     "deploy_static": "Operations & Infrastructure",  # Hostinger zip deploy (B.A.S.E. Lv5)
     "deploy_vps": "Operations & Infrastructure",  # VPS SSH rsync + docker rebuild (B.A.S.E. Lv5)
     "facilities_management": "Operations & Infrastructure",
@@ -206,6 +208,8 @@ CAPABILITY_DEPARTMENT_MAP = {
     "biometric_monitoring": "Medical & Wellness",
     # Security & Compliance
     "audit_management": "Security & Compliance",  # platform/infrastructure audit — V.I.G.I.L. owns compliance_scan_results
+    # Executive Office (A.R.C.H.I.E.) — approval gate for outbound social posts
+    "social_post_approve": "Executive Office",  # A.R.C.H.I.E. approves
 }
 
 

@@ -158,6 +158,53 @@ score += 1  # breaking keyword in title</div>
     </div>
   </div>
 
+  <!-- Coverage Gaps -->
+  <div class="wtf-section">
+    <div class="wtf-section-title">COVERAGE GAPS — OUTLETS WE CANNOT MONITOR</div>
+    <div class="wtf-method-block">
+      <h4>Why this matters</h4>
+      <p>WTF can only analyze outlets that publish open RSS feeds. Several major Canadian news operations have discontinued public RSS access, making their journalism invisible to independent algorithmic scrutiny. We document every gap — because transparency about what we <em>cannot</em> see is as important as what we can.</p>
+    </div>
+
+    <div class="wtf-method-block" style="border-color:#f44;">
+      <h4 style="color:#f44;">CTV News — Bell Media</h4>
+      <p><strong>Status:</strong> RSS discontinued. All feed URLs return 404 as of 2026-04-29.</p>
+      <p><strong>Why it matters:</strong> CTV News is Canada&rsquo;s largest private broadcaster. Bell Media (parent) operates CTV News, BNN Bloomberg, TSN, and 35+ radio stations. Their editorial decisions reach millions of Canadians daily &mdash; and are now invisible to public algorithmic fact-checking. WTF cannot score, audit, or track bias trends in CTV News journalism.</p>
+      <p><strong>Likely reason:</strong> Bell Media has been aggressively moving content to ctv.ca and their app to serve pre-roll ads and track engagement. Open RSS reduces that leverage.</p>
+      <p><strong>What we&rsquo;re investigating:</strong> Alternative ingest paths (structured web data, API partnerships, community submission). No timeline.</p>
+    </div>
+
+    <div class="wtf-method-block" style="border-color:#fa0;">
+      <h4 style="color:#fa0;">La Presse</h4>
+      <p><strong>Status:</strong> RSS discontinued. All feed URLs return 404 as of 2026-04-29.</p>
+      <p><strong>Why it matters:</strong> La Presse is the dominant French-language daily in Quebec &mdash; the largest French-speaking market in North America. Without La Presse, WTF has a significant blind spot in Quebec journalism and French-Canadian political coverage.</p>
+      <p><strong>Likely reason:</strong> La Presse went app-first in 2018 (La Presse+), an ad-supported tablet app. RSS access would bypass their app distribution entirely.</p>
+      <p><strong>What we&rsquo;re investigating:</strong> Radio-Canada RSS (CBC French) as a partial replacement for Quebec coverage.</p>
+    </div>
+
+    <div class="wtf-method-block" style="border-color:#fa0;">
+      <h4 style="color:#fa0;">Toronto Star</h4>
+      <p><strong>Status:</strong> RSS URLs return HTTP 200 but serve HTML, not XML. Feed is effectively non-functional as of 2026-04-29.</p>
+      <p><strong>Why it matters:</strong> The Toronto Star is Canada&rsquo;s highest-circulation print newspaper and a historically progressive voice. Its absence creates a gap in center-left Ontario coverage.</p>
+      <p><strong>Likely reason:</strong> Torstar went behind a hard paywall in 2020. Open RSS would let readers access headlines for free, undermining subscriptions.</p>
+    </div>
+
+    <div class="wtf-method-block">
+      <h4>Active sources (as of 2026-04-29)</h4>
+      <p>WTF currently ingests from 7 active Canadian sources:</p>
+      <ul>
+        <li><strong>CBC English</strong> &mdash; public broadcaster, center-left</li>
+        <li><strong>Global News</strong> &mdash; Corus Entertainment, center</li>
+        <li><strong>National Post</strong> &mdash; Postmedia, right-leaning</li>
+        <li><strong>The Globe and Mail</strong> &mdash; independent, center</li>
+        <li><strong>iPolitics</strong> &mdash; independent, Ottawa-focused</li>
+        <li><strong>The Narwhal</strong> &mdash; independent, investigative, environment-focused</li>
+        <li><strong>Canadaland</strong> &mdash; independent, media criticism, left-leaning</li>
+      </ul>
+      <p style="color:#555;font-size:10px;">We are actively seeking additional sources across the political spectrum and in French. If you represent a Canadian outlet with an open RSS feed, contact us.</p>
+    </div>
+  </div>
+
   <!-- Flag a Score -->
   <div class="wtf-section">
     <div class="wtf-section-title">FLAG A SCORE</div>

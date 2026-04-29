@@ -7,10 +7,13 @@ and environment art for hub/node backgrounds.
 import base64
 import logging
 import os
+import shutil
+import threading
 from typing import Dict, List, Optional
 
 from database import get_db_cursor
 from services import agent_service
+from services.deploy_service import run_deploy_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +47,31 @@ WEBSITE_THUMB_PRIMARY = os.getenv(
     "PORTRAIT_WEBSITE_THUMB_DIR",
     "/mnt/archie_brain/website/kytranempowerment.com/assets/portraits",
 )
+CREED_PORTRAIT_DIR = os.getenv(
+    "PORTRAIT_CREED_THUMB_DIR",
+    "/mnt/archie_brain/website/creed-ai.org/assets/portraits",
+)
 WEBSITE_THUMB_STAGING = os.path.join(_PLATFORM_DIR, "static", "media", "thumbs")
+
+# Source path roots for full-site deploys (deploy_service zips the entire tree)
+KYTRAN_DEPLOY_SOURCE = os.getenv(
+    "KYTRAN_DEPLOY_SOURCE",
+    "/mnt/archie_brain/website/kytranempowerment.com",
+)
+CREED_DEPLOY_SOURCE = os.getenv(
+    "CREED_DEPLOY_SOURCE",
+    "/mnt/archie_brain/website/creed-ai.org",
+)
+_PORTRAIT_DEPLOY_SITES = [
+    {
+        "domain": "kytranempowerment.com",
+        "source_path": KYTRAN_DEPLOY_SOURCE,
+    },
+    {
+        "domain": "creed-ai.org",
+        "source_path": CREED_DEPLOY_SOURCE,
+    },
+]
 WEBSITE_THUMB_SIZE = (400, 400)
 WEBSITE_THUMB_JPEG_QUALITY = 82
 
@@ -117,101 +144,90 @@ def _sync_website_thumb(canonical_db_path: str) -> Optional[str]:
     return None
 
 
-def _push_portrait_via_api(local_path: str) -> None:
-    """Upload a single portrait thumb to Hostinger via TUS API in a background thread.
+def _sync_all_site_thumbs(
+    canonical_db_path: str,
+) -> tuple[Optional[str], list[str]]:
+    """Copy approved portrait JPEG to every public site that displays agent portraits.
 
-    Uses HOSTINGER_API_KEY (already in container env). No FTP password needed.
-    Protocol: POST init + PATCH upload (TUS). File is live immediately after upload.
-    Fire-and-forget — never raises, never blocks approve_canonical.
+    Calls _sync_website_thumb for kytranempowerment.com (primary), then copies
+    to creed-ai.org. Returns (primary_path, sites_written). On partial failure
+    still returns the primary so the deploy can proceed for the sites that worked.
     """
-    import threading
+    primary = _sync_website_thumb(canonical_db_path)
+    if not primary:
+        return None, []
 
-    api_key = os.getenv("HOSTINGER_API_KEY", "")
-    if not api_key:
-        logger.debug("HOSTINGER_API_KEY not set — skipping portrait API push")
-        return
+    stem = os.path.splitext(os.path.basename(primary))[0]
+    sites_written: list[str] = ["kytranempowerment.com"]
 
-    filename = os.path.basename(local_path)
+    # Copy to creed-ai.org
+    try:
+        os.makedirs(CREED_PORTRAIT_DIR, exist_ok=True)
+        creed_dst = os.path.join(CREED_PORTRAIT_DIR, f"{stem}.jpg")
+        shutil.copy2(primary, creed_dst)
+        sites_written.append("creed-ai.org")
+        logger.info("[Portrait] Synced thumb to creed-ai.org: %s", creed_dst)
+    except Exception as exc:
+        logger.warning("[Portrait] Could not sync thumb to creed-ai.org: %s", exc)
 
-    def _upload() -> None:
-        try:
-            import requests as _req
+    return primary, sites_written
 
-            base = "https://developers.hostinger.com"
-            auth_headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            }
 
-            # Step 1: resolve hosting account username for this domain
-            r = _req.get(
-                f"{base}/api/hosting/v1/websites?domain=kytranempowerment.com",
-                headers=auth_headers,
-                timeout=10,
-            )
-            r.raise_for_status()
-            username = r.json()["data"][0]["username"]
+def _deploy_portrait_to_sites(stem: str, agent_name: str) -> None:
+    """Deploy portrait JPEG to all public sites via deploy_service pipeline.
 
-            # Step 2: get TUS upload credentials {url, auth_key, rest_auth_key}
-            r = _req.post(
-                f"{base}/api/hosting/v1/files/upload-urls",
-                headers=auth_headers,
-                json={"username": username, "domain": "kytranempowerment.com"},
-                timeout=10,
-            )
-            r.raise_for_status()
-            creds = r.json()
-            upload_url = creds["url"].rstrip("/")
-            auth_token = creds["auth_key"]
-            auth_rest = creds["rest_auth_key"]
-
-            # Step 3: TUS upload — POST init then PATCH file content
-            file_size = os.path.getsize(local_path)
-            endpoint = f"{upload_url}/assets/portraits/{filename}?override=true"
-            tus_headers = {
-                "X-Auth": auth_token,
-                "X-Auth-Rest": auth_rest,
-                "upload-length": str(file_size),
-                "upload-offset": "0",
-            }
-
-            r = _req.post(endpoint, data=b"", headers=tus_headers, timeout=30)
-            if r.status_code != 201:
-                logger.warning(
-                    "portrait API push init failed (%s): %s %s",
-                    filename,
-                    r.status_code,
-                    r.text[:200],
+    Runs inside a background thread (called from approve_canonical). Never
+    raises — errors are logged and run_deploy_pipeline handles Telegram
+    alerting + Repair Bay proposal on failure.
+    """
+    try:
+        for cfg in _PORTRAIT_DEPLOY_SITES:
+            portrait_path = os.path.join(cfg["source_path"], "assets", "portraits", f"{stem}.jpg")
+            if not os.path.isfile(portrait_path):
+                logger.info(
+                    "[Portrait] Skipping %s — portrait not present at %s",
+                    cfg["domain"],
+                    portrait_path,
                 )
-                return
+                continue
 
-            with open(local_path, "rb") as fh:
-                r = _req.patch(
-                    endpoint,
-                    data=fh,
-                    headers={
-                        "X-Auth": auth_token,
-                        "X-Auth-Rest": auth_rest,
-                        "upload-offset": "0",
-                        "Content-Type": "application/offset+octet-stream",
+            try:
+                result = run_deploy_pipeline(
+                    "deploy_static",
+                    {
+                        "domain": cfg["domain"],
+                        "source_path": cfg["source_path"],
+                        "changed_files": [f"assets/portraits/{stem}.jpg"],
+                        "verify_url": f"https://{cfg['domain']}/assets/portraits/{stem}.jpg",
+                        "reason": f"Portrait approved for agent {agent_name}",
                     },
-                    timeout=60,
                 )
-
-            if r.status_code in (200, 204):
-                logger.info("portrait pushed to Hostinger via API: %s", filename)
-            else:
-                logger.warning(
-                    "portrait API push PATCH failed (%s): %s %s",
-                    filename,
-                    r.status_code,
-                    r.text[:200],
+                if result.success:
+                    logger.info(
+                        "[Portrait] Deploy to %s succeeded for %s",
+                        cfg["domain"],
+                        agent_name,
+                    )
+                else:
+                    logger.error(
+                        "[Portrait] Deploy to %s failed for %s: %s",
+                        cfg["domain"],
+                        agent_name,
+                        result.error,
+                    )
+            except Exception as exc:
+                logger.error(
+                    "[Portrait] Unexpected error deploying to %s for %s: %s",
+                    cfg["domain"],
+                    agent_name,
+                    exc,
                 )
-
-        except Exception as exc:
-            logger.warning("portrait API push error (%s): %s", filename, exc)
-
-    threading.Thread(target=_upload, daemon=True, name=f"portrait-api-{filename}").start()
+    except Exception as exc:
+        logger.error(
+            "[Portrait] Unexpected error in _deploy_portrait_to_sites for %s: %s",
+            agent_name,
+            exc,
+        )
 
 
 # Import diversity map from existing portrait generator
@@ -463,44 +479,22 @@ def approve_canonical(agent_id: int, media_id: int) -> Dict:
     # canonical mutation surface (Project #241 Track C.1).
     agent_service.update_agent(agent_id, avatar_url=thumb)
 
-    # Publish a 400x400 JPEG thumb to the kytranempowerment.com website
-    # repo so the public directory page can render same-origin. Best-effort
-    # — a thumb-gen failure must NOT fail the approval.
-    website_thumb = _sync_website_thumb(file_path)
+    # Sync portrait JPEG to all sites (kytranempowerment.com + creed-ai.org)
+    # and dispatch deploy_service pipeline for each in a background thread.
+    website_thumb, sites_synced = _sync_all_site_thumbs(file_path)
 
-    # Push the new thumb directly to Hostinger via API in a background thread.
-    # Uses TUS upload protocol — no FTP password needed, just HOSTINGER_API_KEY.
-    # Fire-and-forget: upload failure never fails the approval.
-    if website_thumb:
-        # Get agent name for logging
+    if website_thumb and sites_synced:
+        stem = os.path.splitext(os.path.basename(website_thumb))[0]
         with get_db_cursor(commit=False) as (conn, cur):
-            cur.execute(
-                "SELECT name FROM agents WHERE id = %s",
-                (agent_id,),
-            )
+            cur.execute("SELECT name FROM agents WHERE id = %s", (agent_id,))
             agent_row = cur.fetchone()
             agent_name = agent_row["name"] if agent_row else str(agent_id)
 
-        def _push_portrait_logged(path: str, name: str) -> None:
-            try:
-                _push_portrait_via_api(path)
-                logger.info("[Portrait] Deployed %s to Hostinger", name)
-            except Exception as exc:
-                logger.error("[Portrait] Deploy failed for %s: %s", name, exc)
-                try:
-                    from database import get_db_cursor
-
-                    with get_db_cursor(commit=True) as (conn, cur):
-                        cur.execute(
-                            """INSERT INTO system_notifications
-                               (type, title, message, source, priority, visibility, is_read, created_at)
-                               VALUES ('error', 'Portrait Deploy Failed', %s, 'portrait_service', 'high', 'admin', FALSE, NOW())""",
-                            (f"Failed to deploy portrait for {name}: {exc}",),
-                        )
-                except Exception:
-                    pass
-
-        t = threading.Thread(target=_push_portrait_logged, args=(website_thumb, agent_name), daemon=True)
+        t = threading.Thread(
+            target=_deploy_portrait_to_sites,
+            args=(stem, agent_name),
+            daemon=True,
+        )
         t.start()
 
     return {
@@ -508,6 +502,7 @@ def approve_canonical(agent_id: int, media_id: int) -> Dict:
         "agent_id": agent_id,
         "media_id": media_id,
         "website_thumb": website_thumb,
+        "sites_queued": sites_synced,
     }
 
 

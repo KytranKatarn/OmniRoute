@@ -340,12 +340,9 @@ def generate_canonical(agent_id: int, prompt_override: Optional[str] = None) -> 
         identity_prompt = None
 
     if not identity_prompt:
-        diversity = AGENT_DIVERSITY.get(agent_name.lower())
-        if diversity:
-            desc, age = diversity
-            identity_prompt = _build_identity_prompt(full_name, desc, age)
-        else:
-            identity_prompt = _build_identity_prompt(full_name, "person with distinctive features", "adult")
+        # No prompt set — generation is blocked by the API gate before reaching here.
+        # Return an error rather than generating with a generic fallback.
+        return {"success": False, "error": f"No identity_prompt set for agent {agent_id}. Set one in DHQ Roster first."}
 
     _ensure_portrait_record(agent_id, identity_prompt)
     seed = row.get("face_seed") or -1

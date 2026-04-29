@@ -304,42 +304,108 @@
   function buildPortraitSection(agent) {
     const wrap = document.createElement('div');
     wrap.className = 'apm-section';
+    wrap.innerHTML = '<div class="apm-section-label">PORTRAIT</div>';
 
-    const label = document.createElement('div');
-    label.className = 'apm-section-label';
-    label.textContent = 'PORTRAIT';
-    wrap.appendChild(label);
-
+    // Portrait image
     const imgWrap = document.createElement('div');
-    imgWrap.style.cssText = 'display:flex;align-items:flex-start;gap:1rem;margin-top:.5rem';
-
+    imgWrap.style.cssText = 'display:flex;align-items:flex-start;gap:1rem;margin-top:.5rem;margin-bottom:1rem';
     const img = document.createElement('img');
     const portraitSrc = agent.avatar_thumb_url || agent.avatar_url || '';
-    if (portraitSrc) {
-      img.src = portraitSrc;
-      img.alt = agent.display_name + ' portrait';
-      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.1)';
-    } else {
-      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05)';
-    }
-    imgWrap.appendChild(img);
-
+    img.src = portraitSrc || '';
+    img.alt = agent.display_name + ' portrait';
+    img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05)';
     const infoWrap = document.createElement('div');
-    infoWrap.style.cssText = 'display:flex;flex-direction:column;gap:.5rem;justify-content:center';
-
+    infoWrap.style.cssText = 'display:flex;flex-direction:column;gap:.4rem;justify-content:center';
     const statusBadge = document.createElement('span');
     statusBadge.style.cssText = 'font-size:.7rem;color:#94a3b8';
     statusBadge.textContent = portraitSrc ? 'Portrait assigned' : 'No portrait yet';
-    infoWrap.appendChild(statusBadge);
-
     const msLink = document.createElement('a');
     msLink.href = '/tools/media-studio#portraits';
     msLink.className = 'apm-deeplink';
-    msLink.textContent = 'Edit portrait in Media Studio →';
+    msLink.textContent = 'Generate in Media Studio →';
+    infoWrap.appendChild(statusBadge);
     infoWrap.appendChild(msLink);
-
+    imgWrap.appendChild(img);
     imgWrap.appendChild(infoWrap);
     wrap.appendChild(imgWrap);
+
+    // Prompt editor
+    const promptLabel = document.createElement('div');
+    promptLabel.style.cssText = 'font-size:.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.35rem';
+    promptLabel.textContent = 'IDENTITY PROMPT';
+    wrap.appendChild(promptLabel);
+
+    const promptTA = document.createElement('textarea');
+    promptTA.style.cssText = 'width:100%;min-height:80px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#e2e8f0;font-size:.78rem;padding:.5rem;resize:vertical;font-family:inherit;line-height:1.5';
+    promptTA.value = agent.identity_prompt || '';
+    promptTA.placeholder = 'Describe this agent\'s portrait — appearance, enhancement, attire...';
+    promptTA.disabled = true;
+    wrap.appendChild(promptTA);
+
+    // Edit/Save/Cancel row
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:.5rem;margin-top:.4rem';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'apm-btn';
+    editBtn.textContent = 'Edit Prompt';
+    editBtn.onclick = function() {
+      promptTA.disabled = false;
+      promptTA.focus();
+      editBtn.style.display = 'none';
+      saveBtn.style.display = '';
+      cancelBtn.style.display = '';
+    };
+    btnRow.appendChild(editBtn);
+
+    const origPrompt = promptTA.value;
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'apm-btn apm-btn-primary';
+    saveBtn.textContent = 'Save';
+    saveBtn.style.display = 'none';
+    saveBtn.onclick = async function() {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+      try {
+        const res = await fetch('/tools/department-hq/api/agent/' + agent.id, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ identity_prompt: promptTA.value })
+        });
+        const data = await res.json();
+        if (data.success !== false && !data.error) {
+          promptTA.disabled = true;
+          editBtn.style.display = '';
+          saveBtn.style.display = 'none';
+          cancelBtn.style.display = 'none';
+          saveBtn.textContent = 'Save';
+          saveBtn.disabled = false;
+        } else {
+          saveBtn.textContent = 'Error — retry';
+          saveBtn.disabled = false;
+        }
+      } catch(e) {
+        saveBtn.textContent = 'Error — retry';
+        saveBtn.disabled = false;
+      }
+    };
+    btnRow.appendChild(saveBtn);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'apm-btn';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.style.display = 'none';
+    cancelBtn.onclick = function() {
+      promptTA.value = origPrompt;
+      promptTA.disabled = true;
+      editBtn.style.display = '';
+      saveBtn.style.display = 'none';
+      cancelBtn.style.display = 'none';
+    };
+    btnRow.appendChild(cancelBtn);
+    wrap.appendChild(btnRow);
+
     return wrap;
   }
 

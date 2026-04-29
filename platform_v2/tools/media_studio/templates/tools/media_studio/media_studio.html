@@ -978,9 +978,7 @@
                     <label data-i18n="media_studio.identity_prompt">Identity Prompt</label>
                     <textarea id="ms-identity-prompt" class="ms-prompt-area" rows="4" disabled></textarea>
                     <div class="ms-identity-actions" style="display:flex;gap:8px;margin-top:6px;">
-                        <button id="ms-identity-edit-btn" class="ms-btn ms-btn-ghost" onclick="editIdentityPrompt()">Edit</button>
-                        <button id="ms-identity-save-btn" class="ms-btn ms-btn-ghost" onclick="saveIdentityPrompt()" style="display:none" data-i18n="media_studio.save_prompt">Save</button>
-                        <button id="ms-identity-cancel-btn" class="ms-btn ms-btn-ghost" onclick="cancelIdentityPrompt()" style="display:none">Cancel</button>
+                        <a href="/tools/department-hq#roster" class="ms-btn ms-btn-ghost" style="font-size:.75rem;text-decoration:none">← Edit in DHQ Roster</a>
                     </div>
                 </div>
             </div>
@@ -2952,51 +2950,6 @@
 
     // Edit/Save/Cancel pattern for identity prompt — locked by default to
     // prevent accidental edits. Tracks original value so Cancel reverts.
-    var _identityPromptOriginal = '';
-
-    function _setIdentityEditState(editing) {
-        document.getElementById('ms-identity-prompt').disabled = !editing;
-        document.getElementById('ms-identity-edit-btn').style.display = editing ? 'none' : '';
-        document.getElementById('ms-identity-save-btn').style.display = editing ? '' : 'none';
-        document.getElementById('ms-identity-cancel-btn').style.display = editing ? '' : 'none';
-    }
-
-    window.editIdentityPrompt = function() {
-        var ta = document.getElementById('ms-identity-prompt');
-        _identityPromptOriginal = ta.value;
-        _setIdentityEditState(true);
-        ta.focus();
-    };
-
-    window.cancelIdentityPrompt = function() {
-        document.getElementById('ms-identity-prompt').value = _identityPromptOriginal;
-        _setIdentityEditState(false);
-    };
-
-    window.saveIdentityPrompt = function() {
-        if (!_currentAgentId) return;
-        var ta = document.getElementById('ms-identity-prompt');
-        var prompt = ta.value.trim();
-        if (!prompt) { alert('Identity prompt cannot be empty.'); return; }
-        var saveBtn = document.getElementById('ms-identity-save-btn');
-        saveBtn.disabled = true; saveBtn.textContent = 'Saving...';
-        fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/identity-prompt', {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({prompt: prompt})
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            saveBtn.disabled = false; saveBtn.textContent = 'Save';
-            if (data.error) { alert(data.error); return; }
-            _identityPromptOriginal = prompt;
-            _setIdentityEditState(false);
-        })
-        .catch(function(err) {
-            saveBtn.disabled = false; saveBtn.textContent = 'Save';
-            alert('Save failed: ' + err.message);
-        });
-    };
 
     window.generateAllMissing = async function() {
         var res;

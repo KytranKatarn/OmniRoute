@@ -8,6 +8,7 @@ import base64
 import logging
 import os
 import shutil
+import threading
 from typing import Dict, List, Optional
 
 from database import get_db_cursor
@@ -568,44 +569,24 @@ def approve_canonical(agent_id: int, media_id: int) -> Dict:
     # canonical mutation surface (Project #241 Track C.1).
     agent_service.update_agent(agent_id, avatar_url=thumb)
 
-    # Publish a 400x400 JPEG thumb to the kytranempowerment.com website
-    # repo so the public directory page can render same-origin. Best-effort
-    # — a thumb-gen failure must NOT fail the approval.
-    website_thumb = _sync_website_thumb(file_path)
+    # Sync portrait JPEG to all sites (kytranempowerment.com + creed-ai.org)
+    # and dispatch deploy_service pipeline for each in a background thread.
+    website_thumb = None
+    sites_synced: list = []
+    website_thumb, sites_synced = _sync_all_site_thumbs(file_path)
 
-    # Push the new thumb directly to Hostinger via API in a background thread.
-    # Uses TUS upload protocol — no FTP password needed, just HOSTINGER_API_KEY.
-    # Fire-and-forget: upload failure never fails the approval.
-    if website_thumb:
-        # Get agent name for logging
+    if website_thumb and sites_synced:
+        stem = os.path.splitext(os.path.basename(website_thumb))[0]
         with get_db_cursor(commit=False) as (conn, cur):
-            cur.execute(
-                "SELECT name FROM agents WHERE id = %s",
-                (agent_id,),
-            )
+            cur.execute("SELECT name FROM agents WHERE id = %s", (agent_id,))
             agent_row = cur.fetchone()
             agent_name = agent_row["name"] if agent_row else str(agent_id)
 
-        def _push_portrait_logged(path: str, name: str) -> None:
-            try:
-                _push_portrait_via_api(path)
-                logger.info("[Portrait] Deployed %s to Hostinger", name)
-            except Exception as exc:
-                logger.error("[Portrait] Deploy failed for %s: %s", name, exc)
-                try:
-                    from database import get_db_cursor
-
-                    with get_db_cursor(commit=True) as (conn, cur):
-                        cur.execute(
-                            """INSERT INTO system_notifications
-                               (type, title, message, source, priority, visibility, is_read, created_at)
-                               VALUES ('error', 'Portrait Deploy Failed', %s, 'portrait_service', 'high', 'admin', FALSE, NOW())""",
-                            (f"Failed to deploy portrait for {name}: {exc}",),
-                        )
-                except Exception:
-                    pass
-
-        t = threading.Thread(target=_push_portrait_logged, args=(website_thumb, agent_name), daemon=True)
+        t = threading.Thread(
+            target=_deploy_portrait_to_sites,
+            args=(stem, agent_name),
+            daemon=True,
+        )
         t.start()
 
     return {
@@ -613,6 +594,7 @@ def approve_canonical(agent_id: int, media_id: int) -> Dict:
         "agent_id": agent_id,
         "media_id": media_id,
         "website_thumb": website_thumb,
+        "sites_queued": sites_synced,
     }
 
 

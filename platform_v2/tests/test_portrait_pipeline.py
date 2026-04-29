@@ -214,3 +214,89 @@ class TestDeployPortraitToSites:
             _deploy_portrait_to_sites("portrait", "TEST_AGENT")
 
         assert mock_deploy.call_count == 2
+
+
+class TestApproveCanonicalWiring:
+    def test_approve_canonical_calls_sync_all_site_thumbs(self):
+        """approve_canonical calls _sync_all_site_thumbs instead of _sync_website_thumb directly."""
+        import tools.media_studio.services.portrait_service as ps
+
+        fake_media = {
+            "file_path": "/static/media/images/2026-04-29/test.png",
+            "thumbnail_path": None,
+            "seed": "42",
+            "metadata": {},
+        }
+
+        with patch.object(ps, "get_db_cursor") as mock_db, patch.object(ps, "agent_service") as _mock_svc, patch.object(
+            ps, "_sync_all_site_thumbs", return_value=(None, [])
+        ) as mock_sync, patch.object(ps, "_deploy_portrait_to_sites") as _mock_deploy:
+
+            mock_cur = MagicMock()
+            mock_cur.__enter__ = MagicMock(return_value=(MagicMock(), mock_cur))
+            mock_cur.__exit__ = MagicMock(return_value=False)
+            mock_cur.fetchone.return_value = fake_media
+            mock_db.return_value = mock_cur
+
+            ps.approve_canonical(agent_id=1, media_id=99)
+
+        mock_sync.assert_called_once_with(fake_media["file_path"])
+
+    def test_approve_canonical_does_not_call_push_via_api(self):
+        """approve_canonical no longer calls the old TUS _push_portrait_via_api."""
+        import tools.media_studio.services.portrait_service as ps
+
+        fake_media = {
+            "file_path": "/static/media/images/2026-04-29/test.png",
+            "thumbnail_path": None,
+            "seed": None,
+            "metadata": {},
+        }
+
+        with patch.object(ps, "get_db_cursor") as mock_db, patch.object(ps, "agent_service"), patch.object(
+            ps, "_sync_all_site_thumbs", return_value=(None, [])
+        ), patch.object(ps, "_deploy_portrait_to_sites"), patch.object(ps, "_push_portrait_via_api") as mock_old_push:
+
+            mock_cur = MagicMock()
+            mock_cur.__enter__ = MagicMock(return_value=(MagicMock(), mock_cur))
+            mock_cur.__exit__ = MagicMock(return_value=False)
+            mock_cur.fetchone.return_value = fake_media
+            mock_db.return_value = mock_cur
+
+            ps.approve_canonical(agent_id=1, media_id=99)
+
+        mock_old_push.assert_not_called()
+
+    def test_approve_canonical_returns_sites_queued(self):
+        """approve_canonical return dict includes sites_queued from _sync_all_site_thumbs."""
+        import tools.media_studio.services.portrait_service as ps
+
+        fake_media = {
+            "file_path": "/static/media/images/2026-04-29/test.png",
+            "thumbnail_path": None,
+            "seed": None,
+            "metadata": {},
+        }
+        fake_agent = {"name": "TEST_AGENT"}
+
+        with patch.object(ps, "get_db_cursor") as mock_db, patch.object(ps, "agent_service"), patch.object(
+            ps, "_sync_all_site_thumbs", return_value=("/tmp/test.jpg", ["kytranempowerment.com", "creed-ai.org"])
+        ), patch.object(ps, "_deploy_portrait_to_sites"), patch("threading.Thread") as mock_thread:
+
+            # Two separate DB calls: first returns media, second returns agent name
+            mock_cur_media = MagicMock()
+            mock_cur_media.__enter__ = MagicMock(return_value=(MagicMock(), mock_cur_media))
+            mock_cur_media.__exit__ = MagicMock(return_value=False)
+            mock_cur_media.fetchone.return_value = fake_media
+
+            mock_cur_agent = MagicMock()
+            mock_cur_agent.__enter__ = MagicMock(return_value=(MagicMock(), mock_cur_agent))
+            mock_cur_agent.__exit__ = MagicMock(return_value=False)
+            mock_cur_agent.fetchone.return_value = fake_agent
+
+            mock_db.side_effect = [mock_cur_media, mock_cur_agent]
+            mock_thread.return_value.start = MagicMock()
+
+            result = ps.approve_canonical(agent_id=1, media_id=99)
+
+        assert result.get("sites_queued") == ["kytranempowerment.com", "creed-ai.org"]

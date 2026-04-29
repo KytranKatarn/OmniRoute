@@ -119,3 +119,22 @@ def get_element_details(
         "bounding_box": raw.get("rect", {}),
         "computed_css": raw.get("styles", {}),
     }
+
+
+def draw_highlight(src_path: str, out_path: str, bbox: dict) -> None:
+    """Overlay a red highlight rectangle on a screenshot PNG.
+
+    bbox keys: x, y, width, height (page coordinates, floats).
+    Writes the result to out_path.
+    """
+    from PIL import Image, ImageDraw
+
+    img = Image.open(src_path).convert("RGB")
+    draw = ImageDraw.Draw(img)
+    x, y, w, h = bbox["x"], bbox["y"], bbox["width"], bbox["height"]
+    draw.rectangle(
+        [(int(x), int(y)), (int(x + w), int(y + h))],
+        outline="#ef4444",
+        width=3,
+    )
+    img.save(out_path)

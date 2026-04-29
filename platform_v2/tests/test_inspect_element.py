@@ -170,3 +170,47 @@ class TestGetElementDetails:
         mock_page = MagicMock()
         with pytest.raises(ValueError, match="Pass either selector= or xy="):
             get_element_details(mock_page)
+
+
+class TestDrawHighlight:
+    def test_creates_highlighted_image_file(self, tmp_path):
+        """draw_highlight writes a new PNG with a red rectangle overlay."""
+        from inspect_element import draw_highlight
+        from PIL import Image
+
+        # Create a 400x300 white test image
+        src = tmp_path / "screenshot.png"
+        img = Image.new("RGB", (400, 300), "white")
+        img.save(str(src))
+
+        out = tmp_path / "highlighted.png"
+        draw_highlight(
+            src_path=str(src),
+            out_path=str(out),
+            bbox={"x": 50.0, "y": 80.0, "width": 200.0, "height": 60.0},
+        )
+
+        assert out.is_file()
+        result = Image.open(str(out))
+        assert result.size == (400, 300)
+
+    def test_highlight_box_is_red(self, tmp_path):
+        """draw_highlight draws a red (#ef4444) rectangle border."""
+        from inspect_element import draw_highlight
+        from PIL import Image
+
+        src = tmp_path / "screenshot.png"
+        Image.new("RGB", (400, 300), "white").save(str(src))
+
+        out = tmp_path / "highlighted.png"
+        draw_highlight(
+            src_path=str(src),
+            out_path=str(out),
+            bbox={"x": 50.0, "y": 80.0, "width": 200.0, "height": 60.0},
+        )
+
+        result = Image.open(str(out))
+        # Sample a pixel on the top edge of the highlight box
+        pixel = result.getpixel((51, 80))
+        # Should be red-ish (PIL uses RGB tuples)
+        assert pixel[0] > 200 and pixel[1] < 100 and pixel[2] < 100

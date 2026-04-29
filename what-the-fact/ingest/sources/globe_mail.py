@@ -4,7 +4,7 @@ from .rss_generic import fetch_rss
 SOURCE_SLUG = "globe_mail"
 SOURCE_NAME = "The Globe and Mail"
 SOURCE_URL = "https://www.theglobeandmail.com"
-RSS_URL = "https://www.theglobeandmail.com/arc/outboundfeeds/rss/"
+RSS_URL = "https://www.theglobeandmail.com/arc/outboundfeeds/rss/?outputType=xml"
 BIAS_LEAN = "center"
 
 

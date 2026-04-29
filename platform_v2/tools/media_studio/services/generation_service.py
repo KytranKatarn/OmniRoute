@@ -146,6 +146,7 @@ def submit_generation(
                 "queue_id": queue_id,
                 "params": merged_params,
                 "media_type": media_type,
+                "image_model": merged_params.get("model") if media_type == "image" else None,
             },
             user_id=user_id,
             priority="normal",
@@ -179,7 +180,7 @@ def submit_generation(
         }
 
     except Exception as e:
-        logger.error(f"Bridge dispatch failed for queue {queue_id}: {e}")
+        logger.exception(f"Bridge dispatch failed for queue {queue_id}: {e}")
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
                 """

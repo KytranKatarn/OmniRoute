@@ -1930,7 +1930,7 @@ class DepartmentDispatcher:
 
             hub_svc = ComfyUIService(host=hub_host)
 
-            if hub_svc.is_healthy():
+            if hub_svc.health_check():
                 logger.info("[ImageEscalation] Hub ComfyUI available: %s", hub_host)
                 return hub_host, None
 

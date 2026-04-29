@@ -180,47 +180,54 @@ def _deploy_portrait_to_sites(stem: str, agent_name: str) -> None:
     raises — errors are logged and run_deploy_pipeline handles Telegram
     alerting + Repair Bay proposal on failure.
     """
-    for cfg in _PORTRAIT_DEPLOY_SITES:
-        portrait_path = os.path.join(cfg["source_path"], "assets", "portraits", f"{stem}.jpg")
-        if not os.path.isfile(portrait_path):
-            logger.info(
-                "[Portrait] Skipping %s — portrait not present at %s",
-                cfg["domain"],
-                portrait_path,
-            )
-            continue
-
-        try:
-            result = run_deploy_pipeline(
-                "deploy_static",
-                {
-                    "domain": cfg["domain"],
-                    "source_path": cfg["source_path"],
-                    "changed_files": [f"assets/portraits/{stem}.jpg"],
-                    "verify_url": f"https://{cfg['domain']}/assets/portraits/{stem}.jpg",
-                    "reason": f"Portrait approved for agent {agent_name}",
-                },
-            )
-            if result.success:
+    try:
+        for cfg in _PORTRAIT_DEPLOY_SITES:
+            portrait_path = os.path.join(cfg["source_path"], "assets", "portraits", f"{stem}.jpg")
+            if not os.path.isfile(portrait_path):
                 logger.info(
-                    "[Portrait] Deploy to %s succeeded for %s",
+                    "[Portrait] Skipping %s — portrait not present at %s",
                     cfg["domain"],
-                    agent_name,
+                    portrait_path,
                 )
-            else:
+                continue
+
+            try:
+                result = run_deploy_pipeline(
+                    "deploy_static",
+                    {
+                        "domain": cfg["domain"],
+                        "source_path": cfg["source_path"],
+                        "changed_files": [f"assets/portraits/{stem}.jpg"],
+                        "verify_url": f"https://{cfg['domain']}/assets/portraits/{stem}.jpg",
+                        "reason": f"Portrait approved for agent {agent_name}",
+                    },
+                )
+                if result.success:
+                    logger.info(
+                        "[Portrait] Deploy to %s succeeded for %s",
+                        cfg["domain"],
+                        agent_name,
+                    )
+                else:
+                    logger.error(
+                        "[Portrait] Deploy to %s failed for %s: %s",
+                        cfg["domain"],
+                        agent_name,
+                        result.error,
+                    )
+            except Exception as exc:
                 logger.error(
-                    "[Portrait] Deploy to %s failed for %s: %s",
+                    "[Portrait] Unexpected error deploying to %s for %s: %s",
                     cfg["domain"],
                     agent_name,
-                    result.error,
+                    exc,
                 )
-        except Exception as exc:
-            logger.error(
-                "[Portrait] Unexpected error deploying to %s for %s: %s",
-                cfg["domain"],
-                agent_name,
-                exc,
-            )
+    except Exception as exc:
+        logger.error(
+            "[Portrait] Unexpected error in _deploy_portrait_to_sites for %s: %s",
+            agent_name,
+            exc,
+        )
 
 
 # Import diversity map from existing portrait generator

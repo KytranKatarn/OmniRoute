@@ -1935,13 +1935,8 @@ class DepartmentDispatcher:
                 return hub_host, None
 
             if hub_svc.is_stopped():
-                logger.info("[ImageEscalation] Hub ComfyUI stopped — attempting wake")
-                woke = hub_svc.wake_if_stopped()
-                if woke:
-                    logger.info("[ImageEscalation] Hub ComfyUI woke successfully")
-                    return hub_host, None
-                # wake_if_stopped returned False — still not healthy after 90s (or Docker unavailable)
-                logger.info("[ImageEscalation] Hub ComfyUI waking/unavailable — deferring to queue")
+                logger.info("[ImageEscalation] Hub ComfyUI stopped — firing async wake, deferring to queue")
+                hub_svc.wake_if_stopped_async()
                 return "waking", None
 
             logger.info("[ImageEscalation] Hub ComfyUI unreachable (not stopped, not healthy)")

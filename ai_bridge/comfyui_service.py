@@ -200,6 +200,21 @@ class ComfyUIService:
         logger.warning("[ComfyUI] Timed out waiting for health after wake")
         return False
 
+    def wake_if_stopped_async(self) -> None:
+        """Fire wake_if_stopped() in a daemon thread and return immediately.
+
+        Use this from web request handlers or dispatch paths where blocking 90s
+        is unacceptable. The caller should return a "waking" status and let the
+        next request retry once ComfyUI is healthy.
+        """
+        if not self.is_stopped():
+            return  # already running — nothing to do
+        import threading
+
+        t = threading.Thread(target=self.wake_if_stopped, daemon=True)
+        t.start()
+        logger.info("[ComfyUI] Wake task started in background thread")
+
     def get_models(self) -> Dict:
         """Get available checkpoint models from ComfyUI."""
         try:

@@ -286,23 +286,23 @@ _CSS_PROPS = [
 ]
 
 _ELEMENT_JS = """
-({{ selector, x, y, props }}) => {{
+({ selector, x, y, props }) => {
     const el = selector
         ? document.querySelector(selector)
         : document.elementFromPoint(x, y);
-    if (!el) return {{ found: false }};
+    if (!el) return { found: false };
     const cs = window.getComputedStyle(el);
     const rect = el.getBoundingClientRect();
-    return {{
+    return {
         found: true,
         tag: el.tagName,
         id: el.id || '',
         classes: Array.from(el.classList),
         text: (el.textContent || '').trim().slice(0, 100),
-        rect: {{ x: rect.x, y: rect.y, width: rect.width, height: rect.height }},
+        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
         styles: Object.fromEntries(props.map(p => [p, cs.getPropertyValue(p).trim()])),
-    }};
-}}
+    };
+}
 """
 
 

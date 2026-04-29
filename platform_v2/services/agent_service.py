@@ -1680,8 +1680,8 @@ def update_welfare_after_task(agent_id, success=True):
             (
                 agent_id,
                 mood,
-                stress,
-                energy,
+                min(max(float(stress), 0.0), 0.9),  # hard clamp — DB check requires <= 0.9
+                min(max(float(energy), 0.1), 1.0),  # hard clamp — DB check requires >= 0.1
                 "post_task_welfare_update",
                 prev_mood,
                 duration_minutes,

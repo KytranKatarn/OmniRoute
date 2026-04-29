@@ -7,6 +7,7 @@ and environment art for hub/node backgrounds.
 import base64
 import logging
 import os
+import shutil
 from typing import Dict, List, Optional
 
 from database import get_db_cursor
@@ -130,8 +131,6 @@ def _sync_all_site_thumbs(
     to creed-ai.org. Returns (primary_path, sites_written). On partial failure
     still returns the primary so the deploy can proceed for the sites that worked.
     """
-    import shutil
-
     primary = _sync_website_thumb(canonical_db_path)
     if not primary:
         return None, []

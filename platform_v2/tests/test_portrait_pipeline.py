@@ -87,13 +87,17 @@ class TestSyncAllSiteThumbs:
 
         primary = tmp_path / "portrait.jpg"
         primary.write_bytes(b"fake jpeg")
+        creed_dir = tmp_path / "creed" / "assets" / "portraits"
 
         with patch(
             "tools.media_studio.services.portrait_service._sync_website_thumb",
             return_value=str(primary),
         ), patch(
             "tools.media_studio.services.portrait_service.CREED_PORTRAIT_DIR",
-            "/root/no-permission/creed",
+            str(creed_dir),
+        ), patch(
+            "tools.media_studio.services.portrait_service.shutil.copy2",
+            side_effect=PermissionError("read-only"),
         ):
             result, sites = _sync_all_site_thumbs("/static/media/images/portrait.png")
 

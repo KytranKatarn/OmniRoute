@@ -146,6 +146,42 @@ def agent_activity():
     return jsonify({"events": events[:10]})
 
 
+@bp.get("/api/v1/articles/geo")
+def articles_geo():
+    """Articles with lat/lng for map pins (last 24h, max 500)."""
+    from flask import jsonify
+    S = _schema()
+    with _db().connect() as c:
+        rows = c.execute(text(f"""
+            SELECT a.id, a.title, a.province_code,
+                   a.lat, a.lng,
+                   bs.band AS bias_band,
+                   s.name AS source_name,
+                   a.ai_analyzed
+            FROM {S}.articles a
+            LEFT JOIN {S}.bias_scores bs ON bs.article_id = a.id
+            LEFT JOIN {S}.sources s ON s.id = a.source_id
+            WHERE a.published_at >= NOW() - INTERVAL '24 hours'
+              AND a.lat IS NOT NULL
+              AND a.lng IS NOT NULL
+            ORDER BY a.published_at DESC
+            LIMIT 500
+        """)).fetchall()
+    return jsonify({"articles": [
+        {
+            "id": r.id,
+            "title": r.title,
+            "province_code": r.province_code,
+            "lat": float(r.lat),
+            "lng": float(r.lng),
+            "bias_band": r.bias_band or "center",
+            "source_name": r.source_name,
+            "ai_analyzed": bool(r.ai_analyzed),
+        }
+        for r in rows
+    ]})
+
+
 @bp.post("/api/v1/articles/<int:article_id>/analyze")
 def analyze_article(article_id: int):
     """On-demand AI analysis for an article not yet AI-analyzed."""

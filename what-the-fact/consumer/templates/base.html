@@ -6,15 +6,27 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <header class="wtf-header">
-    <a href="/" class="wtf-brand">What The Fact</a>
-    <nav><a href="https://what-the-fact.tech" data-i18n="nav.transparency">Transparency</a></nav>
-    <div class="lang-switcher" style="display:flex;gap:0.5rem;margin-left:1rem">
-      <button class="lang-btn" data-lang="en" style="background:none;border:1px solid #30363d;color:#e6edf3;padding:0.2rem 0.5rem;border-radius:3px;cursor:pointer;font-size:0.75rem">EN</button>
-      <button class="lang-btn" data-lang="fr" style="background:none;border:1px solid #30363d;color:#e6edf3;padding:0.2rem 0.5rem;border-radius:3px;cursor:pointer;font-size:0.75rem">FR</button>
-      <button class="lang-btn" data-lang="es" style="background:none;border:1px solid #30363d;color:#e6edf3;padding:0.2rem 0.5rem;border-radius:3px;cursor:pointer;font-size:0.75rem">ES</button>
+  <nav class="wtf-nav">
+    <div class="wtf-nav-brand">
+      <span class="wtf-wordmark">WHAT&middot;THE&middot;FACT</span>
+      <span class="wtf-subbrand">CANADIAN AI NEWSROOM</span>
     </div>
-  </header>
+    <div class="wtf-nav-links">
+      <a href="/">News</a>
+      <a href="/team">Team</a>
+      <a href="https://what-the-fact.tech/transparency">Methodology</a>
+      <a href="https://what-the-fact.tech/score">Score Text</a>
+    </div>
+    <div class="wtf-nav-live">
+      <span class="wtf-live-dot"></span>
+      <span>LIVE &middot; {{ source_count | default(0) }} SOURCES</span>
+    </div>
+    <div class="lang-switcher">
+      <button class="lang-btn" data-lang="en">EN</button>
+      <button class="lang-btn" data-lang="fr">FR</button>
+      <button class="lang-btn" data-lang="es">ES</button>
+    </div>
+  </nav>
   <main>{% block content %}{% endblock %}</main>
   <footer class="wtf-footer">
     <span data-i18n="footer.copyright">Built on radical transparency.</span> <a href="https://what-the-fact.tech" data-i18n="nav.transparency">How we score bias →</a>

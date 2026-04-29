@@ -97,7 +97,10 @@ def index():
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
             ORDER BY a.published_at DESC LIMIT 50
         """)).mappings().all()
-    return render_template("index.html", articles=rows, wtf_tech_url=wtf_tech_url)
+        source_count = c.execute(
+            text(f"SELECT COUNT(*) FROM {S}.sources")
+        ).scalar() or 0
+    return render_template("index.html", articles=rows, wtf_tech_url=wtf_tech_url, source_count=source_count)
 
 
 @bp.get("/article/<int:article_id>")

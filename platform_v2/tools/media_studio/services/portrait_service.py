@@ -44,6 +44,10 @@ WEBSITE_THUMB_PRIMARY = os.getenv(
     "PORTRAIT_WEBSITE_THUMB_DIR",
     "/mnt/archie_brain/website/kytranempowerment.com/assets/portraits",
 )
+CREED_PORTRAIT_DIR = os.getenv(
+    "PORTRAIT_CREED_THUMB_DIR",
+    "/mnt/archie_brain/website/creed-ai.org/assets/portraits",
+)
 WEBSITE_THUMB_STAGING = os.path.join(_PLATFORM_DIR, "static", "media", "thumbs")
 WEBSITE_THUMB_SIZE = (400, 400)
 WEBSITE_THUMB_JPEG_QUALITY = 82
@@ -115,6 +119,37 @@ def _sync_website_thumb(canonical_db_path: str) -> Optional[str]:
 
     logger.warning("could not write website thumb for %s to any target", stem)
     return None
+
+
+def _sync_all_site_thumbs(
+    canonical_db_path: str,
+) -> tuple[Optional[str], list[str]]:
+    """Copy approved portrait JPEG to every public site that displays agent portraits.
+
+    Calls _sync_website_thumb for kytranempowerment.com (primary), then copies
+    to creed-ai.org. Returns (primary_path, sites_written). On partial failure
+    still returns the primary so the deploy can proceed for the sites that worked.
+    """
+    import shutil
+
+    primary = _sync_website_thumb(canonical_db_path)
+    if not primary:
+        return None, []
+
+    stem = os.path.splitext(os.path.basename(primary))[0]
+    sites_written: list[str] = ["kytranempowerment.com"]
+
+    # Copy to creed-ai.org
+    try:
+        os.makedirs(CREED_PORTRAIT_DIR, exist_ok=True)
+        creed_dst = os.path.join(CREED_PORTRAIT_DIR, f"{stem}.jpg")
+        shutil.copy2(primary, creed_dst)
+        sites_written.append("creed-ai.org")
+        logger.info("[Portrait] Synced thumb to creed-ai.org: %s", creed_dst)
+    except Exception as exc:
+        logger.warning("[Portrait] Could not sync thumb to creed-ai.org: %s", exc)
+
+    return primary, sites_written
 
 
 def _push_portrait_via_api(local_path: str) -> None:

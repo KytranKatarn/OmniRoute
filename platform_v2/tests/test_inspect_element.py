@@ -155,6 +155,18 @@ class TestGetElementDetails:
 
         assert result["tag"] == "IMG"
         assert result["found"] is True
-        # Verify the correct evaluate call was made with elementFromPoint
-        call_args = mock_page.evaluate.call_args[0][0]
-        assert "elementFromPoint" in call_args
+        # Verify js_args were built correctly for the XY path
+        call_js_args = mock_page.evaluate.call_args[0][1]
+        assert call_js_args["selector"] is None
+        assert call_js_args["x"] == 200
+        assert call_js_args["y"] == 350
+
+    def test_raises_value_error_when_no_args(self):
+        """get_element_details raises ValueError when neither selector nor xy is given."""
+        from inspect_element import get_element_details
+        from unittest.mock import MagicMock
+        import pytest
+
+        mock_page = MagicMock()
+        with pytest.raises(ValueError, match="Pass either selector= or xy="):
+            get_element_details(mock_page)

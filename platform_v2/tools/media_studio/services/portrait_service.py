@@ -484,6 +484,14 @@ def approve_canonical(agent_id: int, media_id: int) -> Dict:
     website_thumb, sites_synced = _sync_all_site_thumbs(file_path)
 
     if website_thumb and sites_synced:
+        # Refresh directory snapshot so the deploy zip includes current agent data.
+        try:
+            from services.public_roster_service import write_directory_snapshot
+
+            write_directory_snapshot()
+        except Exception as _exc:
+            logger.warning("[Portrait] directory snapshot refresh failed: %s", _exc)
+
         stem = os.path.splitext(os.path.basename(website_thumb))[0]
         with get_db_cursor(commit=False) as (conn, cur):
             cur.execute("SELECT name FROM agents WHERE id = %s", (agent_id,))

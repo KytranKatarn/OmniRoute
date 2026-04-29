@@ -3,9 +3,9 @@
    for avatars + bios + titles. Static fallback only fires if the API is
    unreachable (local dev, outage). */
 var Directory = {
-    API_URL: 'https://platform.kytranempowerment.com/api/public/directory',
+    API_URL: '/data/directory-fallback.json',
     LIVE_URL: 'https://platform.kytranempowerment.com/api/public/directory/live',
-    FALLBACK_URL: '/data/directory-fallback.json',
+    FALLBACK_URL: 'https://platform.kytranempowerment.com/api/public/directory',
     POLL_INTERVAL: 30000,
     agents: [],
     _pollTimer: null,

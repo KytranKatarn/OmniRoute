@@ -348,6 +348,17 @@ def create_backup_programmatic(
             )
             print("  ✓ Conversation logs backup complete")
 
+        # 12. Backup website portrait JPEGs
+        for site_dir, site_label in (
+            ("/mnt/archie_brain/website/kytranempowerment.com/assets/portraits", "kytranempowerment"),
+            ("/mnt/archie_brain/website/creed-ai.org/assets/portraits", "creed-ai.org"),
+        ):
+            if os.path.exists(site_dir):
+                dst = os.path.join(backup_path, f"website_portraits/{site_label}")
+                shutil.copytree(site_dir, dst, dirs_exist_ok=True)
+                portrait_count = len([f for f in os.listdir(dst) if f.endswith(".jpg")])
+                print(f"  ✓ Portrait backup complete ({site_label}: {portrait_count} files)")
+
         # Calculate total backup size
         total_size = 0
         for root, dirs, files in os.walk(backup_path):

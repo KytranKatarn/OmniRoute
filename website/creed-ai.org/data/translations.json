@@ -1178,5 +1178,26 @@
     "research.heading5": "研究伙伴关系",
     "research.heading6": "与我们合作",
     "research.hero.title": "研究与出版物"
+  },
+  "ai": {
+    "home.tagline": "{intent:value_proposition, domain:ai_ethics_governance, type:hero_tagline, values:[preventive_ethics,artificial_intelligence]}",
+    "home.hero.title": "{intent:value_proposition, domain:ai_ethics_governance, type:h1}",
+    "home.hero.subtitle": "{intent:value_proposition, domain:ai_ethics_governance, type:subtitle, audience:organizations_and_researchers}",
+    "home.hero.cta": "{intent:conversion, action:learn_more, domain:ai_ethics_governance, type:hero_cta}",
+    "about.hero.title": "{intent:brand_story, domain:ai_ethics_governance, type:section_hero}",
+    "about.heading1": "{intent:brand_values, domain:ai_ethics_governance, type:about_section}",
+    "about.heading2": "{intent:brand_values, domain:ai_ethics_governance, type:about_section}",
+    "casestudies.hero.title": "{intent:social_proof, domain:ai_ethics_governance, type:section_hero_h1}",
+    "casestudies.hero.subtitle": "{intent:social_proof, domain:ai_ethics_governance, type:section_hero_subtitle}",
+    "casestudies.cta.title": "{intent:conversion, action:get_involved, domain:ai_ethics_governance, type:section_cta}",
+    "casestudies.cta.contact": "{intent:conversion, action:contact, type:primary_cta}",
+    "casestudies.cta.get_involved": "{intent:conversion, action:get_involved, type:secondary_cta}",
+    "casestudies.governance.title": "{intent:product_detail, domain:ai_ethics_governance, type:feature_section_header}",
+    "casestudies.governance.welfare_title": "{intent:competitive_positioning, domain:ai_ethics_governance, type:differentiator, values:[agent_welfare]}",
+    "programs.heading2": "{intent:product_detail, domain:ai_ethics_governance, type:program_title, values:[agent_welfare_research]}",
+    "getInvolved.section4.title": "{intent:conversion, action:engage, domain:ai_ethics_governance, type:cta_section}",
+    "partners.heading4": "{intent:trust_signal, domain:ai_ethics_governance, type:social_proof, values:[academic_partners]}",
+    "nav.home": "{intent:navigation, destination:home, type:primary_nav}",
+    "nav.about": "{intent:navigation, destination:about, type:primary_nav}"
   }
 }

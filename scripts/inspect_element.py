@@ -138,3 +138,116 @@ def draw_highlight(src_path: str, out_path: str, bbox: dict) -> None:
         width=3,
     )
     img.save(out_path)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Inspect a page element and return its computed CSS as JSON."
+    )
+    parser.add_argument("url", help="Page URL to navigate to")
+    parser.add_argument("--selector", "-s", help="CSS selector of the target element")
+    parser.add_argument(
+        "--xy", help='Page coordinates as "x,y" (e.g. "456,789")'
+    )
+    parser.add_argument(
+        "--output", "-o", help="Write JSON to this file path (default: stdout only)"
+    )
+    args = parser.parse_args()
+
+    # Resolve element identification method
+    selector: Optional[str] = args.selector
+    xy: Optional[tuple[int, int]] = None
+    if args.xy:
+        parts = args.xy.split(",")
+        if len(parts) != 2:
+            print("ERROR: --xy must be 'x,y' e.g. '456,789'", file=sys.stderr)
+            sys.exit(1)
+        xy = (int(parts[0].strip()), int(parts[1].strip()))
+
+    # Find active brainstorm session
+    screen_dir, _state_dir = find_session_dir()
+
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1440, "height": 900})
+
+        print(f"[inspect] Navigating to {args.url} ...", file=sys.stderr)
+        page.goto(args.url, wait_until="networkidle", timeout=30000)
+
+        # Screenshot → brainstorm display
+        tmp_ss = "/tmp/inspect_screenshot.png"
+        page.screenshot(path=tmp_ss, full_page=True)
+
+        if screen_dir:
+            import shutil
+            ss_dest = os.path.join(screen_dir, "inspect_screenshot.png")
+            shutil.copy2(tmp_ss, ss_dest)
+            # Write brainstorm screen pointing at the screenshot
+            html_path = os.path.join(screen_dir, "inspect_view.html")
+            with open(html_path, "w") as f:
+                f.write(
+                    '<h2>Element Inspector</h2>'
+                    '<p class="subtitle">Page loaded — respond in terminal with selector or x,y coordinates</p>'
+                    f'<img src="inspect_screenshot.png" style="max-width:100%;border:1px solid rgba(255,255,255,.1);border-radius:6px">'
+                )
+            print(f"[inspect] Screenshot displayed at brainstorm.kytranempowerment.com", file=sys.stderr)
+        else:
+            print(f"[inspect] No brainstorm session — screenshot saved to {tmp_ss}", file=sys.stderr)
+
+        # If no selector/xy provided, ask interactively
+        if selector is None and xy is None:
+            print(
+                '\n[inspect] Identify the element:\n'
+                '  CSS selector: e.g. "#roster-header" or ".agent-card"\n'
+                '  Coordinates:  e.g. "x=456 y=789"\n'
+                '  Text search:  e.g. "text=ARCHIE"\n',
+                file=sys.stderr,
+            )
+            user_input = input(">>> ").strip()
+            if user_input.startswith("x="):
+                parts = user_input.split()
+                xy = (int(parts[0][2:]), int(parts[1][2:]))
+            elif user_input.startswith("text="):
+                selector = f':text("{user_input[5:]}")'
+            else:
+                selector = user_input
+
+        # Inspect the element
+        details = get_element_details(page, selector=selector, xy=xy)
+
+        if not details["found"]:
+            label = selector or f"x={xy[0]},y={xy[1]}"
+            print(f"[inspect] ERROR: No element found for '{label}'", file=sys.stderr)
+            browser.close()
+            sys.exit(1)
+
+        # Draw highlight on screenshot
+        highlighted_path = "/tmp/inspect_highlighted.png"
+        draw_highlight(tmp_ss, highlighted_path, details["bounding_box"])
+        if screen_dir:
+            import shutil
+            shutil.copy2(highlighted_path, os.path.join(screen_dir, "inspect_highlighted.png"))
+            # Update brainstorm screen with highlighted version
+            html_path = os.path.join(screen_dir, "inspect_result.html")
+            with open(html_path, "w") as f:
+                f.write(
+                    f'<h2>{details["tag"]}#{details["id"]} .{" .".join(details["classes"][:3])}</h2>'
+                    '<p class="subtitle">Element identified — see JSON output in terminal</p>'
+                    '<img src="inspect_highlighted.png" style="max-width:100%;border:1px solid rgba(255,255,255,.1);border-radius:6px">'
+                )
+
+        browser.close()
+
+    # Output JSON
+    output = json.dumps(details, indent=2)
+    print(output)
+    if args.output:
+        with open(args.output, "w") as f:
+            f.write(output)
+        print(f"[inspect] JSON written to {args.output}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()

@@ -242,8 +242,8 @@ class TestApproveCanonicalWiring:
 
         mock_sync.assert_called_once_with(fake_media["file_path"])
 
-    def test_approve_canonical_does_not_call_push_via_api(self):
-        """approve_canonical no longer calls the old TUS _push_portrait_via_api."""
+    def test_thread_not_started_when_sync_returns_empty(self):
+        """No background thread starts when _sync_all_site_thumbs returns (None, [])."""
         import tools.media_studio.services.portrait_service as ps
 
         fake_media = {
@@ -255,7 +255,7 @@ class TestApproveCanonicalWiring:
 
         with patch.object(ps, "get_db_cursor") as mock_db, patch.object(ps, "agent_service"), patch.object(
             ps, "_sync_all_site_thumbs", return_value=(None, [])
-        ), patch.object(ps, "_deploy_portrait_to_sites"), patch.object(ps, "_push_portrait_via_api") as mock_old_push:
+        ), patch("threading.Thread") as mock_thread:
 
             mock_cur = MagicMock()
             mock_cur.__enter__ = MagicMock(return_value=(MagicMock(), mock_cur))
@@ -265,7 +265,7 @@ class TestApproveCanonicalWiring:
 
             ps.approve_canonical(agent_id=1, media_id=99)
 
-        mock_old_push.assert_not_called()
+        mock_thread.assert_not_called()
 
     def test_approve_canonical_returns_sites_queued(self):
         """approve_canonical return dict includes sites_queued from _sync_all_site_thumbs."""

@@ -16,6 +16,11 @@ from ingest.sources.ipolitics import fetch_articles as ipo_fetch, SOURCE_SLUG as
 from ingest.sources.the_narwhal import fetch_articles as narwhal_fetch, SOURCE_SLUG as NARWHAL_SLUG, SOURCE_NAME as NARWHAL_NAME, SOURCE_URL as NARWHAL_URL, RSS_URL as NARWHAL_RSS, BIAS_LEAN as NARWHAL_BIAS
 from ingest.sources.la_presse import fetch_articles as lp_fetch, SOURCE_SLUG as LP_SLUG, SOURCE_NAME as LP_NAME, SOURCE_URL as LP_URL, RSS_URL as LP_RSS, BIAS_LEAN as LP_BIAS
 from ingest.sources.canadaland import fetch_articles as cl_fetch, SOURCE_SLUG as CL_SLUG, SOURCE_NAME as CL_NAME, SOURCE_URL as CL_URL, RSS_URL as CL_RSS, BIAS_LEAN as CL_BIAS
+from ingest.sources.radio_canada import fetch_articles as rc_fetch, SOURCE_SLUG as RC_SLUG, SOURCE_NAME as RC_NAME, SOURCE_URL as RC_URL, RSS_URL as RC_RSS, BIAS_LEAN as RC_BIAS
+from ingest.sources.le_devoir import fetch_articles as ld_fetch, SOURCE_SLUG as LD_SLUG, SOURCE_NAME as LD_NAME, SOURCE_URL as LD_URL, RSS_URL as LD_RSS, BIAS_LEAN as LD_BIAS
+from ingest.sources.vancouver_sun import fetch_articles as vs_fetch, SOURCE_SLUG as VS_SLUG, SOURCE_NAME as VS_NAME, SOURCE_URL as VS_URL, RSS_URL as VS_RSS, BIAS_LEAN as VS_BIAS
+from ingest.sources.montreal_gazette import fetch_articles as mg_fetch, SOURCE_SLUG as MG_SLUG, SOURCE_NAME as MG_NAME, SOURCE_URL as MG_URL, RSS_URL as MG_RSS, BIAS_LEAN as MG_BIAS
+from ingest.sources.ottawa_citizen import fetch_articles as oc_fetch, SOURCE_SLUG as OC_SLUG, SOURCE_NAME as OC_NAME, SOURCE_URL as OC_URL, RSS_URL as OC_RSS, BIAS_LEAN as OC_BIAS
 from ingest.normalizer import canonicalize
 from ingest.bias import score_bias
 from ingest.persist import upsert_article, record_failure, mark_ai_analyzed
@@ -40,6 +45,11 @@ SOURCES = [
     (NARWHAL_SLUG,   NARWHAL_NAME,               NARWHAL_URL,                        NARWHAL_RSS,    NARWHAL_BIAS,   narwhal_fetch),
     (LP_SLUG,        LP_NAME,                    LP_URL,                             LP_RSS,         LP_BIAS,        lp_fetch),
     (CL_SLUG,        CL_NAME,                    CL_URL,                             CL_RSS,         CL_BIAS,        cl_fetch),
+    (RC_SLUG,        RC_NAME,                    RC_URL,                             RC_RSS,         RC_BIAS,        rc_fetch),
+    (LD_SLUG,        LD_NAME,                    LD_URL,                             LD_RSS,         LD_BIAS,        ld_fetch),
+    (VS_SLUG,        VS_NAME,                    VS_URL,                             VS_RSS,         VS_BIAS,        vs_fetch),
+    (MG_SLUG,        MG_NAME,                    MG_URL,                             MG_RSS,         MG_BIAS,        mg_fetch),
+    (OC_SLUG,        OC_NAME,                    OC_URL,                             OC_RSS,         OC_BIAS,        oc_fetch),
 ]
 
 

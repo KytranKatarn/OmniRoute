@@ -61,6 +61,16 @@ CREED_DEPLOY_SOURCE = os.getenv(
     "CREED_DEPLOY_SOURCE",
     "/mnt/archie_brain/website/creed-ai.org",
 )
+_PORTRAIT_DEPLOY_SITES = [
+    {
+        "domain": "kytranempowerment.com",
+        "source_path": KYTRAN_DEPLOY_SOURCE,
+    },
+    {
+        "domain": "creed-ai.org",
+        "source_path": CREED_DEPLOY_SOURCE,
+    },
+]
 WEBSITE_THUMB_SIZE = (400, 400)
 WEBSITE_THUMB_JPEG_QUALITY = 82
 
@@ -162,25 +172,14 @@ def _sync_all_site_thumbs(
     return primary, sites_written
 
 
-def _deploy_portrait_to_sites(website_thumb: str, stem: str, agent_name: str) -> None:
+def _deploy_portrait_to_sites(stem: str, agent_name: str) -> None:
     """Deploy portrait JPEG to all public sites via deploy_service pipeline.
 
     Runs inside a background thread (called from approve_canonical). Never
     raises — errors are logged and run_deploy_pipeline handles Telegram
     alerting + Repair Bay proposal on failure.
     """
-    SITE_CONFIGS = [
-        {
-            "domain": "kytranempowerment.com",
-            "source_path": KYTRAN_DEPLOY_SOURCE,
-        },
-        {
-            "domain": "creed-ai.org",
-            "source_path": CREED_DEPLOY_SOURCE,
-        },
-    ]
-
-    for cfg in SITE_CONFIGS:
+    for cfg in _PORTRAIT_DEPLOY_SITES:
         portrait_path = os.path.join(cfg["source_path"], "assets", "portraits", f"{stem}.jpg")
         if not os.path.isfile(portrait_path):
             logger.info(

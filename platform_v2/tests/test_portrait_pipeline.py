@@ -123,13 +123,13 @@ class TestDeployPortraitToSites:
             "tools.media_studio.services.portrait_service.run_deploy_pipeline",
             return_value=mock_result,
         ) as mock_deploy, patch(
-            "tools.media_studio.services.portrait_service.KYTRAN_DEPLOY_SOURCE",
-            str(tmp_path / "kytranempowerment"),
-        ), patch(
-            "tools.media_studio.services.portrait_service.CREED_DEPLOY_SOURCE",
-            str(tmp_path / "creed"),
+            "tools.media_studio.services.portrait_service._PORTRAIT_DEPLOY_SITES",
+            [
+                {"domain": "kytranempowerment.com", "source_path": str(tmp_path / "kytranempowerment")},
+                {"domain": "creed-ai.org", "source_path": str(tmp_path / "creed")},
+            ],
         ):
-            _deploy_portrait_to_sites("any.jpg", "portrait", "TEST_AGENT")
+            _deploy_portrait_to_sites("portrait", "TEST_AGENT")
 
         calls = mock_deploy.call_args_list
         domains = [c.args[1]["domain"] for c in calls if len(c.args) > 1 and "domain" in c.args[1]]
@@ -150,13 +150,13 @@ class TestDeployPortraitToSites:
             "tools.media_studio.services.portrait_service.run_deploy_pipeline",
             return_value=mock_result,
         ) as mock_deploy, patch(
-            "tools.media_studio.services.portrait_service.KYTRAN_DEPLOY_SOURCE",
-            str(tmp_path / "kytranempowerment"),
-        ), patch(
-            "tools.media_studio.services.portrait_service.CREED_DEPLOY_SOURCE",
-            str(tmp_path / "creed"),
+            "tools.media_studio.services.portrait_service._PORTRAIT_DEPLOY_SITES",
+            [
+                {"domain": "kytranempowerment.com", "source_path": str(tmp_path / "kytranempowerment")},
+                {"domain": "creed-ai.org", "source_path": str(tmp_path / "creed")},
+            ],
         ):
-            _deploy_portrait_to_sites("any.jpg", "portrait", "TEST_AGENT")
+            _deploy_portrait_to_sites("portrait", "TEST_AGENT")
 
         calls = mock_deploy.call_args_list
         domains = [c.args[1]["domain"] for c in calls if len(c.args) > 1 and "domain" in c.args[1]]
@@ -173,13 +173,16 @@ class TestDeployPortraitToSites:
             "tools.media_studio.services.portrait_service.run_deploy_pipeline",
             return_value=mock_result,
         ) as mock_deploy, patch(
-            "tools.media_studio.services.portrait_service.KYTRAN_DEPLOY_SOURCE",
-            str(tmp_path / "kytranempowerment"),  # portraits dir does not exist
-        ), patch(
-            "tools.media_studio.services.portrait_service.CREED_DEPLOY_SOURCE",
-            str(tmp_path / "creed"),  # portraits dir does not exist
+            "tools.media_studio.services.portrait_service._PORTRAIT_DEPLOY_SITES",
+            [
+                {
+                    "domain": "kytranempowerment.com",
+                    "source_path": str(tmp_path / "kytranempowerment"),
+                },  # portraits dir does not exist
+                {"domain": "creed-ai.org", "source_path": str(tmp_path / "creed")},  # portraits dir does not exist
+            ],
         ):
-            _deploy_portrait_to_sites("any.jpg", "portrait", "TEST_AGENT")
+            _deploy_portrait_to_sites("portrait", "TEST_AGENT")
 
         assert mock_deploy.call_count == 0
 
@@ -202,12 +205,12 @@ class TestDeployPortraitToSites:
             "tools.media_studio.services.portrait_service.run_deploy_pipeline",
             side_effect=[failed, ok],
         ) as mock_deploy, patch(
-            "tools.media_studio.services.portrait_service.KYTRAN_DEPLOY_SOURCE",
-            str(tmp_path / "kytranempowerment"),
-        ), patch(
-            "tools.media_studio.services.portrait_service.CREED_DEPLOY_SOURCE",
-            str(tmp_path / "creed"),
+            "tools.media_studio.services.portrait_service._PORTRAIT_DEPLOY_SITES",
+            [
+                {"domain": "kytranempowerment.com", "source_path": str(tmp_path / "kytranempowerment")},
+                {"domain": "creed-ai.org", "source_path": str(tmp_path / "creed")},
+            ],
         ):
-            _deploy_portrait_to_sites("any.jpg", "portrait", "TEST_AGENT")
+            _deploy_portrait_to_sites("portrait", "TEST_AGENT")
 
         assert mock_deploy.call_count == 2

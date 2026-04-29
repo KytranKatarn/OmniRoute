@@ -57,3 +57,18 @@ class TestFindSessionDir:
 
         result = find_session_dir(log_path=str(log))
         assert result == (None, None)
+
+    def test_does_not_overwrite_good_pair_with_partial_entry(self, tmp_path):
+        """find_session_dir skips server-started entries missing screen_dir or state_dir."""
+        from inspect_element import find_session_dir
+
+        log = tmp_path / "brainstorm-launcher.log"
+        log.write_text(
+            json.dumps({"type": "server-started", "screen_dir": "/good/content", "state_dir": "/good/state"})
+            + "\n"
+            + json.dumps({"type": "server-started"})  # missing both keys
+            + "\n"
+        )
+
+        result = find_session_dir(log_path=str(log))
+        assert result == ("/good/content", "/good/state")

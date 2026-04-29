@@ -18,7 +18,6 @@ import argparse
 import json
 import os
 import sys
-from pathlib import Path
 from typing import Optional
 
 
@@ -45,8 +44,11 @@ def find_session_dir(
         try:
             data = json.loads(line)
             if data.get("type") == "server-started":
-                screen_dir = data.get("screen_dir")
-                state_dir = data.get("state_dir")
+                sd = data.get("screen_dir")
+                st = data.get("state_dir")
+                if sd is not None and st is not None:
+                    screen_dir = sd
+                    state_dir = st
         except (json.JSONDecodeError, AttributeError):
             continue
 

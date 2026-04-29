@@ -361,8 +361,8 @@ def track_agent_hr():
             cur.execute(
                 """
                 INSERT INTO agent_rest_cycles
-                (agent_id, reason, started_at)
-                SELECT %s, 'Automatic rest: exceeded 8h work threshold', NOW()
+                (agent_id, rest_type, reason, started_at)
+                SELECT %s, 'automatic', 'Automatic rest: exceeded 8h work threshold', NOW()
                 WHERE NOT EXISTS (
                     SELECT 1 FROM agent_rest_cycles
                     WHERE agent_id = %s
@@ -382,7 +382,7 @@ def track_agent_hr():
             (today,),
         )
         for row in cur.fetchall():
-            stress = min(float(row["utilization_pct"]) / 100, 1.0)
+            stress = min(float(row["utilization_pct"]) / 100, 0.9)
             energy = max(1.0 - stress * 0.5 - float(row["error_rate_pct"]) / 200, 0.1)
             mood = "stressed" if stress > 0.8 else "focused" if stress > 0.4 else "relaxed"
 

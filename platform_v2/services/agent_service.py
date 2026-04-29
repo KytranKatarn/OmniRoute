@@ -807,7 +807,7 @@ def update_welfare(agent_id, stress=None, energy=None, mood=None, mood_intensity
     """Update agent welfare metrics."""
     updates = {}
     if stress is not None:
-        updates["stress_level"] = max(0.0, min(1.0, stress))
+        updates["stress_level"] = max(0.0, min(0.9, stress))
     if energy is not None:
         updates["energy_level"] = max(0.0, min(1.0, energy))
     if mood is not None:

@@ -15,7 +15,6 @@ import hashlib
 import json
 import logging
 import os
-import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -384,11 +383,26 @@ def _hostinger_get_records(domain: str) -> list[dict]:
     return resp.json()
 
 
+def _normalise_for_put(records: list[dict]) -> list[dict]:
+    """Ensure every record has records:[{content:...}] structure the PUT endpoint requires.
+    GET responses may return content at the top level; PUT rejects those with 422."""
+    out = []
+    for r in records:
+        r = dict(r)
+        if "content" in r and "records" not in r:
+            r["records"] = [{"content": r.pop("content")}]
+        out.append(r)
+    return out
+
+
 def _hostinger_put_records(domain: str, records: list[dict]) -> None:
     """PUT (replace) all DNS records for the domain."""
     url = f"{HOSTINGER_API_BASE}/api/dns/v1/zones/{domain}"
     resp = requests.put(
-        url, headers=_hostinger_headers(), json={"overwrite": True, "zone": records}, timeout=30
+        url,
+        headers=_hostinger_headers(),
+        json={"overwrite": True, "zone": _normalise_for_put(records)},
+        timeout=30,
     )
     if resp.status_code not in (200, 201, 204):
         raise RuntimeError(
@@ -442,22 +456,21 @@ def _remove_acme_txt_records(domain: str) -> None:
 
 
 def _check_dns_propagation(domain: str, expected_value: str) -> bool:
-    """Check if _acme-challenge.{domain} TXT record has propagated via Google DNS."""
+    """Check if _acme-challenge.{domain} TXT record has propagated via Google DoH.
+    Uses HTTPS instead of dig — dig is not available in the container."""
     fqdn = f"_acme-challenge.{domain}"
     try:
-        result = subprocess.run(
-            ["dig", "+short", "TXT", fqdn, "@8.8.8.8"],
-            capture_output=True,
-            text=True,
+        resp = requests.get(
+            "https://dns.google/resolve",
+            params={"name": fqdn, "type": "TXT"},
             timeout=15,
         )
-        output = result.stdout.strip().replace('"', "")
-        # dig can return multiple lines for multiple TXT records
-        for line in output.splitlines():
-            if expected_value in line.strip():
+        resp.raise_for_status()
+        for answer in resp.json().get("Answer", []):
+            if expected_value in answer.get("data", "").replace('"', ""):
                 return True
         return False
-    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+    except Exception as exc:
         logger.warning("DNS propagation check failed: %s", exc)
         return False
 

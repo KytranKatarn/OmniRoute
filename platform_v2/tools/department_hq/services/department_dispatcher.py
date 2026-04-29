@@ -3068,9 +3068,9 @@ class DepartmentDispatcher:
                 conn.close()
                 return
 
-            utilization = min(total / 20.0, 1.0)
+            utilization = min(total / 20.0, 0.9)
             error_rate = (failures / total) * 100 if total > 0 else 0
-            stress = min(utilization, 1.0)
+            stress = min(utilization, 0.9)
             energy = max(1.0 - stress * 0.5 - error_rate / 200, 0.1)
 
             mood = "focused"

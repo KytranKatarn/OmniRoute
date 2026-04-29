@@ -65,24 +65,32 @@ class CredentialVault:
             raise ValueError("Pass either agent_id or user_id")
 
         encrypted = self._encrypt(password)
+        update_clause = """
+            email = EXCLUDED.email,
+            encrypted_password = EXCLUDED.encrypted_password,
+            platform_user_id = COALESCE(
+                EXCLUDED.platform_user_id,
+                agent_platform_accounts.platform_user_id
+            ),
+            managed_by_agent_id = COALESCE(
+                EXCLUDED.managed_by_agent_id,
+                agent_platform_accounts.managed_by_agent_id
+            ),
+            account_type = EXCLUDED.account_type
+        """
+        if agent_id is not None:
+            conflict = "ON CONFLICT (agent_id, platform) DO UPDATE SET"
+        else:
+            conflict = "ON CONFLICT (user_id, platform) DO UPDATE SET"
+
         with get_db_cursor(commit=True) as (_conn, cur):
             cur.execute(
-                """INSERT INTO agent_platform_accounts
+                f"""INSERT INTO agent_platform_accounts
                    (agent_id, user_id, platform, email, encrypted_password,
                     platform_user_id, managed_by_agent_id, account_type)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                   ON CONFLICT (agent_id, platform) DO UPDATE SET
-                       email = EXCLUDED.email,
-                       encrypted_password = EXCLUDED.encrypted_password,
-                       platform_user_id = COALESCE(
-                           EXCLUDED.platform_user_id,
-                           agent_platform_accounts.platform_user_id
-                       ),
-                       managed_by_agent_id = COALESCE(
-                           EXCLUDED.managed_by_agent_id,
-                           agent_platform_accounts.managed_by_agent_id
-                       ),
-                       account_type = EXCLUDED.account_type
+                   {conflict}
+                   {update_clause}
                    RETURNING id""",
                 (
                     agent_id,

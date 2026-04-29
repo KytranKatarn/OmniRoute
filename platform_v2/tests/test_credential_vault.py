@@ -61,7 +61,9 @@ class TestSessionCookies:
     def test_raises_value_error_without_owner(self):
         """store_credentials raises ValueError when neither agent_id nor user_id is given."""
         from services.credential_vault_service import CredentialVault
+        from unittest.mock import patch
 
         vault = CredentialVault(vault_key=None)
-        with pytest.raises(ValueError, match="agent_id or user_id"):
-            vault.store_credentials(platform="linkedin", email="a@b.com", password="pw")
+        with patch("services.credential_vault_service.get_db_cursor"):
+            with pytest.raises(ValueError, match="agent_id or user_id"):
+                vault.store_credentials(platform="linkedin", email="a@b.com", password="pw")

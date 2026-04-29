@@ -17,7 +17,7 @@ from cryptography.fernet import Fernet
 
 from database import get_db_cursor
 
-_DEFAULT_SESSIONS_DIR = "/app/secrets/sessions"
+_DEFAULT_SESSIONS_DIR = "/app/sessions"
 _SENTINEL = object()
 
 

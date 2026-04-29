@@ -23,6 +23,7 @@ def _generate_banner(params: dict) -> str:
     bg_color = params.get("bg_color", "#0a0f1e")
     accent = params.get("accent", "#00c8c8")
     text_color = params.get("text_color", "#ffffff")
+    logo_path = params.get("logo_path", "")
 
     img = Image.new("RGB", (BANNER_W, BANNER_H), bg_color)
     draw = ImageDraw.Draw(img)
@@ -36,13 +37,18 @@ def _generate_banner(params: dict) -> str:
         for y in range(20, BANNER_H, 40):
             draw.ellipse([x - 1, y - 1, x + 1, y + 1], fill=dot_color)
 
+    # Determine text zone — full width if no logo, left 65% if logo present
+    has_logo = bool(logo_path and os.path.exists(logo_path))
+    text_zone_w = int(BANNER_W * 0.62) if has_logo else BANNER_W
+    text_pad = 60  # left padding from accent bar
+
     # Accent right strip
     draw.rectangle([BANNER_W - 6, 0, BANNER_W, BANNER_H], fill=accent)
 
     # Horizontal accent line
     draw.rectangle([8, BANNER_H // 2 + 60, BANNER_W - 6, BANNER_H // 2 + 63], fill=accent)
 
-    # Load fonts (fall back to default if not available)
+    # Load fonts
     def _font(size):
         for name in [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -55,29 +61,54 @@ def _generate_banner(params: dict) -> str:
                 pass
         return ImageFont.load_default()
 
-    title_font = _font(72)
+    title_size = 72
+    title_font = _font(title_size)
     tagline_font = _font(34)
     sub_font = _font(24)
 
+    # Text x-center within the text zone — never clip left edge
+    def _cx(text, font):
+        bb = draw.textbbox((0, 0), text, font=font)
+        w = bb[2] - bb[0]
+        x = text_pad + (text_zone_w - text_pad * 2 - w) // 2
+        return max(text_pad, x)  # clamp — never go past the left accent bar
+
+    # Auto-shrink title font if it's wider than the text zone
+    title_bb = draw.textbbox((0, 0), title, font=title_font)
+    while (title_bb[2] - title_bb[0]) > (text_zone_w - text_pad * 2) and title_size > 40:
+        title_size -= 4
+        title_font = _font(title_size)
+        title_bb = draw.textbbox((0, 0), title, font=title_font)
+
     # Title
-    title_bbox = draw.textbbox((0, 0), title, font=title_font)
-    title_w = title_bbox[2] - title_bbox[0]
-    title_x = (BANNER_W - title_w) // 2
-    title_y = 80
-    # Shadow
-    draw.text((title_x + 3, title_y + 3), title, font=title_font, fill="#00404040")
-    draw.text((title_x, title_y), title, font=title_font, fill=text_color)
+    tx = _cx(title, title_font)
+    title_y = 75
+    draw.text((tx + 3, title_y + 3), title, font=title_font, fill="#00000040")
+    draw.text((tx, title_y), title, font=title_font, fill=text_color)
 
     # Tagline
-    tag_bbox = draw.textbbox((0, 0), tagline, font=tagline_font)
-    tag_w = tag_bbox[2] - tag_bbox[0]
-    draw.text(((BANNER_W - tag_w) // 2, 185), tagline, font=tagline_font, fill=accent)
+    draw.text((_cx(tagline, tagline_font), 185), tagline, font=tagline_font, fill=accent)
 
     # Sub-line
-    sub_bbox = draw.textbbox((0, 0), sub, font=sub_font)
-    sub_w = sub_bbox[2] - sub_bbox[0]
-    draw.text(((BANNER_W - sub_w) // 2, 300), sub, font=sub_font,
-              fill=tuple(max(0, c - 60) for c in _hex_to_rgb(text_color)))
+    sub_dim = tuple(max(0, c - 60) for c in _hex_to_rgb(text_color))
+    draw.text((_cx(sub, sub_font), 298), sub, font=sub_font, fill=sub_dim)
+
+    # Logo — right side, vertically centred
+    if has_logo:
+        try:
+            logo = Image.open(logo_path).convert("RGBA")
+            logo_max_h = int(BANNER_H * 0.88)
+            logo_max_w = int(BANNER_W * 0.26)
+            logo.thumbnail((logo_max_w, logo_max_h), Image.LANCZOS)
+            lw, lh = logo.size
+            logo_zone_x = text_zone_w
+            logo_zone_w = BANNER_W - 6 - logo_zone_x
+            lx = logo_zone_x + (logo_zone_w - lw) // 2
+            ly = (BANNER_H - lh) // 2
+            # Paste with alpha mask
+            img.paste(logo, (lx, ly), logo.split()[3])
+        except Exception:
+            pass
 
     out_path = f"/tmp/linkedin_banner_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
     img.save(out_path, "PNG")
@@ -133,11 +164,12 @@ def execute(page, params: dict) -> dict:
     page.wait_for_timeout(2000)
     _screenshot(page, "banner_modal")
 
-    # Click "Add cover image" or "Upload photo" depending on LinkedIn's menu
+    # Menu text differs based on whether a banner already exists:
+    # No banner → "Add cover image" | Existing banner → "Edit cover image"
     for upload_opt in [
-        lambda: page.get_by_role("menuitem", name="Add cover image", exact=False).click(timeout=5000),
+        lambda: page.get_by_text("Edit cover image", exact=False).first.click(timeout=5000),
         lambda: page.get_by_text("Add cover image", exact=False).first.click(timeout=5000),
-        lambda: page.get_by_role("button", name="Add cover image", exact=False).click(timeout=5000),
+        lambda: page.get_by_role("menuitem", name="cover image", exact=False).click(timeout=5000),
         lambda: page.get_by_role("button", name="Upload photo", exact=False).click(timeout=5000),
         lambda: page.get_by_text("Upload photo", exact=False).first.click(timeout=5000),
     ]:

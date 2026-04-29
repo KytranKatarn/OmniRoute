@@ -6,13 +6,15 @@ from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
+_ALLOWED_SCHEMAS = frozenset({"wtf", "wtf_test"})
+
 
 def _schema() -> str:
     return os.environ.get("WTF_SCHEMA", "wtf")
 
 
 def upsert_article(engine, source_id: int, article: dict, bias: dict, source_slug: str = "") -> bool:
-    """Insert article + bias_score + audit entry, then cluster + fact-check. Returns True on insert, False on dedupe."""
+    """Insert article + bias_score + audit entry, then cluster + fact-check. Returns article_id (int) on insert, None on dedupe/failure."""
     S = _schema()
     aid = None
     with engine.begin() as c:
@@ -30,7 +32,7 @@ def upsert_article(engine, source_id: int, article: dict, bias: dict, source_slu
         )
         row = r.fetchone()
         if not row:
-            return False
+            return None
         aid = row[0]
         c.execute(
             text(f"""
@@ -59,7 +61,52 @@ def upsert_article(engine, source_id: int, article: dict, bias: dict, source_slu
     except Exception as exc:
         logger.warning("factcheck failed for article %d: %s", aid, exc)
 
-    return True
+    # Geo extraction for every article
+    try:
+        from ingest.geocoder import extract_geo
+        geo = extract_geo(aid, article.get("title", ""), article.get("body", ""))
+        save_geo(engine, aid, S, geo)
+    except Exception:
+        pass  # geo is non-fatal
+
+    return aid
+
+
+def save_geo(engine, article_id: int, schema: str, geo: dict) -> None:
+    """Save geocoder result to article geo columns."""
+    if schema not in _ALLOWED_SCHEMAS:
+        raise ValueError(f"save_geo: disallowed schema {schema!r}")
+    if not geo or not article_id:
+        return
+    try:
+        with engine.begin() as c:
+            c.execute(
+                text(f"UPDATE {schema}.articles SET province_code = :pc, city = :city, lat = :lat, lng = :lng, geo_scope = :scope WHERE id = :aid"),
+                {
+                    "pc": geo.get("province_code"),
+                    "city": geo.get("city"),
+                    "lat": geo.get("lat"),
+                    "lng": geo.get("lng"),
+                    "scope": geo.get("geo_scope", "national"),
+                    "aid": article_id,
+                },
+            )
+    except Exception as exc:
+        logger.debug("save_geo: failed for article_id=%s: %s", article_id, exc)
+
+
+def mark_ai_analyzed(engine, article_id: int, schema: str) -> None:
+    """Mark article as AI-analyzed."""
+    if schema not in _ALLOWED_SCHEMAS:
+        raise ValueError(f"mark_ai_analyzed: disallowed schema {schema!r}")
+    try:
+        with engine.begin() as c:
+            c.execute(
+                text(f"UPDATE {schema}.articles SET ai_analyzed = TRUE, ai_analyzed_at = NOW() WHERE id = :aid"),
+                {"aid": article_id},
+            )
+    except Exception as exc:
+        logger.debug("mark_ai_analyzed: failed for article_id=%s: %s", article_id, exc)
 
 
 def record_failure(engine, source_slug: str, raw: dict, error: str) -> None:

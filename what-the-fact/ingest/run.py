@@ -1,4 +1,6 @@
 """Entry point for wtf-ingest. Polls each source hourly, normalizes, scores, persists."""
+import datetime
+import json
 import logging
 import os
 import time
@@ -16,7 +18,9 @@ from ingest.sources.la_presse import fetch_articles as lp_fetch, SOURCE_SLUG as 
 from ingest.sources.canadaland import fetch_articles as cl_fetch, SOURCE_SLUG as CL_SLUG, SOURCE_NAME as CL_NAME, SOURCE_URL as CL_URL, RSS_URL as CL_RSS, BIAS_LEAN as CL_BIAS
 from ingest.normalizer import canonicalize
 from ingest.bias import score_bias
-from ingest.persist import upsert_article, record_failure
+from ingest.persist import upsert_article, record_failure, mark_ai_analyzed
+from ingest.orchestrator import pick_priority_articles
+from ingest.ai_dispatcher import analyze as ai_analyze
 from shared.creed_events import emit as creed_emit
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -70,9 +74,10 @@ def _process_source(engine, slug, name, url, rss_url, bias_lean, fetch_fn, stats
         try:
             article = canonicalize(raw)
             bias = score_bias(article["title"], article["body"])
-            inserted = upsert_article(engine, sid, article, bias, source_slug=slug)
-            if inserted:
+            aid = upsert_article(engine, sid, article, bias, source_slug=slug)
+            if aid:
                 stats["inserted"] += 1
+                stats["inserted_ids"].append(aid)
                 creed_emit("wtf.article.ingested", {
                     "source": slug, "url": article["url"], "bias": bias["band"],
                 })
@@ -86,10 +91,10 @@ def _process_source(engine, slug, name, url, rss_url, bias_lean, fetch_fn, stats
 
 def run_once(engine) -> dict:
     """Run one ingestion pass across all registered sources. Returns stats dict."""
-    stats = {"inserted": 0, "skipped": 0, "failed": 0}
+    stats = {"inserted": 0, "skipped": 0, "failed": 0, "inserted_ids": []}
     for slug, name, url, rss_url, bias_lean, fetch_fn in SOURCES:
         _process_source(engine, slug, name, url, rss_url, bias_lean, fetch_fn, stats)
-    log.info("run_once: %s", stats)
+    log.info("run_once: %s", {k: v for k, v in stats.items() if k != "inserted_ids"})
 
     # Recompute rolling outlet bias scores after each pass
     try:
@@ -98,12 +103,130 @@ def run_once(engine) -> dict:
     except Exception as exc:
         log.warning("outlet_bias recompute failed: %s", exc)
 
+    # F.A.C.T. orchestrator: AI deep-analysis for priority articles
+    try:
+        from sqlalchemy import text as _text
+        priority_ids = pick_priority_articles(engine, "wtf", stats.get("inserted_ids", []))
+        for article_id in priority_ids:
+            with engine.connect() as c:
+                row = c.execute(
+                    _text("SELECT title, body FROM wtf.articles WHERE id = :id"),
+                    {"id": article_id},
+                ).fetchone()
+            if not row:
+                continue
+            bias_result = ai_analyze("bias", article_id, row.title or "", row.body or "")
+            if bias_result:
+                with engine.begin() as c:
+                    c.execute(
+                        _text("""
+                            UPDATE wtf.bias_scores SET
+                                analyzed_by = 'BIAS_LLM',
+                                trigger_phrases = :tp,
+                                confidence = :conf
+                            WHERE article_id = :aid
+                        """),
+                        {
+                            "tp": json.dumps(bias_result.get("trigger_phrases", [])),
+                            "conf": bias_result.get("confidence"),
+                            "aid": article_id,
+                        },
+                    )
+            verify_result = ai_analyze("factcheck", article_id, row.title or "", row.body or "")
+            if verify_result:
+                with engine.begin() as c:
+                    c.execute(
+                        _text("""
+                            UPDATE wtf.fact_checks SET
+                                analyzed_by = 'VERIFY_LLM',
+                                claims = :claims,
+                                overall_verdict = :verdict
+                            WHERE article_id = :aid
+                        """),
+                        {
+                            "claims": json.dumps(verify_result.get("claims", [])),
+                            "verdict": verify_result.get("overall_verdict"),
+                            "aid": article_id,
+                        },
+                    )
+            mark_ai_analyzed(engine, article_id, "wtf")
+        log.info("orchestrator: %d articles AI-analyzed this cycle", len(priority_ids))
+    except Exception as exc:
+        log.warning("orchestrator: failed: %s", exc)
+
     return stats
+
+
+def run_geo_report(engine) -> None:
+    """Weekly geo report: province × outlet coverage matrix + news deserts → wtf.geo_reports."""
+    today = datetime.date.today()
+    try:
+        with engine.connect() as c:
+            rows = c.execute(
+                text("""
+                    SELECT a.province_code, s.slug AS outlet, COUNT(*) AS cnt
+                    FROM wtf.articles a
+                    JOIN wtf.sources s ON s.id = a.source_id
+                    WHERE a.published_at >= NOW() - INTERVAL '7 days'
+                      AND a.province_code IS NOT NULL
+                    GROUP BY a.province_code, s.slug
+                    ORDER BY a.province_code, cnt DESC
+                """)
+            ).fetchall()
+    except Exception as exc:
+        log.warning("geo_report: DB query failed: %s", exc)
+        return
+
+    matrix: dict = {}
+    for row in rows:
+        pc = row.province_code
+        if pc not in matrix:
+            matrix[pc] = {}
+        matrix[pc][row.outlet] = int(row.cnt)
+
+    province_coverage = {pc: sum(outlets.values()) for pc, outlets in matrix.items()}
+    all_provinces = ["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"]
+    news_deserts = [pc for pc in all_provinces if province_coverage.get(pc, 0) < 5]
+
+    try:
+        with engine.begin() as c:
+            c.execute(
+                text("""
+                    INSERT INTO wtf.geo_reports (report_date, province_coverage, outlet_province_matrix, news_deserts)
+                    VALUES (:d, :pc, :matrix, :nd)
+                    ON CONFLICT (report_date) DO UPDATE SET
+                        province_coverage = EXCLUDED.province_coverage,
+                        outlet_province_matrix = EXCLUDED.outlet_province_matrix,
+                        news_deserts = EXCLUDED.news_deserts
+                """),
+                {
+                    "d": today,
+                    "pc": json.dumps(province_coverage),
+                    "matrix": json.dumps(matrix),
+                    "nd": json.dumps(news_deserts),
+                },
+            )
+    except Exception as exc:
+        log.warning("geo_report: write failed: %s", exc)
+        return
+
+    log.info(
+        "geo_report: %d provinces covered, %d news deserts: %s",
+        len(province_coverage),
+        len(news_deserts),
+        news_deserts,
+    )
 
 
 def main():
     engine = create_engine(os.environ["WTF_DATABASE_URL"], pool_pre_ping=True)
+    _last_report_date = None
     while True:
+        # Weekly geo report on Mondays
+        today = datetime.date.today()
+        if today.weekday() == 0 and _last_report_date != today:
+            run_geo_report(engine)
+            _last_report_date = today
         try:
             run_once(engine)
         except Exception:

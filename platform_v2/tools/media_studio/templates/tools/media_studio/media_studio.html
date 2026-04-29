@@ -1006,36 +1006,6 @@
             </div>
         </div>
 
-        <!-- Environment Art Section -->
-        <div class="ms-section-header" style="margin-top:40px;">
-            <div class="ms-section-line"></div>
-            <h3 data-i18n="media_studio.environment_art">Environment Art</h3>
-            <div class="ms-section-line"></div>
-        </div>
-
-        <div class="ms-env-grid">
-            <div class="ms-env-card">
-                <h4 data-i18n="media_studio.hub_background">Hub Background (Starbase)</h4>
-                <div id="ms-env-hub-preview" class="ms-env-preview">
-                    <div class="ms-placeholder" data-i18n="media_studio.no_env">No background set</div>
-                </div>
-                <textarea id="ms-env-hub-prompt" class="ms-prompt-area" rows="3"></textarea>
-                <button class="ms-btn ms-btn-accent" onclick="generateEnvironment('hub')" data-i18n="media_studio.generate_background">Generate</button>
-            </div>
-            <div class="ms-env-card">
-                <h4 data-i18n="media_studio.node_background">Node Background (Starship)</h4>
-                <div id="ms-env-node-select" class="ms-node-select">
-                    <select id="ms-env-node-id" class="ms-model-select">
-                        <!-- Populated from fleet data -->
-                    </select>
-                </div>
-                <div id="ms-env-node-preview" class="ms-env-preview">
-                    <div class="ms-placeholder" data-i18n="media_studio.no_env">No background set</div>
-                </div>
-                <textarea id="ms-env-node-prompt" class="ms-prompt-area" rows="3"></textarea>
-                <button class="ms-btn ms-btn-accent" onclick="generateEnvironment('node')" data-i18n="media_studio.generate_background">Generate</button>
-            </div>
-        </div>
 
                 </div>
                 <div style="height: 6px !important; background: #22c55e !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
@@ -2783,7 +2753,6 @@
                     card.appendChild(info);
                     grid.appendChild(card);
                 });
-                loadEnvironmentPrompts();
             });
     };
 
@@ -3003,56 +2972,6 @@
         }
         msg += '\n\nWatch the Queue tab for progress.';
         alert(msg);
-    };
-
-    /* ── Environments ─────────────────────────────── */
-
-    window.loadEnvironmentPrompts = function() {
-        fetch(API_BASE + '/api/environments/prompts')
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                var prompts = data.prompts || {};
-                document.getElementById('ms-env-hub-prompt').value = prompts.hub || '';
-                document.getElementById('ms-env-node-prompt').value = prompts.node || '';
-            });
-
-        // Load hub environment assignment
-        fetch(API_BASE + '/api/assignments/hub/0?type=hub_background')
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (data.assignment && data.assignment.file_path) {
-                    var preview = document.getElementById('ms-env-hub-preview');
-                    _clearChildren(preview);
-                    var img = document.createElement('img');
-                    img.src = '/static/' + data.assignment.file_path;
-                    img.alt = 'Hub background';
-                    preview.appendChild(img);
-                }
-            });
-    };
-
-    window.generateEnvironment = function(targetType) {
-        var promptEl = document.getElementById('ms-env-' + targetType + '-prompt');
-        var prompt = promptEl.value.trim();
-        if (!prompt) { alert('Enter a prompt first.'); return; }
-
-        var body = {target_type: targetType, prompt: prompt};
-        if (targetType === 'node') {
-            var nodeId = document.getElementById('ms-env-node-id').value;
-            if (!nodeId) { alert('Select a node first.'); return; }
-            body.target_id = parseInt(nodeId);
-        }
-
-        fetch(API_BASE + '/api/environments/generate', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(body)
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.error) { alert(data.error); return; }
-            alert('Environment generation submitted. Check Queue tab.');
-        });
     };
 
     /* ── Keyboard Shortcuts ───────────────────────── */

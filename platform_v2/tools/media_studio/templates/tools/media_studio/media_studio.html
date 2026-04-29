@@ -969,7 +969,7 @@
                         <div class="ms-placeholder" data-i18n="media_studio.no_canonical">No canonical portrait</div>
                     </div>
                     <div class="ms-canonical-actions">
-                        <button class="ms-btn ms-btn-accent" onclick="generateCanonical()" data-i18n="media_studio.generate_canonical">Generate Canonical</button>
+                        <button id="ms-generate-canonical-btn" class="ms-btn ms-btn-accent" onclick="generateCanonical()" data-i18n="media_studio.generate_canonical">Generate Canonical</button>
                         <button class="ms-btn ms-btn-success" id="ms-approve-btn" onclick="approveCanonical()" style="display:none;" data-i18n="media_studio.approve">Approve</button>
                     </div>
                 </div>
@@ -2864,6 +2864,16 @@
                 // Always start a freshly-loaded prompt in locked/view state.
                 if (typeof _setIdentityEditState === 'function') _setIdentityEditState(false);
 
+                // Gate: disable Generate Canonical button if no identity_prompt is set.
+                var genBtn = document.getElementById('ms-generate-canonical-btn');
+                if (genBtn) {
+                    var hasPrompt = !!(data.identity_prompt && data.identity_prompt.trim());
+                    genBtn.disabled = !hasPrompt;
+                    genBtn.style.opacity = hasPrompt ? '1' : '0.4';
+                    genBtn.title = hasPrompt ? 'Generate portrait from prompt' : 'Add a prompt first — click Edit to set one';
+                    genBtn.textContent = hasPrompt ? 'Generate Canonical' : 'Set Prompt First';
+                }
+
                 // Variants grid
                 var vGrid = document.getElementById('ms-variant-grid');
                 _clearChildren(vGrid);
@@ -2886,6 +2896,10 @@
     window.generateCanonical = function() {
         if (!_currentAgentId) return;
         var prompt = document.getElementById('ms-identity-prompt').value.trim();
+        if (!prompt) {
+            alert('No identity prompt set. Click Edit to add a prompt before generating.');
+            return;
+        }
         fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/generate-canonical', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},

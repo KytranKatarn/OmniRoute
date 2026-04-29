@@ -307,6 +307,25 @@ def api_portrait_detail(agent_id):
 def api_generate_canonical(agent_id):
     """Generate initial canonical portrait."""
     from .services.portrait_service import generate_canonical
+    from database import get_db_cursor
+
+    # Gate: block generation if agent has no identity_prompt
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT identity_prompt FROM agent_portraits WHERE agent_id = %s", (agent_id,))
+        _portrait_row = cur.fetchone()
+        _has_prompt = bool(
+            _portrait_row and _portrait_row.get("identity_prompt") and _portrait_row["identity_prompt"].strip()
+        )
+    if not _has_prompt:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "No identity prompt set for this agent. Add a prompt in the portrait editor before generating.",
+                }
+            ),
+            400,
+        )
 
     data = request.get_json() or {}
     result = generate_canonical(agent_id, prompt_override=data.get("prompt"))

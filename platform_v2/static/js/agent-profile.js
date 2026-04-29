@@ -220,139 +220,14 @@
             var ppCard = makeCard('Portrait Prompt', '#f472b6');
             ppCard.appendChild(el('div', { text: a.avatar_generation_prompt, style: "font-size:0.72rem;color:rgba(255,255,255,0.55);line-height:1.4;font-family:'IBM Plex Mono',monospace;background:rgba(0,0,0,0.3);padding:8px;border-radius:4px;max-height:80px;overflow-y:auto;" }));
 
-            // Generate Portrait button
-            var genRow = document.createElement('div');
-            genRow.style.cssText = 'display:flex;gap:8px;margin-top:8px;align-items:center;';
-
-            var genBtn = document.createElement('button');
-            genBtn.className = 'bm-btn';
-            genBtn.style.cssText = 'background:rgba(244,114,182,0.15);border:1px solid rgba(244,114,182,0.4);color:#f472b6;font-size:0.7rem;padding:4px 12px;cursor:pointer;';
-            genBtn.textContent = '\uD83C\uDFA8 Generate Portrait';
-            var genStatus = document.createElement('span');
-            genStatus.style.cssText = 'font-size:0.65rem;color:rgba(255,255,255,0.4);';
-
-            // Variant grid container
-            var variantGrid = document.createElement('div');
-            variantGrid.className = 'portrait-variant-grid';
-            variantGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:10px;';
-
-            function _buildVariantCard(v) {
-                var card = document.createElement('div');
-                card.style.cssText = 'background:rgba(0,0,0,0.4);border-radius:8px;overflow:hidden;border:2px solid ' + (v.approved ? '#4ade80' : 'rgba(255,255,255,0.1)') + ';cursor:pointer;transition:border-color 0.2s;';
-
-                var img = document.createElement('img');
-                img.src = v.image_path + '?t=' + Date.now();
-                img.style.cssText = 'width:100%;aspect-ratio:1;object-fit:cover;display:block;';
-                img.alt = v.model || 'variant';
-                card.appendChild(img);
-
-                var info = document.createElement('div');
-                info.style.cssText = 'padding:6px 8px;font-size:0.6rem;line-height:1.5;';
-
-                var modelDiv = document.createElement('div');
-                modelDiv.style.cssText = 'color:#00e5ff;font-weight:600;';
-                modelDiv.textContent = v.model || 'Unknown';
-                info.appendChild(modelDiv);
-
-                var gpuDiv = document.createElement('div');
-                gpuDiv.style.cssText = 'color:rgba(255,255,255,0.5);';
-                gpuDiv.textContent = v.gpu_model || v.gpu_host || '?';
-                info.appendChild(gpuDiv);
-
-                var statsDiv = document.createElement('div');
-                statsDiv.style.cssText = 'color:rgba(255,255,255,0.4);';
-                statsDiv.textContent = (v.resolution || '?') + ' \u2022 ' + ((v.time_ms / 1000).toFixed(1)) + 's';
-                info.appendChild(statsDiv);
-
-                if (v.approved) {
-                    var activeLabel = document.createElement('div');
-                    activeLabel.style.cssText = 'color:#4ade80;font-weight:600;margin-top:2px;';
-                    activeLabel.textContent = '\u2713 ACTIVE';
-                    info.appendChild(activeLabel);
-                } else {
-                    var selBtn = document.createElement('button');
-                    selBtn.className = 'bm-btn';
-                    selBtn.style.cssText = 'background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:#00e5ff;font-size:0.55rem;padding:2px 8px;margin-top:4px;cursor:pointer;width:100%;';
-                    selBtn.textContent = 'Select';
-                    selBtn.onclick = function(e) {
-                        e.stopPropagation();
-                        fetch('/tools/department-hq/api/agents/' + agentId + '/portraits/' + v.id + '/select', { method: 'POST' })
-                            .then(function(r) { return r.json(); })
-                            .then(function(res) {
-                                if (res.success) {
-                                    _loadVariants();
-                                    var profImg = bodyEl.querySelector('.crew-profile-portrait');
-                                    if (profImg) { profImg.src = res.image_path + '?t=' + Date.now(); profImg.style.display = ''; }
-                                    var fb = bodyEl.querySelector('.crew-profile-portrait-fallback');
-                                    if (fb) fb.style.display = 'none';
-                                }
-                            });
-                    };
-                    info.appendChild(selBtn);
-                }
-                card.appendChild(info);
-                return card;
-            }
-
-            function _renderVariantGrid(variants) {
-                variantGrid.textContent = '';
-                if (!variants || !variants.length) return;
-                variants.forEach(function(v) {
-                    variantGrid.appendChild(_buildVariantCard(v));
-                });
-            }
-
-            function _loadVariants() {
-                fetch('/tools/department-hq/api/agents/' + agentId + '/portraits')
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                        if (data.success) _renderVariantGrid(data.portraits);
-                    });
-            }
-
-            genBtn.onclick = function() {
-                genBtn.disabled = true;
-                genBtn.textContent = 'Generating on all GPUs...';
-                genStatus.textContent = 'Fan-out to all ComfyUI hosts...';
-
-                fetch('/tools/department-hq/api/agents/' + agentId + '/generate-portrait', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt: a.avatar_generation_prompt })
-                })
-                .then(function(r) { return r.json(); })
-                .then(function(result) {
-                    if (!result.success) {
-                        genStatus.textContent = 'Failed: ' + (result.error || 'Unknown error');
-                        genStatus.style.color = '#ef4444';
-                    } else {
-                        genStatus.textContent = result.message || 'Variants generated!';
-                        genStatus.style.color = '#4ade80';
-                        if (result.variants) _renderVariantGrid(result.variants);
-                        if (result.active) {
-                            var cacheBust = '?t=' + Date.now();
-                            var pImg = bodyEl.querySelector('.crew-profile-portrait');
-                            if (pImg) { pImg.src = result.active + cacheBust; pImg.style.display = ''; }
-                            var fb = bodyEl.querySelector('.crew-profile-portrait-fallback');
-                            if (fb) fb.style.display = 'none';
-                        }
-                    }
-                    genBtn.disabled = false;
-                    genBtn.textContent = '\uD83C\uDFA8 Generate Variants';
-                })
-                .catch(function(err) {
-                    genStatus.textContent = 'Error: ' + err;
-                    genStatus.style.color = '#ef4444';
-                    genBtn.disabled = false;
-                    genBtn.textContent = '\uD83C\uDFA8 Generate Variants';
-                });
-            };
-
-            genRow.appendChild(genBtn);
-            genRow.appendChild(genStatus);
-            ppCard.appendChild(genRow);
-            ppCard.appendChild(variantGrid);
-            _loadVariants();
+            // Media Studio link \u2014 generation happens in Media Studio, not here
+            var msLink = document.createElement('a');
+            msLink.href = '/tools/media-studio#portraits';
+            msLink.textContent = 'Edit portrait in Media Studio \u2192';
+            msLink.style.cssText = 'display:inline-block;margin-top:8px;font-size:0.7rem;color:#f472b6;text-decoration:none;opacity:0.8;';
+            msLink.onmouseover = function() { this.style.opacity = '1'; };
+            msLink.onmouseout = function() { this.style.opacity = '0.8'; };
+            ppCard.appendChild(msLink);
             editSection.appendChild(ppCard);
         }
 

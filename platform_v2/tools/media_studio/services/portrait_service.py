@@ -475,7 +475,36 @@ def approve_canonical(agent_id: int, media_id: int) -> Dict:
     # Uses TUS upload protocol — no FTP password needed, just HOSTINGER_API_KEY.
     # Fire-and-forget: upload failure never fails the approval.
     if website_thumb:
-        _push_portrait_via_api(website_thumb)
+        # Get agent name for logging
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                "SELECT name FROM agents WHERE id = %s",
+                (agent_id,),
+            )
+            agent_row = cur.fetchone()
+            agent_name = agent_row["name"] if agent_row else str(agent_id)
+
+        def _push_portrait_logged(path: str, name: str) -> None:
+            try:
+                _push_portrait_via_api(path)
+                logger.info("[Portrait] Deployed %s to Hostinger", name)
+            except Exception as exc:
+                logger.error("[Portrait] Deploy failed for %s: %s", name, exc)
+                try:
+                    from database import get_db_cursor
+
+                    with get_db_cursor(commit=True) as (conn, cur):
+                        cur.execute(
+                            """INSERT INTO system_notifications
+                               (type, title, message, source, priority, visibility, is_read, created_at)
+                               VALUES ('error', 'Portrait Deploy Failed', %s, 'portrait_service', 'high', 'admin', FALSE, NOW())""",
+                            (f"Failed to deploy portrait for {name}: {exc}",),
+                        )
+                except Exception:
+                    pass
+
+        t = threading.Thread(target=_push_portrait_logged, args=(website_thumb, agent_name), daemon=True)
+        t.start()
 
     return {
         "status": "approved",

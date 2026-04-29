@@ -301,119 +301,46 @@
     return f;
   }
 
-  function buildPortraitSection(agent, portrait) {
-    const section = el('div', 'apm-section apm-portrait-section');
-    const titleRow = el('div', 'apm-section-title');
-    titleRow.appendChild(document.createTextNode('Portrait '));
-    const link = el('a', 'apm-deeplink', '→ Media Studio');
-    link.href = '/tools/media-studio#portraits';
-    titleRow.appendChild(link);
-    section.appendChild(titleRow);
+  function buildPortraitSection(agent) {
+    const wrap = document.createElement('div');
+    wrap.className = 'apm-section';
 
-    const row = el('div', 'apm-portrait-row');
+    const label = document.createElement('div');
+    label.className = 'apm-section-label';
+    label.textContent = 'PORTRAIT';
+    wrap.appendChild(label);
 
-    const canonical = el('div', 'apm-portrait-canonical-wrap');
-    const hasCanonical = !!(agent.avatar_url);
-    if (hasCanonical) {
-      const img = document.createElement('img');
-      img.className = 'apm-portrait-canonical';
-      img.src = agent.avatar_url;
-      img.alt = '';
-      canonical.appendChild(img);
+    const imgWrap = document.createElement('div');
+    imgWrap.style.cssText = 'display:flex;align-items:flex-start;gap:1rem;margin-top:.5rem';
+
+    const img = document.createElement('img');
+    const portraitSrc = agent.avatar_thumb_url || agent.avatar_url || '';
+    if (portraitSrc) {
+      img.src = portraitSrc;
+      img.alt = agent.display_name + ' portrait';
+      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.1)';
     } else {
-      const ph = el('div', 'apm-portrait-placeholder');
-      ph.appendChild(el('div', 'apm-portrait-placeholder-icon', '◉'));
-      ph.appendChild(el('div', 'apm-portrait-placeholder-label', 'NO CANONICAL'));
-      canonical.appendChild(ph);
+      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05)';
     }
-    row.appendChild(canonical);
+    imgWrap.appendChild(img);
 
-    const meta = el('div', 'apm-portrait-meta');
+    const infoWrap = document.createElement('div');
+    infoWrap.style.cssText = 'display:flex;flex-direction:column;gap:.5rem;justify-content:center';
 
-    const variantCount = (portrait && Array.isArray(portrait.variants)) ?
-      portrait.variants.length : 0;
-    const trackedCanonical = !!(portrait && portrait.canonical_image_path);
-    const statusRow = el('div', 'apm-portrait-status');
-    if (trackedCanonical && portrait.approved) {
-      statusRow.appendChild(el('span', 'apm-portrait-badge apm-badge-ok',
-        'CANONICAL ✓'));
-    } else if (trackedCanonical) {
-      statusRow.appendChild(el('span', 'apm-portrait-badge apm-badge-warn',
-        'PENDING APPROVAL'));
-    } else if (hasCanonical) {
-      statusRow.appendChild(el('span', 'apm-portrait-badge apm-badge-muted',
-        'LEGACY'));
-    } else {
-      statusRow.appendChild(el('span', 'apm-portrait-badge apm-badge-muted',
-        'NOT GENERATED'));
-    }
-    statusRow.appendChild(el('span', 'apm-portrait-badge apm-badge-muted',
-      variantCount + (variantCount === 1 ? ' variant' : ' variants')));
-    meta.appendChild(statusRow);
+    const statusBadge = document.createElement('span');
+    statusBadge.style.cssText = 'font-size:.7rem;color:#94a3b8';
+    statusBadge.textContent = portraitSrc ? 'Portrait assigned' : 'No portrait yet';
+    infoWrap.appendChild(statusBadge);
 
-    const promptWrap = el('div', 'apm-portrait-prompt-wrap');
-    promptWrap.appendChild(el('div', 'apm-field-label', 'Identity prompt'));
-    const promptTA = document.createElement('textarea');
-    promptTA.className = 'apm-input apm-portrait-prompt';
-    promptTA.dataset.portraitPrompt = '1';
-    promptTA.rows = 3;
-    promptTA.placeholder =
-      'Describe this agent\'s face, uniform, and style. Used by ComfyUI + IP-Adapter.';
-    promptTA.value =
-      (portrait && (portrait.identity_prompt || portrait.default_identity_prompt)) || '';
-    // Locked by default — must click EDIT to modify. Stash the loaded value
-    // so CANCEL can revert. Same pattern as the Media Studio Portraits tab.
-    promptTA.disabled = true;
-    promptTA.dataset.originalValue = promptTA.value;
-    promptWrap.appendChild(promptTA);
-    meta.appendChild(promptWrap);
+    const msLink = document.createElement('a');
+    msLink.href = '/tools/media-studio#portraits';
+    msLink.className = 'apm-deeplink';
+    msLink.textContent = 'Edit portrait in Media Studio →';
+    infoWrap.appendChild(msLink);
 
-    const actions = el('div', 'apm-portrait-actions');
-
-    // Hidden file input + "UPLOAD IMAGE" button pair. The button just
-    // triggers a click on the input; the actual work happens in the
-    // 'portrait-file-picked' change handler wired in bindActions().
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'image/jpeg,image/png,image/webp';
-    fileInput.dataset.portraitFile = '1';
-    fileInput.style.display = 'none';
-    actions.appendChild(fileInput);
-
-    const uploadBtn = el('button', 'apm-btn', 'UPLOAD IMAGE');
-    uploadBtn.dataset.action = 'upload-pick';
-    actions.appendChild(uploadBtn);
-
-    if (!hasCanonical) {
-      const gen = el('button', 'apm-btn apm-btn-primary', 'GENERATE CANONICAL');
-      gen.dataset.action = 'generate-canonical';
-      actions.appendChild(gen);
-    }
-    // Edit/Save/Cancel triad — locked by default to prevent accidental edits.
-    const editPrompt = el('button', 'apm-btn', 'EDIT PROMPT');
-    editPrompt.dataset.action = 'edit-identity-prompt';
-    actions.appendChild(editPrompt);
-    const savePrompt = el('button', 'apm-btn', 'SAVE PROMPT');
-    savePrompt.dataset.action = 'save-identity-prompt';
-    savePrompt.style.display = 'none';
-    actions.appendChild(savePrompt);
-    const cancelPrompt = el('button', 'apm-btn', 'CANCEL');
-    cancelPrompt.dataset.action = 'cancel-identity-prompt';
-    cancelPrompt.style.display = 'none';
-    actions.appendChild(cancelPrompt);
-    meta.appendChild(actions);
-
-    // Upload-mode area (hidden by default). Revealed once a file is picked
-    // and the vision-describe call starts. Holds preview + auto-filled
-    // prompt + CONFIRM / CANCEL buttons.
-    const uploadZone = el('div', 'apm-upload-zone');
-    uploadZone.style.display = 'none';
-    uploadZone.dataset.portraitUploadZone = '1';
-    meta.appendChild(uploadZone);
-
-    row.appendChild(meta);
-    section.appendChild(row);
-    return section;
+    imgWrap.appendChild(infoWrap);
+    wrap.appendChild(imgWrap);
+    return wrap;
   }
 
   function renderInto(body) {
@@ -421,7 +348,7 @@
     const agent = state.snapshot.agent;
     const root = el('div', 'apm-root');
     root.appendChild(buildHeaderBand(agent));
-    root.appendChild(buildPortraitSection(agent, state.snapshot.portrait));
+    root.appendChild(buildPortraitSection(agent));
     SECTIONS.forEach(function (sec) { root.appendChild(buildSection(sec, agent)); });
     root.appendChild(buildReadOnlySections(
       state.snapshot.skills, state.snapshot.welfare, state.snapshot.performance
@@ -445,260 +372,7 @@
       }
       else if (action === 'save') saveHandler(overlay, body);
       else if (action === 'toggle-shift') cycleShift(overlay, body);
-      else if (action === 'generate-canonical') generateCanonical(overlay, body);
-      else if (action === 'edit-identity-prompt') editIdentityPrompt(body);
-      else if (action === 'cancel-identity-prompt') cancelIdentityPrompt(body);
-      else if (action === 'save-identity-prompt') saveIdentityPrompt(overlay, body);
-      else if (action === 'upload-pick') {
-        const fi = body.querySelector('[data-portrait-file="1"]');
-        if (fi) fi.click();
-      }
-      else if (action === 'confirm-upload') confirmUpload(overlay, body);
-      else if (action === 'cancel-upload') cancelUpload(overlay, body);
     };
-
-    // File-input change handler (not a data-action — triggered by the
-    // hidden <input type=file> when user picks a file).
-    body.onchange = function (e) {
-      const t = e.target;
-      if (t && t.dataset && t.dataset.portraitFile === '1') {
-        onUploadFileSelected(overlay, body, t.files && t.files[0]);
-      }
-    };
-  }
-
-  function resetUploadZone(body) {
-    const zone = body.querySelector('[data-portrait-upload-zone="1"]');
-    if (zone) { clear(zone); zone.style.display = 'none'; }
-    const fi = body.querySelector('[data-portrait-file="1"]');
-    if (fi) fi.value = '';
-    state.uploadFile = null;
-  }
-
-  async function onUploadFileSelected(overlay, body, file) {
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast(overlay, 'File too large (max 10 MB)', 'err');
-      resetUploadZone(body);
-      return;
-    }
-    state.uploadFile = file;
-
-    const zone = body.querySelector('[data-portrait-upload-zone="1"]');
-    if (!zone) return;
-    clear(zone);
-    zone.style.display = 'block';
-
-    // Preview (object URL)
-    const previewWrap = el('div', 'apm-upload-preview-wrap');
-    const preview = document.createElement('img');
-    preview.className = 'apm-upload-preview';
-    preview.src = URL.createObjectURL(file);
-    preview.alt = '';
-    previewWrap.appendChild(preview);
-    zone.appendChild(previewWrap);
-
-    // Status + prompt
-    const status = el('div', 'apm-upload-status',
-      '✨ Analyzing image with vision model — this takes 5–15 seconds…');
-    zone.appendChild(status);
-
-    const promptWrap = el('div', 'apm-portrait-prompt-wrap');
-    promptWrap.appendChild(el('div', 'apm-field-label', 'Identity prompt (edit before confirming)'));
-    const ta = document.createElement('textarea');
-    ta.className = 'apm-input apm-portrait-prompt';
-    ta.dataset.uploadPrompt = '1';
-    ta.rows = 4;
-    ta.disabled = true;
-    ta.value = 'analyzing…';
-    promptWrap.appendChild(ta);
-    zone.appendChild(promptWrap);
-
-    const actions = el('div', 'apm-portrait-actions');
-    const confirmBtn = el('button', 'apm-btn apm-btn-primary', 'CONFIRM UPLOAD');
-    confirmBtn.dataset.action = 'confirm-upload';
-    confirmBtn.disabled = true;
-    const cancelBtn = el('button', 'apm-btn', 'CANCEL');
-    cancelBtn.dataset.action = 'cancel-upload';
-    actions.appendChild(confirmBtn);
-    actions.appendChild(cancelBtn);
-    zone.appendChild(actions);
-
-    // Kick off vision describe in parallel with preview render
-    try {
-      const b64 = await fileToBase64(file);
-      const r = await fetch('/tools/media-studio/api/portraits/describe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ image: b64 }),
-      });
-      const js = await r.json();
-      if (js.success && js.prompt) {
-        ta.value = js.prompt;
-        status.textContent = '✓ Review + edit the prompt, then confirm.';
-      } else {
-        ta.value = '';
-        status.textContent =
-          '⚠ Auto-describe failed — write the prompt manually, then confirm.';
-      }
-    } catch (err) {
-      ta.value = '';
-      status.textContent =
-        '⚠ Auto-describe failed (' + err.message + '). Write prompt manually.';
-    }
-    ta.disabled = false;
-    confirmBtn.disabled = false;
-  }
-
-  function fileToBase64(file) {
-    return new Promise(function (resolve, reject) {
-      const r = new FileReader();
-      r.onload = function () {
-        const result = r.result || '';
-        // result looks like "data:image/png;base64,....."
-        const comma = result.indexOf(',');
-        resolve(comma >= 0 ? result.slice(comma + 1) : result);
-      };
-      r.onerror = function () { reject(new Error('FileReader failed')); };
-      r.readAsDataURL(file);
-    });
-  }
-
-  async function confirmUpload(overlay, body) {
-    const file = state.uploadFile;
-    if (!file) { toast(overlay, 'No file picked', 'err'); return; }
-    const ta = body.querySelector('[data-upload-prompt="1"]');
-    const prompt = ta ? ta.value.trim() : '';
-    if (!prompt) { toast(overlay, 'Identity prompt is required', 'err'); return; }
-
-    const confirmBtn = body.querySelector('[data-action="confirm-upload"]');
-    if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'UPLOADING…'; }
-
-    try {
-      const fd = new FormData();
-      fd.append('file', file, file.name);
-      fd.append('identity_prompt', prompt);
-      const r = await fetch(
-        '/tools/media-studio/api/portraits/' + state.agentId + '/upload',
-        { method: 'POST', credentials: 'same-origin', body: fd }
-      );
-      const js = await r.json().catch(function () { return {}; });
-      if (!r.ok || !js.success) {
-        toast(overlay, 'Upload failed: ' + (js.error || r.status), 'err');
-        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'CONFIRM UPLOAD'; }
-        return;
-      }
-      toast(overlay, 'Portrait uploaded ✓', 'ok');
-      resetUploadZone(body);
-      // Refresh modal with new canonical
-      const [profile, portrait] = await Promise.all([
-        fetchProfile(state.agentId),
-        fetchPortrait(state.agentId),
-      ]);
-      profile.portrait = portrait;
-      state.snapshot = profile;
-      renderInto(body);
-      bindActions(overlay, body);
-    } catch (err) {
-      toast(overlay, 'Network error: ' + err.message, 'err');
-      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'CONFIRM UPLOAD'; }
-    }
-  }
-
-  function cancelUpload(overlay, body) {
-    resetUploadZone(body);
-    toast(overlay, 'Upload cancelled', 'ok');
-  }
-
-  async function generateCanonical(overlay, body) {
-    const btn = body.querySelector('[data-action="generate-canonical"]');
-    if (btn) btn.disabled = true;
-    try {
-      const ta = body.querySelector('[data-portrait-prompt="1"]');
-      const promptOverride = ta && ta.value.trim() ? ta.value.trim() : null;
-      const r = await fetch(
-        '/tools/media-studio/api/portraits/' + state.agentId + '/generate-canonical',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'same-origin',
-          body: JSON.stringify(promptOverride ? { prompt: promptOverride } : {}),
-        }
-      );
-      const js = await r.json();
-      if (!r.ok) {
-        toast(overlay, 'Generate failed: ' + (js.error || r.status), 'err');
-        return;
-      }
-      const jobId = js.job_id || js.id || '';
-      toast(overlay,
-        'Canonical queued' + (jobId ? ' · job ' + jobId : '') +
-        ' · watch Media Studio', 'ok');
-    } catch (_) {
-      toast(overlay, 'Network error', 'err');
-    } finally {
-      if (btn) btn.disabled = false;
-    }
-  }
-
-  // Edit/Save/Cancel pattern for the identity prompt textarea. Default
-  // state is locked (disabled). EDIT unlocks + reveals SAVE/CANCEL.
-  // SAVE persists then re-renders (which re-locks via the default state).
-  // CANCEL reverts to the originally-loaded value and re-locks.
-  function _setPromptLockedUI(body, locked) {
-    const ta = body.querySelector('[data-portrait-prompt="1"]');
-    const editBtn = body.querySelector('[data-action="edit-identity-prompt"]');
-    const saveBtn = body.querySelector('[data-action="save-identity-prompt"]');
-    const cancelBtn = body.querySelector('[data-action="cancel-identity-prompt"]');
-    if (ta) ta.disabled = locked;
-    if (editBtn) editBtn.style.display = locked ? '' : 'none';
-    if (saveBtn) saveBtn.style.display = locked ? 'none' : '';
-    if (cancelBtn) cancelBtn.style.display = locked ? 'none' : '';
-  }
-
-  function editIdentityPrompt(body) {
-    const ta = body.querySelector('[data-portrait-prompt="1"]');
-    if (!ta) return;
-    ta.dataset.originalValue = ta.value;
-    _setPromptLockedUI(body, false);
-    ta.focus();
-  }
-
-  function cancelIdentityPrompt(body) {
-    const ta = body.querySelector('[data-portrait-prompt="1"]');
-    if (!ta) return;
-    ta.value = ta.dataset.originalValue || '';
-    _setPromptLockedUI(body, true);
-  }
-
-  async function saveIdentityPrompt(overlay, body) {
-    const ta = body.querySelector('[data-portrait-prompt="1"]');
-    if (!ta) return;
-    const prompt = ta.value.trim();
-    if (!prompt) { toast(overlay, 'Prompt is empty', 'err'); return; }
-    try {
-      const r = await fetch(
-        '/tools/media-studio/api/portraits/' + state.agentId + '/identity-prompt',
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'same-origin',
-          body: JSON.stringify({ prompt: prompt }),
-        }
-      );
-      if (!r.ok) {
-        const js = await r.json().catch(function () { return {}; });
-        toast(overlay, 'Save failed: ' + (js.error || r.status), 'err');
-        return;
-      }
-      toast(overlay, 'Identity prompt saved', 'ok');
-      state.snapshot.portrait = await fetchPortrait(state.agentId);
-      renderInto(body);
-      bindActions(overlay, body);
-    } catch (_) {
-      toast(overlay, 'Network error', 'err');
-    }
   }
 
   function collectDirty(body) {

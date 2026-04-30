@@ -521,6 +521,7 @@
                 <span data-i18n="media_studio.generate_action">Generate</span>
             </button>
             <button class="ms-btn ms-btn-secondary" onclick="openBatchModal(document.getElementById('msMediaType').value)">Batch</button>
+            <div id="msGenerateStatus" style="margin-top:8px;font-size:0.78rem;font-family:'IBM Plex Mono',monospace;min-height:18px;"></div>
 
             <!-- Video Controls (hidden when media_type != video) -->
             <div id="msVideoControls" class="ms-video-controls" style="display:none;">
@@ -1956,13 +1957,16 @@
     window.submitGeneration = function() {
         var prompt = document.getElementById("msPrompt").value.trim();
         if (!prompt) {
-            alert("Please enter a prompt.");
+            var s = document.getElementById("msGenerateStatus");
+            if (s) { s.style.color = "rgba(239,68,68,0.9)"; s.textContent = "⚠ Prompt is required."; }
             return;
         }
 
         var btn = document.getElementById("msGenerateBtn");
+        var statusEl = document.getElementById("msGenerateStatus");
         btn.disabled = true;
         btn.classList.add("loading");
+        if (statusEl) { statusEl.style.color = "#888"; statusEl.textContent = "Queuing via P.I.X.E.L. → Department HQ…"; }
 
         var url, payload;
 
@@ -2016,13 +2020,22 @@
         api("POST", url, payload).then(function(data) {
             btn.disabled = false;
             btn.classList.remove("loading");
-            if (window._msGlassNav) window._msGlassNav.setActive("queue");
-            switchMsTab("queue");
+            if (statusEl) {
+                statusEl.style.color = "rgba(34,197,94,0.9)";
+                statusEl.textContent = "✓ Queued #" + (data.queue_id || "—") + " — P.I.X.E.L. generating via DHQ";
+            }
+            setTimeout(function() {
+                switchMsTab("queue");
+                if (statusEl) statusEl.textContent = "";
+            }, 1200);
         }).catch(function(err) {
             btn.disabled = false;
             btn.classList.remove("loading");
             console.error("Generation failed:", err);
-            alert("Generation request failed. Check console for details.");
+            if (statusEl) {
+                statusEl.style.color = "rgba(239,68,68,0.9)";
+                statusEl.textContent = "⚠ Failed: " + (err.message || "check console");
+            }
         });
     };
 

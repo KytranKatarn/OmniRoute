@@ -65,7 +65,10 @@ def api_generate():
         media_type=media_type,
         prompt=prompt,
         negative_prompt=data.get("negative_prompt", ""),
-        params={k: data[k] for k in ("model", "width", "height", "steps", "cfg", "sampler", "seed") if k in data},
+        params={
+            **{k: data[k] for k in ("model", "width", "height", "steps", "sampler", "seed") if k in data},
+            "cfg": data.get("cfg") or data.get("cfg_scale"),  # JS sends cfg_scale, service uses cfg
+        },
     )
 
     if "error" in result:

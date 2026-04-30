@@ -730,6 +730,118 @@ def get_connections():
     return jsonify({"success": True, **result})
 
 
+# ============================================================================
+# PRODUCT ACCESS API (Phase 2 Task 1)
+# ============================================================================
+
+
+@user_profile_bp.route("/api/product-access", methods=["GET"])
+@login_required
+def api_product_access():
+    """Return active and locked products for the current user."""
+    user_id = current_user.id
+    active_slugs = set()
+    active_products = []
+    locked_products = []
+
+    try:
+        with get_db_connection(cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT ag.product_slug, mp.name, mp.url, mp.icon, mp.price_monthly
+                    FROM access_grants ag
+                    JOIN marketplace_products mp ON mp.slug = ag.product_slug
+                    WHERE ag.user_id = %s
+                      AND (ag.valid_until IS NULL OR ag.valid_until > NOW())
+                    ORDER BY mp.slug
+                    """,
+                    (user_id,),
+                )
+                for row in cur.fetchall():
+                    slug = row["product_slug"]
+                    active_slugs.add(slug)
+                    active_products.append(
+                        {
+                            "slug": slug,
+                            "name": row["name"],
+                            "url": row["url"] or "",
+                            "icon": row["icon"] or "📦",
+                            "price_monthly": float(row["price_monthly"] or 0),
+                        }
+                    )
+
+                cur.execute(
+                    "SELECT slug, name, url, icon, price_monthly FROM marketplace_products "
+                    "WHERE is_free = FALSE ORDER BY slug"
+                )
+                for row in cur.fetchall():
+                    slug = row["slug"]
+                    if slug not in active_slugs:
+                        locked_products.append(
+                            {
+                                "slug": slug,
+                                "name": row["name"],
+                                "icon": row["icon"] or "📦",
+                                "price_monthly": float(row["price_monthly"] or 0),
+                                "checkout_url": (
+                                    "https://business.kytranempowerment.com/billing/checkout" f"?product={slug}"
+                                ),
+                            }
+                        )
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).warning("Product access query failed: %s", e)
+        return jsonify({"error": "Failed to load product access"}), 500
+
+    return jsonify({"active": active_products, "locked": locked_products})
+
+
+# ============================================================================
+# USAGE STATS API (Phase 2 Task 1)
+# ============================================================================
+
+
+@user_profile_bp.route("/api/usage-stats", methods=["GET"])
+@login_required
+def api_usage_stats():
+    """Return usage statistics for the current user."""
+    user_id = current_user.id
+
+    try:
+        with get_db_connection(cursor_factory=RealDictCursor) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT created_at FROM users WHERE id = %s", (user_id,))
+                user_row = cur.fetchone()
+                member_since = "—"
+                if user_row and user_row["created_at"]:
+                    member_since = user_row["created_at"].strftime("%Y-%m-%d")
+
+                cur.execute(
+                    "SELECT COUNT(*) AS total FROM bridge_jobs " "WHERE created_at > NOW() - INTERVAL '30 days'"
+                )
+                jobs_row = cur.fetchone()
+                api_calls_30d = int(jobs_row["total"] or 0)
+
+                cur.execute("SELECT COUNT(*) AS total FROM agents " "WHERE worker_type = 'ai' AND status = 'active'")
+                agents_row = cur.fetchone()
+                active_agents = int(agents_row["total"] or 0)
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).warning("Usage stats query failed: %s", e)
+        return jsonify({"error": "Failed to load usage stats"}), 500
+
+    return jsonify(
+        {
+            "member_since": member_since,
+            "api_calls_30d": api_calls_30d,
+            "active_agents": active_agents,
+        }
+    )
+
+
 def _shorten_ua(ua):
     """Extract a short browser/OS label from a user-agent string."""
     if not ua:

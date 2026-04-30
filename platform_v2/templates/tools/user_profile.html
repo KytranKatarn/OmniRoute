@@ -1118,6 +1118,41 @@
                                             <div class="notif-empty">Loading...</div>
                                         </div>
                                     </div>
+
+                                    <!-- Product Access Section -->
+                                    <div style="margin-top:28px;padding-top:20px;border-top:1px solid #1a1a2e">
+                                        <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:14px">Your Products</h3>
+                                        <div id="activeProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:14px"></div>
+                                        <div id="lockedProductsSection" style="display:none">
+                                            <h4 style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#444;margin-bottom:8px">Available to Add</h4>
+                                            <div id="lockedProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px"></div>
+                                        </div>
+                                        <div style="margin-top:10px;text-align:right">
+                                            <a href="https://business.kytranempowerment.com/billing/dashboard"
+                                               style="color:#7c3aed;font-size:12px;text-decoration:none">
+                                                Manage billing &rarr;
+                                            </a>
+                                        </div>
+                                    </div>
+
+                                    <!-- Usage Stats Section -->
+                                    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #1a1a2e">
+                                        <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:10px">Usage</h3>
+                                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+                                            <div style="border:1px solid #222;border-radius:6px;padding:12px;text-align:center;background:#050509">
+                                                <div id="statAgents" style="font-size:22px;font-weight:700;color:#7c3aed">&#8212;</div>
+                                                <div style="font-size:11px;color:#888;margin-top:2px">AI Agents</div>
+                                            </div>
+                                            <div style="border:1px solid #222;border-radius:6px;padding:12px;text-align:center;background:#050509">
+                                                <div id="statApiCalls" style="font-size:22px;font-weight:700;color:#7c3aed">&#8212;</div>
+                                                <div style="font-size:11px;color:#888;margin-top:2px">API Calls (30d)</div>
+                                            </div>
+                                            <div style="border:1px solid #222;border-radius:6px;padding:12px;text-align:center;background:#050509">
+                                                <div id="statMemberSince" style="font-size:14px;font-weight:600;color:#aaa">&#8212;</div>
+                                                <div style="font-size:11px;color:#888;margin-top:2px">Member Since</div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div style="height: 6px !important; background: #f59e0b !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                             </div>
@@ -1922,5 +1957,74 @@
     loadPreferences();
     loadActivity();
 })();
+</script>
+
+<script>
+(function () {
+  'use strict';
+
+  // Load product access tiles
+  fetch('/tools/user-profile/api/product-access')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var activeGrid = document.getElementById('activeProductsGrid');
+      var lockedSection = document.getElementById('lockedProductsSection');
+      var lockedGrid = document.getElementById('lockedProductsGrid');
+      if (!activeGrid) return;
+
+      (data.active || []).forEach(function (p) {
+        var card = document.createElement('a');
+        card.href = p.url || '#';
+        if (p.url) { card.target = '_blank'; card.rel = 'noopener noreferrer'; }
+        card.style.cssText = 'border:1px solid #7c3aed44;border-radius:8px;padding:12px;background:#0a041a;text-decoration:none;display:block';
+        var icon = document.createElement('div');
+        icon.textContent = p.icon || '\u{1F4E6}';
+        icon.style.cssText = 'font-size:18px;margin-bottom:4px';
+        var name = document.createElement('div');
+        name.textContent = p.name;
+        name.style.cssText = 'font-size:12px;font-weight:600;color:#fff';
+        var launch = document.createElement('div');
+        launch.textContent = 'Launch →';
+        launch.style.cssText = 'font-size:11px;color:#7c3aed;margin-top:4px';
+        card.appendChild(icon); card.appendChild(name); card.appendChild(launch);
+        activeGrid.appendChild(card);
+      });
+
+      if ((data.locked || []).length > 0 && lockedSection) {
+        lockedSection.style.display = 'block';
+        (data.locked).forEach(function (p) {
+          var card = document.createElement('a');
+          card.href = p.checkout_url || '#';
+          card.target = '_blank'; card.rel = 'noopener noreferrer';
+          card.style.cssText = 'border:1px solid #333;border-radius:8px;padding:12px;background:#050509;text-decoration:none;display:block;opacity:0.75';
+          var icon = document.createElement('div');
+          icon.textContent = p.icon || '\u{1F4E6}';
+          icon.style.cssText = 'font-size:18px;margin-bottom:4px';
+          var name = document.createElement('div');
+          name.textContent = p.name;
+          name.style.cssText = 'font-size:12px;font-weight:600;color:#888';
+          var price = document.createElement('div');
+          price.textContent = '$' + (p.price_monthly || 0).toFixed(2) + '/mo ↑ Add';
+          price.style.cssText = 'font-size:11px;color:#f59e0b;margin-top:4px';
+          card.appendChild(icon); card.appendChild(name); card.appendChild(price);
+          lockedGrid.appendChild(card);
+        });
+      }
+    })
+    .catch(function () { /* fail open — sections stay empty */ });
+
+  // Load usage stats
+  fetch('/tools/user-profile/api/usage-stats')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var agents = document.getElementById('statAgents');
+      var calls = document.getElementById('statApiCalls');
+      var since = document.getElementById('statMemberSince');
+      if (agents) agents.textContent = data.active_agents || 0;
+      if (calls) calls.textContent = (data.api_calls_30d || 0).toLocaleString();
+      if (since) since.textContent = data.member_since || '—';
+    })
+    .catch(function () { /* fail open */ });
+}());
 </script>
 {% endblock %}

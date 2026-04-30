@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 
 from flask import jsonify, request
 
@@ -15,6 +16,12 @@ logger = logging.getLogger(__name__)
 _HUB_TOKEN = os.getenv("WTF_HUB_TOKEN", "")
 if not _HUB_TOKEN:
     logger.warning("[WTFHub] WTF_HUB_TOKEN not set — endpoint is unauthenticated (dev mode only)")
+
+# Rate limit: minimum seconds between dispatches per task type.
+# Prevents VPS ingest bursts from exhausting Gunicorn workers.
+# Set WTF_ANALYZE_INTERVAL=0 to disable. Default: 5 minutes.
+_ANALYZE_INTERVAL = int(os.getenv("WTF_ANALYZE_INTERVAL", "300"))
+_last_dispatch: dict[str, float] = {}  # task_type → last dispatch unix timestamp
 
 _AGENT_IDS: dict[str, int | None] = {
     "bias": None,
@@ -113,6 +120,17 @@ def analyze():
     agent_id = _AGENT_IDS.get(task)
     if not agent_id:
         return jsonify({"ok": False, "error": f"agent not found for task: {task}"}), 503
+
+    # Per-task rate limit — spread load across hardware capacity.
+    if _ANALYZE_INTERVAL > 0:
+        now = time.time()
+        last = _last_dispatch.get(task, 0)
+        elapsed = now - last
+        if elapsed < _ANALYZE_INTERVAL:
+            wait = int(_ANALYZE_INTERVAL - elapsed)
+            logger.info("[WTFHub] rate-limited task=%s (retry in %ds)", task, wait)
+            return jsonify({"ok": True, "result": None, "rate_limited": True, "retry_after": wait})
+        _last_dispatch[task] = now
 
     try:
         from tools.department_hq.services.department_dispatcher import dispatch

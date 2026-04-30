@@ -2905,9 +2905,15 @@
         if (!_currentAgentId) return;
         var prompt = document.getElementById('ms-identity-prompt').value.trim();
         if (!prompt) {
-            alert('No identity prompt set. Click Edit to add a prompt before generating.');
+            alert('No identity prompt set. Edit it in DHQ Roster first.');
             return;
         }
+        var agentName = (document.getElementById('ms-portrait-agent-name') || {}).textContent || 'this agent';
+        if (!confirm('Generate a new portrait for ' + agentName + '?\n\nThis queues a ComfyUI job (~3–5 min). The result will appear in the Variants section.')) return;
+
+        var btn = document.getElementById('ms-generate-canonical-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Queuing...'; }
+
         fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/generate-canonical', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -2915,8 +2921,13 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
+            if (btn) { btn.disabled = false; btn.textContent = 'Generate'; }
             if (data.error) { alert(data.error); return; }
-            alert('Generation submitted. Check Queue tab for progress.');
+            alert('Queued! Check the Queue tab for progress (~3–5 min).');
+        })
+        .catch(function(err) {
+            if (btn) { btn.disabled = false; btn.textContent = 'Generate'; }
+            alert('Failed to queue generation: ' + err.message);
         });
     };
 

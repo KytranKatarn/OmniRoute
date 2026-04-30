@@ -346,6 +346,15 @@
             </div>
         </div>
 
+        <!-- Active generation jobs -->
+        <div id="msDashActiveSection" style="display:none;margin-bottom:16px;">
+            <div class="ms-section-header">
+                <div class="ms-section-cap"></div>
+                <span class="ms-section-title">Now Generating</span>
+            </div>
+            <div id="msDashActiveJobs"></div>
+        </div>
+
         <!-- Recent creations -->
         <div class="ms-section-header">
             <div class="ms-section-cap"></div>
@@ -1534,10 +1543,15 @@
             clearInterval(queuePollTimer);
             queuePollTimer = null;
         }
+        if (tabId !== "dashboard" && _dashRefreshTimer) {
+            clearInterval(_dashRefreshTimer);
+            _dashRefreshTimer = null;
+        }
     };
 
     /* ── Dashboard ────────────────────────────────── */
 
+    var _dashRefreshTimer = null;
     window.loadDashboard = function() {
         api("GET", "/api/dashboard").then(function(data) {
             document.getElementById("msStatTotal").textContent = formatNumber(data.total_generated);
@@ -1547,10 +1561,50 @@
 
             renderRecent(data.recent || []);
             renderFleet(data.fleet || []);
+            renderActiveJobs(data.active_jobs || []);
         }).catch(function(err) {
             console.error("Dashboard load failed:", err);
         });
+        // Auto-refresh every 15s while on dashboard
+        if (!_dashRefreshTimer) {
+            _dashRefreshTimer = setInterval(window.loadDashboard, 15000);
+        }
     };
+
+    function renderActiveJobs(jobs) {
+        var el = document.getElementById("msDashActiveJobs");
+        if (!el) return;
+        var section = document.getElementById("msDashActiveSection");
+        if (!jobs.length) {
+            if (section) section.style.display = "none";
+            return;
+        }
+        if (section) section.style.display = "block";
+        el.textContent = "";
+        jobs.forEach(function(job) {
+            var row = document.createElement("div");
+            row.style.cssText = "display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:5px;background:rgba(255,255,255,0.03);margin-bottom:5px;";
+            var spinner = document.createElement("span");
+            spinner.className = "ms-spinner";
+            spinner.style.cssText = "width:10px;height:10px;flex-shrink:0;border-width:2px;";
+            var name = document.createElement("span");
+            name.style.cssText = "font-family:'Antonio',sans-serif;font-size:0.78rem;letter-spacing:1px;color:var(--ms-accent,#00e5ff);min-width:120px;";
+            name.textContent = job.agent_name || "User";
+            var prompt = document.createElement("span");
+            prompt.style.cssText = "font-size:0.72rem;color:#777;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+            prompt.textContent = (job.prompt || "").substring(0, 70);
+            var status = document.createElement("span");
+            status.style.cssText = "font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;padding:2px 7px;border-radius:3px;flex-shrink:0;";
+            var sColor = job.status === "generating" ? "rgba(34,197,94,0.15);color:#22c55e" : "rgba(251,191,36,0.15);color:#fbbf24";
+            status.style.cssText += "background:" + sColor + ";border:1px solid currentColor;opacity:0.8;";
+            status.textContent = job.status;
+            row.appendChild(spinner);
+            row.appendChild(name);
+            row.appendChild(prompt);
+            row.appendChild(status);
+            el.appendChild(row);
+        });
+    }
 
     function renderRecent(items) {
         var el = document.getElementById("msDashRecent");

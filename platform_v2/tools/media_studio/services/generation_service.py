@@ -431,16 +431,32 @@ def get_dashboard_stats(user_id: int) -> Dict:
         )
         counts = dict(cur.fetchone())
 
+        # Count all active jobs (user + agent portraits)
         cur.execute(
             """
             SELECT COUNT(*) AS active
             FROM media_generation_queue
-            WHERE owner_type = 'user' AND owner_id = %s
-                  AND status IN ('pending', 'dispatched', 'generating')
-            """,
-            (user_id,),
+            WHERE status IN ('pending', 'dispatched', 'generating')
+            """
         )
         counts["queue_active"] = cur.fetchone()["active"]
+
+        # Active jobs with agent names for live queue widget
+        cur.execute(
+            """
+            SELECT q.id, q.owner_type, q.owner_id, q.status, q.media_type,
+                   q.params->>'prompt' AS prompt,
+                   CASE WHEN q.owner_type='agent' THEN a.display_name ELSE 'User' END AS agent_name,
+                   ap.canonical_image_path
+            FROM media_generation_queue q
+            LEFT JOIN agents a ON a.id = q.owner_id AND q.owner_type = 'agent'
+            LEFT JOIN agent_portraits ap ON ap.agent_id = q.owner_id AND q.owner_type = 'agent'
+            WHERE q.status IN ('pending', 'dispatched', 'generating')
+            ORDER BY q.created_at ASC
+            LIMIT 10
+            """
+        )
+        counts["active_jobs"] = [dict(row) for row in cur.fetchall()]
 
         # Recent 8 items for dashboard grid
         cur.execute(
@@ -455,6 +471,7 @@ def get_dashboard_stats(user_id: int) -> Dict:
         )
         counts["recent"] = [dict(row) for row in cur.fetchall()]
 
+    counts["total_generated"] = counts.get("total", 0)
     return counts
 
 

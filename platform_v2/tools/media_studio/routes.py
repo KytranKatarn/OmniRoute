@@ -38,7 +38,8 @@ def api_dashboard():
     stats = get_dashboard_stats(current_user.id)
     fleet = get_fleet_comfyui_status()
 
-    return jsonify({"stats": stats, "fleet": fleet})
+    # Flatten stats to top level so JS can read data.total_generated etc. directly
+    return jsonify({**stats, "fleet": fleet})
 
 
 # ─── Generation ─────────────────────────────────────────────────────

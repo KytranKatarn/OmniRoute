@@ -87,8 +87,8 @@ CRITICAL_CONTAINERS: Dict[str, Dict[str, Any]] = {
         "auto_restart_safe": True,
         "compose_service": "archie_comfyui",
         # On-demand: container is only running during SDXL generation
-        # (VRAM swap with Ollama). An 'exited' state is the normal idle
-        # state, not a failure. Dispatcher spins it up when Pixel needs it.
+        # (VRAM swap with Ollama). Exited = normal idle — P.I.X.E.L. wakes it
+        # via media_generation_worker before claiming any pending job.
         "service_class": "on-demand",
     },
     "kbs_app": {

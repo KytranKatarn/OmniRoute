@@ -1427,11 +1427,38 @@ class AgentLoop:
     def _media_generation_worker(self):
         """Process pending ComfyUI media generation queue entries.
 
-        Creative & Design — M.U.S.E. Director. Runs every 30s, max_instances=1.
-        Handles cold boot and VRAM management via get_comfyui_service().
-        Future: fleet node routing through Department HQ when multi-node available.
+        Routes through Department HQ → P.I.X.E.L. (image_generation skill, Creative & Design).
+        P.I.X.E.L. owns ComfyUI — warms it up if stopped before generating.
+        VRAM is managed by P.I.X.E.L.: ComfyUI needs GPU swap from Ollama first.
         """
         from database import get_db_cursor
+
+        # Step 1: Ask DHQ if P.I.X.E.L. (or any image_generation agent) is available.
+        # This wakes the agent if barracked and registers the upcoming work session.
+        try:
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
+            dispatcher = get_dispatcher()
+            agent = dispatcher.coordinator.select_agent("image_generation", "Creative & Design")
+            if agent:
+                logger.info("media_generation_worker: P.I.X.E.L. (id=%s) selected via DHQ for image_generation", agent.get("id", "?"))
+            else:
+                logger.warning("media_generation_worker: DHQ found no image_generation agent — proceeding anyway")
+        except Exception as dhq_err:
+            logger.warning("media_generation_worker: DHQ agent lookup failed (non-blocking): %s", dhq_err)
+
+        # Step 2: P.I.X.E.L.'s tool is ComfyUI — warm it up before claiming work.
+        try:
+            from ai_bridge.comfyui_service import get_comfyui_service
+            svc = get_comfyui_service()
+            if svc.is_stopped():
+                logger.info("media_generation_worker: ComfyUI stopped — P.I.X.E.L. warming up container")
+                healthy = svc.wake_if_stopped()
+                if not healthy:
+                    logger.warning("media_generation_worker: ComfyUI warmboot failed — leaving jobs pending for next tick")
+                    return
+                logger.info("media_generation_worker: ComfyUI healthy after warmboot")
+        except Exception as wake_err:
+            logger.warning("media_generation_worker: ComfyUI warmboot check failed: %s", wake_err)
 
         try:
             with get_db_cursor(commit=True) as (conn, cur):

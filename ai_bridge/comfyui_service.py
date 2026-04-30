@@ -443,7 +443,7 @@ class ComfyUIService:
                 node["inputs"]["steps"] = steps
                 node["inputs"]["cfg"] = cfg
                 node["inputs"]["sampler_name"] = sampler
-                if seed is not None:
+                if seed is not None and seed >= 0:
                     node["inputs"]["seed"] = seed
                 else:
                     node["inputs"]["seed"] = int(time.time()) % (2**32)

@@ -1433,14 +1433,14 @@ class AgentLoop:
         """
         from database import get_db_cursor
 
-        # Step 1: Ask DHQ if P.I.X.E.L. (or any image_generation agent) is available.
-        # This wakes the agent if barracked and registers the upcoming work session.
+        # Step 1: Ask DHQ which agent handles image_generation (P.I.X.E.L.).
+        # Wakes the agent if barracked and confirms Creative & Design is staffed.
         try:
-            from tools.department_hq.services.department_dispatcher import get_dispatcher
-            dispatcher = get_dispatcher()
-            agent = dispatcher.coordinator.select_agent("image_generation", "Creative & Design")
+            from services.department_coordinator import get_coordinator as _get_coord
+            coord = _get_coord()
+            agent = coord.select_agent("image_generation", "Creative & Design")
             if agent:
-                logger.info("media_generation_worker: P.I.X.E.L. (id=%s) selected via DHQ for image_generation", agent.get("id", "?"))
+                logger.info("media_generation_worker: %s (id=%s) selected via DHQ for image_generation", agent.get("name", "?"), agent.get("id", "?"))
             else:
                 logger.warning("media_generation_worker: DHQ found no image_generation agent — proceeding anyway")
         except Exception as dhq_err:

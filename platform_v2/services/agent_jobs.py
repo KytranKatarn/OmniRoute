@@ -2379,7 +2379,7 @@ def signal_linkedin_draft():
             logger.error("[LinkedInDraft] Could not import request_approval")
             return
 
-        preview = draft_content[:200] + ("..." if len(draft_content) > 200 else "")
+        preview = draft_content[:1500] + ("..." if len(draft_content) > 1500 else "")
         selected_hashtags = [h for h in hashtags if h.lower() in draft_content.lower()][:4]
         if not selected_hashtags:
             selected_hashtags = hashtags[:3]

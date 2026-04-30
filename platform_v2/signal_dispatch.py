@@ -255,7 +255,7 @@ def announce():
                     "post_type": post_type,
                     "browser_agent_id": 342,
                 },
-                reason=f"📣 Kytran announcement draft:\n\n{draft[:300]}",
+                reason=f"📣 Kytran announcement draft:\n\n{draft[:1500]}",
                 tier=2,
                 requested_by="Kytran (via /api/signal/announce)",
                 priority=priority,

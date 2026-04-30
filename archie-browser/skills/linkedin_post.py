@@ -69,10 +69,24 @@ def execute(page, params: dict) -> dict:
     page.screenshot(path=screenshot_path)
 
     page.get_by_role("button", name="Post", exact=True).click(timeout=10000)
-    page.wait_for_timeout(3000)
+    page.wait_for_timeout(4000)
+
+    # Try to capture the URL of the just-published post
+    post_url = ""
+    try:
+        page.goto("https://www.linkedin.com/in/me/recent-activity/all/", wait_until="domcontentloaded")
+        page.wait_for_timeout(2500)
+        # Find the first post link in the activity feed
+        link = page.locator('a[href*="feed/update/"], a[href*="activity"]').first
+        href = link.get_attribute("href", timeout=4000) or ""
+        if "linkedin.com" in href and ("feed/update" in href or "activity" in href):
+            post_url = href.split("?")[0]
+    except Exception:
+        pass
 
     return {
         "success": True,
         "result": f"Posted {len(content)} characters to LinkedIn",
+        "post_url": post_url,
         "screenshot_path": screenshot_path,
     }

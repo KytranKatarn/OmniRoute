@@ -2293,15 +2293,61 @@ def signal_linkedin_draft():
         # ── 3. Dispatch to S.I.G.N.A.L. for content generation ───────────────
         from tools.department_hq.services.department_dispatcher import dispatch
 
+        # Day-of-week content theme
+        from datetime import datetime as _dt
+
+        weekday = _dt.now().weekday()  # 0=Mon, 2=Wed, 4=Fri
+        theme_map = {
+            0: (
+                "Vision & Mission",
+                "WHY we're building — the problem with fragmented AI, our mission, "
+                "the future we're working toward with A.R.C.H.I.E. and C.R.E.E.D.",
+            ),
+            2: (
+                "Product Spotlight",
+                "WHAT we've built — highlight one product: Gov Watch (federal procurement "
+                "intelligence), C.R.E.E.D. (AI ethics governance), ARCHIE (self-healing platform), "
+                "or KBS (business suite). Concrete capabilities, real value.",
+            ),
+            4: (
+                "Building in Public",
+                "HOW we're building — share a specific thing that shipped this week, "
+                "a technical challenge we solved, or a behind-the-scenes look at running 34 AI agents.",
+            ),
+        }
+        theme_name, theme_guidance = theme_map.get(weekday, theme_map[0])
+
+        # Fetch S.I.G.N.A.L.'s style guide from KB (denial learnings)
+        style_notes = ""
+        try:
+            from services.knowledge_service import search_knowledge
+
+            style_entries = search_knowledge(
+                query="linkedin style guide denied draft avoid",
+                category="signal_style_guide",
+                limit=3,
+            )
+            if style_entries:
+                style_notes = "\n\nStyle guide (avoid these patterns):\n" + "\n".join(
+                    f"- {e['content'][:150]}" for e in style_entries
+                )
+        except Exception:
+            pass
+
         prompt = (
-            "You are S.I.G.N.A.L., the Marketing & Communications director at Kytran Empowerment Inc. "
-            "Draft a compelling LinkedIn post for Kytran Katarn's profile. "
-            "The post should showcase our AI platform work, be professional yet approachable, "
-            "and position Kytran Empowerment as a serious AI infrastructure company in Montreal.\n\n"
-            f"Recent platform activity:\n{recent_context}\n\n"
-            f"Use these hashtags (pick 3-4 most relevant): {', '.join(hashtags)}\n\n"
-            "Write the post content only — no preamble, no explanation. "
-            "Under 280 words. First-person voice as Kytran. End with a call to action."
+            "You are S.I.G.N.A.L., the Marketing & Communications director at Kytran Empowerment Inc.\n"
+            "Draft a LinkedIn post for Kytran Katarn's personal profile.\n\n"
+            f"TODAY'S THEME: {theme_name}\n"
+            f"Focus: {theme_guidance}\n\n"
+            f"Recent platform activity (use if relevant):\n{recent_context}\n\n"
+            f"Use 3-4 of these hashtags: {', '.join(hashtags)}\n"
+            f"{style_notes}\n\n"
+            "Rules:\n"
+            "- Write post content ONLY — no preamble, no explanation\n"
+            "- Under 280 words, first-person voice as Kytran\n"
+            "- Professional but human — not corporate jargon\n"
+            "- End with a specific call to action or question\n"
+            "- Montreal founder perspective"
         )
 
         result = dispatch(
@@ -2728,10 +2774,10 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         max_instances=1,
     )
 
-    # S.I.G.N.A.L. LinkedIn content calendar — Tue + Thu at 09:00
+    # S.I.G.N.A.L. LinkedIn content calendar — Mon(Vision)/Wed(Product)/Fri(Building) at 09:00
     scheduler.add_job(
         with_ctx(signal_linkedin_draft),
-        trigger=CronTrigger(day_of_week="tue,thu", hour=9, minute=0),
+        trigger=CronTrigger(day_of_week="mon,wed,fri", hour=9, minute=0),
         id="signal_linkedin_draft",
         name="S.I.G.N.A.L.: LinkedIn Draft → Telegram Approval",
         replace_existing=True,

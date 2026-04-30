@@ -3012,6 +3012,28 @@ class AgentLoop:
                 logger.info(
                     "LinkedIn post approved and executed: success=%s", result.get("success")
                 )
+
+                # Auto first-comment to boost reach — fire-and-forget
+                post_url = result.get("post_url", "")
+                if result.get("success") and post_url:
+                    try:
+                        first_comment_text = (
+                            "Thoughts? We're building this at kytranempowerment.com — "
+                            "AI infrastructure that actually works. 🚀 Drop a comment below."
+                        )
+                        threading.Thread(
+                            target=lambda: run_skill_sync(
+                                "linkedin_first_comment",
+                                {"post_url": post_url, "comment": first_comment_text},
+                                agent_id=agent_id,
+                                timeout_s=90,
+                            ),
+                            daemon=True,
+                            name="linkedin-first-comment",
+                        ).start()
+                    except Exception as fc_err:
+                        logger.warning("First comment thread failed: %s", fc_err)
+
                 return {"executed": True, "result": result}
             except Exception as li_err:
                 logger.error(f"LinkedIn post execution failed: {li_err}")

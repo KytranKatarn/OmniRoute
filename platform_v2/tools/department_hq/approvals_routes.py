@@ -109,6 +109,13 @@ def _deny_autonomy(source_id: int, user_id: int, reason: str) -> bool:
     from database import get_db_cursor
 
     with get_db_cursor(commit=True) as (conn, cur):
+        # Fetch action details before update for denial learning
+        cur.execute(
+            "SELECT action_type, action_data FROM autonomy_approval_queue WHERE id = %s",
+            (source_id,),
+        )
+        row = cur.fetchone()
+
         cur.execute(
             """UPDATE autonomy_approval_queue
                SET status = 'rejected', approved_by = %s,
@@ -117,7 +124,36 @@ def _deny_autonomy(source_id: int, user_id: int, reason: str) -> bool:
                WHERE id = %s AND status = 'pending'""",
             (user_id, reason, source_id),
         )
-        return cur.rowcount > 0
+        denied = cur.rowcount > 0
+
+    # S.I.G.N.A.L. style learning — store denial reasons for linkedin_post drafts in KB
+    if denied and row and row.get("action_type") == "linkedin_post" and reason:
+        try:
+            import json
+            from services.knowledge_service import store_knowledge
+
+            action_data = row.get("action_data") or {}
+            if isinstance(action_data, str):
+                action_data = json.loads(action_data)
+            preview = (action_data.get("content") or "")[:200]
+
+            store_knowledge(
+                title=f"LinkedIn Draft Denied — Style Guide Entry",
+                content=(
+                    f"Kytran denied a LinkedIn post draft.\n\n"
+                    f"**Reason:** {reason}\n\n"
+                    f"**Draft preview:** {preview}\n\n"
+                    f"S.I.G.N.A.L. should avoid this style/topic in future drafts."
+                ),
+                knowledge_type="vault_note",
+                category="signal_style_guide",
+                tags=["linkedin", "signal", "style_guide", "denied_draft"],
+                importance_score=0.9,
+            )
+        except Exception:
+            pass  # KB store failure must not break denial flow
+
+    return denied
 
 
 def _deny_contractor(source_id: int, user_id: int, reason: str) -> bool:

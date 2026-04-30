@@ -161,6 +161,117 @@ def dispatch_signal():
     )
 
 
+@signal_dispatch_bp.route("/announce", methods=["POST"])
+def announce():
+    """Kytran → S.I.G.N.A.L. feature/announcement post trigger.
+
+    You tell S.I.G.N.A.L. what happened. She turns it into a polished
+    LinkedIn post and sends it to your Telegram for approval.
+
+    Body:
+        announcement  (str, required) — what you want to announce in plain language
+        post_type     (str, optional) — "personal" (default) or "company"
+        tone          (str, optional) — "professional" | "casual" | "bold"
+        hashtags      (list, optional) — override hashtag suggestions
+        priority      (int, optional) — Telegram priority 1-10 (default 6)
+
+    Example:
+        {
+            "announcement": "We just shipped the ARCHIE self-healing pipeline.
+                             It reviewed 50 improvement proposals this week and
+                             auto-deployed 12 of them without human intervention.",
+            "post_type": "personal",
+            "tone": "bold"
+        }
+
+    Returns: {"queued": true, "preview": "<first 100 chars of draft>"}
+    Auth: Bearer <ARCHIE_API_KEY>
+    """
+    if not _check_api_key():
+        return jsonify({"error": "Invalid or missing API key"}), 401
+
+    data = request.get_json(silent=True) or {}
+    announcement = (data.get("announcement") or "").strip()
+    if not announcement:
+        return jsonify({"error": "announcement is required"}), 400
+
+    post_type = (data.get("post_type") or "personal").strip()
+    tone = (data.get("tone") or "professional").strip()
+    hashtag_override = data.get("hashtags", [])
+    priority = int(data.get("priority", 6))
+
+    tone_hint = _TONE_HINTS.get(tone, _TONE_HINTS["professional"])
+    platform_hint = _PLATFORM_HINTS.get("linkedin", "")
+
+    try:
+        # Load S.I.G.N.A.L.'s system prompt
+        system = None
+        try:
+            with get_db_cursor() as (_conn, cur):
+                cur.execute("SELECT system_prompt FROM agents WHERE name = %s", ("S.I.G.N.A.L.",))
+                row = cur.fetchone()
+                if row and row.get("system_prompt"):
+                    system = row["system_prompt"]
+        except Exception:
+            pass
+
+        prompt = (
+            f"Kytran has an announcement to share on LinkedIn.\n\n"
+            f"Announcement:\n{announcement}\n\n"
+            f"Turn this into a polished LinkedIn post. {tone_hint} {platform_hint}\n"
+            f"Under 250 words. First-person as Kytran. End with an engagement question.\n"
+            + (
+                f"Use these hashtags: {', '.join(hashtag_override)}"
+                if hashtag_override
+                else "Pick 3-4 relevant hashtags from: #AI #ARCHIE #BuildingInPublic #Montreal #KytranEmpowerment"
+            )
+        )
+
+        from tools.department_hq.services.department_dispatcher import dispatch
+
+        result = dispatch(
+            capability="social_post_draft",
+            prompt=prompt,
+            system_prompt=system,
+            prefer_agent="S.I.G.N.A.L.",
+        )
+
+        draft = (getattr(result, "response", "") or "").strip()
+        if not draft:
+            return jsonify({"error": "S.I.G.N.A.L. returned empty draft"}), 502
+
+        # Queue Tier-2 Telegram approval
+        try:
+            import sys
+
+            sys.path.insert(0, "/app")
+            from ai_bridge.agent_loop import request_approval
+
+            approval_id = request_approval(
+                action_type="linkedin_post",
+                action_data={
+                    "content": draft,
+                    "hashtags": hashtag_override or [],
+                    "post_type": post_type,
+                    "browser_agent_id": 342,
+                },
+                reason=f"📣 Kytran announcement draft:\n\n{draft[:300]}",
+                tier=2,
+                requested_by="Kytran (via /api/signal/announce)",
+                priority=priority,
+            )
+        except Exception as appr_err:
+            log.error("announce: approval queue failed: %s", appr_err)
+            return jsonify({"error": f"Draft generated but approval queue failed: {appr_err}"}), 500
+
+        log.info("Announcement queued for approval (id=%s): %s...", approval_id, announcement[:60])
+        return jsonify({"queued": True, "approval_id": approval_id, "preview": draft[:150]}), 202
+
+    except Exception as exc:
+        log.exception("announce failed")
+        return jsonify({"error": str(exc)}), 502
+
+
 @signal_dispatch_bp.route("/tender-alert", methods=["POST"])
 def tender_alert():
     """Gov Watch → S.I.G.N.A.L. tender post trigger.

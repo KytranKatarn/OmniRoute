@@ -293,7 +293,14 @@ def register_social_routes(bp, admin_required):
         try:
             with get_db_cursor() as (_conn, cur):
                 cur.execute(
-                    "SELECT id, name, current_mood, stress_level, shift_state FROM agents WHERE name = %s",
+                    """SELECT a.id, a.name, a.shift_state,
+                              COALESCE(e.current_mood, 'neutral') AS current_mood,
+                              COALESCE(e.stress_level, 0.2) AS stress_level
+                       FROM agents a
+                       LEFT JOIN agent_emotional_state e ON e.agent_id = a.id
+                       WHERE a.name = %s
+                       ORDER BY e.timestamp DESC NULLS LAST
+                       LIMIT 1""",
                     ("S.I.G.N.A.L.",),
                 )
                 agent = cur.fetchone()

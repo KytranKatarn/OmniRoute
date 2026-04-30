@@ -322,6 +322,12 @@ CAPABILITY_REQUIRES_SKILL = {
 CAPABILITY_TIMEOUTS = {
     "code_analysis": 600,
     "knowledge_analysis": 600,
+    # CPU inference (gemma2-cpu, etc.) blocks Gunicorn threads for 300s+ causing
+    # platform-wide hangs. Cap at 90s — GPU agents (qwen2.5:7b) respond in <30s;
+    # CPU-only agents will fail fast rather than exhausting the thread pool.
+    "conversation": 90,
+    "summarize": 90,
+    "summarization": 90,
 }
 
 # Scoring weights for multi-factor agent selection

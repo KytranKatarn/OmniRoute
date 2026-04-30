@@ -954,11 +954,8 @@
         <div id="ms-portrait-detail" class="ms-portrait-detail" style="display:none;">
             <div class="ms-detail-header">
                 <button class="ms-btn ms-btn-ghost" onclick="closePortraitDetail()" data-i18n="media_studio.back_to_grid">Back</button>
-                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;">
-                    <h3 id="ms-portrait-agent-name" style="flex:none;margin:0;text-align:center;width:100%;"></h3>
-                    <span id="ms-portrait-status" class="ms-status-badge" style="align-self:center;"></span>
-                </div>
-                <a id="ms-view-in-roster" class="ms-btn ms-btn-ghost" href="#" target="_blank" rel="noopener" style="text-decoration:none;white-space:nowrap;" title="Open this agent in the Department HQ Roster tab">View in Roster →</a>
+                <h3 id="ms-portrait-agent-name"></h3>
+                <a id="ms-view-in-roster" class="ms-btn ms-btn-ghost" href="#" target="_blank" rel="noopener" style="margin-left:auto;text-decoration:none;" title="Open this agent in the Department HQ Roster tab">View in Roster →</a>
             </div>
 
             <div class="ms-detail-layout">
@@ -967,6 +964,7 @@
                         <div class="ms-placeholder" data-i18n="media_studio.no_canonical">No canonical portrait</div>
                     </div>
                     <div class="ms-canonical-actions">
+                        <span id="ms-portrait-status" class="ms-status-badge" style="display:block;text-align:center;margin-bottom:8px;"></span>
                         <button id="ms-generate-canonical-btn" class="ms-btn ms-btn-accent" onclick="generateCanonical()" data-i18n="media_studio.generate_canonical">Generate</button>
                         <button class="ms-btn ms-btn-success" id="ms-approve-btn" onclick="approveCanonical()" style="display:none;" data-i18n="media_studio.approve">Set as Portrait</button>
                     </div>

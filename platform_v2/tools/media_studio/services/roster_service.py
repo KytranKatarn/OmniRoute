@@ -9,14 +9,16 @@ def get_agent_picker() -> Dict:
             """
             SELECT a.id, a.name, a.display_name, a.department, a.worker_type,
                    ap.canonical_image_path,
-                   COUNT(ml.id) AS asset_count
+                   COUNT(DISTINCT ml.id)
+                     + CASE WHEN ap.canonical_image_path IS NOT NULL AND ap.approved = true THEN 1 ELSE 0 END
+                     AS asset_count
             FROM agents a
             LEFT JOIN agent_portraits ap ON ap.agent_id = a.id
             LEFT JOIN media_library ml ON ml.owner_id = a.id
                 AND ml.owner_type = 'agent' AND ml.is_deleted = false
             WHERE a.shift_state != 'decommissioned' AND a.worker_type IN ('internal', 'ai')
             GROUP BY a.id, a.name, a.display_name, a.department, a.worker_type,
-                     ap.canonical_image_path
+                     ap.canonical_image_path, ap.approved
             ORDER BY a.worker_type DESC, a.name
         """
         )
@@ -40,14 +42,16 @@ def get_gallery_subjects() -> Dict:
             """
             SELECT a.id, a.name, a.display_name, a.department, a.worker_type,
                    ap.canonical_image_path,
-                   COUNT(ml.id) AS asset_count
+                   COUNT(DISTINCT ml.id)
+                     + CASE WHEN ap.canonical_image_path IS NOT NULL AND ap.approved = true THEN 1 ELSE 0 END
+                     AS asset_count
             FROM agents a
             LEFT JOIN agent_portraits ap ON ap.agent_id = a.id
             LEFT JOIN media_library ml ON ml.owner_id = a.id
                 AND ml.owner_type = 'agent' AND ml.is_deleted = false
             WHERE a.shift_state != 'decommissioned' AND a.worker_type IN ('internal', 'ai')
             GROUP BY a.id, a.name, a.display_name, a.department, a.worker_type,
-                     ap.canonical_image_path
+                     ap.canonical_image_path, ap.approved
             ORDER BY a.worker_type DESC, a.name
         """
         )

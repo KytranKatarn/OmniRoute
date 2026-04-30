@@ -263,6 +263,36 @@ def api_gallery():
             from .services.gallery_service import _serialize_row
 
             items = [_serialize_row(row) for row in cur.fetchall()]
+
+            # Prepend canonical portrait from agent_portraits if not already in gallery
+            if req_owner_id and not asset_type or asset_type == "portrait":
+                cur.execute(
+                    """SELECT ap.id, ap.canonical_image_path, ap.updated_at, a.display_name
+                       FROM agent_portraits ap JOIN agents a ON a.id = ap.agent_id
+                       WHERE ap.agent_id = %s AND ap.canonical_image_path IS NOT NULL AND ap.approved = true""",
+                    (req_owner_id,),
+                )
+                portrait_row = cur.fetchone()
+                if portrait_row:
+                    path = portrait_row["canonical_image_path"]
+                    existing_paths = {it.get("url") or it.get("file_path") for it in items}
+                    if path not in existing_paths:
+                        items.insert(
+                            0,
+                            {
+                                "id": "portrait_" + str(portrait_row["id"]),
+                                "media_type": "image",
+                                "url": path,
+                                "file_path": path,
+                                "thumbnail_path": path,
+                                "prompt": "Canonical portrait — " + (portrait_row["display_name"] or ""),
+                                "metadata": {"asset_type": "portrait", "featured": True},
+                                "created_at": (
+                                    portrait_row["updated_at"].isoformat() if portrait_row["updated_at"] else None
+                                ),
+                            },
+                        )
+                        total += 1
         return jsonify(
             {
                 "items": items,

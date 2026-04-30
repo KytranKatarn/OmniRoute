@@ -3,6 +3,7 @@
   var _API = '/tools/media-studio';
   var _subject = null;
   var _assetFilter = 'all';
+  var _subjectName = '';
 
   function _get(path) {
     return fetch(_API + path, { credentials: 'same-origin' })
@@ -164,9 +165,10 @@
 
       var info = document.createElement('div');
       info.style.cssText = 'flex:1;';
+      _subjectName = agent.display_name || agent.name;
       var nameEl = document.createElement('div');
       nameEl.style.cssText = 'color:#fff;font-size:0.85rem;font-family:"Orbitron",sans-serif;';
-      nameEl.textContent = agent.display_name || agent.name;
+      nameEl.textContent = _subjectName;
       var deptEl = document.createElement('div');
       deptEl.style.cssText = 'color:#555;font-size:0.65rem;margin-top:2px;';
       deptEl.textContent = (agent.worker_type === 'internal' ? 'Human Agent' : 'AI Agent') +
@@ -224,7 +226,11 @@
 
         var prompt = document.createElement('div');
         prompt.className = 'ms-gallery-subject-prompt';
-        prompt.textContent = (item.prompt || '').substring(0, 50);
+        var isCanonical = item.metadata && item.metadata.featured && String(item.id).indexOf('portrait_') === 0;
+        var agentLabel = item.metadata && item.metadata.agent_name ? item.metadata.agent_name : _subjectName;
+        prompt.textContent = isCanonical
+          ? '★ ' + agentLabel
+          : (agentLabel || (item.prompt || '').substring(0, 50));
         card.appendChild(prompt);
 
         card.onclick = (function (id) {

@@ -238,6 +238,40 @@ def api_comfyui_status():
     return jsonify({"nodes": get_fleet_comfyui_status()})
 
 
+@media_studio_bp.route("/api/comfyui/queue")
+@login_required
+def api_comfyui_queue():
+    """Proxy ComfyUI /queue — returns running + pending job counts and items."""
+    import os
+    import urllib.request
+
+    comfyui_url = os.getenv("COMFYUI_URL", "http://archie_comfyui:8188")
+    try:
+        r = urllib.request.urlopen(f"{comfyui_url}/queue", timeout=5)
+        import json
+
+        data = json.loads(r.read())
+        running = data.get("queue_running", [])
+        pending = data.get("queue_pending", [])
+
+        def _parse_item(item, status):
+            # ComfyUI format: [queue_number, prompt_id, workflow_dict, extra_data, ...]
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                return {"position": item[0], "prompt_id": item[1], "status": status}
+            if isinstance(item, dict):
+                return {
+                    "position": item.get("queue_number", 0),
+                    "prompt_id": item.get("prompt_id", ""),
+                    "status": status,
+                }
+            return {"position": 0, "prompt_id": str(item), "status": status}
+
+        items = [_parse_item(i, "running") for i in running] + [_parse_item(i, "pending") for i in pending]
+        return jsonify({"running": len(running), "pending": len(pending), "items": items})
+    except Exception as exc:
+        return jsonify({"running": 0, "pending": 0, "items": [], "error": str(exc)})
+
+
 # ─── Assignments ────────────────────────────────────────────────────
 
 

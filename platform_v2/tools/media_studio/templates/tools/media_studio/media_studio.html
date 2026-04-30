@@ -1054,6 +1054,14 @@
             <div class="ms-queue-empty" data-i18n="media_studio.queue_empty">Queue is empty. Submit a generation to see it here.</div>
         </div>
 
+        <div style="margin-top:20px;border-top:1px solid var(--ms-border,#222);padding-top:16px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                <span style="font-family:'Antonio',sans-serif;font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;color:var(--ms-text-secondary,#888);">ComfyUI GPU Queue</span>
+                <span id="msComfyStats" style="font-size:0.75rem;color:#888;"></span>
+            </div>
+            <div id="msComfyList" style="font-size:0.8rem;color:#555;">Loading...</div>
+        </div>
+
                 </div>
                 <div style="height: 6px !important; background: #8b5cf6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
             </div>
@@ -2622,18 +2630,53 @@
 
     /* ── Queue ────────────────────────────────────── */
 
+    function loadComfyQueue() {
+        var el = document.getElementById('msComfyList');
+        var stats = document.getElementById('msComfyStats');
+        api('GET', '/api/comfyui/queue').then(function(data) {
+            if (stats) stats.textContent = data.running + ' running · ' + data.pending + ' pending';
+            if (!el) return;
+            if (!data.items || !data.items.length) {
+                el.textContent = 'GPU is idle — no jobs queued.';
+                el.style.color = '#555';
+                return;
+            }
+            el.textContent = '';
+            data.items.forEach(function(item) {
+                var row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:4px;background:rgba(255,255,255,0.03);';
+                var dot = document.createElement('span');
+                dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + (item.status === 'running' ? '#22c55e' : '#f59e0b') + ';';
+                var label = document.createElement('span');
+                label.style.cssText = 'font-size:0.78rem;color:#aaa;flex:1;';
+                label.textContent = '#' + item.position + ' — ' + (item.status === 'running' ? 'Generating' : 'Waiting');
+                var id = document.createElement('span');
+                id.style.cssText = 'font-size:0.7rem;color:#555;font-family:monospace;';
+                id.textContent = String(item.prompt_id).slice(0, 8);
+                row.appendChild(dot);
+                row.appendChild(label);
+                row.appendChild(id);
+                el.appendChild(row);
+            });
+        }).catch(function() {
+            if (el) { el.textContent = 'ComfyUI unreachable.'; el.style.color = '#ef4444'; }
+        });
+    }
+
     window.loadQueue = function() {
         api("GET", "/api/queue").then(function(data) {
             renderQueue(data.jobs || []);
         }).catch(function(err) {
             console.error("Queue load failed:", err);
         });
+        loadComfyQueue();
 
         if (queuePollTimer) clearInterval(queuePollTimer);
         queuePollTimer = setInterval(function() {
             api("GET", "/api/queue").then(function(data) {
                 renderQueue(data.jobs || []);
             }).catch(function() {});
+            loadComfyQueue();
         }, 5000);
     };
 

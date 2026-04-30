@@ -79,6 +79,17 @@ DEPT_FLOOR_MAP = {
 }
 
 
+PORTRAIT_HOST = "https://kytranempowerment.com"
+
+
+def _thumb_url(raw_avatar_url):
+    """Derive Hostinger thumbnail URL from agents.avatar_url."""
+    if not raw_avatar_url:
+        return ""
+    stem = os.path.splitext(os.path.basename(raw_avatar_url))[0]
+    return f"{PORTRAIT_HOST}/assets/portraits/{stem}.jpg"
+
+
 def get_connection():
     return psycopg2.connect(
         host=DB_HOST, dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD
@@ -127,7 +138,8 @@ def export_agents():
             "title": r["title"],
             "agent_type": agent_type,
             "shift_state": r["shift_state"],
-            "avatar_url": f"/assets/portraits/{name_lower}.png",
+            "avatar_url": r["avatar_url"] or f"/assets/portraits/{name_lower}.png",
+            "avatar_thumb_url": _thumb_url(r["avatar_url"]),
             "email": r["email"],
             "acronym": r["acronym"],
             "acronym_expansion": r["acronym_expansion"],
@@ -153,7 +165,8 @@ def export_agents():
             "title": r["title"],
             "agent_type": "director",
             "shift_state": r["shift_state"],
-            "avatar_url": f"/assets/portraits/{name_lower}.png",
+            "avatar_url": r["avatar_url"] or f"/assets/portraits/{name_lower}.png",
+            "avatar_thumb_url": _thumb_url(r["avatar_url"]),
             "email": r["email"],
             "acronym": r["acronym"],
             "acronym_expansion": r["acronym_expansion"],

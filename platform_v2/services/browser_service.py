@@ -173,3 +173,71 @@ def linkedin_company_post(
         {"content": content, "company_slug": company_slug, "hashtags": hashtags or []},
         agent_id,
     )
+
+
+def linkedin_follow(url: str, name: str = "", agent_id: int = DEFAULT_AGENT_ID) -> dict:
+    return run_skill_sync("linkedin_follow", {"url": url, "name": name}, agent_id, timeout_s=60)
+
+
+def linkedin_like(post_url: str, reaction: str = "like", agent_id: int = DEFAULT_AGENT_ID) -> dict:
+    return run_skill_sync("linkedin_like", {"post_url": post_url, "reaction": reaction}, agent_id)
+
+
+def linkedin_comment(post_url: str, comment: str, agent_id: int = DEFAULT_AGENT_ID) -> dict:
+    return run_skill_sync("linkedin_comment", {"post_url": post_url, "comment": comment}, agent_id)
+
+
+def linkedin_share(
+    post_url: str, commentary: str = "", hashtags: list = None, agent_id: int = DEFAULT_AGENT_ID
+) -> dict:
+    return run_skill_sync(
+        "linkedin_share", {"post_url": post_url, "commentary": commentary, "hashtags": hashtags or []}, agent_id
+    )
+
+
+def linkedin_first_comment(post_url: str, comment: str = "", agent_id: int = DEFAULT_AGENT_ID) -> dict:
+    return run_skill_sync("linkedin_first_comment", {"post_url": post_url, "comment": comment}, agent_id, timeout_s=90)
+
+
+def linkedin_article(title: str, body: str, cover_image_path: str = "", agent_id: int = DEFAULT_AGENT_ID) -> dict:
+    return run_skill_sync(
+        "linkedin_article",
+        {"title": title, "body": body, "cover_image_path": cover_image_path},
+        agent_id,
+        timeout_s=180,
+    )
+
+
+def linkedin_poll(
+    question: str, options: list, preamble: str = "", duration_days: int = 7, agent_id: int = DEFAULT_AGENT_ID
+) -> dict:
+    return run_skill_sync(
+        "linkedin_poll",
+        {"question": question, "options": options, "preamble": preamble, "duration_days": duration_days},
+        agent_id,
+    )
+
+
+def linkedin_document(
+    content: str, doc_path: str, doc_title: str = "", hashtags: list = None, agent_id: int = DEFAULT_AGENT_ID
+) -> dict:
+    return run_skill_sync(
+        "linkedin_document",
+        {"content": content, "doc_path": doc_path, "doc_title": doc_title, "hashtags": hashtags or []},
+        agent_id,
+        timeout_s=180,
+    )
+
+
+def linkedin_featured(url: str, title: str = "", description: str = "", agent_id: int = DEFAULT_AGENT_ID) -> dict:
+    return run_skill_sync(
+        "linkedin_featured", {"item_type": "link", "url": url, "title": title, "description": description}, agent_id
+    )
+
+
+def linkedin_analytics(mode: str = "profile", agent_id: int = DEFAULT_AGENT_ID) -> dict:
+    return run_skill_sync("linkedin_analytics", {"mode": mode}, agent_id, timeout_s=90)
+
+
+def linkedin_reply(reply_to: str, message: str, agent_id: int = DEFAULT_AGENT_ID) -> dict:
+    return run_skill_sync("linkedin_reply", {"reply_to": reply_to, "message": message}, agent_id)

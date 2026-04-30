@@ -161,6 +161,52 @@ def dispatch_signal():
     )
 
 
+@signal_dispatch_bp.route("/tender-alert", methods=["POST"])
+def tender_alert():
+    """Gov Watch → S.I.G.N.A.L. tender post trigger.
+
+    Called by Gov Watch (VPS) when a federal tender with value > $1M is ingested.
+    S.I.G.N.A.L. drafts an urgent LinkedIn post → priority-8 Telegram approval.
+
+    Body: {title, value, agency, deadline, url, description}
+    Auth: Bearer <ARCHIE_API_KEY>
+    """
+    if not _check_api_key():
+        return jsonify({"error": "Invalid or missing API key"}), 401
+
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "title is required"}), 400
+
+    tender = {
+        "title": title,
+        "value": data.get("value", 0),
+        "agency": (data.get("agency") or "").strip(),
+        "deadline": (data.get("deadline") or "").strip(),
+        "url": (data.get("url") or "https://canadabuys.canada.ca").strip(),
+        "description": (data.get("description") or "")[:500],
+    }
+
+    try:
+        import threading
+        from services.agent_jobs import signal_tender_post
+
+        threading.Thread(
+            target=signal_tender_post,
+            args=(tender,),
+            daemon=True,
+            name="tender-post",
+        ).start()
+
+        log.info("Tender alert queued: %s ($%s)", title, tender["value"])
+        return jsonify({"queued": True, "tender": title}), 202
+
+    except Exception as exc:
+        log.exception("tender_alert failed")
+        return jsonify({"error": str(exc)}), 502
+
+
 @signal_dispatch_bp.route("/draft-notify", methods=["POST"])
 def draft_notify():
     """Send a social draft to Telegram for quick approve/discard.

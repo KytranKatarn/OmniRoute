@@ -954,9 +954,9 @@
         <div id="ms-portrait-detail" class="ms-portrait-detail" style="display:none;">
             <div class="ms-detail-header">
                 <button class="ms-btn ms-btn-ghost" onclick="closePortraitDetail()" data-i18n="media_studio.back_to_grid">Back</button>
-                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
-                    <h3 id="ms-portrait-agent-name" style="margin:0;text-align:center;"></h3>
-                    <span id="ms-portrait-status" class="ms-status-badge" style="text-align:center;"></span>
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;">
+                    <h3 id="ms-portrait-agent-name" style="flex:none;margin:0;text-align:center;width:100%;"></h3>
+                    <span id="ms-portrait-status" class="ms-status-badge" style="align-self:center;"></span>
                 </div>
                 <a id="ms-view-in-roster" class="ms-btn ms-btn-ghost" href="#" target="_blank" rel="noopener" style="text-decoration:none;white-space:nowrap;" title="Open this agent in the Department HQ Roster tab">View in Roster →</a>
             </div>
@@ -2785,7 +2785,6 @@
     window.openPortraitDetail = function(agentId) {
         _currentAgentId = agentId;
         document.getElementById('ms-portrait-grid').style.display = 'none';
-        document.querySelector('.ms-portrait-actions').style.display = 'none';
         document.getElementById('ms-portrait-detail').style.display = 'block';
         // Wire the "View in Roster →" deep-link back to DHQ for this agent.
         var rosterLink = document.getElementById('ms-view-in-roster');
@@ -2797,7 +2796,6 @@
         _currentAgentId = null;
         document.getElementById('ms-portrait-detail').style.display = 'none';
         document.getElementById('ms-portrait-grid').style.display = '';
-        document.querySelector('.ms-portrait-actions').style.display = '';
     };
 
     // Normalize a path that may be absolute (starts with /), HTTP(S), or a

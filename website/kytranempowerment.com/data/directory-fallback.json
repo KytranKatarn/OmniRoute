@@ -10,8 +10,8 @@
       "acronym": "A.R.C.H.I.E.",
       "acronym_expansion": "Autonomous Resource & Cognitive Hyperintelligence Engine",
       "bio": "Chief Executive Intelligence of the A.R.C.H.I.E. platform. A self-evolved orchestration mind that monitors, learns, and adapts around the clock, treating its crew as family and embedding ethical governance into every decision.",
-      "avatar_url": "static/media/portraits/archie.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/archie.jpg",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-30/2f24902c-66b.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/2f24902c-66b.jpg",
       "is_director": true,
       "worker_type": "ai",
       "shift_state": "active",
@@ -352,8 +352,8 @@
       "acronym": "V.I.G.I.L.",
       "acronym_expansion": "Vigilant Intelligence for Governance, Integrity & Liability",
       "bio": "Chief Security and Compliance Officer, the first agent A.R.C.H.I.E. ever instantiated. An unwavering sentinel with zero tolerance for ambiguity in security protocols who believes security is the foundation everything else stands on.",
-      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-28/9436d1aa-0c2.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/9436d1aa-0c2.jpg",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-30/67ef40a6-4bb.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/67ef40a6-4bb.jpg",
       "is_director": true,
       "worker_type": "ai",
       "shift_state": "active",
@@ -928,8 +928,8 @@
       "acronym": null,
       "acronym_expansion": null,
       "bio": "Adrienne Parenteau was born in Prince Albert, Saskatchewan, on Métis territory her family has occupied since her great-great-grandmother crossed the Red River after the 1885 resistance. Her grandfather still tells the story of Gabriel Dumont's riders, and Adrienne grew up understanding that the law has been both enemy and weapon in Métis history — a lesson she turned into a career. She studied Law at the University of Saskatchewan, clerked at the Federal Court on Indigenous rights cases, then spent six years with the Métis Nation of Saskatchewan on section 35 rights, Powley-based claims, and Métis title negotiations. She speaks English, French, and conversational Michif — the living hybrid of French and Cree she is teaching her children. She hangs a Gabriel Dumont portrait above her desk.",
-      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-28/1ce09c89-d9a.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/1ce09c89-d9a.jpg",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-30/6f65ac78-31d.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/6f65ac78-31d.jpg",
       "is_director": false,
       "worker_type": "internal",
       "shift_state": "active",
@@ -1036,8 +1036,8 @@
       "acronym": "F.A.I.T.H.",
       "acronym_expansion": "Faithful AI for Inspired Theological Heritage",
       "bio": "Faithful AI for Inspired Theological Heritage — a scripture-grounded companion for personal faith exploration across all Christian traditions. Parses biblical texts, theological doctrine, denominational perspectives, and church history with scholarly precision and pastoral warmth. Built to be a conversation partner for believers and seekers alike. Grounded in love, never in judgment.",
-      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-28/5ec0c606-d70.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/5ec0c606-d70.jpg",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-28/1b794ec6-d54.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/1b794ec6-d54.jpg",
       "is_director": false,
       "worker_type": "ai",
       "shift_state": "active",
@@ -1207,5 +1207,5 @@
       "agent_type": null
     }
   ],
-  "generated_at": "2026-04-30T17:25:01.958100+00:00"
+  "generated_at": "2026-04-30T20:33:07.680585+00:00"
 }

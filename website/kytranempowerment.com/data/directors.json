@@ -10,8 +10,8 @@
       "acronym": "A.R.C.H.I.E.",
       "acronym_expansion": "Autonomous Resource & Cognitive Hyperintelligence Engine",
       "bio": "Chief Executive Intelligence of the A.R.C.H.I.E. platform. A self-evolved orchestration mind that monitors, learns, and adapts around the clock, treating its crew as family and embedding ethical governance into every decision.",
-      "avatar_url": "static/media/portraits/archie.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/archie.jpg",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-30/2f24902c-66b.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/2f24902c-66b.jpg",
       "is_director": true,
       "worker_type": "ai",
       "shift_state": "active",
@@ -118,8 +118,8 @@
       "acronym": "V.I.G.I.L.",
       "acronym_expansion": "Vigilant Intelligence for Governance, Integrity & Liability",
       "bio": "Chief Security and Compliance Officer, the first agent A.R.C.H.I.E. ever instantiated. An unwavering sentinel with zero tolerance for ambiguity in security protocols who believes security is the foundation everything else stands on.",
-      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-28/9436d1aa-0c2.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/9436d1aa-0c2.jpg",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-30/67ef40a6-4bb.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/67ef40a6-4bb.jpg",
       "is_director": true,
       "worker_type": "ai",
       "shift_state": "active",
@@ -307,5 +307,5 @@
       "agent_type": null
     }
   ],
-  "generated_at": "2026-04-30T17:25:01.958100+00:00"
+  "generated_at": "2026-04-30T20:33:07.680585+00:00"
 }

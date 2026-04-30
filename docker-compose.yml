@@ -769,6 +769,9 @@ services:
     environment:
       - DATABASE_URL=postgresql://archie:${DB_PASSWORD}@archie_database:5432/archie
       - BROWSER_ENCRYPTION_KEY=${BROWSER_ENCRYPTION_KEY}
+      - BROWSER_API_KEY=${BROWSER_API_KEY}
+      - KYTRAN_LOGO_PATH=/app/assets/kytran-logo.png
+      - KYTRAN_PORTRAIT_PATH=/app/assets/kytran-portrait.png
     dns:
       - 192.168.1.200
       - 1.1.1.1

@@ -32,7 +32,7 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 - **Audit**: KB 256841 (2026-04-17) · **Rules**: `admin-ops.md`, `compliance-standards.md`
 
 ### Account Center — `account_center` · `/tools/account-center` · ✅ · 🟡
-- **Capability**: user CRUD, subscription tiers, login lockout (5 attempts→15min), IP rate limit (10/5min), password complexity, TOTP 2FA, auth event log.
+- **Capability**: user CRUD, subscription tiers, login lockout (5 attempts→15min), IP rate limit (10/5min), password complexity, TOTP 2FA, auth event log. **Access control API** (Phase 0, PR #397): `POST /api/access/grant|revoke`, `GET /api/access/check|list` — timing-safe, HMAC token. **Internal notify endpoint** (Phase 4, PR #400): `POST /api/internal/notify` — validates `X-Internal-Key` header, forwards message to Telegram via `send_info` in daemon thread. Used by KBS and standalone products to fire Telegram alerts without direct bot access.
 - **Key security**: `auth_service.py` — **23 functions** (not 12 — rules drift); `auth_events` table
 - **Rules**: `admin-ops.md`, `app-core.md`
 - **Audits**: Cross-cutting OAuth/SSO audit → KB 256845 (#1948, 2026-04-17)

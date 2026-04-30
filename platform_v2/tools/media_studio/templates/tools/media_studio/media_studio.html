@@ -685,23 +685,23 @@
             <div id="msAgentConfigBody"></div>
         </div>
 
-        <!-- Queue Panel (collapsible) -->
+        <!-- Queue Panel (collapsible) — IDs prefixed with msPanel to avoid collision with Queue tab -->
         <div id="msQueuePanel" class="ms-queue-panel" style="display:none;">
             <div class="ms-queue-header">
                 <span class="ms-queue-stats" id="msQueueStats"></span>
                 <button class="ms-btn-sm" onclick="clearCompleted()">Clear Completed</button>
             </div>
-            <div class="ms-queue-section" id="msQueueActive">
+            <div class="ms-queue-section" id="msPanelActive">
                 <h4>Active</h4>
-                <div id="msQueueActiveList"></div>
+                <div id="msPanelActiveList"></div>
             </div>
-            <div class="ms-queue-section ms-queue-failed-section" id="msQueueFailed" style="display:none;">
+            <div class="ms-queue-section ms-queue-failed-section" id="msPanelFailed" style="display:none;">
                 <h4>Failed</h4>
-                <div id="msQueueFailedList"></div>
+                <div id="msPanelFailedList"></div>
             </div>
-            <div class="ms-queue-section" id="msQueueRecent" style="display:none;">
+            <div class="ms-queue-section" id="msPanelRecent" style="display:none;">
                 <h4>Recent</h4>
-                <div id="msQueueRecentList"></div>
+                <div id="msPanelRecentList"></div>
             </div>
         </div>
 
@@ -3576,7 +3576,7 @@
     };
 
     window.loadQueueStats = function() {
-        api('/api/queue/stats').then(function(stats) {
+        api('GET', '/api/queue/stats').then(function(stats) {
             document.getElementById('msQueueStats').textContent =
                 (stats.pending || 0) + ' active / ' + (stats.failed || 0) + ' failed / ' + (stats.completed || 0) + ' completed';
             document.getElementById('msQueueActiveCount').textContent = (stats.pending || 0) + (stats.running || 0);
@@ -3584,25 +3584,44 @@
     };
 
     window.loadQueueItems = function() {
+        var activeEl = document.getElementById('msQueueActive');
+        var historyEl = document.getElementById('msQueueHistory');
+
         Promise.all([
             api('GET', '/api/queue?status=pending&per_page=50'),
             api('GET', '/api/queue?status=dispatched&per_page=50'),
             api('GET', '/api/queue?status=generating&per_page=50')
         ]).then(function(results) {
             var active = (results[0].items || []).concat(results[1].items || []).concat(results[2].items || []);
-            _renderQueueSection('msQueueActiveList', active, 'active');
-            document.getElementById('msQueueActive').style.display = active.length ? 'block' : 'none';
-        });
+            if (!activeEl) return;
+            _clearChildren(activeEl);
+            if (!active.length) {
+                var empty = document.createElement('div');
+                empty.className = 'ms-queue-empty';
+                empty.textContent = 'No active jobs.';
+                activeEl.appendChild(empty);
+            } else {
+                active.forEach(function(item) { activeEl.appendChild(_createQueueCard(item, 'active')); });
+            }
+        }).catch(function() {});
 
-        api('GET', '/api/queue?status=failed&per_page=20').then(function(data) {
-            _renderQueueSection('msQueueFailedList', data.items || [], 'failed');
-            document.getElementById('msQueueFailed').style.display = (data.items || []).length ? 'block' : 'none';
-        });
-
-        api('GET', '/api/queue?status=completed&per_page=5').then(function(data) {
-            _renderQueueSection('msQueueRecentList', data.items || [], 'recent');
-            document.getElementById('msQueueRecent').style.display = (data.items || []).length ? 'block' : 'none';
-        });
+        Promise.all([
+            api('GET', '/api/queue?status=failed&per_page=10'),
+            api('GET', '/api/queue?status=completed&per_page=5')
+        ]).then(function(results) {
+            var history = (results[0].items || []).concat(results[1].items || []);
+            history.sort(function(a, b) { return (b.created_at || '') > (a.created_at || '') ? 1 : -1; });
+            if (!historyEl) return;
+            _clearChildren(historyEl);
+            if (!history.length) {
+                var empty = document.createElement('div');
+                empty.className = 'ms-queue-empty';
+                empty.textContent = 'No history yet.';
+                historyEl.appendChild(empty);
+            } else {
+                history.forEach(function(item) { historyEl.appendChild(_createQueueCard(item, item.status === 'failed' ? 'failed' : 'recent')); });
+            }
+        }).catch(function() {});
     };
 
     function _renderQueueSection(containerId, items, type) {
@@ -3728,23 +3747,23 @@
     }
 
     window.cancelQueueItem = function(id) {
-        api('/api/queue/' + id + '/cancel', {method: 'POST'}).then(function() { loadQueueItems(); loadQueueStats(); });
+        api('POST', '/api/queue/' + id + '/cancel').then(function() { loadQueueItems(); loadQueueStats(); });
     };
 
     window.retryQueueItem = function(id) {
-        api('/api/queue/' + id + '/retry', {method: 'POST'}).then(function() { loadQueueItems(); loadQueueStats(); });
+        api('POST', '/api/queue/' + id + '/retry').then(function() { loadQueueItems(); loadQueueStats(); });
     };
 
     window.cancelBatch = function(id) {
-        api('/api/batches/' + id + '/cancel', {method: 'POST'}).then(function() { loadQueueItems(); loadQueueStats(); });
+        api('POST', '/api/batches/' + id + '/cancel').then(function() { loadQueueItems(); loadQueueStats(); });
     };
 
     window.retryBatchFailed = function(id) {
-        api('/api/batches/' + id + '/retry', {method: 'POST'}).then(function() { loadQueueItems(); loadQueueStats(); });
+        api('POST', '/api/batches/' + id + '/retry').then(function() { loadQueueItems(); loadQueueStats(); });
     };
 
     window.clearCompleted = function() {
-        api('/api/queue/clear-completed', {method: 'POST'}).then(function() { loadQueueItems(); loadQueueStats(); });
+        api('POST', '/api/queue/clear-completed').then(function() { loadQueueItems(); loadQueueStats(); });
     };
 
     // ── Batch Modal ─────────────────────────────────────────────────────

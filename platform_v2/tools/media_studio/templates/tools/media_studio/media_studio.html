@@ -1519,7 +1519,12 @@
 
         if (tabId === "dashboard") loadDashboard();
         else if (tabId === "gallery") { loadGallery(1); loadGalleryFacets(); loadCollections(); }
-        else if (tabId === "queue") loadQueue();
+        else if (tabId === "queue") {
+            loadQueueStats();
+            loadQueueItems();
+            if (queuePollTimer) clearInterval(queuePollTimer);
+            queuePollTimer = setInterval(function() { loadQueueStats(); loadQueueItems(); }, 10000);
+        }
         else if (tabId === "generate") { loadModels(); loadVideoProviders(); loadAudioVoices(); loadAudioProviders(); }
         else if (tabId === "portraits") loadPortraits();
         else if (tabId === "social-video") initSocialVideo();
@@ -3580,21 +3585,21 @@
 
     window.loadQueueItems = function() {
         Promise.all([
-            api('/api/queue?status=pending&per_page=50'),
-            api('/api/queue?status=dispatched&per_page=50'),
-            api('/api/queue?status=generating&per_page=50')
+            api('GET', '/api/queue?status=pending&per_page=50'),
+            api('GET', '/api/queue?status=dispatched&per_page=50'),
+            api('GET', '/api/queue?status=generating&per_page=50')
         ]).then(function(results) {
             var active = (results[0].items || []).concat(results[1].items || []).concat(results[2].items || []);
             _renderQueueSection('msQueueActiveList', active, 'active');
             document.getElementById('msQueueActive').style.display = active.length ? 'block' : 'none';
         });
 
-        api('/api/queue?status=failed&per_page=20').then(function(data) {
+        api('GET', '/api/queue?status=failed&per_page=20').then(function(data) {
             _renderQueueSection('msQueueFailedList', data.items || [], 'failed');
             document.getElementById('msQueueFailed').style.display = (data.items || []).length ? 'block' : 'none';
         });
 
-        api('/api/queue?status=completed&per_page=5').then(function(data) {
+        api('GET', '/api/queue?status=completed&per_page=5').then(function(data) {
             _renderQueueSection('msQueueRecentList', data.items || [], 'recent');
             document.getElementById('msQueueRecent').style.display = (data.items || []).length ? 'block' : 'none';
         });

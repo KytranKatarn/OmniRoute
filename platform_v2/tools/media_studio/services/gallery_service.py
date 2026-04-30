@@ -17,6 +17,25 @@ _PLATFORM_DIR = os.path.abspath(os.path.join(_THIS_DIR, "..", "..", ".."))
 MEDIA_ROOT = os.path.join(_PLATFORM_DIR, "static", "media")
 
 
+def _serialize_row(row: dict) -> dict:
+    """Convert a media_library DB row to a JSON-safe dict with url alias."""
+    import datetime
+
+    d = dict(row)
+    # Add url alias so JS item.url works (JS uses url, DB stores file_path)
+    d["url"] = d.get("file_path") or ""
+    # Extract steps/cfg_scale from metadata JSONB so JS item.steps works
+    meta = d.get("metadata") or {}
+    if isinstance(meta, dict):
+        d.setdefault("steps", meta.get("steps"))
+        d.setdefault("cfg_scale", meta.get("cfg") or meta.get("cfg_scale"))
+    # Serialize datetime fields to ISO strings for JSON
+    for k, v in d.items():
+        if isinstance(v, (datetime.datetime, datetime.date)):
+            d[k] = v.isoformat()
+    return d
+
+
 def get_gallery(
     owner_type: str,
     owner_id: int,
@@ -24,6 +43,7 @@ def get_gallery(
     favorites_only: bool = False,
     page: int = 1,
     per_page: int = 20,
+    show_versions: bool = False,
 ) -> Dict:
     """Paginated media library query with filters."""
     offset = (page - 1) * per_page
@@ -57,7 +77,7 @@ def get_gallery(
         items = cur.fetchall()
 
     return {
-        "items": [dict(row) for row in items],
+        "items": [_serialize_row(row) for row in items],
         "total": total,
         "page": page,
         "per_page": per_page,
@@ -82,7 +102,7 @@ def get_media_detail(media_id: int, owner_type: str, owner_id: int) -> Optional[
             (media_id, owner_type, owner_id),
         )
         row = cur.fetchone()
-    return dict(row) if row else None
+    return _serialize_row(row) if row else None
 
 
 def create_media_entry(

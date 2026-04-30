@@ -164,13 +164,9 @@ def api_gallery():
                 params + [per_page, (page - 1) * per_page],
             )
             cols = [d[0] for d in cur.description]
-            items = []
-            for row in cur.fetchall():
-                item = dict(zip(cols, row))
-                for k, v in item.items():
-                    if hasattr(v, "isoformat"):
-                        item[k] = v.isoformat()
-                items.append(item)
+            from .services.gallery_service import _serialize_row
+
+            items = [_serialize_row(dict(zip(cols, row))) for row in cur.fetchall()]
         return jsonify(
             {
                 "items": items,

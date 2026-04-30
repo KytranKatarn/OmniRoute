@@ -1517,6 +1517,11 @@
     /* ── Tab Switching ────────────────────────────── */
 
     window.switchMsTab = function(tabId) {
+        // Keep header tab highlight in sync regardless of how this is called
+        document.querySelectorAll(".lcars-header-tab").forEach(function(t) {
+            t.classList.toggle("active", t.dataset.tab === tabId);
+        });
+
         var panes = document.querySelectorAll(".ms-tab-pane");
         for (var i = 0; i < panes.length; i++) {
             panes[i].classList.remove("active");

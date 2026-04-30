@@ -946,10 +946,6 @@
             <div class="ms-section-line"></div>
         </div>
 
-        <div class="ms-portrait-actions">
-            <button class="ms-btn ms-btn-accent" onclick="generateAllMissing()" data-i18n="media_studio.generate_all_missing">Generate All Missing</button>
-        </div>
-
         <div id="ms-portrait-grid" class="ms-portrait-grid">
             <!-- Populated by loadPortraits() -->
         </div>
@@ -2956,60 +2952,6 @@
                     loadPortraitDetail(_currentAgentId);
                 });
             });
-    };
-
-    window.generateAllMissing = async function() {
-        var res;
-        try {
-            res = await fetch(API_BASE + '/api/portraits').then(r => r.json());
-        } catch (e) {
-            alert('Could not load agent list: ' + e.message);
-            return;
-        }
-        var missing = (res.agents || []).filter(function(a) { return !a.has_portrait; });
-        if (!missing.length) { alert('All agents have portraits.'); return; }
-        if (!confirm('Queue portrait generation for ' + missing.length + ' agents?\n\nRequests are submitted sequentially with a small delay to avoid overwhelming ComfyUI. Watch the Queue tab for progress.')) return;
-
-        // Find the button we were fired from — update its text as progress.
-        var btn = document.querySelector('button[onclick="generateAllMissing()"]');
-        var origText = btn ? btn.textContent : '';
-        if (btn) btn.disabled = true;
-
-        var queued = 0;
-        var failed = [];
-        for (var i = 0; i < missing.length; i++) {
-            var agent = missing[i];
-            if (btn) btn.textContent = 'QUEUEING ' + (i + 1) + '/' + missing.length + ' — ' + (agent.display_name || agent.name || 'agent');
-            try {
-                var r = await fetch(API_BASE + '/api/portraits/' + agent.id + '/generate-canonical', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({})
-                });
-                if (!r.ok) {
-                    failed.push((agent.display_name || agent.name) + ' (HTTP ' + r.status + ')');
-                } else {
-                    queued++;
-                }
-            } catch (e) {
-                failed.push((agent.display_name || agent.name) + ' (' + e.message + ')');
-            }
-            // 250ms gap between submits — gentle on ComfyUI / dispatcher.
-            await new Promise(function(res2) { setTimeout(res2, 250); });
-        }
-
-        if (btn) {
-            btn.disabled = false;
-            btn.textContent = origText || 'GENERATE ALL MISSING';
-        }
-
-        var msg = queued + ' of ' + missing.length + ' portrait generations queued.';
-        if (failed.length) {
-            msg += '\n\nFailed: ' + failed.length + '\n' + failed.slice(0, 10).join('\n');
-            if (failed.length > 10) msg += '\n… (' + (failed.length - 10) + ' more)';
-        }
-        msg += '\n\nWatch the Queue tab for progress.';
-        alert(msg);
     };
 
     /* ── Keyboard Shortcuts ───────────────────────── */

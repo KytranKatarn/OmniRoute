@@ -1469,16 +1469,33 @@ class AgentLoop:
                     else:
                         generate_via_comfyui(queue_id)
                 except Exception as e:
-                    logger.exception("media_generation_worker: queue %s failed: %s", queue_id, e)
-                    with get_db_cursor(commit=True) as (conn, cur):
-                        cur.execute(
-                            """
-                            UPDATE media_generation_queue
-                            SET status = 'failed', error_message = %s, completed_at = NOW()
-                            WHERE id = %s
-                            """,
-                            (str(e), queue_id),
-                        )
+                    err_str = str(e)
+                    # ComfyUI down = transient — reset to pending so next tick retries.
+                    # Permanent errors (bad prompt, missing model) = fail immediately.
+                    is_transient = "unavailable" in err_str.lower() or "connection" in err_str.lower() or "timeout" in err_str.lower()
+                    if is_transient:
+                        logger.warning("media_generation_worker: queue %s — ComfyUI unavailable, resetting to pending: %s", queue_id, err_str)
+                        with get_db_cursor(commit=True) as (conn, cur):
+                            cur.execute(
+                                """
+                                UPDATE media_generation_queue
+                                SET status = 'pending', started_at = NULL,
+                                    error_message = %s
+                                WHERE id = %s
+                                """,
+                                ("Waiting for ComfyUI — will retry automatically", queue_id),
+                            )
+                    else:
+                        logger.exception("media_generation_worker: queue %s failed: %s", queue_id, e)
+                        with get_db_cursor(commit=True) as (conn, cur):
+                            cur.execute(
+                                """
+                                UPDATE media_generation_queue
+                                SET status = 'failed', error_message = %s, completed_at = NOW()
+                                WHERE id = %s
+                                """,
+                                (err_str, queue_id),
+                            )
         except Exception as e:
             logger.error("media_generation_worker error: %s", e)
 

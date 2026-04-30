@@ -954,9 +954,11 @@
         <div id="ms-portrait-detail" class="ms-portrait-detail" style="display:none;">
             <div class="ms-detail-header">
                 <button class="ms-btn ms-btn-ghost" onclick="closePortraitDetail()" data-i18n="media_studio.back_to_grid">Back</button>
-                <h3 id="ms-portrait-agent-name"></h3>
-                <span id="ms-portrait-status" class="ms-status-badge"></span>
-                <a id="ms-view-in-roster" class="ms-btn ms-btn-ghost" href="#" target="_blank" rel="noopener" style="margin-left:auto;text-decoration:none;" title="Open this agent in the Department HQ Roster tab">View in Roster →</a>
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+                    <h3 id="ms-portrait-agent-name" style="margin:0;text-align:center;"></h3>
+                    <span id="ms-portrait-status" class="ms-status-badge" style="text-align:center;"></span>
+                </div>
+                <a id="ms-view-in-roster" class="ms-btn ms-btn-ghost" href="#" target="_blank" rel="noopener" style="text-decoration:none;white-space:nowrap;" title="Open this agent in the Department HQ Roster tab">View in Roster →</a>
             </div>
 
             <div class="ms-detail-layout">

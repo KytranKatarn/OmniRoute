@@ -318,6 +318,22 @@ class AgentLoop:
         from apscheduler.triggers.interval import IntervalTrigger
         from apscheduler.triggers.cron import CronTrigger
 
+        # Startup recovery: reset any 'generating' jobs back to 'pending'.
+        # If the platform restarted mid-generation, the ComfyUI polling thread
+        # was killed and the job is stuck. Reset so P.I.X.E.L. re-queues on next tick.
+        try:
+            from database import get_db_cursor
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """UPDATE media_generation_queue SET status='pending', started_at=NULL,
+                       error_message='Reset on startup — platform restarted mid-generation'
+                       WHERE status='generating'"""
+                )
+                if cur.rowcount:
+                    logger.info("startup recovery: reset %d stuck 'generating' jobs to 'pending'", cur.rowcount)
+        except Exception as e:
+            logger.warning("startup recovery: could not reset generating jobs: %s", e)
+
         flask_app = self.flask_app
 
         def with_app_context(fn):

@@ -39,7 +39,7 @@ _comfyui_host = os.getenv("COMFYUI_HOST", "http://archie_comfyui:8188")
 if not _comfyui_host.startswith("http"):
     _comfyui_host = f"http://{_comfyui_host}"
 COMFYUI_HOST = _comfyui_host
-REQUEST_TIMEOUT = 600  # 10 min for CPU generation
+REQUEST_TIMEOUT = int(os.getenv("COMFYUI_TIMEOUT", "1800"))  # 30 min default — M4000 SDXL needs ~10-15 min
 POLL_INTERVAL = 3  # seconds between status polls
 
 # Default workflow path

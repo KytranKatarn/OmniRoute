@@ -1041,9 +1041,14 @@
                 </div>
                 <div style="flex: 1 !important; padding: 16px !important;">
 
-        <div class="ms-section-header">
-            <div class="ms-section-cap"></div>
-            <span class="ms-section-title" data-i18n="media_studio.generation_queue">Generation Queue</span>
+        <div class="ms-section-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <div class="ms-section-cap"></div>
+                <span class="ms-section-title" data-i18n="media_studio.generation_queue">Generation Queue</span>
+            </div>
+            <a href="/tools/department-hq#dispatch" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;padding:5px 14px;border-radius:5px;font-family:'Orbitron',sans-serif;font-size:0.7rem;letter-spacing:1px;text-decoration:none;white-space:nowrap;">
+                View in DHQ Dispatch →
+            </a>
         </div>
         <div class="ms-queue-list" id="msQueueList">
             <div class="ms-queue-empty" data-i18n="media_studio.queue_empty">Queue is empty. Submit a generation to see it here.</div>

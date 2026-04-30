@@ -975,10 +975,13 @@
                 </div>
 
                 <div class="ms-identity-panel">
-                    <label data-i18n="media_studio.identity_prompt">Identity Prompt</label>
+                    <label data-i18n="media_studio.identity_prompt">Identity Prompt <span style="font-size:.7rem;color:#666;font-weight:normal">(synced from DHQ Roster)</span></label>
                     <textarea id="ms-identity-prompt" class="ms-prompt-area" rows="4" disabled></textarea>
-                    <div class="ms-identity-actions" style="display:flex;gap:8px;margin-top:6px;">
-                        <a href="/tools/department-hq#roster" class="ms-btn ms-btn-ghost" style="font-size:.75rem;text-decoration:none">← Edit in DHQ Roster</a>
+                    <div class="ms-identity-actions" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
+                        <button id="ms-identity-edit-btn" class="ms-btn ms-btn-ghost" style="font-size:.75rem;" onclick="_setIdentityEditState(true)">Edit</button>
+                        <button id="ms-identity-save-btn" class="ms-btn ms-btn-accent" style="font-size:.75rem;display:none;" onclick="_saveIdentityPrompt()">Save</button>
+                        <button id="ms-identity-cancel-btn" class="ms-btn ms-btn-ghost" style="font-size:.75rem;display:none;" onclick="_setIdentityEditState(false)">Cancel</button>
+                        <a href="/tools/department-hq#roster" class="ms-btn ms-btn-ghost" style="font-size:.75rem;text-decoration:none;margin-left:auto">View in Roster →</a>
                     </div>
                 </div>
             </div>
@@ -2448,14 +2451,37 @@
 
             var favBtn = document.createElement("button");
             favBtn.className = "ms-modal-action-btn" + (item.is_favorite ? " fav-active" : "");
-            favBtn.addEventListener("click", function() { toggleFavorite(item.id); });
+            favBtn.addEventListener("click", function() {
+                var isAgentPortrait = item.owner_type === 'agent' && item.owner_id;
+                if (isAgentPortrait && !item.is_favorite) {
+                    // For portrait variants: Favorite = select + deploy as canonical portrait
+                    favBtn.disabled = true;
+                    favText.textContent = ' Setting...';
+                    Promise.all([
+                        api("POST", "/api/portraits/" + item.owner_id + "/approve", { media_id: item.id }),
+                        toggleFavorite(item.id)
+                    ]).then(function() {
+                        item.is_favorite = true;
+                        favBtn.classList.add("fav-active");
+                        favText.textContent = ' Favorited';
+                        favBtn.disabled = false;
+                        if (typeof loadPortraitDetail === 'function') loadPortraitDetail(item.owner_id);
+                    }).catch(function(err) {
+                        favBtn.disabled = false;
+                        favText.textContent = ' Favorite';
+                        alert('Failed: ' + err.message);
+                    });
+                } else {
+                    toggleFavorite(item.id);
+                }
+            });
             var favIcon = document.createElement("i");
             favIcon.setAttribute("data-lucide", "star");
             favIcon.style.cssText = "width:14px;height:14px;";
             favBtn.appendChild(favIcon);
             var favText = document.createElement("span");
             favText.setAttribute("data-i18n", "media_studio.favorite");
-            favText.textContent = " Favorite";
+            favText.textContent = item.is_favorite ? " Favorited" : " Favorite";
             favBtn.appendChild(favText);
             actions.appendChild(favBtn);
 
@@ -2935,8 +2961,55 @@
             });
     };
 
-    // Edit/Save/Cancel pattern for identity prompt — locked by default to
-    // prevent accidental edits. Tracks original value so Cancel reverts.
+    // Identity prompt Edit/Save/Cancel — syncs with DHQ Roster (agents.identity_prompt).
+    var _identityOriginalValue = '';
+
+    window._setIdentityEditState = function(editing) {
+        var ta = document.getElementById('ms-identity-prompt');
+        var editBtn = document.getElementById('ms-identity-edit-btn');
+        var saveBtn = document.getElementById('ms-identity-save-btn');
+        var cancelBtn = document.getElementById('ms-identity-cancel-btn');
+        if (!ta) return;
+        if (editing) {
+            _identityOriginalValue = ta.value;
+            ta.disabled = false;
+            ta.focus();
+            if (editBtn) editBtn.style.display = 'none';
+            if (saveBtn) saveBtn.style.display = '';
+            if (cancelBtn) cancelBtn.style.display = '';
+        } else {
+            ta.value = _identityOriginalValue;
+            ta.disabled = true;
+            if (editBtn) editBtn.style.display = '';
+            if (saveBtn) saveBtn.style.display = 'none';
+            if (cancelBtn) cancelBtn.style.display = 'none';
+        }
+    };
+
+    window._saveIdentityPrompt = function() {
+        if (!_currentAgentId) return;
+        var ta = document.getElementById('ms-identity-prompt');
+        var saveBtn = document.getElementById('ms-identity-save-btn');
+        var prompt = (ta ? ta.value : '').trim();
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
+        fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/identity-prompt', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({identity_prompt: prompt})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { alert('Save failed: ' + data.error); }
+            else {
+                _identityOriginalValue = prompt;
+                _setIdentityEditState(false);
+            }
+        })
+        .catch(function(err) { alert('Save failed: ' + err.message); })
+        .finally(function() {
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
+        });
+    };
 
     window.generateAllMissing = async function() {
         var res;

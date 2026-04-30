@@ -963,10 +963,16 @@
                     <div id="ms-canonical-image" class="ms-canonical-image">
                         <div class="ms-placeholder" data-i18n="media_studio.no_canonical">No canonical portrait</div>
                     </div>
-                    <div class="ms-canonical-actions">
-                        <span id="ms-portrait-status" class="ms-status-badge" style="display:block;text-align:center;margin-bottom:8px;"></span>
-                        <button id="ms-generate-canonical-btn" class="ms-btn ms-btn-accent" onclick="generateCanonical()" data-i18n="media_studio.generate_canonical">Generate</button>
-                        <button class="ms-btn ms-btn-success" id="ms-approve-btn" onclick="approveCanonical()" style="display:none;" data-i18n="media_studio.approve">Set as Portrait</button>
+                    <div class="ms-canonical-actions" style="flex-direction:column;align-items:center;gap:8px;">
+                        <span id="ms-portrait-status" class="ms-status-badge"></span>
+                        <button id="ms-generate-canonical-btn"
+                                onclick="generateCanonical()"
+                                style="background:var(--ms-accent,#7c3aed);color:#fff;border:none;padding:8px 24px;border-radius:6px;font-family:'Orbitron',sans-serif;font-size:0.8rem;letter-spacing:1px;cursor:pointer;font-weight:600;width:100%;">
+                            Generate
+                        </button>
+                        <button id="ms-approve-btn" onclick="approveCanonical()" style="display:none;background:#22c55e;color:#000;border:none;padding:8px 24px;border-radius:6px;font-family:'Orbitron',sans-serif;font-size:0.8rem;letter-spacing:1px;cursor:pointer;font-weight:600;width:100%;">
+                            Set as Portrait
+                        </button>
                     </div>
                 </div>
 

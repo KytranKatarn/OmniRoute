@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y \
     libcairo2 \
     libgdk-pixbuf-2.0-0 \
     libffi-dev \
+    ffmpeg \
     && curl -fsSL https://get.docker.com -o get-docker.sh \
     && sh get-docker.sh \
     && rm get-docker.sh \

@@ -142,7 +142,8 @@
         el.appendChild(empty);
         return;
       }
-      var statusColor = { draft: '#f59e0b', scheduled: '#22c55e', posted: '#555', pending_approval: '#a78bfa' };
+      var statusColor = { draft: '#f59e0b', rendering: '#60a5fa', pending_approval: '#a78bfa', scheduled: '#22c55e', posted: '#555', failed: '#ef4444' };
+      var statusLabel = { draft: 'DRAFT', rendering: '⟳ RENDERING', pending_approval: 'READY', scheduled: 'SCHEDULED', posted: 'POSTED', failed: 'FAILED' };
       items.forEach(function (item) {
         var card = document.createElement('div');
         card.style.cssText = 'background:#0d1117;border:1px solid #1a1a3a;border-radius:5px;padding:10px;margin-bottom:7px;';
@@ -155,7 +156,7 @@
         var col = statusColor[item.status] || '#888';
         var badge = document.createElement('span');
         badge.style.cssText = 'font-size:.55rem;padding:2px 6px;border-radius:3px;background:' + col + '22;border:1px solid ' + col + '44;color:' + col + ';text-transform:uppercase;letter-spacing:1px;flex-shrink:0;';
-        badge.textContent = item.status;
+        badge.textContent = statusLabel[item.status] || item.status;
         header.appendChild(title);
         header.appendChild(badge);
 
@@ -165,8 +166,82 @@
 
         card.appendChild(header);
         card.appendChild(sub);
+
+        // Video preview for ready items
+        if (item.video_path && item.status === 'pending_approval') {
+          var videoWrap = document.createElement('div');
+          videoWrap.style.cssText = 'margin-top:8px;';
+          var video = document.createElement('video');
+          video.src = item.video_path;
+          video.controls = true;
+          video.style.cssText = 'width:100%;border-radius:4px;max-height:160px;';
+          videoWrap.appendChild(video);
+          card.appendChild(videoWrap);
+        }
+
+        // Error message for failed
+        if (item.status === 'failed' && item.error_message) {
+          var err = document.createElement('div');
+          err.style.cssText = 'color:#ef4444;font-size:.58rem;margin-top:4px;';
+          err.textContent = item.error_message.substring(0, 100);
+          card.appendChild(err);
+        }
+
         el.appendChild(card);
       });
+    },
+
+    queueAndRender: function () {
+      var title = (_el('msSvTitle') || {}).value || '';
+      var quote = (_el('msSvQuote') || {}).value || '';
+      var statusEl = _el('msSvStatus');
+
+      if (!_selectedImages.length) {
+        if (statusEl) { statusEl.style.color = 'rgba(239,68,68,.9)'; statusEl.textContent = '⚠ Select at least 1 image first.'; }
+        return;
+      }
+      if (!quote && !title) {
+        if (statusEl) { statusEl.style.color = 'rgba(239,68,68,.9)'; statusEl.textContent = '⚠ Add a quote or title first.'; }
+        return;
+      }
+
+      var audio = (document.querySelector('.ms-sv-audio-btn.active') || {}).dataset;
+      var audioMode = audio ? audio.mode : 'music';
+      var platform = (_el('msSvPlatform') || {}).value || 'linkedin';
+      var scheduled = (_el('msSvScheduled') || {}).value || null;
+
+      if (statusEl) { statusEl.style.color = '#a78bfa'; statusEl.textContent = '⏳ Queuing for render…'; }
+
+      _post('/api/social-video/queue', {
+        title: title || 'Untitled',
+        quote_text: quote,
+        media_ids: _selectedImages.slice(),
+        audio_mode: audioMode,
+        platform: platform,
+        scheduled_at: scheduled || null,
+      }).then(function (data) {
+        if (statusEl) { statusEl.style.color = 'rgba(139,92,246,.9)'; statusEl.textContent = '🎬 Queued #' + data.id + ' — P.I.X.E.L. rendering in ~2 min…'; }
+        msSocialVideo.loadQueue();
+        msSocialVideo._resetForm();
+        // Poll queue for status updates
+        var poll = setInterval(function () { msSocialVideo.loadQueue(); }, 10000);
+        setTimeout(function () { clearInterval(poll); }, 300000);
+      }).catch(function (err) {
+        if (statusEl) { statusEl.style.color = 'rgba(239,68,68,.9)'; statusEl.textContent = '⚠ Failed: ' + err.message; }
+      });
+    },
+
+    _resetForm: function () {
+      _selectedImages = [];
+      msSocialVideo._renderSelectedStrip();
+      var grid = _el('msSvImagePickerGrid');
+      if (grid) grid.querySelectorAll('.ms-sv-pick-thumb').forEach(function (t) {
+        t.classList.remove('selected');
+        var b = t.querySelector('.ms-sv-pick-order');
+        if (b) b.textContent = '';
+      });
+      if (_el('msSvTitle')) _el('msSvTitle').value = '';
+      if (_el('msSvQuote')) _el('msSvQuote').value = '';
     },
 
     queueForPosting: function () {

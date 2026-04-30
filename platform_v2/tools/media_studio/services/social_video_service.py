@@ -432,7 +432,7 @@ def get_queue_stats():
 import psycopg2.extras
 from typing import Dict, List, Optional
 
-_VALID_SVQ_STATUSES = ("draft", "scheduled", "pending_approval", "posted")
+_VALID_SVQ_STATUSES = ("draft", "rendering", "pending_approval", "scheduled", "posted", "failed")
 
 
 def svq_list(status: Optional[str] = None, limit: int = 20) -> List[Dict]:
@@ -502,5 +502,46 @@ def svq_update_status(item_id: int, status: str) -> bool:
         cur.execute(
             "UPDATE social_video_queue SET status = %s WHERE id = %s",
             (status, item_id),
+        )
+        return cur.rowcount > 0
+
+
+def svq_get_renderable(limit: int = 3) -> list:
+    """Return draft items with media_ids set, ready to render."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """SELECT * FROM social_video_queue
+               WHERE status = 'draft' AND media_ids IS NOT NULL AND array_length(media_ids, 1) > 0
+               ORDER BY created_at ASC LIMIT %s""",
+            (limit,),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def svq_start_render(item_id: int) -> bool:
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE social_video_queue SET status = 'rendering' WHERE id = %s AND status = 'draft'",
+            (item_id,),
+        )
+        return cur.rowcount > 0
+
+
+def svq_finish_render(item_id: int, video_path: str, thumbnail_path: str) -> bool:
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """UPDATE social_video_queue
+               SET status = 'pending_approval', video_path = %s, thumbnail_path = %s
+               WHERE id = %s""",
+            (video_path, thumbnail_path, item_id),
+        )
+        return cur.rowcount > 0
+
+
+def svq_fail_render(item_id: int, error: str) -> bool:
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE social_video_queue SET status = 'failed', error_message = %s WHERE id = %s",
+            (error[:500], item_id),
         )
         return cur.rowcount > 0

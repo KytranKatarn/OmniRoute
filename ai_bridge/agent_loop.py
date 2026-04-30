@@ -1267,6 +1267,16 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #65: AutoShorts slideshow render (every 2 minutes)
+        self.scheduler.add_job(
+            with_app_context(self._social_video_slideshow_render),
+            "interval",
+            minutes=2,
+            id="social_video_slideshow_render",
+            name="Social Video: Slideshow Renderer",
+            replace_existing=True,
+        )
+
         # ── V.I.G.I.L. Security & Compliance Department Jobs ──
 
         self.scheduler.add_job(
@@ -6884,6 +6894,76 @@ class AgentLoop:
         except Exception as e:
             logger.error("[SocialVideo] Publish job failed: %s", e)
 
+
+    def _social_video_slideshow_render(self):
+        """Pick up draft social_video_queue items with images and render AutoShorts slideshows."""
+        try:
+            from platform_v2.tools.media_studio.services import social_video_service as svs
+            from platform_v2.tools.media_studio.services.slideshow_generator import generate_slideshow
+            from database import get_db_cursor
+
+            items = svs.svq_get_renderable(limit=2)
+            if not items:
+                return
+
+            for item in items:
+                item_id = item["id"]
+                media_ids = item.get("media_ids") or []
+                if not svs.svq_start_render(item_id):
+                    continue  # Already claimed by another worker
+
+                logger.info("[SlideshowRender] Rendering item %s with %d images", item_id, len(media_ids))
+
+                # Resolve image file paths from media_library
+                image_paths = []
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        "SELECT file_path FROM media_library WHERE id = ANY(%s) AND is_deleted=false ORDER BY array_position(%s, id)",
+                        (media_ids, media_ids),
+                    )
+                    for row in cur.fetchall():
+                        fp = row["file_path"]
+                        if not fp.startswith("/"):
+                            fp = "/" + fp
+                        # Resolve to filesystem path
+                        if fp.startswith("/static/"):
+                            from platform_v2.tools.media_studio.services.slideshow_generator import _APP_ROOT
+                            abs_path = _APP_ROOT + fp
+                        else:
+                            abs_path = fp
+                        if os.path.exists(abs_path):
+                            image_paths.append(abs_path)
+                        else:
+                            logger.warning("[SlideshowRender] Image not found on disk: %s", abs_path)
+
+                if not image_paths:
+                    svs.svq_fail_render(item_id, "No valid image files found for selected media_ids")
+                    continue
+
+                result = generate_slideshow(
+                    image_paths=image_paths,
+                    quote_text=item.get("quote_text") or "",
+                    title=item.get("title") or "",
+                    audio_mode=item.get("audio_mode") or "music",
+                    target_duration=25,
+                )
+
+                if result.get("success"):
+                    from platform_v2.tools.media_studio.services.slideshow_generator import _APP_ROOT as _SG_ROOT
+                    def _to_web(p):
+                        if p and p.startswith(_SG_ROOT):
+                            return p[len(_SG_ROOT):]
+                        return p or ""
+                    web_vid = _to_web(result["video_path"])
+                    web_thumb = _to_web(result.get("thumbnail_path") or "")
+                    svs.svq_finish_render(item_id, web_vid, web_thumb)
+                    logger.info("[SlideshowRender] Item %s rendered → %s", item_id, web_vid)
+                else:
+                    svs.svq_fail_render(item_id, result.get("error", "Unknown render error"))
+                    logger.error("[SlideshowRender] Item %s failed: %s", item_id, result.get("error"))
+
+        except Exception as e:
+            logger.exception("[SlideshowRender] Worker error: %s", e)
 
     # ── V.I.G.I.L. Handler Methods ──
 

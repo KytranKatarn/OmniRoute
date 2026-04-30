@@ -1,0 +1,82 @@
+<div id="ms-tab-generate" class="ms-tab-pane">
+  <div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;">
+      <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+        <div style="height:52px !important;background:#3b82f6 !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+        <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#3b82f6 !important;flex-shrink:0 !important;"></div>
+        <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#2563eb !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+        <div style="flex:1 !important;background:rgba(59,130,246,0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+        <div style="height:36px !important;background:#3b82f6 !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+      </div>
+      <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+        <div style="height:44px !important;background:#3b82f6 !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+          <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">GENERATE</span>
+        </div>
+        <div style="flex:1 !important;padding:20px !important;max-width:700px;">
+
+          <!-- Step 1: Content type -->
+          <div style="color:#555;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">Step 1 &#x2014; What are you making?</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:24px;">
+            <div class="ms-gen-type-card ms-gen-type-active" data-type="portrait" onclick="msGenerate.selectType('portrait')">
+              <div style="font-size:1.4rem;margin-bottom:6px;">&#x1F5BC;</div>
+              <div style="font-family:'Orbitron',sans-serif;font-size:0.65rem;color:#60a5fa;letter-spacing:1px;">PORTRAIT</div>
+              <div style="font-size:0.62rem;color:#666;margin-top:4px;">Consistent agent identity image</div>
+            </div>
+            <div class="ms-gen-type-card" data-type="brand" onclick="msGenerate.selectType('brand')">
+              <div style="font-size:1.4rem;margin-bottom:6px;">&#x1F4E6;</div>
+              <div style="font-family:'Orbitron',sans-serif;font-size:0.65rem;color:#888;letter-spacing:1px;">BRAND ASSET</div>
+              <div style="font-size:0.62rem;color:#666;margin-top:4px;">Headshot, lifestyle, or marketing image</div>
+            </div>
+            <div class="ms-gen-type-card" data-type="social" onclick="msGenerate.selectType('social')">
+              <div style="font-size:1.4rem;margin-bottom:6px;">&#x1F3AC;</div>
+              <div style="font-family:'Orbitron',sans-serif;font-size:0.65rem;color:#888;letter-spacing:1px;">SOCIAL CONTENT</div>
+              <div style="font-size:0.62rem;color:#666;margin-top:4px;">Quote card / video &#x2192; Social Video builder</div>
+            </div>
+          </div>
+
+          <!-- Step 2: Agent picker -->
+          <div id="msGenStep2" style="margin-bottom:24px;display:none;">
+            <div style="color:#555;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">Step 2 &#x2014; Who is this for?</div>
+            <div id="msGenAgentPicker" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+          </div>
+
+          <!-- Step 3: Prompt -->
+          <div id="msGenStep3" style="margin-bottom:20px;display:none;">
+            <div style="color:#555;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">Step 3 &#x2014; Prompt</div>
+            <textarea id="msGenPrompt" rows="4" placeholder="Describe what you want to create..."
+              style="width:100%;background:#0d1117;border:1px solid #1a2a3a;color:#ccc;padding:10px;border-radius:5px;font-size:0.75rem;font-family:'IBM Plex Mono',monospace;resize:vertical;box-sizing:border-box;"></textarea>
+            <div id="msGenPromptPrefill" style="color:#22c55e;font-size:0.62rem;margin-top:4px;"></div>
+
+            <details style="margin-top:10px;">
+              <summary style="color:#555;font-size:0.65rem;cursor:pointer;">Negative prompt (optional)</summary>
+              <textarea id="msGenNegPrompt" rows="2" placeholder="What to avoid..."
+                style="width:100%;background:#0d1117;border:1px solid #1a2a3a;color:#ccc;padding:8px;border-radius:5px;font-size:0.72rem;font-family:'IBM Plex Mono',monospace;resize:vertical;box-sizing:border-box;margin-top:6px;"></textarea>
+            </details>
+
+            <details style="margin-top:8px;">
+              <summary style="color:#555;font-size:0.65rem;cursor:pointer;">Advanced options (model &#xB7; steps &#xB7; CFG &#xB7; seed)</summary>
+              <div style="margin-top:8px;">
+                <label style="color:#555;font-size:0.6rem;display:block;margin-bottom:3px;">Model</label>
+                <select id="msGenModel" style="background:#0d1117;border:1px solid #333;color:#888;padding:4px 8px;border-radius:4px;font-size:0.65rem;"></select>
+              </div>
+            </details>
+
+            <div style="margin-top:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <button id="msGenBtn" onclick="msGenerate.submit()"
+                style="background:#3b82f6;color:#fff;border:none;padding:10px 24px;border-radius:5px;font-family:'Orbitron',sans-serif;font-size:0.7rem;letter-spacing:1px;cursor:pointer;">
+                &#x26A1; GENERATE via P.I.X.E.L.
+              </button>
+              <button onclick="openBatchModal('image')"
+                style="background:transparent;border:1px solid #333;color:#888;padding:10px 16px;border-radius:5px;font-family:'Orbitron',sans-serif;font-size:0.7rem;cursor:pointer;">
+                BATCH
+              </button>
+            </div>
+            <div id="msGenStatus" style="margin-top:8px;font-size:0.72rem;font-family:'IBM Plex Mono',monospace;min-height:18px;"></div>
+          </div>
+
+        </div>
+        <div style="height:6px !important;background:#3b82f6 !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+      </div>
+    </div>
+  </div>
+</div>

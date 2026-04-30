@@ -1,0 +1,83 @@
+<div id="ms-tab-dashboard" class="ms-tab-pane active">
+  <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+      <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+        <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+        <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+        <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+      </div>
+      <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+        <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+          <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">DASHBOARD</span>
+          <div style="flex:1"></div>
+          <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
+            <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+            <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+          </div>
+        </div>
+        <div style="flex: 1 !important; padding: 16px !important;">
+
+          <!-- 5 stat counters -->
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:20px;">
+            <div class="ms-stat-card">
+              <div class="ms-stat-label">Generating</div>
+              <div class="ms-stat-value" id="msDashStatGenerating">--</div>
+              <i data-lucide="activity" class="ms-stat-icon"></i>
+            </div>
+            <div class="ms-stat-card">
+              <div class="ms-stat-label">Needs Approval</div>
+              <div class="ms-stat-value" id="msDashStatApprovals" style="color:#f59e0b;">--</div>
+              <i data-lucide="check-circle" class="ms-stat-icon"></i>
+            </div>
+            <div class="ms-stat-card">
+              <div class="ms-stat-label">Social Queued</div>
+              <div class="ms-stat-value" id="msDashStatSocial" style="color:#a78bfa;">--</div>
+              <i data-lucide="send" class="ms-stat-icon"></i>
+            </div>
+            <div class="ms-stat-card">
+              <div class="ms-stat-label">Total Assets</div>
+              <div class="ms-stat-value" id="msDashStatTotal">--</div>
+              <i data-lucide="layers" class="ms-stat-icon"></i>
+            </div>
+            <div class="ms-stat-card">
+              <div class="ms-stat-label">Failed</div>
+              <div class="ms-stat-value" id="msDashStatFailed" style="color:#ef4444;">--</div>
+              <i data-lucide="alert-triangle" class="ms-stat-icon"></i>
+            </div>
+          </div>
+
+          <!-- 3-column live ops panel -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;">
+            <div style="background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.15);border-radius:6px;padding:12px;">
+              <div style="color:#00e5ff;font-size:0.62rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">&#x27F3; Generating Now</div>
+              <div id="msDashGeneratingList"></div>
+            </div>
+            <div style="background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.15);border-radius:6px;padding:12px;">
+              <div style="color:#f59e0b;font-size:0.62rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">&#x2713; Needs Approval</div>
+              <div id="msDashApprovalList"></div>
+            </div>
+            <div style="background:rgba(167,139,250,0.04);border:1px solid rgba(167,139,250,0.15);border-radius:6px;padding:12px;">
+              <div style="color:#a78bfa;font-size:0.62rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">&#x1F4E4; Social Queue</div>
+              <div id="msDashSocialList"></div>
+              <div style="margin-top:8px;">
+                <a href="#social-video" onclick="switchMsTab('social-video');return false;" style="color:#a78bfa;font-size:0.62rem;text-decoration:none;">+ Create new &#x2192;</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent completions -->
+          <div class="ms-section-header" style="margin-bottom:10px;">
+            <div class="ms-section-cap"></div>
+            <span class="ms-section-title">Recently Completed</span>
+          </div>
+          <div id="msDashRecentGrid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;"></div>
+
+        </div>
+        <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+      </div>
+    </div>
+  </div>
+</div>

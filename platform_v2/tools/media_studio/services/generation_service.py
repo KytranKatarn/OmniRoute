@@ -471,6 +471,42 @@ def get_dashboard_stats(user_id: int) -> Dict:
         )
         counts["recent"] = [dict(row) for row in cur.fetchall()]
 
+        # Portraits completed but not yet approved
+        cur.execute(
+            """
+            SELECT a.id AS agent_id, a.name, a.display_name,
+                   ap.canonical_image_path, ap.id AS portrait_id,
+                   ml.created_at
+            FROM agent_portraits ap
+            JOIN agents a ON a.id = ap.agent_id
+            LEFT JOIN media_library ml ON ml.id = ap.result_media_id
+            WHERE ap.canonical_image_path IS NOT NULL AND ap.approved = false
+            ORDER BY ml.created_at DESC LIMIT 5
+        """
+        )
+        counts["pending_approvals"] = [dict(r) for r in cur.fetchall()]
+        for item in counts["pending_approvals"]:
+            if hasattr(item.get("created_at"), "isoformat"):
+                item["created_at"] = item["created_at"].isoformat()
+
+        # Social video queue items (draft + scheduled)
+        try:
+            cur.execute(
+                "SELECT id, title, status, platform, scheduled_at, thumbnail_path "
+                "FROM social_video_queue WHERE status IN ('draft','scheduled') "
+                "ORDER BY scheduled_at ASC NULLS LAST LIMIT 5"
+            )
+            raw = cur.fetchall()
+        except Exception:
+            raw = []
+        sq = []
+        for r in raw:
+            d = dict(r)
+            if hasattr(d.get("scheduled_at"), "isoformat"):
+                d["scheduled_at"] = d["scheduled_at"].isoformat()
+            sq.append(d)
+        counts["social_queue"] = sq
+
     counts["total_generated"] = counts.get("total", 0)
     return counts
 

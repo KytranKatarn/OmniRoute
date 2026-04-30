@@ -42,6 +42,95 @@ def api_dashboard():
     return jsonify({**stats, "fleet": fleet})
 
 
+# ─── Roster / Agent Picker ──────────────────────────────────────────
+
+
+@media_studio_bp.route("/api/agents/picker")
+@login_required
+def api_agents_picker():
+    from .services.roster_service import get_agent_picker
+
+    return jsonify(get_agent_picker())
+
+
+@media_studio_bp.route("/api/agents/gallery-subjects")
+@login_required
+def api_gallery_subjects():
+    from .services.roster_service import get_gallery_subjects
+
+    return jsonify(get_gallery_subjects())
+
+
+@media_studio_bp.route("/api/gallery/<int:media_id>/asset-type", methods=["PUT"])
+@login_required
+def api_set_asset_type(media_id):
+    import psycopg2.extras
+    from database import get_db_cursor
+
+    data = request.get_json() or {}
+    asset_type = data.get("asset_type", "")
+    if asset_type not in ("headshot", "lifestyle", "social", "brand", "portrait"):
+        return jsonify({"error": "invalid asset_type"}), 400
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE media_library SET metadata = metadata || %s WHERE id = %s AND is_deleted = false",
+            (psycopg2.extras.Json({"asset_type": asset_type}), media_id),
+        )
+        if cur.rowcount == 0:
+            return jsonify({"error": "not found"}), 404
+    return jsonify({"asset_type": asset_type})
+
+
+@media_studio_bp.route("/api/gallery/<int:media_id>/featured", methods=["PUT"])
+@login_required
+def api_set_featured(media_id):
+    import psycopg2.extras
+    from database import get_db_cursor
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "SELECT owner_type, owner_id FROM media_library WHERE id = %s AND is_deleted = false",
+            (media_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
+        cur.execute(
+            "UPDATE media_library SET metadata = metadata - 'featured' "
+            "WHERE owner_type = %s AND owner_id = %s AND is_deleted = false",
+            (row["owner_type"], row["owner_id"]),
+        )
+        cur.execute(
+            "UPDATE media_library SET metadata = metadata || %s WHERE id = %s",
+            (psycopg2.extras.Json({"featured": True}), media_id),
+        )
+    return jsonify({"featured": True})
+
+
+@media_studio_bp.route("/api/portraits/<int:agent_id>/identity")
+@login_required
+def api_portrait_identity(agent_id):
+    """Returns identity_prompt for an agent — used by Generate tab pre-fill."""
+    from database import get_db_cursor
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT ap.identity_prompt, a.display_name, a.name "
+            "FROM agents a LEFT JOIN agent_portraits ap ON ap.agent_id = a.id "
+            "WHERE a.id = %s",
+            (agent_id,),
+        )
+        row = cur.fetchone()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(
+        {
+            "identity_prompt": row["identity_prompt"] or "",
+            "agent_name": row["display_name"] or row["name"],
+        }
+    )
+
+
 # ─── Generation ─────────────────────────────────────────────────────
 
 
@@ -2086,3 +2175,52 @@ def api_bulk_share_to_social():
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# AutoShorts — social_video_queue routes
+# ---------------------------------------------------------------------------
+
+
+@media_studio_bp.route("/api/social-video/queue")
+@login_required
+def api_sv_queue():
+    """List social video queue items."""
+    from .services.social_video_service import svq_list
+
+    status = request.args.get("status") or None
+    return jsonify({"items": svq_list(status=status)})
+
+
+@media_studio_bp.route("/api/social-video/queue", methods=["POST"])
+@login_required
+def api_sv_create():
+    """Create a new social video queue item."""
+    from .services.social_video_service import svq_create
+
+    data = request.get_json() or {}
+    if not data.get("quote_text") and not data.get("title"):
+        return jsonify({"error": "title or quote_text required"}), 400
+    item = svq_create(
+        title=data.get("title", "Untitled"),
+        quote_text=data.get("quote_text", ""),
+        media_ids=data.get("media_ids", []),
+        audio_mode=data.get("audio_mode", "music"),
+        platform=data.get("platform", "linkedin"),
+        scheduled_at=data.get("scheduled_at"),
+        user_id=current_user.id,
+    )
+    return jsonify(item), 201
+
+
+@media_studio_bp.route("/api/social-video/queue/<int:item_id>/status", methods=["PUT"])
+@login_required
+def api_sv_update_status(item_id):
+    """Update status of a social video queue item."""
+    from .services.social_video_service import svq_update_status
+
+    data = request.get_json() or {}
+    ok = svq_update_status(item_id, data.get("status", ""))
+    if not ok:
+        return jsonify({"error": "invalid status or not found"}), 400
+    return jsonify({"status": data.get("status")})

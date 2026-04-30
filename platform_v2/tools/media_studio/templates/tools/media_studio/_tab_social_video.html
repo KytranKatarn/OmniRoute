@@ -1,0 +1,100 @@
+<div id="ms-tab-social-video" class="ms-tab-pane">
+  <div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;">
+      <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+        <div style="height:52px !important;background:#8b5cf6 !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+        <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#8b5cf6 !important;flex-shrink:0 !important;"></div>
+        <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#7c3aed !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+        <div style="flex:1 !important;background:rgba(139,92,246,0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+        <div style="height:36px !important;background:#8b5cf6 !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+      </div>
+      <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+        <div style="height:44px !important;background:#8b5cf6 !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+          <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">SOCIAL VIDEO</span>
+        </div>
+        <div style="flex:1 !important;display:flex !important;min-height:0 !important;">
+
+          <!-- Builder (left) -->
+          <div style="flex:1;padding:16px;overflow-y:auto;border-right:1px solid rgba(139,92,246,0.15);">
+            <div style="color:#a78bfa;font-size:0.62rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;">BUILD NEW VIDEO</div>
+
+            <!-- Step 1: Text/Quote -->
+            <div style="margin-bottom:14px;">
+              <div style="color:#555;font-size:0.58rem;letter-spacing:1px;margin-bottom:5px;">1 &#x2014; TEXT / QUOTE</div>
+              <input id="msSvTitle" type="text" placeholder="Title (optional)"
+                style="width:100%;background:#0d1117;border:1px solid #1a2a3a;color:#ccc;padding:7px 10px;border-radius:4px;font-size:0.7rem;box-sizing:border-box;margin-bottom:6px;">
+              <textarea id="msSvQuote" rows="3" placeholder="Quote or caption text&#x2026;"
+                style="width:100%;background:#0d1117;border:1px solid #1a2a3a;color:#ccc;padding:8px 10px;border-radius:4px;font-size:0.7rem;resize:vertical;box-sizing:border-box;"></textarea>
+            </div>
+
+            <!-- Step 2: Images -->
+            <div style="margin-bottom:14px;">
+              <div style="color:#555;font-size:0.58rem;letter-spacing:1px;margin-bottom:5px;">2 &#x2014; IMAGES</div>
+              <div style="display:flex;gap:5px;margin-bottom:8px;">
+                <button class="ms-sv-source-tab active" data-source="gallery" onclick="msSocialVideo.switchImageSource('gallery')"
+                  style="background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;padding:3px 10px;border-radius:3px;font-size:0.6rem;cursor:pointer;">Gallery</button>
+                <button class="ms-sv-source-tab" data-source="portraits" onclick="msSocialVideo.switchImageSource('portraits')"
+                  style="background:transparent;border:1px solid #333;color:#555;padding:3px 10px;border-radius:3px;font-size:0.6rem;cursor:pointer;">Portraits</button>
+              </div>
+              <div id="msSvSelectedStrip" style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;min-height:10px;"></div>
+              <div id="msSvImagePickerGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:5px;max-height:160px;overflow-y:auto;"></div>
+            </div>
+
+            <!-- Step 3: Audio -->
+            <div style="margin-bottom:14px;">
+              <div style="color:#555;font-size:0.58rem;letter-spacing:1px;margin-bottom:5px;">3 &#x2014; AUDIO</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button class="ms-sv-audio-btn active" data-mode="music" onclick="msSocialVideo.selectAudio('music',this)"
+                  style="background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;padding:5px 10px;border-radius:4px;font-size:0.62rem;cursor:pointer;">&#x1F3B5; Music</button>
+                <button class="ms-sv-audio-btn" data-mode="narration" onclick="msSocialVideo.selectAudio('narration',this)"
+                  style="background:transparent;border:1px solid #333;color:#555;padding:5px 10px;border-radius:4px;font-size:0.62rem;cursor:pointer;">&#x1F3A4; Narration</button>
+                <button class="ms-sv-audio-btn" data-mode="silent" onclick="msSocialVideo.selectAudio('silent',this)"
+                  style="background:transparent;border:1px solid #333;color:#555;padding:5px 10px;border-radius:4px;font-size:0.62rem;cursor:pointer;">Silent</button>
+              </div>
+            </div>
+
+            <!-- Step 4: Post -->
+            <div style="margin-bottom:16px;">
+              <div style="color:#555;font-size:0.58rem;letter-spacing:1px;margin-bottom:5px;">4 &#x2014; POST VIA S.I.G.N.A.L. &#x2192; KBS</div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:5px;">
+                <select id="msSvPlatform" style="background:#0d1117;border:1px solid #333;color:#888;padding:5px 8px;border-radius:4px;font-size:0.65rem;">
+                  <option value="linkedin">LinkedIn (Kytran&#x2019;s Profile)</option>
+                </select>
+                <input id="msSvScheduled" type="datetime-local"
+                  style="background:#0d1117;border:1px solid #333;color:#888;padding:5px 8px;border-radius:4px;font-size:0.65rem;">
+              </div>
+              <div style="color:#555;font-size:0.58rem;">S.I.G.N.A.L. &#x2192; KBS &#x2192; Kytran&#x2019;s LinkedIn &#xB7; Telegram approval required</div>
+            </div>
+
+            <!-- Actions -->
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <button onclick="msSocialVideo.queueForPosting()"
+                style="background:#8b5cf6;color:#fff;border:none;padding:9px 20px;border-radius:5px;font-family:'Orbitron',sans-serif;font-size:0.68rem;letter-spacing:1px;cursor:pointer;">
+                &#x1F4E4; QUEUE FOR POSTING
+              </button>
+            </div>
+            <div id="msSvStatus" style="margin-top:8px;font-size:0.7rem;font-family:'IBM Plex Mono',monospace;min-height:18px;"></div>
+          </div>
+
+          <!-- Queue panel (right) -->
+          <div style="width:260px;flex-shrink:0;padding:16px;overflow-y:auto;">
+            <div style="color:#a78bfa;font-size:0.62rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">CONTENT QUEUE</div>
+            <div style="display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap;">
+              <button class="ms-sv-queue-filter active" data-status="" onclick="msSocialVideo.filterQueue('',this)"
+                style="background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;padding:3px 8px;border-radius:3px;font-size:0.58rem;cursor:pointer;">All</button>
+              <button class="ms-sv-queue-filter" data-status="draft" onclick="msSocialVideo.filterQueue('draft',this)"
+                style="background:transparent;border:1px solid #333;color:#555;padding:3px 8px;border-radius:3px;font-size:0.58rem;cursor:pointer;">Draft</button>
+              <button class="ms-sv-queue-filter" data-status="scheduled" onclick="msSocialVideo.filterQueue('scheduled',this)"
+                style="background:transparent;border:1px solid #333;color:#555;padding:3px 8px;border-radius:3px;font-size:0.58rem;cursor:pointer;">Scheduled</button>
+              <button class="ms-sv-queue-filter" data-status="posted" onclick="msSocialVideo.filterQueue('posted',this)"
+                style="background:transparent;border:1px solid #333;color:#555;padding:3px 8px;border-radius:3px;font-size:0.58rem;cursor:pointer;">Posted</button>
+            </div>
+            <div id="msSvQueueList"></div>
+          </div>
+
+        </div>
+        <div style="height:6px !important;background:#8b5cf6 !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+      </div>
+    </div>
+  </div>
+</div>

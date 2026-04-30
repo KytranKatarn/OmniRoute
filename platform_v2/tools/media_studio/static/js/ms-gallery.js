@@ -1,0 +1,246 @@
+(function () {
+  'use strict';
+  var _API = '/tools/media-studio';
+  var _subject = null;
+  var _assetFilter = 'all';
+
+  function _get(path) {
+    return fetch(_API + path, { credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+  }
+
+  function _el(id) { return document.getElementById(id); }
+
+  window.msGallery = {
+    init: function () {
+      try {
+        var saved = sessionStorage.getItem('ms_gallery_subject');
+        if (saved) _subject = JSON.parse(saved);
+      } catch (e) {}
+      msGallery.loadSubjects();
+    },
+
+    loadSubjects: function () {
+      _get('/api/agents/gallery-subjects').then(function (data) {
+        msGallery._renderSidebar(data);
+        if (!_subject && data.humans && data.humans.length) {
+          msGallery.selectSubject('agent', data.humans[0].id);
+        } else if (_subject) {
+          msGallery._highlightSidebar();
+          msGallery.loadAssets();
+        }
+      }).catch(function (err) { console.warn('[msGallery] loadSubjects failed:', err); });
+    },
+
+    selectSubject: function (type, id) {
+      _subject = { type: type, id: id };
+      try { sessionStorage.setItem('ms_gallery_subject', JSON.stringify(_subject)); } catch (e) {}
+      msGallery._highlightSidebar();
+      msGallery.loadAssets();
+      history.replaceState(null, '', '#gallery/' + type + '/' + (id || 'brand'));
+    },
+
+    _highlightSidebar: function () {
+      document.querySelectorAll('.ms-gallery-subject-item').forEach(function (el) {
+        var match = _subject &&
+          el.dataset.subjectType === _subject.type &&
+          String(el.dataset.subjectId) === String(_subject.id || '');
+        el.classList.toggle('ms-gallery-subject-active', !!match);
+      });
+    },
+
+    _renderSidebar: function (data) {
+      var sidebar = _el('msGallerySidebarSubjects');
+      if (!sidebar) return;
+      sidebar.textContent = '';
+
+      function _section(label, items, type) {
+        var hdr = document.createElement('div');
+        hdr.className = 'ms-gallery-sidebar-section-label';
+        hdr.textContent = label;
+        sidebar.appendChild(hdr);
+        items.forEach(function (agent) {
+          var item = document.createElement('div');
+          item.className = 'ms-gallery-subject-item';
+          item.dataset.subjectType = type;
+          item.dataset.subjectId = agent.id || '';
+          item.onclick = function () { msGallery.selectSubject(type, agent.id); };
+
+          var avatar = document.createElement('div');
+          avatar.className = 'ms-gallery-subject-avatar';
+          if (agent.avatar_thumb_url) {
+            var img = document.createElement('img');
+            img.src = agent.avatar_thumb_url;
+            img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;';
+            img.loading = 'lazy';
+            avatar.appendChild(img);
+          }
+          var name = document.createElement('span');
+          name.className = 'ms-gallery-subject-name';
+          name.textContent = agent.display_name || agent.name;
+          var count = document.createElement('span');
+          count.className = 'ms-gallery-subject-count';
+          count.textContent = agent.asset_count || 0;
+
+          item.appendChild(avatar);
+          item.appendChild(name);
+          item.appendChild(count);
+          sidebar.appendChild(item);
+        });
+      }
+
+      _section('HUMAN AGENTS', data.humans || [], 'agent');
+      _section('AI AGENTS', data.ai_agents || [], 'agent');
+
+      var brandHdr = document.createElement('div');
+      brandHdr.className = 'ms-gallery-sidebar-section-label';
+      brandHdr.textContent = 'BRAND';
+      sidebar.appendChild(brandHdr);
+
+      var brandItem = document.createElement('div');
+      brandItem.className = 'ms-gallery-subject-item';
+      brandItem.dataset.subjectType = 'brand';
+      brandItem.dataset.subjectId = '';
+      brandItem.onclick = function () { msGallery.selectSubject('brand', null); };
+      var brandName = document.createElement('span');
+      brandName.className = 'ms-gallery-subject-name';
+      brandName.textContent = (data.brand && data.brand.name) || 'Kytran Empowerment';
+      var brandCount = document.createElement('span');
+      brandCount.className = 'ms-gallery-subject-count';
+      brandCount.textContent = (data.brand && data.brand.asset_count) || 0;
+      brandItem.appendChild(brandName);
+      brandItem.appendChild(brandCount);
+      sidebar.appendChild(brandItem);
+
+      msGallery._highlightSidebar();
+    },
+
+    loadAssets: function () {
+      if (!_subject) return;
+      var el = _el('msGallerySubjectGrid');
+      var headerEl = _el('msGallerySubjectHeader');
+      if (el) {
+        el.textContent = '';
+        var loading = document.createElement('div');
+        loading.style.cssText = 'color:#555;font-size:0.7rem;padding:12px;';
+        loading.textContent = 'Loading…';
+        el.appendChild(loading);
+      }
+
+      var params = '?per_page=50';
+      if (_subject.type === 'agent' && _subject.id) {
+        params += '&owner_type=agent&owner_id=' + _subject.id;
+        _get('/api/agents/gallery-subjects').then(function (d) {
+          var all = (d.humans || []).concat(d.ai_agents || []);
+          var agent = all.filter(function (a) { return String(a.id) === String(_subject.id); })[0];
+          if (agent && headerEl) msGallery._renderSubjectHeader(agent);
+        }).catch(function () {});
+      } else {
+        params += '&owner_type=brand';
+        if (headerEl) headerEl.textContent = '';
+      }
+
+      if (_assetFilter !== 'all') params += '&asset_type=' + _assetFilter;
+
+      _get('/api/gallery' + params).then(function (data) {
+        msGallery._renderGrid(data.items || []);
+      }).catch(function (err) { console.warn('[msGallery] loadAssets failed:', err); });
+    },
+
+    _renderSubjectHeader: function (agent) {
+      var el = _el('msGallerySubjectHeader');
+      if (!el) return;
+      el.textContent = '';
+      el.style.cssText = 'display:flex;align-items:center;gap:12px;margin-bottom:14px;';
+
+      var avatar = document.createElement('div');
+      avatar.style.cssText = 'width:40px;height:40px;border-radius:50%;background:#1a2a3a;overflow:hidden;flex-shrink:0;border:1px solid rgba(34,197,94,0.3);';
+      if (agent.avatar_thumb_url) {
+        var img = document.createElement('img');
+        img.src = agent.avatar_thumb_url;
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+        avatar.appendChild(img);
+      }
+
+      var info = document.createElement('div');
+      info.style.cssText = 'flex:1;';
+      var nameEl = document.createElement('div');
+      nameEl.style.cssText = 'color:#fff;font-size:0.85rem;font-family:"Orbitron",sans-serif;';
+      nameEl.textContent = agent.display_name || agent.name;
+      var deptEl = document.createElement('div');
+      deptEl.style.cssText = 'color:#555;font-size:0.65rem;margin-top:2px;';
+      deptEl.textContent = (agent.worker_type === 'internal' ? 'Human Agent' : 'AI Agent') +
+        (agent.department ? ' · ' + agent.department : '') +
+        ' · ' + (agent.asset_count || 0) + ' assets';
+      info.appendChild(nameEl);
+      info.appendChild(deptEl);
+
+      var genBtn = document.createElement('button');
+      genBtn.style.cssText = 'background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);color:#22c55e;padding:5px 12px;border-radius:4px;font-size:0.65rem;font-family:"Orbitron",sans-serif;letter-spacing:1px;cursor:pointer;flex-shrink:0;';
+      genBtn.textContent = '+ Generate';
+      genBtn.onclick = function () {
+        if (window.msGenerate) msGenerate.preselectAgent(_subject.id);
+        switchMsTab('generate');
+      };
+
+      el.appendChild(avatar);
+      el.appendChild(info);
+      el.appendChild(genBtn);
+    },
+
+    _renderGrid: function (items) {
+      var el = _el('msGallerySubjectGrid');
+      if (!el) return;
+      el.textContent = '';
+
+      if (!items.length) {
+        var empty = document.createElement('div');
+        empty.style.cssText = 'color:#555;font-size:0.75rem;padding:16px 0;';
+        empty.textContent = 'No assets yet. Click + Generate to create some.';
+        el.appendChild(empty);
+        return;
+      }
+
+      items.forEach(function (item) {
+        var card = document.createElement('div');
+        card.className = 'ms-gallery-subject-card';
+        card.dataset.mediaId = item.id;
+
+        var thumb = document.createElement('div');
+        thumb.className = 'ms-gallery-subject-thumb';
+        if (item.thumbnail_path || item.url) {
+          var img = document.createElement('img');
+          img.src = item.thumbnail_path || item.url;
+          img.loading = 'lazy';
+          thumb.appendChild(img);
+        }
+        if (item.metadata && item.metadata.featured) {
+          var star = document.createElement('div');
+          star.className = 'ms-gallery-subject-star';
+          star.textContent = '★';
+          thumb.appendChild(star);
+        }
+        card.appendChild(thumb);
+
+        var prompt = document.createElement('div');
+        prompt.className = 'ms-gallery-subject-prompt';
+        prompt.textContent = (item.prompt || '').substring(0, 50);
+        card.appendChild(prompt);
+
+        card.onclick = (function (id) {
+          return function () { if (window.showMediaDetail) showMediaDetail(id); };
+        })(item.id);
+
+        el.appendChild(card);
+      });
+    },
+
+    setFilter: function (filter) {
+      _assetFilter = filter;
+      document.querySelectorAll('.ms-gallery-type-tab').forEach(function (el) {
+        el.classList.toggle('active', el.dataset.filter === filter);
+      });
+      msGallery.loadAssets();
+    }
+  };
+})();

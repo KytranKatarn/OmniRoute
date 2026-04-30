@@ -287,6 +287,40 @@
         .sv-stat-num  { font-size: 1rem; }
         .sv-form-grid { padding: 12px; }
     }
+
+    /* Gallery subject sidebar */
+    .ms-gallery-sidebar-section-label{font-family:'Antonio',sans-serif;font-size:.55rem;letter-spacing:2px;color:#555;text-transform:uppercase;margin:10px 0 5px;}
+    .ms-gallery-subject-item{display:flex;align-items:center;gap:7px;padding:5px 7px;border-radius:4px;cursor:pointer;margin-bottom:2px;}
+    .ms-gallery-subject-item:hover{background:rgba(34,197,94,.08);}
+    .ms-gallery-subject-active{background:rgba(34,197,94,.12)!important;border:1px solid rgba(34,197,94,.25);}
+    .ms-gallery-subject-avatar{width:22px;height:22px;border-radius:50%;background:#1a2a3a;flex-shrink:0;overflow:hidden;}
+    .ms-gallery-subject-name{color:#aaa;font-size:.65rem;flex:1;}
+    .ms-gallery-subject-active .ms-gallery-subject-name{color:#22c55e;}
+    .ms-gallery-subject-count{color:#555;font-size:.58rem;}
+    /* Gallery grid */
+    .ms-gallery-subject-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;}
+    .ms-gallery-subject-card{cursor:pointer;border-radius:5px;overflow:hidden;border:1px solid #1a1a2e;background:#0d1117;transition:border-color .15s;}
+    .ms-gallery-subject-card:hover{border-color:rgba(34,197,94,.4);}
+    .ms-gallery-subject-thumb{aspect-ratio:1;background:#1a2a3a;position:relative;overflow:hidden;}
+    .ms-gallery-subject-thumb img{width:100%;height:100%;object-fit:cover;}
+    .ms-gallery-subject-star{position:absolute;top:3px;right:3px;background:#22c55e;color:#000;font-size:.55rem;padding:1px 4px;border-radius:3px;}
+    .ms-gallery-subject-prompt{padding:4px 6px;font-size:.58rem;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    /* Gallery type filter tabs */
+    .ms-gallery-type-tab{background:transparent;border:1px solid #333;color:#666;padding:3px 10px;border-radius:4px;font-size:.62rem;font-family:'Antonio',sans-serif;letter-spacing:1px;cursor:pointer;}
+    .ms-gallery-type-tab.active{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.4);color:#22c55e;}
+    .ms-gen-type-card{background:#0d1117;border:1px solid #1a2a3a;border-radius:8px;padding:16px 12px;cursor:pointer;text-align:center;transition:border-color .15s,background .15s;}
+    .ms-gen-type-card:hover{border-color:rgba(59,130,246,.4);}
+    .ms-gen-type-active{background:rgba(59,130,246,.08)!important;border-color:rgba(59,130,246,.5)!important;}
+    .ms-gen-agent-pill{background:transparent;border:1px solid #333;color:#888;padding:5px 12px;border-radius:20px;font-size:.65rem;cursor:pointer;font-family:'Antonio',sans-serif;letter-spacing:1px;}
+    .ms-gen-agent-pill:hover{border-color:rgba(59,130,246,.4);color:#60a5fa;}
+    .ms-gen-agent-active{background:rgba(59,130,246,.12)!important;border-color:rgba(59,130,246,.5)!important;color:#60a5fa!important;}
+    .ms-sv-pick-thumb{aspect-ratio:1;background:#1a2a3a;border-radius:4px;border:2px solid transparent;cursor:pointer;position:relative;overflow:hidden;}
+    .ms-sv-pick-thumb img{width:100%;height:100%;object-fit:cover;}
+    .ms-sv-pick-thumb.selected{border-color:#8b5cf6;}
+    .ms-sv-pick-order{position:absolute;bottom:2px;right:2px;background:#8b5cf6;color:#fff;font-size:.5rem;padding:1px 4px;border-radius:2px;min-width:14px;text-align:center;}
+    .ms-sv-source-tab.active{background:rgba(139,92,246,.15)!important;border-color:rgba(139,92,246,.5)!important;color:#a78bfa!important;}
+    .ms-sv-audio-btn.active{background:rgba(139,92,246,.15);border-color:rgba(139,92,246,.5);color:#a78bfa;}
+    .ms-sv-queue-filter.active{background:rgba(139,92,246,.12);border-color:rgba(139,92,246,.4);color:#a78bfa;}
 </style>
 
 <!-- Glass nav removed — tabs now in LCARS header -->
@@ -296,637 +330,17 @@
     <!-- ================================================================
          TAB: DASHBOARD
          ================================================================ -->
-    <div id="ms-tab-dashboard" class="ms-tab-pane active">
-      <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
-        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
-            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
-                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
-            </div>
-            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
-                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">DASHBOARD</span>
-                    <div style="flex:1"></div>
-                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
-                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
-                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
-                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
-                    </div>
-                </div>
-                <div style="flex: 1 !important; padding: 16px !important;">
-
-        <!-- Stats counters -->
-        <div class="ms-section-header">
-            <div class="ms-section-cap"></div>
-            <span class="ms-section-title" data-i18n="media_studio.overview">Overview</span>
-        </div>
-        <div class="ms-dashboard-grid" id="msDashStats">
-            <div class="ms-stat-card">
-                <div class="ms-stat-label" data-i18n="media_studio.total_generated">Total Generated</div>
-                <div class="ms-stat-value" id="msStatTotal">--</div>
-                <i data-lucide="layers" class="ms-stat-icon"></i>
-            </div>
-            <div class="ms-stat-card">
-                <div class="ms-stat-label" data-i18n="media_studio.images">Images</div>
-                <div class="ms-stat-value" id="msStatImages">--</div>
-                <i data-lucide="image" class="ms-stat-icon"></i>
-            </div>
-            <div class="ms-stat-card">
-                <div class="ms-stat-label" data-i18n="media_studio.videos">Videos</div>
-                <div class="ms-stat-value" id="msStatVideos">--</div>
-                <i data-lucide="film" class="ms-stat-icon"></i>
-            </div>
-            <div class="ms-stat-card">
-                <div class="ms-stat-label" data-i18n="media_studio.queue_active">Queue Active</div>
-                <div class="ms-stat-value" id="msStatQueue">--</div>
-                <i data-lucide="activity" class="ms-stat-icon"></i>
-            </div>
-        </div>
-
-        <!-- Active generation jobs -->
-        <div id="msDashActiveSection" style="display:none;margin-bottom:16px;">
-            <div class="ms-section-header">
-                <div class="ms-section-cap"></div>
-                <span class="ms-section-title">Now Generating</span>
-            </div>
-            <div id="msDashActiveJobs"></div>
-        </div>
-
-        <!-- Recent creations -->
-        <div class="ms-section-header">
-            <div class="ms-section-cap"></div>
-            <span class="ms-section-title" data-i18n="media_studio.recent_creations">Recent Creations</span>
-        </div>
-        <div class="ms-recent-grid" id="msDashRecent">
-            <div class="ms-recent-empty" data-i18n="media_studio.no_recent">No recent media. Start generating!</div>
-        </div>
-
-        <!-- GPU Fleet -->
-        <div class="ms-section-header">
-            <div class="ms-section-cap"></div>
-            <span class="ms-section-title" data-i18n="media_studio.gpu_fleet">GPU Fleet</span>
-        </div>
-        <div class="ms-dashboard-grid" id="msDashFleet">
-            <!-- Populated by JS -->
-        </div>
-
-                </div>
-                <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
-            </div>
-        </div>
-      </div>
-    </div>
+    {% include 'tools/media_studio/_tab_dashboard.html' %}
 
     <!-- ================================================================
          TAB: GENERATE
          ================================================================ -->
-    <div id="ms-tab-generate" class="ms-tab-pane">
-      <div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
-        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
-            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                <div style="height: 52px !important; background: #3b82f6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
-                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #2563eb !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                <div style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                <div style="height: 36px !important; background: #3b82f6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
-            </div>
-            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                <div style="height: 44px !important; background: #3b82f6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
-                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">GENERATE</span>
-                    <div style="flex:1"></div>
-                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
-                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
-                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
-                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
-                    </div>
-                </div>
-                <div style="flex: 1 !important; padding: 16px !important;">
-
-        <div class="ms-generate-form">
-            <!-- Media type selector -->
-            <div class="ms-form-group">
-                <label class="ms-form-label" data-i18n="media_studio.media_type">Media Type</label>
-                <div class="ms-type-selector">
-                    <button class="ms-type-btn active" data-type="image" onclick="selectMediaType('image')">
-                        <i data-lucide="image" style="width:16px;height:16px;"></i>
-                        <span data-i18n="media_studio.image">Image</span>
-                    </button>
-                    <button class="ms-type-btn" data-type="video" disabled title="Requires AnimateDiff model — enable with fleet nodes"
-                            style="opacity:0.45;cursor:not-allowed;position:relative;" onclick="void(0)">
-                        <i data-lucide="film" style="width:16px;height:16px;"></i>
-                        <span>Video</span>
-                        <span style="position:absolute;top:-6px;right:-2px;font-size:0.55rem;background:#8b5cf6;color:#fff;padding:1px 4px;border-radius:3px;letter-spacing:1px;font-family:'Antonio',sans-serif;">SOON</span>
-                    </button>
-                    <button class="ms-type-btn" data-type="audio" disabled title="Requires XTTS + external providers — enable with fleet nodes"
-                            style="opacity:0.45;cursor:not-allowed;position:relative;" onclick="void(0)">
-                        <i data-lucide="music" style="width:16px;height:16px;"></i>
-                        <span>Audio</span>
-                        <span style="position:absolute;top:-6px;right:-2px;font-size:0.55rem;background:#8b5cf6;color:#fff;padding:1px 4px;border-radius:3px;letter-spacing:1px;font-family:'Antonio',sans-serif;">SOON</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Model dropdown -->
-            <div class="ms-form-group">
-                <label class="ms-form-label" for="msModel" data-i18n="media_studio.model">Model</label>
-                <select class="ms-select" id="msModel">
-                    <option value="" data-i18n="media_studio.loading_models">Loading models...</option>
-                </select>
-            </div>
-
-            <!-- Prompt -->
-            <div class="ms-form-group">
-                <label class="ms-form-label" for="msPrompt" data-i18n="media_studio.prompt">Prompt</label>
-                <textarea class="ms-prompt-area" id="msPrompt"
-                    placeholder="Describe what you want to create..."
-                    maxlength="2000"
-                    oninput="updateCharCount()"></textarea>
-                <div class="ms-char-count"><span id="msCharCount">0</span> / 2000</div>
-            </div>
-
-            <!-- Negative prompt (collapsible) -->
-            <div class="ms-form-group">
-                <button class="ms-advanced-toggle" onclick="toggleSection('msNegPromptSection', this)">
-                    <i data-lucide="chevron-down" class="ms-toggle-arrow"></i>
-                    <span data-i18n="media_studio.negative_prompt">Negative Prompt</span>
-                </button>
-                <div class="ms-advanced-section" id="msNegPromptSection">
-                    <textarea class="ms-prompt-area" id="msNegPrompt"
-                        placeholder="What to exclude from the generation..."
-                        style="min-height: 80px;"></textarea>
-                </div>
-            </div>
-
-            <!-- Size presets -->
-            <div class="ms-form-group">
-                <label class="ms-form-label" data-i18n="media_studio.size">Size</label>
-                <div class="ms-size-presets" id="msSizePresets">
-                    <button class="ms-size-btn active" data-size="1024x1024" onclick="selectSize(this)">1024 x 1024</button>
-                    <button class="ms-size-btn" data-size="768x1024" onclick="selectSize(this)">768 x 1024</button>
-                    <button class="ms-size-btn" data-size="1024x768" onclick="selectSize(this)">1024 x 768</button>
-                    <button class="ms-size-btn" data-size="512x512" onclick="selectSize(this)">512 x 512</button>
-                </div>
-            </div>
-
-            <!-- Advanced controls (collapsible) -->
-            <button class="ms-advanced-toggle" onclick="toggleSection('msAdvancedSection', this)">
-                <i data-lucide="chevron-down" class="ms-toggle-arrow"></i>
-                <span data-i18n="media_studio.advanced_settings">Advanced Settings</span>
-            </button>
-            <div class="ms-advanced-section" id="msAdvancedSection">
-                <!-- Steps slider -->
-                <div class="ms-slider-group">
-                    <div class="ms-slider-header">
-                        <label class="ms-form-label" data-i18n="media_studio.steps">Steps</label>
-                        <span class="ms-slider-value" id="msStepsValue">20</span>
-                    </div>
-                    <input type="range" class="ms-slider" id="msSteps" min="1" max="100" value="20"
-                        oninput="document.getElementById('msStepsValue').textContent = this.value">
-                </div>
-
-                <!-- CFG slider -->
-                <div class="ms-slider-group">
-                    <div class="ms-slider-header">
-                        <label class="ms-form-label" data-i18n="media_studio.cfg_scale">CFG Scale</label>
-                        <span class="ms-slider-value" id="msCfgValue">7.0</span>
-                    </div>
-                    <input type="range" class="ms-slider" id="msCfg" min="1" max="30" value="7" step="0.5"
-                        oninput="document.getElementById('msCfgValue').textContent = parseFloat(this.value).toFixed(1)">
-                </div>
-
-                <!-- Sampler dropdown -->
-                <div class="ms-form-group">
-                    <label class="ms-form-label" for="msSampler" data-i18n="media_studio.sampler">Sampler</label>
-                    <select class="ms-select" id="msSampler">
-                        <option value="euler">Euler</option>
-                        <option value="euler_a">Euler Ancestral</option>
-                        <option value="dpmpp_2m" selected>DPM++ 2M</option>
-                        <option value="dpmpp_2m_sde">DPM++ 2M SDE</option>
-                        <option value="dpmpp_sde">DPM++ SDE</option>
-                        <option value="ddim">DDIM</option>
-                        <option value="uni_pc">UniPC</option>
-                    </select>
-                </div>
-
-                <!-- Seed -->
-                <div class="ms-form-group">
-                    <label class="ms-form-label" for="msSeed" data-i18n="media_studio.seed">Seed</label>
-                    <input type="number" class="ms-seed-input" id="msSeed" placeholder="-1 (random)" value="-1">
-                </div>
-            </div>
-
-            <!-- Generate button -->
-            <button class="ms-generate-btn" id="msGenerateBtn" onclick="submitGeneration()">
-                <div class="ms-spinner"></div>
-                <i data-lucide="zap" style="width:18px;height:18px;"></i>
-                <span data-i18n="media_studio.generate_action">Generate</span>
-            </button>
-            <button class="ms-btn ms-btn-secondary" onclick="openBatchModal(document.getElementById('msMediaType').value)">Batch</button>
-            <div id="msGenerateStatus" style="margin-top:8px;font-size:0.78rem;font-family:'IBM Plex Mono',monospace;min-height:18px;"></div>
-
-            <!-- Video Controls (hidden when media_type != video) -->
-            <div id="msVideoControls" class="ms-video-controls" style="display:none;">
-                <div class="ms-section-header">Video Settings</div>
-                <div class="ms-form-group">
-                    <label class="ms-form-label">Duration</label>
-                    <div class="ms-duration-btns">
-                        <button class="ms-duration-btn active" data-dur="2" onclick="setVideoDuration(2)">2s</button>
-                        <button class="ms-duration-btn" data-dur="4" onclick="setVideoDuration(4)">4s</button>
-                        <button class="ms-duration-btn" data-dur="6" onclick="setVideoDuration(6)">6s</button>
-                    </div>
-                </div>
-                <div class="ms-form-group">
-                    <label class="ms-form-label">FPS</label>
-                    <div class="ms-fps-btns">
-                        <button class="ms-fps-btn active" data-fps="8" onclick="setVideoFPS(8)">8</button>
-                        <button class="ms-fps-btn" data-fps="12" onclick="setVideoFPS(12)">12</button>
-                        <button class="ms-fps-btn" data-fps="24" onclick="setVideoFPS(24)">24</button>
-                    </div>
-                </div>
-                <div class="ms-form-group">
-                    <label class="ms-form-label">Motion Strength</label>
-                    <input type="range" id="msMotionStrength" class="ms-slider" min="0" max="2" step="0.1" value="1.0">
-                    <span id="msMotionStrengthVal" class="ms-slider-val">1.0</span>
-                </div>
-                <div class="ms-form-group">
-                    <label class="ms-form-label">Reference Image (optional — for image-to-video)</label>
-                    <div class="ms-ref-upload">
-                        <input type="file" id="msRefImageFile" accept="image/*" style="display:none;">
-                        <button class="ms-btn ms-btn-secondary" onclick="document.getElementById('msRefImageFile').click()">Choose Image</button>
-                        <span id="msRefImageName" class="ms-ref-name">No file selected</span>
-                    </div>
-                </div>
-                <div class="ms-form-group">
-                    <label class="ms-form-label">Provider</label>
-                    <select id="msVideoProvider" class="ms-select">
-                        <option value="auto">Auto (Local First)</option>
-                        <option value="local">Local ComfyUI Only</option>
-                    </select>
-                </div>
-            </div>
-
-            <!-- Audio Controls (hidden when media_type != audio) -->
-            <div id="msAudioControls" class="ms-audio-controls" style="display:none;">
-                <div class="ms-section-header">Audio Settings</div>
-                <div class="ms-form-group">
-                    <label class="ms-form-label">Mode</label>
-                    <div class="ms-audio-mode-btns">
-                        <button class="ms-audio-mode-btn active" data-mode="speech" onclick="selectAudioMode('speech')">Speech</button>
-                        <button class="ms-audio-mode-btn" data-mode="sfx" onclick="selectAudioMode('sfx')">Sound FX</button>
-                        <button class="ms-audio-mode-btn" data-mode="music" onclick="selectAudioMode('music')">Music</button>
-                    </div>
-                </div>
-
-                <!-- Speech-specific controls -->
-                <div id="msAudioSpeechControls" class="ms-audio-mode-controls">
-                    <div class="ms-form-group">
-                        <label class="ms-form-label">Voice</label>
-                        <select id="msVoicePicker" class="ms-select">
-                            <option value="preset_female_1">Female 1 (Default)</option>
-                        </select>
-                    </div>
-                    <div class="ms-form-group">
-                        <label class="ms-form-label">Speed</label>
-                        <input type="range" id="msAudioSpeed" class="ms-slider" min="0.5" max="2.0" step="0.1" value="1.0">
-                        <span id="msAudioSpeedVal" class="ms-slider-val">1.0x</span>
-                    </div>
-                </div>
-
-                <!-- SFX-specific controls -->
-                <div id="msAudioSfxControls" class="ms-audio-mode-controls" style="display:none;">
-                    <div class="ms-form-group">
-                        <label class="ms-form-label">Duration</label>
-                        <div class="ms-duration-btns">
-                            <button class="ms-duration-btn active" data-dur="1" onclick="setAudioDuration(1)">1s</button>
-                            <button class="ms-duration-btn" data-dur="3" onclick="setAudioDuration(3)">3s</button>
-                            <button class="ms-duration-btn" data-dur="5" onclick="setAudioDuration(5)">5s</button>
-                            <button class="ms-duration-btn" data-dur="10" onclick="setAudioDuration(10)">10s</button>
-                        </div>
-                    </div>
-                    <div class="ms-form-group">
-                        <label class="ms-form-label">Provider</label>
-                        <select id="msAudioSfxProvider" class="ms-select">
-                            <option value="auto">Auto</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Music-specific controls -->
-                <div id="msAudioMusicControls" class="ms-audio-mode-controls" style="display:none;">
-                    <div class="ms-form-group">
-                        <label class="ms-form-label">Duration</label>
-                        <div class="ms-duration-btns">
-                            <button class="ms-duration-btn active" data-dur="10" onclick="setAudioDuration(10)">10s</button>
-                            <button class="ms-duration-btn" data-dur="30" onclick="setAudioDuration(30)">30s</button>
-                            <button class="ms-duration-btn" data-dur="60" onclick="setAudioDuration(60)">60s</button>
-                        </div>
-                    </div>
-                    <div class="ms-form-group">
-                        <label class="ms-form-label">Provider</label>
-                        <select id="msAudioMusicProvider" class="ms-select">
-                            <option value="auto">Auto</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-                </div>
-                <div style="height: 6px !important; background: #3b82f6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
-            </div>
-        </div>
-      </div>
-    </div>
+    {% include 'tools/media_studio/_tab_generate.html' %}
 
     <!-- ================================================================
          TAB: GALLERY
          ================================================================ -->
-    <div id="ms-tab-gallery" class="ms-tab-pane">
-      <div style="--frame-color: #f59e0b; --frame-rgb: 245,158,11; margin-bottom: 20px;">
-        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
-            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                <div style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
-                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                <div style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                <div style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
-            </div>
-            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                <div style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
-                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">GALLERY</span>
-                    <div style="flex:1"></div>
-                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
-                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
-                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
-                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
-                    </div>
-                </div>
-                <div style="flex: 1 !important; padding: 16px !important;">
-
-        <!-- Search Bar -->
-        <div class="ms-gallery-search">
-            <div class="ms-search-input-wrap">
-                <span class="ms-search-icon">&#x1F50D;</span>
-                <input type="text" id="msGallerySearch" class="ms-search-input"
-                       placeholder="Search prompts..." autocomplete="off">
-            </div>
-            <!-- Queue Panel Toggle -->
-            <button class="ms-queue-toggle" onclick="toggleQueuePanel()" id="msQueueToggle">
-                Queue (<span id="msQueueActiveCount">0</span> active)
-            </button>
-            <!-- Owner Filter -->
-            <div class="ms-gallery-filter" id="msGalleryFilter">
-                <button class="ms-btn-xs ms-gallery-filter-btn active" data-filter="mine" onclick="setOwnerFilter('mine')">Mine</button>
-                <button class="ms-btn-xs ms-gallery-filter-btn" data-filter="agents" onclick="setOwnerFilter('agents')">Agent Art</button>
-                <button class="ms-btn-xs ms-gallery-filter-btn" data-filter="all" onclick="setOwnerFilter('all')">All</button>
-                <button class="ms-btn-xs ms-gallery-filter-btn" data-filter="templates" onclick="setOwnerFilter('templates')">Templates</button>
-                <button class="ms-btn-xs ms-gallery-filter-btn" data-filter="analytics" onclick="setOwnerFilter('analytics')">Analytics</button>
-            </div>
-            <!-- Agent Config Toggle -->
-            <button class="ms-btn-xs" onclick="toggleAgentConfig()" style="margin-left:8px">
-                <i data-lucide="bot"></i> Agent Config
-            </button>
-        </div>
-
-        <!-- Agent Config Panel (collapsible) -->
-        <div class="ms-agent-config" id="msAgentConfig" style="display:none;">
-            <div class="ms-section-header">
-                <span>Agent Media Config</span>
-            </div>
-            <div id="msAgentConfigBody"></div>
-        </div>
-
-        <!-- Queue Panel (collapsible) — IDs prefixed with msPanel to avoid collision with Queue tab -->
-        <div id="msQueuePanel" class="ms-queue-panel" style="display:none;">
-            <div class="ms-queue-header">
-                <span class="ms-queue-stats" id="msQueueStats"></span>
-                <button class="ms-btn-sm" onclick="clearCompleted()">Clear Completed</button>
-            </div>
-            <div class="ms-queue-section" id="msPanelActive">
-                <h4>Active</h4>
-                <div id="msPanelActiveList"></div>
-            </div>
-            <div class="ms-queue-section ms-queue-failed-section" id="msPanelFailed" style="display:none;">
-                <h4>Failed</h4>
-                <div id="msPanelFailedList"></div>
-            </div>
-            <div class="ms-queue-section" id="msPanelRecent" style="display:none;">
-                <h4>Recent</h4>
-                <div id="msPanelRecentList"></div>
-            </div>
-        </div>
-
-        <!-- Batch Creation Modal -->
-        <div id="msBatchModal" class="ms-modal-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
-            <div class="ms-modal-content ms-batch-modal">
-                <div class="ms-modal-header">
-                    <h3>Batch Generate</h3>
-                    <button class="ms-modal-close" onclick="document.getElementById('msBatchModal').style.display='none'">&times;</button>
-                </div>
-                <div class="ms-modal-body">
-                    <label>Batch Name (optional)</label>
-                    <input type="text" id="msBatchName" placeholder="Auto-generated from first prompt" class="ms-input">
-                    <label>Prompts (one per line)</label>
-                    <textarea id="msBatchPrompts" rows="6" class="ms-textarea" oninput="updateBatchPreview()"></textarea>
-                    <small id="msBatchPromptCount">0 prompts</small>
-                    <label><input type="checkbox" id="msBatchSweepToggle" onchange="toggleSweepSection()"> Enable Parameter Sweep</label>
-                    <div id="msBatchSweepSection" style="display:none;">
-                        <label>Sweep Parameter</label>
-                        <select id="msBatchSweepParam" class="ms-select" onchange="updateSweepInputs()">
-                            <option value="seed">Seed</option>
-                            <option value="model">Model</option>
-                        </select>
-                        <div id="msBatchSweepSeedInput">
-                            <label>Seeds (comma-separated)</label>
-                            <input type="text" id="msBatchSweepSeeds" placeholder="42, 123, 777, 999" class="ms-input" oninput="updateBatchPreview()">
-                        </div>
-                        <div id="msBatchSweepModelInput" style="display:none;">
-                            <label>Models</label>
-                            <div id="msBatchModelCheckboxes"></div>
-                        </div>
-                    </div>
-                    <label>Media Type</label>
-                    <select id="msBatchMediaType" class="ms-select">
-                        <option value="image">Image</option>
-                        <option value="video">Video</option>
-                        <option value="audio">Audio</option>
-                    </select>
-                    <div id="msBatchSharedParams">
-                        <label>Model</label>
-                        <select id="msBatchModel" class="ms-select"></select>
-                        <label>Negative Prompt</label>
-                        <input type="text" id="msBatchNegPrompt" class="ms-input" placeholder="Optional negative prompt">
-                    </div>
-                    <p id="msBatchPreview" class="ms-batch-preview">This will create <strong>0</strong> generations</p>
-                </div>
-                <div class="ms-modal-footer">
-                    <button id="msBatchSubmit" class="ms-btn ms-btn-primary" onclick="submitBatch()" disabled>Start Batch</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- ── S23  Workflow Templates ── -->
-        <div id="msTemplateView" style="display:none;">
-          <div class="ms-template-header">
-            <span class="ms-template-title">Workflow Templates</span>
-            <div class="ms-template-filter">
-              <button class="ms-btn-xs ms-template-filter-btn active" data-tfilter="mine" onclick="setTemplateFilter('mine')">My Templates</button>
-              <button class="ms-btn-xs ms-template-filter-btn" data-tfilter="shared" onclick="setTemplateFilter('shared')">Shared</button>
-              <button class="ms-btn-xs ms-template-filter-btn" data-tfilter="agent" onclick="setTemplateFilter('agent')">Agent</button>
-            </div>
-            <button class="ms-btn ms-btn-primary" onclick="openTemplateModal()">New Template</button>
-          </div>
-          <div id="msTemplateList" class="ms-template-list"></div>
-          <div id="msPipelineProgress" class="ms-pipeline-progress" style="display:none;">
-            <span id="msPipelineLabel">Running step 1/3...</span>
-            <div class="ms-pipeline-bar">
-              <div id="msPipelineBarFill" class="ms-pipeline-bar-fill" style="width:0%"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ── S24  Media Analytics ── -->
-        <div id="msAnalyticsView" style="display:none;">
-          <div class="ms-analytics-header">
-            <div class="ms-analytics-presets">
-              <button class="ms-btn-xs ms-analytics-preset-btn" onclick="setAnalyticsRange('7d')">7d</button>
-              <button class="ms-btn-xs ms-analytics-preset-btn active" onclick="setAnalyticsRange('30d')">30d</button>
-              <button class="ms-btn-xs ms-analytics-preset-btn" onclick="setAnalyticsRange('90d')">90d</button>
-              <button class="ms-btn-xs ms-analytics-preset-btn" onclick="setAnalyticsRange('all')">All</button>
-            </div>
-            <div class="ms-analytics-custom-range">
-              <input type="date" id="msAnalyticsFrom" class="ms-input-xs">
-              <span class="ms-text-muted">to</span>
-              <input type="date" id="msAnalyticsTo" class="ms-input-xs">
-              <button class="ms-btn-xs" onclick="setCustomRange()">Apply</button>
-            </div>
-            <div class="ms-analytics-cost-toggle">
-              <button class="ms-btn-xs ms-cost-mode-btn active" data-mode="fixed" onclick="toggleCostMode('fixed')">Cloud$</button>
-              <button class="ms-btn-xs ms-cost-mode-btn" data-mode="vram" onclick="toggleCostMode('vram')">Local$</button>
-            </div>
-          </div>
-          <div class="ms-analytics-stat-cards" id="msAnalyticsCards"></div>
-          <div class="ms-analytics-charts">
-            <div class="ms-analytics-chart"><div class="ms-analytics-chart-title">Generation Trends</div><div id="msChartTrendsBody"></div></div>
-            <div class="ms-analytics-chart"><div class="ms-analytics-chart-title">Model Usage</div><div id="msChartModelsBody"></div></div>
-            <div class="ms-analytics-chart"><div class="ms-analytics-chart-title">Edit Types</div><div id="msChartEditsBody"></div></div>
-            <div class="ms-analytics-chart"><div class="ms-analytics-chart-title">Cost Summary</div><div id="msChartCostsBody"></div></div>
-            <div class="ms-analytics-chart"><div class="ms-analytics-chart-title">Agent vs User</div><div id="msChartAgentUserBody"></div></div>
-            <div class="ms-analytics-chart"><div class="ms-analytics-chart-title">Template Effectiveness</div><div id="msChartTemplatesBody"></div></div>
-          </div>
-          <div class="ms-analytics-admin" id="msAnalyticsAdmin" style="display:none;">
-            <div class="ms-analytics-chart-title">Cost Rate Config (Admin)</div>
-            <div id="msAnalyticsCostRates"></div>
-          </div>
-        </div>
-
-        <div class="ms-gallery-layout">
-            <!-- Filter Sidebar (collapsible) -->
-            <button class="ms-sidebar-toggle" id="msSidebarToggle" onclick="toggleGallerySidebar()">&#x25C0; Filters</button>
-            <div class="ms-gallery-sidebar" id="msGallerySidebar">
-                <div class="ms-sidebar-section">
-                    <h4 class="ms-sidebar-title">Type</h4>
-                    <div class="ms-filter-pills" id="msTypeFilters">
-                        <button class="ms-filter-btn active" data-filter="all" onclick="setGalleryFilter('type', 'all', this)">All</button>
-                        <button class="ms-filter-btn" data-filter="image" onclick="setGalleryFilter('type', 'image', this)">Images</button>
-                        <button class="ms-filter-btn" data-filter="video" onclick="setGalleryFilter('type', 'video', this)">Video</button>
-                        <button class="ms-filter-btn" data-filter="audio" onclick="setGalleryFilter('type', 'audio', this)">Audio</button>
-                    </div>
-                </div>
-
-                <div class="ms-sidebar-section">
-                    <h4 class="ms-sidebar-title">Tags</h4>
-                    <div class="ms-tag-filter-list" id="msTagFilters"></div>
-                </div>
-
-                <div class="ms-sidebar-section">
-                    <h4 class="ms-sidebar-title">Model</h4>
-                    <select id="msModelFilter" class="ms-filter-select" onchange="applyGalleryFilters()">
-                        <option value="">All Models</option>
-                    </select>
-                </div>
-
-                <div class="ms-sidebar-section">
-                    <h4 class="ms-sidebar-title">Provider</h4>
-                    <select id="msProviderFilter" class="ms-filter-select" onchange="applyGalleryFilters()">
-                        <option value="">All Providers</option>
-                    </select>
-                </div>
-
-                <div class="ms-sidebar-section">
-                    <h4 class="ms-sidebar-title">Date Range</h4>
-                    <input type="date" id="msDateFrom" class="ms-filter-date" onchange="applyGalleryFilters()">
-                    <input type="date" id="msDateTo" class="ms-filter-date" onchange="applyGalleryFilters()">
-                </div>
-
-                <div class="ms-sidebar-section">
-                    <h4 class="ms-sidebar-title">Min Resolution</h4>
-                    <div class="ms-resolution-inputs">
-                        <input type="number" id="msMinWidth" class="ms-filter-input" placeholder="Width" min="0" step="64" onchange="applyGalleryFilters()">
-                        <span class="ms-resolution-x">&times;</span>
-                        <input type="number" id="msMinHeight" class="ms-filter-input" placeholder="Height" min="0" step="64" onchange="applyGalleryFilters()">
-                    </div>
-                </div>
-
-                <button class="ms-btn ms-btn-secondary" onclick="saveAsSmartCollection()">Save as Smart Collection</button>
-
-                <!-- Collections Panel -->
-                <div class="ms-sidebar-section">
-                    <h4 class="ms-sidebar-title">My Collections</h4>
-                    <div id="msMyCollectionsList"></div>
-                    <div class="ms-new-collection">
-                        <input type="text" id="msNewCollectionName" class="ms-filter-input" placeholder="New collection...">
-                        <button class="ms-btn-icon" onclick="createNewCollection()">+</button>
-                    </div>
-                </div>
-
-                <div class="ms-sidebar-section">
-                    <h4 class="ms-sidebar-title">Shared Collections</h4>
-                    <div id="msSharedCollectionsList"></div>
-                </div>
-
-                <div class="ms-sidebar-section">
-                    <h4 class="ms-sidebar-title">Smart Collections</h4>
-                    <div id="msSmartCollectionsList"></div>
-                </div>
-            </div>
-
-            <!-- Main Gallery Area -->
-            <div class="ms-gallery-main">
-                <!-- Bulk Action Toolbar (hidden until selection) -->
-                <div class="ms-bulk-toolbar" id="msBulkToolbar" style="display:none;">
-                    <span class="ms-bulk-count" id="msBulkCount">0 selected</span>
-                    <button class="ms-bulk-btn" onclick="bulkSelectAll()">Select All</button>
-                    <button class="ms-bulk-btn" onclick="bulkDeselectAll()">Deselect</button>
-                    <button class="ms-bulk-btn" onclick="bulkFavorite()">Favorite</button>
-                    <button class="ms-bulk-btn" onclick="bulkTag()">Tag</button>
-                    <button class="ms-bulk-btn" onclick="bulkMoveToCollection()">Move</button>
-                    <button class="ms-bulk-btn" onclick="bulkExport()">Export ZIP</button>
-                    <button class="ms-bulk-btn" onclick="bulkRegenerate()">Regenerate</button>
-                    <button class="ms-bulk-btn ms-bulk-btn-danger" onclick="bulkDelete()">Delete</button>
-                </div>
-
-                <div class="ms-gallery-grid" id="msGalleryGrid">
-                    <div class="ms-empty-state" id="msGalleryEmpty">
-                        <p>No media yet. Generate something in the Generate tab!</p>
-                    </div>
-                </div>
-
-                <div class="ms-gallery-footer">
-                    <button class="ms-btn ms-btn-secondary" id="msLoadMoreBtn" style="display:none;" onclick="loadGalleryMore()">Load More</button>
-                </div>
-            </div>
-        </div>
-
-                </div>
-                <div style="height: 6px !important; background: #f59e0b !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
-            </div>
-        </div>
-      </div>
-    </div>
+    {% include 'tools/media_studio/_tab_gallery.html' %}
 
     <!-- ================================================================
          TAB: PORTRAITS (Disabled / Layer 2)
@@ -1166,134 +580,7 @@
     <!-- ================================================================
          S06  SOCIAL VIDEO TAB
          ================================================================ -->
-    <div id="ms-tab-social-video" class="ms-tab-pane">
-      <div style="--frame-color: #14b8a6; --frame-rgb: 20,184,166; margin-bottom: 20px;">
-        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
-            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                <div style="height: 52px !important; background: #14b8a6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #14b8a6 !important; flex-shrink: 0 !important;"></div>
-                <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #0d9488 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                <div style="flex: 1 !important; background: rgba(20,184,166,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                <div style="height: 36px !important; background: #14b8a6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
-            </div>
-            <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                <div style="height: 44px !important; background: #14b8a6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
-                    <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SOCIAL VIDEO</span>
-                    <div style="flex:1"></div>
-                    <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
-                        <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
-                        <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
-                        <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
-                    </div>
-                </div>
-                <div style="flex: 1 !important; padding: 16px !important;">
-
-        <!-- Stats Bar -->
-        <div class="sv-stats-bar">
-            <div class="sv-stat-box">
-                <div class="sv-stat-num" id="svStatDailyBudget">--</div>
-                <div class="sv-stat-label">Daily Budget</div>
-            </div>
-            <div class="sv-stat-box">
-                <div class="sv-stat-num" id="svStatMonthlyBudget">--</div>
-                <div class="sv-stat-label">Monthly Budget</div>
-            </div>
-            <div class="sv-stat-box">
-                <div class="sv-stat-num" id="svStatPostedWeek">--</div>
-                <div class="sv-stat-label">Posted This Week</div>
-            </div>
-            <div class="sv-stat-box">
-                <div class="sv-stat-num" id="svStatAwaiting">--</div>
-                <div class="sv-stat-label">Awaiting Review</div>
-            </div>
-        </div>
-
-        <!-- Create Form -->
-        <div class="sv-create-section">
-            <div class="ms-section-header">
-                <div class="ms-section-cap"></div>
-                <span class="ms-section-title">Create Social Video</span>
-            </div>
-            <div class="sv-form-grid">
-                <div class="sv-form-row">
-                    <label class="sv-label">Content Type</label>
-                    <select id="svContentType" class="sv-select" onchange="svOnContentTypeChange()">
-                        <option value="agent_moment">Agent Moment</option>
-                        <option value="motivational">Motivational</option>
-                        <option value="employer_branding">Employer Branding</option>
-                        <option value="recruitment">Recruitment</option>
-                    </select>
-                </div>
-                <div class="sv-form-row" id="svAgentPickerRow">
-                    <label class="sv-label">Agent</label>
-                    <select id="svAgentPicker" class="sv-select">
-                        <option value="">Loading agents…</option>
-                    </select>
-                </div>
-                <div class="sv-form-row">
-                    <label class="sv-label">Template</label>
-                    <select id="svTemplate" class="sv-select" onchange="svPreviewTemplate()">
-                        <option value="">Select template…</option>
-                    </select>
-                </div>
-                <div class="sv-form-row">
-                    <label class="sv-label">Prompt</label>
-                    <textarea id="svPrompt" class="sv-textarea" rows="3" placeholder="Video prompt…"></textarea>
-                </div>
-                <div class="sv-form-row">
-                    <label class="sv-label">Caption</label>
-                    <textarea id="svCaption" class="sv-textarea" rows="2" placeholder="Post caption (leave blank for AI-generated)"></textarea>
-                </div>
-                <div class="sv-form-row">
-                    <label class="sv-label">Platforms</label>
-                    <div class="sv-platform-checks">
-                        <label class="sv-check-label"><input type="checkbox" name="svPlatform" value="instagram" checked> Instagram</label>
-                        <label class="sv-check-label"><input type="checkbox" name="svPlatform" value="facebook" checked> Facebook</label>
-                        <label class="sv-check-label"><input type="checkbox" name="svPlatform" value="indeed"> Indeed</label>
-                    </div>
-                </div>
-                <div class="sv-form-row">
-                    <label class="sv-label">Quality</label>
-                    <select id="svQuality" class="sv-select">
-                        <option value="draft">Draft — 256px (local)</option>
-                        <option value="standard" selected>Standard — 512px (cloud)</option>
-                        <option value="high">High — 768px (cloud)</option>
-                    </select>
-                </div>
-                <div class="sv-form-actions">
-                    <button class="ms-btn ms-btn-primary" onclick="svGenerate()">
-                        <i data-lucide="video" style="width:14px;height:14px;margin-right:6px;vertical-align:-2px;"></i>
-                        Generate Video
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Queue Section -->
-        <div class="sv-queue-section">
-            <div class="ms-section-header">
-                <div class="ms-section-cap"></div>
-                <span class="ms-section-title">Video Queue</span>
-            </div>
-            <div class="sv-filter-bar" id="svFilterBar">
-                <button class="sv-filter-btn active" onclick="svFilterQueue(this,'')">All</button>
-                <button class="sv-filter-btn" onclick="svFilterQueue(this,'ready')">Ready</button>
-                <button class="sv-filter-btn" onclick="svFilterQueue(this,'approved')">Approved</button>
-                <button class="sv-filter-btn" onclick="svFilterQueue(this,'scheduled')">Scheduled</button>
-                <button class="sv-filter-btn" onclick="svFilterQueue(this,'posted')">Posted</button>
-                <button class="sv-filter-btn" onclick="svFilterQueue(this,'generating')">Generating</button>
-            </div>
-            <div id="svQueueList" class="sv-queue-list">
-                <div class="sv-queue-empty">No items in queue.</div>
-            </div>
-        </div>
-
-                </div>
-                <div style="height: 6px !important; background: #14b8a6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
-            </div>
-        </div>
-      </div>
-    </div>
+    {% include 'tools/media_studio/_tab_social_video.html' %}
 
 </div><!-- /.ms-page -->
 
@@ -1464,6 +751,10 @@
      ================================================================ -->
 <script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script src="{{ url_for('static', filename='js/glass-nav.js') }}"></script>
+<script src="{{ url_for('media_studio_bp.static', filename='js/ms-dashboard.js') }}"></script>
+<script src="{{ url_for('media_studio_bp.static', filename='js/ms-gallery.js') }}"></script>
+<script src="{{ url_for('media_studio_bp.static', filename='js/ms-generate.js') }}"></script>
+<script src="{{ url_for('media_studio_bp.static', filename='js/ms-social-video.js') }}"></script>
 <script>
 (function() {
     "use strict";
@@ -1536,8 +827,12 @@
 
         history.replaceState(null, "", "#" + tabId);
 
-        if (tabId === "dashboard") loadDashboard();
-        else if (tabId === "gallery") { loadGallery(1); loadGalleryFacets(); loadCollections(); }
+        if (tabId === "dashboard") {
+            if (window.msDashboard) msDashboard.start();
+        }
+        else if (tabId === "gallery") {
+            if (window.msGallery) msGallery.init();
+        }
         else if (tabId === "queue") {
             loadQueueStats();
             loadQueueItems();
@@ -1545,76 +840,24 @@
             if (queuePollTimer) clearInterval(queuePollTimer);
             queuePollTimer = setInterval(function() { loadQueueStats(); loadQueueItems(); loadComfyQueue(); }, 10000);
         }
-        else if (tabId === "generate") { loadModels(); loadVideoProviders(); loadAudioVoices(); loadAudioProviders(); }
+        else if (tabId === "generate") {
+            if (window.msGenerate) msGenerate.init();
+        }
         else if (tabId === "portraits") loadPortraits();
-        else if (tabId === "social-video") initSocialVideo();
+        else if (tabId === "social-video") {
+            if (window.msSocialVideo) msSocialVideo.init();
+        }
 
         if (tabId !== "queue" && queuePollTimer) {
             clearInterval(queuePollTimer);
             queuePollTimer = null;
         }
-        if (tabId !== "dashboard" && _dashRefreshTimer) {
-            clearInterval(_dashRefreshTimer);
-            _dashRefreshTimer = null;
+        if (tabId !== "dashboard") {
+            if (window.msDashboard) msDashboard.stop();
         }
     };
 
     /* ── Dashboard ────────────────────────────────── */
-
-    var _dashRefreshTimer = null;
-    window.loadDashboard = function() {
-        api("GET", "/api/dashboard").then(function(data) {
-            document.getElementById("msStatTotal").textContent = formatNumber(data.total_generated);
-            document.getElementById("msStatImages").textContent = formatNumber(data.images);
-            document.getElementById("msStatVideos").textContent = formatNumber(data.videos);
-            document.getElementById("msStatQueue").textContent = formatNumber(data.queue_active);
-
-            renderRecent(data.recent || []);
-            renderFleet(data.fleet || []);
-            renderActiveJobs(data.active_jobs || []);
-        }).catch(function(err) {
-            console.error("Dashboard load failed:", err);
-        });
-        // Auto-refresh every 15s while on dashboard
-        if (!_dashRefreshTimer) {
-            _dashRefreshTimer = setInterval(window.loadDashboard, 15000);
-        }
-    };
-
-    function renderActiveJobs(jobs) {
-        var el = document.getElementById("msDashActiveJobs");
-        if (!el) return;
-        var section = document.getElementById("msDashActiveSection");
-        if (!jobs.length) {
-            if (section) section.style.display = "none";
-            return;
-        }
-        if (section) section.style.display = "block";
-        el.textContent = "";
-        jobs.forEach(function(job) {
-            var row = document.createElement("div");
-            row.style.cssText = "display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:5px;background:rgba(255,255,255,0.03);margin-bottom:5px;";
-            var spinner = document.createElement("span");
-            spinner.className = "ms-spinner";
-            spinner.style.cssText = "width:10px;height:10px;flex-shrink:0;border-width:2px;";
-            var name = document.createElement("span");
-            name.style.cssText = "font-family:'Antonio',sans-serif;font-size:0.78rem;letter-spacing:1px;color:var(--ms-accent,#00e5ff);min-width:120px;";
-            name.textContent = job.agent_name || "User";
-            var prompt = document.createElement("span");
-            prompt.style.cssText = "font-size:0.72rem;color:#777;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
-            prompt.textContent = (job.prompt || "").substring(0, 70);
-            var status = document.createElement("span");
-            status.style.cssText = "font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;padding:2px 7px;border-radius:3px;flex-shrink:0;";
-            var sColor = job.status === "generating" ? "rgba(34,197,94,0.15);color:#22c55e" : "rgba(251,191,36,0.15);color:#fbbf24";
-            status.style.cssText += "background:" + sColor + ";border:1px solid currentColor;opacity:0.8;";
-            status.textContent = job.status;
-            row.appendChild(spinner);
-            row.appendChild(name);
-            row.appendChild(prompt);
-            row.appendChild(status);
-            el.appendChild(row);
-        });
-    }
 
     function renderRecent(items) {
         var el = document.getElementById("msDashRecent");
@@ -3623,7 +2866,7 @@
                 }, 200);
             }
         } else {
-            loadDashboard();
+            if (window.msDashboard) msDashboard.start();
         }
     });
 

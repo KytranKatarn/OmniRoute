@@ -423,3 +423,84 @@ def get_queue_stats():
         "posted_this_week": posted_this_week,
         "monthly_cost": monthly_cost,
     }
+
+
+# ---------------------------------------------------------------------------
+# AutoShorts social_video_queue (separate from social_content_queue)
+# ---------------------------------------------------------------------------
+
+import psycopg2.extras
+from typing import Dict, List, Optional
+
+_VALID_SVQ_STATUSES = ("draft", "scheduled", "pending_approval", "posted")
+
+
+def svq_list(status: Optional[str] = None, limit: int = 20) -> List[Dict]:
+    """Return social_video_queue items ordered by creation date desc."""
+    with get_db_cursor() as (conn, cur):
+        if status:
+            cur.execute(
+                "SELECT * FROM social_video_queue WHERE status = %s " "ORDER BY created_at DESC LIMIT %s",
+                (status, limit),
+            )
+        else:
+            cur.execute(
+                "SELECT * FROM social_video_queue ORDER BY created_at DESC LIMIT %s",
+                (limit,),
+            )
+        rows = cur.fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        for k, v in d.items():
+            if hasattr(v, "isoformat"):
+                d[k] = v.isoformat()
+        result.append(d)
+    return result
+
+
+def svq_create(
+    title: str,
+    quote_text: str,
+    media_ids: List[int],
+    audio_mode: str,
+    platform: str,
+    scheduled_at: Optional[str],
+    user_id: int,
+) -> Dict:
+    """Insert a new social_video_queue item. Status is 'scheduled' if scheduled_at set, else 'draft'."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """INSERT INTO social_video_queue
+               (title, quote_text, media_ids, audio_mode, platform,
+                scheduled_at, status, created_by)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+               RETURNING id, status, created_at""",
+            (
+                title,
+                quote_text,
+                media_ids,
+                audio_mode,
+                platform,
+                scheduled_at,
+                "scheduled" if scheduled_at else "draft",
+                user_id,
+            ),
+        )
+        row = cur.fetchone()
+    d = dict(row)
+    if hasattr(d.get("created_at"), "isoformat"):
+        d["created_at"] = d["created_at"].isoformat()
+    return d
+
+
+def svq_update_status(item_id: int, status: str) -> bool:
+    """Update social_video_queue item status. Returns False if invalid status or item not found."""
+    if status not in _VALID_SVQ_STATUSES:
+        return False
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE social_video_queue SET status = %s WHERE id = %s",
+            (status, item_id),
+        )
+        return cur.rowcount > 0

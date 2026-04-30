@@ -281,3 +281,168 @@ def register_social_routes(bp, admin_required):
             )
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+    # ── S.I.G.N.A.L. Command Center ──────────────────────────────
+
+    @bp.route("/api/signal/overview")
+    @admin_required
+    def api_signal_overview():
+        """S.I.G.N.A.L. status, pending approvals, post stats."""
+        from database import get_db_cursor
+
+        try:
+            with get_db_cursor() as (_conn, cur):
+                cur.execute(
+                    "SELECT id, name, current_mood, stress_level, shift_state FROM agents WHERE name = %s",
+                    ("S.I.G.N.A.L.",),
+                )
+                agent = cur.fetchone()
+
+                cur.execute(
+                    "SELECT COUNT(*) AS cnt FROM autonomy_approval_queue WHERE action_type = 'linkedin_post' AND status = 'pending'"
+                )
+                pending_count = cur.fetchone()["cnt"]
+
+                cur.execute("SELECT COUNT(*) AS total FROM linkedin_post_log WHERE status = 'posted'")
+                total_posted = cur.fetchone()["total"]
+
+                cur.execute(
+                    "SELECT COUNT(*) AS week FROM linkedin_post_log WHERE status = 'posted' AND posted_at > NOW() - INTERVAL '7 days'"
+                )
+                week_posted = cur.fetchone()["week"]
+
+                cur.execute(
+                    "SELECT COUNT(*) AS cnt FROM linkedin_post_log WHERE post_type = 'personal' AND status = 'posted'"
+                )
+                personal_count = cur.fetchone()["cnt"]
+
+                cur.execute(
+                    "SELECT COUNT(*) AS cnt FROM linkedin_post_log WHERE post_type IN ('company','company_page') AND status = 'posted'"
+                )
+                company_count = cur.fetchone()["cnt"]
+
+            return jsonify(
+                {
+                    "agent": dict(agent) if agent else None,
+                    "pending_approvals": int(pending_count),
+                    "stats": {
+                        "total_posted": int(total_posted),
+                        "posted_this_week": int(week_posted),
+                        "personal_posts": int(personal_count),
+                        "company_posts": int(company_count),
+                    },
+                }
+            )
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/signal/post-log")
+    @admin_required
+    def api_signal_post_log():
+        """Recent posts from linkedin_post_log."""
+        from database import get_db_cursor
+
+        account = request.args.get("account", "personal")
+        limit = min(int(request.args.get("limit", 30)), 100)
+        post_type_filter = "personal" if account == "personal" else "company"
+        try:
+            with get_db_cursor() as (_conn, cur):
+                cur.execute(
+                    """SELECT id, content, hashtags, post_type, post_url, status,
+                              impressions, reactions, comments, shares, posted_at, created_at
+                       FROM linkedin_post_log
+                       WHERE post_type ILIKE %s
+                       ORDER BY posted_at DESC
+                       LIMIT %s""",
+                    (f"%{post_type_filter}%", limit),
+                )
+                posts = [dict(r) for r in cur.fetchall()]
+            for p in posts:
+                for k in ("posted_at", "created_at"):
+                    if p.get(k):
+                        p[k] = p[k].isoformat()
+            return jsonify({"posts": posts, "account": account})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/signal/hashtag-stats")
+    @admin_required
+    def api_signal_hashtag_stats():
+        """Hashtag performance from linkedin_hashtag_stats."""
+        from database import get_db_cursor
+
+        limit = min(int(request.args.get("limit", 30)), 100)
+        try:
+            with get_db_cursor() as (_conn, cur):
+                cur.execute(
+                    """SELECT hashtag, usage_count, avg_engagement, total_impressions, last_used
+                       FROM linkedin_hashtag_stats
+                       ORDER BY usage_count DESC, hashtag ASC
+                       LIMIT %s""",
+                    (limit,),
+                )
+                tags = [dict(r) for r in cur.fetchall()]
+            for t in tags:
+                if t.get("last_used"):
+                    t["last_used"] = t["last_used"].isoformat()
+                if t.get("avg_engagement") is not None:
+                    t["avg_engagement"] = float(t["avg_engagement"])
+            return jsonify({"hashtags": tags})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/signal/pending-approvals")
+    @admin_required
+    def api_signal_pending_approvals():
+        """Pending linkedin_post items from the approval queue."""
+        from database import get_db_cursor
+
+        try:
+            with get_db_cursor() as (_conn, cur):
+                cur.execute(
+                    """SELECT id, action_type, action_data, reason, requested_by, priority, created_at
+                       FROM autonomy_approval_queue
+                       WHERE action_type = 'linkedin_post' AND status = 'pending'
+                       ORDER BY priority DESC, created_at ASC
+                       LIMIT 20""",
+                )
+                rows = [dict(r) for r in cur.fetchall()]
+            for r in rows:
+                if r.get("created_at"):
+                    r["created_at"] = r["created_at"].isoformat()
+            return jsonify({"approvals": rows})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/signal/compose", methods=["POST"])
+    @admin_required
+    def api_signal_compose():
+        """UI → S.I.G.N.A.L. announce proxy (avoids exposing API key to browser)."""
+        import json as _json
+        import os
+        import urllib.error
+        import urllib.request
+
+        data = request.get_json(silent=True) or {}
+        payload = _json.dumps(
+            {
+                "announcement": (data.get("announcement") or "").strip(),
+                "tone": data.get("tone", "professional"),
+                "post_type": data.get("post_type", "personal"),
+                "hashtags": data.get("hashtags", []),
+                "priority": int(data.get("priority", 6)),
+            }
+        ).encode()
+        api_key = os.getenv("ARCHIE_API_KEY", "dev-api-key-change-in-production")
+        req = urllib.request.Request(
+            "http://localhost:3000/api/signal/announce",
+            data=payload,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                return jsonify(_json.loads(r.read())), r.status
+        except urllib.error.HTTPError as e:
+            return jsonify({"error": e.read().decode()}), e.code
+        except Exception as e:
+            return jsonify({"error": str(e)}), 502

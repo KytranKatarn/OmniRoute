@@ -1901,3 +1901,129 @@
 .sev-high     { color: #f97316; }
 .sev-warning  { color: #f59e0b; }
 .sev-info, .sev-low { color: #64748b; }
+
+/* ── S.I.G.N.A.L. Command Center ─────────────────────────────── */
+.signal-accounts {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.signal-acct-btn {
+  padding: 6px 14px; border-radius: 20px; border: 1.5px solid rgba(232,121,249,0.4);
+  background: transparent; color: #e879f9; font-family: 'Antonio', sans-serif;
+  font-size: 0.8rem; letter-spacing: 1px; cursor: pointer; transition: all .15s;
+}
+.signal-acct-btn:hover { background: rgba(232,121,249,0.1); }
+.signal-acct-btn.active { background: #e879f9; color: #010409; border-color: #e879f9; }
+.signal-acct-btn.signal-acct-soon { opacity: 0.4; cursor: not-allowed; }
+.signal-soon-badge {
+  font-size: 0.6rem; background: rgba(255,255,255,0.15); padding: 1px 5px;
+  border-radius: 4px; margin-left: 4px; letter-spacing: 1px;
+}
+
+.signal-subtabs {
+  display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid rgba(232,121,249,0.2);
+  margin-bottom: 16px; padding-bottom: 0;
+}
+.signal-sub {
+  padding: 6px 14px; background: transparent; border: none;
+  border-bottom: 2px solid transparent; color: var(--archie-muted, #64748b);
+  font-size: 0.78rem; letter-spacing: 0.5px; cursor: pointer; transition: all .15s;
+  margin-bottom: -1px; position: relative;
+}
+.signal-sub:hover { color: #e879f9; }
+.signal-sub.active { color: #e879f9; border-bottom-color: #e879f9; }
+.signal-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #ef4444; color: #fff; border-radius: 10px; font-size: 0.65rem;
+  min-width: 16px; height: 16px; padding: 0 4px; margin-left: 4px; font-weight: 700;
+}
+
+/* Overview grid */
+.signal-overview-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.signal-card {
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(232,121,249,0.15);
+  border-radius: 8px; padding: 14px 16px;
+}
+.signal-card-wide { grid-column: 1 / -1; }
+.signal-card-title {
+  font-family: 'Antonio', sans-serif; letter-spacing: 1.5px; font-size: 0.7rem;
+  text-transform: uppercase; color: #e879f9; margin-bottom: 4px;
+}
+.signal-big-stat { font-size: 2.2rem; font-weight: 700; line-height: 1.1; }
+.signal-stat-sub { font-size: 0.7rem; color: var(--archie-muted, #64748b); margin-top: 2px; }
+.signal-agent-row { font-size: 0.78rem; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* Content calendar */
+.signal-calendar {
+  display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;
+}
+.signal-cal-day {
+  flex: 1; min-width: 52px; text-align: center; padding: 8px 4px;
+  border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+}
+.signal-cal-day.signal-cal-active { border-color: rgba(232,121,249,0.3); background: rgba(232,121,249,0.07); }
+.signal-cal-day.signal-cal-today { border-color: #e879f9; box-shadow: 0 0 6px rgba(232,121,249,0.3); }
+.signal-cal-label { font-family: 'Antonio', sans-serif; font-size: 0.7rem; letter-spacing: 1px; color: var(--archie-muted, #64748b); }
+.signal-cal-theme { font-size: 0.65rem; color: #e879f9; margin-top: 4px; line-height: 1.3; }
+.signal-cal-off { font-size: 0.7rem; color: rgba(255,255,255,0.15); margin-top: 4px; }
+
+/* Compose */
+.signal-compose { max-width: 720px; }
+.signal-compose-header { font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; }
+.signal-compose-note {
+  font-size: 0.75rem; color: var(--archie-muted, #64748b); margin-bottom: 12px; line-height: 1.5;
+}
+.signal-compose-row { display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.signal-compose-field { display: flex; flex-direction: column; gap: 4px; }
+.signal-field-label { font-size: 0.7rem; color: var(--archie-muted, #64748b); letter-spacing: 0.5px; }
+.signal-compose-success {
+  background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25);
+  border-radius: 6px; padding: 12px;
+}
+.signal-compose-preview {
+  font-size: 0.78rem; color: var(--archie-text, #e2e8f0); white-space: pre-wrap;
+  line-height: 1.5; max-height: 200px; overflow-y: auto; margin-top: 6px;
+}
+
+/* Post Log */
+.signal-post-log { display: flex; flex-direction: column; gap: 10px; }
+.signal-post-row { display: flex; gap: 10px; align-items: flex-start; }
+.signal-post-dot { font-size: 0.8rem; margin-top: 2px; flex-shrink: 0; }
+.signal-post-body { flex: 1; min-width: 0; }
+.signal-post-content {
+  font-size: 0.8rem; line-height: 1.5; color: var(--archie-text, #e2e8f0);
+  white-space: pre-wrap; word-break: break-word;
+}
+.signal-post-meta { font-size: 0.7rem; color: var(--archie-muted, #64748b); margin-top: 4px; }
+
+/* Pending */
+.signal-pending-list { display: flex; flex-direction: column; gap: 14px; }
+.signal-pending-card {
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(251,191,36,0.2);
+  border-radius: 8px; padding: 14px;
+}
+.signal-pending-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.signal-pending-from { font-size: 0.75rem; color: #e879f9; font-family: 'Antonio', sans-serif; letter-spacing: 1px; }
+.signal-pending-time { font-size: 0.7rem; color: var(--archie-muted, #64748b); }
+.signal-pending-content {
+  font-size: 0.8rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+  max-height: 280px; overflow-y: auto; margin-bottom: 12px;
+  color: var(--archie-text, #e2e8f0);
+}
+.signal-pending-actions { display: flex; gap: 8px; }
+
+/* Hashtags */
+.signal-hashtag-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.signal-hashtag-table th {
+  text-align: left; padding: 6px 10px; border-bottom: 1px solid rgba(232,121,249,0.2);
+  font-family: 'Antonio', sans-serif; letter-spacing: 1px; font-size: 0.7rem;
+  color: #e879f9; font-weight: 500;
+}
+.signal-hashtag-table td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.signal-hashtag-table tr:hover td { background: rgba(255,255,255,0.03); }
+.signal-tag {
+  display: inline-block; background: rgba(232,121,249,0.12); color: #e879f9;
+  border-radius: 4px; padding: 2px 6px; font-size: 0.75rem;
+}

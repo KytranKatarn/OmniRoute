@@ -1451,51 +1451,299 @@ async function publishPost(postId, agentId) {
 // Social Feed (global tab)
 // ───────────────────────────────────────────────────────────────
 
+// ── S.I.G.N.A.L. Command Center state ───────────────────────────
+var signalAccount = 'personal';
+var signalTab = 'overview';
+
 async function loadSocialFeed() {
     var el = document.getElementById('socialFeedContent');
     if (!el) return;
+    loaded['social'] = true;
+    setHtml(el, renderSignalShell());
+    await loadSignalTab('overview');
+    loadSignalPendingBadge();
+}
+
+function renderSignalShell() {
+    return '<div class="signal-accounts">'
+        + '<button class="signal-acct-btn active" data-account="personal" onclick="switchSignalAccount(\'personal\')">👤 Kytran Katarn</button>'
+        + '<button class="signal-acct-btn" data-account="company" onclick="switchSignalAccount(\'company\')">🏢 Kytran Empowerment Inc.</button>'
+        + '<button class="signal-acct-btn signal-acct-soon" disabled>🔒 Creed-AI <span class="signal-soon-badge">SOON</span></button>'
+        + '</div>'
+        + '<div class="signal-subtabs">'
+        + '<button class="signal-sub active" data-sub="overview" onclick="switchSignalTab(\'overview\')">Overview</button>'
+        + '<button class="signal-sub" data-sub="compose" onclick="switchSignalTab(\'compose\')">✏ Compose</button>'
+        + '<button class="signal-sub" data-sub="postlog" onclick="switchSignalTab(\'postlog\')">Post Log</button>'
+        + '<button class="signal-sub" data-sub="pending" onclick="switchSignalTab(\'pending\')">Pending <span id="signalPendingBadge" class="signal-badge" style="display:none">0</span></button>'
+        + '<button class="signal-sub" data-sub="hashtags" onclick="switchSignalTab(\'hashtags\')">Hashtags</button>'
+        + '</div>'
+        + '<div id="signalContent" class="dhq-loading" style="min-height:200px">Loading...</div>';
+}
+
+function switchSignalAccount(account) {
+    signalAccount = account;
+    document.querySelectorAll('.signal-acct-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.account === account);
+    });
+    loadSignalTab(signalTab);
+}
+
+function switchSignalTab(tab) {
+    signalTab = tab;
+    document.querySelectorAll('.signal-sub').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.sub === tab);
+    });
+    loadSignalTab(tab);
+}
+
+async function loadSignalTab(tab) {
+    var el = document.getElementById('signalContent');
+    if (!el) return;
+    setHtml(el, '<div class="dhq-loading" style="padding:24px">Loading...</div>');
     try {
-        var feedResp = await api('/api/social/feed?limit=30');
-        var statsResp = await api('/api/social/stats');
-        loaded['social'] = true;
-
-        var stats = statsResp;
-        var posts = feedResp.posts || [];
-
-        var html = '<div class="dhq-social-stats-bar">'
-            + '<span class="dhq-stat"><span class="dhq-stat-val">' + stats.agents_with_profiles + '</span> Agents with Profiles</span>'
-            + '<span class="dhq-stat"><span class="dhq-stat-val">' + stats.total_profiles + '</span> Profiles</span>'
-            + '<span class="dhq-stat"><span class="dhq-stat-val">' + stats.platforms_used + '</span> Platforms</span>'
-            + '<span class="dhq-stat"><span class="dhq-stat-val">' + stats.posts_this_week + '</span> Posts (7d)</span>'
-            + '<span class="dhq-stat"><span class="dhq-stat-val">' + stats.total_published + '</span> Published</span>'
-            + '</div>';
-
-        if (posts.length === 0) {
-            html += '<div class="dhq-empty">No posts yet. Open an agent profile and generate content.</div>';
-        } else {
-            html += '<div class="dhq-social-feed">';
-            for (var i = 0; i < posts.length; i++) {
-                var p = posts[i];
-                html += '<div class="dhq-social-feed-card">'
-                    + '<div class="dhq-social-feed-header">'
-                    + '<span class="dhq-social-feed-author dhq-clickable" onclick="openAgentDetail(' + p.agent_id + ')">'
-                    + esc(p.display_name || p.name) + '</span>'
-                    + '<span class="dhq-social-feed-dept">' + esc(p.department) + '</span>'
-                    + '<span class="dhq-social-post-status dhq-status-' + esc(p.status) + '">' + esc(p.status) + '</span>'
-                    + '</div>'
-                    + '<div class="dhq-social-feed-body">' + esc(p.content) + '</div>'
-                    + '<div class="dhq-social-feed-footer">'
-                    + (p.platform ? esc(p.platform) + ' &middot; ' : '')
-                    + fmtTime(p.created_at)
-                    + '</div></div>';
-            }
-            html += '</div>';
+        switch (tab) {
+            case 'overview':  await renderSignalOverview(el);  break;
+            case 'compose':   renderSignalCompose(el);          break;
+            case 'postlog':   await renderSignalPostLog(el);   break;
+            case 'pending':   await renderSignalPending(el);   break;
+            case 'hashtags':  await renderSignalHashtags(el);  break;
         }
-
-        setHtml(el, html);
     } catch (err) {
-        setHtml(el, '<div class="dhq-empty">Error loading social feed: ' + esc(err.message) + '</div>');
+        setHtml(el, '<div class="dhq-empty">Error: ' + esc(err.message) + '</div>');
     }
+}
+
+async function loadSignalPendingBadge() {
+    try {
+        var data = await api('/api/signal/pending-approvals');
+        var count = (data.approvals || []).length;
+        var badge = document.getElementById('signalPendingBadge');
+        if (badge) {
+            badge.textContent = count;
+            badge.style.display = count > 0 ? 'inline-flex' : 'none';
+        }
+    } catch (e) {}
+}
+
+async function renderSignalOverview(el) {
+    var data = await api('/api/signal/overview');
+    var agent = data.agent || {};
+    var stats = data.stats || {};
+    var accountPosts = signalAccount === 'company' ? stats.company_posts : stats.personal_posts;
+    var moodColors = { happy: '#10b981', focused: '#3b82f6', stressed: '#ef4444', neutral: '#9ca3af', curious: '#8b5cf6', tired: '#f59e0b' };
+    var moodColor = moodColors[agent.current_mood] || '#9ca3af';
+    var isActive = agent.shift_state === 'active';
+    var shiftBadge = isActive
+        ? '<span class="sc-live" style="color:#10b981;font-size:0.75rem">● ACTIVE</span>'
+        : '<span style="color:#9ca3af;font-size:0.75rem">● ' + esc((agent.shift_state || 'unknown').toUpperCase()) + '</span>';
+
+    var html = '<div class="signal-overview-grid">'
+        + '<div class="signal-card signal-card-agent">'
+        +   '<div class="signal-card-title">S.I.G.N.A.L.</div>'
+        +   '<div class="signal-agent-row" style="margin-top:6px">' + shiftBadge + ' &nbsp;&middot;&nbsp; Mood: <span style="color:' + moodColor + '">' + esc(agent.current_mood || '—') + '</span></div>'
+        +   '<div style="margin-top:4px;font-size:0.7rem;opacity:0.55;font-family:\'IBM Plex Mono\',monospace">Marketing &amp; Communications · Content Strategist</div>'
+        +   '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'
+        +     '<button class="dhq-action-btn" onclick="switchSignalTab(\'compose\')">✏ Draft Post</button>'
+        +     '<button class="dhq-action-btn" onclick="switchSignalTab(\'pending\')">⏳ Pending (' + (data.pending_approvals || 0) + ')</button>'
+        +   '</div>'
+        + '</div>'
+
+        + '<div class="signal-card">'
+        +   '<div class="signal-card-title">This Week</div>'
+        +   '<div class="signal-big-stat">' + (stats.posted_this_week || 0) + '</div>'
+        +   '<div class="signal-stat-sub">Posts published</div>'
+        + '</div>'
+
+        + '<div class="signal-card">'
+        +   '<div class="signal-card-title">' + esc(signalAccount === 'company' ? 'KE Inc.' : 'Kytran Katarn') + '</div>'
+        +   '<div class="signal-big-stat">' + (accountPosts || 0) + '</div>'
+        +   '<div class="signal-stat-sub">Total posted</div>'
+        + '</div>'
+
+        + '<div class="signal-card" style="cursor:pointer" onclick="switchSignalTab(\'pending\')">'
+        +   '<div class="signal-card-title">Pending</div>'
+        +   '<div class="signal-big-stat" style="color:' + ((data.pending_approvals || 0) > 0 ? '#fbbf24' : '#10b981') + '">' + (data.pending_approvals || 0) + '</div>'
+        +   '<div class="signal-stat-sub">Awaiting approval</div>'
+        + '</div>'
+
+        + '<div class="signal-card signal-card-wide">'
+        +   '<div class="signal-card-title">Content Calendar</div>'
+        +   renderSignalCalendar()
+        + '</div>'
+        + '</div>';
+
+    setHtml(el, html);
+}
+
+function renderSignalCalendar() {
+    var days = [
+        { day: 'MON', theme: 'AI & Tech Insights', active: true },
+        { day: 'TUE', theme: null, active: false },
+        { day: 'WED', theme: 'Business Growth', active: true },
+        { day: 'THU', theme: null, active: false },
+        { day: 'FRI', theme: 'Community Wins', active: true },
+        { day: 'SAT', theme: null, active: false },
+        { day: 'SUN', theme: null, active: false },
+    ];
+    var dayMap = [6, 0, 1, 2, 3, 4, 5]; // Sun=0 → idx 6
+    var todayIdx = dayMap[new Date().getDay()];
+    var html = '<div class="signal-calendar">';
+    for (var i = 0; i < days.length; i++) {
+        var d = days[i];
+        var cls = 'signal-cal-day' + (d.active ? ' signal-cal-active' : '') + (i === todayIdx ? ' signal-cal-today' : '');
+        html += '<div class="' + cls + '">'
+            + '<div class="signal-cal-label">' + d.day + '</div>'
+            + (d.active ? '<div class="signal-cal-theme">' + esc(d.theme) + '</div>' : '<div class="signal-cal-off">—</div>')
+            + '</div>';
+    }
+    return html + '</div>';
+}
+
+function renderSignalCompose(el) {
+    var label = signalAccount === 'company' ? 'Kytran Empowerment Inc.' : 'Kytran Katarn';
+    var html = '<div class="signal-compose">'
+        + '<div class="signal-compose-header">Draft a LinkedIn post for <strong>' + esc(label) + '</strong></div>'
+        + '<div class="signal-compose-note">Describe what to announce in plain language. S.I.G.N.A.L. drafts the post and sends it to Telegram for your approval before anything goes live.</div>'
+        + '<textarea id="signalAnnouncement" class="dhq-textarea" rows="5" placeholder="e.g. We just launched the self-healing pipeline. It reviewed 50 proposals and auto-deployed 12 this week..."></textarea>'
+        + '<div class="signal-compose-row">'
+        +   '<div class="signal-compose-field"><label class="signal-field-label">Tone</label>'
+        +   '<select id="signalTone" class="dhq-select">'
+        +     '<option value="professional">Professional</option>'
+        +     '<option value="casual">Casual</option>'
+        +     '<option value="bold">Bold</option>'
+        +   '</select></div>'
+        +   '<div class="signal-compose-field"><label class="signal-field-label">Priority</label>'
+        +   '<select id="signalPriority" class="dhq-select">'
+        +     '<option value="6">Normal</option>'
+        +     '<option value="8">Urgent</option>'
+        +     '<option value="10">Critical</option>'
+        +   '</select></div>'
+        + '</div>'
+        + '<div id="signalComposeResult" style="display:none;margin-top:12px"></div>'
+        + '<div style="margin-top:12px;display:flex;gap:8px">'
+        +   '<button class="dhq-action-btn dhq-action-primary" onclick="submitSignalCompose()">Send to S.I.G.N.A.L. →</button>'
+        +   '<button class="dhq-action-btn" onclick="document.getElementById(\'signalAnnouncement\').value=\'\'">Clear</button>'
+        + '</div>'
+        + '</div>';
+    setHtml(el, html);
+}
+
+async function submitSignalCompose() {
+    var announcement = (document.getElementById('signalAnnouncement').value || '').trim();
+    if (!announcement) { alert('Please describe what you want to announce.'); return; }
+    var resultEl = document.getElementById('signalComposeResult');
+    resultEl.style.display = 'block';
+    setHtml(resultEl, '<div class="dhq-loading" style="padding:8px">S.I.G.N.A.L. is drafting your post...</div>');
+    try {
+        var resp = await apiPost('/api/signal/compose', {
+            announcement: announcement,
+            tone: document.getElementById('signalTone').value,
+            post_type: signalAccount === 'company' ? 'company' : 'personal',
+            priority: parseInt(document.getElementById('signalPriority').value),
+        });
+        setHtml(resultEl, '<div class="signal-compose-success">'
+            + '<div style="color:#10b981;font-weight:600;margin-bottom:8px">✓ Queued for Telegram approval</div>'
+            + '<div class="signal-compose-preview">' + esc(resp.preview || '') + '</div>'
+            + '</div>');
+        document.getElementById('signalAnnouncement').value = '';
+        loadSignalPendingBadge();
+    } catch (err) {
+        setHtml(resultEl, '<div style="color:#ef4444;padding:8px">Error: ' + esc(err.message) + '</div>');
+    }
+}
+
+async function renderSignalPostLog(el) {
+    var data = await api('/api/signal/post-log?account=' + signalAccount + '&limit=30');
+    var posts = data.posts || [];
+    if (posts.length === 0) {
+        setHtml(el, '<div class="dhq-empty">No posts logged for ' + esc(signalAccount === 'company' ? 'Kytran Empowerment Inc.' : 'Kytran Katarn') + ' yet. Content calendar fires Mon/Wed/Fri at 9 AM ET.</div>');
+        return;
+    }
+    var html = '<div class="signal-post-log">';
+    for (var i = 0; i < posts.length; i++) {
+        var p = posts[i];
+        var sc = p.status === 'posted' ? '#10b981' : p.status === 'failed' ? '#ef4444' : '#9ca3af';
+        var engagement = [];
+        if (p.impressions) engagement.push(p.impressions + ' impressions');
+        if (p.reactions)   engagement.push(p.reactions + ' reactions');
+        if (p.comments)    engagement.push(p.comments + ' comments');
+        if (p.shares)      engagement.push(p.shares + ' shares');
+        html += '<div class="signal-post-row">'
+            + '<div class="signal-post-dot" style="color:' + sc + '">●</div>'
+            + '<div class="signal-post-body">'
+            +   '<div class="signal-post-content">' + esc((p.content || '').substring(0, 180)) + ((p.content || '').length > 180 ? '…' : '') + '</div>'
+            +   '<div class="signal-post-meta">' + fmtTime(p.posted_at) + (engagement.length ? ' · ' + engagement.join(' · ') : '') + '</div>'
+            + '</div>'
+            + '</div>';
+    }
+    setHtml(el, html + '</div>');
+}
+
+async function renderSignalPending(el) {
+    var data = await api('/api/signal/pending-approvals');
+    var approvals = data.approvals || [];
+    if (approvals.length === 0) {
+        setHtml(el, '<div class="dhq-empty">No pending LinkedIn posts — S.I.G.N.A.L. is all clear.</div>');
+        return;
+    }
+    var html = '<div class="signal-pending-list">';
+    for (var i = 0; i < approvals.length; i++) {
+        var a = approvals[i];
+        var content = (a.action_data || {}).content || a.reason || '';
+        html += '<div class="signal-pending-card">'
+            + '<div class="signal-pending-header">'
+            +   '<span class="signal-pending-from">' + esc(a.requested_by || 'S.I.G.N.A.L.') + '</span>'
+            +   '<span class="signal-pending-time">' + fmtTime(a.created_at) + '</span>'
+            + '</div>'
+            + '<div class="signal-pending-content">' + esc(content) + '</div>'
+            + '<div class="signal-pending-actions">'
+            +   '<button class="dhq-action-btn dhq-action-primary" onclick="approveSignalPost(' + a.id + ')">✓ Approve &amp; Post</button>'
+            +   '<button class="dhq-action-btn dhq-action-danger" onclick="denySignalPost(' + a.id + ')">✗ Deny</button>'
+            + '</div>'
+            + '</div>';
+    }
+    setHtml(el, html + '</div>');
+}
+
+async function approveSignalPost(approvalId) {
+    try {
+        await apiPost('/api/approvals/autonomy:' + approvalId + '/approve', {});
+        loadSignalTab('pending');
+        loadSignalPendingBadge();
+    } catch (err) { alert('Error: ' + err.message); }
+}
+
+async function denySignalPost(approvalId) {
+    var reason = prompt('Reason for denial (helps S.I.G.N.A.L. learn your style):');
+    if (reason === null) return;
+    try {
+        await apiPost('/api/approvals/autonomy:' + approvalId + '/deny', { reason: reason });
+        loadSignalTab('pending');
+        loadSignalPendingBadge();
+    } catch (err) { alert('Error: ' + err.message); }
+}
+
+async function renderSignalHashtags(el) {
+    var data = await api('/api/signal/hashtag-stats');
+    var tags = data.hashtags || [];
+    if (tags.length === 0) {
+        setHtml(el, '<div class="dhq-empty">No hashtag data yet.</div>');
+        return;
+    }
+    var html = '<table class="signal-hashtag-table"><thead><tr>'
+        + '<th>Hashtag</th><th>Uses</th><th>Avg Engagement</th><th>Impressions</th><th>Last Used</th>'
+        + '</tr></thead><tbody>';
+    for (var i = 0; i < tags.length; i++) {
+        var t = tags[i];
+        html += '<tr>'
+            + '<td><span class="signal-tag">#' + esc(t.hashtag) + '</span></td>'
+            + '<td>' + (t.usage_count || 0) + '</td>'
+            + '<td>' + (t.avg_engagement ? parseFloat(t.avg_engagement).toFixed(1) : '—') + '</td>'
+            + '<td>' + (t.total_impressions || 0) + '</td>'
+            + '<td>' + (t.last_used ? fmtTime(t.last_used) : '—') + '</td>'
+            + '</tr>';
+    }
+    setHtml(el, html + '</tbody></table>');
 }
 
 // ───────────────────────────────────────────────────────────────

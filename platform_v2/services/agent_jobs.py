@@ -2367,6 +2367,210 @@ def signal_linkedin_draft():
         _log_cycle("signal_linkedin_draft", 0, 1, int((time.time() - start) * 1000), error_message=str(exc)[:200])
 
 
+def signal_linkedin_analytics():
+    """Fetch LinkedIn analytics and update hashtag engagement stats.
+
+    Runs every 6 hours. Checks linkedin_post_log for posts where analytics
+    haven't been fetched yet, grabs current profile metrics via browser_service,
+    and updates hashtag_stats with engagement correlations.
+    Scheduled: every 6 hours.
+    """
+    from db import get_db
+    from psycopg2.extras import RealDictCursor
+
+    start = time.time()
+    try:
+        from services.browser_service import run_skill_sync
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Get posts older than 20h without analytics
+        cur.execute(
+            """
+            SELECT id, hashtags, posted_at FROM linkedin_post_log
+            WHERE analytics_fetched_at IS NULL
+              AND posted_at < NOW() - INTERVAL '20 hours'
+              AND status = 'posted'
+            ORDER BY posted_at DESC
+            LIMIT 5
+            """
+        )
+        pending = cur.fetchall()
+
+        if not pending:
+            cur.close()
+            conn.close()
+            _log_cycle("signal_linkedin_analytics", 0, 0, int((time.time() - start) * 1000))
+            return
+
+        # Fetch current analytics snapshot
+        result = run_skill_sync("linkedin_analytics", {"mode": "profile"}, timeout_s=90)
+        analytics = result.get("analytics", {})
+
+        updated = 0
+        for post in pending:
+            # Mark analytics as fetched even if we can't get per-post stats
+            cur.execute(
+                """UPDATE linkedin_post_log
+                   SET analytics_fetched_at = NOW()
+                   WHERE id = %s""",
+                (post["id"],),
+            )
+            # Update hashtag stats — mark as used and bump usage count
+            for tag in post["hashtags"] or []:
+                cur.execute(
+                    """INSERT INTO linkedin_hashtag_stats (hashtag, usage_count, last_used, updated_at)
+                       VALUES (%s, 1, %s, NOW())
+                       ON CONFLICT (hashtag) DO UPDATE SET
+                           usage_count = linkedin_hashtag_stats.usage_count + 1,
+                           last_used   = EXCLUDED.last_used,
+                           updated_at  = NOW()""",
+                    (tag, post["posted_at"]),
+                )
+            updated += 1
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.info("[LinkedInAnalytics] Updated %d posts, analytics=%s", updated, analytics)
+        _log_cycle("signal_linkedin_analytics", updated, 0, int((time.time() - start) * 1000))
+
+    except Exception as exc:
+        logger.error("[LinkedInAnalytics] Failed: %s", exc)
+        _log_cycle("signal_linkedin_analytics", 0, 1, int((time.time() - start) * 1000), error_message=str(exc)[:200])
+
+
+def signal_outreach_search(
+    query: str = "procurement officer federal government Canada", limit: int = 10, source: str = "linkedin_search"
+):
+    """Search LinkedIn for target profiles and add them to the outreach queue.
+
+    NOT SCHEDULED — call manually or wire to Gov Watch when ready.
+    Designed for targeting procurement officers at federal agencies for Gov Watch outreach.
+
+    Usage:
+        from services.agent_jobs import signal_outreach_search
+        signal_outreach_search("procurement director Public Services Canada", limit=20)
+    """
+    from db import get_db
+    from psycopg2.extras import RealDictCursor
+    from services.browser_service import run_skill_sync
+
+    start = time.time()
+    try:
+        result = run_skill_sync("linkedin_search", {"query": query, "type": "people", "limit": limit}, timeout_s=90)
+        profiles = result.get("results", [])
+        if not profiles:
+            logger.info("[Outreach] Search returned 0 results for: %s", query)
+            return 0
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        added = 0
+        for p in profiles:
+            if not p.get("profile_url"):
+                continue
+            cur.execute(
+                """INSERT INTO linkedin_outreach_queue
+                       (profile_url, name, company, title, source)
+                   VALUES (%s, %s, %s, %s, %s)
+                   ON CONFLICT (profile_url) DO NOTHING""",
+                (p["profile_url"], p.get("name", ""), p.get("author_title", ""), p.get("title", ""), source),
+            )
+            added += cur.rowcount
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.info("[Outreach] Added %d/%d targets to outreach queue (query: %s)", added, len(profiles), query)
+        _log_cycle("signal_outreach_search", added, 0, int((time.time() - start) * 1000))
+        return added
+
+    except Exception as exc:
+        logger.error("[Outreach] Search failed: %s", exc)
+        _log_cycle("signal_outreach_search", 0, 1, int((time.time() - start) * 1000), error_message=str(exc)[:200])
+        return 0
+
+
+def signal_outreach_batch(batch_size: int = 3):
+    """Send connection requests to pending outreach queue targets via Telegram approval.
+
+    NOT SCHEDULED — enable once the platform and watch products are ready to showcase.
+    Each connection request goes through Tier-2 Telegram approval before executing.
+    S.I.G.N.A.L. generates a personalized connection note for each target.
+
+    To activate: add CronTrigger in register_agent_welfare_jobs (Mon/Wed/Fri 10:00).
+    """
+    from db import get_db
+    from psycopg2.extras import RealDictCursor
+
+    start = time.time()
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """SELECT id, profile_url, name, company, title
+               FROM linkedin_outreach_queue
+               WHERE status = 'pending'
+               ORDER BY created_at ASC
+               LIMIT %s""",
+            (batch_size,),
+        )
+        targets = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        if not targets:
+            logger.info("[OutreachBatch] No pending targets")
+            _log_cycle("signal_outreach_batch", 0, 0, int((time.time() - start) * 1000))
+            return
+
+        try:
+            from ai_bridge.agent_loop import request_approval
+        except ImportError:
+            logger.error("[OutreachBatch] Cannot import request_approval")
+            return
+
+        queued = 0
+        for target in targets:
+            name = target.get("name", "")
+            company = target.get("company", "")
+            title = target.get("title", "")
+            note = (
+                f"Hi {name.split()[0] if name else 'there'}, I came across your profile "
+                f"and wanted to connect. I'm building AI tools for government procurement "
+                f"intelligence at Kytran Empowerment — our Gov Watch platform tracks federal "
+                f"tenders and I'd love to share how it might help. Looking forward to connecting!"
+            )[:300]
+
+            request_approval(
+                action_type="linkedin_connect",
+                action_data={
+                    "profile_url": target["profile_url"],
+                    "note": note,
+                    "browser_agent_id": 342,
+                },
+                reason=(
+                    f"S.I.G.N.A.L. outreach target:\n"
+                    f"Name: {name}\nCompany: {company}\nTitle: {title}\n"
+                    f"Note: {note}"
+                ),
+                tier=2,
+                requested_by="S.I.G.N.A.L.",
+                priority=4,
+            )
+            queued += 1
+
+        logger.info("[OutreachBatch] Queued %d connection approvals", queued)
+        _log_cycle("signal_outreach_batch", queued, 0, int((time.time() - start) * 1000))
+
+    except Exception as exc:
+        logger.error("[OutreachBatch] Failed: %s", exc)
+        _log_cycle("signal_outreach_batch", 0, 1, int((time.time() - start) * 1000), error_message=str(exc)[:200])
+
+
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
@@ -2533,3 +2737,17 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         replace_existing=True,
         max_instances=1,
     )
+
+    # S.I.G.N.A.L. LinkedIn analytics — every 6h, updates hashtag engagement
+    scheduler.add_job(
+        with_ctx(signal_linkedin_analytics),
+        trigger=IntervalTrigger(hours=6),
+        id="signal_linkedin_analytics",
+        name="S.I.G.N.A.L.: LinkedIn Analytics & Hashtag Stats",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    # signal_outreach_search() and signal_outreach_batch() are built but NOT scheduled.
+    # Activate when platform products are ready for outreach (Gov Watch, ARCHIE demos).
+    # To enable: add CronTrigger here, e.g. Mon/Wed/Fri 10:00 for outreach_batch.

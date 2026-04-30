@@ -264,8 +264,9 @@ def api_gallery():
 
             items = [_serialize_row(row) for row in cur.fetchall()]
 
-            # Prepend canonical portrait from agent_portraits if not already in gallery
-            if req_owner_id and not asset_type or asset_type == "portrait":
+            # Mark canonical portrait as featured — add synthetic row if not in media_library,
+            # or tag the existing media_library item if it matches the canonical path
+            if req_owner_id and (not asset_type or asset_type == "portrait"):
                 cur.execute(
                     """SELECT ap.id, ap.canonical_image_path, ap.updated_at, a.display_name
                        FROM agent_portraits ap JOIN agents a ON a.id = ap.agent_id
@@ -275,8 +276,15 @@ def api_gallery():
                 portrait_row = cur.fetchone()
                 if portrait_row:
                     path = portrait_row["canonical_image_path"]
-                    existing_paths = {it.get("url") or it.get("file_path") for it in items}
-                    if path not in existing_paths:
+                    matched = False
+                    for it in items:
+                        if (it.get("url") or it.get("file_path")) == path:
+                            if not it.get("metadata"):
+                                it["metadata"] = {}
+                            it["metadata"]["featured"] = True
+                            matched = True
+                            break
+                    if not matched:
                         items.insert(
                             0,
                             {

@@ -10,7 +10,12 @@ def get_agent_picker() -> Dict:
             SELECT a.id, a.name, a.display_name, a.department, a.worker_type,
                    ap.canonical_image_path,
                    COUNT(DISTINCT ml.id)
-                     + CASE WHEN ap.canonical_image_path IS NOT NULL AND ap.approved = true THEN 1 ELSE 0 END
+                     + CASE WHEN ap.canonical_image_path IS NOT NULL AND ap.approved = true
+                         AND NOT EXISTS (
+                             SELECT 1 FROM media_library ml2
+                             WHERE ml2.owner_id = a.id AND ml2.owner_type = 'agent'
+                               AND ml2.file_path = ap.canonical_image_path AND ml2.is_deleted = false
+                         ) THEN 1 ELSE 0 END
                      AS asset_count
             FROM agents a
             LEFT JOIN agent_portraits ap ON ap.agent_id = a.id
@@ -43,7 +48,12 @@ def get_gallery_subjects() -> Dict:
             SELECT a.id, a.name, a.display_name, a.department, a.worker_type,
                    ap.canonical_image_path,
                    COUNT(DISTINCT ml.id)
-                     + CASE WHEN ap.canonical_image_path IS NOT NULL AND ap.approved = true THEN 1 ELSE 0 END
+                     + CASE WHEN ap.canonical_image_path IS NOT NULL AND ap.approved = true
+                         AND NOT EXISTS (
+                             SELECT 1 FROM media_library ml2
+                             WHERE ml2.owner_id = a.id AND ml2.owner_type = 'agent'
+                               AND ml2.file_path = ap.canonical_image_path AND ml2.is_deleted = false
+                         ) THEN 1 ELSE 0 END
                      AS asset_count
             FROM agents a
             LEFT JOIN agent_portraits ap ON ap.agent_id = a.id

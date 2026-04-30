@@ -131,7 +131,7 @@ def api_gallery():
 
     show_versions = request.args.get("show_versions", "false") == "true"
 
-    if req_owner_type == "agent":
+    if req_owner_type in ("agent", "agents"):
         # Shared agent gallery — bypass per-user ownership filter
         conditions = [
             "is_deleted = false",
@@ -163,10 +163,9 @@ def api_gallery():
                 """,
                 params + [per_page, (page - 1) * per_page],
             )
-            cols = [d[0] for d in cur.description]
             from .services.gallery_service import _serialize_row
 
-            items = [_serialize_row(dict(zip(cols, row))) for row in cur.fetchall()]
+            items = [_serialize_row(row) for row in cur.fetchall()]
         return jsonify(
             {
                 "items": items,

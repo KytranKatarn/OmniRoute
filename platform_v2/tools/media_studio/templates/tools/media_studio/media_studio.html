@@ -1472,7 +1472,6 @@
     var queuePollTimer = null;
     var currentGalleryPage = 1;
     var currentFilter = "all";
-    var currentOwnerFilter = "mine";
     var favoritesOnly = false;
 
     /* ── Helpers ──────────────────────────────────── */
@@ -2090,21 +2089,9 @@
         loadGallery(1);
     };
 
-    // ─── Enhanced Gallery Load ──────────────────────────────────────
-    window.setOwnerFilter = function(filter) {
-        currentOwnerFilter = filter;
-        // Update active button state
-        document.querySelectorAll('.ms-gallery-filter-btn').forEach(function(b) {
-            b.classList.toggle('active', b.dataset.filter === filter);
-        });
-        loadGallery(1);
-    };
-
     window.loadGallery = function(page) {
         currentGalleryPage = page;
         var params = '?page=' + page + '&per_page=20';
-
-        if (currentOwnerFilter && currentOwnerFilter !== 'mine') params += '&owner_type=' + currentOwnerFilter;
         if (gallerySearchQuery) params += '&q=' + encodeURIComponent(gallerySearchQuery);
         if (galleryFilters.type && galleryFilters.type !== 'all') params += '&type=' + galleryFilters.type;
         if (galleryFilters.model) params += '&model=' + encodeURIComponent(galleryFilters.model);
@@ -4005,11 +3992,11 @@
     };
 
     window.loadAgentGallery = function() {
-        api('GET', '/api/generations?owner_type=agent').then(function(data) {
+        api('GET', '/api/gallery?owner_type=agents&per_page=50').then(function(data) {
             var grid = document.getElementById('msGalleryGrid');
             if (!grid) return;
             _clearChildren(grid);
-            var items = data.generations || data || [];
+            var items = data.items || [];
             items.forEach(function(g) {
                 var card = _createGalleryCard(g);
                 var info = card.querySelector('.ms-gallery-card-info');

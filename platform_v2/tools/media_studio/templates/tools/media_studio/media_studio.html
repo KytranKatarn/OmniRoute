@@ -969,8 +969,8 @@
                         <div class="ms-placeholder" data-i18n="media_studio.no_canonical">No canonical portrait</div>
                     </div>
                     <div class="ms-canonical-actions">
-                        <button id="ms-generate-canonical-btn" class="ms-btn ms-btn-accent" onclick="generateCanonical()" data-i18n="media_studio.generate_canonical">Generate Canonical</button>
-                        <button class="ms-btn ms-btn-success" id="ms-approve-btn" onclick="approveCanonical()" style="display:none;" data-i18n="media_studio.approve">Approve</button>
+                        <button id="ms-generate-canonical-btn" class="ms-btn ms-btn-accent" onclick="generateCanonical()" data-i18n="media_studio.generate_canonical">Generate</button>
+                        <button class="ms-btn ms-btn-success" id="ms-approve-btn" onclick="approveCanonical()" style="display:none;" data-i18n="media_studio.approve">Set as Portrait</button>
                     </div>
                 </div>
 
@@ -991,7 +991,7 @@
             </div>
 
             <div class="ms-variant-actions">
-                <button class="ms-btn ms-btn-accent" id="ms-variant-btn" onclick="generateVariant()" style="display:none;" data-i18n="media_studio.generate_variant">Generate Variant</button>
+                <button class="ms-btn ms-btn-accent" id="ms-variant-btn" onclick="generateVariant()" style="display:none;" data-i18n="media_studio.generate_variant">Generate New</button>
                 <select id="ms-variant-style" class="ms-model-select">
                     <option value="">Default style</option>
                     <option value="professional headshot">Professional</option>
@@ -2469,7 +2469,7 @@
                 genBtn.className = "ms-modal-action-btn";
                 genBtn.title = "Generate another variant for this agent";
                 genBtn.addEventListener("click", function() {
-                    if (!confirm("Generate a new variant for this agent? (~3 min on M4000)")) return;
+                    if (!confirm("Generate a new variant for this agent?")) return;
                     genBtn.disabled = true;
                     genBtn.querySelector('span').textContent = ' Generating...';
                     api("POST", "/api/portraits/" + agentId + "/generate-variant", {}).then(function() {
@@ -2479,6 +2479,7 @@
                         alert("Generate failed: " + err.message);
                         genBtn.disabled = false;
                         genBtn.querySelector('span').textContent = ' Generate New';
+                        genBtn.disabled = false;
                     });
                 });
                 var genIcon = document.createElement("i");
@@ -2494,15 +2495,19 @@
                 // (updates agents.avatar_url → flows to Roster, Org Chart, public directory).
                 var canonBtn = document.createElement("button");
                 canonBtn.className = "ms-modal-action-btn";
-                canonBtn.title = "Set as agent's official portrait — flows to Roster + public website";
+                canonBtn.className = "ms-modal-action-btn ms-btn-success";
+                canonBtn.title = "Use this image as the agent's portrait — updates Roster, Org Chart, and public website";
                 canonBtn.addEventListener("click", function() {
-                    if (!confirm("Set this image as the agent's canonical portrait?\n\nIt will appear on the Roster, Org Chart, and public website.")) return;
+                    if (!confirm("Use this image as the agent's portrait?\n\nIt will appear on the Roster, Org Chart, and public website.")) return;
+                    canonBtn.disabled = true;
+                    canonBtn.querySelector('span').textContent = ' Saving...';
                     api("POST", "/api/portraits/" + agentId + "/approve", { media_id: item.id }).then(function() {
-                        alert("Set as canonical portrait ✓");
                         closeMediaModal();
                         if (typeof loadPortraitDetail === 'function') loadPortraitDetail(agentId);
                     }).catch(function(err) {
-                        alert("Set as canonical failed: " + err.message);
+                        alert("Failed: " + err.message);
+                        canonBtn.disabled = false;
+                        canonBtn.querySelector('span').textContent = ' Use as Portrait';
                     });
                 });
                 var canonIcon = document.createElement("i");
@@ -2510,7 +2515,7 @@
                 canonIcon.style.cssText = "width:14px;height:14px;";
                 canonBtn.appendChild(canonIcon);
                 var canonText = document.createElement("span");
-                canonText.textContent = " Set as Profile";
+                canonText.textContent = " Use as Portrait";
                 canonBtn.appendChild(canonText);
                 actions.appendChild(canonBtn);
 
@@ -2838,7 +2843,7 @@
                     genBtn.disabled = !hasPrompt;
                     genBtn.style.opacity = hasPrompt ? '1' : '0.4';
                     genBtn.title = hasPrompt ? 'Generate portrait from prompt' : 'Add a prompt first — click Edit to set one';
-                    genBtn.textContent = hasPrompt ? 'Generate Canonical' : 'Set Prompt First';
+                    genBtn.textContent = hasPrompt ? 'Generate' : 'Add Prompt First';
                 }
 
                 // Variants grid
@@ -2847,6 +2852,8 @@
                 (data.variants || []).forEach(function(v) {
                     var item = document.createElement('div');
                     item.className = 'ms-gallery-item';
+                    item.style.cssText = 'cursor:pointer;position:relative;';
+                    item.title = 'Click to view and select as portrait';
                     item.onclick = function() { showMediaDetail(v.id); };
 
                     var vImg = document.createElement('img');
@@ -2854,6 +2861,17 @@
                     vImg.alt = 'Variant';
                     vImg.loading = 'lazy';
                     item.appendChild(vImg);
+
+                    // Hover overlay — "Select"
+                    var overlay = document.createElement('div');
+                    overlay.style.cssText = 'position:absolute;inset:0;background:rgba(0,0,0,0.55);'
+                        + 'display:flex;align-items:center;justify-content:center;'
+                        + 'opacity:0;transition:opacity .15s;pointer-events:none;'
+                        + 'font-size:11px;font-weight:600;letter-spacing:1px;color:#fff;text-transform:uppercase;';
+                    overlay.textContent = 'Select';
+                    item.appendChild(overlay);
+                    item.addEventListener('mouseenter', function() { overlay.style.opacity = '1'; });
+                    item.addEventListener('mouseleave', function() { overlay.style.opacity = '0'; });
 
                     vGrid.appendChild(item);
                 });

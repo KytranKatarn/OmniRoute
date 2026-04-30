@@ -310,6 +310,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - /mnt/llm_drive/ollama:/root/.ollama
+      - /mnt/data2:/mnt/data2:ro
     ports:
       - "192.168.1.200:11434:11434"
     networks:

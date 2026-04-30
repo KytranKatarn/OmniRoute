@@ -414,13 +414,17 @@
                         <i data-lucide="image" style="width:16px;height:16px;"></i>
                         <span data-i18n="media_studio.image">Image</span>
                     </button>
-                    <button class="ms-type-btn" data-type="video" onclick="selectMediaType('video')">
+                    <button class="ms-type-btn" data-type="video" disabled title="Requires AnimateDiff model — enable with fleet nodes"
+                            style="opacity:0.45;cursor:not-allowed;position:relative;" onclick="void(0)">
                         <i data-lucide="film" style="width:16px;height:16px;"></i>
-                        <span data-i18n="media_studio.video">Video</span>
+                        <span>Video</span>
+                        <span style="position:absolute;top:-6px;right:-2px;font-size:0.55rem;background:#8b5cf6;color:#fff;padding:1px 4px;border-radius:3px;letter-spacing:1px;font-family:'Antonio',sans-serif;">SOON</span>
                     </button>
-                    <button class="ms-type-btn" data-type="audio" onclick="selectMediaType('audio')">
+                    <button class="ms-type-btn" data-type="audio" disabled title="Requires XTTS + external providers — enable with fleet nodes"
+                            style="opacity:0.45;cursor:not-allowed;position:relative;" onclick="void(0)">
                         <i data-lucide="music" style="width:16px;height:16px;"></i>
-                        <span data-i18n="media_studio.audio">Audio</span>
+                        <span>Audio</span>
+                        <span style="position:absolute;top:-6px;right:-2px;font-size:0.55rem;background:#8b5cf6;color:#fff;padding:1px 4px;border-radius:3px;letter-spacing:1px;font-family:'Antonio',sans-serif;">SOON</span>
                     </button>
                 </div>
             </div>

@@ -1505,10 +1505,13 @@ class AgentLoop:
                     from tools.media_studio.services.generation_service import (
                         generate_via_comfyui,
                         generate_video_via_comfyui,
+                        generate_audio,
                     )
 
                     if media_type == "video":
                         generate_video_via_comfyui(queue_id)
+                    elif media_type == "audio":
+                        generate_audio(queue_id)
                     else:
                         generate_via_comfyui(queue_id)
                 except Exception as e:

@@ -273,6 +273,7 @@ def get_agent_portrait(agent_id: int) -> Optional[Dict]:
         cur.execute(
             """
             SELECT a.id, a.name, a.display_name, a.avatar_url,
+                   a.bio, a.title, a.department,
                    a.updated_at AS avatar_updated_at,
                    p.id AS portrait_id, p.canonical_image_path, p.identity_prompt,
                    p.face_seed, p.ip_adapter_ref_path, p.approved,
@@ -302,9 +303,13 @@ def get_agent_portrait(agent_id: int) -> Optional[Dict]:
         )
         result["variants"] = [dict(v) for v in cur.fetchall()]
 
-        if not result.get("identity_prompt") and result["name"] in AGENT_DIVERSITY:
-            desc, age = AGENT_DIVERSITY[result["name"]]
-            result["default_identity_prompt"] = _build_identity_prompt(result["display_name"], desc, age)
+        if not result.get("identity_prompt"):
+            if result["name"] in AGENT_DIVERSITY:
+                desc, age = AGENT_DIVERSITY[result["name"]]
+                result["default_identity_prompt"] = _build_identity_prompt(result["display_name"], desc, age)
+            elif result.get("bio"):
+                # Fall back to DHQ Roster bio as a starting point for editing
+                result["default_identity_prompt"] = result["bio"]
 
         return result
 

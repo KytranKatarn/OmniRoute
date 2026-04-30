@@ -975,13 +975,10 @@
                 </div>
 
                 <div class="ms-identity-panel">
-                    <label data-i18n="media_studio.identity_prompt">Identity Prompt <span style="font-size:.7rem;color:#666;font-weight:normal">(synced from DHQ Roster)</span></label>
-                    <textarea id="ms-identity-prompt" class="ms-prompt-area" rows="4" disabled></textarea>
-                    <div class="ms-identity-actions" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
-                        <button id="ms-identity-edit-btn" class="ms-btn ms-btn-ghost" style="font-size:.75rem;" onclick="_setIdentityEditState(true)">Edit</button>
-                        <button id="ms-identity-save-btn" class="ms-btn ms-btn-accent" style="font-size:.75rem;display:none;" onclick="_saveIdentityPrompt()">Save</button>
-                        <button id="ms-identity-cancel-btn" class="ms-btn ms-btn-ghost" style="font-size:.75rem;display:none;" onclick="_setIdentityEditState(false)">Cancel</button>
-                        <a href="/tools/department-hq#roster" class="ms-btn ms-btn-ghost" style="font-size:.75rem;text-decoration:none;margin-left:auto">View in Roster →</a>
+                    <label data-i18n="media_studio.identity_prompt">Identity Prompt</label>
+                    <textarea id="ms-identity-prompt" class="ms-prompt-area" rows="4" readonly style="opacity:1;color:var(--ms-text-primary)"></textarea>
+                    <div class="ms-identity-actions" style="display:flex;gap:8px;margin-top:6px;">
+                        <a href="/tools/department-hq#roster" class="ms-btn ms-btn-ghost" style="font-size:.75rem;text-decoration:none">← Edit in DHQ Roster</a>
                     </div>
                 </div>
             </div>
@@ -2860,7 +2857,7 @@
                 // Identity prompt
                 document.getElementById('ms-identity-prompt').value = data.identity_prompt || data.default_identity_prompt || '';
                 // Always start a freshly-loaded prompt in locked/view state.
-                if (typeof _setIdentityEditState === 'function') _setIdentityEditState(false);
+                // identity prompt is read-only — edited only in DHQ Roster
 
                 // Gate: disable Generate Canonical button if no identity_prompt is set.
                 var genBtn = document.getElementById('ms-generate-canonical-btn');
@@ -2959,56 +2956,6 @@
                     loadPortraitDetail(_currentAgentId);
                 });
             });
-    };
-
-    // Identity prompt Edit/Save/Cancel — syncs with DHQ Roster (agents.identity_prompt).
-    var _identityOriginalValue = '';
-
-    window._setIdentityEditState = function(editing) {
-        var ta = document.getElementById('ms-identity-prompt');
-        var editBtn = document.getElementById('ms-identity-edit-btn');
-        var saveBtn = document.getElementById('ms-identity-save-btn');
-        var cancelBtn = document.getElementById('ms-identity-cancel-btn');
-        if (!ta) return;
-        if (editing) {
-            _identityOriginalValue = ta.value;
-            ta.disabled = false;
-            ta.focus();
-            if (editBtn) editBtn.style.display = 'none';
-            if (saveBtn) saveBtn.style.display = '';
-            if (cancelBtn) cancelBtn.style.display = '';
-        } else {
-            ta.value = _identityOriginalValue;
-            ta.disabled = true;
-            if (editBtn) editBtn.style.display = '';
-            if (saveBtn) saveBtn.style.display = 'none';
-            if (cancelBtn) cancelBtn.style.display = 'none';
-        }
-    };
-
-    window._saveIdentityPrompt = function() {
-        if (!_currentAgentId) return;
-        var ta = document.getElementById('ms-identity-prompt');
-        var saveBtn = document.getElementById('ms-identity-save-btn');
-        var prompt = (ta ? ta.value : '').trim();
-        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
-        fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/identity-prompt', {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({identity_prompt: prompt})
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.error) { alert('Save failed: ' + data.error); }
-            else {
-                _identityOriginalValue = prompt;
-                _setIdentityEditState(false);
-            }
-        })
-        .catch(function(err) { alert('Save failed: ' + err.message); })
-        .finally(function() {
-            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
-        });
     };
 
     window.generateAllMissing = async function() {

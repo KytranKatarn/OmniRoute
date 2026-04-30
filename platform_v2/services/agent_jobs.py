@@ -2487,6 +2487,110 @@ def signal_linkedin_analytics():
         _log_cycle("signal_linkedin_analytics", 0, 1, int((time.time() - start) * 1000), error_message=str(exc)[:200])
 
 
+def signal_follow_federal_agencies():
+    """Follow key Canadian federal agencies on LinkedIn.
+
+    One-time call — run manually, then done. Targets the primary procurement
+    and regulatory audiences for Gov Watch outreach.
+    """
+    from services.browser_service import run_skill_sync
+
+    FEDERAL_AGENCIES = [
+        {
+            "url": "https://www.linkedin.com/company/public-services-and-procurement-canada/",
+            "name": "Public Services and Procurement Canada",
+        },
+        {
+            "url": "https://www.linkedin.com/company/treasury-board-of-canada-secretariat/",
+            "name": "Treasury Board of Canada Secretariat",
+        },
+        {"url": "https://www.linkedin.com/company/canada-revenue-agency/", "name": "Canada Revenue Agency"},
+        {"url": "https://www.linkedin.com/company/national-defence-canada/", "name": "National Defence Canada"},
+        {
+            "url": "https://www.linkedin.com/company/innovation-science-economic-development-canada/",
+            "name": "Innovation, Science and Economic Development Canada",
+        },
+        {"url": "https://www.linkedin.com/company/transport-canada/", "name": "Transport Canada"},
+        {"url": "https://www.linkedin.com/company/government-of-canada/", "name": "Government of Canada"},
+        {"url": "https://www.linkedin.com/company/shared-services-canada/", "name": "Shared Services Canada"},
+    ]
+    start = time.time()
+    followed, failed = 0, 0
+    for agency in FEDERAL_AGENCIES:
+        try:
+            result = run_skill_sync("linkedin_follow", agency, timeout_s=60)
+            if result.get("success"):
+                followed += 1
+                logger.info("[AgencyFollow] %s: %s", agency["name"], result.get("result"))
+            else:
+                failed += 1
+        except Exception as exc:
+            logger.warning("[AgencyFollow] %s failed: %s", agency["name"], exc)
+            failed += 1
+        time.sleep(3)
+    _log_cycle("signal_follow_federal_agencies", followed, failed, int((time.time() - start) * 1000))
+
+
+def signal_tender_post(tender: dict):
+    """Draft a LinkedIn post about a high-value federal tender found by Gov Watch.
+
+    Called externally when Gov Watch ingests a tender with value > $1M.
+    S.I.G.N.A.L. drafts → Telegram approval (priority=8) → linkedin_post.
+
+    Args:
+        tender: {title, value, agency, deadline, url, description}
+    """
+    from tools.department_hq.services.department_dispatcher import dispatch
+
+    start = time.time()
+    title = tender.get("title", "New Federal Tender")
+    value = tender.get("value", "")
+    agency = tender.get("agency", "")
+    deadline = tender.get("deadline", "")
+    tender_url = tender.get("url", "https://canadabuys.canada.ca")
+    value_str = f"${value:,.0f}" if isinstance(value, (int, float)) else str(value)
+
+    prompt = (
+        "You are S.I.G.N.A.L., Marketing director at Kytran Empowerment.\n"
+        "Draft an urgent LinkedIn post about this federal procurement found by Gov Watch.\n\n"
+        f"Tender: {title}\nAgency: {agency}\nValue: {value_str}\nDeadline: {deadline}\n\n"
+        "Post should: highlight the opportunity, mention Gov Watch surfaced it, "
+        "link to kytranempowerment.com/gov-watch. Under 200 words, punchy and urgent.\n"
+        "Write post ONLY."
+    )
+    try:
+        result = dispatch(
+            capability="social_post_draft",
+            prompt=prompt,
+            context={"tender": tender},
+            prefer_agent="S.I.G.N.A.L.",
+        )
+        draft = (result.response or "").strip() if result and result.success else ""
+        if not draft:
+            return
+
+        from ai_bridge.agent_loop import request_approval
+
+        request_approval(
+            action_type="linkedin_post",
+            action_data={
+                "content": draft,
+                "hashtags": ["GovWatch", "Procurement", "CanadaBuys", "FederalContracts", "AI"],
+                "post_type": "personal",
+                "browser_agent_id": 342,
+            },
+            reason=f"🚨 Gov Watch tender: {title}\nValue: {value_str} | Agency: {agency}",
+            tier=2,
+            requested_by="S.I.G.N.A.L. (Gov Watch trigger)",
+            priority=8,
+        )
+        logger.info("[TenderPost] Queued for: %s", title)
+        _log_cycle("signal_tender_post", 1, 0, int((time.time() - start) * 1000))
+    except Exception as exc:
+        logger.error("[TenderPost] Failed '%s': %s", title, exc)
+        _log_cycle("signal_tender_post", 0, 1, int((time.time() - start) * 1000), error_message=str(exc)[:200])
+
+
 def signal_outreach_search(
     query: str = "procurement officer federal government Canada", limit: int = 10, source: str = "linkedin_search"
 ):

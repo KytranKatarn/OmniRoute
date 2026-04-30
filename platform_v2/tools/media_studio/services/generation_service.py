@@ -476,12 +476,11 @@ def get_dashboard_stats(user_id: int) -> Dict:
             """
             SELECT a.id AS agent_id, a.name, a.display_name,
                    ap.canonical_image_path, ap.id AS portrait_id,
-                   ml.created_at
+                   ap.updated_at AS created_at
             FROM agent_portraits ap
             JOIN agents a ON a.id = ap.agent_id
-            LEFT JOIN media_library ml ON ml.id = ap.result_media_id
             WHERE ap.canonical_image_path IS NOT NULL AND ap.approved = false
-            ORDER BY ml.created_at DESC LIMIT 5
+            ORDER BY ap.updated_at DESC LIMIT 5
         """
         )
         counts["pending_approvals"] = [dict(r) for r in cur.fetchall()]

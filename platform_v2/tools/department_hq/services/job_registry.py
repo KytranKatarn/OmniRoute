@@ -5,7 +5,7 @@ Single source of truth for job ownership. Used by:
 - autonomy_loop_log department column
 - Job health reporting
 
-Total: 124 active jobs across 8 source files and 13 departments.
+Total: 127 active jobs across 8 source files and 13 departments.
 """
 
 # Each entry: job_id -> {department, director, description, interval, source_file}
@@ -257,6 +257,27 @@ JOB_REGISTRY = {
         "director": "M.U.S.E.",
         "description": "Check agent media generation schedules and trigger if due",
         "interval": "15m",
+        "source_file": "ai_bridge/agent_loop.py",
+    },
+    "media_generation_worker": {
+        "department": "Creative & Design",
+        "director": "M.U.S.E.",
+        "description": "Process pending ComfyUI image/video queue entries — handles cold boot, VRAM, fleet routing",
+        "interval": "30s",
+        "source_file": "ai_bridge/agent_loop.py",
+    },
+    "portrait_refinement_worker": {
+        "department": "Creative & Design",
+        "director": "M.U.S.E.",
+        "description": "Process queued portrait refinement jobs — vision analysis + agent consultation + M.U.S.E. synthesis via DHQ",
+        "interval": "30s",
+        "source_file": "ai_bridge/agent_loop.py",
+    },
+    "website_deploy_worker": {
+        "department": "Operations & Infrastructure",
+        "director": "B.A.S.E.",
+        "description": "Daily full-site deploy to Hostinger (kytranempowerment.com + creed-ai.org). Also triggered manually via Repair Bay → Ship → Website tab.",
+        "interval": "daily 03:00",
         "source_file": "ai_bridge/agent_loop.py",
     },
     "media_analytics_snapshot": {

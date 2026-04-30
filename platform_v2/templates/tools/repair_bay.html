@@ -446,10 +446,11 @@
             </div>
         </div>
 
-        <!-- Sub-tabs: Ready | History | F.O.R.G.E. -->
+        <!-- Sub-tabs: Ready | History | Website | F.O.R.G.E. -->
         <div class="dp-subtabs">
             <button class="dp-subtab active" data-subtab="ready" onclick="switchSubTab('deploy', 'ready')">Ready to Deploy</button>
             <button class="dp-subtab" data-subtab="deployed" onclick="switchSubTab('deploy', 'deployed')">Deployment History</button>
+            <button class="dp-subtab" data-subtab="website" onclick="switchSubTab('deploy', 'website'); loadWebsiteDeployStatus();">Website</button>
             <button class="dp-subtab" data-subtab="forge" onclick="switchSubTab('deploy', 'forge'); loadForgeStats();" style="color:#8b5cf6;">F.O.R.G.E.</button>
         </div>
 
@@ -464,6 +465,20 @@
         <div id="deploy-subtab-deployed" class="dp-subtab-content">
             <div id="deployHistoryList" class="dp-history-list">
                 <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading deployment history...</div></div>
+            </div>
+        </div>
+
+        <!-- Website Deploy sub-tab -->
+        <div id="deploy-subtab-website" class="dp-subtab-content">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+                <div>
+                    <div style="font-family:Orbitron,sans-serif;font-size:1rem;color:#00e5ff;letter-spacing:2px;">WEBSITE DEPLOY</div>
+                    <div style="font-size:0.7rem;color:rgba(255,255,255,0.4);margin-top:2px;">Full-site deploy to Hostinger — scheduled daily 03:00 or trigger manually</div>
+                </div>
+                <button id="wdDeployAllBtn" onclick="triggerWebsiteDeploy()" style="background:#8b5cf6;color:#fff;border:none;border-radius:4px;padding:8px 18px;font-size:0.8rem;font-family:Orbitron,sans-serif;letter-spacing:1px;cursor:pointer;">DEPLOY ALL NOW</button>
+            </div>
+            <div id="wdSiteList" style="display:flex;flex-direction:column;gap:12px;">
+                <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading website deploy status...</div></div>
             </div>
         </div>
 
@@ -2143,6 +2158,108 @@ function loadDeployHistory() {
         err.style.padding = '40px';
         err.textContent = 'Error loading deployment history';
         el.appendChild(err);
+    });
+}
+
+// Website Deploy
+function loadWebsiteDeployStatus() {
+    var el = document.getElementById('wdSiteList');
+    if (!el) return;
+    fetch(API + '/deploy/website-status').then(function(r){return r.json();}).then(function(data){
+        el.innerHTML = '';
+        if (!data.sites || !data.sites.length) {
+            var empty = document.createElement('div');
+            empty.className = 'dp-empty';
+            var desc = document.createElement('div');
+            desc.className = 'dp-empty-desc';
+            desc.textContent = 'No websites configured.';
+            empty.appendChild(desc);
+            el.appendChild(empty);
+            return;
+        }
+        data.sites.forEach(function(site) {
+            var statusColor = site.last_status === 'success' ? '#22c55e' : site.last_status === 'failed' ? '#ef4444' : '#6b7280';
+            var statusLabel = site.last_status === 'success' ? 'DEPLOYED' : site.last_status === 'failed' ? 'FAILED' : 'NEVER';
+            var lastRun = site.last_run ? new Date(site.last_run + 'Z').toLocaleString() : 'Never';
+
+            var card = document.createElement('div');
+            card.style.cssText = 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:16px;display:flex;align-items:center;gap:16px;';
+
+            var info = document.createElement('div');
+            info.style.flex = '1';
+
+            var domainEl = document.createElement('div');
+            domainEl.style.cssText = 'font-family:Orbitron,sans-serif;font-size:0.85rem;color:#00e5ff;letter-spacing:1px;';
+            domainEl.textContent = site.domain;
+
+            var lastEl = document.createElement('div');
+            lastEl.style.cssText = 'font-size:0.75rem;color:rgba(255,255,255,0.4);margin-top:4px;';
+            lastEl.textContent = 'Last deploy: ' + lastRun;
+
+            var pendingEl = document.createElement('div');
+            pendingEl.style.cssText = 'font-size:0.75rem;margin-top:2px;';
+            if (site.pending_portraits > 0) {
+                pendingEl.style.color = '#f59e0b';
+                pendingEl.textContent = site.pending_portraits + ' portrait(s) pending website sync';
+            } else {
+                pendingEl.style.color = '#22c55e';
+                pendingEl.textContent = 'Portraits up to date';
+            }
+
+            info.appendChild(domainEl);
+            info.appendChild(lastEl);
+            info.appendChild(pendingEl);
+
+            var actions = document.createElement('div');
+            actions.style.cssText = 'display:flex;align-items:center;gap:10px;';
+
+            var badge = document.createElement('span');
+            badge.style.cssText = 'padding:3px 8px;border-radius:3px;font-size:0.65rem;letter-spacing:1px;background:' + statusColor + '22;color:' + statusColor + ';border:1px solid ' + statusColor + '44;';
+            badge.textContent = statusLabel;
+
+            var deployBtn = document.createElement('button');
+            deployBtn.style.cssText = 'background:rgba(0,229,255,0.1);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);border-radius:4px;padding:5px 12px;font-size:0.75rem;cursor:pointer;';
+            deployBtn.textContent = 'Deploy';
+            deployBtn.addEventListener('click', (function(d){ return function(){ triggerWebsiteDeploy(d); }; })(site.domain));
+
+            actions.appendChild(badge);
+            actions.appendChild(deployBtn);
+            card.appendChild(info);
+            card.appendChild(actions);
+            el.appendChild(card);
+        });
+    }).catch(function(){
+        el.innerHTML = '';
+        var err = document.createElement('div');
+        err.className = 'dp-empty';
+        var desc = document.createElement('div');
+        desc.className = 'dp-empty-desc';
+        desc.textContent = 'Error loading website deploy status.';
+        err.appendChild(desc);
+        el.appendChild(err);
+    });
+}
+
+function triggerWebsiteDeploy(domain) {
+    var btn = document.getElementById('wdDeployAllBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Deploying...'; }
+    var body = domain ? {domain: domain} : {};
+    fetch(API + '/deploy/website-trigger', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+    }).then(function(r){return r.json();}).then(function(data){
+        if (btn) { btn.disabled = false; btn.textContent = 'DEPLOY ALL NOW'; }
+        if (data.success) {
+            var sites = (data.queued || []).join(', ');
+            alert('Deploy queued for: ' + sites + '\n\nRuns in background. Refresh status in a few minutes.');
+            setTimeout(loadWebsiteDeployStatus, 3000);
+        } else {
+            alert('Deploy failed: ' + (data.error || 'Unknown error'));
+        }
+    }).catch(function(e){
+        if (btn) { btn.disabled = false; btn.textContent = 'DEPLOY ALL NOW'; }
+        alert('Request failed: ' + e.message);
     });
 }
 

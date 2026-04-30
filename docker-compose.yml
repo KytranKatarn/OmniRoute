@@ -105,7 +105,7 @@ services:
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-hub}
       OLLAMA_MODELS: /mnt/llm_drive/ollama/models
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      COMFYUI_HOST: http://archie_comfyui:8188
+      COMFYUI_HOST: ${COMFYUI_HOST:-http://172.27.0.11:8188}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_USERNAME: ${GITHUB_USERNAME:-KytranKatarn}
     extra_hosts:

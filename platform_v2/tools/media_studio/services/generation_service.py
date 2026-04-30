@@ -123,7 +123,14 @@ def submit_generation(
         )
         queue_id = cur.fetchone()["id"]
 
-    # Dispatch to Bridge
+    # ComfyUI jobs are consumed by the media_generation_worker loop in agent_loop
+    # (Creative & Design / M.U.S.E.) which handles cold boot, VRAM management,
+    # and future fleet routing. Return immediately so the web thread doesn't block.
+    provider = merged_params.get("provider", "comfyui")
+    if provider == "comfyui":
+        return {"queue_id": queue_id, "status": "pending"}
+
+    # Non-comfyui (cloud providers): dispatch synchronously through Bridge
     try:
         from tools.department_hq.services.department_dispatcher import get_dispatcher
 

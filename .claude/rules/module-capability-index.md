@@ -83,9 +83,10 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 - **Audit**: KB 256846 · **Rules**: `autonomy.md`
 
 ### Repair Bay — `repair_bay` · `/tools/repair-bay` · ✅ · 🟡
-- **Capability**: Scan→Proposal→Sandbox→Deploy (manual) self-healing pipeline. 4 tabs + Pushes + ENGINEERING station. 10 route files, ~2,849 LOC. Critical/high=immediate proposal; medium=Sunday 02:00 batch. SandboxManager (Docker or schema-separation).
+- **Capability**: Scan→Proposal→Sandbox→Deploy (manual) self-healing pipeline. 8 tabs: Reviews, PR Review, Repairs, Diagnose, Test Bay, **Ship**, QA, Pushes + ENGINEERING station. 10 route files, ~2,849 LOC. Critical/high=immediate proposal; medium=Sunday 02:00 batch. SandboxManager (Docker or schema-separation).
+- **Ship tab** (2026-04-30): Website sub-tab added alongside Ready/History/F.O.R.G.E. sub-tabs. `GET /api/deploy/website-status` returns last deploy time, status, pending portrait count per domain. `POST /api/deploy/website-trigger` triggers immediate full-site Hostinger deploy in background thread. Results stored in `system_config` keys `website_deploy_last_run_<domain>` + `website_deploy_last_status_<domain>`.
 - **Audit**: KB 256838 (2026-04-17) · **Rules**: `repair-bay.md`
-- **Gaps**: `_has_open_proposal()` dedup not visible; 6h scheduler wiring unclear; one-way Consciousness flow
+- **Gaps**: `_has_open_proposal()` dedup not visible; 6h scheduler wiring unclear; one-way Consciousness flow. Hostinger API returning Cloudflare 403 — deploy currently failing (2026-04-30).
 
 ### Agent Academy — `agent_academy` · `/tools/agent-academy` · ✅ · 🟡 (3/5)
 - **Capability**: 5 tabs — Benchmarks, Training, A/B Testing, Skills, Reports. Lv1–5 proficiency (Lv4 unlocks cloud). 16 routes. `agent_benchmark_results`, `agent_competency_scores`, `agent_learning_records`, `v_department_readiness`.
@@ -204,8 +205,11 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 ## creative_studios (2)
 
 ### Media Studio — `media_studio` · `/tools/media-studio` · ✅ · 🟢
-- **Capability**: 9,385 LOC · 98 routes · 19 service modules. GPU-aware image/video/audio via ComfyUI fleet dispatcher (tier: base/mid/high/CPU), gallery w/ per-user ownership + tagging + smart collections, portrait generation w/ canonical/variant + approval flows, social video queue, batch generation, multi-provider TTS + video, RunPod integration. Bridge dispatch at generation_service.py:128.
+- **Capability**: 9,385 LOC · 98+ routes · 19 service modules. GPU-aware image/video/audio via ComfyUI fleet dispatcher (tier: base/mid/high/CPU), gallery w/ per-user ownership + tagging + smart collections, portrait generation w/ canonical/variant + approval flows, social video queue, batch generation, multi-provider TTS + video, RunPod integration. Bridge dispatch at generation_service.py:128.
 - **Portrait pipeline** (2026-04-20, PRs #205-#210): `describe_portrait()` via moondream for auto-prompts (~7s); `upload_canonical()` accepts JPEG/PNG/WebP ≤10MB, resizes to 1024 longest edge, saves as `static/media/portraits/<stem>.png`. Endpoints: `POST /api/portraits/describe`, `POST /api/portraits/<id>/upload`, bulk-generate with serialized progress UX. `agent_portraits.agent_id` now `UNIQUE` (migration 331). Primary upload UI: Agent Profile modal in DHQ Roster. Public roster also now serves `avatar_thumb_url` (relative `/assets/portraits/<stem>.jpg`) so website pages render same-origin thumbs (43× smaller than full PNG).
+- **Generation now async** (2026-04-30): `submit_generation()` returns `{queue_id, pending}` instantly for comfyui provider. `media_generation_worker` agent_loop job (30s, Creative & Design / M.U.S.E.) consumes queue — handles VRAM, cold boot, platform restarts. `COMFYUI_HOST=http://172.27.0.11:8188` (direct IP — hostname DNS unreliable).
+- **M.U.S.E. Prompt Refinement** (2026-04-30): `POST /api/portraits/<id>/refine-prompt` `{feedback}` → dispatches to M.U.S.E. via DHQ `capability='creative'` → returns `{refined_prompt, original_prompt}`. UI panel in portrait detail: "Refine with M.U.S.E." textarea + ASK M.U.S.E. button + Generate/Save/Dismiss. `saveRefinedPrompt()` uses `PUT /api/portraits/<id>/identity-prompt`.
+- **Portrait approve no longer deploys** (2026-04-30): `approve_canonical()` writes thumbnail to website repo only. Deploy handled by `website_deploy_worker` daily job or Repair Bay manual trigger.
 - **Tables**: media_generation_queue, media_gallery, media_tags, media_collections, media_smart_collections, media_analytics, agent_portraits (UNIQUE(agent_id))
 - **Audit**: KB 256846 · **Rules**: `creative-studios.md`
 

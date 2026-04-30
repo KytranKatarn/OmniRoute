@@ -186,3 +186,115 @@ def register_deploy_routes(bp, admin_required):
                 "metadata": result.metadata if result.success else {},
             }
         )
+
+    # ── Website Deploy management ─────────────────────────────────────────────
+
+    WEBSITE_DOMAINS = [
+        {
+            "domain": "kytranempowerment.com",
+            "source": "/mnt/archie_brain/website/kytranempowerment.com",
+            "verify_url": "https://kytranempowerment.com",
+        },
+        {
+            "domain": "creed-ai.org",
+            "source": "/mnt/archie_brain/website/creed-ai.org",
+            "verify_url": "https://creed-ai.org",
+        },
+    ]
+
+    @bp.route("/api/deploy/website-status")
+    @login_required
+    @admin_required
+    def website_deploy_status():
+        """Return last deploy time, status, and pending portrait changes per domain."""
+        import os as _os
+        from database import get_db_cursor
+
+        rows = []
+        with get_db_cursor() as (conn, cur):
+            for site in WEBSITE_DOMAINS:
+                domain = site["domain"]
+                key_ts = f"website_deploy_last_run_{domain}"
+                key_st = f"website_deploy_last_status_{domain}"
+                cur.execute(
+                    "SELECT key, value FROM system_config WHERE key = ANY(%s)",
+                    ([key_ts, key_st],),
+                )
+                cfg = {r["key"]: r["value"] for r in cur.fetchall()}
+                last_run = cfg.get(key_ts)
+                last_status = cfg.get(key_st, "never")
+
+                # Count portraits updated since last deploy
+                pending = 0
+                if last_run:
+                    cur.execute(
+                        "SELECT COUNT(*) as n FROM agent_portraits WHERE updated_at > %s",
+                        (last_run,),
+                    )
+                    pending = (cur.fetchone() or {}).get("n", 0)
+                else:
+                    cur.execute("SELECT COUNT(*) as n FROM agent_portraits WHERE approved = true")
+                    pending = (cur.fetchone() or {}).get("n", 0)
+
+                rows.append(
+                    {
+                        "domain": domain,
+                        "last_run": last_run,
+                        "last_status": last_status,
+                        "pending_portraits": pending,
+                        "source_path": site["source"],
+                    }
+                )
+
+        return jsonify({"sites": rows})
+
+    @bp.route("/api/deploy/website-trigger", methods=["POST"])
+    @login_required
+    @admin_required
+    def website_deploy_trigger():
+        """Trigger an immediate full-site deploy for one or all website domains.
+
+        JSON body: { "domain": "kytranempowerment.com" }  — omit for all sites.
+        Runs in a background thread; returns immediately.
+        """
+        import threading as _threading
+        from services.deploy_service import run_deploy_pipeline
+        from database import get_db_cursor
+
+        payload = request.get_json(force=True, silent=True) or {}
+        target_domain = payload.get("domain")
+        sites = [s for s in WEBSITE_DOMAINS if not target_domain or s["domain"] == target_domain]
+        if not sites:
+            return jsonify({"success": False, "error": "Unknown domain"}), 400
+
+        def _run():
+            from database import get_db_cursor as _get_db
+            import datetime
+
+            for site in sites:
+                domain = site["domain"]
+                key_ts = f"website_deploy_last_run_{domain}"
+                key_st = f"website_deploy_last_status_{domain}"
+                result = run_deploy_pipeline(
+                    "deploy_static",
+                    {
+                        "domain": domain,
+                        "source_path": site["source"],
+                        "verify_url": site["verify_url"],
+                        "changed_files": ["assets/portraits/"],
+                    },
+                )
+                status = "success" if result.success else "failed"
+                ts = datetime.datetime.utcnow().isoformat()
+                with _get_db(commit=True) as (conn, cur):
+                    for k, v in [(key_ts, ts), (key_st, status)]:
+                        cur.execute(
+                            """INSERT INTO system_config (key, value, updated_at)
+                               VALUES (%s, %s, NOW())
+                               ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()""",
+                            (k, v),
+                        )
+
+        t = _threading.Thread(target=_run, daemon=True)
+        t.start()
+        return jsonify({"success": True, "queued": [s["domain"] for s in sites]})

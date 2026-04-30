@@ -720,6 +720,35 @@ class AgentLoop:
         )
 
         self.scheduler.add_job(
+            with_app_context(self._media_generation_worker),
+            trigger=IntervalTrigger(seconds=30),
+            id="media_generation_worker",
+            name="Agent Loop: Media Generation Worker (Creative & Design / M.U.S.E.)",
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
+            with_app_context(self._portrait_refinement_worker),
+            trigger=IntervalTrigger(seconds=30),
+            id="portrait_refinement_worker",
+            name="Agent Loop: Portrait Refinement Worker (Creative & Design / M.U.S.E.)",
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        from apscheduler.triggers.cron import CronTrigger as _CronTrigger
+
+        self.scheduler.add_job(
+            with_app_context(self._website_deploy_worker),
+            trigger=_CronTrigger(hour=3, minute=0),
+            id="website_deploy_worker",
+            name="Agent Loop: Website Deploy (Operations / B.A.S.E.)",
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
             with_app_context(self._compute_media_analytics),
             trigger=IntervalTrigger(hours=1),
             id="media_analytics_snapshot",
@@ -1394,6 +1423,220 @@ class AgentLoop:
             logger.warning("croniter not available — skipping media schedules")
         except Exception as e:
             logger.error("Agent media schedule check failed: %s", e)
+
+    def _media_generation_worker(self):
+        """Process pending ComfyUI media generation queue entries.
+
+        Creative & Design — M.U.S.E. Director. Runs every 30s, max_instances=1.
+        Handles cold boot and VRAM management via get_comfyui_service().
+        Future: fleet node routing through Department HQ when multi-node available.
+        """
+        from database import get_db_cursor
+
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    UPDATE media_generation_queue
+                    SET status = 'dispatched', started_at = NOW()
+                    WHERE id IN (
+                        SELECT id FROM media_generation_queue
+                        WHERE status = 'pending'
+                          AND (params->>'provider' = 'comfyui' OR params->>'provider' IS NULL)
+                        ORDER BY created_at ASC
+                        LIMIT 1
+                        FOR UPDATE SKIP LOCKED
+                    )
+                    RETURNING id, media_type, params
+                    """,
+                )
+                claimed = cur.fetchall()
+
+            if not claimed:
+                return
+
+            for row in claimed:
+                queue_id = row["id"]
+                media_type = row["media_type"]
+                try:
+                    from tools.media_studio.services.generation_service import (
+                        generate_via_comfyui,
+                        generate_video_via_comfyui,
+                    )
+
+                    if media_type == "video":
+                        generate_video_via_comfyui(queue_id)
+                    else:
+                        generate_via_comfyui(queue_id)
+                except Exception as e:
+                    logger.exception("media_generation_worker: queue %s failed: %s", queue_id, e)
+                    with get_db_cursor(commit=True) as (conn, cur):
+                        cur.execute(
+                            """
+                            UPDATE media_generation_queue
+                            SET status = 'failed', error_message = %s, completed_at = NOW()
+                            WHERE id = %s
+                            """,
+                            (str(e), queue_id),
+                        )
+        except Exception as e:
+            logger.error("media_generation_worker error: %s", e)
+
+    def _website_deploy_worker(self):
+        """Daily full-site deploy to Hostinger for all public websites.
+
+        Operations & Infrastructure — B.A.S.E. Director. Runs daily at 03:00.
+        Deploys kytranempowerment.com and creed-ai.org in sequence.
+        Records last_run + last_status in system_config per domain.
+        Also triggerable manually via Repair Bay → Ship → Website tab.
+        """
+        from database import get_db_cursor
+        from services.deploy_service import run_deploy_pipeline
+        import datetime
+
+        SITES = [
+            {
+                "domain": "kytranempowerment.com",
+                "source": "/mnt/archie_brain/website/kytranempowerment.com",
+                "verify_url": "https://kytranempowerment.com",
+            },
+            {
+                "domain": "creed-ai.org",
+                "source": "/mnt/archie_brain/website/creed-ai.org",
+                "verify_url": "https://creed-ai.org",
+            },
+        ]
+
+        for site in SITES:
+            domain = site["domain"]
+            key_ts = f"website_deploy_last_run_{domain}"
+            key_st = f"website_deploy_last_status_{domain}"
+            try:
+                result = run_deploy_pipeline(
+                    "deploy_static",
+                    {
+                        "domain": domain,
+                        "source_path": site["source"],
+                        "verify_url": site["verify_url"],
+                        "changed_files": ["assets/portraits/", "data/"],
+                    },
+                )
+                status = "success" if result.success else "failed"
+                if not result.success:
+                    logger.error("[WebsiteDeploy] %s failed: %s", domain, result.error)
+            except Exception as exc:
+                logger.exception("[WebsiteDeploy] %s error: %s", domain, exc)
+                status = "failed"
+
+            ts = datetime.datetime.utcnow().isoformat()
+            try:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    for k, v in [(key_ts, ts), (key_st, status)]:
+                        cur.execute(
+                            """INSERT INTO system_config (key, value, updated_at)
+                               VALUES (%s, %s, NOW())
+                               ON CONFLICT (key) DO UPDATE
+                               SET value = EXCLUDED.value, updated_at = NOW()""",
+                            (k, v),
+                        )
+            except Exception as exc:
+                logger.error("[WebsiteDeploy] system_config update failed: %s", exc)
+
+    def _portrait_refinement_worker(self):
+        """Process pending portrait refinement jobs queued via unified_tasks.
+
+        Creative & Design — M.U.S.E. Director. Runs every 30s, max_instances=1.
+        Picks one pending portrait_refinement task, runs full 3-step pipeline
+        (vision → agent consultation → M.U.S.E. synthesis), all via DHQ dispatch.
+        User can walk away and return to see status — job persists in unified_tasks.
+        """
+        from database import get_db_cursor
+        import psycopg2.extras
+
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """UPDATE unified_tasks SET status = 'in_progress'
+                       WHERE id = (
+                           SELECT id FROM unified_tasks
+                           WHERE task_type = 'portrait_refinement' AND status = 'pending'
+                           ORDER BY priority DESC, id ASC
+                           LIMIT 1
+                           FOR UPDATE SKIP LOCKED
+                       )
+                       RETURNING id, metadata""",
+                )
+                row = cur.fetchone()
+
+            if not row:
+                return
+
+            task_id = row["id"]
+            meta = row["metadata"] or {}
+            agent_id = meta.get("agent_id")
+            feedback = meta.get("feedback", "")
+            history = meta.get("history") or []
+
+            if not agent_id or not feedback:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "UPDATE unified_tasks SET status='failed', metadata = metadata || %s WHERE id=%s",
+                        (psycopg2.extras.Json({"error": "missing agent_id or feedback"}), task_id),
+                    )
+                return
+
+            try:
+                from tools.media_studio.services.portrait_service import refine_identity_prompt
+
+                result = refine_identity_prompt(agent_id, feedback, history=history)
+
+                if "error" in result:
+                    with get_db_cursor(commit=True) as (conn, cur):
+                        cur.execute(
+                            "UPDATE unified_tasks SET status='failed', metadata = metadata || %s WHERE id=%s",
+                            (psycopg2.extras.Json({"error": result["error"]}), task_id),
+                        )
+                    return
+
+                # Save result into task metadata + mark completed
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        """UPDATE unified_tasks
+                           SET status = 'completed', completed_at = NOW(),
+                               metadata = metadata || %s
+                           WHERE id = %s""",
+                        (psycopg2.extras.Json({"result": result}), task_id),
+                    )
+                    # Also persist to portrait_refinement_log
+                    cur.execute(
+                        "SELECT COALESCE(MAX(round_number),0)+1 AS next_round FROM portrait_refinement_log WHERE agent_id=%s",
+                        (agent_id,),
+                    )
+                    round_num = cur.fetchone()["next_round"]
+                    cur.execute(
+                        """INSERT INTO portrait_refinement_log
+                           (agent_id, round_number, feedback, vision_description, agent_perspective,
+                            refined_prompt, explanation)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+                        (
+                            agent_id, round_num, feedback,
+                            result.get("vision_description", ""),
+                            result.get("agent_perspective", ""),
+                            result.get("refined_prompt", ""),
+                            result.get("explanation", ""),
+                        ),
+                    )
+
+            except Exception as exc:
+                logger.exception("portrait_refinement_worker: task %s failed: %s", task_id, exc)
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "UPDATE unified_tasks SET status='failed', metadata = metadata || %s WHERE id=%s",
+                        (psycopg2.extras.Json({"error": str(exc)}), task_id),
+                    )
+
+        except Exception as exc:
+            logger.error("portrait_refinement_worker outer error: %s", exc)
 
     def _compute_media_analytics(self):
         """Compute hourly analytics snapshots. Also daily at midnight."""

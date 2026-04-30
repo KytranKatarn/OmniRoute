@@ -277,7 +277,7 @@ def get_agent_portrait(agent_id: int) -> Optional[Dict]:
                    a.updated_at AS avatar_updated_at,
                    p.id AS portrait_id, p.canonical_image_path, p.identity_prompt,
                    p.face_seed, p.ip_adapter_ref_path, p.approved,
-                   p.style_tags, p.created_at, p.updated_at
+                   p.style_tags, p.refinement_draft, p.created_at, p.updated_at
             FROM agents a
             LEFT JOIN agent_portraits p ON p.agent_id = a.id
             WHERE a.id = %s
@@ -441,6 +441,222 @@ def generate_variant(agent_id: int, style: Optional[str] = None, pose: Optional[
     )
 
 
+def _load_refinement_context(agent_id: int) -> Optional[Dict]:
+    """Load agent portrait context needed for the refinement pipeline."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """SELECT ap.identity_prompt, ap.canonical_image_path,
+                      a.name, a.display_name, a.model, a.system_prompt,
+                      a.title, a.department
+               FROM agent_portraits ap
+               JOIN agents a ON a.id = ap.agent_id
+               WHERE ap.agent_id = %s""",
+            (agent_id,),
+        )
+        return cur.fetchone()
+
+
+def _step_vision_analysis(canonical_image_path: str) -> str:
+    """Run vision model on the canonical portrait. Returns visual description or empty string."""
+    if not canonical_image_path:
+        return ""
+    rel = canonical_image_path.lstrip("/")
+    src = os.path.join(_PLATFORM_DIR, rel) if rel.startswith("static/") else canonical_image_path
+    if not os.path.isfile(src):
+        return ""
+    try:
+        # No timeout — DHQ orchestration handles cold boot and VRAM swap.
+        # moondream may take 60-90s on first load; that is expected and correct.
+        result = describe_portrait(src)
+        return result.get("prompt") or ""
+    except Exception as exc:
+        logger.warning("[Refine] vision step failed: %s", exc)
+        return ""
+
+
+def _step_consult_agent(
+    agent_name: str,
+    model: str,
+    system_prompt: str,
+    title: str,
+    department: str,
+    current_prompt: str,
+    vision_desc: str,
+    feedback: str,
+) -> str:
+    """Ask the agent themselves what matters about their visual representation.
+
+    Routes through Department HQ dispatcher so VRAM management, welfare
+    checks, and orchestration logging all apply — same path as all other
+    inference on the platform (ADR-013).
+    """
+    context_lines = []
+    if vision_desc:
+        context_lines.append(f"Current portrait shows: {vision_desc}")
+    if current_prompt:
+        context_lines.append(f"Current generation prompt: {current_prompt}")
+    context_lines.append(f"User wants to refine: {feedback}")
+
+    consultation_prompt = (
+        f"PERSONA: You are {agent_name}, {title}, {department}.\n"
+        f"YOUR IDENTITY: {system_prompt[:400] if system_prompt else ''}\n\n"
+        f"CONTEXT:\n" + "\n".join(context_lines) + "\n\n"
+        f"TASK: Your visual portrait is being updated. "
+        "What aspects of your appearance are most important to you? "
+        "What should your portrait communicate about who you are and what you do? "
+        "Answer in 2-3 sentences in your own voice."
+    )
+
+    try:
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
+
+        dispatcher = get_dispatcher()
+        result = dispatcher.request_work(
+            capability="general",
+            prompt=consultation_prompt,
+            module_id="media_studio",
+            context={
+                "task": "agent_portrait_consultation",
+                "agent_name": agent_name,
+                "preferred_model": model,
+            },
+            user_id=None,
+        )
+        if result.success:
+            return (result.response or "").strip()
+        logger.warning("[Refine] agent consultation dispatch failed: %s", result.error)
+    except Exception as exc:
+        logger.warning("[Refine] agent consultation failed for %s: %s", agent_name, exc)
+    return ""
+
+
+def _step_muse_synthesize(
+    agent_name: str,
+    current_prompt: str,
+    vision_desc: str,
+    agent_perspective: str,
+    feedback: str,
+    history: Optional[list] = None,
+) -> Dict:
+    """M.U.S.E. synthesizes vision + agent perspective + user feedback into refined prompt.
+
+    Returns {refined_prompt, explanation} or {error}.
+    """
+    parts = [f"You are M.U.S.E., Creative & Design Director. Refine {agent_name}'s portrait prompt.\n"]
+
+    if vision_desc:
+        parts.append(f"## What the current portrait shows (vision analysis)\n{vision_desc}\n")
+
+    parts.append(f"## Current generation prompt\n{current_prompt}\n")
+
+    if agent_perspective:
+        parts.append(f"## {agent_name}'s own perspective\n{agent_perspective}\n")
+
+    if history:
+        rounds = "\n".join(
+            f"Round {i+1}: feedback='{h.get('feedback', '')[:80]}' → '{h.get('refined_prompt', '')[:80]}'"
+            for i, h in enumerate(history[-3:])
+        )
+        parts.append(f"## Previous refinement rounds\n{rounds}\n")
+
+    parts.append(f"## User's current feedback\n{feedback}\n")
+    parts.append(
+        "Return a JSON object with exactly two keys:\n"
+        '{"refined_prompt": "<single paragraph for image generation>", '
+        '"explanation": "<1-2 sentences explaining what changed and why>"}\n'
+        "No other text. Keep the agent's visual identity elements unless explicitly asked to change them."
+    )
+
+    synthesis_prompt = "\n".join(parts)
+
+    try:
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
+        import json as _json
+
+        dispatcher = get_dispatcher()
+        result = dispatcher.request_work(
+            capability="creative",
+            prompt=synthesis_prompt,
+            module_id="media_studio",
+            context={"agent_id": None, "task": "prompt_synthesis"},
+            user_id=None,
+        )
+        if not result.success:
+            return {"error": f"M.U.S.E. dispatch failed: {result.error}"}
+
+        raw = (result.response or "").strip()
+        # Try to parse JSON response
+        try:
+            start = raw.find("{")
+            end = raw.rfind("}") + 1
+            if start >= 0 and end > start:
+                parsed = _json.loads(raw[start:end])
+                return {
+                    "refined_prompt": parsed.get("refined_prompt", "").strip(),
+                    "explanation": parsed.get("explanation", "").strip(),
+                }
+        except Exception:
+            pass
+        # Fallback: treat raw as the prompt (old behaviour)
+        return {"refined_prompt": raw, "explanation": ""}
+
+    except Exception as exc:
+        logger.exception("[Refine] M.U.S.E. synthesis failed: %s", exc)
+        return {"error": str(exc)}
+
+
+def refine_identity_prompt(agent_id: int, feedback: str, history: Optional[list] = None) -> Dict:
+    """Full M.U.S.E. portrait refinement pipeline (synchronous).
+
+    Steps: vision analysis → agent self-consultation → M.U.S.E. synthesis.
+    Returns {refined_prompt, explanation, vision_description, agent_perspective,
+    original_prompt} or {error}.
+    """
+    if not feedback or not feedback.strip():
+        return {"error": "Feedback is required"}
+
+    ctx = _load_refinement_context(agent_id)
+    if not ctx:
+        return {"error": "Agent portrait not found"}
+
+    current_prompt = ctx.get("identity_prompt") or ""
+    if not current_prompt:
+        return {"error": "No identity prompt set yet — set one in DHQ Roster first"}
+
+    agent_name = ctx.get("display_name") or ctx.get("name") or f"Agent {agent_id}"
+
+    vision_desc = _step_vision_analysis(ctx.get("canonical_image_path") or "")
+    agent_perspective = _step_consult_agent(
+        agent_name=agent_name,
+        model=ctx.get("model") or "qwen2.5:7b",
+        system_prompt=ctx.get("system_prompt") or "",
+        title=ctx.get("title") or "",
+        department=ctx.get("department") or "",
+        current_prompt=current_prompt,
+        vision_desc=vision_desc,
+        feedback=feedback,
+    )
+    synthesis = _step_muse_synthesize(
+        agent_name=agent_name,
+        current_prompt=current_prompt,
+        vision_desc=vision_desc,
+        agent_perspective=agent_perspective,
+        feedback=feedback,
+        history=history or [],
+    )
+    if "error" in synthesis:
+        return synthesis
+
+    return {
+        "refined_prompt": synthesis.get("refined_prompt", ""),
+        "explanation": synthesis.get("explanation", ""),
+        "vision_description": vision_desc,
+        "agent_perspective": agent_perspective,
+        "agent_name": agent_name,
+        "original_prompt": current_prompt,
+    }
+
+
 def approve_canonical(agent_id: int, media_id: int) -> Dict:
     """Approve image as canonical portrait, update agent avatar.
 
@@ -497,18 +713,10 @@ def approve_canonical(agent_id: int, media_id: int) -> Dict:
         except Exception as _exc:
             logger.warning("[Portrait] directory snapshot refresh failed: %s", _exc)
 
-        stem = os.path.splitext(os.path.basename(website_thumb))[0]
-        with get_db_cursor(commit=False) as (conn, cur):
-            cur.execute("SELECT name FROM agents WHERE id = %s", (agent_id,))
-            agent_row = cur.fetchone()
-            agent_name = agent_row["name"] if agent_row else str(agent_id)
-
-        t = threading.Thread(
-            target=_deploy_portrait_to_sites,
-            args=(stem, agent_name),
-            daemon=True,
-        )
-        t.start()
+        # Thumb written to website repo — full-site deploy is handled by the
+        # website_deploy_worker scheduled job (daily 03:00) or manually via
+        # Repair Bay → Ship → Website tab.
+        logger.info("[Portrait] thumb written for %s — queued for next scheduled website deploy", agent_id)
 
     return {
         "status": "approved",

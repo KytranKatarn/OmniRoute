@@ -245,19 +245,25 @@ def api_comfyui_status():
 def api_comfyui_rescue():
     """Download any ComfyUI completed images not yet in media_library.
 
-    Downloads via ComfyUI /view API, saves to static/media/recovered/,
-    and creates a media_library entry owned by the current user.
-    Returns count of newly recovered images.
+    Uses get_comfyui_service() which handles cold boot (ensure_running)
+    and future fleet node routing via Department HQ.
     """
-    import json as _json
-    import urllib.request as _req
     from database import get_db_cursor
     from .services.gallery_service import create_media_entry
+    from ai_bridge.comfyui_service import get_comfyui_service
 
-    comfyui_url = os.getenv("COMFYUI_URL", "http://archie_comfyui:8188")
     try:
-        r = _req.urlopen(f"{comfyui_url}/history?max_items=50", timeout=5)
-        history = _json.loads(r.read())
+        svc = get_comfyui_service()
+        svc.ensure_running()
+        comfyui_url = svc.host
+    except Exception as exc:
+        return jsonify({"rescued": 0, "error": f"ComfyUI unavailable: {exc}"}), 503
+
+    try:
+        import requests as _requests
+
+        r = _requests.get(f"{comfyui_url}/history?max_items=50", timeout=10)
+        history = r.json()
     except Exception as exc:
         return jsonify({"rescued": 0, "error": f"ComfyUI unreachable: {exc}"}), 503
 
@@ -294,9 +300,10 @@ def api_comfyui_rescue():
         dest = os.path.join(rescue_dir, filename)
         try:
             img_url = f"{comfyui_url}/view?filename={filename}&type=output"
-            img_r = _req.urlopen(img_url, timeout=10)
+            img_r = _requests.get(img_url, timeout=10)
+            img_r.raise_for_status()
             with open(dest, "wb") as f:
-                f.write(img_r.read())
+                f.write(img_r.content)
             create_media_entry(
                 owner_type="user",
                 owner_id=current_user.id,
@@ -317,16 +324,19 @@ def api_comfyui_rescue():
 @media_studio_bp.route("/api/comfyui/queue")
 @login_required
 def api_comfyui_queue():
-    """Proxy ComfyUI /queue — returns running + pending job counts and items."""
-    import os
-    import urllib.request
+    """Proxy ComfyUI /queue — returns running + pending job counts and items.
 
-    comfyui_url = os.getenv("COMFYUI_URL", "http://archie_comfyui:8188")
+    Routes through get_comfyui_service() for consistent host resolution
+    and future fleet node routing via Department HQ.
+    """
+    from ai_bridge.comfyui_service import get_comfyui_service
+    import requests as _requests
+
     try:
-        r = urllib.request.urlopen(f"{comfyui_url}/queue", timeout=5)
-        import json
-
-        data = json.loads(r.read())
+        svc = get_comfyui_service()
+        comfyui_url = svc.host
+        r = _requests.get(f"{comfyui_url}/queue", timeout=5)
+        data = r.json()
         running = data.get("queue_running", [])
         pending = data.get("queue_pending", [])
 
@@ -478,6 +488,292 @@ def api_generate_variant(agent_id):
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result), 201
+
+
+@media_studio_bp.route("/api/portraits/<int:agent_id>/refine-prompt", methods=["POST"])
+@login_required
+def api_refine_prompt(agent_id):
+    """Queue a M.U.S.E. portrait refinement job in Department HQ.
+
+    JSON body: { "feedback": "...", "history": [...] }
+    Returns immediately: { "task_id": N, "status": "queued" }
+    Poll GET /api/portraits/<id>/refine-status/<task_id> for result.
+    """
+    import json as _json
+    import psycopg2.extras
+    from database import get_db_cursor
+
+    data = request.get_json(silent=True) or {}
+    feedback = (data.get("feedback") or "").strip()
+    if not feedback:
+        return jsonify({"error": "feedback is required"}), 400
+
+    job_meta = psycopg2.extras.Json(
+        {
+            "agent_id": agent_id,
+            "feedback": feedback,
+            "history": data.get("history") or [],
+        }
+    )
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """INSERT INTO unified_tasks
+               (title, task_type, status, priority, metadata, tags)
+               VALUES (%s, 'portrait_refinement', 'pending', 8, %s, ARRAY['portrait_refinement'])
+               RETURNING id""",
+            (f"[Portrait Refine] Agent {agent_id}: {feedback[:60]}", job_meta),
+        )
+        task_id = cur.fetchone()["id"]
+
+    return jsonify({"task_id": task_id, "status": "queued"})
+
+
+@media_studio_bp.route("/api/portraits/<int:agent_id>/refine-status/<int:task_id>")
+@login_required
+def api_refine_status(agent_id, task_id):
+    """Poll a queued portrait refinement job.
+
+    Returns: { status: pending|running|completed|failed, result: {...} }
+    """
+    from database import get_db_cursor
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT status, metadata FROM unified_tasks WHERE id = %s",
+            (task_id,),
+        )
+        row = cur.fetchone()
+
+    if not row:
+        return jsonify({"error": "Task not found"}), 404
+
+    meta = row["metadata"] or {}
+    resp = {"status": row["status"]}
+    if row["status"] == "completed" and "result" in meta:
+        resp.update(meta["result"])
+    elif row["status"] == "failed":
+        resp["error"] = meta.get("error", "Refinement failed")
+    return jsonify(resp)
+
+
+@media_studio_bp.route("/api/portraits/<int:agent_id>/refinement-draft", methods=["PUT"])
+@login_required
+def api_save_refinement_draft(agent_id):
+    """Save the user's in-progress feedback draft to agent_portraits.refinement_draft.
+
+    JSON body: { "draft": "keep the blue eyes but make it more 3D..." }
+    Persists across browsers and sessions — lives on the agent's profile.
+    """
+    from database import get_db_cursor
+
+    data = request.get_json(silent=True) or {}
+    draft = data.get("draft", "")
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """INSERT INTO agent_portraits (agent_id, refinement_draft)
+               VALUES (%s, %s)
+               ON CONFLICT (agent_id) DO UPDATE SET refinement_draft = EXCLUDED.refinement_draft""",
+            (agent_id, draft),
+        )
+    return jsonify({"saved": True})
+
+
+@media_studio_bp.route("/api/portraits/<int:agent_id>/refine-pending")
+@login_required
+def api_refine_pending(agent_id):
+    """Check if there's an active refinement job for this agent (pending or in_progress).
+
+    Returns { task_id, status, started_ago } or { task_id: null } if none.
+    Used by the UI to auto-resume polling when the user returns to a portrait.
+    """
+    from database import get_db_cursor
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """SELECT id, status,
+                      EXTRACT(EPOCH FROM (NOW() - created_at))::int AS age_secs
+               FROM unified_tasks
+               WHERE task_type = 'portrait_refinement'
+                 AND status IN ('pending', 'in_progress')
+                 AND metadata->>'agent_id' = %s
+               ORDER BY id DESC LIMIT 1""",
+            (str(agent_id),),
+        )
+        row = cur.fetchone()
+
+    if not row:
+        return jsonify({"task_id": None})
+
+    age = row["age_secs"] or 0
+    if age < 60:
+        started_ago = f"{age}s ago"
+    elif age < 3600:
+        started_ago = f"{age // 60}m ago"
+    else:
+        started_ago = f"{age // 3600}h ago"
+
+    return jsonify({"task_id": row["id"], "status": row["status"], "started_ago": started_ago})
+
+
+@media_studio_bp.route("/api/portraits/<int:agent_id>/refine-stream", methods=["POST"])
+@login_required
+def api_refine_stream(agent_id):
+    """SSE streaming M.U.S.E. refinement — yields each step as it completes.
+
+    JSON body: { "feedback": "...", "history": [...] }
+    Returns text/event-stream — each event: data: <json>\\n\\n
+    Steps: vision → agent → muse → complete
+    """
+    import json as _json
+    from flask import stream_with_context, Response
+    from .services.portrait_service import (
+        _load_refinement_context,
+        _step_vision_analysis,
+        _step_consult_agent,
+        _step_muse_synthesize,
+    )
+
+    data = request.get_json(silent=True) or {}
+    feedback = (data.get("feedback") or "").strip()
+    history = data.get("history") or []
+
+    if not feedback:
+        return jsonify({"error": "feedback is required"}), 400
+
+    ctx = _load_refinement_context(agent_id)
+    if not ctx:
+        return jsonify({"error": "Agent portrait not found"}), 404
+
+    current_prompt = ctx.get("identity_prompt") or ""
+    if not current_prompt:
+        return jsonify({"error": "No identity prompt set — add one in DHQ Roster"}), 400
+
+    agent_name = ctx.get("display_name") or ctx.get("name") or f"Agent {agent_id}"
+
+    def _evt(obj):
+        return f"data: {_json.dumps(obj)}\n\n"
+
+    def generate():
+        # Step 1 — Vision analysis
+        yield _evt(
+            {
+                "step": "vision",
+                "status": "running",
+                "label": f"M.U.S.E. analyzing {agent_name}'s portrait... (DHQ booting vision model if cold — up to 90s)",
+            }
+        )
+        vision_desc = _step_vision_analysis(ctx.get("canonical_image_path") or "")
+        yield _evt(
+            {"step": "vision", "status": "done", "result": vision_desc or "(portrait file not found — skipping)"}
+        )
+
+        # Step 2 — Agent self-consultation
+        yield _evt({"step": "agent", "status": "running", "label": f"Consulting {agent_name} about their identity..."})
+        agent_perspective = _step_consult_agent(
+            agent_name=agent_name,
+            model=ctx.get("model") or "qwen2.5:7b",
+            system_prompt=ctx.get("system_prompt") or "",
+            title=ctx.get("title") or "",
+            department=ctx.get("department") or "",
+            current_prompt=current_prompt,
+            vision_desc=vision_desc,
+            feedback=feedback,
+        )
+        yield _evt({"step": "agent", "status": "done", "result": agent_perspective or "(agent unavailable — skipping)"})
+
+        # Step 3 — M.U.S.E. synthesis
+        yield _evt({"step": "muse", "status": "running", "label": "M.U.S.E. synthesizing all perspectives..."})
+        synthesis = _step_muse_synthesize(
+            agent_name=agent_name,
+            current_prompt=current_prompt,
+            vision_desc=vision_desc,
+            agent_perspective=agent_perspective,
+            feedback=feedback,
+            history=history,
+        )
+        if "error" in synthesis:
+            yield _evt({"step": "error", "error": synthesis["error"]})
+            return
+
+        yield _evt(
+            {
+                "step": "complete",
+                "refined_prompt": synthesis.get("refined_prompt", ""),
+                "explanation": synthesis.get("explanation", ""),
+                "vision_description": vision_desc,
+                "agent_perspective": agent_perspective,
+                "agent_name": agent_name,
+                "original_prompt": current_prompt,
+            }
+        )
+
+    return Response(
+        stream_with_context(generate()),
+        content_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@media_studio_bp.route("/api/portraits/<int:agent_id>/refinement-log", methods=["GET"])
+@login_required
+def api_refinement_log_get(agent_id):
+    """Return all refinement rounds for this agent, newest first."""
+    from database import get_db_cursor
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """SELECT id, round_number, feedback, vision_description,
+                      agent_perspective, refined_prompt, explanation,
+                      accepted, created_at
+               FROM portrait_refinement_log
+               WHERE agent_id = %s
+               ORDER BY created_at DESC LIMIT 50""",
+            (agent_id,),
+        )
+        rows = []
+        for r in cur.fetchall():
+            row = dict(r)
+            if row.get("created_at"):
+                row["created_at"] = row["created_at"].isoformat()
+            rows.append(row)
+    return jsonify({"rounds": rows})
+
+
+@media_studio_bp.route("/api/portraits/<int:agent_id>/refinement-log", methods=["POST"])
+@login_required
+def api_refinement_log_save(agent_id):
+    """Persist a completed refinement round with timestamp.
+
+    JSON: { feedback, vision_description, agent_perspective, refined_prompt, explanation, accepted }
+    """
+    from database import get_db_cursor
+
+    data = request.get_json(silent=True) or {}
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "SELECT COALESCE(MAX(round_number),0)+1 AS next_round FROM portrait_refinement_log WHERE agent_id=%s",
+            (agent_id,),
+        )
+        round_num = cur.fetchone()["next_round"]
+        cur.execute(
+            """INSERT INTO portrait_refinement_log
+               (agent_id, round_number, feedback, vision_description, agent_perspective,
+                refined_prompt, explanation, accepted)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+            (
+                agent_id,
+                round_num,
+                data.get("feedback", ""),
+                data.get("vision_description", ""),
+                data.get("agent_perspective", ""),
+                data.get("refined_prompt", ""),
+                data.get("explanation", ""),
+                bool(data.get("accepted", False)),
+            ),
+        )
+        row_id = cur.fetchone()[0]
+    return jsonify({"id": row_id, "round_number": round_num})
 
 
 @media_studio_bp.route("/api/portraits/<int:agent_id>/approve", methods=["POST"])

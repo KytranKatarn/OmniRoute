@@ -3,8 +3,11 @@ import hmac
 import json
 import logging
 import os
+import random
 import threading
+import time
 import uuid
+from collections import deque
 from datetime import datetime, timezone
 
 from flask import Flask, jsonify, request
@@ -19,6 +22,12 @@ def create_app(testing=False):
     app.config["TESTING"] = testing
     app._tasks: dict = {}
     app._tasks_lock = threading.Lock()
+    # Rate limiting: track execution timestamps for human-like pacing
+    app._exec_times: deque = deque(maxlen=100)   # rolling window
+    app._rate_lock = threading.Lock()
+    app._min_delay_s = float(os.getenv("BROWSER_MIN_DELAY_S", "2"))
+    app._max_delay_s = float(os.getenv("BROWSER_MAX_DELAY_S", "5"))
+    app._max_per_hour = int(os.getenv("BROWSER_MAX_PER_HOUR", "60"))
 
     # In testing mode inject MagicMock stubs so imports of session_manager /
     # skill_runner inside route handlers are short-circuited by the module cache.
@@ -143,9 +152,33 @@ def create_app(testing=False):
     return app
 
 
+def _apply_rate_limit(app):
+    """Enforce human-like pacing: random delay + per-hour cap."""
+    now = time.time()
+    with app._rate_lock:
+        # Drop timestamps older than 1 hour
+        cutoff = now - 3600
+        while app._exec_times and app._exec_times[0] < cutoff:
+            app._exec_times.popleft()
+        # Per-hour cap check
+        if len(app._exec_times) >= app._max_per_hour:
+            oldest = app._exec_times[0]
+            wait = max(0, 3600 - (now - oldest))
+            logger.warning("[RateLimit] Hour cap reached, waiting %.0fs", wait)
+            time.sleep(wait)
+        app._exec_times.append(time.time())
+    # Human-like random delay between actions
+    delay = random.uniform(app._min_delay_s, app._max_delay_s)
+    time.sleep(delay)
+
+
 def _execute_task(app, task_id, agent_id, skill_name, params):
     with app._tasks_lock:
         app._tasks[task_id]["status"] = "running"
+
+    # Rate limiting — skip for health checks / non-browser ops
+    if not app.config.get("TESTING"):
+        _apply_rate_limit(app)
 
     start = datetime.now(timezone.utc)
     try:

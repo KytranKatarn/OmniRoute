@@ -17,5 +17,7 @@ COPY . .
 RUN mkdir -p /app/screenshots
 
 ENV PYTHONUNBUFFERED=1
+ENV KYTRAN_LOGO_PATH=/app/assets/kytran-logo.png
+ENV KYTRAN_PORTRAIT_PATH=/app/assets/kytran-portrait.png
 EXPOSE 4242
 CMD ["python3", "app.py"]

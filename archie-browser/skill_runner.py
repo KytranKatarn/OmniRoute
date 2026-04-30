@@ -70,6 +70,30 @@ def execute(agent_id: int, skill_name: str, params: dict) -> dict:
             try:
                 page = context.new_page()
                 result = skill["module"].execute(page, params)
+
+                # Session expiry detection — if LinkedIn redirected to login, refresh
+                current_url = page.url
+                _logged_out = any(
+                    x in current_url
+                    for x in ("linkedin.com/login", "linkedin.com/authwall",
+                              "linkedin.com/checkpoint", "linkedin.com/signup",
+                              "linkedin.com/uas/")
+                )
+                if _logged_out and platform:
+                    logger.warning(
+                        "[Session] Agent %s session expired on %s — attempting re-login",
+                        agent_id, platform,
+                    )
+                    creds = session_manager.get_credentials(agent_id, platform)
+                    if creds:
+                        session_manager.setup_session(
+                            agent_id, platform,
+                            creds["username"], creds["password"]
+                        )
+                        logger.info("[Session] Agent %s re-login complete", agent_id)
+                    else:
+                        logger.error("[Session] No credentials for agent %s/%s", agent_id, platform)
+
                 updated = context.storage_state()
                 if platform:
                     session_manager.save_session(agent_id, platform, updated)

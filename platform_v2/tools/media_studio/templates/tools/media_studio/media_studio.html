@@ -2979,7 +2979,11 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (btn) { btn.disabled = false; btn.textContent = 'Generate'; }
-            if (data.error) { alert(data.error); return; }
+            if (data.error) {
+                // 409 = already queued — show friendly message
+                alert(data.error);
+                return;
+            }
             alert('Queued! Check the Queue tab for progress (~3–5 min).');
         })
         .catch(function(err) {

@@ -363,6 +363,29 @@ def api_generate_canonical(agent_id):
             400,
         )
 
+    # Duplicate guard — block if a pending/dispatched job already exists for this agent
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT id FROM media_generation_queue
+            WHERE owner_type = 'agent' AND owner_id = %s
+              AND status IN ('pending', 'dispatched')
+            LIMIT 1
+            """,
+            (agent_id,),
+        )
+        existing = cur.fetchone()
+    if existing:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "A portrait generation is already queued for this agent. Wait for it to complete before submitting another.",
+                }
+            ),
+            409,
+        )
+
     data = request.get_json() or {}
     result = generate_canonical(agent_id, prompt_override=data.get("prompt"))
     if "error" in result:

@@ -327,7 +327,7 @@ class AgentLoop:
                 cur.execute(
                     """UPDATE media_generation_queue SET status='pending', started_at=NULL,
                        error_message='Reset on startup — platform restarted mid-generation'
-                       WHERE status='generating'"""
+                       WHERE status IN ('generating', 'dispatched')"""
                 )
                 if cur.rowcount:
                     logger.info("startup recovery: reset %d stuck 'generating' jobs to 'pending'", cur.rowcount)

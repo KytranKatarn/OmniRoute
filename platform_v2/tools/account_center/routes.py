@@ -2699,3 +2699,11 @@ def reset_password_via_token(token):
     if ok:
         return jsonify({"success": True, "message": "Password updated. You can now log in."})
     return jsonify({"success": False, "error": err}), 400
+
+
+# ---------------------------------------------------------------------------
+# Internal access grant/revoke/check/list API (token-authenticated)
+# ---------------------------------------------------------------------------
+from .access_routes import access_bp as _access_bp  # noqa: E402
+
+account_center_bp.register_blueprint(_access_bp)

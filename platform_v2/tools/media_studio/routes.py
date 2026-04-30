@@ -240,6 +240,94 @@ def api_comfyui_status():
     return jsonify({"nodes": get_fleet_comfyui_status()})
 
 
+@media_studio_bp.route("/api/comfyui/rescue", methods=["POST"])
+@login_required
+def api_comfyui_rescue():
+    """Scan ComfyUI history and recover any completed jobs the platform missed.
+
+    Matches ComfyUI completed prompt_ids against bridge_jobs linked to
+    media_generation_queue entries stuck in 'dispatched' state, then stores
+    the generated image and marks the queue entry as completed.
+    """
+    import json as _json
+    import urllib.request as _req
+    from database import get_db_cursor
+    from .services.generation_service import on_generation_completed
+
+    comfyui_url = os.getenv("COMFYUI_URL", "http://archie_comfyui:8188")
+    try:
+        r = _req.urlopen(f"{comfyui_url}/history?max_items=50", timeout=5)
+        history = _json.loads(r.read())
+    except Exception as exc:
+        return jsonify({"rescued": 0, "error": str(exc)}), 503
+
+    rescued = 0
+    with get_db_cursor(commit=True) as (conn, cur):
+        # Find queue entries stuck in dispatched state
+        cur.execute(
+            """
+            SELECT q.id AS queue_id, q.bridge_job_id, bj.result AS bridge_result
+            FROM media_generation_queue q
+            LEFT JOIN bridge_jobs bj ON bj.id = q.bridge_job_id
+            WHERE q.status = 'dispatched'
+              AND q.result_media_id IS NULL
+              AND q.created_at > NOW() - INTERVAL '7 days'
+            """
+        )
+        stuck_jobs = cur.fetchall()
+
+    for job in stuck_jobs:
+        bridge_result = job.get("bridge_result") or {}
+        if isinstance(bridge_result, str):
+            try:
+                import json as j2
+
+                bridge_result = j2.loads(bridge_result)
+            except Exception:
+                continue
+        # Look for ComfyUI prompt_id in bridge result metadata
+        prompt_id = bridge_result.get("prompt_id") or bridge_result.get("comfyui_prompt_id")
+        if not prompt_id or prompt_id not in history:
+            continue
+        comfy_job = history[prompt_id]
+        status = comfy_job.get("status", {})
+        if not status.get("completed") or status.get("status_str") != "success":
+            continue
+        # Find output image
+        outputs = comfy_job.get("outputs", {})
+        img_filename = None
+        for node_out in outputs.values():
+            imgs = node_out.get("images", [])
+            if imgs:
+                img_filename = imgs[0].get("filename")
+                break
+        if not img_filename:
+            continue
+        # Copy image from ComfyUI output to platform static
+        try:
+            import shutil
+
+            comfyui_output = os.getenv(
+                "COMFYUI_OUTPUT_DIR", "/mnt/archie_brain/platform_v2/static/media/comfyui_output"
+            )
+            src = os.path.join(comfyui_output, img_filename)
+            if not os.path.exists(src):
+                continue
+            dest_dir = os.path.join(os.path.dirname(src).replace("comfyui_output", "images"), "recovered")
+            os.makedirs(dest_dir, exist_ok=True)
+            dest = os.path.join(dest_dir, img_filename)
+            shutil.copy2(src, dest)
+            rel_path = dest.replace(os.path.join(os.path.dirname(__file__), "..", "..", "static"), "/static").replace(
+                "//", "/"
+            )
+            on_generation_completed(job["queue_id"], img_filename, rel_path, rel_path)
+            rescued += 1
+        except Exception as exc:
+            logger.warning("rescue failed for queue %s: %s", job["queue_id"], exc)
+
+    return jsonify({"rescued": rescued})
+
+
 @media_studio_bp.route("/api/comfyui/queue")
 @login_required
 def api_comfyui_queue():

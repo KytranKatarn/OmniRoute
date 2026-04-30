@@ -3039,6 +3039,24 @@ class AgentLoop:
                 logger.error(f"LinkedIn post execution failed: {li_err}")
                 return {"executed": False, "error": str(li_err)}
 
+        elif action_type == "linkedin_reply":
+            # Approved reply to a LinkedIn comment/message
+            reply_to = data.get("reply_to", "")
+            message = data.get("message", "")
+            agent_id = data.get("browser_agent_id", 342)
+            if not reply_to or not message:
+                return {"executed": False, "error": "reply_to and message required"}
+            try:
+                import sys as _sys
+                _sys.path.insert(0, "/app")
+                from services.browser_service import run_skill_sync
+                result = run_skill_sync(
+                    "linkedin_reply", {"reply_to": reply_to, "message": message}, agent_id=agent_id, timeout_s=90
+                )
+                return {"executed": True, "result": result}
+            except Exception as re_err:
+                return {"executed": False, "error": str(re_err)}
+
         elif action_type == "linkedin_connect":
             # Approved connection request — execute via archie_browser
             profile_url = data.get("profile_url", "")

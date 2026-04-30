@@ -2487,6 +2487,148 @@ def signal_linkedin_analytics():
         _log_cycle("signal_linkedin_analytics", 0, 1, int((time.time() - start) * 1000), error_message=str(exc)[:200])
 
 
+def signal_notification_monitor():
+    """Check LinkedIn notifications and queue replies to comments for Telegram approval.
+
+    Runs every morning at 08:00. S.I.G.N.A.L. reads notifications, identifies
+    comments/mentions that need a response, drafts replies, and queues them
+    as Tier-2 approvals. Kytran approves/edits via Telegram before sending.
+    """
+    from services.browser_service import run_skill_sync
+    from tools.department_hq.services.department_dispatcher import dispatch
+
+    start = time.time()
+    try:
+        # 1. Fetch notifications
+        result = run_skill_sync("linkedin_notifications", {"limit": 20, "unread_only": True}, timeout_s=90)
+        notifications = result.get("notifications", [])
+        comments = [n for n in notifications if n.get("type") in ("comment", "mention", "reply")]
+
+        if not comments:
+            logger.info("[NotifMonitor] No comments/mentions to respond to")
+            _log_cycle("signal_notification_monitor", 0, 0, int((time.time() - start) * 1000))
+            return
+
+        queued = 0
+        try:
+            from ai_bridge.agent_loop import request_approval
+        except ImportError:
+            return
+
+        for notif in comments[:5]:  # max 5 replies per run
+            text = notif.get("text", "")[:300]
+            link = notif.get("link", "")
+            if not text or not link:
+                continue
+
+            # S.I.G.N.A.L. drafts a reply
+            draft_result = dispatch(
+                capability="social_post_draft",
+                prompt=(
+                    f"Draft a short LinkedIn reply to this notification:\n{text}\n\n"
+                    "Reply as Kytran — professional, friendly, genuine. "
+                    "Under 80 words. No hashtags."
+                ),
+                prefer_agent="S.I.G.N.A.L.",
+            )
+            reply_text = (draft_result.response or "").strip() if draft_result and draft_result.success else ""
+            if not reply_text:
+                continue
+
+            request_approval(
+                action_type="linkedin_reply",
+                action_data={"reply_to": link, "message": reply_text, "browser_agent_id": 342},
+                reason=f"S.I.G.N.A.L. reply draft:\nContext: {text[:150]}\nDraft: {reply_text}",
+                tier=2,
+                requested_by="S.I.G.N.A.L.",
+                priority=4,
+            )
+            queued += 1
+
+        logger.info("[NotifMonitor] Queued %d reply approvals", queued)
+        _log_cycle("signal_notification_monitor", queued, 0, int((time.time() - start) * 1000))
+
+    except Exception as exc:
+        logger.error("[NotifMonitor] Failed: %s", exc)
+        _log_cycle("signal_notification_monitor", 0, 1, int((time.time() - start) * 1000), error_message=str(exc)[:200])
+
+
+def signal_post_performance_check():
+    """Compare 48h post impressions to baseline, store high-performers in KB.
+
+    Runs every 6 hours. Finds posts in linkedin_post_log that are 48-72h old
+    and have analytics fetched. Compares to recent average. Stores insights in
+    KB so S.I.G.N.A.L.'s next draft prompt includes what's working.
+    Scheduled: every 6h (combined with analytics job trigger).
+    """
+    from db import get_db
+    from psycopg2.extras import RealDictCursor
+
+    start = time.time()
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Get posts with analytics, 48-96h old
+        cur.execute(
+            """
+            SELECT id, content, hashtags, impressions, reactions, posted_at
+            FROM linkedin_post_log
+            WHERE analytics_fetched_at IS NOT NULL
+              AND posted_at BETWEEN NOW() - INTERVAL '96 hours' AND NOW() - INTERVAL '48 hours'
+              AND impressions IS NOT NULL
+            ORDER BY posted_at DESC LIMIT 10
+            """
+        )
+        recent_posts = cur.fetchall()
+
+        if not recent_posts:
+            cur.close()
+            conn.close()
+            _log_cycle("signal_post_performance_check", 0, 0, int((time.time() - start) * 1000))
+            return
+
+        # Calculate average impressions
+        avg_impressions = sum(p["impressions"] or 0 for p in recent_posts) / len(recent_posts)
+        high_performers = [p for p in recent_posts if (p["impressions"] or 0) > avg_impressions * 1.5]
+
+        insights_stored = 0
+        for post in high_performers:
+            preview = (post["content"] or "")[:200]
+            hashtags = post.get("hashtags") or []
+            try:
+                from services.knowledge_service import store_knowledge
+
+                store_knowledge(
+                    title=f"High-Performing LinkedIn Post — {post['posted_at'].strftime('%Y-%m-%d')}",
+                    content=(
+                        f"This post got {post['impressions']} impressions "
+                        f"(avg: {avg_impressions:.0f}, {post['impressions']/avg_impressions:.1f}x baseline).\n\n"
+                        f"Hashtags: {', '.join(hashtags)}\n\n"
+                        f"Content preview: {preview}\n\n"
+                        f"S.I.G.N.A.L.: write more posts like this."
+                    ),
+                    knowledge_type="vault_note",
+                    category="signal_performance",
+                    tags=["linkedin", "signal", "performance", "high_performer"],
+                    importance_score=0.85,
+                )
+                insights_stored += 1
+            except Exception:
+                pass
+
+        cur.close()
+        conn.close()
+        logger.info("[PostPerf] %d high-performers stored (avg=%.0f)", insights_stored, avg_impressions)
+        _log_cycle("signal_post_performance_check", insights_stored, 0, int((time.time() - start) * 1000))
+
+    except Exception as exc:
+        logger.error("[PostPerf] Failed: %s", exc)
+        _log_cycle(
+            "signal_post_performance_check", 0, 1, int((time.time() - start) * 1000), error_message=str(exc)[:200]
+        )
+
+
 def signal_follow_federal_agencies():
     """Follow key Canadian federal agencies on LinkedIn.
 
@@ -2894,6 +3036,26 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(hours=6),
         id="signal_linkedin_analytics",
         name="S.I.G.N.A.L.: LinkedIn Analytics & Hashtag Stats",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    # S.I.G.N.A.L. notification monitor — daily 08:00, check comments/mentions → draft replies
+    scheduler.add_job(
+        with_ctx(signal_notification_monitor),
+        trigger=CronTrigger(hour=8, minute=0),
+        id="signal_notification_monitor",
+        name="S.I.G.N.A.L.: LinkedIn Notification Monitor → Reply Drafts",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    # Post performance check — every 12h, high-performers stored in KB for S.I.G.N.A.L.
+    scheduler.add_job(
+        with_ctx(signal_post_performance_check),
+        trigger=IntervalTrigger(hours=12),
+        id="signal_post_performance_check",
+        name="S.I.G.N.A.L.: Post Performance → KB Insights",
         replace_existing=True,
         max_instances=1,
     )

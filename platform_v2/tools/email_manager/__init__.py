@@ -31,3 +31,8 @@ register_sent_routes(email_manager_bp, admin_required)
 from .compose_routes import register_compose_routes  # noqa: F401, E402
 
 register_compose_routes(email_manager_bp, admin_required)
+
+# Email HQ routes (unified inbox, assign, stats, rules)
+from .hq_routes import register_hq_routes  # noqa: F401, E402
+
+register_hq_routes(email_manager_bp, admin_required)

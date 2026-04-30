@@ -25,7 +25,8 @@
     ("inbox", "Inbox", "inbox"),
     ("sent", "Sent", "send"),
     ("agents", "Agents", "users"),
-    ("settings", "Settings", "settings")
+    ("settings", "Settings", "settings"),
+    ("hq", "📬 HQ", "mail")
 ] %}
 {% include 'includes/lcars-header.html' %}
 
@@ -102,6 +103,39 @@
     <!-- ── SETTINGS TAB ────────────────────────────────────────── -->
     <div id="tab-settings" class="tab-content" style="display:none;">
         <div class="em-empty" style="height:200px;">Stalwart settings — coming in Task 6</div>
+    </div>
+
+    <!-- ── HQ TAB ────────────────────────────────────────────────── -->
+    <div id="tab-hq" class="tab-content" style="display:none;">
+
+      <!-- Stats row -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
+        <div style="border:1px solid #222;border-radius:6px;padding:12px;text-align:center;background:#050509">
+          <div id="hqStat24h" style="font-size:22px;font-weight:700;color:#7c3aed">—</div>
+          <div style="font-size:11px;color:#888;margin-top:2px">Emails (24h)</div>
+        </div>
+        <div style="border:1px solid #222;border-radius:6px;padding:12px;text-align:center;background:#050509">
+          <div id="hqStatUnread" style="font-size:22px;font-weight:700;color:#f59e0b">—</div>
+          <div style="font-size:11px;color:#888;margin-top:2px">Unread</div>
+        </div>
+        <div style="border:1px solid #222;border-radius:6px;padding:12px;text-align:center;background:#050509">
+          <div id="hqStatMailboxes" style="font-size:22px;font-weight:700;color:#22c55e">—</div>
+          <div style="font-size:11px;color:#888;margin-top:2px">Active Mailboxes</div>
+        </div>
+        <div style="border:1px solid #222;border-radius:6px;padding:12px;text-align:center;background:#050509">
+          <div id="hqStatFlagged" style="font-size:22px;font-weight:700;color:#ef4444">—</div>
+          <div style="font-size:11px;color:#888;margin-top:2px">Flagged &gt;24h</div>
+        </div>
+      </div>
+
+      <!-- Unified inbox header -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <h3 style="font-size:13px;color:#888;text-transform:uppercase;letter-spacing:1px;margin:0">Unified Inbox</h3>
+        <select id="hqMailboxFilter" style="background:#0a0a14;color:#aaa;border:1px solid #333;border-radius:4px;padding:4px 8px;font-size:12px">
+          <option value="">All mailboxes</option>
+        </select>
+      </div>
+      <div id="hqEmailList" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
 </div>
 
@@ -581,6 +615,115 @@
         });
     };
 
+}());
+</script>
+
+<script>
+(function () {
+  'use strict';
+
+  function loadHQStats() {
+    fetch('/tools/email-manager/api/hq/stats')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var e = function(id) { return document.getElementById(id); };
+        if (e('hqStat24h'))      e('hqStat24h').textContent      = d.last_24h          || 0;
+        if (e('hqStatUnread'))   e('hqStatUnread').textContent   = d.unread_24h         || 0;
+        if (e('hqStatMailboxes'))e('hqStatMailboxes').textContent = d.active_mailboxes  || 0;
+        if (e('hqStatFlagged'))  e('hqStatFlagged').textContent  = d.flagged_unanswered || 0;
+      })
+      .catch(function () {});
+  }
+
+  function loadUnifiedInbox(mailboxId) {
+    var url = '/tools/email-manager/api/hq/unified-inbox?limit=50';
+    if (mailboxId) url += '&mailbox_id=' + encodeURIComponent(mailboxId);
+    fetch(url)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var list = document.getElementById('hqEmailList');
+        if (!list) return;
+        while (list.firstChild) list.removeChild(list.firstChild);
+
+        (data.emails || []).forEach(function (e) {
+          var row = document.createElement('div');
+          row.style.cssText = 'border:1px solid #1a1a2e;border-radius:6px;padding:10px 14px;background:#050509;display:flex;justify-content:space-between;align-items:center;gap:10px';
+
+          var left = document.createElement('div');
+          left.style.cssText = 'flex:1;min-width:0';
+
+          var subj = document.createElement('div');
+          subj.textContent = e.subject;
+          subj.style.cssText = 'font-size:13px;font-weight:' + (e.is_read ? '400' : '600') + ';color:' + (e.is_read ? '#888' : '#fff') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+
+          var meta = document.createElement('div');
+          meta.style.cssText = 'font-size:11px;color:#555;margin-top:3px';
+          meta.textContent = (e.from_address || '—') + ' → ' + (e.mailbox_address || '—');
+
+          left.appendChild(subj);
+          left.appendChild(meta);
+
+          var right = document.createElement('div');
+          right.style.cssText = 'display:flex;align-items:center;gap:8px;flex-shrink:0';
+
+          if (e.assigned_agent) {
+            var badge = document.createElement('span');
+            badge.textContent = e.assigned_agent;
+            badge.style.cssText = 'background:#0f0a1e;color:#7c3aed;border:1px solid #7c3aed33;border-radius:10px;padding:2px 8px;font-size:10px';
+            right.appendChild(badge);
+          }
+
+          var btn = document.createElement('button');
+          btn.textContent = 'Assign';
+          btn.style.cssText = 'background:transparent;color:#888;border:1px solid #333;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px';
+          (function(emailId) {
+            btn.addEventListener('click', function () {
+              var agent = window.prompt('Assign to agent (e.g. R.E.S.O.L.V.E.):');
+              if (!agent || !agent.trim()) return;
+              fetch('/tools/email-manager/api/hq/assign', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email_id: emailId, agent_name: agent.trim()}),
+              }).then(function () {
+                var f = document.getElementById('hqMailboxFilter');
+                loadUnifiedInbox(f ? f.value : '');
+              });
+            });
+          })(e.id);
+          right.appendChild(btn);
+
+          row.appendChild(left);
+          row.appendChild(right);
+          list.appendChild(row);
+        });
+
+        if (!data.emails || data.emails.length === 0) {
+          var empty = document.createElement('div');
+          empty.style.cssText = 'text-align:center;color:#555;padding:24px;font-size:13px';
+          empty.textContent = 'No emails in unified inbox.';
+          list.appendChild(empty);
+        }
+      })
+      .catch(function () {});
+  }
+
+  // Hook into existing tab switch function
+  var _orig = window.switchEmailTab;
+  window.switchEmailTab = function (tab) {
+    if (_orig) _orig(tab);
+    if (tab === 'hq') {
+      loadHQStats();
+      var f = document.getElementById('hqMailboxFilter');
+      loadUnifiedInbox(f ? f.value : '');
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var filter = document.getElementById('hqMailboxFilter');
+    if (filter) {
+      filter.addEventListener('change', function () { loadUnifiedInbox(filter.value); });
+    }
+  });
 }());
 </script>
 {% endblock %}

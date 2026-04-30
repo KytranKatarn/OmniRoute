@@ -2868,6 +2868,41 @@ def signal_outreach_batch(batch_size: int = 3):
 # ---------------------------------------------------------------------------
 
 
+def email_oversight(flask_app):
+    """Flag unanswered inbound emails > 24h old every 30 min."""
+    import time as _time
+
+    start = _time.time()
+    flagged = 0
+    try:
+        with flask_app.app_context():
+            from database import get_db_cursor as _gdc
+
+            with _gdc(commit=True) as (_, cur):
+                cur.execute(
+                    """
+                    INSERT INTO email_assignments
+                        (email_id, mailbox_id, assigned_agent, assigned_by, status, notes)
+                    SELECT al.id, al.mailbox_id, 'R.E.S.O.L.V.E.',
+                           'email_oversight', 'open', 'Auto-flagged: unanswered >24h'
+                    FROM email_activity_log al
+                    WHERE al.direction = 'inbound'
+                      AND al.received_at < NOW() - INTERVAL '24 hours'
+                      AND al.read_at IS NULL
+                      AND NOT EXISTS (
+                          SELECT 1 FROM email_assignments ea WHERE ea.email_id = al.id
+                      )
+                    ON CONFLICT DO NOTHING
+                    RETURNING id
+                    """
+                )
+                flagged = len(cur.fetchall())
+        duration_ms = int((_time.time() - start) * 1000)
+        _log_cycle("email_oversight", flagged, 0, duration_ms, details={"flagged": flagged})
+    except Exception as exc:
+        _log_cycle("email_oversight", 0, 1, 0, error_message=str(exc))
+
+
 def register_agent_welfare_jobs(scheduler, flask_app):
     """Register all agent welfare/HR background jobs with the scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
@@ -3063,3 +3098,14 @@ def register_agent_welfare_jobs(scheduler, flask_app):
     # signal_outreach_search() and signal_outreach_batch() are built but NOT scheduled.
     # Activate when platform products are ready for outreach (Gov Watch, ARCHIE demos).
     # To enable: add CronTrigger here, e.g. Mon/Wed/Fri 10:00 for outreach_batch.
+
+    # Email oversight — every 30 min, flags unanswered inbound emails >24h to R.E.S.O.L.V.E.
+    scheduler.add_job(
+        lambda: email_oversight(flask_app),
+        trigger=IntervalTrigger(minutes=30),
+        id="email_oversight",
+        name="Email HQ: Oversight — Flag Unanswered >24h",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )

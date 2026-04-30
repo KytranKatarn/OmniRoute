@@ -384,9 +384,11 @@ def get_queue_status(
         if owner_id:
             cur.execute(
                 """
-                SELECT q.*, ml.thumbnail_path
+                SELECT q.*, ml.thumbnail_path,
+                       CASE WHEN q.owner_type='agent' THEN a.display_name ELSE NULL END AS agent_name
                 FROM media_generation_queue q
                 LEFT JOIN media_library ml ON ml.id = q.result_media_id
+                LEFT JOIN agents a ON a.id = q.owner_id AND q.owner_type = 'agent'
                 WHERE q.owner_type = %s AND q.owner_id = %s
                 ORDER BY q.created_at DESC
                 LIMIT %s
@@ -396,13 +398,16 @@ def get_queue_status(
         else:
             cur.execute(
                 """
-                SELECT q.*, ml.thumbnail_path
+                SELECT q.*, ml.thumbnail_path,
+                       CASE WHEN q.owner_type='agent' THEN a.display_name ELSE NULL END AS agent_name
                 FROM media_generation_queue q
                 LEFT JOIN media_library ml ON ml.id = q.result_media_id
+                LEFT JOIN agents a ON a.id = q.owner_id AND q.owner_type = 'agent'
+                WHERE q.owner_type = %s
                 ORDER BY q.created_at DESC
                 LIMIT %s
                 """,
-                (limit,),
+                (owner_type, limit),
             )
         return [dict(row) for row in cur.fetchall()]
 

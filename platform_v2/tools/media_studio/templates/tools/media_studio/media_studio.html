@@ -2712,14 +2712,23 @@
             // Info
             var info = document.createElement("div");
             info.className = "ms-queue-info";
+            if (j.agent_name) {
+                var agentLabel = document.createElement("div");
+                agentLabel.style.cssText = 'font-size:0.75rem;color:var(--ms-accent,#7c3aed);font-weight:600;margin-bottom:2px;';
+                agentLabel.textContent = j.agent_name + ' — Portrait';
+                info.appendChild(agentLabel);
+            }
             var prompt = document.createElement("div");
             prompt.className = "ms-queue-prompt";
-            prompt.textContent = truncate(j.prompt, 80);
+            var promptText = (j.params && j.params.prompt) ? j.params.prompt : (j.prompt || '');
+            prompt.textContent = truncate(promptText, 80);
             info.appendChild(prompt);
             var time = document.createElement("div");
             time.className = "ms-queue-time";
-            time.setAttribute("data-utc", j.created_at || "");
-            time.setAttribute("data-fmt", "age");
+            if (j.created_at) {
+                var d = new Date(j.created_at);
+                time.textContent = isNaN(d) ? j.created_at : d.toLocaleString();
+            }
             info.appendChild(time);
             row.appendChild(info);
 

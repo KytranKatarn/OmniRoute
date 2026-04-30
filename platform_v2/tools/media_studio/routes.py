@@ -230,6 +230,14 @@ def api_gallery():
         if not show_versions:
             conditions.append("parent_id IS NULL")
         params: list = []
+        req_owner_id = request.args.get("owner_id", type=int)
+        if req_owner_id:
+            conditions.append("owner_id = %s")
+            params.append(req_owner_id)
+        asset_type = request.args.get("asset_type")
+        if asset_type:
+            conditions.append("metadata->>'asset_type' = %s")
+            params.append(asset_type)
         if agent_name:
             conditions.append("metadata->>'agent_name' = %s")
             params.append(agent_name)

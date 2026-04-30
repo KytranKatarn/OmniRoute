@@ -639,6 +639,40 @@ def market_watch_redirect():
 # ============================================================================
 
 
+@app.route("/assets/portraits/<path:filename>")
+def serve_portrait_thumb(filename):
+    """Public portrait thumbnail — no auth required.
+
+    Serves agent portrait files from static/media/portraits/ at the /assets/portraits/
+    path that public_roster_service.py embeds in avatar_thumb_url. The website's
+    directory.js and ai-directors.js load these cross-origin from the platform host.
+    """
+    import os
+    from flask import send_from_directory, abort
+
+    stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+    # Search order: thumbs/ (pre-generated JPGs) → portraits/ → images/ (dated dirs)
+    search_dirs = [
+        os.path.join(app.static_folder, "media", "thumbs"),
+        os.path.join(app.static_folder, "media", "portraits"),
+    ]
+    for d in search_dirs:
+        for ext in (".jpg", ".png", ".webp", ".jpeg"):
+            candidate = stem + ext
+            if os.path.isfile(os.path.join(d, candidate)):
+                return send_from_directory(d, candidate)
+    # Fallback: search dated subdirs in images/
+    images_base = os.path.join(app.static_folder, "media", "images")
+    if os.path.isdir(images_base):
+        for date_dir in sorted(os.listdir(images_base), reverse=True)[:6]:
+            for ext in (".jpg", ".png", ".webp", ".jpeg"):
+                candidate = stem + ext
+                full = os.path.join(images_base, date_dir, candidate)
+                if os.path.isfile(full):
+                    return send_from_directory(os.path.join(images_base, date_dir), candidate)
+    abort(404)
+
+
 @app.route("/api/qa/screenshots/<path:filename>")
 @login_required
 def qa_screenshot(filename):

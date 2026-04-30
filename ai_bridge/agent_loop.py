@@ -2969,6 +2969,88 @@ class AgentLoop:
                 logger.error(f"Compliance fix execution failed: {comp_err}")
                 return {"executed": False, "error": str(comp_err)}
 
+        elif action_type == "linkedin_post":
+            # Approved LinkedIn post — execute via archie_browser
+            content = data.get("content", "")
+            hashtags = data.get("hashtags", [])
+            post_type = data.get("post_type", "personal")  # personal or company
+            company_slug = data.get("company_slug", "kytran-empowerment-inc")
+            agent_id = data.get("browser_agent_id", 342)
+            if not content:
+                return {"executed": False, "error": "No content in action_data"}
+            try:
+                import sys as _sys
+                _sys.path.insert(0, "/app")
+                from services.browser_service import run_skill_sync
+
+                skill = "linkedin_company_post" if post_type == "company" else "linkedin_post"
+                params = {"content": content, "hashtags": hashtags}
+                if post_type == "company":
+                    params["company_slug"] = company_slug
+
+                result = run_skill_sync(skill, params, agent_id=agent_id, timeout_s=120)
+
+                # Log to linkedin_post_log
+                try:
+                    cur.execute(
+                        """INSERT INTO linkedin_post_log
+                               (content, hashtags, post_type, company_slug, status, approval_id, posted_at)
+                           VALUES (%s, %s, %s, %s, %s, %s, NOW())""",
+                        (
+                            content,
+                            hashtags,
+                            post_type,
+                            company_slug if post_type == "company" else None,
+                            "posted" if result.get("success") else "failed",
+                            item["id"],
+                        ),
+                    )
+                    conn.commit()
+                except Exception as log_err:
+                    logger.warning(f"linkedin_post_log write failed: {log_err}")
+
+                logger.info(
+                    "LinkedIn post approved and executed: success=%s", result.get("success")
+                )
+                return {"executed": True, "result": result}
+            except Exception as li_err:
+                logger.error(f"LinkedIn post execution failed: {li_err}")
+                return {"executed": False, "error": str(li_err)}
+
+        elif action_type == "linkedin_connect":
+            # Approved connection request — execute via archie_browser
+            profile_url = data.get("profile_url", "")
+            note = data.get("note", "")
+            agent_id = data.get("browser_agent_id", 342)
+            if not profile_url:
+                return {"executed": False, "error": "No profile_url in action_data"}
+            try:
+                import sys as _sys
+                _sys.path.insert(0, "/app")
+                from services.browser_service import run_skill_sync
+
+                result = run_skill_sync(
+                    "linkedin_connect",
+                    {"profile_url": profile_url, "note": note},
+                    agent_id=agent_id,
+                    timeout_s=90,
+                )
+                # Update outreach queue status
+                try:
+                    cur.execute(
+                        """UPDATE linkedin_outreach_queue
+                           SET status = 'connect_requested', updated_at = NOW()
+                           WHERE profile_url = %s""",
+                        (profile_url,),
+                    )
+                    conn.commit()
+                except Exception:
+                    pass
+                return {"executed": True, "result": result}
+            except Exception as conn_err:
+                logger.error(f"LinkedIn connect execution failed: {conn_err}")
+                return {"executed": False, "error": str(conn_err)}
+
         else:
             logger.warning(f"Unknown approved action type: {action_type}")
             return {"skipped": True, "reason": f"Unknown action type: {action_type}"}

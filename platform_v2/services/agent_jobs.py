@@ -2232,6 +2232,141 @@ def refresh_website_directory():
     threading.Thread(target=_push, daemon=True, name="dir-fallback-push").start()
 
 
+def signal_linkedin_draft():
+    """S.I.G.N.A.L. drafts a LinkedIn post and queues it for Telegram approval.
+
+    Runs Tue + Thu at 09:00 local time. S.I.G.N.A.L. generates content based
+    on recent platform activity and the hashtag rotation pool. The draft goes
+    into the Tier-2 approval queue — Kytran approves/denies via Telegram.
+    On approval, agent_loop executes linkedin_post via browser_service.
+    """
+    import json
+    import sys
+
+    sys.path.insert(0, "/app")
+
+    from db import get_db
+    from psycopg2.extras import RealDictCursor
+
+    start = time.time()
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # ── 1. Pick hashtags from rotation pool ───────────────────────────────
+        # Select 4-5 hashtags: mix of high-engagement + not used in 7 days
+        cur.execute(
+            """
+            SELECT hashtag FROM linkedin_hashtag_stats
+            WHERE last_used IS NULL OR last_used < NOW() - INTERVAL '7 days'
+            ORDER BY avg_engagement DESC, RANDOM()
+            LIMIT 5
+            """
+        )
+        hashtags = [r["hashtag"] for r in cur.fetchall()]
+        if not hashtags:
+            # Fallback: any hashtags
+            cur.execute("SELECT hashtag FROM linkedin_hashtag_stats ORDER BY RANDOM() LIMIT 5")
+            hashtags = [r["hashtag"] for r in cur.fetchall()]
+
+        # ── 2. Get context for S.I.G.N.A.L. ─────────────────────────────────
+        # Recent commits for "building in public" content
+        recent_context = ""
+        try:
+            import subprocess
+
+            r = subprocess.run(
+                ["git", "log", "--oneline", "-5", "--format=%s"],
+                cwd="/mnt/archie_brain",
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if r.returncode == 0:
+                recent_context = r.stdout.strip()
+        except Exception:
+            pass
+
+        cur.close()
+        conn.close()
+
+        # ── 3. Dispatch to S.I.G.N.A.L. for content generation ───────────────
+        from tools.department_hq.services.department_dispatcher import dispatch
+
+        prompt = (
+            "You are S.I.G.N.A.L., the Marketing & Communications director at Kytran Empowerment Inc. "
+            "Draft a compelling LinkedIn post for Kytran Katarn's profile. "
+            "The post should showcase our AI platform work, be professional yet approachable, "
+            "and position Kytran Empowerment as a serious AI infrastructure company in Montreal.\n\n"
+            f"Recent platform activity:\n{recent_context}\n\n"
+            f"Use these hashtags (pick 3-4 most relevant): {', '.join(hashtags)}\n\n"
+            "Write the post content only — no preamble, no explanation. "
+            "Under 280 words. First-person voice as Kytran. End with a call to action."
+        )
+
+        result = dispatch(
+            capability="social_post_draft",
+            prompt=prompt,
+            context={"hashtags": hashtags, "recent_activity": recent_context},
+            prefer_agent="S.I.G.N.A.L.",
+        )
+
+        draft_content = ""
+        if result and result.success:
+            draft_content = (result.response or "").strip()
+
+        if not draft_content:
+            logger.warning("[LinkedInDraft] S.I.G.N.A.L. returned empty draft")
+            _log_cycle(
+                "signal_linkedin_draft",
+                0,
+                1,
+                int((time.time() - start) * 1000),
+                error_message="Empty draft from S.I.G.N.A.L.",
+            )
+            return
+
+        # ── 4. Submit to Tier-2 approval queue ───────────────────────────────
+        try:
+            from ai_bridge.agent_loop import request_approval
+        except ImportError:
+            logger.error("[LinkedInDraft] Could not import request_approval")
+            return
+
+        preview = draft_content[:200] + ("..." if len(draft_content) > 200 else "")
+        selected_hashtags = [h for h in hashtags if h.lower() in draft_content.lower()][:4]
+        if not selected_hashtags:
+            selected_hashtags = hashtags[:3]
+
+        approval_id = request_approval(
+            action_type="linkedin_post",
+            action_data={
+                "content": draft_content,
+                "hashtags": selected_hashtags,
+                "post_type": "personal",
+                "browser_agent_id": 342,
+            },
+            reason=(
+                f"S.I.G.N.A.L. LinkedIn draft ready for review.\n\n"
+                f"Preview: {preview}\n\n"
+                f"Hashtags: {', '.join('#' + h for h in selected_hashtags)}"
+            ),
+            tier=2,
+            requested_by="S.I.G.N.A.L.",
+            priority=5,
+        )
+
+        logger.info("[LinkedInDraft] Draft queued for approval (id=%s)", approval_id)
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle(
+            "signal_linkedin_draft", 1, 0, duration_ms, {"approval_id": approval_id, "hashtags": selected_hashtags}
+        )
+
+    except Exception as exc:
+        logger.error("[LinkedInDraft] Failed: %s", exc)
+        _log_cycle("signal_linkedin_draft", 0, 1, int((time.time() - start) * 1000), error_message=str(exc)[:200])
+
+
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
@@ -2240,6 +2375,7 @@ def refresh_website_directory():
 def register_agent_welfare_jobs(scheduler, flask_app):
     """Register all agent welfare/HR background jobs with the scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
+    from apscheduler.triggers.cron import CronTrigger
 
     global _flask_app
     _flask_app = flask_app
@@ -2384,6 +2520,16 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(hours=6),
         id="refresh_website_directory",
         name="Agent Loop: Refresh Website Directory Fallback",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    # S.I.G.N.A.L. LinkedIn content calendar — Tue + Thu at 09:00
+    scheduler.add_job(
+        with_ctx(signal_linkedin_draft),
+        trigger=CronTrigger(day_of_week="tue,thu", hour=9, minute=0),
+        id="signal_linkedin_draft",
+        name="S.I.G.N.A.L.: LinkedIn Draft → Telegram Approval",
         replace_existing=True,
         max_instances=1,
     )

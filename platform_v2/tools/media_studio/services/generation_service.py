@@ -385,37 +385,32 @@ def get_queue_status(
     owner_type: str = "user",
     owner_id: Optional[int] = None,
     limit: int = 20,
+    status: Optional[str] = None,
 ) -> list:
     """Get recent queue entries for polling."""
     with get_db_cursor() as (conn, cur):
+        conditions = ["q.owner_type = %s"]
+        params: list = [owner_type]
         if owner_id:
-            cur.execute(
-                """
-                SELECT q.*, ml.thumbnail_path,
-                       CASE WHEN q.owner_type='agent' THEN a.display_name ELSE NULL END AS agent_name
-                FROM media_generation_queue q
-                LEFT JOIN media_library ml ON ml.id = q.result_media_id
-                LEFT JOIN agents a ON a.id = q.owner_id AND q.owner_type = 'agent'
-                WHERE q.owner_type = %s AND q.owner_id = %s
-                ORDER BY q.created_at DESC
-                LIMIT %s
-                """,
-                (owner_type, owner_id, limit),
-            )
-        else:
-            cur.execute(
-                """
-                SELECT q.*, ml.thumbnail_path,
-                       CASE WHEN q.owner_type='agent' THEN a.display_name ELSE NULL END AS agent_name
-                FROM media_generation_queue q
-                LEFT JOIN media_library ml ON ml.id = q.result_media_id
-                LEFT JOIN agents a ON a.id = q.owner_id AND q.owner_type = 'agent'
-                WHERE q.owner_type = %s
-                ORDER BY q.created_at DESC
-                LIMIT %s
-                """,
-                (owner_type, limit),
-            )
+            conditions.append("q.owner_id = %s")
+            params.append(owner_id)
+        if status:
+            conditions.append("q.status = %s")
+            params.append(status)
+        where = "WHERE " + " AND ".join(conditions)
+        cur.execute(
+            f"""
+            SELECT q.*, ml.thumbnail_path,
+                   CASE WHEN q.owner_type='agent' THEN a.display_name ELSE NULL END AS agent_name
+            FROM media_generation_queue q
+            LEFT JOIN media_library ml ON ml.id = q.result_media_id
+            LEFT JOIN agents a ON a.id = q.owner_id AND q.owner_type = 'agent'
+            {where}
+            ORDER BY q.created_at DESC
+            LIMIT %s
+            """,
+            params + [limit],
+        )
         return [dict(row) for row in cur.fetchall()]
 
 

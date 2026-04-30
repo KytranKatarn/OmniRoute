@@ -79,14 +79,20 @@ def api_generate():
 @media_studio_bp.route("/api/queue")
 @login_required
 def api_queue():
-    """Get generation queue — user jobs + agent portrait jobs (platform-wide for this tenant)."""
+    """Get generation queue — user jobs + agent portrait jobs (platform-wide for this tenant).
+
+    Supports ?status=pending|dispatched|generating|failed|completed and ?per_page=N
+    for the Queue tab status-filtered views.
+    """
     from .services.generation_service import get_queue_status
 
-    limit = request.args.get("limit", 20, type=int)
-    user_jobs = get_queue_status(owner_type="user", owner_id=current_user.id, limit=limit)
-    agent_jobs = get_queue_status(owner_type="agent", owner_id=None, limit=limit)
+    status = request.args.get("status") or None
+    limit = request.args.get("per_page", request.args.get("limit", 20), type=int)
+    user_jobs = get_queue_status(owner_type="user", owner_id=current_user.id, limit=limit, status=status)
+    agent_jobs = get_queue_status(owner_type="agent", owner_id=None, limit=limit, status=status)
     all_jobs = sorted(user_jobs + agent_jobs, key=lambda j: j.get("created_at") or "", reverse=True)[:limit]
-    return jsonify({"jobs": all_jobs})
+    # Return both 'jobs' (legacy) and 'items' (Queue tab loadQueueItems expects items)
+    return jsonify({"jobs": all_jobs, "items": all_jobs})
 
 
 @media_studio_bp.route("/api/queue/<int:queue_id>/cancel", methods=["POST"])

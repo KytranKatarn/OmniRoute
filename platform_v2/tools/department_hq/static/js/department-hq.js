@@ -1548,6 +1548,7 @@ async function renderSignalOverview(el) {
         +   '<div style="margin-top:4px;font-size:0.7rem;opacity:0.55;font-family:\'IBM Plex Mono\',monospace">Marketing &amp; Communications · Content Strategist</div>'
         +   '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'
         +     '<button class="dhq-action-btn" onclick="switchSignalTab(\'compose\')">✏ Draft Post</button>'
+        +     '<button class="dhq-action-btn" onclick="signalRunNow(this)">▶ Run Now</button>'
         +     '<button class="dhq-action-btn" onclick="switchSignalTab(\'pending\')">⏳ Pending (' + (data.pending_approvals || 0) + ')</button>'
         +   '</div>'
         + '</div>'
@@ -1635,6 +1636,21 @@ function renderSignalCompose(el) {
         + '</div>'
         + '</div>';
     setHtml(el, html);
+}
+
+async function signalRunNow(btn) {
+    var orig = btn.textContent;
+    btn.textContent = '⏳ Queuing...';
+    btn.disabled = true;
+    try {
+        await apiPost('/api/dispatch/jobs/signal_linkedin_draft/run', {});
+        btn.textContent = '✓ Queued';
+        setTimeout(function() { btn.textContent = orig; btn.disabled = false; }, 3000);
+    } catch (err) {
+        btn.textContent = '✗ Failed';
+        btn.disabled = false;
+        alert('Run failed: ' + err.message);
+    }
 }
 
 async function submitSignalCompose() {

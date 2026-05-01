@@ -16,6 +16,7 @@ Endpoints:
 """
 
 from flask import current_app, jsonify, request
+from flask_login import current_user
 from services.agent_service import get_agent
 from services.agent_social_service import (
     get_social_profiles,
@@ -577,5 +578,52 @@ def register_social_routes(bp, admin_required):
                 return jsonify({"success": False, "error": "Job service unavailable"}), 503
             svc.run_job("signal_linkedin_draft")
             return jsonify({"success": True, "message": "signal_linkedin_draft triggered"})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/signal/pending/<int:approval_id>/approve", methods=["POST"])
+    @admin_required
+    def api_signal_approve(approval_id):
+        """Approve a pending LinkedIn post draft."""
+        from database import get_db_cursor
+
+        try:
+            with get_db_cursor(commit=True) as (_conn, cur):
+                cur.execute(
+                    """UPDATE autonomy_approval_queue
+                       SET status = 'approved', approved_by = %s, approved_at = NOW(), updated_at = NOW()
+                       WHERE id = %s AND action_type = 'linkedin_post' AND status = 'pending'
+                       RETURNING id""",
+                    (current_user.id, approval_id),
+                )
+                row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Not found or already processed"}), 404
+            return jsonify({"success": True, "approval_id": approval_id})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/signal/pending/<int:approval_id>/deny", methods=["POST"])
+    @admin_required
+    def api_signal_deny(approval_id):
+        """Deny a pending LinkedIn post draft with reason."""
+        from database import get_db_cursor
+
+        data = request.get_json(silent=True) or {}
+        reason = (data.get("reason") or "Denied via web UI").strip()
+        try:
+            with get_db_cursor(commit=True) as (_conn, cur):
+                cur.execute(
+                    """UPDATE autonomy_approval_queue
+                       SET status = 'rejected', approved_by = %s,
+                           rejected_reason = %s, updated_at = NOW()
+                       WHERE id = %s AND action_type = 'linkedin_post' AND status = 'pending'
+                       RETURNING id""",
+                    (current_user.id, reason, approval_id),
+                )
+                row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Not found or already processed"}), 404
+            return jsonify({"success": True, "approval_id": approval_id})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500

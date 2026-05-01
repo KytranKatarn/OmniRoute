@@ -1801,8 +1801,9 @@ async function renderSignalPending(el) {
 
 async function approveSignalPost(approvalId) {
     try {
-        await apiPost('/api/approvals/autonomy:' + approvalId + '/approve', {});
-        loadSignalTab('pending');
+        await apiPost('/api/signal/pending/' + approvalId + '/approve', {});
+        delete _signalTabCache['pending'];
+        loadSignalTab('pending', true);
         loadSignalPendingBadge();
     } catch (err) { alert('Error: ' + err.message); }
 }
@@ -1886,7 +1887,7 @@ async function denySignalPost(approvalId) {
     );
     if (reason === null) return;
     try {
-        await apiPost('/api/approvals/autonomy:' + approvalId + '/deny', { reason: reason });
+        await apiPost('/api/signal/pending/' + approvalId + '/deny', { reason: reason });
         delete _signalTabCache['pending'];
         loadSignalTab('pending', true);
         loadSignalPendingBadge();

@@ -3383,22 +3383,31 @@ class AgentLoop:
 
                 result = run_skill_sync(skill, params, agent_id=agent_id, timeout_s=120)
 
-                # Log to linkedin_post_log
+                # Fresh connection after 120s browser skill — the caller's cur/conn
+                # may have timed out server-side during execution, causing the log
+                # write and commit to silently fail with the stale cursor.
                 try:
-                    cur.execute(
-                        """INSERT INTO linkedin_post_log
-                               (content, hashtags, post_type, company_slug, status, approval_id, posted_at)
-                           VALUES (%s, %s, %s, %s, %s, %s, NOW())""",
-                        (
-                            content,
-                            hashtags,
-                            post_type,
-                            company_slug if post_type == "company" else None,
-                            "posted" if result.get("success") else "failed",
-                            item["id"],
-                        ),
-                    )
-                    conn.commit()
+                    from db import get_db as _get_db
+                    _lc = _get_db()
+                    _lcur = _lc.cursor()
+                    try:
+                        _lcur.execute(
+                            """INSERT INTO linkedin_post_log
+                                   (content, hashtags, post_type, company_slug, status, approval_id, posted_at)
+                               VALUES (%s, %s, %s, %s, %s, %s, NOW())""",
+                            (
+                                content,
+                                hashtags,
+                                post_type,
+                                company_slug if post_type == "company" else None,
+                                "posted" if result.get("success") else "failed",
+                                item["id"],
+                            ),
+                        )
+                        _lc.commit()
+                    finally:
+                        _lcur.close()
+                        _lc.close()
                 except Exception as log_err:
                     logger.warning(f"linkedin_post_log write failed: {log_err}")
 

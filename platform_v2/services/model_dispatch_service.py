@@ -47,36 +47,31 @@ def _get_warm_models_hub() -> set[str]:
 
 
 def _get_warm_models_nodes() -> dict[str, int]:
-    """Return {model_name: node_id} for models warm on online fleet nodes.
+    """Return {model_name: node_db_id} for models available on online fleet nodes.
 
-    Reads the ollama_models JSONB column populated by the heartbeat.
-    Falls back to checking metadata if ollama_models column not yet present.
+    Queries node_ollama_models (authoritative source populated by registration
+    and heartbeat) joined with remote_nodes. First model wins per name so hub
+    gets priority when the same model is warm on both hub and a fleet node.
     """
     result: dict[str, int] = {}
     try:
         with get_db_cursor() as (_conn, cur):
             cur.execute(
                 """
-                SELECT id, hostname,
-                       COALESCE(
-                           (SELECT jsonb_agg(m->>'name')
-                            FROM jsonb_array_elements(
-                                COALESCE(metadata->'ollama_models', '[]'::jsonb)
-                            ) AS m),
-                           '[]'::jsonb
-                       ) AS model_names
-                FROM remote_nodes
-                WHERE is_active = TRUE
-                  AND last_heartbeat > NOW() - INTERVAL '3 minutes'
-                  AND ollama_available = TRUE
+                SELECT rn.id, m.model_name
+                FROM node_ollama_models m
+                JOIN remote_nodes rn ON rn.node_id = m.node_id
+                WHERE rn.is_active = TRUE
+                  AND rn.last_heartbeat > NOW() - INTERVAL '3 minutes'
+                  AND rn.ollama_available = TRUE
+                  AND m.is_available = TRUE
+                ORDER BY rn.bridge_priority DESC, rn.current_load ASC
                 """
             )
             for row in cur.fetchall():
-                models = row.get("model_names") or []
-                if isinstance(models, list):
-                    for name in models:
-                        if name and name not in result:
-                            result[name] = row["id"]
+                name = row.get("model_name")
+                if name and name not in result:
+                    result[name] = row["id"]
     except Exception as exc:
         log.debug("model_dispatch: node warm-model check failed: %s", exc)
     return result

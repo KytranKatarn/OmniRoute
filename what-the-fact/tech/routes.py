@@ -113,35 +113,42 @@ def map_data():
 
 @bp.get("/api/v1/agent-activity")
 def agent_activity():
-    """Last 10 AI agent analysis events for editorial desk feed."""
-    from flask import jsonify
+    """AI agent analysis events. ?limit=N (default 10, max 200)."""
+    from flask import jsonify, request
     S = _schema()
+    try:
+        limit = min(int(request.args.get("limit", 10)), 200)
+    except ValueError:
+        limit = 10
+    per = max(limit // 2, 5)
     with _db().connect() as c:
         bias_rows = c.execute(text(f"""
-            SELECT 'B.I.A.S.' AS agent, a.title, bs.band, bs.computed_at AS ts,
-                   s.name AS source_name
+            SELECT 'B.I.A.S.' AS agent, a.id AS article_id, a.title,
+                   bs.band, bs.computed_at AS ts, s.name AS source_name
             FROM {S}.bias_scores bs
             JOIN {S}.articles a ON a.id = bs.article_id
             JOIN {S}.sources s ON s.id = a.source_id
-            ORDER BY bs.computed_at DESC LIMIT 5
-        """)).fetchall()
+            ORDER BY bs.computed_at DESC LIMIT :per
+        """), {"per": per}).fetchall()
 
         fact_rows = c.execute(text(f"""
-            SELECT 'V.E.R.I.F.Y.' AS agent, a.title, fc.overall_verdict AS band,
-                   fc.checked_at AS ts, s.name AS source_name
+            SELECT 'V.E.R.I.F.Y.' AS agent, a.id AS article_id, a.title,
+                   fc.overall_verdict AS band, fc.checked_at AS ts,
+                   s.name AS source_name
             FROM {S}.fact_checks fc
             JOIN {S}.articles a ON a.id = fc.article_id
             JOIN {S}.sources s ON s.id = a.source_id
-            ORDER BY fc.checked_at DESC LIMIT 5
-        """)).fetchall()
+            ORDER BY fc.checked_at DESC LIMIT :per
+        """), {"per": per}).fetchall()
 
     events = [
-        {"agent": r.agent, "title": r.title[:80], "result": r.band or "",
-         "source": r.source_name, "ts": r.ts.isoformat() if r.ts else None}
+        {"agent": r.agent, "article_id": r.article_id, "title": r.title[:120],
+         "result": r.band or "", "source": r.source_name,
+         "ts": r.ts.isoformat() if r.ts else None}
         for r in list(bias_rows) + list(fact_rows)
     ]
     events.sort(key=lambda x: x["ts"] or "", reverse=True)
-    return jsonify({"events": events[:10]})
+    return jsonify({"events": events[:limit]})
 
 
 @bp.get("/api/v1/articles/geo")

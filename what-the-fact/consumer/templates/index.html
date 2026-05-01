@@ -59,8 +59,11 @@ body { background: var(--wtf-bg); color: #e0e0e0; font-family: 'IBM Plex Mono', 
   <div id="wtf-editorial">
     <div class="wtf-section-label">EDITORIAL DESK</div>
 
-    <div class="wtf-section-label" style="margin-top:12px;">LIVE AGENT ACTIVITY</div>
-    <div id="wtf-activity-feed">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;">
+      <div class="wtf-section-label">LIVE AGENT ACTIVITY</div>
+      <a href="/activity" style="font-size:0.6rem;letter-spacing:1px;color:#6b7280;text-decoration:none;text-transform:uppercase;">View all &rarr;</a>
+    </div>
+    <div id="wtf-activity-feed" style="max-height:260px;overflow-y:auto;">
       <div class="wtf-activity-item" style="color:#555;font-size:11px;">Loading agent activity...</div>
     </div>
 

@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Agent Activity — What The Fact{% endblock %}
+{% block content %}
+
+<div class="wtf-team-hero">
+  <div class="wtf-team-hero-live">
+    <span class="wtf-live-dot"></span>
+    LIVE &middot; AI NEWSROOM
+  </div>
+  <h1 style="font-size:1.6rem;">AGENT ACTIVITY LOG</h1>
+  <p>Every analysis B.I.A.S. and V.E.R.I.F.Y. have run — bias scores, fact-check verdicts, sorted by most recent.</p>
+</div>
+
+<div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div style="color:#6b7280;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;">
+      {{ events|length }} events
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="filterActivity('all')" id="btn-all" class="wtf-act-filter wtf-act-filter--active">All</button>
+      <button onclick="filterActivity('B.I.A.S.')" id="btn-bias" class="wtf-act-filter">B.I.A.S.</button>
+      <button onclick="filterActivity('V.E.R.I.F.Y.')" id="btn-verify" class="wtf-act-filter">V.E.R.I.F.Y.</button>
+    </div>
+  </div>
+
+  <div style="overflow-x:auto;">
+    <table class="wtf-act-table" id="wtf-act-table">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th>Article</th>
+          <th>Source</th>
+          <th>Result</th>
+          <th>When</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in events %}
+        <tr class="wtf-act-row" data-agent="{{ ev.agent }}">
+          <td>
+            <span class="wtf-act-agent wtf-act-agent--{{ 'bias' if ev.agent == 'B.I.A.S.' else 'verify' }}">
+              {{ ev.agent }}
+            </span>
+          </td>
+          <td>
+            {% if ev.article_id %}
+            <a href="/article/{{ ev.article_id }}" class="wtf-act-title">{{ ev.title }}</a>
+            {% else %}
+            <span class="wtf-act-title">{{ ev.title }}</span>
+            {% endif %}
+          </td>
+          <td style="color:#6b7280;font-size:0.7rem;white-space:nowrap;">{{ ev.source }}</td>
+          <td>
+            <span class="wtf-act-result wtf-act-result--{{ (ev.result or 'unknown')|replace(' ', '-')|lower }}">
+              {{ ev.result or '—' }}
+            </span>
+          </td>
+          <td style="color:#555;font-size:0.7rem;white-space:nowrap;" data-ts="{{ ev.ts or '' }}">
+            {{ ev.ts[:16].replace('T',' ') if ev.ts else '—' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if not events %}
+  <div style="color:#555;text-align:center;padding:48px;font-size:0.8rem;">No activity recorded yet.</div>
+  {% endif %}
+
+</div>
+
+<style>
+.wtf-act-filter {
+  background: #0a0f1a;
+  border: 1px solid #1a2a3a;
+  color: #6b7280;
+  padding: 4px 12px;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  letter-spacing: 1px;
+  cursor: pointer;
+  font-family: inherit;
+  text-transform: uppercase;
+}
+.wtf-act-filter--active { border-color: var(--wtf-accent); color: var(--wtf-accent); }
+.wtf-act-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+.wtf-act-table th {
+  text-align: left;
+  padding: 8px 12px;
+  color: #555;
+  font-size: 0.6rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-bottom: 1px solid #112233;
+}
+.wtf-act-table td { padding: 9px 12px; border-bottom: 1px solid #0d1a26; }
+.wtf-act-row:hover td { background: #0a0f1a; }
+.wtf-act-agent {
+  font-size: 0.65rem;
+  padding: 2px 7px;
+  border-radius: 2px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.wtf-act-agent--bias   { background: #1a1000; border: 1px solid #f59e0b44; color: #f59e0b; }
+.wtf-act-agent--verify { background: #001a10; border: 1px solid #10b98144; color: #10b981; }
+.wtf-act-title { color: #ccc; text-decoration: none; font-size: 0.75rem; }
+.wtf-act-title:hover { color: #fff; }
+.wtf-act-result {
+  font-size: 0.62rem;
+  padding: 2px 6px;
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.wtf-act-result--center        { background: #111827; color: #9ca3af; }
+.wtf-act-result--left          { background: #0a1a40; color: #60a5fa; }
+.wtf-act-result--right         { background: #2a0a0a; color: #ef4444; }
+.wtf-act-result--center-left   { background: #0a1530; color: #93c5fd; }
+.wtf-act-result--center-right  { background: #2a1010; color: #fca5a5; }
+.wtf-act-result--far-left      { background: #060f2a; color: #3b82f6; }
+.wtf-act-result--far-right     { background: #2a0505; color: #dc2626; }
+.wtf-act-result--verified      { background: #001a10; color: #10b981; }
+.wtf-act-result--mixed         { background: #1a1000; color: #f59e0b; }
+.wtf-act-result--disputed      { background: #2a0a0a; color: #ef4444; }
+.wtf-act-result--unverifiable  { background: #111827; color: #6b7280; }
+</style>
+
+<script>
+function filterActivity(agent) {
+  document.querySelectorAll('.wtf-act-row').forEach(function(row) {
+    row.style.display = (agent === 'all' || row.dataset.agent === agent) ? '' : 'none';
+  });
+  document.querySelectorAll('.wtf-act-filter').forEach(function(btn) {
+    btn.classList.remove('wtf-act-filter--active');
+  });
+  var id = agent === 'all' ? 'btn-all' : (agent === 'B.I.A.S.' ? 'btn-bias' : 'btn-verify');
+  document.getElementById(id).classList.add('wtf-act-filter--active');
+}
+</script>
+
+{% endblock %}

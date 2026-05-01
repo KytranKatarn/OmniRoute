@@ -103,6 +103,24 @@ TEAM_AGENTS = [
 ]
 
 
+@bp.get("/activity")
+def activity():
+    import requests as _req
+    wtf_tech_url = os.environ.get("WTF_TECH_URL", "https://what-the-fact.tech")
+    S = _schema()
+    with _db().begin() as c:
+        source_count = c.execute(
+            text(f"SELECT COUNT(*) FROM {S}.sources")
+        ).scalar() or 0
+    try:
+        resp = _req.get(wtf_tech_url + "/api/v1/agent-activity?limit=200", timeout=5)
+        events = resp.json().get("events", [])
+    except Exception:
+        events = []
+    return render_template("activity.html", events=events, source_count=source_count,
+                           wtf_tech_url=wtf_tech_url)
+
+
 @bp.get("/team")
 def team():
     S = _schema()

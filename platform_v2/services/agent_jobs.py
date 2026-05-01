@@ -2406,9 +2406,7 @@ def signal_linkedin_draft():
         # Combine bilingual draft
         if qc_draft:
             draft_content = (
-                f"\U0001f1e8\U0001f1e6 English:\n{english_draft}"
-                f"\n\n---\n\n"
-                f"\U0001f1e8\U0001f1e6\U0001f1eb\U0001f1f7 Français québécois:\n{qc_draft}"
+                f"\U0001f1e8\U0001f1e6 English:\n{english_draft}" f"\n\n---\n\n" f"⚜️ Français québécois:\n{qc_draft}"
             )
         else:
             draft_content = english_draft

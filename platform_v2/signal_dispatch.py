@@ -238,11 +238,7 @@ def _draft_and_queue(
 
     # Combine into bilingual draft
     if qc_draft:
-        draft = (
-            f"\U0001f1e8\U0001f1e6 English:\n{english_draft}"
-            f"\n\n---\n\n"
-            f"\U0001f1e8\U0001f1e6\U0001f1eb\U0001f1f7 Français québécois:\n{qc_draft}"
-        )
+        draft = f"\U0001f1e8\U0001f1e6 English:\n{english_draft}" f"\n\n---\n\n" f"⚜️ Français québécois:\n{qc_draft}"
     else:
         draft = english_draft
 

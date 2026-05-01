@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Latest News — What The Fact{% endblock %}
+{% block content %}
+
+<div class="wtf-team-hero">
+  <div class="wtf-team-hero-live">
+    <span class="wtf-live-dot"></span>
+    LIVE &middot; AI NEWSROOM
+  </div>
+  <h1 style="font-size:1.6rem;">LATEST NEWS</h1>
+  <p>{{ articles|length }} articles from {{ source_count }} Canadian sources — sorted by most recent.</p>
+</div>
+
+<div style="max-width:900px;margin:0 auto;padding:24px 16px;">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+    <div style="color:#6b7280;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;">
+      {{ articles|length }} articles
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      <button onclick="filterNews('all')" id="nf-all" class="wtf-act-filter wtf-act-filter--active">All</button>
+      <button onclick="filterNews('left')" id="nf-left" class="wtf-act-filter" style="color:#3b82f6;border-color:#3b82f644;">Left</button>
+      <button onclick="filterNews('center-left')" id="nf-cl" class="wtf-act-filter" style="color:#93c5fd;border-color:#93c5fd44;">Ctr-Left</button>
+      <button onclick="filterNews('center')" id="nf-c" class="wtf-act-filter">Center</button>
+      <button onclick="filterNews('center-right')" id="nf-cr" class="wtf-act-filter" style="color:#fca5a5;border-color:#fca5a544;">Ctr-Right</button>
+      <button onclick="filterNews('right')" id="nf-right" class="wtf-act-filter" style="color:#ef4444;border-color:#ef444444;">Right</button>
+    </div>
+  </div>
+
+  {% for a in articles %}
+  {% set band = (a.band or 'center') | replace(' ', '-') %}
+  <div class="wtf-article-card wtf-article-card--{{ band }} wtf-news-row" data-band="{{ band }}">
+    <div class="wtf-card-meta">
+      <span>{{ a.source or '' }}{% if a.province_code %} &middot; {{ a.province_code }}{% endif %}</span>
+      <span style="color:#555;font-size:0.65rem;">{{ a.published_at.strftime('%b %d %H:%M') if a.published_at else '' }}</span>
+      <span class="wtf-bias-pill wtf-bias-{{ band }}">{{ band.upper() }}</span>
+    </div>
+    <a class="wtf-card-title" href="/article/{{ a.id }}">{{ a.title }}</a>
+    <div style="margin-top:5px;">
+      {% if a.ai_analyzed %}
+      <span class="wtf-card-badge wtf-badge-ai">AI Analyzed</span>
+      {% else %}
+      <span class="wtf-card-badge wtf-badge-quick">Quick Score</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+
+</div>
+
+<style>
+.wtf-act-filter {
+  background: #0a0f1a; border: 1px solid #1a2a3a; color: #6b7280;
+  padding: 4px 12px; border-radius: 3px; font-size: 0.65rem;
+  letter-spacing: 1px; cursor: pointer; font-family: inherit; text-transform: uppercase;
+}
+.wtf-act-filter--active { border-color: var(--wtf-accent); color: var(--wtf-accent); }
+.wtf-news-row { margin-bottom: 10px; }
+</style>
+
+<script>
+function filterNews(band) {
+  document.querySelectorAll('.wtf-news-row').forEach(function(row) {
+    row.style.display = (band === 'all' || row.dataset.band === band) ? '' : 'none';
+  });
+  document.querySelectorAll('.wtf-act-filter').forEach(function(b) {
+    b.classList.remove('wtf-act-filter--active');
+  });
+  var ids = {'all':'nf-all','left':'nf-left','center-left':'nf-cl','center':'nf-c','center-right':'nf-cr','right':'nf-right'};
+  var el = document.getElementById(ids[band] || 'nf-all');
+  if (el) el.classList.add('wtf-act-filter--active');
+}
+</script>
+
+{% endblock %}

@@ -79,24 +79,29 @@ body { background: var(--wtf-bg); color: #e0e0e0; font-family: 'IBM Plex Mono', 
 
   <!-- Zone 3: News Feed -->
   <div id="wtf-feed">
-    <div class="wtf-section-label">LATEST NEWS</div>
-    {% for a in articles %}
-    {% set band = (a.band or 'center') | replace(' ', '-') %}
-    <div class="wtf-article-card wtf-article-card--{{ band }}">
-      <div class="wtf-card-meta">
-        <span>{{ a.source or '' }}{% if a.province_code %} &middot; {{ a.province_code }}{% endif %}</span>
-        <span class="wtf-bias-pill wtf-bias-{{ band }}">{{ band.upper() }}</span>
-      </div>
-      <a class="wtf-card-title" href="/article/{{ a.id }}">{{ a.title }}</a>
-      <div style="margin-top:5px;">
-        {% if a.ai_analyzed %}
-        <span class="wtf-card-badge wtf-badge-ai">AI Analyzed</span>
-        {% else %}
-        <span class="wtf-card-badge wtf-badge-quick">Quick Score</span>
-        {% endif %}
-      </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div class="wtf-section-label">LATEST NEWS</div>
+      <a href="/news" style="font-size:0.6rem;letter-spacing:1px;color:#6b7280;text-decoration:none;text-transform:uppercase;">View all &rarr;</a>
     </div>
-    {% endfor %}
+    <div style="max-height:900px;overflow-y:auto;">
+      {% for a in articles[:10] %}
+      {% set band = (a.band or 'center') | replace(' ', '-') %}
+      <div class="wtf-article-card wtf-article-card--{{ band }}">
+        <div class="wtf-card-meta">
+          <span>{{ a.source or '' }}{% if a.province_code %} &middot; {{ a.province_code }}{% endif %}</span>
+          <span class="wtf-bias-pill wtf-bias-{{ band }}">{{ band.upper() }}</span>
+        </div>
+        <a class="wtf-card-title" href="/article/{{ a.id }}">{{ a.title }}</a>
+        <div style="margin-top:5px;">
+          {% if a.ai_analyzed %}
+          <span class="wtf-card-badge wtf-badge-ai">AI Analyzed</span>
+          {% else %}
+          <span class="wtf-card-badge wtf-badge-quick">Quick Score</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
   </div>
 
 </div>

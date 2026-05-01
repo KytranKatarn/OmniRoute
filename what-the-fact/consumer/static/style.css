@@ -323,16 +323,16 @@ a { color: inherit; }
 
 /* Article cards */
 .wtf-article-card {
-  background: var(--wtf-bg-card);
+  background: #0a0f1a;
   border-radius: 3px;
   padding: 10px;
   margin-bottom: 8px;
-  border: 1px solid var(--wtf-border);
+  border: 1px solid #112233;
   border-left-width: 3px;
 }
 .wtf-article-card--left        { border-left-color: var(--wtf-left); }
 .wtf-article-card--center-left { border-left-color: var(--wtf-center-left); }
-.wtf-article-card--center      { border-left-color: var(--wtf-center); }
+.wtf-article-card--center      { border-left-color: #334455; }
 .wtf-article-card--center-right{ border-left-color: var(--wtf-center-right); }
 .wtf-article-card--right       { border-left-color: var(--wtf-right); }
 
@@ -341,13 +341,13 @@ a { color: inherit; }
   justify-content: space-between;
   margin-bottom: 4px;
   font-size: 10px;
-  color: var(--wtf-text-muted);
+  color: #6b7280;
 }
 .wtf-card-title {
   font-family: Georgia, 'Times New Roman', serif;
   font-size: 14px;
   line-height: 1.4;
-  color: var(--wtf-text);
+  color: #e0e0e0;
   text-decoration: none;
   display: block;
   margin-bottom: 4px;

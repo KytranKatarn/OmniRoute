@@ -103,6 +103,26 @@ TEAM_AGENTS = [
 ]
 
 
+@bp.get("/news")
+def news():
+    S = _schema()
+    wtf_tech_url = os.environ.get("WTF_TECH_URL", "https://what-the-fact.tech")
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT a.id, a.title, a.url, a.published_at,
+                   s.name AS source, b.band, a.ai_analyzed, a.province_code
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            ORDER BY a.published_at DESC LIMIT 200
+        """)).mappings().all()
+        source_count = c.execute(
+            text(f"SELECT COUNT(*) FROM {S}.sources")
+        ).scalar() or 0
+    return render_template("news.html", articles=rows, source_count=source_count,
+                           wtf_tech_url=wtf_tech_url)
+
+
 @bp.get("/activity")
 def activity():
     import requests as _req

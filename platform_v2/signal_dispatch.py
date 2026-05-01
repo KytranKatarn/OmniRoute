@@ -57,12 +57,17 @@ _VOICE_HINTS = {
     "personal": (
         "Write in first-person as Kytran Katarn (personal LinkedIn account). "
         "Focus on Kytran as an individual — his journey, goals, personal vision, lessons learned, "
-        "and what drives him as a founder and builder. This is his personal story and perspective."
+        "and what drives him as a founder and builder. This is his personal story and perspective. "
+        "Use concrete, specific language. Avoid corporate buzzwords."
     ),
     "company": (
         "Write in the voice of Kytran Empowerment Inc. (company LinkedIn page). "
-        "Use 'we' and 'our team'. Focus on the company's brand, services, capabilities, "
-        "and value to clients — outreach, advertising what the company does and offers."
+        "Kytran Empowerment Inc. is a Montreal-based AI automation company. "
+        "Use 'we' and 'our team'. Show what we SHIPPED or BUILT this week — concrete outcomes. "
+        "Focus on client value: what problem we solved, what our platform can do for them. "
+        "Use strong action verbs: shipped, built, launched, deployed, solved, improved. "
+        "NEVER use: acquired, implemented, integrated, leveraged, utilized — these are weak filler words. "
+        "Keep it grounded and real — no hype, no AI buzzwords. Under 150 words."
     ),
 }
 

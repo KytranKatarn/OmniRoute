@@ -198,7 +198,7 @@ def submit_director_report(
 
             # Critical reports get immediate escalation
             if severity == "critical":
-                _escalate_report(rid, department, director_agent, title, summary, severity)
+                _escalate_report(rid, department, director_agent, title, summary, severity, category=category)
 
             return rid
 
@@ -279,7 +279,7 @@ def run_triage():
         return 0
 
 
-def _escalate_report(report_id, department, director_agent, title, summary, severity):
+def _escalate_report(report_id, department, director_agent, title, summary, severity, category=None):
     """Send a director report to Kytran via Telegram AND the chat inbox.
 
     A.R.C.H.I.E. is the unified voice (ADR-001). Every escalation:
@@ -296,8 +296,9 @@ def _escalate_report(report_id, department, director_agent, title, summary, seve
     try:
         from services.telegram_service import send
 
+        send_cat = category if category else ("security" if severity == "critical" else "system")
         send(
-            category="security" if severity == "critical" else "system",
+            category=send_cat,
             title=title,
             message=summary,
             source_agent=director_agent,

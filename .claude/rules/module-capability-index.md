@@ -86,7 +86,9 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 - **Capability**: Scan→Proposal→Sandbox→Deploy (manual) self-healing pipeline. 8 tabs: Reviews, PR Review, Repairs, Diagnose, Test Bay, **Ship**, QA, Pushes + ENGINEERING station. 10 route files, ~2,849 LOC. Critical/high=immediate proposal; medium=Sunday 02:00 batch. SandboxManager (Docker or schema-separation).
 - **Ship tab** (2026-04-30): Website sub-tab added alongside Ready/History/F.O.R.G.E. sub-tabs. `GET /api/deploy/website-status` returns last deploy time, status, pending portrait count per domain. `POST /api/deploy/website-trigger` triggers immediate full-site Hostinger deploy in background thread. Results stored in `system_config` keys `website_deploy_last_run_<domain>` + `website_deploy_last_status_<domain>`.
 - **Audit**: KB 256838 (2026-04-17) · **Rules**: `repair-bay.md`
-- **Gaps**: `_has_open_proposal()` dedup not visible; 6h scheduler wiring unclear; one-way Consciousness flow. Hostinger API returning Cloudflare 403 — deploy currently failing (2026-04-30).
+- **Gaps**: `_has_open_proposal()` dedup not visible; 6h scheduler wiring unclear; one-way Consciousness flow.
+- **Hostinger deploy — CRITICAL (fixed 2026-05-01, PR #447–448)**: `POST /api/hosting/v1/websites/{username}/deploy` → 404 (endpoint does not exist). `deploy_service.py` now marks `deploy_pending` in system_config instead. **Only working deploy path: `/deploy-website` skill** using `mcp__hostinger-api__hosting_deployStaticWebsite`. Never try raw HTTP to Hostinger deploy API. KB #261679 #261681.
+- **Portrait :rw mounts (PR #448)**: `docker-compose.yml` now has `:rw` for `kytranempowerment.com/assets/portraits` and `creed-ai.org/assets/portraits`. Required `docker compose up -d` (not restart) to apply.
 
 ### Agent Academy — `agent_academy` · `/tools/agent-academy` · ✅ · 🟡 (3/5)
 - **Capability**: 5 tabs — Benchmarks, Training, A/B Testing, Skills, Reports. Lv1–5 proficiency (Lv4 unlocks cloud). 16 routes. `agent_benchmark_results`, `agent_competency_scores`, `agent_learning_records`, `v_department_readiness`.
@@ -263,6 +265,8 @@ These are standalone products surfaced as modules with `/external/` routes. All 
 - **Pending migrations on VPS**: 002–005 (run `psql $WTF_DATABASE_URL < migrations/00N_*.sql` in order)
 - **LLM upgrade paths**: replace extractive summarizer + heuristic fact-checker with Bridge dispatch for accuracy
 - **Source**: `/mnt/archie_brain/what-the-fact/` · schema `wtf` on hub Postgres · KB: 260192
+- **WTF Hub dispatch** (fixed 2026-05-01, PR #444): `platform_v2/tools/wtf_hub/routes.py` dispatches bias/factcheck/geo tasks to News & Media agents. Capabilities: `bias_analysis`→B.I.A.S., `fact_check`→V.E.R.I.F.Y., `geo_extraction`→L.O.C.A.L. All three added to `CAPABILITY_DEPARTMENT_MAP` in `services/department_coordinator.py`. Dead `prefer_agent` param removed.
+- **WTF consumer portraits** (fixed 2026-05-01, PR #449): `routes.py` now fetches live portrait URLs from `/api/public/directory` with 1h cache (no more hardcoded file paths). Redeploy wtf-consumer with `docker compose up -d --build` after code changes (image-baked, not volume-mounted).
 
 ### Kytran Legal Watch — `kytran_legal_watch` · `/external/legal` · ✅
 - **Deployment**: VPS, port 8100, legal.kytranempowerment.com

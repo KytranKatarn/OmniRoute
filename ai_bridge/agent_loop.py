@@ -3347,6 +3347,7 @@ class AgentLoop:
             if not content:
                 return {"executed": False, "error": "No content in action_data"}
             try:
+                import re as _re
                 import sys as _sys
                 _sys.path.insert(0, "/app")
                 from services.browser_service import run_skill_sync
@@ -3355,6 +3356,18 @@ class AgentLoop:
                 import os as _os
                 if not company_slug:
                     company_slug = _os.getenv("LINKEDIN_COMPANY_SLUG", "kytran-empowerment-inc")
+
+                # Clean content for LinkedIn — strip language prefixes, Markdown headers, bold
+                def _clean_linkedin(text):
+                    # Strip language prefix lines (🇨🇦 English: / ⚜️ Français québécois:)
+                    text = _re.sub(r'^[🇨🇦⚜️🇫🇷\s]*(?:English|Français québécois|Anglais)\s*:\s*\n', '', text, flags=_re.MULTILINE)
+                    # Strip Markdown headers (### Title)
+                    text = _re.sub(r'^#{1,6}\s+', '', text, flags=_re.MULTILINE)
+                    # Strip **bold** markers
+                    text = _re.sub(r'\*\*(.+?)\*\*', r'\1', text, flags=_re.DOTALL)
+                    return text.strip()
+
+                content = _clean_linkedin(content)
 
                 skill = "linkedin_company_post" if post_type == "company" else "linkedin_post"
                 params = {"content": content, "hashtags": hashtags}

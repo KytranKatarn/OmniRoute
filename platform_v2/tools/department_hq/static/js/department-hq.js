@@ -1511,8 +1511,10 @@ async function loadSignalTab(tab, forceRefresh) {
     if (!el) return;
 
     // Serve from cache if fresh enough (compose never cached — it's a form)
+    // Cache key includes account so switching accounts busts stale data.
+    var cacheKey = tab + ':' + signalAccount;
     if (!forceRefresh && tab !== 'compose') {
-        var cached = _signalTabCache[tab];
+        var cached = _signalTabCache[cacheKey];
         var ttl = (_signalTabTTL[tab] || 60) * 1000;
         if (cached && (Date.now() - cached.ts) < ttl) {
             setHtml(el, cached.html);
@@ -1533,7 +1535,7 @@ async function loadSignalTab(tab, forceRefresh) {
         }
         // Cache the rendered result (not for compose)
         if (tab !== 'compose' && el.innerHTML) {
-            _signalTabCache[tab] = { html: el.innerHTML, ts: Date.now() };
+            _signalTabCache[cacheKey] = { html: el.innerHTML, ts: Date.now() };
         }
     } catch (err) {
         setHtml(el, '<div class="dhq-empty">Error: ' + esc(err.message) + '</div>');
@@ -1542,7 +1544,7 @@ async function loadSignalTab(tab, forceRefresh) {
 
 async function loadSignalPendingBadge() {
     try {
-        var data = await api('/api/signal/pending-approvals');
+        var data = await api('/api/signal/pending-approvals?account=' + signalAccount);
         var count = (data.approvals || []).length;
         var badge = document.getElementById('signalPendingBadge');
         if (badge) {
@@ -1774,7 +1776,7 @@ async function renderSignalPostLog(el) {
 }
 
 async function renderSignalPending(el) {
-    var data = await api('/api/signal/pending-approvals');
+    var data = await api('/api/signal/pending-approvals?account=' + signalAccount);
     var approvals = data.approvals || [];
     if (approvals.length === 0) {
         setHtml(el, '<div class="dhq-empty">No pending LinkedIn posts — S.I.G.N.A.L. is all clear.</div>');

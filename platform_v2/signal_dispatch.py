@@ -196,15 +196,14 @@ def _draft_and_queue(
         if hashtag_override
         else "Pick 3-4 relevant hashtags from: #AI #ARCHIE #BuildingInPublic #Montreal #KytranEmpowerment"
     )
+    # Step 1: S.I.G.N.A.L. writes the English draft
     prompt = (
         f"Kytran has an announcement to share on LinkedIn ({account_label} account).\n\n"
         f"Announcement:\n{announcement}\n\n"
-        f"Write the post in BOTH English and French (Canada is bilingual). "
+        f"Write the post in English only — a translator will handle the French version. "
         f"{voice_hint} {tone_hint} {platform_hint}\n"
-        f"Under 200 words per version. End each with an engagement question.\n"
-        f"{hashtag_line}\n\n"
-        f"Format exactly like this:\n"
-        f"\U0001f1e8\U0001f1e6 English:\n[English post]\n\n---\n\n\U0001f1eb\U0001f1f7 Français :\n[French post]"
+        f"Under 200 words. End with an engagement question.\n"
+        f"{hashtag_line}"
     )
 
     from tools.department_hq.services.department_dispatcher import dispatch
@@ -216,9 +215,36 @@ def _draft_and_queue(
         prefer_agent="S.I.G.N.A.L.",
     )
 
-    draft = (getattr(result, "response", "") or "").strip()
-    if not draft:
+    english_draft = (getattr(result, "response", "") or "").strip()
+    if not english_draft:
         raise RuntimeError(f"S.I.G.N.A.L. returned empty draft for {post_type}")
+
+    # Step 2: R.O.S.E.T.T.A. translates to Québécois French
+    qc_draft = ""
+    try:
+        t_result = dispatch(
+            capability="translate",
+            prompt=(
+                f"Translate this LinkedIn post to Québécois French "
+                f"(joual/québécois dialect — NOT France French). "
+                f"Keep tone, voice, hashtags, and engagement question intact.\n\n{english_draft}"
+            ),
+            prefer_agent="R.O.S.E.T.T.A.",
+        )
+        if t_result and t_result.success:
+            qc_draft = (t_result.response or "").strip()
+    except Exception as _te:
+        log.warning("_draft_and_queue: R.O.S.E.T.T.A. translation failed: %s", _te)
+
+    # Combine into bilingual draft
+    if qc_draft:
+        draft = (
+            f"\U0001f1e8\U0001f1e6 English:\n{english_draft}"
+            f"\n\n---\n\n"
+            f"\U0001f1e8\U0001f1e6\U0001f1eb\U0001f1f7 Français québécois:\n{qc_draft}"
+        )
+    else:
+        draft = english_draft
 
     import sys
 

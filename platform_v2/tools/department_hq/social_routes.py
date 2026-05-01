@@ -328,10 +328,25 @@ def register_social_routes(bp, admin_required):
                 )
                 company_count = cur.fetchone()["cnt"]
 
+                cur.execute(
+                    "SELECT COUNT(*) AS cnt FROM dispatch_pending_queue WHERE capability = 'social_post_draft' AND status IN ('queued','running')"
+                )
+                queue_depth = cur.fetchone()["cnt"]
+
+                cur.execute(
+                    "SELECT MAX(created_at) AS last_run FROM autonomy_loop_log WHERE job_name = 'signal_linkedin_draft'"
+                )
+                last_run_row = cur.fetchone()
+                last_run_at = (
+                    last_run_row["last_run"].isoformat() if last_run_row and last_run_row["last_run"] else None
+                )
+
             return jsonify(
                 {
                     "agent": dict(agent) if agent else None,
                     "pending_approvals": int(pending_count),
+                    "queue_depth": int(queue_depth),
+                    "last_run_at": last_run_at,
                     "stats": {
                         "total_posted": int(total_posted),
                         "posted_this_week": int(week_posted),

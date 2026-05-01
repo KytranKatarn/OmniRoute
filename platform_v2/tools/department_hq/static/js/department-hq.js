@@ -1454,6 +1454,9 @@ async function publishPost(postId, agentId) {
 // ── S.I.G.N.A.L. Command Center state ───────────────────────────
 var signalAccount = 'personal';
 var signalTab = 'overview';
+var _signalTabCache = {};   // {tab: {html, ts}} — persists across sub-tab switches
+var _signalTabTTL = { overview: 30, postlog: 60, pending: 15, hashtags: 120, calendar: 300, themes: 600 };
+var _signalLastRun = null;  // timestamp of last Run Now press
 
 async function loadSocialFeed() {
     var el = document.getElementById('socialFeedContent');
@@ -1498,9 +1501,20 @@ function switchSignalTab(tab) {
     loadSignalTab(tab);
 }
 
-async function loadSignalTab(tab) {
+async function loadSignalTab(tab, forceRefresh) {
     var el = document.getElementById('signalContent');
     if (!el) return;
+
+    // Serve from cache if fresh enough (compose never cached — it's a form)
+    if (!forceRefresh && tab !== 'compose') {
+        var cached = _signalTabCache[tab];
+        var ttl = (_signalTabTTL[tab] || 60) * 1000;
+        if (cached && (Date.now() - cached.ts) < ttl) {
+            setHtml(el, cached.html);
+            return;
+        }
+    }
+
     setHtml(el, '<div class="dhq-loading" style="padding:24px">Loading...</div>');
     try {
         switch (tab) {
@@ -1511,6 +1525,10 @@ async function loadSignalTab(tab) {
             case 'hashtags':  await renderSignalHashtags(el);   break;
             case 'calendar':  await renderSignalCalendar(el);  break;
             case 'themes':    await renderSignalThemes(el);    break;
+        }
+        // Cache the rendered result (not for compose)
+        if (tab !== 'compose' && el.innerHTML) {
+            _signalTabCache[tab] = { html: el.innerHTML, ts: Date.now() };
         }
     } catch (err) {
         setHtml(el, '<div class="dhq-empty">Error: ' + esc(err.message) + '</div>');
@@ -1541,14 +1559,22 @@ async function renderSignalOverview(el) {
         ? '<span class="sc-live" style="color:#10b981;font-size:0.75rem">● ACTIVE</span>'
         : '<span style="color:#9ca3af;font-size:0.75rem">● ' + esc((agent.shift_state || 'unknown').toUpperCase()) + '</span>';
 
+    var queueDepth = data.queue_depth || 0;
+    var lastRunAt = data.last_run_at ? new Date(data.last_run_at) : null;
+    var lastRunLabel = lastRunAt ? 'Last run: ' + lastRunAt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : 'Never run';
+    var runNowLabel = _signalRunNowCoolingDown() ? _signalRunNowLabel() : '▶ Run Now';
+    var runNowDisabled = _signalRunNowCoolingDown() ? 'disabled' : '';
+
     var html = '<div class="signal-overview-grid">'
         + '<div class="signal-card signal-card-agent">'
         +   '<div class="signal-card-title">S.I.G.N.A.L.</div>'
         +   '<div class="signal-agent-row" style="margin-top:6px">' + shiftBadge + ' &nbsp;&middot;&nbsp; Mood: <span style="color:' + moodColor + '">' + esc(agent.current_mood || '—') + '</span></div>'
         +   '<div style="margin-top:4px;font-size:0.7rem;opacity:0.55;font-family:\'IBM Plex Mono\',monospace">Marketing &amp; Communications · Content Strategist</div>'
+        +   '<div style="margin-top:4px;font-size:0.65rem;opacity:0.45">' + esc(lastRunLabel)
+        +     (queueDepth > 0 ? ' &nbsp;·&nbsp; <span style="color:#f59e0b">' + queueDepth + ' queued</span>' : '') + '</div>'
         +   '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'
         +     '<button class="dhq-action-btn" onclick="switchSignalTab(\'compose\')">✏ Draft Post</button>'
-        +     '<button class="dhq-action-btn" onclick="signalRunNow(this)">▶ Run Now</button>'
+        +     '<button class="dhq-action-btn" onclick="signalRunNow(this)" ' + runNowDisabled + '>' + esc(runNowLabel) + '</button>'
         +     '<button class="dhq-action-btn" onclick="switchSignalTab(\'pending\')">⏳ Pending (' + (data.pending_approvals || 0) + ')</button>'
         +   '</div>'
         + '</div>'
@@ -1638,18 +1664,45 @@ function renderSignalCompose(el) {
     setHtml(el, html);
 }
 
+var _SIGNAL_RUN_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes between Run Now presses
+
+function _signalRunNowLabel() {
+    if (!_signalLastRun) return '▶ Run Now';
+    var secs = Math.round((Date.now() - _signalLastRun) / 1000);
+    if (secs < 60) return '✓ Triggered ' + secs + 's ago';
+    return '✓ Triggered ' + Math.round(secs / 60) + 'm ago';
+}
+
+function _signalRunNowCoolingDown() {
+    return _signalLastRun && (Date.now() - _signalLastRun) < _SIGNAL_RUN_COOLDOWN_MS;
+}
+
 async function signalRunNow(btn) {
-    var orig = btn.textContent;
-    btn.textContent = '⏳ Queuing...';
+    if (_signalRunNowCoolingDown()) {
+        btn.textContent = _signalRunNowLabel();
+        return;  // silently ignore — still in cooldown
+    }
+    btn.textContent = '⏳ Triggering...';
     btn.disabled = true;
     try {
         await apiPost('/api/signal/run-now', {});
-        btn.textContent = '✓ Queued';
-        setTimeout(function() { btn.textContent = orig; btn.disabled = false; }, 3000);
+        _signalLastRun = Date.now();
+        // Invalidate overview cache so stats refresh on next view
+        delete _signalTabCache['overview'];
+        btn.textContent = _signalRunNowLabel();
+        // Re-enable after cooldown, updating label every 30s
+        var _interval = setInterval(function() {
+            if (!_signalRunNowCoolingDown()) {
+                clearInterval(_interval);
+                btn.textContent = '▶ Run Now';
+                btn.disabled = false;
+            } else {
+                btn.textContent = _signalRunNowLabel();
+            }
+        }, 30000);
     } catch (err) {
-        btn.textContent = '✗ Failed';
+        btn.textContent = '✗ Failed — retry?';
         btn.disabled = false;
-        alert('Run failed: ' + err.message);
     }
 }
 

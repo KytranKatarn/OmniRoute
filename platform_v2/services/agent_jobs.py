@@ -2334,6 +2334,7 @@ def signal_linkedin_draft():
         except Exception:
             pass
 
+        # Step 1: S.I.G.N.A.L. writes the English draft
         prompt = (
             "You are S.I.G.N.A.L., the Marketing & Communications director at Kytran Empowerment Inc.\n"
             "Draft a LinkedIn post for Kytran Katarn's personal profile.\n\n"
@@ -2344,14 +2345,12 @@ def signal_linkedin_draft():
             f"{style_notes}\n\n"
             "Rules:\n"
             "- Write post content ONLY — no preamble, no explanation\n"
-            "- Write in BOTH English and French (Canada is bilingual)\n"
-            "- Under 200 words per version, first-person as Kytran Katarn\n"
+            "- Write in English only — a translator will handle the French version\n"
+            "- Under 200 words, first-person as Kytran Katarn\n"
             "- Focus on Kytran's personal journey, goals, and vision as a founder\n"
             "- Professional but human — not corporate jargon\n"
-            "- End each version with a specific call to action or question\n"
-            "- Montreal founder perspective\n\n"
-            "Format exactly like this:\n"
-            "\U0001f1e8\U0001f1e6 English:\n[English post]\n\n---\n\n\U0001f1eb\U0001f1f7 Français :\n[French post]"
+            "- End with a specific call to action or question\n"
+            "- Montreal founder perspective"
         )
 
         result = dispatch(
@@ -2368,11 +2367,11 @@ def signal_linkedin_draft():
             _log_cycle("signal_linkedin_draft", 1, 0, int((time.time() - start) * 1000))
             return
 
-        draft_content = ""
+        english_draft = ""
         if result and result.success:
-            draft_content = (result.response or "").strip()
+            english_draft = (result.response or "").strip()
 
-        if not draft_content:
+        if not english_draft:
             logger.warning("[LinkedInDraft] S.I.G.N.A.L. returned empty draft")
             _log_cycle(
                 "signal_linkedin_draft",
@@ -2382,6 +2381,37 @@ def signal_linkedin_draft():
                 error_message="Empty draft from S.I.G.N.A.L.",
             )
             return
+
+        # Step 2: R.O.S.E.T.T.A. translates to Québécois French
+        qc_draft = ""
+        try:
+            translate_prompt = (
+                f"Translate the following LinkedIn post to Québécois French "
+                f"(joual/québécois dialect — NOT France French). "
+                f"Keep the same tone, first-person voice, hashtags, and engagement question.\n\n"
+                f"Original post:\n{english_draft}"
+            )
+            t_result = dispatch(
+                capability="translate",
+                prompt=translate_prompt,
+                prefer_agent="R.O.S.E.T.T.A.",
+                source_product="archie_platform",
+            )
+            if t_result and t_result.success:
+                qc_draft = (t_result.response or "").strip()
+                logger.info("[LinkedInDraft] R.O.S.E.T.T.A. translated to Québécois (%d chars)", len(qc_draft))
+        except Exception as te:
+            logger.warning("[LinkedInDraft] R.O.S.E.T.T.A. translation failed (%s) — using English only", te)
+
+        # Combine bilingual draft
+        if qc_draft:
+            draft_content = (
+                f"\U0001f1e8\U0001f1e6 English:\n{english_draft}"
+                f"\n\n---\n\n"
+                f"\U0001f1e8\U0001f1e6\U0001f1eb\U0001f1f7 Français québécois:\n{qc_draft}"
+            )
+        else:
+            draft_content = english_draft
 
         # ── 4. Submit to Tier-2 approval queue ───────────────────────────────
         try:

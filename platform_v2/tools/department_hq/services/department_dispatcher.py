@@ -5109,6 +5109,8 @@ class DepartmentDispatcher:
             # The model_dispatch_worker will execute them when the model is warm.
             if model_not_ready and priority != "critical":
                 try:
+                    from database import get_db_cursor
+
                     priority_int = self._PRIORITY_INT.get(priority, 5)
                     with get_db_cursor(commit=True) as (_qconn, _qcur):
                         _qcur.execute(

@@ -2308,3 +2308,39 @@ def api_update_theme(theme_id):
     if not updated:
         return jsonify({"error": "not found or no valid fields"}), 400
     return jsonify(updated)
+
+
+# ─── Lifestyle / Social Content Generation ───────────────────────
+
+
+@media_studio_bp.route("/api/generate/lifestyle", methods=["POST"])
+@login_required
+def api_generate_lifestyle():
+    """Generate a lifestyle/selfie/announcement image for an agent using a theme scene.
+
+    Body: {agent_id, scene_id, generation_type: lifestyle|selfie|announcement, refine: bool}
+    Returns: {queue_id, status, prompt, refined_prompt, caption, agent, scene, generation_type}
+    """
+    from .services.lifestyle_service import generate_lifestyle_content
+
+    data = request.get_json() or {}
+    agent_id = data.get("agent_id")
+    scene_id = data.get("scene_id")
+    generation_type = data.get("generation_type", "lifestyle")
+    refine = data.get("refine", True)
+
+    if not agent_id or not scene_id:
+        return jsonify({"error": "agent_id and scene_id required"}), 400
+    if generation_type not in ("lifestyle", "selfie", "announcement"):
+        return jsonify({"error": "generation_type must be lifestyle, selfie, or announcement"}), 400
+
+    result = generate_lifestyle_content(
+        user_id=current_user.id,
+        agent_id=int(agent_id),
+        scene_id=int(scene_id),
+        generation_type=generation_type,
+        refine=refine,
+    )
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result), 201

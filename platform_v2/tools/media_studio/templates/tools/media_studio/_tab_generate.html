@@ -16,11 +16,16 @@
 
           <!-- Step 1: Content type -->
           <div style="color:#555;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">Step 1 &#x2014; What are you making?</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:24px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px;">
             <div class="ms-gen-type-card ms-gen-type-active" data-type="portrait" onclick="msGenerate.selectType('portrait')">
               <div style="font-size:1.4rem;margin-bottom:6px;">&#x1F5BC;</div>
               <div style="font-family:'Orbitron',sans-serif;font-size:0.65rem;color:#60a5fa;letter-spacing:1px;">PORTRAIT</div>
               <div style="font-size:0.62rem;color:#666;margin-top:4px;">Consistent agent identity image</div>
+            </div>
+            <div class="ms-gen-type-card" data-type="lifestyle" onclick="msGenerate.selectType('lifestyle')">
+              <div style="font-size:1.4rem;margin-bottom:6px;">&#x1F304;</div>
+              <div style="font-family:'Orbitron',sans-serif;font-size:0.65rem;color:#888;letter-spacing:1px;">LIFESTYLE</div>
+              <div style="font-size:0.62rem;color:#666;margin-top:4px;">Scene-based themed social content</div>
             </div>
             <div class="ms-gen-type-card" data-type="brand" onclick="msGenerate.selectType('brand')">
               <div style="font-size:1.4rem;margin-bottom:6px;">&#x1F4E6;</div>
@@ -32,6 +37,42 @@
               <div style="font-family:'Orbitron',sans-serif;font-size:0.65rem;color:#888;letter-spacing:1px;">SOCIAL CONTENT</div>
               <div style="font-size:0.62rem;color:#666;margin-top:4px;">Quote card / video &#x2192; Social Video builder</div>
             </div>
+          </div>
+
+          <!-- Step 1b: Lifestyle scene picker (shown when type=lifestyle) -->
+          <div id="msGenLifestyleStep" style="margin-bottom:20px;display:none;">
+            <div style="color:#555;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">Step 1b &#x2014; Scene &amp; Mode</div>
+            <div style="display:flex;gap:6px;margin-bottom:10px;">
+              <button class="ms-gen-mode-btn ms-gen-mode-active" data-mode="lifestyle" onclick="msGenerate.selectMode('lifestyle')"
+                style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.4);color:#60a5fa;padding:4px 10px;border-radius:3px;font-size:0.6rem;cursor:pointer;">
+                &#x1F304; Lifestyle
+              </button>
+              <button class="ms-gen-mode-btn" data-mode="selfie" onclick="msGenerate.selectMode('selfie')"
+                style="background:transparent;border:1px solid #333;color:#555;padding:4px 10px;border-radius:3px;font-size:0.6rem;cursor:pointer;">
+                &#x1F933; Selfie
+              </button>
+              <button class="ms-gen-mode-btn" data-mode="announcement" onclick="msGenerate.selectMode('announcement')"
+                style="background:transparent;border:1px solid #333;color:#555;padding:4px 10px;border-radius:3px;font-size:0.6rem;cursor:pointer;">
+                &#x1F4E2; Announcement
+              </button>
+            </div>
+            <div style="color:#555;font-size:0.58rem;margin-bottom:5px;">Theme:</div>
+            <div id="msGenThemePicker" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;"></div>
+            <div id="msGenScenePickerWrap" style="display:none;">
+              <div style="color:#555;font-size:0.58rem;margin-bottom:5px;">Scene:</div>
+              <div id="msGenScenePicker" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
+            </div>
+          </div>
+
+          <!-- Lifestyle result preview -->
+          <div id="msGenLifestylePreview" style="display:none;margin-bottom:16px;padding:12px;background:#0d1117;border:1px solid rgba(59,130,246,0.2);border-radius:5px;">
+            <div style="color:#555;font-size:0.58rem;letter-spacing:1px;margin-bottom:8px;">GENERATION QUEUED</div>
+            <div style="color:#60a5fa;font-size:0.62rem;margin-bottom:4px;">S.I.G.N.A.L. Caption Draft:</div>
+            <div id="msGenLifestyleCaption" style="color:#ccc;font-size:0.7rem;font-family:'IBM Plex Mono',monospace;line-height:1.4;margin-bottom:8px;"></div>
+            <button onclick="msGenerate.sendToSocialVideo()"
+              style="background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;padding:5px 12px;border-radius:4px;font-size:0.6rem;cursor:pointer;">
+              &#x1F3AC; Use in Social Video
+            </button>
           </div>
 
           <!-- Step 2: Agent picker -->

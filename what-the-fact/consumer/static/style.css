@@ -41,8 +41,8 @@
 body {
   margin: 0;
   font-family: 'IBM Plex Mono', 'Courier New', monospace;
-  background: var(--wtf-bg);
-  color: var(--wtf-text);
+  background: #050d1a;
+  color: #c0c8d4;
 }
 a { color: inherit; }
 

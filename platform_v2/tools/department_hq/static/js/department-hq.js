@@ -55,6 +55,11 @@ async function apiPost(path, body) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
     });
+    if (!res.ok) {
+        let msg = `POST ${path} returned ${res.status}`;
+        try { const d = await res.json(); msg = d.error || msg; } catch (_) {}
+        throw new Error(msg);
+    }
     return res.json();
 }
 

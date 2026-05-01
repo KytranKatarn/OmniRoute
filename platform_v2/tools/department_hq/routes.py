@@ -12,7 +12,7 @@ only for non-agent tables (dept_work_sessions, bridge_jobs).
 
 from functools import wraps
 from flask import render_template, jsonify, request
-from flask_login import login_required, current_user
+from flask_login import current_user
 from database import get_db_cursor
 from services.agent_service import get_department_summary, get_org_chart
 
@@ -23,8 +23,11 @@ from services.agent_service import get_department_summary, get_org_chart
 
 def admin_required(f):
     @wraps(f)
-    @login_required
     def decorated(*args, **kwargs):
+        # Return 401 JSON for unauthenticated API requests — never redirect,
+        # so fetch() doesn't silently follow a 302 to the login HTML page.
+        if not current_user.is_authenticated:
+            return jsonify({"error": "Authentication required"}), 401
         if not current_user.is_admin:
             return jsonify({"error": "Admin access required"}), 403
         return f(*args, **kwargs)

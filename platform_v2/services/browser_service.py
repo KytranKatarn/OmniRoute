@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 BROWSER_URL = "http://archie_browser:4242"
 DEFAULT_AGENT_ID = 342  # kytranempowerment@gmail.com session
-DEFAULT_API_KEY = "internal"
+DEFAULT_API_KEY = os.getenv("BROWSER_API_KEY", "internal")
 DEFAULT_TIMEOUT_S = 120
 POLL_INTERVAL_S = 4
 

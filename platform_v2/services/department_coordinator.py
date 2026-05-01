@@ -215,6 +215,73 @@ CAPABILITY_DEPARTMENT_MAP = {
     "bias_analysis": "News & Media",
     "fact_check": "News & Media",
     "geo_extraction": "News & Media",
+    # -----------------------------------------------------------------------
+    # Routing expansion — idle agent fix (2026-05-01)
+    # 20 active LLM agents were receiving zero dispatches because their skill
+    # names were absent from this map. Added below after cross-referencing
+    # agent_skills table against task_execution_log (7-day window).
+    # -----------------------------------------------------------------------
+    # Analytics & Intelligence — S.P.E.C.T.R.A. specialties not yet called
+    # by any scheduled job, but mapping unblocks delegation + future jobs
+    "sentiment": "Analytics & Intelligence",
+    "pattern_recognition": "Analytics & Intelligence",
+    "intelligence_gathering": "Analytics & Intelligence",
+    # I.R.I.S. — classifier / intent router
+    "intent_parsing": "Analytics & Intelligence",
+    "detect_language": "Analytics & Intelligence",
+    "task_routing": "Analytics & Intelligence",
+    # M.A.R.K.E.T. — market intelligence (Market Watch VPS product calls these)
+    "market_analysis": "Analytics & Intelligence",
+    "market_execution": "Analytics & Intelligence",
+    "portfolio_management": "Analytics & Intelligence",
+    "risk_analysis": "Analytics & Intelligence",
+    "trade_timing": "Analytics & Intelligence",
+    "pnl_tracking": "Analytics & Intelligence",
+    # Security & Compliance — S.H.I.E.L.D. skill is stored with a hyphen
+    # in agent_skills ("security-review"); map both spellings
+    "security-review": "Security & Compliance",
+    "security_review": "Security & Compliance",
+    "vulnerability_assessment": "Security & Compliance",
+    "compliance_scan": "Security & Compliance",
+    # Legal & Regulatory — G.A.V.E.L.
+    "legal_analysis": "Legal & Regulatory",
+    "contract_review": "Legal & Regulatory",
+    "privacy_law": "Legal & Regulatory",
+    "regulatory_research": "Legal & Regulatory",
+    "dispute_resolution": "Legal & Regulatory",
+    # Medical & Wellness — V.I.T.A.L. + F.A.I.T.H.
+    "medical": "Medical & Wellness",
+    "wellness": "Medical & Wellness",
+    "wellness_coaching": "Medical & Wellness",
+    "nutrition": "Medical & Wellness",
+    "mental_health_support": "Medical & Wellness",
+    "patient_care": "Medical & Wellness",
+    # Human Resources & Culture — K.I.N. skills missing from map
+    "welfare": "Human Resources & Culture",
+    "hr": "Human Resources & Culture",
+    "training": "Human Resources & Culture",
+    "workforce_welfare": "Human Resources & Culture",
+    # Diplomatic & External Relations — A.C.C.O.R.D.
+    "diplomacy": "Diplomatic & External Relations",
+    "negotiation": "Diplomatic & External Relations",
+    "protocol_management": "Diplomatic & External Relations",
+    # Executive Office — A.R.C.H.I.E. governance work
+    "governance": "Executive Office",
+    "dispatch": "Executive Office",
+    # News & Media — content agents (D.R.A.F.T., F.A.C.T., I.N.K., M.A.V.E.N., P.U.B.L.I.S.H.)
+    "content_writing": "News & Media",
+    "blog_creation": "News & Media",
+    "ghostwriting": "News & Media",
+    "narrative_development": "News & Media",
+    "news_writing": "News & Media",
+    "editorial": "News & Media",
+    "media_recommendation": "News & Media",
+    "library_search": "News & Media",
+    "library_curation": "News & Media",
+    "media_hub_troubleshoot": "News & Media",
+    "content_classification": "News & Media",
+    "metadata_enrichment": "News & Media",
+    "duplicate_triage": "News & Media",
 }
 
 

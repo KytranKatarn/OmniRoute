@@ -1692,7 +1692,7 @@ async function signalRunNow(btn) {
     btn.textContent = '⏳ Triggering...';
     btn.disabled = true;
     try {
-        await apiPost('/api/signal/run-now', {});
+        await apiPost('/api/signal/run-now', { account: signalAccount });
         _signalLastRun = Date.now();
         // Invalidate overview cache so stats refresh on next view
         delete _signalTabCache['overview'];

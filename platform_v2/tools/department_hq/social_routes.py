@@ -591,13 +591,22 @@ def register_social_routes(bp, admin_required):
     @bp.route("/api/signal/run-now", methods=["POST"])
     @admin_required
     def api_signal_run_now():
-        """Trigger signal_linkedin_draft job immediately via job service."""
+        """Trigger signal_linkedin_draft job for a specific account (or all).
+
+        Body: {"account": "personal"|"company"|"all"}  (default: "all")
+        """
+        import threading
+
+        data = request.get_json(silent=True) or {}
+        account = data.get("account", "all").strip().lower()
         try:
-            svc = current_app.config.get("JOB_SERVICE")
-            if not svc:
-                return jsonify({"success": False, "error": "Job service unavailable"}), 503
-            svc.run_job("signal_linkedin_draft")
-            return jsonify({"success": True, "message": "signal_linkedin_draft triggered"})
+            from services.agent_jobs import signal_linkedin_draft
+
+            def _run():
+                signal_linkedin_draft(account_filter=account)
+
+            threading.Thread(target=_run, daemon=True).start()
+            return jsonify({"success": True, "message": f"signal_linkedin_draft triggered for: {account}"})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
 

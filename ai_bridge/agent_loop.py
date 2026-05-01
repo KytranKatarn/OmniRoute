@@ -77,9 +77,17 @@ def _send_approval_telegram(
     try:
         from services.director_report_service import submit_via_inbox
 
+        import re as _re
+
+        def _strip_md(text):
+            """Remove Markdown that breaks Telegram V1 parser."""
+            text = _re.sub(r'\*\*(.+?)\*\*', r'\1', text, flags=_re.DOTALL)
+            text = _re.sub(r'__(.+?)__', r'\1', text, flags=_re.DOTALL)
+            return text
+
         lines = [f"Approval #{approval_id} required for: {action_type}"]
         if reason:
-            lines.append(f"Reason: {reason}")
+            lines.append(f"Reason: {_strip_md(reason)}")
         if action_data and action_type == "linkedin_post":
             post_type = action_data.get("post_type", "")
             hashtags = action_data.get("hashtags", [])

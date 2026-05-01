@@ -2232,7 +2232,7 @@ def refresh_website_directory():
     threading.Thread(target=_push, daemon=True, name="dir-fallback-push").start()
 
 
-def signal_linkedin_draft():
+def signal_linkedin_draft(account_filter="all"):
     """S.I.G.N.A.L. drafts a LinkedIn post and queues it for Telegram approval.
 
     Runs Tue + Thu at 09:00 local time. S.I.G.N.A.L. generates content based
@@ -2364,72 +2364,67 @@ def signal_linkedin_draft():
         except Exception:
             pass
 
-        # Store check-in state and ask Kytran via Telegram before drafting.
-        # He has 4h to reply. Gateway processes the reply → triggers draft.
-        # signal_personal_checkin_timeout job handles no-reply fallback.
-        import json as _json
-        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+        # Personal check-in section — skipped when account_filter='company'
+        goto_company = account_filter == "company"
+        if not goto_company:
+            import json as _json
+            from datetime import datetime as _dt, timezone as _tz, timedelta as _td
 
-        checkin_state = {
-            "archie_context": archie_context,
-            "recent_context": recent_context,
-            "hashtags": hashtags,
-            "theme_name": theme_name,
-            "theme_guidance": theme_guidance,
-            "style_notes": style_notes,
-            "expires_at": (_dt.now(_tz.utc) + _td(hours=4)).isoformat(),
-            "status": "pending",
-        }
-        try:
-            from database import get_db_cursor as _gc2
+            checkin_state = {
+                "archie_context": archie_context,
+                "recent_context": recent_context,
+                "hashtags": hashtags,
+                "theme_name": theme_name,
+                "theme_guidance": theme_guidance,
+                "style_notes": style_notes,
+                "expires_at": (_dt.now(_tz.utc) + _td(hours=4)).isoformat(),
+                "status": "pending",
+            }
+            try:
+                from database import get_db_cursor as _gc2
 
-            with _gc2(commit=True) as (_cc2, _sc):
-                _sc.execute(
-                    """INSERT INTO system_config (key, value, updated_at)
-                       VALUES ('signal_personal_checkin', %s, NOW())
-                       ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = NOW()""",
-                    (_json.dumps(checkin_state), _json.dumps(checkin_state)),
+                with _gc2(commit=True) as (_cc2, _sc):
+                    _sc.execute(
+                        """INSERT INTO system_config (key, value, updated_at)
+                           VALUES ('signal_personal_checkin', %s, NOW())
+                           ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = NOW()""",
+                        (_json.dumps(checkin_state), _json.dumps(checkin_state)),
+                    )
+            except Exception as _se:
+                logger.warning("[LinkedInDraft] Could not store checkin state: %s", _se)
+
+            # Send Telegram check-in
+            try:
+                from services.director_report_service import submit_via_inbox
+
+                briefing_lines = []
+                if archie_context:
+                    briefing_lines.append(archie_context)
+                if recent_context:
+                    briefing_lines.append(f"Git: {recent_context[:200]}")
+
+                briefing = "\n".join(briefing_lines) or "Nothing new captured yet."
+                checkin_msg = (
+                    f"A.R.C.H.I.E. briefing for your personal post ({theme_name}):\n\n"
+                    f"{briefing}\n\n"
+                    f"What do you want to share today? "
+                    f"Reply to this and I'll use your words in the post. "
+                    f"(4h window — if no reply, I'll draft from the briefing above)"
                 )
-        except Exception as _se:
-            logger.warning("[LinkedInDraft] Could not store checkin state: %s", _se)
+                submit_via_inbox(
+                    category="signal_checkin",
+                    title="S.I.G.N.A.L. Check-In",
+                    message=checkin_msg,
+                    source_agent="A.R.C.H.I.E.",
+                    severity="high",
+                    department="Executive Office",
+                )
+                logger.info("[LinkedInDraft] Personal check-in sent via Telegram")
+            except Exception as _te:
+                logger.warning("[LinkedInDraft] Telegram check-in failed: %s", _te)
 
-        # Send Telegram check-in
-        try:
-            from services.director_report_service import submit_via_inbox
-
-            briefing_lines = []
-            if archie_context:
-                briefing_lines.append(archie_context)
-            if recent_context:
-                briefing_lines.append(f"Git: {recent_context[:200]}")
-
-            briefing = "\n".join(briefing_lines) or "Nothing new captured yet."
-            checkin_msg = (
-                f"A.R.C.H.I.E. briefing for your personal post ({theme_name}):\n\n"
-                f"{briefing}\n\n"
-                f"What do you want to share today? "
-                f"Reply to this and I'll use your words in the post. "
-                f"(4h window — if no reply, I'll draft from the briefing above)"
-            )
-            submit_via_inbox(
-                category="signal_checkin",
-                title="S.I.G.N.A.L. Check-In",
-                message=checkin_msg,
-                source_agent="A.R.C.H.I.E.",
-                severity="high",
-                department="Executive Office",
-            )
-            logger.info("[LinkedInDraft] Personal check-in sent via Telegram")
-        except Exception as _te:
-            logger.warning("[LinkedInDraft] Telegram check-in failed: %s", _te)
-
-        # Personal draft will be triggered by the reply handler or timeout job.
-        # Company posts continue below.
-
-        # Check-in sent — skip personal approval, fall through to company posts.
-        logger.info("[LinkedInDraft] Personal check-in pending. Company posts will follow.")
-        # (The approval/translation block below is skipped; jump to company section.)
-        goto_company = True
+            logger.info("[LinkedInDraft] Personal check-in pending. Company posts will follow.")
+            goto_company = True
 
         # goto_company=True means check-in was sent — skip personal draft/approval.
         # Personal post will be triggered by Telegram reply or the timeout job.
@@ -2452,6 +2447,11 @@ def signal_linkedin_draft():
         _hashtags_copy = list(selected_hashtags)
         _theme = f"{theme_name}: {theme_guidance}"
         _style = style_notes
+
+        # Skip company section when running personal-only
+        if account_filter == "personal":
+            logger.info("[LinkedInDraft] personal-only run — skipping company posts")
+            return
 
         # Company posts: EN + FR as separate posts, 30 min apart.
         # Rotation tracked in system_config so they alternate each cycle.

@@ -196,9 +196,14 @@ def submit_director_report(
                 rid, severity, category, director_agent, title,
             )
 
-            # Critical reports get immediate escalation
+            # Critical reports get immediate escalation — mark escalated to prevent triage resend
             if severity == "critical":
                 _escalate_report(rid, department, director_agent, title, summary, severity, category=category)
+                cur.execute(
+                    "UPDATE director_reports SET escalated=TRUE, escalation_channel='telegram', escalated_at=NOW() WHERE id=%s",
+                    (rid,),
+                )
+                conn.commit()
 
             return rid
 
@@ -265,10 +270,11 @@ def run_triage():
             dept = r["department"] if isinstance(r, dict) else r[1]
             agent = r["director_agent"] if isinstance(r, dict) else r[2]
             severity = r["severity"] if isinstance(r, dict) else r[3]
+            orig_cat = r["category"] if isinstance(r, dict) else r[4]
             title = r["title"] if isinstance(r, dict) else r[5]
             summary = r["summary"] if isinstance(r, dict) else r[6]
 
-            _escalate_report(rid, dept, agent, title, summary, severity)
+            _escalate_report(rid, dept, agent, title, summary, severity, category=orig_cat)
             escalated += 1
 
         logger.info("briefing_service: triage escalated %d reports", escalated)

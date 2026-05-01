@@ -467,14 +467,15 @@ def svq_create(
     platform: str,
     scheduled_at: Optional[str],
     user_id: int,
+    theme_id: Optional[int] = None,
 ) -> Dict:
     """Insert a new social_video_queue item. Status is 'scheduled' if scheduled_at set, else 'draft'."""
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             """INSERT INTO social_video_queue
                (title, quote_text, media_ids, audio_mode, platform,
-                scheduled_at, status, created_by)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                scheduled_at, status, created_by, theme_id)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                RETURNING id, status, created_at""",
             (
                 title,
@@ -485,6 +486,7 @@ def svq_create(
                 scheduled_at,
                 "scheduled" if scheduled_at else "draft",
                 user_id,
+                theme_id,
             ),
         )
         row = cur.fetchone()

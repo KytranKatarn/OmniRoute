@@ -2255,6 +2255,7 @@ def api_sv_create():
         platform=data.get("platform", "linkedin"),
         scheduled_at=data.get("scheduled_at"),
         user_id=current_user.id,
+        theme_id=data.get("theme_id"),
     )
     return jsonify(item), 201
 

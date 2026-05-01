@@ -114,7 +114,7 @@ a { color: inherit; }
 
 /* Nav actions (globe + hamburger) */
 .wtf-nav-actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
-.wtf-nav-join {
+.wtf-nav-subscribe {
   background: var(--wtf-accent);
   color: #fff;
   padding: 6px 14px;
@@ -125,7 +125,23 @@ a { color: inherit; }
   white-space: nowrap;
   flex-shrink: 0;
 }
-.wtf-nav-join:hover { opacity: 0.85; color: #fff; }
+.wtf-nav-subscribe:hover { opacity: 0.85; color: #fff; }
+.wtf-nav-login {
+  background: transparent;
+  border: 1px solid #334455;
+  color: #9ca3af;
+  padding: 5px 13px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  letter-spacing: 1px;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.wtf-nav-login:hover { border-color: #6b7280; color: #e0e0e0; }
+@media (max-width: 860px) {
+  .wtf-nav-subscribe, .wtf-nav-login { display: none; }
+}
 
 .wtf-lang-btn {
   background: rgba(255,255,255,0.06);

@@ -336,7 +336,19 @@ def automated_module_audit(flask_app):
             except Exception as tg_err:
                 logger.debug("Repair cycle Telegram summary failed: %s", tg_err)
 
-        _log_cycle("automated_module_audit", audited, violations, 0)
+        _log_cycle(
+            "automated_module_audit",
+            audited,
+            0,  # items_failed = job errors, not audit violations
+            0,
+            details={
+                "violations": violations,
+                "clean": clean,
+                "severity": severity_totals,
+                "proposals_created": total_proposals,
+                "proposals_dispatched": total_dispatched,
+            },
+        )
     except Exception as e:
         _log_cycle("automated_module_audit", 0, 1, 0, error_message=str(e))
         logger.warning(f"Automated module audit failed: {e}")

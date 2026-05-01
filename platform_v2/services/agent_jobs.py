@@ -3165,6 +3165,50 @@ def email_oversight(flask_app):
         _log_cycle("email_oversight", 0, 1, 0, error_message=str(exc))
 
 
+def poll_outpost_heartbeat():
+    """Refresh last_heartbeat for external fleet nodes so node_router keeps them eligible.
+
+    node_router requires last_heartbeat < 90s ago. Without a node_client on the VPS
+    the hub must poll. Runs every 60s — fires twice per window so there's no gap.
+    Marks the node offline if Ollama stops responding.
+    """
+    import urllib.request as _req
+
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (_, cur):
+            cur.execute(
+                """SELECT node_id, hostname, port
+                   FROM remote_nodes
+                   WHERE bridge_enabled = true
+                     AND network_type = 'external'
+                     AND ollama_available = true"""
+            )
+            nodes = cur.fetchall()
+
+        for node in nodes:
+            url = f"http://{node['hostname']}:{node['port']}/api/tags"
+            try:
+                with _req.urlopen(url, timeout=5) as r:
+                    if r.status == 200:
+                        with get_db_cursor(commit=True) as (_, ucur):
+                            ucur.execute(
+                                "UPDATE remote_nodes SET last_heartbeat = NOW(), status = 'online' WHERE node_id = %s",
+                                (node["node_id"],),
+                            )
+                        logger.debug("poll_outpost_heartbeat: %s alive", node["node_id"])
+            except Exception as probe_err:
+                logger.warning("poll_outpost_heartbeat: %s unreachable: %s", node["node_id"], probe_err)
+                with get_db_cursor(commit=True) as (_, ucur):
+                    ucur.execute(
+                        "UPDATE remote_nodes SET status = 'offline' WHERE node_id = %s",
+                        (node["node_id"],),
+                    )
+    except Exception as exc:
+        logger.error("poll_outpost_heartbeat error: %s", exc)
+
+
 def register_agent_welfare_jobs(scheduler, flask_app):
     """Register all agent welfare/HR background jobs with the scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
@@ -3313,6 +3357,15 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(hours=6),
         id="refresh_website_directory",
         name="Agent Loop: Refresh Website Directory Fallback",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    scheduler.add_job(
+        with_ctx(poll_outpost_heartbeat),
+        trigger=IntervalTrigger(seconds=60),
+        id="poll_outpost_heartbeat",
+        name="Agent Loop: Poll External Outpost Nodes (VPS Ollama heartbeat)",
         replace_existing=True,
         max_instances=1,
     )

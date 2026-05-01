@@ -2507,7 +2507,12 @@ def signal_linkedin_draft(account_filter="all"):
                     aid, _ = _draft_and_queue(
                         announcement, "company", "professional", _hashtags_copy, 5, system, language_only=lang
                     )
-                    logger.info("[LinkedInDraft] Company %s draft queued (id=%s)", lang.upper(), aid)
+                    if aid == -1:
+                        logger.info(
+                            "[LinkedInDraft] Company %s draft deferred — model cold, callback registered", lang.upper()
+                        )
+                    else:
+                        logger.info("[LinkedInDraft] Company %s draft queued (id=%s)", lang.upper(), aid)
                 except Exception as _e:
                     logger.error("[LinkedInDraft] Company %s draft failed: %s", lang.upper(), _e)
 

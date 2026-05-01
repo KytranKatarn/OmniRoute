@@ -222,6 +222,38 @@ def _draft_and_queue(
     )
 
     english_draft = (getattr(result, "response", "") or "").strip()
+
+    # Model was cold — task queued for deferred processing
+    if not english_draft and getattr(result, "queued", False):
+        import re as _re
+        import json as _json
+
+        error_str = getattr(result, "error", "") or ""
+        match = _re.search(r"Queued \(id=(\d+)\)", error_str)
+        if match:
+            queue_id = int(match.group(1))
+            cb_data = _json.dumps(
+                {
+                    "post_type": post_type,
+                    "hashtags": hashtag_override,
+                    "language_only": language_only,
+                }
+            )
+            try:
+                from database import get_db_cursor as _gdc
+
+                with _gdc(commit=True) as (_c, _cur):
+                    _cur.execute(
+                        """UPDATE dispatch_pending_queue
+                           SET callback_type = 'signal_pipeline', callback_data = %s
+                           WHERE id = %s""",
+                        (cb_data, queue_id),
+                    )
+                log.info("signal_dispatch: registered signal_pipeline callback on queue task #%d", queue_id)
+            except Exception as _ce:
+                log.warning("signal_dispatch: callback registration failed: %s", _ce)
+        return -1, "queued"
+
     if not english_draft:
         raise RuntimeError(f"S.I.G.N.A.L. returned empty draft for {post_type}")
 

@@ -264,29 +264,46 @@ def _continue_signal_pipeline(task: dict, english_draft: str) -> None:
 
     def _run():
         try:
+            import json as _j
             from tools.department_hq.services.department_dispatcher import dispatch
 
-            # Step 1: R.O.S.E.T.T.A. translates to Québécois French
-            qc_draft = ""
-            try:
-                t_result = dispatch(
-                    capability="translate",
-                    prompt=(
-                        "Translate this LinkedIn post to Québécois French "
-                        "(joual/québécois dialect — NOT France French). "
-                        "Keep tone, voice, hashtags, and engagement question.\n\n" + english_draft
-                    ),
-                    prefer_agent="R.O.S.E.T.T.A.",
-                    source_product="archie_platform",
-                )
-                if t_result and t_result.success:
-                    qc_draft = (t_result.response or "").strip()
-                    log.info("model_dispatch: R.O.S.E.T.T.A. translated draft (%d chars)", len(qc_draft))
-            except Exception as te:
-                log.warning("model_dispatch: R.O.S.E.T.T.A. translation failed: %s", te)
+            # Read callback context (post_type, hashtags, language_only)
+            cb_raw = task.get("callback_data") or {}
+            if isinstance(cb_raw, str):
+                try:
+                    cb_raw = _j.loads(cb_raw)
+                except Exception:
+                    cb_raw = {}
+            post_type = cb_raw.get("post_type", "personal")
+            hashtags = cb_raw.get("hashtags", [])
+            language_only = cb_raw.get("language_only", "bilingual")
 
-            # Step 2: combine and queue for Telegram approval
-            if qc_draft:
+            # Step 1: translate to Québécois (skip for EN-only posts)
+            qc_draft = ""
+            if language_only in ("bilingual", "fr"):
+                try:
+                    t_result = dispatch(
+                        capability="translate",
+                        prompt=(
+                            "Translate this LinkedIn post to Québécois French "
+                            "(joual/québécois dialect — NOT France French). "
+                            "Keep tone, voice, hashtags, and engagement question.\n\n" + english_draft
+                        ),
+                        prefer_agent="R.O.S.E.T.T.A.",
+                        source_product="archie_platform",
+                    )
+                    if t_result and t_result.success:
+                        qc_draft = (t_result.response or "").strip()
+                        log.info("model_dispatch: R.O.S.E.T.T.A. translated draft (%d chars)", len(qc_draft))
+                except Exception as te:
+                    log.warning("model_dispatch: R.O.S.E.T.T.A. translation failed: %s", te)
+
+            # Step 2: assemble combined draft per language_only setting
+            if language_only == "en":
+                combined = f"\U0001f1e8\U0001f1e6 English:\n{english_draft}"
+            elif language_only == "fr":
+                combined = f"⚜️ Français québécois:\n{qc_draft or english_draft}"
+            elif qc_draft:
                 combined = (
                     f"\U0001f1e8\U0001f1e6 English:\n{english_draft}"
                     f"\n\n---\n\n"
@@ -300,13 +317,12 @@ def _continue_signal_pipeline(task: dict, english_draft: str) -> None:
             sys.path.insert(0, "/app")
             from ai_bridge.agent_loop import request_approval
 
-            metadata = task.get("metadata") or {}
             approval_id = request_approval(
                 action_type="linkedin_post",
                 action_data={
                     "content": combined,
-                    "hashtags": metadata.get("hashtags", []),
-                    "post_type": task.get("requested_by", "personal").replace("S.I.G.N.A.L.", "personal"),
+                    "hashtags": hashtags,
+                    "post_type": post_type,
                     "browser_agent_id": 342,
                 },
                 reason=f"📣 S.I.G.N.A.L. LinkedIn draft (via queue):\n\n{combined[:1500]}",

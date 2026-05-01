@@ -65,7 +65,8 @@ CRITICAL_CONTAINERS: Dict[str, Dict[str, Any]] = {
     "nginx_proxy_manager": {
         "description": "NPM reverse proxy — gates all *.kytranempowerment.com subdomains",
         "tcp_probes": [80, 443],
-        "http_probe": "http://nginx_proxy_manager:81/api",
+        # http_probe removed — :81 admin API is host-bound only, unreachable from
+        # compose network; TCP 80/443 are the correct liveness signals for NPM.
         "auto_restart_safe": True,
         "compose_service": "nginx_proxy_manager",
     },

@@ -491,7 +491,13 @@ print(json.dumps(results))
 
 
 def _authenticate(session, base_url, auth):
-    """POST to /login then verify the session cookie is active on /dashboard."""
+    """POST to /login then verify the session cookie is active on /dashboard.
+
+    Verification follows redirects so transient gunicorn-startup redirects
+    (where /dashboard briefly 302s before all workers are ready) don't cause
+    false auth failures.  A successful auth lands on /dashboard (final URL
+    contains "/dashboard").  A failed auth redirects back to /login.
+    """
     login_url = f"{base_url}/login"
     payload = {
         "username": auth["username"],
@@ -501,15 +507,23 @@ def _authenticate(session, base_url, auth):
     if resp.status_code >= 400:
         raise RuntimeError(f"Login returned status {resp.status_code} for user {auth['username']}")
 
-    # Verify the session cookie actually works — a 302 here means the login
-    # silently failed (wrong credentials, platform still starting up, etc.)
-    verify = session.get(f"{base_url}/dashboard", allow_redirects=False, timeout=10)
-    if verify.status_code in (301, 302):
+    # Follow redirects on the verification check — during gunicorn startup a
+    # worker may temporarily 302 /dashboard before settling.  What matters is
+    # where we land: /dashboard (auth OK) vs /login (auth failed / bad creds).
+    verify = session.get(f"{base_url}/dashboard", allow_redirects=True, timeout=15)
+    final_url = verify.url or ""
+    if verify.status_code >= 400 or "/login" in final_url:
         raise RuntimeError(
             f"Auth verification failed for {auth['username']}: "
-            f"/dashboard returned {verify.status_code} — platform may be starting up"
+            f"landed on {final_url!r} (status {verify.status_code}) — "
+            f"bad credentials or platform not ready"
         )
-    logger.info("Authenticated as %s (verified: dashboard %s)", auth["username"], verify.status_code)
+    logger.info(
+        "Authenticated as %s (verified: dashboard status=%s url=%s)",
+        auth["username"],
+        verify.status_code,
+        final_url,
+    )
 
 
 def _run_api_test(test, base_url, session, auth):

@@ -215,20 +215,25 @@ def send(
                 logger.debug("telegram_service: throttled [%s] '%s' (%ds)", category, title, remaining)
                 return {"sent": False, "reason": reason}
 
-    # Format as A.R.C.H.I.E.'s voice — personality engine with template fallback
-    try:
-        from services.archie_voice_service import format_message as voice_format
+    # Approval requests and signal check-ins skip voice service — their content
+    # is dynamic/long and the LLM rewrite adds 2min latency that kills the worker.
+    if category in ("approval_request", "signal_checkin"):
+        text = f"{title}\n\n{message}" if message else title
+    else:
+        # Format as A.R.C.H.I.E.'s voice — personality engine with template fallback
+        try:
+            from services.archie_voice_service import format_message as voice_format
 
-        text = voice_format(
-            category=category,
-            title=title,
-            raw_message=message,
-            source_agent=source_agent,
-            source_department=source_department,
-        )
-    except Exception as e:
-        logger.warning("telegram_service: voice_service failed (%s), using template", e)
-        text = _format_archie_voice(cat, title, message, source_agent)
+            text = voice_format(
+                category=category,
+                title=title,
+                raw_message=message,
+                source_agent=source_agent,
+                source_department=source_department,
+            )
+        except Exception as e:
+            logger.warning("telegram_service: voice_service failed (%s), using template", e)
+            text = _format_archie_voice(cat, title, message, source_agent)
 
     target = chat_id or _get_chat_id()
     if not target:

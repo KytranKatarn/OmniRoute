@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y \
     libgdk-pixbuf-2.0-0 \
     libffi-dev \
     ffmpeg \
+    fonts-dejavu-core \
     && curl -fsSL https://get.docker.com -o get-docker.sh \
     && sh get-docker.sh \
     && rm get-docker.sh \

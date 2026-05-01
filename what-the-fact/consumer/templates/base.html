@@ -7,29 +7,53 @@
 </head>
 <body>
   <nav class="wtf-nav">
-    <div class="wtf-nav-brand">
+    <a href="/" class="wtf-nav-brand">
       <span class="wtf-wordmark">WHAT&middot;THE&middot;FACT</span>
       <span class="wtf-subbrand">CANADIAN AI NEWSROOM</span>
-    </div>
+    </a>
     <div class="wtf-nav-links">
       <a href="/">News</a>
       <a href="/team">Team</a>
       <a href="https://what-the-fact.tech/transparency">Methodology</a>
-      <a href="https://what-the-fact.tech/score">Score Text</a>
+      <a href="https://what-the-fact.tech/score">Score</a>
     </div>
     <div class="wtf-nav-live">
       <span class="wtf-live-dot"></span>
       <span>LIVE &middot; {{ source_count | default(0) }} SOURCES</span>
     </div>
-    <div class="lang-switcher">
-      <button class="lang-btn" data-lang="en">EN</button>
-      <button class="lang-btn" data-lang="fr">FR</button>
-      <button class="lang-btn" data-lang="es">ES</button>
+    <div class="wtf-nav-actions">
+      <button class="wtf-lang-btn" id="wtfLangBtn" aria-label="Change language">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M2 10h16M10 2c-2.5 3-2.5 13 0 16M10 2c2.5 3 2.5 13 0 16" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+      <button class="wtf-menu-btn" id="wtfMenuBtn" aria-label="Toggle menu" aria-expanded="false">
+        <span class="wtf-menu-icon"></span>
+      </button>
     </div>
   </nav>
+
+  <div class="wtf-nav-mobile" id="wtfNavMobile">
+    <a href="/">News</a>
+    <a href="/team">Team</a>
+    <a href="https://what-the-fact.tech/transparency">Methodology</a>
+    <a href="https://what-the-fact.tech/score">Score</a>
+  </div>
+
+  <div class="wtf-lang-overlay" id="wtfLangOverlay" hidden>
+    <div class="wtf-lang-panel">
+      <button class="wtf-lang-close" id="wtfLangClose">&times;</button>
+      <div class="wtf-lang-panel-title">Choose Language</div>
+      <div class="wtf-lang-grid">
+        <button class="wtf-lang-opt" data-lang="en">English</button>
+        <button class="wtf-lang-opt" data-lang="fr">Fran&ccedil;ais</button>
+        <button class="wtf-lang-opt" data-lang="es">Espa&ntilde;ol</button>
+      </div>
+    </div>
+  </div>
+
   <main>{% block content %}{% endblock %}</main>
   <footer class="wtf-footer">
-    <span data-i18n="footer.copyright">Built on radical transparency.</span> <a href="https://what-the-fact.tech" data-i18n="nav.transparency">How we score bias →</a>
+    <span data-i18n="footer.copyright">Built on radical transparency.</span>
+    <a href="https://what-the-fact.tech" data-i18n="nav.transparency">How we score bias →</a>
   </footer>
   <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
   <script>
@@ -37,6 +61,39 @@
       .then(function(r){return r.json();})
       .then(function(data){I18n.init(data);})
       .catch(function(){I18n.init({});});
+
+    (function(){
+      var langBtn = document.getElementById('wtfLangBtn');
+      var overlay = document.getElementById('wtfLangOverlay');
+      var closeBtn = document.getElementById('wtfLangClose');
+      var menuBtn = document.getElementById('wtfMenuBtn');
+      var mobileNav = document.getElementById('wtfNavMobile');
+
+      function openLang(){ overlay.hidden = false; }
+      function closeLang(){ overlay.hidden = true; }
+      langBtn.addEventListener('click', openLang);
+      closeBtn.addEventListener('click', closeLang);
+      overlay.addEventListener('click', function(e){ if(e.target===overlay) closeLang(); });
+
+      document.querySelectorAll('.wtf-lang-opt').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          I18n.setLang(btn.dataset.lang);
+          closeLang();
+          updateActiveLang(btn.dataset.lang);
+        });
+      });
+      function updateActiveLang(lang){
+        document.querySelectorAll('.wtf-lang-opt').forEach(function(b){
+          b.classList.toggle('active', b.dataset.lang === lang);
+        });
+      }
+      updateActiveLang(localStorage.getItem('wtf-lang') || 'en');
+
+      menuBtn.addEventListener('click', function(){
+        var open = mobileNav.classList.toggle('open');
+        menuBtn.setAttribute('aria-expanded', open);
+      });
+    })();
   </script>
 </body>
 </html>

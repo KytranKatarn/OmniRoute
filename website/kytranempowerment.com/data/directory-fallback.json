@@ -496,8 +496,8 @@
       "acronym": null,
       "acronym_expansion": null,
       "bio": "R.E.T.I.N.A. — Recognition Engine for Tactical Image & Neural Analysis. Visual intelligence platform for Creative & Design. Processes images, video frames, and multimodal inputs — identifying objects, extracting visual metadata, scoring composition, and feeding analysis back to the platform. Primary vision layer for Media Studio and portrait generation pipelines.",
-      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-28/a63c23fc-97d.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/a63c23fc-97d.jpg",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-30/cbebe6cc-46a.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/cbebe6cc-46a.jpg",
       "is_director": false,
       "worker_type": "ai",
       "shift_state": "active",
@@ -685,6 +685,24 @@
       "agent_type": null
     },
     {
+      "id": 362,
+      "display_name": "A.U.R.O.R.A.",
+      "code_name": "A.U.R.O.R.A.",
+      "title": "Weather Intelligence",
+      "department": "News & Media",
+      "floor": "CREATIVE",
+      "acronym": null,
+      "acronym_expansion": null,
+      "bio": "A.U.R.O.R.A. is What The Fact's atmospheric intelligence — an AI entity that integrates Environment Canada, NASA EarthData, and NOAA data to weave weather and climate context into every Canadian news story. Because in Canada, the weather IS the news.",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-30/4747cedd-5db.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/4747cedd-5db.jpg",
+      "is_director": false,
+      "worker_type": "ai",
+      "shift_state": "barracked",
+      "pronouns": "they/them",
+      "agent_type": null
+    },
+    {
       "id": 137,
       "display_name": "S.P.E.C.T.R.A.",
       "code_name": "S.P.E.C.T.R.A.",
@@ -712,8 +730,8 @@
       "acronym": null,
       "acronym_expansion": null,
       "bio": "I.R.I.S. — Intelligent Routing & Intent Signal System. Classification and intelligence engine for the Analytics & Intelligence department. Routes tasks by intent, classifies signals, detects anomalies, tracks metrics, and surfaces patterns across platform data. Pairs with W.A.T.C.H. for deep-layer analysis.",
-      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-28/93685a8a-f5f.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/93685a8a-f5f.jpg",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-30/4531bb1b-199.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/4531bb1b-199.jpg",
       "is_director": false,
       "worker_type": "ai",
       "shift_state": "active",
@@ -1036,8 +1054,8 @@
       "acronym": "F.A.I.T.H.",
       "acronym_expansion": "Faithful AI for Inspired Theological Heritage",
       "bio": "Faithful AI for Inspired Theological Heritage — a scripture-grounded companion for personal faith exploration across all Christian traditions. Parses biblical texts, theological doctrine, denominational perspectives, and church history with scholarly precision and pastoral warmth. Built to be a conversation partner for believers and seekers alike. Grounded in love, never in judgment.",
-      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-28/1b794ec6-d54.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/1b794ec6-d54.jpg",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-30/971c38df-a9e.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/971c38df-a9e.jpg",
       "is_director": false,
       "worker_type": "ai",
       "shift_state": "active",
@@ -1144,8 +1162,8 @@
       "acronym": null,
       "acronym_expansion": null,
       "bio": "L.O.C.A.L. — Local Observer, Coverage & Area Liaison. Geolocation intelligence for What The Fact. Extracts province, city, and coordinates from Canadian news articles. Tracks coverage patterns by province and outlet. Identifies news deserts.",
-      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-29/7810b5ae-31f.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/7810b5ae-31f.jpg",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-30/c406bb26-6f3.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/c406bb26-6f3.jpg",
       "is_director": false,
       "worker_type": "ai",
       "shift_state": "active",
@@ -1207,5 +1225,5 @@
       "agent_type": null
     }
   ],
-  "generated_at": "2026-04-30T20:33:07.680585+00:00"
+  "generated_at": "2026-05-01T02:33:56.424697+00:00"
 }

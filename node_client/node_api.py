@@ -722,7 +722,7 @@ def beacon_saas():
 
         headers = {"X-Node-API-Key": api_key} if api_key else {}
         r = req.get(
-            f"{hub_url}/tools/starbase/api/mesh/saas-modules",
+            f"{hub_url}/tools/department-hq/api/mesh/saas-modules",
             headers=headers,
             timeout=10,
         )
@@ -774,7 +774,7 @@ def beacon_sync():
         import requests as req
 
         r = req.post(
-            f"{hub_url}/tools/starbase/api/mesh/sync-data",
+            f"{hub_url}/tools/department-hq/api/mesh/sync-data",
             json={"watermarks": watermarks, "limit": 200},
             headers={"X-Node-API-Key": api_key},
             timeout=30,
@@ -997,7 +997,7 @@ def beacon_fleet():
 
         # Pull node stats from hub
         r = req.get(
-            f"{hub_url}/tools/starbase/api/nodes",
+            f"{hub_url}/tools/department-hq/api/nodes",
             headers=headers,
             timeout=10,
         )
@@ -1026,7 +1026,7 @@ def beacon_fleet():
             # Count total models from hub mesh topology
             try:
                 r2 = req.get(
-                    f"{hub_url}/tools/starbase/api/mesh/topology",
+                    f"{hub_url}/tools/department-hq/api/mesh/topology",
                     headers=headers,
                     timeout=5,
                 )

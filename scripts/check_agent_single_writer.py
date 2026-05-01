@@ -154,6 +154,13 @@ _API_GENERATE_ALLOWLIST: set[str] = {
     # build_options() which is inference-only. Added with VRAM-aware eviction
     # fix (migration 354 / Project #286).
     "platform_v2/services/model_service.py",
+    # Node client — runs ON the remote node, not inside the platform.
+    # Talks to its own LOCAL Ollama for inference (not the hub's). Cannot
+    # route through build_options() which lives on the hub. The node client
+    # is a standalone agent that manages its own GPU placement independently.
+    # Added when updating endpoints from /tools/starbase/ → /tools/department-hq/.
+    "node_client/node_sync.py",
+    "node_client/node_api.py",
 }
 
 

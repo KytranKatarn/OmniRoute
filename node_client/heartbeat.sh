@@ -188,7 +188,7 @@ get_uptime_seconds() {
 HEARTBEAT_RESPONSE=""
 send_heartbeat() {
     local payload="$1"
-    local url="${SERVER_URL}/tools/starbase/api/nodes/${NODE_ID}/heartbeat"
+    local url="${SERVER_URL}/tools/department-hq/api/nodes/${NODE_ID}/heartbeat"
     local tmpfile
     tmpfile=$(mktemp)
 

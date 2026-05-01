@@ -27,17 +27,22 @@
 <!-- Stats bar -->
 <div style="background:#060d14;border-bottom:1px solid #112233;padding:22px 16px;">
   <div style="display:flex;justify-content:center;gap:48px;flex-wrap:wrap;max-width:800px;margin:0 auto;">
-    {% for stat, label in [
-      (source_count|string + ' Sources', 'Canadian outlets monitored'),
-      (total_articles|string, 'Articles scored'),
-      ('6 Agents', 'AI agents on the desk'),
-      ('24 / 7', 'Live ingest pipeline'),
-    ] %}
     <div style="text-align:center;">
-      <div style="font-family:Georgia,serif;font-size:1.7rem;color:#e0e0e0;font-weight:700;">{{ stat }}</div>
-      <div style="font-size:0.58rem;color:#555;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">{{ label }}</div>
+      <div id="live-sources" style="font-family:Georgia,serif;font-size:1.7rem;color:#e0e0e0;font-weight:700;">{{ source_count }}</div>
+      <div style="font-size:0.58rem;color:#555;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">Canadian outlets monitored</div>
     </div>
-    {% endfor %}
+    <div style="text-align:center;">
+      <div id="live-articles" style="font-family:Georgia,serif;font-size:1.7rem;color:#e0e0e0;font-weight:700;">{{ total_articles }}</div>
+      <div style="font-size:0.58rem;color:#555;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">Articles scored</div>
+    </div>
+    <div style="text-align:center;">
+      <div id="live-clusters" style="font-family:Georgia,serif;font-size:1.7rem;color:#e0e0e0;font-weight:700;">—</div>
+      <div style="font-size:0.58rem;color:#555;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">Story clusters</div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-family:Georgia,serif;font-size:1.7rem;color:#e0e0e0;font-weight:700;">24 / 7</div>
+      <div style="font-size:0.58rem;color:#555;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">Live ingest pipeline</div>
+    </div>
   </div>
 </div>
 
@@ -64,10 +69,10 @@
       ('🔔', 'Breaking Alerts', 'Get notified when stories break in your province or from your tracked outlets.'),
     ] %}
     {% for icon, title, desc in features %}
-    <div style="background:#0a0f1a;border:1px solid #112233;border-radius:5px;padding:18px;">
-      <div style="font-size:1.3rem;margin-bottom:8px;">{{ icon }}</div>
-      <div style="font-size:0.75rem;color:#e0e0e0;font-weight:600;margin-bottom:6px;">{{ title }}</div>
-      <div style="font-size:0.68rem;color:#6b7280;line-height:1.6;">{{ desc }}</div>
+    <div class="wtf-feat-card">
+      <div class="wtf-feat-icon">{{ icon }}</div>
+      <div class="wtf-feat-title">{{ title }}</div>
+      <div class="wtf-feat-desc">{{ desc }}</div>
     </div>
     {% endfor %}
   </div>
@@ -124,5 +129,47 @@
     </a>
   </div>
 </div>
+
+<style>
+.wtf-feat-card {
+  background: #0a0f1a;
+  border: 1px solid #112233;
+  border-radius: 6px;
+  padding: 24px 18px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.wtf-feat-icon { font-size: 2rem; line-height: 1; }
+.wtf-feat-title {
+  font-family: Georgia, serif;
+  font-size: 0.85rem;
+  color: #e0e0e0;
+  font-weight: 600;
+}
+.wtf-feat-desc {
+  font-size: 0.68rem;
+  color: #6b7280;
+  line-height: 1.65;
+}
+</style>
+
+<script>
+function updateLiveStat(id, val) {
+  var el = document.getElementById(id);
+  if (el && val !== undefined) el.textContent = Number(val).toLocaleString();
+}
+function fetchStats() {
+  fetch('/api/stats').then(function(r){ return r.json(); }).then(function(d) {
+    updateLiveStat('live-sources', d.sources);
+    updateLiveStat('live-articles', d.articles);
+    updateLiveStat('live-clusters', d.clusters);
+  }).catch(function(){});
+}
+fetchStats();
+setInterval(fetchStats, 30000);
+</script>
 
 {% endblock %}

@@ -103,6 +103,22 @@ TEAM_AGENTS = [
 ]
 
 
+@bp.get("/api/stats")
+def api_stats():
+    from flask import jsonify
+    S = _schema()
+    with _db().begin() as c:
+        row = c.execute(text(f"""
+            SELECT
+              (SELECT COUNT(*) FROM {S}.sources) AS sources,
+              (SELECT COUNT(*) FROM {S}.articles) AS articles,
+              (SELECT COUNT(*) FROM {S}.articles WHERE ai_analyzed=true) AS llm_analyzed,
+              (SELECT COUNT(*) FROM {S}.bias_scores) AS bias_scored,
+              (SELECT COUNT(*) FROM {S}.story_clusters) AS clusters
+        """)).mappings().first()
+    return jsonify(dict(row))
+
+
 @bp.get("/join")
 def join():
     S = _schema()

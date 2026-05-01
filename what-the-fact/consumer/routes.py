@@ -1,9 +1,43 @@
+import json
 import os
+import time
+import urllib.request
+
 from flask import Blueprint, render_template, abort
 from sqlalchemy import create_engine, text
 
 bp = Blueprint("wtf", __name__)
 _engine = None
+_PLATFORM = "https://platform.kytranempowerment.com"
+
+# Portrait cache — fetches live URLs from platform /api/public/directory
+# so agent portraits update automatically when approved without a code change.
+_PORTRAIT_CACHE: dict = {}
+_PORTRAIT_CACHE_TTL = 3600  # 1 hour
+
+
+def _get_portrait_lookup() -> dict:
+    """Return {display_name: portrait_url} from platform directory. Cached 1h."""
+    now = time.time()
+    if _PORTRAIT_CACHE.get("ts", 0) + _PORTRAIT_CACHE_TTL > now:
+        return _PORTRAIT_CACHE.get("data", {})
+    try:
+        req = urllib.request.Request(
+            f"{_PLATFORM}/api/public/directory",
+            headers={"Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+        lookup = {
+            a["display_name"]: a.get("avatar_thumb_url") or a.get("avatar_url")
+            for a in data.get("agents", [])
+            if a.get("display_name") and (a.get("avatar_thumb_url") or a.get("avatar_url"))
+        }
+        _PORTRAIT_CACHE["data"] = lookup
+        _PORTRAIT_CACHE["ts"] = now
+        return lookup
+    except Exception:
+        return _PORTRAIT_CACHE.get("data", {})
 
 
 def _db():
@@ -16,8 +50,6 @@ def _db():
 def _schema():
     return os.environ.get("WTF_SCHEMA", "wtf")
 
-
-_PLATFORM = "https://platform.kytranempowerment.com"
 
 TEAM_AGENTS = [
     {
@@ -292,7 +324,15 @@ def team():
         source_count = c.execute(
             text(f"SELECT COUNT(*) FROM {S}.sources")
         ).scalar() or 0
-    return render_template("team.html", agents=TEAM_AGENTS, source_count=source_count)
+    portrait_lookup = _get_portrait_lookup()
+    agents = []
+    for agent in TEAM_AGENTS:
+        a = dict(agent)
+        live_url = portrait_lookup.get(agent["name"])
+        if live_url:
+            a["portrait_url"] = live_url
+        agents.append(a)
+    return render_template("team.html", agents=agents, source_count=source_count)
 
 
 @bp.get("/")

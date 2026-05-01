@@ -250,6 +250,73 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
         _mark_failed(task_id, str(exc)[:500])
 
 
+def _ensure_ram_for_model(model_name: str) -> bool:
+    """Free RAM to make room for model_name by evicting idle loaded models.
+
+    Returns True if there is (or will be) enough RAM after eviction.
+    Uses the dispatcher's unload_model() — never calls Ollama directly.
+    """
+    try:
+        from services.agent_models import get_loaded_models
+        from services.model_service import ModelService
+
+        svc = ModelService()
+        available_gb = svc.get_available_ram()
+
+        # Estimate runtime size from disk size (× 1.35 safety factor)
+        needed_gb = 0.0
+        try:
+            import urllib.request
+            import json as _json
+
+            ollama_url = "http://host.docker.internal:11434"
+            with urllib.request.urlopen(f"{ollama_url}/api/tags", timeout=5) as resp:
+                tags = _json.loads(resp.read()).get("models", [])
+                for m in tags:
+                    if m.get("name", "").startswith(model_name.split(":")[0]):
+                        needed_gb = round(m.get("size", 0) / 1e9 * 1.35, 2)
+                        break
+        except Exception:
+            needed_gb = 5.0  # conservative default
+
+        if available_gb >= needed_gb:
+            return True  # already enough room
+
+        log.info(
+            "model_dispatch: need %.1fGB for %s, have %.1fGB — evicting idle models",
+            needed_gb,
+            model_name,
+            available_gb,
+        )
+
+        # Get loaded models sorted by expires_at (most idle = evict first)
+        loaded = get_loaded_models()
+        loaded_sorted = sorted(loaded, key=lambda m: m.get("expires_at") or "")
+
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
+
+        disp = get_dispatcher()
+
+        freed_gb = 0.0
+        for m in loaded_sorted:
+            if available_gb + freed_gb >= needed_gb:
+                break
+            mname = m.get("name", "")
+            if mname == model_name:
+                continue  # don't evict the model we're trying to load
+            model_size_gb = round(m.get("size", 0) / 1e9, 2)
+            result = disp.unload_model(mname)
+            if result and result.get("success"):
+                freed_gb += model_size_gb
+                log.info("model_dispatch: evicted %s (%.1fGB) to free RAM for %s", mname, model_size_gb, model_name)
+
+        return (available_gb + freed_gb) >= needed_gb
+
+    except Exception as exc:
+        log.debug("model_dispatch: _ensure_ram_for_model failed: %s", exc)
+        return False
+
+
 def _expire_stale_tasks() -> int:
     """Mark tasks past their expires_at as expired. Returns count."""
     try:
@@ -330,19 +397,23 @@ def model_dispatch_worker() -> None:
             total_executed += 1
 
     # 4. If capacity remaining and nothing was warm for the queue,
-    #    load the highest-priority model batch
+    #    clear RAM if needed then load the highest-priority model batch
     if total_executed == 0:
         next_model = _get_highest_priority_queued_model()
         if next_model:
-            log.info("model_dispatch: no warm model matches queue — requesting load of %s", next_model)
+            log.info("model_dispatch: no warm model matches queue — preparing to load %s", next_model)
             try:
-                from tools.department_hq.services.department_dispatcher import get_dispatcher
+                # Clear RAM before attempting load — evict idle models if needed
+                ram_ok = _ensure_ram_for_model(next_model)
+                if not ram_ok:
+                    log.warning("model_dispatch: could not free enough RAM for %s — will retry", next_model)
+                else:
+                    from tools.department_hq.services.department_dispatcher import get_dispatcher
 
-                disp = get_dispatcher()
-                readiness = disp.ensure_model_ready("model_dispatch_worker", next_model)
-                if readiness and readiness.get("ready"):
-                    # Model loaded — drain on the next cycle (15s)
-                    log.info("model_dispatch: %s now ready, will drain on next cycle", next_model)
+                    disp = get_dispatcher()
+                    readiness = disp.ensure_model_ready("model_dispatch_worker", next_model)
+                    if readiness and readiness.get("ready"):
+                        log.info("model_dispatch: %s now ready, will drain on next cycle", next_model)
             except Exception as exc:
                 log.debug("model_dispatch: model load request failed for %s: %s", next_model, exc)
 

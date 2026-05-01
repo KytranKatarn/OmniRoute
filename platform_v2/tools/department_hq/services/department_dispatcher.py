@@ -3031,6 +3031,11 @@ class DepartmentDispatcher:
         job_id: Optional[int] = None,
     ):
         """Log execution to task_execution_log for HR tracking."""
+        if result.queued:
+            # Task deferred to dispatch_pending_queue — not executed yet.
+            # The worker logs the actual outcome when it runs. Logging here
+            # would write a spurious success=False that inflates misroute audit counts.
+            return
         try:
             conn = self._get_db()
             cur = conn.cursor()

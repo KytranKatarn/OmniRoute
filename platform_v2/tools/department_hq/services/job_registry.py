@@ -273,6 +273,13 @@ JOB_REGISTRY = {
         "interval": "30s",
         "source_file": "ai_bridge/agent_loop.py",
     },
+    "model_dispatch_worker": {
+        "department": "Engineering & Technology",
+        "director": "F.O.R.G.E.",
+        "description": "Model-affinity dispatch queue drainer — routes all agent requests to wherever the required model is warm (hub or fleet node). Minimises VRAM swaps. All products enqueue here. ADR-004.",
+        "interval": "15s",
+        "source_file": "ai_bridge/agent_loop.py",
+    },
     "website_deploy_worker": {
         "department": "Operations & Infrastructure",
         "director": "B.A.S.E.",

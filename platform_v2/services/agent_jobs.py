@@ -2359,7 +2359,14 @@ def signal_linkedin_draft():
             prompt=prompt,
             context={"hashtags": hashtags, "recent_activity": recent_context},
             prefer_agent="S.I.G.N.A.L.",
+            source_product="archie_platform",
         )
+
+        # Task queued — model was cold, model_dispatch_worker will run it
+        if result and getattr(result, "queued", False):
+            logger.info("[LinkedInDraft] Draft queued for later execution — %s", result.error)
+            _log_cycle("signal_linkedin_draft", 1, 0, int((time.time() - start) * 1000))
+            return
 
         draft_content = ""
         if result and result.success:

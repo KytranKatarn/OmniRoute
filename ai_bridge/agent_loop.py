@@ -753,6 +753,16 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._model_dispatch_worker),
+            trigger=IntervalTrigger(seconds=15),
+            id="model_dispatch_worker",
+            name="Agent Loop: Model-Affinity Dispatch Queue Worker (Department HQ)",
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+        )
+
         from apscheduler.triggers.cron import CronTrigger as _CronTrigger
 
         self.scheduler.add_job(
@@ -1721,6 +1731,22 @@ class AgentLoop:
 
         except Exception as exc:
             logger.error("portrait_refinement_worker outer error: %s", exc)
+
+    def _model_dispatch_worker(self):
+        """Model-affinity dispatch queue drainer. Department HQ — all products.
+
+        Runs every 15s, max_instances=1. Routes queued tasks to whichever node
+        has the required model warm, minimising VRAM swaps. ADR-004.
+        """
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from services.model_dispatch_service import model_dispatch_worker
+
+            model_dispatch_worker()
+        except Exception as exc:
+            logger.error("model_dispatch_worker error: %s", exc)
 
     def _compute_media_analytics(self):
         """Compute hourly analytics snapshots. Also daily at midnight."""

@@ -414,6 +414,7 @@ class DispatchResult:
     error: Optional[str] = None
     metadata: Optional[Dict] = None
     department: str = ""
+    queued: bool = False  # True when task was deferred to dispatch_pending_queue
 
     def __post_init__(self):
         # Normalize: if department was passed, use it; else derive from station_code
@@ -4334,6 +4335,9 @@ class DepartmentDispatcher:
     # PUBLIC API
     # ========================================================================
 
+    # Priority string → integer mapping for dispatch_pending_queue
+    _PRIORITY_INT = {"low": 3, "normal": 5, "high": 7, "critical": 9}
+
     def request_work(
         self,
         capability: str,
@@ -4351,6 +4355,7 @@ class DepartmentDispatcher:
         local_only: bool = False,
         project_id: Optional[int] = None,
         images: Optional[List[str]] = None,
+        source_product: Optional[str] = None,
     ) -> DispatchResult:
         """
         Main entry point — request AI work by capability.
@@ -5089,10 +5094,69 @@ class DepartmentDispatcher:
 
         # 4b. Escalation on failure
         if not llm_result.get("success", False):
+            model_not_ready = llm_result.get("model_not_ready", False)
+
+            # Background tasks (not critical) with cold models → queue for later.
+            # The model_dispatch_worker will execute them when the model is warm.
+            if model_not_ready and priority != "critical":
+                try:
+                    priority_int = self._PRIORITY_INT.get(priority, 5)
+                    with get_db_cursor(commit=True) as (_qconn, _qcur):
+                        _qcur.execute(
+                            """
+                            INSERT INTO dispatch_pending_queue
+                                (capability, model_needed, model_type, prompt,
+                                 system_prompt, json_mode, agent_name, agent_id,
+                                 module_id, source_product, requested_by,
+                                 user_id, priority)
+                            VALUES (%s,%s,'llama',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                            RETURNING id
+                            """,
+                            (
+                                capability,
+                                model,
+                                prompt,
+                                system_prompt,
+                                json_mode,
+                                agent.get("name") if agent else None,
+                                agent.get("id") if agent else None,
+                                module_id,
+                                source_product or "archie_platform",
+                                agent.get("name") if agent else "dispatcher",
+                                user_id,
+                                priority_int,
+                            ),
+                        )
+                        row = _qcur.fetchone()
+                        queue_id = row["id"] if row else None
+                    logger.info(
+                        "[BridgeDispatcher] Queued task #%s for %s " "(model %s cold, priority=%s)",
+                        queue_id,
+                        capability,
+                        model,
+                        priority,
+                    )
+                    return DispatchResult(
+                        success=False,
+                        queued=True,
+                        response="",
+                        agent_name=agent.get("name", "?") if agent else "?",
+                        agent_id=agent.get("id") if agent else None,
+                        model_used=model,
+                        department=dispatch_department,
+                        capability=capability,
+                        duration_ms=int((time.time() - start) * 1000),
+                        error=f"Queued (id={queue_id}) — {model} not ready",
+                    )
+                except Exception as _q_err:
+                    logger.warning(
+                        "[BridgeDispatcher] Queue insert failed (%s) — falling through to escalation",
+                        _q_err,
+                    )
+
             failure_count = self._track_failure(agent.get("id", 0), capability)
             # model_not_ready means the model wasn't loaded — not an agent failure.
             # Escalate immediately (threshold=1) so the task doesn't silently drop.
-            model_not_ready = llm_result.get("model_not_ready", False)
             threshold = 1 if model_not_ready else self._get_escalation_threshold()
 
             if failure_count >= threshold:

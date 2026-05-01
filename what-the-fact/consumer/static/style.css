@@ -77,19 +77,19 @@ a { color: inherit; }
 .wtf-subbrand {
   font-size: 0.6rem;
   letter-spacing: 0.2em;
-  color: #4a6080;
+  color: #6b7280;
   text-transform: uppercase;
 }
 .wtf-nav-links { display: flex; gap: 1.5rem; align-items: center; }
 .wtf-nav-links a {
   font-size: 0.75rem;
   letter-spacing: 0.1em;
-  color: #6b7280;
+  color: #c0c8d4;
   text-decoration: none;
   text-transform: uppercase;
   white-space: nowrap;
 }
-.wtf-nav-links a:hover { color: #e0e0e0; }
+.wtf-nav-links a:hover { color: #ffffff; }
 .wtf-nav-live {
   display: flex;
   align-items: center;

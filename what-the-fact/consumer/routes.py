@@ -105,7 +105,12 @@ TEAM_AGENTS = [
 
 @bp.get("/team")
 def team():
-    return render_template("team.html", agents=TEAM_AGENTS)
+    S = _schema()
+    with _db().begin() as c:
+        source_count = c.execute(
+            text(f"SELECT COUNT(*) FROM {S}.sources")
+        ).scalar() or 0
+    return render_template("team.html", agents=TEAM_AGENTS, source_count=source_count)
 
 
 @bp.get("/")

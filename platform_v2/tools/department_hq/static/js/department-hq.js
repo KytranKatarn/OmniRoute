@@ -1887,10 +1887,19 @@ async function denySignalPost(approvalId) {
     );
     if (reason === null) return;
     try {
-        await apiPost('/api/signal/pending/' + approvalId + '/deny', { reason: reason });
+        var resp = await apiPost('/api/signal/pending/' + approvalId + '/deny', { reason: reason });
         delete _signalTabCache['pending'];
+        delete _signalTabCache['overview'];
         loadSignalTab('pending', true);
         loadSignalPendingBadge();
+        if (resp && resp.revising) {
+            // Show brief confirmation — new draft will arrive in Telegram
+            var note = document.createElement('div');
+            note.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#1e293b;border:1px solid #8b5cf6;color:#a78bfa;padding:12px 16px;border-radius:6px;font-size:0.75rem;z-index:9999;max-width:280px';
+            note.textContent = '✏️ S.I.G.N.A.L. is revising — new draft coming to Telegram.';
+            document.body.appendChild(note);
+            setTimeout(function() { note.remove(); }, 5000);
+        }
     } catch (err) { alert('Error: ' + err.message); }
 }
 

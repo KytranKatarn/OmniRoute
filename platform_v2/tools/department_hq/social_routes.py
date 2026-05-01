@@ -606,24 +606,68 @@ def register_social_routes(bp, admin_required):
     @bp.route("/api/signal/pending/<int:approval_id>/deny", methods=["POST"])
     @admin_required
     def api_signal_deny(approval_id):
-        """Deny a pending LinkedIn post draft with reason."""
+        """Deny a pending LinkedIn post draft.
+
+        If a reason is provided, S.I.G.N.A.L. immediately revises
+        the draft and re-queues it for approval (same as Suggest).
+        """
+        import threading
         from database import get_db_cursor
 
         data = request.get_json(silent=True) or {}
-        reason = (data.get("reason") or "Denied via web UI").strip()
+        reason = (data.get("reason") or "").strip()
+        reject_reason = reason or "Denied via web UI"
         try:
+            # Load original draft before marking rejected
+            original_draft = ""
+            action_data = {}
             with get_db_cursor(commit=True) as (_conn, cur):
+                cur.execute(
+                    """SELECT action_data FROM autonomy_approval_queue
+                       WHERE id = %s AND action_type = 'linkedin_post' AND status = 'pending'""",
+                    (approval_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"success": False, "error": "Not found or already processed"}), 404
+                import json as _json
+
+                action_data = (
+                    row["action_data"] if isinstance(row["action_data"], dict) else _json.loads(row["action_data"])
+                )
+                original_draft = action_data.get("content", "")
                 cur.execute(
                     """UPDATE autonomy_approval_queue
                        SET status = 'rejected', approved_by = %s,
                            rejected_reason = %s, updated_at = NOW()
-                       WHERE id = %s AND action_type = 'linkedin_post' AND status = 'pending'
-                       RETURNING id""",
-                    (current_user.id, reason, approval_id),
+                       WHERE id = %s""",
+                    (current_user.id, reject_reason, approval_id),
                 )
-                row = cur.fetchone()
-            if not row:
-                return jsonify({"success": False, "error": "Not found or already processed"}), 404
-            return jsonify({"success": True, "approval_id": approval_id})
+
+            # If reason given, kick S.I.G.N.A.L. to revise in background
+            revising = bool(reason and original_draft)
+            if revising:
+                _od, _ad, _r = original_draft, action_data, reason
+
+                def _revise():
+                    try:
+                        from signal_dispatch import redraft_with_suggestion
+
+                        redraft_with_suggestion(_od, _r, _ad)
+                    except Exception as _e:
+                        import logging
+
+                        logging.getLogger("platform.signal_dispatch").warning("Auto-revise after deny failed: %s", _e)
+
+                threading.Thread(target=_revise, daemon=True).start()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "approval_id": approval_id,
+                    "revising": revising,
+                    "message": "Denied — S.I.G.N.A.L. is revising based on your feedback." if revising else "Denied.",
+                }
+            )
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500

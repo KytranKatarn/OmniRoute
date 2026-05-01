@@ -1606,14 +1606,14 @@ async function renderSignalOverview(el) {
 
         + '<div class="signal-card signal-card-wide">'
         +   '<div class="signal-card-title">Content Calendar</div>'
-        +   renderSignalCalendar()
+        +   _renderSignalCalendarHtml()
         + '</div>'
         + '</div>';
 
     setHtml(el, html);
 }
 
-function renderSignalCalendar() {
+function _renderSignalCalendarHtml() {
     var days = [
         { day: 'MON', theme: 'AI & Tech Insights', active: true },
         { day: 'TUE', theme: null, active: false },

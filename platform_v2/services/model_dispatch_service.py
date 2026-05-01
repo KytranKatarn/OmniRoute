@@ -240,7 +240,11 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
             )
             if result and result.get("success"):
                 tokens = result.get("eval_count") or result.get("completion_tokens", 0)
-                _mark_done(task_id, result.get("response", ""), result.get("model", model), tokens, None)
+                response = result.get("response", "")
+                _mark_done(task_id, response, result.get("model", model), tokens, None)
+                # Pipeline continuation: social draft → translate → Telegram approval
+                if task.get("capability") == "social_post_draft" and response:
+                    _continue_signal_pipeline(task, response)
             else:
                 error = result.get("error", "llm returned failure") if result else "no result"
                 _mark_failed(task_id, error)
@@ -248,6 +252,74 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
     except Exception as exc:
         log.error("model_dispatch: task #%d execution failed: %s", task_id, exc)
         _mark_failed(task_id, str(exc)[:500])
+
+
+def _continue_signal_pipeline(task: dict, english_draft: str) -> None:
+    """After a social_post_draft completes: translate via R.O.S.E.T.T.A. then queue for approval.
+
+    Runs in the worker thread — keeps the full S.I.G.N.A.L. pipeline intact
+    even when the initial draft was queued due to a cold model.
+    """
+    import threading
+
+    def _run():
+        try:
+            from tools.department_hq.services.department_dispatcher import dispatch
+
+            # Step 1: R.O.S.E.T.T.A. translates to Québécois French
+            qc_draft = ""
+            try:
+                t_result = dispatch(
+                    capability="translate",
+                    prompt=(
+                        "Translate this LinkedIn post to Québécois French "
+                        "(joual/québécois dialect — NOT France French). "
+                        "Keep tone, voice, hashtags, and engagement question.\n\n" + english_draft
+                    ),
+                    prefer_agent="R.O.S.E.T.T.A.",
+                    source_product="archie_platform",
+                )
+                if t_result and t_result.success:
+                    qc_draft = (t_result.response or "").strip()
+                    log.info("model_dispatch: R.O.S.E.T.T.A. translated draft (%d chars)", len(qc_draft))
+            except Exception as te:
+                log.warning("model_dispatch: R.O.S.E.T.T.A. translation failed: %s", te)
+
+            # Step 2: combine and queue for Telegram approval
+            if qc_draft:
+                combined = (
+                    f"\U0001f1e8\U0001f1e6 English:\n{english_draft}"
+                    f"\n\n---\n\n"
+                    f"\U0001f1e8\U0001f1e6\U0001f1eb\U0001f1f7 Français québécois:\n{qc_draft}"
+                )
+            else:
+                combined = english_draft
+
+            import sys
+
+            sys.path.insert(0, "/app")
+            from ai_bridge.agent_loop import request_approval
+
+            metadata = task.get("metadata") or {}
+            approval_id = request_approval(
+                action_type="linkedin_post",
+                action_data={
+                    "content": combined,
+                    "hashtags": metadata.get("hashtags", []),
+                    "post_type": task.get("requested_by", "personal").replace("S.I.G.N.A.L.", "personal"),
+                    "browser_agent_id": 342,
+                },
+                reason=f"📣 S.I.G.N.A.L. LinkedIn draft (via queue):\n\n{combined[:1500]}",
+                tier=2,
+                requested_by="S.I.G.N.A.L. (model_dispatch_worker)",
+                priority=task.get("priority", 5),
+            )
+            log.info("model_dispatch: signal pipeline complete — approval #%s queued", approval_id)
+
+        except Exception as exc:
+            log.error("model_dispatch: signal pipeline continuation failed: %s", exc)
+
+    threading.Thread(target=_run, daemon=True, name="signal-pipeline-cont").start()
 
 
 def _ensure_ram_for_model(model_name: str) -> bool:

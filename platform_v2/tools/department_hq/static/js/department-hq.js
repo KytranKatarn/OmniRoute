@@ -1461,7 +1461,7 @@ var signalAccount = 'personal';
 var signalTab = 'overview';
 var _signalTabCache = {};   // {tab: {html, ts}} — persists across sub-tab switches
 var _signalTabTTL = { overview: 30, postlog: 60, pending: 15, hashtags: 120, calendar: 300, themes: 600 };
-var _signalLastRun = null;  // timestamp of last Run Now press
+var _signalLastRun = {};  // {account: timestamp} — per-account Run Now cooldown
 
 async function loadSocialFeed() {
     var el = document.getElementById('socialFeedContent');
@@ -1671,17 +1671,19 @@ function renderSignalCompose(el) {
     setHtml(el, html);
 }
 
-var _SIGNAL_RUN_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes between Run Now presses
+var _SIGNAL_RUN_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes per account
 
 function _signalRunNowLabel() {
-    if (!_signalLastRun) return '▶ Run Now';
-    var secs = Math.round((Date.now() - _signalLastRun) / 1000);
+    var last = _signalLastRun[signalAccount];
+    if (!last) return '▶ Run Now';
+    var secs = Math.round((Date.now() - last) / 1000);
     if (secs < 60) return '✓ Triggered ' + secs + 's ago';
     return '✓ Triggered ' + Math.round(secs / 60) + 'm ago';
 }
 
 function _signalRunNowCoolingDown() {
-    return _signalLastRun && (Date.now() - _signalLastRun) < _SIGNAL_RUN_COOLDOWN_MS;
+    var last = _signalLastRun[signalAccount];
+    return last && (Date.now() - last) < _SIGNAL_RUN_COOLDOWN_MS;
 }
 
 async function signalRunNow(btn) {
@@ -1693,9 +1695,9 @@ async function signalRunNow(btn) {
     btn.disabled = true;
     try {
         await apiPost('/api/signal/run-now', { account: signalAccount });
-        _signalLastRun = Date.now();
-        // Invalidate overview cache so stats refresh on next view
-        delete _signalTabCache['overview'];
+        _signalLastRun[signalAccount] = Date.now();
+        // Invalidate overview cache for this account
+        delete _signalTabCache['overview:' + signalAccount];
         btn.textContent = _signalRunNowLabel();
         // Re-enable after cooldown, updating label every 30s
         var _interval = setInterval(function() {

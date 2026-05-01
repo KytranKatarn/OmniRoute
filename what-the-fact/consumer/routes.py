@@ -57,7 +57,7 @@ TEAM_AGENTS = [
         "model": "llama3.2:3b",
         "description": "L.O.C.A.L. maps every story to a Canadian province, tracks coverage gaps across regions, and identifies news deserts where communities go unheard.",
         "coming_soon": False,
-        "portrait_url": "",
+        "portrait_url": _PLATFORM + "/static/media/images/2026-04-29/7810b5ae-31f.png",
         "accent_colour": "#3b82f6",
     },
     {

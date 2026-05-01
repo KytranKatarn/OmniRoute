@@ -3351,6 +3351,11 @@ class AgentLoop:
                 _sys.path.insert(0, "/app")
                 from services.browser_service import run_skill_sync
 
+                # Company slug: action_data > env var > default
+                import os as _os
+                if not company_slug:
+                    company_slug = _os.getenv("LINKEDIN_COMPANY_SLUG", "kytran-empowerment-inc")
+
                 skill = "linkedin_company_post" if post_type == "company" else "linkedin_post"
                 params = {"content": content, "hashtags": hashtags}
                 if post_type == "company":

@@ -2812,6 +2812,15 @@ class DepartmentDispatcher:
                 prefer_gpu=prefer_gpu,
                 timeout=timeout,
             )
+            # If Ollama returned HTTP 500, the model failed to load mid-inference.
+            # Mark model_not_ready so request_work() queues rather than escalates
+            # to a weaker fallback model. Department HQ will retry when model is warm.
+            if not result.get("success") and "500" in str(result.get("error", "")):
+                result["model_not_ready"] = True
+                logger.warning(
+                    "[BridgeDispatcher] %s returned HTTP 500 during inference — marking not-ready for queue",
+                    model,
+                )
             # Tag starship node routing in provider field
             node_id = result.get("node_id")
             if node_id and node_id != "archie-starbase":

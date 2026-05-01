@@ -171,6 +171,16 @@ a { color: inherit; }
 }
 .wtf-nav-mobile a:last-child { border-bottom: none; }
 .wtf-nav-mobile a:hover { color: #e0e0e0; }
+.wtf-mobile-live {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  color: var(--wtf-accent);
+  padding: 10px 0 6px;
+  border-bottom: 1px solid #0d1a26;
+}
 
 /* Language overlay */
 .wtf-lang-overlay {

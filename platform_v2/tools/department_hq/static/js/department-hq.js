@@ -1802,12 +1802,88 @@ async function approveSignalPost(approvalId) {
     } catch (err) { alert('Error: ' + err.message); }
 }
 
+function lcarsPrompt(title, body, placeholder, accentColor) {
+    return new Promise(function(resolve) {
+        var accent = accentColor || '#ef4444';
+
+        // Build modal using DOM methods (no innerHTML with user data)
+        var overlay = document.createElement('div');
+        overlay.className = 'bm-overlay active';
+        overlay.style.zIndex = '9999';
+        overlay.addEventListener('click', function(e) { if (e.target === overlay) { overlay.remove(); resolve(null); } });
+
+        var shell = document.createElement('div');
+        shell.className = 'bm-shell';
+        shell.style.cssText = '--bm-accent:' + accent + ';max-width:480px';
+
+        var frame = document.createElement('div');
+        frame.className = 'bm-frame';
+
+        var content = document.createElement('div');
+        content.className = 'bm-content';
+
+        var header = document.createElement('div');
+        header.className = 'bm-header';
+        header.textContent = title;
+
+        var modalBody = document.createElement('div');
+        modalBody.className = 'bm-body';
+        modalBody.style.cssText = 'padding:16px 20px';
+
+        if (body) {
+            var bodyText = document.createElement('div');
+            bodyText.style.cssText = 'font-size:0.75rem;opacity:0.65;margin-bottom:10px';
+            bodyText.textContent = body;
+            modalBody.appendChild(bodyText);
+        }
+
+        var textarea = document.createElement('textarea');
+        textarea.className = 'dhq-textarea';
+        textarea.rows = 3;
+        textarea.placeholder = placeholder || '';
+        textarea.style.cssText = 'width:100%;resize:vertical';
+        modalBody.appendChild(textarea);
+
+        var footer = document.createElement('div');
+        footer.className = 'bm-footer';
+        footer.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;padding:12px 20px';
+
+        var cancelBtn = document.createElement('button');
+        cancelBtn.className = 'dhq-action-btn';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.addEventListener('click', function() { overlay.remove(); resolve(null); });
+
+        var confirmBtn = document.createElement('button');
+        confirmBtn.className = 'dhq-action-btn';
+        confirmBtn.textContent = 'Confirm';
+        confirmBtn.style.cssText = 'background:' + accent + ';color:#fff;border-color:' + accent;
+        confirmBtn.addEventListener('click', function() { var v = textarea.value; overlay.remove(); resolve(v); });
+
+        footer.appendChild(cancelBtn);
+        footer.appendChild(confirmBtn);
+        content.appendChild(header);
+        content.appendChild(modalBody);
+        content.appendChild(footer);
+        shell.appendChild(frame);
+        shell.appendChild(content);
+        overlay.appendChild(shell);
+        document.body.appendChild(overlay);
+        setTimeout(function() { textarea.focus(); }, 50);
+    });
+}
+
 async function denySignalPost(approvalId) {
-    var reason = prompt('Reason for denial (helps S.I.G.N.A.L. learn your style):');
+    var reason = await lcarsPrompt(
+        'Deny Draft',
+        'Tell S.I.G.N.A.L. why — she learns from your feedback.',
+        'e.g. Too generic, needs more Montreal angle...',
+        '#ef4444'
+    );
     if (reason === null) return;
     try {
         await apiPost('/api/approvals/autonomy:' + approvalId + '/deny', { reason: reason });
-        loadSignalTab('pending');
+        delete _signalTabCache['pending'];
+        loadSignalTab('pending', true);
         loadSignalPendingBadge();
     } catch (err) { alert('Error: ' + err.message); }
 }

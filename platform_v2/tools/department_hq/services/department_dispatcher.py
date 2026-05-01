@@ -2771,6 +2771,15 @@ class DepartmentDispatcher:
                 readiness = self.ensure_model_ready("_dispatch", model)
                 if readiness and not readiness.get("ready"):
                     logger.warning(f"[BridgeDispatcher] Model {model} not ready: {readiness}")
+                    # Return early — don't call Ollama on an unloaded model.
+                    # model_not_ready=True bypasses the failure threshold so
+                    # the caller escalates to the next tier immediately.
+                    return {
+                        "success": False,
+                        "error": f"Model {model} not ready (cold boot — {readiness.get('tier', 'unknown')} tier)",
+                        "model": model,
+                        "model_not_ready": True,
+                    }
             except Exception as wb_err:
                 logger.debug(f"[BridgeDispatcher] Warm boot check failed: {wb_err}")
 
@@ -5081,10 +5090,36 @@ class DepartmentDispatcher:
         # 4b. Escalation on failure
         if not llm_result.get("success", False):
             failure_count = self._track_failure(agent.get("id", 0), capability)
-            threshold = self._get_escalation_threshold()
+            # model_not_ready means the model wasn't loaded — not an agent failure.
+            # Escalate immediately (threshold=1) so the task doesn't silently drop.
+            model_not_ready = llm_result.get("model_not_ready", False)
+            threshold = 1 if model_not_ready else self._get_escalation_threshold()
 
             if failure_count >= threshold:
                 next_tier = self._get_next_tier(model, capability)
+                # If the model isn't in the tier map (e.g. qwen2.5:7b is an agent
+                # model not registered as a dispatch tier), fall back to the local
+                # tier so the task isn't silently dropped.
+                if next_tier is None and model_not_ready:
+                    try:
+                        from .smart_router import get_router
+
+                        router = get_router()
+                        configs = router._get_model_configs()
+                        fallback_tier = configs.get("local")
+                        if fallback_tier:
+                            next_tier = {
+                                "tier": "local",
+                                "model": fallback_tier.model_name,
+                                "provider": fallback_tier.provider,
+                                "is_paid": False,
+                            }
+                            logger.info(
+                                f"[BridgeDispatcher] Model {model} not in tier map — "
+                                f"falling back to local tier ({fallback_tier.model_name})"
+                            )
+                    except Exception as _fb_err:
+                        logger.debug(f"[BridgeDispatcher] Tier fallback failed: {_fb_err}")
                 if next_tier and not next_tier["is_paid"]:
                     logger.info(
                         f"[BridgeDispatcher] Auto-escalating {capability}: "

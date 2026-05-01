@@ -124,7 +124,7 @@ def agent_activity():
     with _db().connect() as c:
         bias_rows = c.execute(text(f"""
             SELECT 'B.I.A.S.' AS agent, a.id AS article_id, a.title,
-                   bs.band, bs.computed_at AS ts, s.name AS source_name
+                   bs.band AS result, bs.computed_at AS ts, s.name AS source_name
             FROM {S}.bias_scores bs
             JOIN {S}.articles a ON a.id = bs.article_id
             JOIN {S}.sources s ON s.id = a.source_id
@@ -133,7 +133,7 @@ def agent_activity():
 
         fact_rows = c.execute(text(f"""
             SELECT 'V.E.R.I.F.Y.' AS agent, a.id AS article_id, a.title,
-                   fc.overall_verdict AS band, fc.checked_at AS ts,
+                   fc.overall_verdict AS result, fc.checked_at AS ts,
                    s.name AS source_name
             FROM {S}.fact_checks fc
             JOIN {S}.articles a ON a.id = fc.article_id
@@ -141,11 +141,50 @@ def agent_activity():
             ORDER BY fc.checked_at DESC LIMIT :per
         """), {"per": per}).fetchall()
 
+        director_rows = c.execute(text(f"""
+            SELECT 'F.A.C.T.' AS agent, a.id AS article_id, a.title,
+                   'ingested' AS result, at.created_at AS ts, s.name AS source_name
+            FROM {S}.audit_trail at
+            JOIN {S}.articles a ON a.id = at.article_id
+            JOIN {S}.sources s ON s.id = a.source_id
+            WHERE at.event_type = 'ingested'
+            ORDER BY at.created_at DESC LIMIT :per
+        """), {"per": per}).fetchall()
+
+        local_rows = c.execute(text(f"""
+            SELECT 'L.O.C.A.L.' AS agent, a.id AS article_id, a.title,
+                   a.province_code AS result, at.created_at AS ts, s.name AS source_name
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            JOIN {S}.audit_trail at ON at.article_id = a.id
+            WHERE a.province_code IS NOT NULL AND at.event_type = 'ingested'
+            ORDER BY at.created_at DESC LIMIT :per
+        """), {"per": per}).fetchall()
+
+        draft_rows = c.execute(text(f"""
+            SELECT 'D.R.A.F.T.' AS agent, NULL AS article_id,
+                   sc.representative_title AS title,
+                   'summarized' AS result, su.created_at AS ts, NULL AS source_name
+            FROM {S}.summaries su
+            JOIN {S}.story_clusters sc ON sc.id = su.cluster_id
+            ORDER BY su.created_at DESC LIMIT :per
+        """), {"per": per}).fetchall()
+
+        ink_rows = c.execute(text(f"""
+            SELECT 'I.N.K.' AS agent, NULL AS article_id,
+                   representative_title AS title,
+                   CONCAT(article_count::text, ' articles') AS result,
+                   created_at AS ts, NULL AS source_name
+            FROM {S}.story_clusters
+            ORDER BY created_at DESC LIMIT :per
+        """), {"per": per}).fetchall()
+
+    all_rows = list(bias_rows) + list(fact_rows) + list(director_rows) + list(local_rows) + list(draft_rows) + list(ink_rows)
     events = [
-        {"agent": r.agent, "article_id": r.article_id, "title": r.title[:120],
-         "result": r.band or "", "source": r.source_name,
+        {"agent": r.agent, "article_id": r.article_id, "title": (r.title or "")[:120],
+         "result": r.result or "", "source": r.source_name or "",
          "ts": r.ts.isoformat() if r.ts else None}
-        for r in list(bias_rows) + list(fact_rows)
+        for r in all_rows
     ]
     events.sort(key=lambda x: x["ts"] or "", reverse=True)
     return jsonify({"events": events[:limit]})

@@ -17,10 +17,14 @@
     <div style="color:#6b7280;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;">
       {{ events|length }} events
     </div>
-    <div style="display:flex;gap:8px;">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
       <button onclick="filterActivity('all')" id="btn-all" class="wtf-act-filter wtf-act-filter--active">All</button>
+      <button onclick="filterActivity('F.A.C.T.')" id="btn-fact" class="wtf-act-filter">F.A.C.T.</button>
       <button onclick="filterActivity('B.I.A.S.')" id="btn-bias" class="wtf-act-filter">B.I.A.S.</button>
       <button onclick="filterActivity('V.E.R.I.F.Y.')" id="btn-verify" class="wtf-act-filter">V.E.R.I.F.Y.</button>
+      <button onclick="filterActivity('L.O.C.A.L.')" id="btn-local" class="wtf-act-filter">L.O.C.A.L.</button>
+      <button onclick="filterActivity('D.R.A.F.T.')" id="btn-draft" class="wtf-act-filter">D.R.A.F.T.</button>
+      <button onclick="filterActivity('I.N.K.')" id="btn-ink" class="wtf-act-filter">I.N.K.</button>
     </div>
   </div>
 
@@ -39,7 +43,7 @@
         {% for ev in events %}
         <tr class="wtf-act-row" data-agent="{{ ev.agent }}">
           <td>
-            <span class="wtf-act-agent wtf-act-agent--{{ 'bias' if ev.agent == 'B.I.A.S.' else 'verify' }}">
+            <span class="wtf-act-agent wtf-act-agent--{{ {'F.A.C.T.':'fact','B.I.A.S.':'bias','V.E.R.I.F.Y.':'verify','L.O.C.A.L.':'local','D.R.A.F.T.':'draft','I.N.K.':'ink'}.get(ev.agent,'bias') }}">
               {{ ev.agent }}
             </span>
           </td>
@@ -109,8 +113,12 @@
   letter-spacing: 0.5px;
   white-space: nowrap;
 }
+.wtf-act-agent--fact   { background: #1a0a00; border: 1px solid #dc262644; color: #dc2626; }
 .wtf-act-agent--bias   { background: #1a1000; border: 1px solid #f59e0b44; color: #f59e0b; }
 .wtf-act-agent--verify { background: #001a10; border: 1px solid #10b98144; color: #10b981; }
+.wtf-act-agent--local  { background: #00102a; border: 1px solid #3b82f644; color: #3b82f6; }
+.wtf-act-agent--draft  { background: #0d0d0d; border: 1px solid #6b728044; color: #9ca3af; }
+.wtf-act-agent--ink    { background: #0d0d0d; border: 1px solid #6b728044; color: #9ca3af; }
 .wtf-act-title { color: #e0e0e0; text-decoration: none; font-size: 0.75rem; }
 .wtf-act-title:hover { color: #fff; text-decoration: underline; }
 .wtf-act-result {
@@ -134,6 +142,11 @@
 </style>
 
 <script>
+var agentBtnMap = {
+  'all': 'btn-all', 'F.A.C.T.': 'btn-fact', 'B.I.A.S.': 'btn-bias',
+  'V.E.R.I.F.Y.': 'btn-verify', 'L.O.C.A.L.': 'btn-local',
+  'D.R.A.F.T.': 'btn-draft', 'I.N.K.': 'btn-ink'
+};
 function filterActivity(agent) {
   document.querySelectorAll('.wtf-act-row').forEach(function(row) {
     row.style.display = (agent === 'all' || row.dataset.agent === agent) ? '' : 'none';
@@ -141,8 +154,8 @@ function filterActivity(agent) {
   document.querySelectorAll('.wtf-act-filter').forEach(function(btn) {
     btn.classList.remove('wtf-act-filter--active');
   });
-  var id = agent === 'all' ? 'btn-all' : (agent === 'B.I.A.S.' ? 'btn-bias' : 'btn-verify');
-  document.getElementById(id).classList.add('wtf-act-filter--active');
+  var el = document.getElementById(agentBtnMap[agent] || 'btn-all');
+  if (el) el.classList.add('wtf-act-filter--active');
 }
 </script>
 

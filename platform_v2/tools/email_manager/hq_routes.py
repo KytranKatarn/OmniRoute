@@ -21,7 +21,7 @@ def register_hq_routes(bp, admin_required):
             where_clauses = []
             params = []
             if mailbox_filter:
-                where_clauses.append("al.mailbox_id = %s")
+                where_clauses.append("m.id = %s")
                 params.append(mailbox_filter)
             if status_filter == "unread":
                 where_clauses.append("al.read_at IS NULL")
@@ -31,16 +31,16 @@ def register_hq_routes(bp, admin_required):
             params.append(limit)
             cur.execute(
                 f"""
-                SELECT al.id, al.mailbox_id, al.direction, al.from_address,
-                       al.to_address, al.subject, al.received_at, al.read_at,
+                SELECT al.id, m.id AS mailbox_id, al.direction, al.from_address,
+                       al.to_address, al.subject, al.logged_at AS received_at, al.read_at,
                        m.address AS mailbox_address, m.mailbox_type,
                        ea.assigned_agent, ea.status AS assignment_status
                 FROM email_activity_log al
-                JOIN email_mailboxes m ON m.id = al.mailbox_id
+                JOIN email_mailboxes m ON m.address = al.mailbox_address
                 LEFT JOIN email_assignments ea ON ea.email_id = al.id
                   AND ea.status = 'open'
                 {where_sql}
-                ORDER BY al.received_at DESC NULLS LAST
+                ORDER BY al.logged_at DESC NULLS LAST
                 LIMIT %s
                 """,
                 params,
@@ -94,12 +94,12 @@ def register_hq_routes(bp, admin_required):
             cur.execute(
                 """
                 SELECT
-                    COUNT(*) FILTER (WHERE received_at > NOW() - INTERVAL '24h') AS last_24h,
+                    COUNT(*) FILTER (WHERE logged_at > NOW() - INTERVAL '24h') AS last_24h,
                     COUNT(*) FILTER (WHERE read_at IS NULL
-                        AND received_at > NOW() - INTERVAL '24h') AS unread_24h,
-                    COUNT(*) FILTER (WHERE received_at > NOW() - INTERVAL '24h'
-                        AND direction = 'inbound') AS inbound_24h,
-                    COUNT(DISTINCT mailbox_id) AS active_mailboxes
+                        AND logged_at > NOW() - INTERVAL '24h') AS unread_24h,
+                    COUNT(*) FILTER (WHERE logged_at > NOW() - INTERVAL '24h'
+                        AND direction = 'received') AS inbound_24h,
+                    COUNT(DISTINCT mailbox_address) AS active_mailboxes
                 FROM email_activity_log
                 """
             )

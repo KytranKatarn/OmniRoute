@@ -2883,11 +2883,12 @@ def email_oversight(flask_app):
                     """
                     INSERT INTO email_assignments
                         (email_id, mailbox_id, assigned_agent, assigned_by, status, notes)
-                    SELECT al.id, al.mailbox_id, 'R.E.S.O.L.V.E.',
+                    SELECT al.id, m.id, 'R.E.S.O.L.V.E.',
                            'email_oversight', 'open', 'Auto-flagged: unanswered >24h'
                     FROM email_activity_log al
-                    WHERE al.direction = 'inbound'
-                      AND al.received_at < NOW() - INTERVAL '24 hours'
+                    JOIN email_mailboxes m ON m.address = al.mailbox_address
+                    WHERE al.direction = 'received'
+                      AND al.logged_at < NOW() - INTERVAL '24 hours'
                       AND al.read_at IS NULL
                       AND NOT EXISTS (
                           SELECT 1 FROM email_assignments ea WHERE ea.email_id = al.id

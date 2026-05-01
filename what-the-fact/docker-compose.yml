@@ -21,6 +21,7 @@ services:
     cap_drop: [ALL]
     mem_limit: 512m
     cpus: 0.5
+    networks: [default, archie_net]
 
   wtf-tech:
     build: { context: ., dockerfile: Dockerfile.tech }
@@ -33,3 +34,9 @@ services:
     cap_drop: [ALL]
     mem_limit: 512m
     cpus: 0.5
+    networks: [default, archie_net]
+
+networks:
+  archie_net:
+    external: true
+    name: archie-outpost_archie_net

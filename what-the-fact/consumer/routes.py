@@ -142,10 +142,22 @@ def news():
             LIMIT {PAGE_SIZE} OFFSET {offset}
         """), band_params).mappings().all()
 
+        sources = c.execute(text(f"""
+            SELECT s.name, s.url, s.bias_lean,
+                   obs.avg_score, obs.band AS bias_band,
+                   COUNT(a.id) AS article_count
+            FROM {S}.sources s
+            LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = s.id
+            LEFT JOIN {S}.articles a ON a.source_id = s.id
+            GROUP BY s.id, s.name, s.url, s.bias_lean, obs.avg_score, obs.band
+            ORDER BY COUNT(a.id) DESC
+        """)).mappings().all()
+
     total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     return render_template("news.html", articles=rows, source_count=source_count,
                            total=total, page=page, total_pages=total_pages,
-                           page_size=PAGE_SIZE, band_filter=band_filter)
+                           page_size=PAGE_SIZE, band_filter=band_filter,
+                           sources=[dict(s) for s in sources])
 
 
 @bp.get("/activity")

@@ -8,10 +8,46 @@
     LIVE &middot; AI NEWSROOM
   </div>
   <h1 style="font-size:1.6rem;">LATEST NEWS</h1>
-  <p>{{ articles|length }} articles from {{ source_count }} Canadian sources — sorted by most recent.</p>
+  <p>{{ total }} articles from {{ source_count }} Canadian sources — sorted by most recent.</p>
 </div>
 
-<div style="max-width:900px;margin:0 auto;padding:24px 16px;">
+<!-- Source bar -->
+<div style="overflow-x:auto;padding:16px 0;border-bottom:1px solid #112233;background:#050d1a;">
+  <div style="display:flex;gap:12px;padding:0 16px;min-width:max-content;">
+    {% for s in sources if s.article_count %}
+    {% set lean = s.bias_lean or s.bias_band or 'center' %}
+    {% set lean_cls = lean | replace(' ', '-') | lower %}
+    {% set colors = {
+      'left': '#3b82f6', 'center-left': '#93c5fd',
+      'center': '#6b7280', 'center-right': '#fca5a5', 'right': '#ef4444'
+    } %}
+    {% set col = colors.get(lean_cls, '#6b7280') %}
+    <div style="text-align:center;min-width:72px;cursor:pointer;"
+         onclick="window.location='/news?band={{ lean_cls }}&page=1'" title="{{ s.name }}">
+      <div style="width:44px;height:44px;border-radius:8px;margin:0 auto 6px;
+                  border:2px solid {{ col }}22;background:#0a0f1a;
+                  display:flex;align-items:center;justify-content:center;overflow:hidden;">
+        <img src="https://www.google.com/s2/favicons?domain={{ s.url }}&sz=32"
+             width="24" height="24" alt="{{ s.name }}"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"
+             style="border-radius:4px;">
+        <span style="display:none;color:{{ col }};font-size:0.7rem;font-weight:700;">
+          {{ s.name[:2] | upper }}
+        </span>
+      </div>
+      <div style="font-size:0.58rem;color:#9ca3af;white-space:nowrap;max-width:72px;overflow:hidden;text-overflow:ellipsis;">
+        {{ s.name | replace('Top Stories','') | replace('English','') | truncate(14, true, '') }}
+      </div>
+      <div style="font-size:0.55rem;color:{{ col }};letter-spacing:0.5px;text-transform:uppercase;margin-top:2px;">
+        {{ lean_cls }}
+      </div>
+      <div style="font-size:0.55rem;color:#555;margin-top:1px;">{{ s.article_count }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div style="max-width:900px;margin:0 auto;padding:16px 16px 24px;">
 
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
     <div style="color:#6b7280;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;">

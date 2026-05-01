@@ -2395,7 +2395,7 @@ def signal_linkedin_draft():
 
         # Send Telegram check-in
         try:
-            from services.telegram_service import send_info
+            from services.director_report_service import submit_via_inbox
 
             briefing_lines = []
             if archie_context:
@@ -2405,13 +2405,20 @@ def signal_linkedin_draft():
 
             briefing = "\n".join(briefing_lines) or "Nothing new captured yet."
             checkin_msg = (
-                f"📊 *A.R.C.H.I.E. briefing* for your personal post ({theme_name}):\n\n"
+                f"A.R.C.H.I.E. briefing for your personal post ({theme_name}):\n\n"
                 f"{briefing}\n\n"
-                f"💬 What do you want to share today? "
+                f"What do you want to share today? "
                 f"Reply to this and I'll use your words in the post. "
-                f"_(4h window — if no reply, I'll draft from the briefing above)_"
+                f"(4h window — if no reply, I'll draft from the briefing above)"
             )
-            send_info(title="S.I.G.N.A.L. Check-In", message=checkin_msg)
+            submit_via_inbox(
+                category="signal_checkin",
+                title="S.I.G.N.A.L. Check-In",
+                message=checkin_msg,
+                source_agent="A.R.C.H.I.E.",
+                severity="high",
+                department="Executive Office",
+            )
             logger.info("[LinkedInDraft] Personal check-in sent via Telegram")
         except Exception as _te:
             logger.warning("[LinkedInDraft] Telegram check-in failed: %s", _te)

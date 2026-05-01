@@ -309,8 +309,16 @@ def check_container(name: str, config: Dict[str, Any]) -> Dict[str, Any]:
             failed.append(f"GET {http_url}")
 
     if failed:
-        result["severity"] = "warning"
-        result["reason"] = f"probes failed: {', '.join(failed)}"
+        if service_class == "on-demand":
+            # On-demand containers start/stop with workload — port unreachable
+            # while container is running just means it's mid-lifecycle (starting
+            # up or winding down). Dispatcher (media_generation_worker) manages
+            # recovery. Suppress to info so V.I.G.I.L. doesn't flood Telegram.
+            result["severity"] = "info"
+            result["reason"] = f"on-demand: {', '.join(failed)} (dispatcher manages start/stop)"
+        else:
+            result["severity"] = "warning"
+            result["reason"] = f"probes failed: {', '.join(failed)}"
     else:
         result["severity"] = "info"
         result["reason"] = "all probes passed"

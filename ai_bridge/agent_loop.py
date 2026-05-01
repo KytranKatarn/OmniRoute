@@ -1542,6 +1542,13 @@ class AgentLoop:
                 claimed = cur.fetchall()
 
             if not claimed:
+                # No pending ComfyUI jobs — P.I.X.E.L. goes idle, stop container
+                # to reclaim VRAM for Ollama text models.
+                try:
+                    from ai_bridge.comfyui_service import get_comfyui_service
+                    get_comfyui_service().stop_if_idle()
+                except Exception as _stop_err:
+                    logger.debug("media_generation_worker: idle-stop skipped: %s", _stop_err)
                 return
 
             for row in claimed:

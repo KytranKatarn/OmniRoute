@@ -162,31 +162,59 @@ class ComfyUIService:
         except (socket.timeout, OSError):
             return True  # could be transient network blip; caller will attempt docker start (no-op if running)
 
+    def _container_state(self) -> str:
+        """Return the docker container state string (running/exited/etc), or 'unknown'."""
+        try:
+            result = subprocess.run(
+                ["docker", "inspect", "--format", "{{.State.Status}}", self.COMFYUI_CONTAINER_NAME],
+                capture_output=True, text=True, timeout=5,
+            )
+            return result.stdout.strip() if result.returncode == 0 else "unknown"
+        except Exception:
+            return "unknown"
+
     def wake_if_stopped(self) -> bool:
         """Start the ComfyUI container if stopped, wait up to 90s for health.
         Returns True if ComfyUI is healthy after the call, False otherwise.
-        No-op (returns True) if ComfyUI is already running.
+
+        Handles two cases:
+        - Container exited/absent → docker start
+        - Container running but port dead (internal crash) → docker restart
 
         WARNING: Blocks the calling thread for up to COMFYUI_WAKE_TIMEOUT seconds.
-        Do NOT call from a synchronous web request handler — offload to a background thread.
+        Do NOT call from a synchronous web request handler — use wake_if_stopped_async().
         """
         if not self.is_stopped():
             return self.is_healthy
 
-        logger.info("[ComfyUI] Container stopped — attempting docker start %s", self.COMFYUI_CONTAINER_NAME)
-        try:
-            result = subprocess.run(
-                ["docker", "start", self.COMFYUI_CONTAINER_NAME],
-                capture_output=True, text=True, timeout=15,
-            )
-            if result.returncode != 0:
-                logger.warning("[ComfyUI] docker start failed: %s", result.stderr.strip())
+        # Distinguish: container exited vs running-but-crashed (port unresponsive)
+        state = self._container_state()
+        if state == "running":
+            # Port is dead but container thinks it's running — force restart
+            logger.info("[ComfyUI] Container running but unresponsive — restarting %s", self.COMFYUI_CONTAINER_NAME)
+            try:
+                subprocess.run(
+                    ["docker", "restart", self.COMFYUI_CONTAINER_NAME],
+                    capture_output=True, text=True, timeout=30,
+                )
+            except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+                logger.warning("[ComfyUI] docker restart unavailable: %s", e)
                 return False
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            logger.warning("[ComfyUI] docker start unavailable: %s", e)
-            return False
+        else:
+            logger.info("[ComfyUI] Container %s (%s) — starting", self.COMFYUI_CONTAINER_NAME, state)
+            try:
+                result = subprocess.run(
+                    ["docker", "start", self.COMFYUI_CONTAINER_NAME],
+                    capture_output=True, text=True, timeout=15,
+                )
+                if result.returncode != 0:
+                    logger.warning("[ComfyUI] docker start failed: %s", result.stderr.strip())
+                    return False
+            except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+                logger.warning("[ComfyUI] docker start unavailable: %s", e)
+                return False
 
-        logger.info("[ComfyUI] Container started — waiting up to %ds for health", self.COMFYUI_WAKE_TIMEOUT)
+        logger.info("[ComfyUI] Waiting up to %ds for health", self.COMFYUI_WAKE_TIMEOUT)
         deadline = time.time() + self.COMFYUI_WAKE_TIMEOUT
         while time.time() < deadline:
             try:
@@ -199,6 +227,38 @@ class ComfyUIService:
 
         logger.warning("[ComfyUI] Timed out waiting for health after wake")
         return False
+
+    def stop_if_idle(self) -> bool:
+        """Stop the ComfyUI container when P.I.X.E.L. has no pending work.
+
+        Called by media_generation_worker after draining the queue to free
+        VRAM for Ollama text models. No-op if ComfyUI is already stopped or
+        still has jobs running/queued.
+
+        Returns True if stopped (or already stopped), False if busy or failed.
+        """
+        if self.is_stopped():
+            return True  # already idle
+
+        queue = self.get_queue_status()
+        if queue.get("running") or queue.get("pending"):
+            logger.info("[ComfyUI] Skipping idle-stop — queue not empty: %s", queue)
+            return False
+
+        logger.info("[ComfyUI] Queue empty — stopping container for VRAM reclaim")
+        try:
+            result = subprocess.run(
+                ["docker", "stop", self.COMFYUI_CONTAINER_NAME],
+                capture_output=True, text=True, timeout=30,
+            )
+            if result.returncode == 0:
+                logger.info("[ComfyUI] Container stopped (P.I.X.E.L. idle)")
+                return True
+            logger.warning("[ComfyUI] docker stop failed: %s", result.stderr.strip())
+            return False
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            logger.warning("[ComfyUI] docker stop unavailable: %s", e)
+            return False
 
     def wake_if_stopped_async(self) -> None:
         """Fire wake_if_stopped() in a daemon thread and return immediately.

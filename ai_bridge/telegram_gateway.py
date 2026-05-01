@@ -506,6 +506,27 @@ class TelegramGateway:
             await self._handle_linkedin_suggestion(update, context, pending_suggestion_id, update.message.text)
             return
 
+        # Check for pending S.I.G.N.A.L. personal post check-in
+        checkin_state = self._get_pending_checkin()
+        if checkin_state:
+            reply_text = update.message.text or ""
+            await update.message.reply_text(
+                "✅ Got it — S.I.G.N.A.L. is drafting your personal post with A.R.C.H.I.E.'s briefing + your input."
+            )
+            import asyncio as _asyncio, threading as _threading
+
+            def _do_draft():
+                try:
+                    import sys
+                    sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+                    from services.agent_jobs import _draft_personal_post_from_context
+                    _draft_personal_post_from_context(reply_text, checkin_state)
+                except Exception as _e:
+                    logger.error("[TelegramGateway] personal checkin draft failed: %s", _e)
+
+            _threading.Thread(target=_do_draft, daemon=True, name="personal-checkin-draft").start()
+            return
+
         tg_user = update.effective_user
         user_info = self._get_authorized_user(tg_user.id)
 
@@ -743,6 +764,31 @@ class TelegramGateway:
         except Exception as e:
             logger.error(f"Escalation callback error: {e}")
             await query.edit_message_text(f"Error processing escalation: {e}")
+
+    def _get_pending_checkin(self):
+        """Return pending check-in state dict if one exists and hasn't expired, else None."""
+        try:
+            import json as _j
+            from datetime import datetime as _dt, timezone as _tz
+            from database import get_db_cursor
+
+            with get_db_cursor() as (_c, _cur):
+                _cur.execute(
+                    "SELECT value FROM system_config WHERE key = 'signal_personal_checkin'"
+                )
+                row = _cur.fetchone()
+            if not row:
+                return None
+            state = _j.loads(row["value"]) if isinstance(row["value"], str) else row["value"]
+            if state.get("status") != "pending":
+                return None
+            expires_at = _dt.fromisoformat(state["expires_at"].replace("Z", "+00:00"))
+            if _dt.now(_tz.utc) > expires_at:
+                return None  # expired — timeout job will handle it
+            return state
+        except Exception as exc:
+            logger.debug("[TelegramGateway] _get_pending_checkin failed: %s", exc)
+            return None
 
     async def _handle_linkedin_suggestion(self, update, context, approval_id: int, suggestion: str):
         """User replied with revision feedback — send to S.I.G.N.A.L. and re-queue."""

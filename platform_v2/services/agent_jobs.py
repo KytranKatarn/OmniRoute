@@ -2364,115 +2364,79 @@ def signal_linkedin_draft():
         except Exception:
             pass
 
-        # Step 1: S.I.G.N.A.L. writes the English draft
-        prompt = (
-            "You are S.I.G.N.A.L., the Marketing & Communications director at Kytran Empowerment Inc.\n"
-            "Draft a LinkedIn post for Kytran Katarn's personal profile.\n\n"
-            f"TODAY'S THEME: {theme_name}\n"
-            f"Focus: {theme_guidance}\n\n"
-            f"A.R.C.H.I.E.'s briefing — what happened this week:\n{archie_context or 'No recent data'}\n\n"
-            f"Recent platform activity (use if relevant):\n{recent_context}\n\n"
-            f"Use 3-4 of these hashtags: {', '.join(hashtags)}\n"
-            f"{style_notes}\n\n"
-            "Rules:\n"
-            "- Write post content ONLY — no preamble, no explanation\n"
-            "- Write in English only — a translator will handle the French version\n"
-            "- Under 200 words, first-person as Kytran Katarn\n"
-            "- Human, milestone-driven — reference real wins if A.R.C.H.I.E. provided them\n"
-            "- Professional but warm — like a founder sharing progress with their community\n"
-            "- End with a specific call to action or question that invites engagement\n"
-            "- Montreal founder perspective"
-        )
+        # Store check-in state and ask Kytran via Telegram before drafting.
+        # He has 4h to reply. Gateway processes the reply → triggers draft.
+        # signal_personal_checkin_timeout job handles no-reply fallback.
+        import json as _json
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
 
-        result = dispatch(
-            capability="social_post_draft",
-            prompt=prompt,
-            context={"hashtags": hashtags, "recent_activity": recent_context},
-            prefer_agent="S.I.G.N.A.L.",
-            source_product="archie_platform",
-        )
-
-        # Task queued — model was cold, model_dispatch_worker will run it
-        if result and getattr(result, "queued", False):
-            logger.info("[LinkedInDraft] Draft queued for later execution — %s", result.error)
-            _log_cycle("signal_linkedin_draft", 1, 0, int((time.time() - start) * 1000))
-            return
-
-        english_draft = ""
-        if result and result.success:
-            english_draft = (result.response or "").strip()
-
-        if not english_draft:
-            logger.warning("[LinkedInDraft] S.I.G.N.A.L. returned empty draft")
-            _log_cycle(
-                "signal_linkedin_draft",
-                0,
-                1,
-                int((time.time() - start) * 1000),
-                error_message="Empty draft from S.I.G.N.A.L.",
-            )
-            return
-
-        # Step 2: R.O.S.E.T.T.A. translates to Québécois French
-        qc_draft = ""
+        checkin_state = {
+            "archie_context": archie_context,
+            "recent_context": recent_context,
+            "hashtags": hashtags,
+            "theme_name": theme_name,
+            "theme_guidance": theme_guidance,
+            "style_notes": style_notes,
+            "expires_at": (_dt.now(_tz.utc) + _td(hours=4)).isoformat(),
+            "status": "pending",
+        }
         try:
-            translate_prompt = (
-                f"Translate the following LinkedIn post to Québécois French "
-                f"(joual/québécois dialect — NOT France French). "
-                f"Keep the same tone, first-person voice, hashtags, and engagement question.\n\n"
-                f"Original post:\n{english_draft}"
-            )
-            t_result = dispatch(
-                capability="translate",
-                prompt=translate_prompt,
-                prefer_agent="R.O.S.E.T.T.A.",
-                source_product="archie_platform",
-            )
-            if t_result and t_result.success:
-                qc_draft = (t_result.response or "").strip()
-                logger.info("[LinkedInDraft] R.O.S.E.T.T.A. translated to Québécois (%d chars)", len(qc_draft))
-        except Exception as te:
-            logger.warning("[LinkedInDraft] R.O.S.E.T.T.A. translation failed (%s) — using English only", te)
+            from database import get_db_cursor as _gc2
 
-        # Combine bilingual draft
-        if qc_draft:
-            draft_content = (
-                f"\U0001f1e8\U0001f1e6 English:\n{english_draft}" f"\n\n---\n\n" f"⚜️ Français québécois:\n{qc_draft}"
+            with _gc2(commit=True) as (_cc2, _sc):
+                _sc.execute(
+                    """INSERT INTO system_config (key, value, updated_at)
+                       VALUES ('signal_personal_checkin', %s, NOW())
+                       ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = NOW()""",
+                    (_json.dumps(checkin_state), _json.dumps(checkin_state)),
+                )
+        except Exception as _se:
+            logger.warning("[LinkedInDraft] Could not store checkin state: %s", _se)
+
+        # Send Telegram check-in
+        try:
+            from services.telegram_service import send_info
+
+            briefing_lines = []
+            if archie_context:
+                briefing_lines.append(archie_context)
+            if recent_context:
+                briefing_lines.append(f"Git: {recent_context[:200]}")
+
+            briefing = "\n".join(briefing_lines) or "Nothing new captured yet."
+            checkin_msg = (
+                f"📊 *A.R.C.H.I.E. briefing* for your personal post ({theme_name}):\n\n"
+                f"{briefing}\n\n"
+                f"💬 What do you want to share today? "
+                f"Reply to this and I'll use your words in the post. "
+                f"_(4h window — if no reply, I'll draft from the briefing above)_"
             )
+            send_info(title="S.I.G.N.A.L. Check-In", message=checkin_msg)
+            logger.info("[LinkedInDraft] Personal check-in sent via Telegram")
+        except Exception as _te:
+            logger.warning("[LinkedInDraft] Telegram check-in failed: %s", _te)
+
+        # Personal draft will be triggered by the reply handler or timeout job.
+        # Company posts continue below.
+
+        # Check-in sent — skip personal approval, fall through to company posts.
+        logger.info("[LinkedInDraft] Personal check-in pending. Company posts will follow.")
+        # (The approval/translation block below is skipped; jump to company section.)
+        goto_company = True
+
+        # goto_company=True means check-in was sent — skip personal draft/approval.
+        # Personal post will be triggered by Telegram reply or the timeout job.
+        selected_hashtags = hashtags[:3]
+        approval_id = None
+
+        if not goto_company:
+            # Direct path (future: used when check-in reply already received)
+            pass
+
+        if approval_id:
+            logger.info("[LinkedInDraft] Personal draft queued (id=%s)", approval_id)
         else:
-            draft_content = english_draft
-
-        # ── 4. Submit to Tier-2 approval queue ───────────────────────────────
-        try:
-            from ai_bridge.agent_loop import request_approval
-        except ImportError:
-            logger.error("[LinkedInDraft] Could not import request_approval")
-            return
-
-        preview = draft_content[:1500] + ("..." if len(draft_content) > 1500 else "")
-        selected_hashtags = [h for h in hashtags if h.lower() in draft_content.lower()][:4]
-        if not selected_hashtags:
-            selected_hashtags = hashtags[:3]
-
-        approval_id = request_approval(
-            action_type="linkedin_post",
-            action_data={
-                "content": draft_content,
-                "hashtags": selected_hashtags,
-                "post_type": "personal",
-                "browser_agent_id": 342,
-            },
-            reason=(
-                f"S.I.G.N.A.L. LinkedIn draft ready for review.\n\n"
-                f"Preview: {preview}\n\n"
-                f"Hashtags: {', '.join('#' + h for h in selected_hashtags)}"
-            ),
-            tier=2,
-            requested_by="S.I.G.N.A.L.",
-            priority=5,
-        )
-
-        logger.info("[LinkedInDraft] Personal draft queued (id=%s)", approval_id)
+            logger.info("[LinkedInDraft] Personal post deferred — check-in sent, awaiting Kytran's reply")
 
         # Queue company post ~3h later (staggered — don't flood Telegram)
         import threading
@@ -2702,6 +2666,140 @@ def signal_notification_monitor():
     except Exception as exc:
         logger.error("[NotifMonitor] Failed: %s", exc)
         _log_cycle("signal_notification_monitor", 0, 1, int((time.time() - start) * 1000), error_message=str(exc)[:200])
+
+
+def _draft_personal_post_from_context(kytran_reply: str, state: dict) -> None:
+    """Generate Kytran's personal LinkedIn post from check-in reply + A.R.C.H.I.E. context.
+
+    Called by the Telegram reply handler OR the timeout job.
+    Produces a short bilingual (EN + ⚜️ FR) human post and queues for approval.
+    """
+    import sys
+
+    sys.path.insert(0, "/app")
+
+    archie_context = state.get("archie_context", "")
+    recent_context = state.get("recent_context", "")
+    hashtags = state.get("hashtags", [])
+    theme_name = state.get("theme_name", "Building in Public")
+    theme_guidance = state.get("theme_guidance", "Share what shipped this week")
+
+    reply_section = f"Kytran's input: {kytran_reply}" if kytran_reply.strip() else ""
+
+    prompt = (
+        "You are S.I.G.N.A.L., the Marketing & Communications director at Kytran Empowerment Inc.\n"
+        "Draft a SHORT, human LinkedIn post for Kytran Katarn's personal profile.\n\n"
+        f"TODAY'S THEME: {theme_name} — {theme_guidance}\n\n"
+        f"A.R.C.H.I.E.'s briefing:\n{archie_context or 'Platform is running, agents dispatching.'}\n\n"
+        f"Recent platform activity:\n{recent_context[:300]}\n\n"
+        f"{reply_section}\n\n"
+        f"Use 2-3 of these hashtags: {', '.join(hashtags[:4])}\n\n"
+        "Rules:\n"
+        "- Write content ONLY — no preamble\n"
+        "- SHORT: under 120 words in English (it will have a French version below)\n"
+        "- First-person as Kytran, warm and human — like telling a friend about a win\n"
+        "- Reference A.R.C.H.I.E.'s context or Kytran's input if provided\n"
+        "- End with a genuine question that invites community response\n"
+        "- Montreal founder building in public"
+    )
+
+    try:
+        from tools.department_hq.services.department_dispatcher import dispatch
+        from ai_bridge.agent_loop import request_approval
+
+        result = dispatch(
+            capability="social_post_draft",
+            prompt=prompt,
+            prefer_agent="S.I.G.N.A.L.",
+            source_product="archie_platform",
+        )
+
+        if result and getattr(result, "queued", False):
+            logger.info("[PersonalDraft] Draft queued for later (model cold)")
+            return
+
+        english_draft = (getattr(result, "response", "") or "").strip() if result and result.success else ""
+        if not english_draft:
+            logger.warning("[PersonalDraft] S.I.G.N.A.L. returned empty")
+            return
+
+        # R.O.S.E.T.T.A. short Québécois translation
+        qc_draft = ""
+        try:
+            t = dispatch(
+                capability="translate",
+                prompt=(
+                    "Translate this SHORT LinkedIn post to Québécois French "
+                    "(joual dialect — NOT France French). Keep the warmth and hashtags.\n\n" + english_draft
+                ),
+                prefer_agent="R.O.S.E.T.T.A.",
+                source_product="archie_platform",
+            )
+            if t and t.success:
+                qc_draft = (t.response or "").strip()
+        except Exception:
+            pass
+
+        draft = f"\U0001f1e8\U0001f1e6 {english_draft}\n\n---\n\n⚜️ {qc_draft}" if qc_draft else english_draft
+
+        request_approval(
+            action_type="linkedin_post",
+            action_data={"content": draft, "hashtags": hashtags[:3], "post_type": "personal", "browser_agent_id": 342},
+            reason=f"👤 Kytran personal post:\n\n{draft[:1500]}",
+            tier=2,
+            requested_by="S.I.G.N.A.L. (check-in)",
+            priority=6,
+        )
+        logger.info("[PersonalDraft] Personal bilingual post queued for approval")
+
+        # Mark check-in as processed
+        try:
+            import json as _j
+            from database import get_db_cursor as _gc
+
+            with _gc(commit=True) as (_c, _cur):
+                _cur.execute(
+                    "UPDATE system_config SET value = %s, updated_at = NOW() WHERE key = 'signal_personal_checkin'",
+                    (_j.dumps({**state, "status": "processed"}),),
+                )
+        except Exception:
+            pass
+
+    except Exception as exc:
+        logger.error("[PersonalDraft] Failed: %s", exc)
+
+
+def signal_personal_checkin_timeout():
+    """Fallback: draft personal post from A.R.C.H.I.E. context if Kytran hasn't replied in 4h.
+
+    Runs every hour. Checks for expired pending check-ins and drafts automatically.
+    """
+    import json as _j
+    from datetime import datetime as _dt, timezone as _tz
+
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (_c, _cur):
+            _cur.execute("SELECT value FROM system_config WHERE key = 'signal_personal_checkin'")
+            row = _cur.fetchone()
+
+        if not row:
+            return
+
+        state = _j.loads(row["value"]) if isinstance(row["value"], str) else row["value"]
+        if state.get("status") != "pending":
+            return
+
+        expires_at = _dt.fromisoformat(state["expires_at"].replace("Z", "+00:00"))
+        if _dt.now(_tz.utc) < expires_at:
+            return  # not expired yet
+
+        logger.info("[PersonalDraft] Check-in expired — drafting from A.R.C.H.I.E. context only")
+        _draft_personal_post_from_context("", state)
+
+    except Exception as exc:
+        logger.error("[PersonalCheckin] Timeout check failed: %s", exc)
 
 
 def signal_post_performance_check():
@@ -3213,6 +3311,16 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         trigger=CronTrigger(day_of_week="mon,wed,fri", hour=9, minute=0),
         id="signal_linkedin_draft",
         name="S.I.G.N.A.L.: LinkedIn Draft → Telegram Approval",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    # Personal check-in timeout — hourly, drafts personal post if no reply after 4h
+    scheduler.add_job(
+        with_ctx(signal_personal_checkin_timeout),
+        trigger=IntervalTrigger(hours=1),
+        id="signal_personal_checkin_timeout",
+        name="S.I.G.N.A.L.: Personal Check-In Timeout → Draft from A.R.C.H.I.E.",
         replace_existing=True,
         max_instances=1,
     )

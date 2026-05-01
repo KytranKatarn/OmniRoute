@@ -33,7 +33,7 @@ POLL_INTERVAL_S = 4
 
 
 def _headers():
-    return {"X-API-Key": DEFAULT_API_KEY, "Content-Type": "application/json"}
+    return {"Authorization": f"Bearer {DEFAULT_API_KEY}", "Content-Type": "application/json"}
 
 
 def run_skill(

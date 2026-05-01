@@ -43,7 +43,9 @@ def _resolve_env_vars(obj):
 
         def replacer(match):
             var_name = match.group(1)
-            return os.getenv(var_name, match.group(0))
+            # Return "" if not set so auth blocks treat missing creds as absent
+            # (falsy) rather than attempting login with a literal "${VAR}" string.
+            return os.getenv(var_name, "")
 
         return pattern.sub(replacer, obj)
     elif isinstance(obj, dict):
@@ -83,24 +85,24 @@ def execute_spec(spec, session=None, suite_id=None, run_id=None):
     # platform startup window (scheduler may fire before gunicorn is ready)
     if auth.get("username") and auth.get("password"):
         auth_error = None
-        for attempt in range(3):
+        for attempt in range(6):
             try:
                 _authenticate(session, base_url, auth)
                 auth_error = None
                 break
             except Exception as e:
                 auth_error = e
-                if attempt < 2:
-                    logger.warning("Auth attempt %d/3 failed (%s) — retrying in 20s", attempt + 1, e)
-                    time.sleep(20)
+                if attempt < 5:
+                    logger.warning("Auth attempt %d/6 failed (%s) — retrying in 30s", attempt + 1, e)
+                    time.sleep(30)
         if auth_error is not None:
-            logger.error("Authentication failed after 3 attempts: %s", auth_error)
+            logger.error("Authentication failed after 6 attempts: %s", auth_error)
             return [
                 {
                     "test_name": t.get("name", f"test_{i}"),
                     "test_type": t.get("type", "unknown"),
                     "status": "error",
-                    "error_message": f"Authentication failed after 3 attempts: {auth_error}",
+                    "error_message": f"Authentication failed after 6 attempts: {auth_error}",
                 }
                 for i, t in enumerate(tests)
             ]

@@ -7,7 +7,8 @@ import logging
 import os
 import time
 
-from flask import jsonify, request
+from flask import jsonify, render_template_string, request
+from flask_login import login_required
 
 from . import wtf_hub_bp
 
@@ -57,6 +58,67 @@ def _auth_ok(req) -> bool:
         return True
     auth = req.headers.get("Authorization", "")
     return auth == f"Bearer {_HUB_TOKEN}"
+
+
+@wtf_hub_bp.route("/")
+@login_required
+def index():
+    """WTF Hub dashboard — orchestration status for what-the-fact.com pipeline."""
+    return render_template_string(
+        """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WTF Hub — A.R.C.H.I.E.</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/lcars-frames.css">
+  <style>
+    body { background: #010409; color: #ccc; font-family: 'IBM Plex Mono', monospace; padding: 32px; }
+    .wtf-card { background: #0d1117; border: 1px solid #1a2a3a; border-radius: 6px; padding: 16px; margin-bottom: 12px; }
+    .wtf-label { color: #555; font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+    .wtf-value { color: #60a5fa; font-size: 0.8rem; }
+    .wtf-agent { display: inline-block; background: rgba(96,165,250,0.1); border: 1px solid rgba(96,165,250,0.3); color: #60a5fa; padding: 3px 8px; border-radius: 3px; font-size: 0.65rem; margin: 2px; }
+  </style>
+</head>
+<body>
+  <div style="max-width:800px;margin:0 auto;">
+    <div style="font-family:'Orbitron',sans-serif;font-size:1.1rem;color:#60a5fa;letter-spacing:3px;margin-bottom:6px;">WTF HUB</div>
+    <div style="color:#555;font-size:0.65rem;margin-bottom:24px;">What The Fact — AI orchestration surface · <a href="https://what-the-fact.com" target="_blank" style="color:#3b82f6;">what-the-fact.com</a></div>
+
+    <div class="wtf-card">
+      <div class="wtf-label">Pipeline Agents</div>
+      <span class="wtf-agent">B.I.A.S. — Bias Analysis</span>
+      <span class="wtf-agent">V.E.R.I.F.Y. — Fact Checking</span>
+      <span class="wtf-agent">L.O.C.A.L. — Geo Extraction</span>
+    </div>
+
+    <div class="wtf-card">
+      <div class="wtf-label">Dispatch Endpoint</div>
+      <div class="wtf-value">POST /tools/wtf-hub/api/analyze</div>
+      <div style="color:#555;font-size:0.62rem;margin-top:4px;">Called by wtf-ingest container on VPS (76.13.107.109) · Auth: WTF_HUB_TOKEN</div>
+    </div>
+
+    <div class="wtf-card">
+      <div class="wtf-label">Task Types</div>
+      <div style="font-size:0.65rem;color:#888;line-height:1.8;">
+        <b style="color:#ccc;">bias</b> — Article bias score (-1 to 1) via B.I.A.S.<br>
+        <b style="color:#ccc;">factcheck</b> — Claim verification via V.E.R.I.F.Y.<br>
+        <b style="color:#ccc;">geo</b> — Canadian location extraction via L.O.C.A.L.
+      </div>
+    </div>
+
+    <div class="wtf-card">
+      <div class="wtf-label">Rate Limit</div>
+      <div class="wtf-value">{{ interval }}s between dispatches per task type</div>
+      <div style="color:#555;font-size:0.62rem;margin-top:4px;">Set WTF_ANALYZE_INTERVAL=0 to disable · Prevents VPS bursts from exhausting workers</div>
+    </div>
+  </div>
+</body>
+</html>
+    """,
+        interval=_ANALYZE_INTERVAL,
+    )
 
 
 @wtf_hub_bp.route("/api/analyze", methods=["POST"])

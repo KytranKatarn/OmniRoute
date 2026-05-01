@@ -161,6 +161,17 @@ def activity():
         source_count = c.execute(
             text(f"SELECT COUNT(*) FROM {S}.sources")
         ).scalar() or 0
+        stats = c.execute(text(f"""
+            SELECT
+              (SELECT COUNT(*) FROM {S}.articles) AS total_articles,
+              (SELECT COUNT(*) FROM {S}.bias_scores) AS bias_scored,
+              (SELECT COUNT(*) FROM {S}.fact_checks) AS fact_checked,
+              (SELECT COUNT(*) FROM {S}.articles WHERE province_code IS NOT NULL) AS geo_mapped,
+              (SELECT COUNT(*) FROM {S}.audit_trail WHERE event_type='ingested') AS fact_ingested,
+              (SELECT COUNT(*) FROM {S}.summaries) AS draft_summarized,
+              (SELECT COUNT(*) FROM {S}.story_clusters) AS ink_clustered,
+              (SELECT COUNT(*) FROM {S}.articles WHERE ai_analyzed=true) AS llm_analyzed
+        """)).mappings().first()
 
         # Build unified event query per agent type, then union + paginate
         agent_queries = {
@@ -228,7 +239,8 @@ def activity():
 
     return render_template("activity.html", events=events, source_count=source_count,
                            total=total, page=page, total_pages=total_pages,
-                           page_size=PAGE_SIZE, agent_filter=agent_filter)
+                           page_size=PAGE_SIZE, agent_filter=agent_filter,
+                           stats=dict(stats))
 
 
 @bp.get("/team")

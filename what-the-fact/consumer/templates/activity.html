@@ -11,7 +11,41 @@
   <p>Every action across all 6 agents — ingests, scores, verdicts, geo-maps, summaries, clusters.</p>
 </div>
 
-<div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+<div style="max-width:1100px;margin:0 auto;padding:16px 16px 0;">
+  {% set n = stats.total_articles %}
+  {% set rows = [
+    ('F.A.C.T.', 'fact', 'Ingested articles', stats.fact_ingested, n, ''),
+    ('B.I.A.S.', 'bias', 'Bias scored', stats.bias_scored, n, ''),
+    ('V.E.R.I.F.Y.', 'verify', 'Fact-checked', stats.fact_checked, n, '⚠ Only priority articles'),
+    ('L.O.C.A.L.', 'local', 'Geo-mapped', stats.geo_mapped, n, '⚠ Only location-detectable'),
+    ('D.R.A.F.T.', 'draft', 'Stories summarized', stats.draft_summarized, stats.ink_clustered, '(of clusters)'),
+    ('I.N.K.', 'ink', 'Story clusters', stats.ink_clustered, n, '(from articles)'),
+    ('LLM Analyzed', 'fact', 'Full AI analysis', stats.llm_analyzed, n, '⚠ Hub dispatch needed'),
+  ] %}
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-bottom:20px;">
+    {% for agent, cls, label, done, total_ref, note in rows %}
+    {% set pct = ((done / total_ref * 100) | int) if total_ref else 0 %}
+    <div style="background:#0a0f1a;border:1px solid #112233;border-radius:4px;padding:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span class="wtf-act-agent wtf-act-agent--{{ cls }}">{{ agent }}</span>
+        <span style="font-size:0.65rem;color:{% if pct == 100 %}#10b981{% elif pct > 50 %}#f59e0b{% else %}#ef4444{% endif %};">
+          {{ pct }}%
+        </span>
+      </div>
+      <div style="font-size:0.7rem;color:#9ca3af;margin-bottom:6px;">{{ label }}</div>
+      <div style="background:#060d14;border-radius:2px;height:4px;margin-bottom:6px;">
+        <div style="background:{% if pct == 100 %}#10b981{% elif pct > 50 %}#f59e0b{% else %}#ef4444{% endif %};height:4px;border-radius:2px;width:{{ pct }}%;"></div>
+      </div>
+      <div style="font-size:0.65rem;color:#6b7280;">
+        {{ "{:,}".format(done) }} / {{ "{:,}".format(total_ref) }}
+        {% if note %}<span style="color:#444;margin-left:4px;">{{ note }}</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div style="max-width:1100px;margin:0 auto;padding:0 16px 24px;">
 
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
     <div style="color:#6b7280;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;">

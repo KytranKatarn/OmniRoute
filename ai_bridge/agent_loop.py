@@ -3359,8 +3359,8 @@ class AgentLoop:
 
                 # Clean content for LinkedIn — strip language prefixes, Markdown headers, bold
                 def _clean_linkedin(text):
-                    # Strip language prefix lines (🇨🇦 English: / ⚜️ Français québécois:)
-                    text = _re.sub(r'^[🇨🇦⚜️🇫🇷\s]*(?:English|Français québécois|Anglais)\s*:\s*\n', '', text, flags=_re.MULTILINE)
+                    # Strip language prefix lines (🇨🇦 English: / ⚜️ Français québécois: / Translation in...)
+                    text = _re.sub(r'^[🇨🇦⚜️🇫🇷\s]*(?:English|Français québécois|Anglais|Translation in Québécois French)\s*:?\s*\n', '', text, flags=_re.MULTILINE)
                     # Strip Markdown headers (### Title)
                     text = _re.sub(r'^#{1,6}\s+', '', text, flags=_re.MULTILINE)
                     # Strip **bold** markers

@@ -163,23 +163,29 @@ def _missing_capability(cur, window_hours: int) -> List[Dict[str, Any]]:
 
 
 def _high_failure_agents(cur, window_hours: int) -> List[Dict[str, Any]]:
+    # JOIN agents to get the authoritative name — task_execution_log.agent_name
+    # can be stale (e.g. hardcoded to the dispatching router rather than the
+    # executing agent). COALESCE falls back to the stored column when agent_id
+    # is NULL (legacy rows written before FK was populated).
     cur.execute(
         """
-        SELECT agent_name,
-               capability,
+        SELECT COALESCE(a.name, tel.agent_name) AS agent_name,
+               tel.agent_id,
+               tel.capability,
                count(*)::int AS total_calls,
-               sum(CASE WHEN NOT success THEN 1 ELSE 0 END)::int AS failures,
+               sum(CASE WHEN NOT tel.success THEN 1 ELSE 0 END)::int AS failures,
                round(
-                   100.0 * sum(CASE WHEN NOT success THEN 1 ELSE 0 END)::numeric
+                   100.0 * sum(CASE WHEN NOT tel.success THEN 1 ELSE 0 END)::numeric
                    / nullif(count(*), 0)::numeric,
                    1
                )::float AS failure_pct
-        FROM task_execution_log
-        WHERE created_at > now() - (%s || ' hours')::interval
-          AND agent_name IS NOT NULL
-        GROUP BY agent_name, capability
+        FROM task_execution_log tel
+        LEFT JOIN agents a ON a.id = tel.agent_id
+        WHERE tel.created_at > now() - (%s || ' hours')::interval
+          AND (tel.agent_name IS NOT NULL OR tel.agent_id IS NOT NULL)
+        GROUP BY COALESCE(a.name, tel.agent_name), tel.agent_id, tel.capability
         HAVING count(*) >= %s
-           AND sum(CASE WHEN NOT success THEN 1 ELSE 0 END)::float / count(*)::float > %s
+           AND sum(CASE WHEN NOT tel.success THEN 1 ELSE 0 END)::float / count(*)::float > %s
         ORDER BY failure_pct DESC, total_calls DESC
         LIMIT 50
         """,

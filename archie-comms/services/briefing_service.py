@@ -181,9 +181,9 @@ def submit_director_report(
                 ),
             )
             report_id = cur.fetchone()
-            conn.commit()
 
             if report_id is None:
+                conn.commit()
                 logger.debug(
                     "director_report deduped (key=%s): [%s] %s from %s — %s",
                     dedup_key, severity, category, director_agent, title,
@@ -191,20 +191,23 @@ def submit_director_report(
                 return None
 
             rid = report_id["id"] if isinstance(report_id, dict) else report_id[0]
-            logger.info(
-                "director_report #%d: [%s] %s from %s — %s",
-                rid, severity, category, director_agent, title,
-            )
 
-            # Critical reports get immediate escalation.
-            # Mark escalated BEFORE calling _escalate_report so a crash
-            # inside _mirror_to_chat cannot leave the row unescalated.
+            # Critical: mark escalated in the SAME transaction as INSERT so
+            # no crash window can leave the row unescalated for triage to resend.
             if severity == "critical":
                 cur.execute(
                     "UPDATE director_reports SET escalated=TRUE, escalation_channel='telegram', escalated_at=NOW() WHERE id=%s",
                     (rid,),
                 )
-                conn.commit()
+
+            conn.commit()  # single commit covers both INSERT and UPDATE
+
+            logger.info(
+                "director_report #%d: [%s] %s from %s — %s",
+                rid, severity, category, director_agent, title,
+            )
+
+            if severity == "critical":
                 _escalate_report(rid, department, director_agent, title, summary, severity, category=category)
 
             return rid

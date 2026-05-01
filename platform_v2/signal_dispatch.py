@@ -181,8 +181,14 @@ def _draft_and_queue(
     hashtag_override: list,
     priority: int,
     system: str | None,
+    language_only: str = "bilingual",
 ) -> tuple[int, str]:
     """Draft one LinkedIn post (personal OR company) and queue for Telegram approval.
+
+    language_only:
+        'bilingual' — 🇨🇦 English + ⚜️ Québécois (default, used by announce endpoint)
+        'en'        — English only (company EN post in split strategy)
+        'fr'        — ⚜️ Québécois only (company FR post in split strategy)
 
     Returns (approval_id, draft_preview).
     """
@@ -219,28 +225,35 @@ def _draft_and_queue(
     if not english_draft:
         raise RuntimeError(f"S.I.G.N.A.L. returned empty draft for {post_type}")
 
-    # Step 2: R.O.S.E.T.T.A. translates to Québécois French
-    qc_draft = ""
-    try:
-        t_result = dispatch(
-            capability="translate",
-            prompt=(
-                f"Translate this LinkedIn post to Québécois French "
-                f"(joual/québécois dialect — NOT France French). "
-                f"Keep tone, voice, hashtags, and engagement question intact.\n\n{english_draft}"
-            ),
-            prefer_agent="R.O.S.E.T.T.A.",
-        )
-        if t_result and t_result.success:
-            qc_draft = (t_result.response or "").strip()
-    except Exception as _te:
-        log.warning("_draft_and_queue: R.O.S.E.T.T.A. translation failed: %s", _te)
-
-    # Combine into bilingual draft
-    if qc_draft:
-        draft = f"\U0001f1e8\U0001f1e6 English:\n{english_draft}" f"\n\n---\n\n" f"⚜️ Français québécois:\n{qc_draft}"
+    # EN-only: skip translation
+    if language_only == "en":
+        draft = f"\U0001f1e8\U0001f1e6 English:\n{english_draft}"
     else:
-        draft = english_draft
+        # Step 2: R.O.S.E.T.T.A. translates to Québécois French
+        qc_draft = ""
+        try:
+            t_result = dispatch(
+                capability="translate",
+                prompt=(
+                    f"Translate this LinkedIn post to Québécois French "
+                    f"(joual/québécois dialect — NOT France French). "
+                    f"Keep tone, voice, hashtags, and engagement question intact.\n\n{english_draft}"
+                ),
+                prefer_agent="R.O.S.E.T.T.A.",
+            )
+            if t_result and t_result.success:
+                qc_draft = (t_result.response or "").strip()
+        except Exception as _te:
+            log.warning("_draft_and_queue: R.O.S.E.T.T.A. translation failed: %s", _te)
+
+        if language_only == "fr":
+            draft = f"⚜️ Français québécois:\n{qc_draft or english_draft}"
+        else:
+            # bilingual: combine both
+            if qc_draft:
+                draft = f"\U0001f1e8\U0001f1e6 English:\n{english_draft}\n\n---\n\n⚜️ Français québécois:\n{qc_draft}"
+            else:
+                draft = english_draft
 
     import sys
 

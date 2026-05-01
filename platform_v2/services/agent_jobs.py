@@ -2334,12 +2334,43 @@ def signal_linkedin_draft():
         except Exception:
             pass
 
+        # A.R.C.H.I.E. context — recent milestones, tasks, decisions
+        archie_context = ""
+        try:
+            from database import get_db_cursor as _gc
+
+            with _gc() as (_cc, _acur):
+                # Completed tasks in last 7 days
+                _acur.execute(
+                    """SELECT title FROM unified_tasks
+                       WHERE status = 'completed' AND updated_at > NOW() - INTERVAL '7 days'
+                       ORDER BY updated_at DESC LIMIT 5"""
+                )
+                done_tasks = [r["title"] for r in _acur.fetchall()]
+
+                # Recent decisions
+                _acur.execute(
+                    """SELECT decision FROM project_decisions
+                       ORDER BY created_at DESC LIMIT 3"""
+                )
+                decisions = [r["decision"][:80] for r in _acur.fetchall()]
+
+            parts = []
+            if done_tasks:
+                parts.append("Recent wins: " + "; ".join(done_tasks[:3]))
+            if decisions:
+                parts.append("Recent decisions: " + "; ".join(decisions[:2]))
+            archie_context = "\n".join(parts)
+        except Exception:
+            pass
+
         # Step 1: S.I.G.N.A.L. writes the English draft
         prompt = (
             "You are S.I.G.N.A.L., the Marketing & Communications director at Kytran Empowerment Inc.\n"
             "Draft a LinkedIn post for Kytran Katarn's personal profile.\n\n"
             f"TODAY'S THEME: {theme_name}\n"
             f"Focus: {theme_guidance}\n\n"
+            f"A.R.C.H.I.E.'s briefing — what happened this week:\n{archie_context or 'No recent data'}\n\n"
             f"Recent platform activity (use if relevant):\n{recent_context}\n\n"
             f"Use 3-4 of these hashtags: {', '.join(hashtags)}\n"
             f"{style_notes}\n\n"
@@ -2347,9 +2378,9 @@ def signal_linkedin_draft():
             "- Write post content ONLY — no preamble, no explanation\n"
             "- Write in English only — a translator will handle the French version\n"
             "- Under 200 words, first-person as Kytran Katarn\n"
-            "- Focus on Kytran's personal journey, goals, and vision as a founder\n"
-            "- Professional but human — not corporate jargon\n"
-            "- End with a specific call to action or question\n"
+            "- Human, milestone-driven — reference real wins if A.R.C.H.I.E. provided them\n"
+            "- Professional but warm — like a founder sharing progress with their community\n"
+            "- End with a specific call to action or question that invites engagement\n"
             "- Montreal founder perspective"
         )
 
@@ -2444,40 +2475,84 @@ def signal_linkedin_draft():
         logger.info("[LinkedInDraft] Personal draft queued (id=%s)", approval_id)
 
         # Queue company post ~3h later (staggered — don't flood Telegram)
-        import os as _os
         import threading
 
-        stagger_mins = int(_os.getenv("SIGNAL_STAGGER_MINUTES", "180"))
         _ann_context = recent_context
         _hashtags_copy = list(selected_hashtags)
         _theme = f"{theme_name}: {theme_guidance}"
         _style = style_notes
 
-        def _queue_company_post():
+        # Company posts: EN + FR as separate posts, 30 min apart.
+        # Rotation tracked in system_config so they alternate each cycle.
+        _COMPANY_STAGGER_SECS = 30 * 60  # 30 minutes between EN and FR
+
+        def _get_and_toggle_rotation():
+            """Return ('en', 'fr') or ('fr', 'en') and flip for next cycle."""
             try:
-                from signal_dispatch import _draft_and_queue
+                from database import get_db_cursor
 
-                system = None
+                with get_db_cursor(commit=True) as (_c, _cur):
+                    _cur.execute("SELECT value FROM system_config WHERE key = 'signal_company_rotation'")
+                    _row = _cur.fetchone()
+                    current = _row["value"] if _row else "en_first"
+                    next_val = "fr_first" if current == "en_first" else "en_first"
+                    _cur.execute(
+                        """INSERT INTO system_config (key, value, updated_at)
+                           VALUES ('signal_company_rotation', %s, NOW())
+                           ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = NOW()""",
+                        (next_val, next_val),
+                    )
+                return ("en", "fr") if current == "en_first" else ("fr", "en")
+            except Exception:
+                return ("en", "fr")
+
+        first_lang, second_lang = _get_and_toggle_rotation()
+
+        def _queue_company_single(lang, delay_secs=0):
+            def _run():
+                if delay_secs:
+                    import time as _t
+
+                    _t.sleep(delay_secs)
                 try:
-                    from database import get_db_cursor
+                    from signal_dispatch import _draft_and_queue
 
-                    with get_db_cursor() as (_c, _cur):
-                        _cur.execute("SELECT system_prompt FROM agents WHERE name = %s", ("S.I.G.N.A.L.",))
-                        _row = _cur.fetchone()
-                        if _row and _row.get("system_prompt"):
-                            system = _row["system_prompt"]
-                except Exception:
-                    pass
+                    system = None
+                    try:
+                        from database import get_db_cursor
 
-                announcement = f"Theme: {_theme}\n" f"Recent platform activity: {_ann_context}"
-                aid, _ = _draft_and_queue(announcement, "company", "professional", _hashtags_copy, 5, system)
-                logger.info("[LinkedInDraft] Company draft queued after stagger (id=%s)", aid)
-            except Exception as _e:
-                logger.error("[LinkedInDraft] Company staggered draft failed: %s", _e)
+                        with get_db_cursor() as (_c, _cur):
+                            _cur.execute(
+                                "SELECT system_prompt FROM agents WHERE name = %s",
+                                ("S.I.G.N.A.L.",),
+                            )
+                            _row = _cur.fetchone()
+                            if _row and _row.get("system_prompt"):
+                                system = _row["system_prompt"]
+                    except Exception:
+                        pass
 
-        t = threading.Timer(stagger_mins * 60, _queue_company_post)
-        t.daemon = True
-        t.start()
+                    announcement = f"Theme: {_theme}\nRecent platform activity: {_ann_context}"
+                    aid, _ = _draft_and_queue(
+                        announcement, "company", "professional", _hashtags_copy, 5, system, language_only=lang
+                    )
+                    logger.info("[LinkedInDraft] Company %s draft queued (id=%s)", lang.upper(), aid)
+                except Exception as _e:
+                    logger.error("[LinkedInDraft] Company %s draft failed: %s", lang.upper(), _e)
+
+            return _run
+
+        # First language: slight delay (10s) so personal clears first
+        t1 = threading.Thread(target=_queue_company_single(first_lang, delay_secs=10), daemon=True)
+        t1.start()
+        # Second language: 30 min later
+        t2 = threading.Thread(target=_queue_company_single(second_lang, delay_secs=_COMPANY_STAGGER_SECS), daemon=True)
+        t2.start()
+        logger.info(
+            "[LinkedInDraft] Company posts scheduled: %s first, %s second (30 min later)",
+            first_lang.upper(),
+            second_lang.upper(),
+        )
 
         duration_ms = int((time.time() - start) * 1000)
         _log_cycle(

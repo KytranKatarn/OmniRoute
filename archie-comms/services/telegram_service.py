@@ -279,9 +279,12 @@ def send(
             }
 
     try:
+        import re as _re
+        _safe_text = _re.sub(r'\*\*(.+?)\*\*', r'\1', text, flags=_re.DOTALL)
+        _safe_text = _re.sub(r'__(.+?)__', r'\1', _safe_text, flags=_re.DOTALL)
         _payload = {
             "chat_id": target,
-            "text": text,
+            "text": _safe_text,
             "parse_mode": "Markdown",
             "disable_web_page_preview": True,
         }

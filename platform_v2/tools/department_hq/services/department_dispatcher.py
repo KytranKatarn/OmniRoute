@@ -576,6 +576,11 @@ class DepartmentDispatcher:
         self._dynamic_spec_ttl = 600
         # Fleet health tracking — node_db_id → {"online": bool, "last_check": timestamp}
         self._fleet_health_cache = {}
+        # Serialise GPU model loads — one at a time to prevent CUDA compute-buffer
+        # fragmentation when multiple jobs race to load models simultaneously.
+        import threading as _threading
+
+        self._model_loading_lock = _threading.Lock()
 
     def _get_db(self):
         """Get database connection."""
@@ -7365,8 +7370,18 @@ class DepartmentDispatcher:
                     budget_err,
                 )
         # --- end budget pre-check ---
+        # Serialise the actual load — only one GPU model loads at a time.
+        # Concurrent loads cause CUDA compute-buffer fragmentation (graph_reserve failure).
+        # Timeout=120s: large models can take ~2 min cold-boot; don't wait forever.
         svc = get_model_service()
-        return svc.ensure_model_ready(agent_name, model, target_host)
+        acquired = self._model_loading_lock.acquire(timeout=120)
+        if not acquired:
+            logger.warning("[BridgeDispatcher] model_loading_lock timeout waiting to load %s", model)
+            return {"ready": False, "tier": "cold", "host": str(target_host), "warm_boot_ms": 120000}
+        try:
+            return svc.ensure_model_ready(agent_name, model, target_host)
+        finally:
+            self._model_loading_lock.release()
 
     def _ensure_model_ready_legacy(self, agent_name, model, target_host=None):
         """DEPRECATED: Use model_service.ensure_model_ready() instead."""

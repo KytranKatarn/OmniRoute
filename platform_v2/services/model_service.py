@@ -26,6 +26,13 @@ _DEFAULT_VRAM_BUDGET_GB = 8.0  # Quadro M4000 full 8 GB
 # Models required by the Consciousness / embedding pipeline — never evict first
 CONSCIOUSNESS_MODELS = {"arctic-embed-cpu:latest", "mistral:7b"}
 
+# Global serialisation lock — only one GPU model loads at a time.
+# Concurrent loads cause CUDA graph_reserve failures (compute buffer fragmentation).
+# Acquired by ensure_model_ready() regardless of caller (dispatcher, warmup, queue worker).
+import threading as _threading
+
+_MODEL_LOAD_LOCK = _threading.Lock()
+
 
 # ---------------------------------------------------------------------------
 # Priority enum
@@ -326,6 +333,21 @@ class ModelService:
         import time as _time
 
         start_ms = _time.time() * 1000
+
+        # Serialise GPU loads — wait up to 150s for any concurrent load to finish.
+        # Prevents CUDA graph_reserve fragmentation when warmup / multiple jobs race.
+        if not _MODEL_LOAD_LOCK.acquire(timeout=150):
+            logger.warning("model_service: model_load_lock timeout waiting to load %s", model)
+            return {"ready": False, "tier": "cold", "host": str(target_host), "warm_boot_ms": 150000}
+
+        try:
+            return self._ensure_model_ready_locked(agent_name, model, target_host, start_ms)
+        finally:
+            _MODEL_LOAD_LOCK.release()
+
+    def _ensure_model_ready_locked(self, agent_name, model, target_host, start_ms):
+        """Actual ensure_model_ready logic — called while _MODEL_LOAD_LOCK is held."""
+        import time as _time
 
         if target_host:
             host = target_host.get("hostname", "unknown")

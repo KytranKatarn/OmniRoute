@@ -112,82 +112,45 @@ def classify_risk(changed_files: list[str]) -> str:
 
 
 def _deploy_static_hostinger(domain: str, source_path: str) -> bool:
-    """Zip the full source_path and deploy via Hostinger API.
+    """Mark a Hostinger static site deploy as pending.
 
-    Always deploys the ENTIRE site — partial deploys replace public_html and
-    break everything not included. Returns True on success.
+    Hostinger shared hosting has no REST API deploy endpoint — the only
+    working mechanism is the MCP tool mcp__hostinger-api__hosting_deployStaticWebsite,
+    which runs via Claude (Anthropic infrastructure), not from inside the
+    Docker container.
+
+    This function marks the domain as deploy_pending in system_config.
+    The actual upload is handled by:
+      1. The /deploy-website Claude skill (manual or scheduled via /schedule)
+      2. The Repair Bay → Ship → Website tab "Deploy" button (which prompts
+         Claude to run the skill)
+
+    Never call this expecting an immediate Hostinger push — it won't happen.
     """
-    import requests
+    from database import get_db_cursor
+    import datetime
 
-    if not HOSTINGER_API_KEY:
-        raise EnvironmentError("HOSTINGER_API_KEY not set in .env")
+    key_st = f"website_deploy_last_status_{domain}"
+    key_ts = f"website_deploy_last_run_{domain}"
+    ts = datetime.datetime.utcnow().isoformat()
 
-    # 1. Zip the full site (exclude .git and backup artifacts)
-    ts = int(time.time())
-    zip_path = f"/tmp/{domain.replace('.', '_')}_deploy_{ts}.zip"
-    src = Path(source_path)
+    with get_db_cursor(commit=True) as (_, cur):
+        for k, v in [(key_ts, ts), (key_st, "deploy_pending")]:
+            cur.execute(
+                """INSERT INTO system_config (key, value, updated_at)
+                   VALUES (%s, %s, NOW())
+                   ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()""",
+                (k, v),
+            )
 
-    EXCLUDE_PARTS = {".git", ".github", "__pycache__"}
-    EXCLUDE_NAMES = {
-        "CONTRIBUTING.md",
-        "SECURITY.md",
-        "CODE_OF_CONDUCT.md",
-        "CHANGELOG.md",
-        "LICENSE",
-        "README.md",
-        ".gitignore",
-    }
-
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for fpath in src.rglob("*"):
-            if not fpath.is_file():
-                continue
-            rel = fpath.relative_to(src)
-            if any(part in EXCLUDE_PARTS for part in rel.parts):
-                continue
-            if fpath.name in EXCLUDE_NAMES:
-                continue
-            zf.write(fpath, rel)
-
-    # 2. Find the hosting account username for this domain
-    headers = {
-        "Authorization": f"Bearer {HOSTINGER_API_KEY}",
-        "Accept": "application/json",
-    }
-    websites_resp = requests.get(f"{HOSTINGER_API_BASE}/websites", headers=headers, timeout=30)
-    websites_resp.raise_for_status()
-    websites = websites_resp.json().get("data", [])
-    username = next((w.get("username") for w in websites if w.get("domain") == domain), None)
-    if not username:
-        raise ValueError(f"Domain {domain} not found in Hostinger account")
-
-    # 3. Upload the full site zip (replaces entire public_html)
-    with open(zip_path, "rb") as f:
-        upload_resp = requests.post(
-            f"{HOSTINGER_API_BASE}/websites/{username}/deploy",
-            headers={"Authorization": f"Bearer {HOSTINGER_API_KEY}", "Accept": "application/json"},
-            files={"file": (f"{domain}_deploy_{ts}.zip", f, "application/zip")},
-            timeout=180,
-        )
-
-    # 4. Clean up zip regardless of outcome
-    try:
-        os.unlink(zip_path)
-    except OSError:
-        pass
-
-    if not upload_resp.ok:
-        logger.error(
-            "[DeployStatic] Hostinger API returned %d for %s: %s",
-            upload_resp.status_code,
-            domain,
-            upload_resp.text[:500],
-        )
-        return False
-
-    status = upload_resp.json().get("deploy", {}).get("status", "")
-    logger.info("[DeployStatic] %s → status=%s", domain, status)
-    return status in ("success", "accepted", "queued")
+    logger.info(
+        "[DeployStatic] %s marked deploy_pending — run /deploy-website skill or use "
+        "Repair Bay → Ship → Website tab to push to Hostinger via MCP.",
+        domain,
+    )
+    # Return True so the pipeline continues (verify, etc.) — the actual deploy
+    # is async and handled by Claude via the deploy-website skill.
+    return True
 
 
 def _deploy_vps(container_name: str, changed_files: list[str], source_dir: str) -> bool:

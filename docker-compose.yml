@@ -166,6 +166,10 @@ services:
       # each site stays :ro for Code Health scan boundary integrity.
       - ./website/kytranempowerment.com/data:/mnt/archie_brain/website/kytranempowerment.com/data:rw
       - ./website/creed-ai.org/data:/mnt/archie_brain/website/creed-ai.org/data:rw
+      # Portrait thumbnails — :rw so approve_canonical() writes directly to repo.
+      # Hostinger deploy then picks up the complete set via the deploy-website skill.
+      - ./website/kytranempowerment.com/assets/portraits:/mnt/archie_brain/website/kytranempowerment.com/assets/portraits:rw
+      - ./website/creed-ai.org/assets/portraits:/mnt/archie_brain/website/creed-ai.org/assets/portraits:rw
       - ./kytran-server-manager:/mnt/archie_brain/kytran-server-manager:ro
       # Host command queue (shared with host_monitor.py for storage operations)
       - ./host_commands:/mnt/archie_brain/host_commands:rw

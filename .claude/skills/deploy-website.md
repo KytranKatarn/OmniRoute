@@ -1,109 +1,124 @@
 ---
 name: deploy-website
-description: This skill should be used when the user asks to "deploy website", "push to Hostinger", "deploy creed-ai.org", "deploy kytranempowerment.com", "update live site", or mentions deploying static websites to Hostinger hosting. Handles both kytranempowerment.com and creed-ai.org with retry logic and verification.
-user_invocable: true
+description: Deploy kytranempowerment.com and/or creed-ai.org to Hostinger shared hosting. Use when portraits are approved, content changes, or system_config shows deploy_pending. This is the ONLY way to push to Hostinger — there is no REST API deploy endpoint for shared hosting. Always use this skill or the Repair Bay Ship tab.
 ---
 
-# Deploy Static Websites to Hostinger
+# Deploy Website to Hostinger
 
-Deploy static websites to Hostinger shared hosting. Supports two sites:
+## CRITICAL — Read Every Time
 
-| Site | Source | Domain | Archive Size |
-|------|--------|--------|-------------|
-| Kytran Empowerment | `website/kytranempowerment.com/` | kytranempowerment.com | ~110MB |
-| C.R.E.E.D. Institute | `website/creed-ai.org/` | creed-ai.org | ~200KB |
+**Hostinger Business Web Hosting (u982576611) has NO REST API deploy endpoint.**
+`POST /api/hosting/v1/websites/{username}/deploy` → 404 (confirmed 2026-05-01, KB #261679).
+The ONLY working mechanism is `mcp__hostinger-api__hosting_deployStaticWebsite`.
+Do not attempt raw HTTP calls. Do not attempt FTP. Use this skill.
 
-## Usage
+---
 
-Invoke with optional site argument:
-- `/deploy-website` — deploy both sites
-- `/deploy-website kytran` — deploy kytranempowerment.com only
-- `/deploy-website creed` — deploy creed-ai.org only
+## Sites on this account
 
-## Pre-Deploy Checklist
+| Domain | Source on disk |
+|--------|----------------|
+| kytranempowerment.com | `/mnt/archie_brain/website/kytranempowerment.com` |
+| creed-ai.org | `/mnt/archie_brain/website/creed-ai.org` |
 
-1. **Verify changes committed** — `git status -- website/` should show no unexpected modifications
-2. **Review changes** — `git log --oneline -5 -- website/kytranempowerment.com/ website/creed-ai.org/`
-3. **Quick sanity check** — read 1-2 modified HTML files to verify correctness
+`what-the-fact.tech` is also on this Hostinger account but serves a different product (VPS container) — do NOT deploy it here.
 
-## Deploy Process (Per Site)
+---
 
-### Step 1: Create Archive
-
-Use zip format (more reliable with Hostinger):
+## Step 1 — Check deploy status
 
 ```bash
-# For kytranempowerment.com:
-cd /mnt/archie_brain/website/kytranempowerment.com && \
-  zip -r /tmp/kytranempowerment_deploy_$(date +%Y%m%d_%H%M%S).zip . \
-  -x "*.git*" -x "./_fix_nav_mobile.py"
-
-# For creed-ai.org:
-cd /mnt/archie_brain/website/creed-ai.org && \
-  zip -r /tmp/creed-ai_deploy_$(date +%Y%m%d_%H%M%S).zip . \
-  -x "*.git*"
+docker exec archie_database psql -U archie -d archie -c \
+  "SELECT key, value FROM system_config WHERE key LIKE 'website_deploy%' ORDER BY key;"
 ```
 
-If `zip` is not installed, use tar.gz:
+- `deploy_pending` = queued, needs your action
+- `success` = last deploy worked
+- `failed` = last automated attempt broke (automated pipeline uses wrong endpoint)
+
+---
+
+## Step 2 — Backfill missing portrait thumbnails
+
+Portrait thumbs land in staging (`static/media/thumbs/`) when the container can't write to the repo (read-only mount pre-fix). After the docker-compose `:rw` fix (PR #448), approve_canonical writes directly. For any gaps, backfill manually:
+
 ```bash
-tar czf /tmp/site_deploy.tar.gz --exclude='.git*' -C /path/to/site .
+STAGING=/mnt/archie_brain/platform_v2/static/media/thumbs
+WEBSITE=/mnt/archie_brain/website/kytranempowerment.com/assets/portraits
+CREED=/mnt/archie_brain/website/creed-ai.org/assets/portraits
+for f in $STAGING/*.jpg; do
+  stem=$(basename "$f")
+  [ ! -f "$WEBSITE/$stem" ] && cp "$f" "$WEBSITE/$stem" && cp "$f" "$CREED/$stem" && echo "synced: $stem"
+done
 ```
 
-### Step 2: Deploy via Hostinger API
+---
+
+## Step 3 — Create zips (full site, no partial deploys)
+
+```bash
+TS=$(date +%Y%m%d_%H%M%S)
+cd /mnt/archie_brain/website/kytranempowerment.com
+zip -r /tmp/kytran_${TS}.zip . --exclude "*.git*" 2>/dev/null
+cd /mnt/archie_brain/website/creed-ai.org
+zip -r /tmp/creed_${TS}.zip . --exclude "*.git*" 2>/dev/null
+ls -lh /tmp/kytran_${TS}.zip /tmp/creed_${TS}.zip
+```
+
+---
+
+## Step 4 — Deploy via MCP tool
 
 ```
 mcp__hostinger-api__hosting_deployStaticWebsite(
-  domain: "DOMAIN",
-  archivePath: "/tmp/ARCHIVE_FILE",
-  removeArchive: false  # keep for retry
+    domain="kytranempowerment.com",
+    archivePath="/tmp/kytran_<TS>.zip",
+    removeArchive=True
+)
+
+mcp__hostinger-api__hosting_deployStaticWebsite(
+    domain="creed-ai.org",
+    archivePath="/tmp/creed_<TS>.zip",
+    removeArchive=True
 )
 ```
 
-### Step 3: Retry Logic
+Expected response: `{"upload":{"status":"success"},"deploy":{"status":"success","data":{"message":"Request accepted"}}}`
 
-If deploy returns status 500 (Hostinger server error):
+---
 
-1. **Wait 30 seconds**, then retry the same deploy call (archive is still on disk)
-2. If second attempt fails, **wait 60 seconds** and retry once more
-3. After 3 failures, the archive was uploaded to Hostinger but extraction failed server-side
-
-**Fallback when API fails:**
-- Inform user: "Hostinger deploy API returned 500. The archive was uploaded successfully."
-- Instruct user to manually extract via hPanel:
-  1. Log into Hostinger hPanel
-  2. File Manager → navigate to public_html for the domain
-  3. Find the uploaded archive → right-click → Extract
-- Create an ARCHIE task to retry deployment next session
-
-### Step 4: Verify Deployment
-
-Wait 60 seconds after successful deploy, then verify:
+## Step 5 — Update system_config
 
 ```bash
-# Check HTTP response
-curl -sI https://DOMAIN | head -5
-
-# Check specific changed page content (pick a page that was modified)
-curl -s https://DOMAIN/PAGE.html | grep "EXPECTED_CONTENT"
+docker exec archie_database psql -U archie -d archie -c "
+  UPDATE system_config SET value='success', updated_at=NOW()
+    WHERE key IN ('website_deploy_last_status_kytranempowerment.com','website_deploy_last_status_creed-ai.org');
+  UPDATE system_config SET value='$(date -u +%Y-%m-%dT%H:%M:%S)', updated_at=NOW()
+    WHERE key IN ('website_deploy_last_run_kytranempowerment.com','website_deploy_last_run_creed-ai.org');"
 ```
 
-For creed-ai.org, also verify the governance page fetches live data:
-```bash
-curl -s https://creed-ai.org/governance.html | grep "creed.kytranempowerment.com/api"
-```
+---
 
-## Post-Deploy
+## Step 6 — Verify live
 
-- Confirm HTTP 200 on both sites
-- Spot-check 2-3 pages that were modified
-- Log deployment via `mcp__archie__log_decision` if significant changes
-- Update session handoff with deployment confirmation
+Check a recently deployed portrait:
+`https://kytranempowerment.com/assets/portraits/<stem>.jpg`
 
-## Important Notes
+Hostinger takes 30–120s to propagate. Refresh in browser after 1 min.
 
-- **Deploy one site at a time** — do NOT parallel deploy, Hostinger may rate limit
-- DNS: root domains point to Hostinger CDN (cdn.hstgr.net)
-- VPS subdomains (market, civic, legal, gov, thenews) are NOT affected by Hostinger deploys
-- creed.kytranempowerment.com runs on Docker (hub) — NOT a Hostinger deploy
-- Always keep archive on disk until verification passes (set removeArchive: false)
-- Clean up archives after verification: `rm /tmp/*_deploy_*.{zip,tar.gz}`
+---
+
+## When to use
+
+- After approving portraits in Media Studio
+- When system_config shows `deploy_pending`
+- After website HTML/JS/CSS content changes
+- When B.A.S.E. daily job marks deploys as pending
+- Whenever user says "push the site", "deploy portraits", "update website"
+
+## What NOT to do
+
+- Do NOT call `POST /api/hosting/v1/websites/{username}/deploy` → 404
+- Do NOT use FTP
+- Do NOT deploy partial files — full site zip only, always
+- Do NOT put both domains in one zip — separate zip per domain

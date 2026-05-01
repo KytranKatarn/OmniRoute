@@ -3,6 +3,7 @@
   var _API = '/tools/media-studio';
   var _selectedImages = [];
   var _imageSource = 'gallery';
+  var _selectedTheme = null;
 
   function _get(path) {
     return fetch(_API + path, { credentials: 'same-origin' })
@@ -21,8 +22,69 @@
 
   window.msSocialVideo = {
     init: function () {
+      msSocialVideo.loadThemes();
       msSocialVideo.loadQueue();
       msSocialVideo.loadImageSource();
+    },
+
+    loadThemes: function () {
+      _get('/api/themes').then(function (data) {
+        var grid = _el('msSvThemeGrid');
+        if (!grid) return;
+        grid.textContent = '';
+        (data.themes || []).forEach(function (theme) {
+          var card = document.createElement('div');
+          card.dataset.themeId = theme.id;
+          card.style.cssText = 'background:#0d1117;border:1px solid ' +
+            (theme.accent_color || '#333') + '44;border-radius:4px;padding:6px 5px;cursor:pointer;text-align:center;';
+          var nameEl = document.createElement('div');
+          nameEl.style.cssText = 'font-size:0.52rem;color:' + (theme.accent_color || '#888') +
+            ';font-family:\'Orbitron\',sans-serif;letter-spacing:0.3px;line-height:1.3;';
+          nameEl.textContent = theme.name;
+          var curEl = document.createElement('div');
+          curEl.style.cssText = 'font-size:0.48rem;color:#444;margin-top:2px;';
+          curEl.textContent = theme.curator_name || '';
+          card.appendChild(nameEl);
+          card.appendChild(curEl);
+          card.onclick = (function (t) { return function () { msSocialVideo.selectTheme(t); }; })(theme);
+          grid.appendChild(card);
+        });
+      }).catch(function (err) { console.warn('[msSV] loadThemes failed:', err); });
+    },
+
+    selectTheme: function (theme) {
+      _selectedTheme = theme;
+      var grid = _el('msSvThemeGrid');
+      if (grid) {
+        grid.querySelectorAll('[data-theme-id]').forEach(function (c) {
+          var active = String(c.dataset.themeId) === String(theme.id);
+          c.style.borderColor = active ? (theme.accent_color || '#8b5cf6') : (theme.accent_color || '#333') + '44';
+          c.style.background = active ? (theme.accent_color || '#8b5cf6') + '18' : '#0d1117';
+        });
+      }
+      var sel = _el('msSvThemeSelected');
+      var selName = _el('msSvThemeSelectedName');
+      if (sel) sel.style.display = 'flex';
+      if (selName) selName.textContent = theme.name;
+    },
+
+    selectThemeById: function (themeId) {
+      _get('/api/themes/' + themeId + '/scenes').then(function (data) {
+        if (data.theme) msSocialVideo.selectTheme(data.theme);
+      }).catch(function (err) { console.warn('[msSV] selectThemeById failed:', err); });
+    },
+
+    clearTheme: function () {
+      _selectedTheme = null;
+      var grid = _el('msSvThemeGrid');
+      if (grid) {
+        grid.querySelectorAll('[data-theme-id]').forEach(function (c) {
+          c.style.borderColor = '#33333344';
+          c.style.background = '#0d1117';
+        });
+      }
+      var sel = _el('msSvThemeSelected');
+      if (sel) sel.style.display = 'none';
     },
 
     switchImageSource: function (source) {
@@ -219,6 +281,7 @@
         audio_mode: audioMode,
         platform: platform,
         scheduled_at: scheduled || null,
+        theme_id: _selectedTheme ? _selectedTheme.id : null,
       }).then(function (data) {
         if (statusEl) { statusEl.style.color = 'rgba(139,92,246,.9)'; statusEl.textContent = '🎬 Queued #' + data.id + ' — P.I.X.E.L. rendering in ~2 min…'; }
         msSocialVideo.loadQueue();
@@ -265,6 +328,7 @@
         audio_mode: audioMode,
         platform: platform,
         scheduled_at: scheduled || null,
+        theme_id: _selectedTheme ? _selectedTheme.id : null,
       }).then(function () {
         if (statusEl) { statusEl.style.color = 'rgba(34,197,94,.9)'; statusEl.textContent = '✓ Added to queue'; }
         msSocialVideo.loadQueue();

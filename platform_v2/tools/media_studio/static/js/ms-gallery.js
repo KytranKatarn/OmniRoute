@@ -118,6 +118,18 @@
 
     loadAssets: function () {
       if (!_subject) return;
+      // Brand subject: show theme library instead of image grid
+      if (_subject.type === 'brand') {
+        msGallery.loadBrandThemes();
+        return;
+      }
+      // Restore grid, hide brand panel when switching to agent
+      var gridEl = _el('msGallerySubjectGrid');
+      var themeEl = _el('msGalleryBrandThemes');
+      var filterEl = document.querySelector('.ms-gallery-type-tab');
+      if (gridEl) gridEl.style.display = '';
+      if (themeEl) themeEl.style.display = 'none';
+      if (filterEl) filterEl.closest('div') && (filterEl.closest('[style*="border-bottom"]') || {style: {}}).style.display = '';
       var el = _el('msGallerySubjectGrid');
       var headerEl = _el('msGallerySubjectHeader');
       if (el) {
@@ -239,6 +251,65 @@
 
         el.appendChild(card);
       });
+    },
+
+    loadBrandThemes: function () {
+      var themeEl = _el('msGalleryBrandThemes');
+      var gridEl = _el('msGallerySubjectGrid');
+      var headerEl = _el('msGallerySubjectHeader');
+      if (!themeEl) return;
+      themeEl.style.display = 'block';
+      if (gridEl) gridEl.style.display = 'none';
+      if (headerEl) {
+        headerEl.style.cssText = 'display:flex;align-items:center;gap:12px;margin-bottom:14px;';
+        while (headerEl.firstChild) headerEl.removeChild(headerEl.firstChild);
+        var nameEl = document.createElement('div');
+        nameEl.style.cssText = 'font-size:0.85rem;font-family:\'Orbitron\',sans-serif;color:#22c55e;';
+        nameEl.textContent = 'Kytran Empowerment';
+        var deptEl = document.createElement('div');
+        deptEl.style.cssText = 'color:#555;font-size:0.65rem;';
+        deptEl.textContent = 'Brand \xb7 Content Themes';
+        headerEl.appendChild(nameEl);
+        headerEl.appendChild(deptEl);
+      }
+      fetch('/tools/media-studio/api/themes', {credentials: 'same-origin'})
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var cards = _el('msGalleryThemeCards');
+          if (!cards) return;
+          cards.textContent = '';
+          (data.themes || []).forEach(function (theme) {
+            var card = document.createElement('div');
+            card.style.cssText = 'background:#0d1117;border:1px solid ' +
+              (theme.accent_color || '#333') + '44;border-radius:6px;padding:12px;cursor:pointer;';
+            var dot = document.createElement('div');
+            dot.style.cssText = 'width:28px;height:4px;background:' +
+              (theme.accent_color || '#8b5cf6') + ';border-radius:2px;margin-bottom:8px;';
+            var nameEl = document.createElement('div');
+            nameEl.style.cssText = 'font-family:\'Orbitron\',sans-serif;font-size:0.6rem;color:#ccc;margin-bottom:3px;';
+            nameEl.textContent = theme.name;
+            var curEl = document.createElement('div');
+            curEl.style.cssText = 'font-size:0.55rem;color:#555;margin-bottom:3px;';
+            curEl.textContent = theme.curator_name || '';
+            var cntEl = document.createElement('div');
+            cntEl.style.cssText = 'font-size:0.52rem;color:#444;';
+            cntEl.textContent = (theme.scene_count || 0) + ' scenes';
+            card.appendChild(dot);
+            card.appendChild(nameEl);
+            card.appendChild(curEl);
+            card.appendChild(cntEl);
+            card.onclick = (function (t) {
+              return function () {
+                if (window.switchMsTab) switchMsTab('social-video');
+                setTimeout(function () {
+                  if (window.msSocialVideo) msSocialVideo.selectThemeById(t.id);
+                }, 350);
+              };
+            })(theme);
+            cards.appendChild(card);
+          });
+        })
+        .catch(function (err) { console.warn('[msGallery] loadBrandThemes failed:', err); });
     },
 
     setFilter: function (filter) {

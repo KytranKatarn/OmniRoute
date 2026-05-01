@@ -18,6 +18,25 @@
           <div style="flex:1;padding:16px;overflow-y:auto;border-right:1px solid rgba(139,92,246,0.15);">
             <div style="color:#a78bfa;font-size:0.62rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;">BUILD NEW VIDEO</div>
 
+            <!-- Step 0: Theme picker -->
+            <div id="msSvThemeStep" style="margin-bottom:14px;">
+              <div style="color:#555;font-size:0.58rem;letter-spacing:1px;margin-bottom:6px;">
+                0 &#x2014; CONTENT THEME <span style="color:#444;font-size:0.55rem;margin-left:4px;">(optional)</span>
+              </div>
+              <div id="msSvThemeGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:5px;"></div>
+              <div id="msSvThemeSelected"
+                style="display:none;margin-top:6px;padding:5px 10px;border-radius:4px;
+                       background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.3);
+                       align-items:center;justify-content:space-between;">
+                <span id="msSvThemeSelectedName"
+                  style="color:#a78bfa;font-size:0.62rem;font-family:'Orbitron',sans-serif;"></span>
+                <button onclick="msSocialVideo.clearTheme()"
+                  style="background:transparent;border:none;color:#555;cursor:pointer;font-size:0.65rem;padding:0 4px;">
+                  &#x2715;
+                </button>
+              </div>
+            </div>
+
             <!-- Step 1: Text/Quote -->
             <div style="margin-bottom:14px;">
               <div style="color:#555;font-size:0.58rem;letter-spacing:1px;margin-bottom:5px;">1 &#x2014; TEXT / QUOTE</div>

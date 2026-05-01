@@ -2271,3 +2271,40 @@ def api_sv_update_status(item_id):
     if not ok:
         return jsonify({"error": "invalid status or not found"}), 400
     return jsonify({"status": data.get("status")})
+
+
+# ─── Content Themes ─────────────────────────────────────────────────
+
+
+@media_studio_bp.route("/api/themes")
+@login_required
+def api_get_themes():
+    """Return all active content themes with curator name and scene count."""
+    from .services.theme_service import get_all_themes
+
+    return jsonify({"themes": get_all_themes()})
+
+
+@media_studio_bp.route("/api/themes/<int:theme_id>/scenes")
+@login_required
+def api_get_theme_scenes(theme_id):
+    """Return a theme and all its scenes."""
+    from .services.theme_service import get_scenes_for_theme, get_theme
+
+    theme = get_theme(theme_id)
+    if not theme:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"theme": theme, "scenes": get_scenes_for_theme(theme_id)})
+
+
+@media_studio_bp.route("/api/themes/<int:theme_id>", methods=["PATCH"])
+@login_required
+def api_update_theme(theme_id):
+    """Update theme tone, hashtags, music_mood, accent_color, or is_active."""
+    from .services.theme_service import update_theme
+
+    data = request.get_json() or {}
+    updated = update_theme(theme_id, **data)
+    if not updated:
+        return jsonify({"error": "not found or no valid fields"}), 400
+    return jsonify(updated)

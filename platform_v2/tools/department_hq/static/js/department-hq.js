@@ -1476,6 +1476,7 @@ function renderSignalShell() {
         + '<button class="signal-sub" data-sub="postlog" onclick="switchSignalTab(\'postlog\')">Post Log</button>'
         + '<button class="signal-sub" data-sub="pending" onclick="switchSignalTab(\'pending\')">Pending <span id="signalPendingBadge" class="signal-badge" style="display:none">0</span></button>'
         + '<button class="signal-sub" data-sub="hashtags" onclick="switchSignalTab(\'hashtags\')">Hashtags</button>'
+        + '<button class="signal-sub" data-sub="themes" onclick="switchSignalTab(\'themes\')">Themes</button>'
         + '</div>'
         + '<div id="signalContent" class="dhq-loading" style="min-height:200px">Loading...</div>';
 }
@@ -1507,6 +1508,7 @@ async function loadSignalTab(tab) {
             case 'postlog':   await renderSignalPostLog(el);   break;
             case 'pending':   await renderSignalPending(el);   break;
             case 'hashtags':  await renderSignalHashtags(el);  break;
+            case 'themes':    await renderSignalThemes(el);    break;
         }
     } catch (err) {
         setHtml(el, '<div class="dhq-empty">Error: ' + esc(err.message) + '</div>');
@@ -1744,6 +1746,28 @@ async function renderSignalHashtags(el) {
             + '</tr>';
     }
     setHtml(el, html + '</tbody></table>');
+}
+
+async function renderSignalThemes(el) {
+    var data = await api('/api/signal/themes');
+    var themes = data.themes || [];
+    if (!themes.length) {
+        setHtml(el, '<div class="dhq-empty">No themes found.</div>');
+        return;
+    }
+    var html = '<div style="margin-bottom:10px;color:#555;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;">Department Content Themes — 9 lanes</div>'
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;">';
+    for (var i = 0; i < themes.length; i++) {
+        var t = themes[i];
+        var color = t.accent_color || '#8b5cf6';
+        html += '<div style="background:#0d1117;border:1px solid ' + color + '44;border-radius:6px;padding:12px;">'
+            + '<div style="width:10px;height:10px;border-radius:50%;background:' + color + ';margin-bottom:6px;"></div>'
+            + '<div style="font-family:\'Orbitron\',sans-serif;font-size:0.62rem;color:#ccc;margin-bottom:3px;">' + esc(t.name) + '</div>'
+            + '<div style="font-size:0.58rem;color:#555;margin-bottom:3px;">Curator: ' + esc(t.curator_name || '—') + '</div>'
+            + '<div style="font-size:0.55rem;color:#444;">' + (t.scene_count || 0) + ' scenes \xb7 ' + esc(t.music_mood || '—') + ' music</div>'
+            + '</div>';
+    }
+    setHtml(el, html + '</div>');
 }
 
 // ───────────────────────────────────────────────────────────────

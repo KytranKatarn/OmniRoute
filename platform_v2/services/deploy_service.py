@@ -81,7 +81,7 @@ VPS_SERVICE_MAP = {
 # Static site source paths
 STATIC_SITE_MAP = {
     "kytranempowerment.com": "/mnt/archie_brain/website/kytranempowerment.com",
-    "creed-ai.org": "/mnt/standalone/websites/creed-ai.org",
+    "creed-ai.org": "/mnt/archie_brain/website/creed-ai.org",
 }
 
 

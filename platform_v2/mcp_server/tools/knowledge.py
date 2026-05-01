@@ -1068,22 +1068,22 @@ async def session_briefing_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         # observe going sideways in the last 24h?
         cur.execute(
             """
-            SELECT DISTINCT ON (job_name)
-                   job_name,
-                   status,
-                   items_failed,
-                   details->>'severity' AS severity,
-                   details->'reasons' AS reasons,
-                   error_message,
-                   created_at
-            FROM autonomy_loop_log
-            WHERE created_at > now() - INTERVAL '24 hours'
-              AND (
-                  status IN ('error', 'partial')
-                  OR details->>'severity' = 'error'
-                  OR details->>'severity' = 'warning'
-              )
-            ORDER BY job_name, created_at DESC
+            SELECT job_name, status, items_failed, severity, reasons, error_message, created_at
+            FROM (
+                SELECT DISTINCT ON (job_name)
+                       job_name,
+                       status,
+                       items_failed,
+                       details->>'severity' AS severity,
+                       details->'reasons'   AS reasons,
+                       error_message,
+                       created_at
+                FROM autonomy_loop_log
+                WHERE created_at > now() - INTERVAL '24 hours'
+                ORDER BY job_name, created_at DESC
+            ) latest_runs
+            WHERE status IN ('error', 'partial')
+               OR severity IN ('error', 'warning')
             LIMIT 20
             """
         )

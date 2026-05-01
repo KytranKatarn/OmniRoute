@@ -499,6 +499,13 @@ class TelegramGateway:
             await self._send_email_reply(update, context, pending_reply_id)
             return
 
+        # Check for pending S.I.G.N.A.L. draft suggestion
+        pending_suggestion_id = context.user_data.get("pending_linkedin_suggestion_id")
+        if pending_suggestion_id:
+            del context.user_data["pending_linkedin_suggestion_id"]
+            await self._handle_linkedin_suggestion(update, context, pending_suggestion_id, update.message.text)
+            return
+
         tg_user = update.effective_user
         user_info = self._get_authorized_user(tg_user.id)
 
@@ -664,11 +671,20 @@ class TelegramGateway:
             await query.edit_message_text("Invalid escalation action")
             return
 
-        action = parts[1]  # approve, deny, defer
+        action = parts[1]  # approve, deny, defer, suggest
         try:
             approval_id = int(parts[2])
         except ValueError:
             await query.edit_message_text("Invalid escalation ID")
+            return
+
+        # Suggest — no DB needed, just store pending state and prompt user
+        if action == "suggest":
+            context.user_data["pending_linkedin_suggestion_id"] = approval_id
+            original = query.message.text or ""
+            await query.edit_message_text(
+                f"{original}\n\n✏️ *S.I.G.N.A.L. is waiting* — reply with your suggestion and she'll revise the draft."
+            )
             return
 
         try:
@@ -727,6 +743,64 @@ class TelegramGateway:
         except Exception as e:
             logger.error(f"Escalation callback error: {e}")
             await query.edit_message_text(f"Error processing escalation: {e}")
+
+    async def _handle_linkedin_suggestion(self, update, context, approval_id: int, suggestion: str):
+        """User replied with revision feedback — send to S.I.G.N.A.L. and re-queue."""
+        await update.message.reply_text("✏️ Got it — sending to S.I.G.N.A.L. for revision...")
+
+        try:
+            # Load original draft and mark it superseded
+            original_draft = ""
+            action_data = {}
+            conn = get_db()
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(
+                    "SELECT action_data FROM autonomy_approval_queue WHERE id = %s",
+                    (approval_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    await update.message.reply_text(f"❌ Approval #{approval_id} not found.")
+                    return
+                action_data = row["action_data"] if isinstance(row["action_data"], dict) else json.loads(row["action_data"])
+                original_draft = action_data.get("content", "")
+                cur.execute(
+                    """UPDATE autonomy_approval_queue
+                       SET status = 'rejected', rejected_reason = %s, updated_at = NOW()
+                       WHERE id = %s AND status = 'pending'""",
+                    (f"Revision requested: {suggestion[:120]}", approval_id),
+                )
+                conn.commit()
+            finally:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+            # Redraft via S.I.G.N.A.L. (blocking call — run in executor)
+            import asyncio as _asyncio
+            loop = _asyncio.get_event_loop()
+
+            def _do_redraft():
+                from signal_dispatch import redraft_with_suggestion
+                return redraft_with_suggestion(original_draft, suggestion, action_data)
+
+            new_approval_id, preview = await loop.run_in_executor(None, _do_redraft)
+
+            await update.message.reply_text(
+                f"✅ Revised draft queued (approval #{new_approval_id}).\n"
+                f"_{preview[:150]}…_\n\n"
+                f"Check Telegram for the new approval request."
+            )
+
+        except Exception as exc:
+            logger.error("[TelegramGateway] linkedin suggestion handling failed: %s", exc)
+            await update.message.reply_text(f"❌ Revision failed: {exc}")
 
     def send_escalation_notification(self, approval_id: int, context: dict):
         """Send escalation approval request to linked Telegram users."""

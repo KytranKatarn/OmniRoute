@@ -53,6 +53,19 @@ _PLATFORM_HINTS = {
     "both": "Write two versions: one for LinkedIn (professional, 150-200 words) and one for Twitter (under 280 characters). Label each clearly.",
 }
 
+_VOICE_HINTS = {
+    "personal": (
+        "Write in first-person as Kytran Katarn (personal LinkedIn account). "
+        "Focus on Kytran as an individual — his journey, goals, personal vision, lessons learned, "
+        "and what drives him as a founder and builder. This is his personal story and perspective."
+    ),
+    "company": (
+        "Write in the voice of Kytran Empowerment Inc. (company LinkedIn page). "
+        "Use 'we' and 'our team'. Focus on the company's brand, services, capabilities, "
+        "and value to clients — outreach, advertising what the company does and offers."
+    ),
+}
+
 _TONE_HINTS = {
     "professional": "Maintain a professional, authoritative tone.",
     "casual": "Use a friendly, conversational tone. Approachable and relatable.",
@@ -161,30 +174,90 @@ def dispatch_signal():
     )
 
 
+def _draft_and_queue(
+    announcement: str,
+    post_type: str,
+    tone: str,
+    hashtag_override: list,
+    priority: int,
+    system: str | None,
+) -> tuple[int, str]:
+    """Draft one LinkedIn post (personal OR company) and queue for Telegram approval.
+
+    Returns (approval_id, draft_preview).
+    """
+    tone_hint = _TONE_HINTS.get(tone, _TONE_HINTS["professional"])
+    platform_hint = _PLATFORM_HINTS.get("linkedin", "")
+    voice_hint = _VOICE_HINTS.get(post_type, _VOICE_HINTS["personal"])
+    account_label = "Kytran Katarn" if post_type == "personal" else "Kytran Empowerment Inc."
+
+    hashtag_line = (
+        f"Use these hashtags: {', '.join(hashtag_override)}"
+        if hashtag_override
+        else "Pick 3-4 relevant hashtags from: #AI #ARCHIE #BuildingInPublic #Montreal #KytranEmpowerment"
+    )
+    prompt = (
+        f"Kytran has an announcement to share on LinkedIn ({account_label} account).\n\n"
+        f"Announcement:\n{announcement}\n\n"
+        f"Write the post in BOTH English and French (Canada is bilingual). "
+        f"{voice_hint} {tone_hint} {platform_hint}\n"
+        f"Under 200 words per version. End each with an engagement question.\n"
+        f"{hashtag_line}\n\n"
+        f"Format exactly like this:\n"
+        f"\U0001f1e8\U0001f1e6 English:\n[English post]\n\n---\n\n\U0001f1eb\U0001f1f7 Français :\n[French post]"
+    )
+
+    from tools.department_hq.services.department_dispatcher import dispatch
+
+    result = dispatch(
+        capability="social_post_draft",
+        prompt=prompt,
+        system_prompt=system,
+        prefer_agent="S.I.G.N.A.L.",
+    )
+
+    draft = (getattr(result, "response", "") or "").strip()
+    if not draft:
+        raise RuntimeError(f"S.I.G.N.A.L. returned empty draft for {post_type}")
+
+    import sys
+
+    sys.path.insert(0, "/app")
+    from ai_bridge.agent_loop import request_approval
+
+    account_emoji = "👤" if post_type == "personal" else "🏢"
+    approval_id = request_approval(
+        action_type="linkedin_post",
+        action_data={
+            "content": draft,
+            "hashtags": hashtag_override or [],
+            "post_type": post_type,
+            "browser_agent_id": 342,
+            "priority": priority,
+        },
+        reason=f"📣 {account_emoji} {account_label} draft:\n\n{draft[:1500]}",
+        tier=2,
+        requested_by="Kytran (via /api/signal/announce)",
+        priority=priority,
+    )
+    return approval_id, draft[:150]
+
+
 @signal_dispatch_bp.route("/announce", methods=["POST"])
 def announce():
     """Kytran → S.I.G.N.A.L. feature/announcement post trigger.
 
-    You tell S.I.G.N.A.L. what happened. She turns it into a polished
-    LinkedIn post and sends it to your Telegram for approval.
+    You tell S.I.G.N.A.L. what happened. She turns it into polished
+    LinkedIn posts and sends them to your Telegram for approval.
 
     Body:
-        announcement  (str, required) — what you want to announce in plain language
-        post_type     (str, optional) — "personal" (default) or "company"
+        announcement  (str, required) — what you want to announce
+        post_type     (str, optional) — "personal" | "company" | "both" (default: "both")
         tone          (str, optional) — "professional" | "casual" | "bold"
         hashtags      (list, optional) — override hashtag suggestions
         priority      (int, optional) — Telegram priority 1-10 (default 6)
 
-    Example:
-        {
-            "announcement": "We just shipped the ARCHIE self-healing pipeline.
-                             It reviewed 50 improvement proposals this week and
-                             auto-deployed 12 of them without human intervention.",
-            "post_type": "personal",
-            "tone": "bold"
-        }
-
-    Returns: {"queued": true, "preview": "<first 100 chars of draft>"}
+    Returns: {"queued": true, "approvals": [{post_type, approval_id, preview}, ...]}
     Auth: Bearer <ARCHIE_API_KEY>
     """
     if not _check_api_key():
@@ -195,81 +268,68 @@ def announce():
     if not announcement:
         return jsonify({"error": "announcement is required"}), 400
 
-    post_type = (data.get("post_type") or "personal").strip()
+    post_type = (data.get("post_type") or "both").strip()
     tone = (data.get("tone") or "professional").strip()
     hashtag_override = data.get("hashtags", [])
     priority = int(data.get("priority", 6))
 
-    tone_hint = _TONE_HINTS.get(tone, _TONE_HINTS["professional"])
-    platform_hint = _PLATFORM_HINTS.get("linkedin", "")
+    # Determine which accounts to draft for
+    types_to_draft = ["personal", "company"] if post_type == "both" else [post_type]
+
+    # Load S.I.G.N.A.L.'s system prompt once
+    system = None
+    try:
+        with get_db_cursor() as (_conn, cur):
+            cur.execute("SELECT system_prompt FROM agents WHERE name = %s", ("S.I.G.N.A.L.",))
+            row = cur.fetchone()
+            if row and row.get("system_prompt"):
+                system = row["system_prompt"]
+    except Exception:
+        pass
+
+    # Stagger delay between accounts so Telegram approvals don't arrive simultaneously.
+    # personal → immediate, company → delayed by SIGNAL_STAGGER_MINUTES (default 180 = 3h).
+    import threading
+
+    stagger_minutes = int(os.getenv("SIGNAL_STAGGER_MINUTES", "180"))
+    approvals = []
 
     try:
-        # Load S.I.G.N.A.L.'s system prompt
-        system = None
-        try:
-            with get_db_cursor() as (_conn, cur):
-                cur.execute("SELECT system_prompt FROM agents WHERE name = %s", ("S.I.G.N.A.L.",))
-                row = cur.fetchone()
-                if row and row.get("system_prompt"):
-                    system = row["system_prompt"]
-        except Exception:
-            pass
-
-        prompt = (
-            f"Kytran has an announcement to share on LinkedIn.\n\n"
-            f"Announcement:\n{announcement}\n\n"
-            f"Turn this into a polished LinkedIn post. {tone_hint} {platform_hint}\n"
-            f"Under 250 words. First-person as Kytran. End with an engagement question.\n"
-            + (
-                f"Use these hashtags: {', '.join(hashtag_override)}"
-                if hashtag_override
-                else "Pick 3-4 relevant hashtags from: #AI #ARCHIE #BuildingInPublic #Montreal #KytranEmpowerment"
-            )
-        )
-
-        from tools.department_hq.services.department_dispatcher import dispatch
-
-        result = dispatch(
-            capability="social_post_draft",
-            prompt=prompt,
-            system_prompt=system,
-            prefer_agent="S.I.G.N.A.L.",
-        )
-
-        draft = (getattr(result, "response", "") or "").strip()
-        if not draft:
-            return jsonify({"error": "S.I.G.N.A.L. returned empty draft"}), 502
-
-        # Queue Tier-2 Telegram approval
-        try:
-            import sys
-
-            sys.path.insert(0, "/app")
-            from ai_bridge.agent_loop import request_approval
-
-            approval_id = request_approval(
-                action_type="linkedin_post",
-                action_data={
-                    "content": draft,
-                    "hashtags": hashtag_override or [],
-                    "post_type": post_type,
-                    "browser_agent_id": 342,
-                },
-                reason=f"📣 Kytran announcement draft:\n\n{draft[:1500]}",
-                tier=2,
-                requested_by="Kytran (via /api/signal/announce)",
-                priority=priority,
-            )
-        except Exception as appr_err:
-            log.error("announce: approval queue failed: %s", appr_err)
-            return jsonify({"error": f"Draft generated but approval queue failed: {appr_err}"}), 500
-
-        log.info("Announcement queued for approval (id=%s): %s...", approval_id, announcement[:60])
-        return jsonify({"queued": True, "approval_id": approval_id, "preview": draft[:150]}), 202
-
+        first_type = types_to_draft[0]
+        approval_id, preview = _draft_and_queue(announcement, first_type, tone, hashtag_override, priority, system)
+        approvals.append({"post_type": first_type, "approval_id": approval_id, "preview": preview})
+        log.info("Announcement queued now (id=%s, type=%s)", approval_id, first_type)
     except Exception as exc:
-        log.exception("announce failed")
-        return jsonify({"error": str(exc)}), 502
+        log.error("announce: first draft failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+    if len(types_to_draft) == 2:
+        second_type = types_to_draft[1]
+        delay_secs = stagger_minutes * 60
+
+        # Capture locals for the background thread closure
+        _ann, _tone, _hashtags, _prio, _sys = announcement, tone, hashtag_override, priority, system
+
+        def _queue_second():
+            try:
+                aid, prev = _draft_and_queue(_ann, second_type, _tone, _hashtags, _prio, _sys)
+                log.info("Staggered draft queued (id=%s, type=%s, delay=%dm)", aid, second_type, stagger_minutes)
+            except Exception as e:
+                log.error("Staggered draft failed (type=%s): %s", second_type, e)
+
+        t = threading.Timer(delay_secs, _queue_second)
+        t.daemon = True
+        t.start()
+        approvals.append(
+            {
+                "post_type": second_type,
+                "approval_id": None,
+                "preview": f"Drafting in ~{stagger_minutes // 60}h",
+                "delayed": True,
+            }
+        )
+
+    return jsonify({"queued": True, "approvals": approvals}), 202
 
 
 @signal_dispatch_bp.route("/tender-alert", methods=["POST"])
@@ -369,3 +429,66 @@ def draft_notify():
     except Exception as e:
         log.exception("draft_notify send failed")
         return jsonify({"error": str(e)}), 502
+
+
+def redraft_with_suggestion(original_draft: str, suggestion: str, action_data: dict):
+    """Re-dispatch to S.I.G.N.A.L. with user feedback and re-queue for Telegram approval.
+
+    Called from telegram_gateway when user presses Suggest and sends their note.
+    Returns (new_approval_id, preview_str).
+    """
+    system = None
+    try:
+        with get_db_cursor() as (_conn, cur):
+            cur.execute("SELECT system_prompt FROM agents WHERE name = %s", ("S.I.G.N.A.L.",))
+            row = cur.fetchone()
+            if row and row.get("system_prompt"):
+                system = row["system_prompt"]
+    except Exception:
+        pass
+
+    prompt = (
+        f"You previously wrote a LinkedIn draft. The reviewer has a suggestion.\n\n"
+        f"Original draft:\n{original_draft}\n\n"
+        f"Reviewer's suggestion:\n{suggestion}\n\n"
+        f"Please revise the draft based on this feedback. Keep the bilingual format "
+        f"(🇨🇦 English: / 🇫🇷 Français :) and the same structure. "
+        f"Under 200 words per version. First-person as Kytran."
+    )
+
+    from tools.department_hq.services.department_dispatcher import dispatch
+
+    result = dispatch(
+        capability="social_post_draft",
+        prompt=prompt,
+        system_prompt=system,
+        prefer_agent="S.I.G.N.A.L.",
+    )
+
+    revised = (getattr(result, "response", "") or "").strip()
+    if not revised:
+        raise RuntimeError("S.I.G.N.A.L. returned empty revision")
+
+    post_type = action_data.get("post_type", "personal")
+    hashtags = action_data.get("hashtags", [])
+
+    import sys
+
+    sys.path.insert(0, "/app")
+    from ai_bridge.agent_loop import request_approval
+
+    new_approval_id = request_approval(
+        action_type="linkedin_post",
+        action_data={
+            "content": revised,
+            "hashtags": hashtags,
+            "post_type": post_type,
+            "browser_agent_id": action_data.get("browser_agent_id", 342),
+        },
+        reason=f"✏️ S.I.G.N.A.L. revised draft:\n\n{revised[:1500]}",
+        tier=2,
+        requested_by="S.I.G.N.A.L. (revision)",
+        priority=action_data.get("priority", 6),
+    )
+
+    return new_approval_id, revised[:120]

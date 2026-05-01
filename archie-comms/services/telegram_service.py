@@ -245,11 +245,16 @@ def send(
         if _m:
             _aid = _m.group(1)
             reply_markup = {
-                "inline_keyboard": [[
-                    {"text": "Approve",   "callback_data": f"esc_approve_{_aid}"},
-                    {"text": "Deny",      "callback_data": f"esc_deny_{_aid}"},
-                    {"text": "Defer 1hr", "callback_data": f"esc_defer_{_aid}"},
-                ]]
+                "inline_keyboard": [
+                    [
+                        {"text": "✅ Approve",  "callback_data": f"esc_approve_{_aid}"},
+                        {"text": "❌ Deny",     "callback_data": f"esc_deny_{_aid}"},
+                        {"text": "⏳ Defer 1hr", "callback_data": f"esc_defer_{_aid}"},
+                    ],
+                    [
+                        {"text": "✏️ Suggest", "callback_data": f"esc_suggest_{_aid}"},
+                    ],
+                ]
             }
 
     elif reply_markup is None and category == "pr_reviewed":

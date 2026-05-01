@@ -435,7 +435,7 @@ def register_social_routes(bp, admin_required):
             {
                 "announcement": (data.get("announcement") or "").strip(),
                 "tone": data.get("tone", "professional"),
-                "post_type": data.get("post_type", "personal"),
+                "post_type": data.get("post_type", "both"),
                 "hashtags": data.get("hashtags", []),
                 "priority": int(data.get("priority", 6)),
             }

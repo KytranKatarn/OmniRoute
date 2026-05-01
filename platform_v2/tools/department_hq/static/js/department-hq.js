@@ -1604,12 +1604,17 @@ function renderSignalCalendar() {
 }
 
 function renderSignalCompose(el) {
-    var label = signalAccount === 'company' ? 'Kytran Empowerment Inc.' : 'Kytran Katarn';
     var html = '<div class="signal-compose">'
-        + '<div class="signal-compose-header">Draft a LinkedIn post for <strong>' + esc(label) + '</strong></div>'
-        + '<div class="signal-compose-note">Describe what to announce in plain language. S.I.G.N.A.L. drafts the post and sends it to Telegram for your approval before anything goes live.</div>'
+        + '<div class="signal-compose-header">✏️ Draft a LinkedIn post via <strong>S.I.G.N.A.L.</strong></div>'
+        + '<div class="signal-compose-note">Describe what to announce in plain language. S.I.G.N.A.L. drafts the post in English + French and sends it to Telegram for your approval before anything goes live.</div>'
         + '<textarea id="signalAnnouncement" class="dhq-textarea" rows="5" placeholder="e.g. We just launched the self-healing pipeline. It reviewed 50 proposals and auto-deployed 12 this week..."></textarea>'
         + '<div class="signal-compose-row">'
+        +   '<div class="signal-compose-field"><label class="signal-field-label">Post For</label>'
+        +   '<select id="signalPostType" class="dhq-select">'
+        +     '<option value="both" selected>🇨🇦 Both Accounts</option>'
+        +     '<option value="personal">👤 Kytran Katarn (personal)</option>'
+        +     '<option value="company">🏢 Kytran Empowerment Inc.</option>'
+        +   '</select></div>'
         +   '<div class="signal-compose-field"><label class="signal-field-label">Tone</label>'
         +   '<select id="signalTone" class="dhq-select">'
         +     '<option value="professional">Professional</option>'
@@ -1635,19 +1640,30 @@ function renderSignalCompose(el) {
 async function submitSignalCompose() {
     var announcement = (document.getElementById('signalAnnouncement').value || '').trim();
     if (!announcement) { alert('Please describe what you want to announce.'); return; }
+    var postType = document.getElementById('signalPostType').value;
     var resultEl = document.getElementById('signalComposeResult');
     resultEl.style.display = 'block';
-    setHtml(resultEl, '<div class="dhq-loading" style="padding:8px">S.I.G.N.A.L. is drafting your post...</div>');
+    var loadingMsg = postType === 'both'
+        ? 'S.I.G.N.A.L. is drafting posts for both accounts (EN + FR each)...'
+        : 'S.I.G.N.A.L. is drafting your post (EN + FR)...';
+    setHtml(resultEl, '<div class="dhq-loading" style="padding:8px">' + esc(loadingMsg) + '</div>');
     try {
         var resp = await apiPost('/api/signal/compose', {
             announcement: announcement,
             tone: document.getElementById('signalTone').value,
-            post_type: signalAccount === 'company' ? 'company' : 'personal',
+            post_type: postType,
             priority: parseInt(document.getElementById('signalPriority').value),
         });
+        var approvals = resp.approvals || [];
+        var labels = { personal: '👤 Kytran Katarn', company: '🏢 Kytran Empowerment Inc.' };
+        var previews = approvals.map(function(a) {
+            return '<div style="margin-top:8px"><strong>' + esc(labels[a.post_type] || a.post_type) + '</strong>'
+                + ' <span style="opacity:0.5;font-size:0.8em">#' + a.approval_id + '</span>'
+                + '<div class="signal-compose-preview">' + esc(a.preview || '') + '…</div></div>';
+        }).join('');
         setHtml(resultEl, '<div class="signal-compose-success">'
-            + '<div style="color:#10b981;font-weight:600;margin-bottom:8px">✓ Queued for Telegram approval</div>'
-            + '<div class="signal-compose-preview">' + esc(resp.preview || '') + '</div>'
+            + '<div style="color:#10b981;font-weight:600;margin-bottom:4px">✓ ' + approvals.length + ' draft(s) queued for Telegram approval</div>'
+            + previews
             + '</div>');
         document.getElementById('signalAnnouncement').value = '';
         loadSignalPendingBadge();

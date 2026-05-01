@@ -210,6 +210,11 @@ CAPABILITY_DEPARTMENT_MAP = {
     "audit_management": "Security & Compliance",  # platform/infrastructure audit — V.I.G.I.L. owns compliance_scan_results
     # Executive Office (A.R.C.H.I.E.) — approval gate for outbound social posts
     "social_post_approve": "Executive Office",  # A.R.C.H.I.E. approves
+    # News & Media — WTF hub dispatch (bias, fact-check, geo). Agents:
+    # B.I.A.S. (bias_analysis), V.E.R.I.F.Y. (fact_check), L.O.C.A.L. (geo_extraction)
+    "bias_analysis": "News & Media",
+    "fact_check": "News & Media",
+    "geo_extraction": "News & Media",
 }
 
 

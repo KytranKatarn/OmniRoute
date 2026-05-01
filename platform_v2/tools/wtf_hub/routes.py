@@ -194,14 +194,19 @@ def analyze():
             return jsonify({"ok": True, "result": None, "rate_limited": True, "retry_after": wait})
         _last_dispatch[task] = now
 
+    capabilities = {
+        "bias": "bias_analysis",
+        "factcheck": "fact_check",
+        "geo": "geo_extraction",
+    }
+
     try:
         from tools.department_hq.services.department_dispatcher import dispatch
 
         result = dispatch(
-            capability="conversation",
+            capability=capabilities[task],
             prompt=prompts[task],
             module_id="wtf_hub",
-            prefer_agent=agent_name,
             json_mode=True,
         )
         if result.success:

@@ -2344,10 +2344,14 @@ def signal_linkedin_draft():
             f"{style_notes}\n\n"
             "Rules:\n"
             "- Write post content ONLY — no preamble, no explanation\n"
-            "- Under 280 words, first-person voice as Kytran\n"
+            "- Write in BOTH English and French (Canada is bilingual)\n"
+            "- Under 200 words per version, first-person as Kytran Katarn\n"
+            "- Focus on Kytran's personal journey, goals, and vision as a founder\n"
             "- Professional but human — not corporate jargon\n"
-            "- End with a specific call to action or question\n"
-            "- Montreal founder perspective"
+            "- End each version with a specific call to action or question\n"
+            "- Montreal founder perspective\n\n"
+            "Format exactly like this:\n"
+            "\U0001f1e8\U0001f1e6 English:\n[English post]\n\n---\n\n\U0001f1eb\U0001f1f7 Français :\n[French post]"
         )
 
         result = dispatch(
@@ -2402,7 +2406,44 @@ def signal_linkedin_draft():
             priority=5,
         )
 
-        logger.info("[LinkedInDraft] Draft queued for approval (id=%s)", approval_id)
+        logger.info("[LinkedInDraft] Personal draft queued (id=%s)", approval_id)
+
+        # Queue company post ~3h later (staggered — don't flood Telegram)
+        import os as _os
+        import threading
+
+        stagger_mins = int(_os.getenv("SIGNAL_STAGGER_MINUTES", "180"))
+        _ann_context = recent_context
+        _hashtags_copy = list(selected_hashtags)
+        _theme = f"{theme_name}: {theme_guidance}"
+        _style = style_notes
+
+        def _queue_company_post():
+            try:
+                from signal_dispatch import _draft_and_queue
+
+                system = None
+                try:
+                    from database import get_db_cursor
+
+                    with get_db_cursor() as (_c, _cur):
+                        _cur.execute("SELECT system_prompt FROM agents WHERE name = %s", ("S.I.G.N.A.L.",))
+                        _row = _cur.fetchone()
+                        if _row and _row.get("system_prompt"):
+                            system = _row["system_prompt"]
+                except Exception:
+                    pass
+
+                announcement = f"Theme: {_theme}\n" f"Recent platform activity: {_ann_context}"
+                aid, _ = _draft_and_queue(announcement, "company", "professional", _hashtags_copy, 5, system)
+                logger.info("[LinkedInDraft] Company draft queued after stagger (id=%s)", aid)
+            except Exception as _e:
+                logger.error("[LinkedInDraft] Company staggered draft failed: %s", _e)
+
+        t = threading.Timer(stagger_mins * 60, _queue_company_post)
+        t.daemon = True
+        t.start()
+
         duration_ms = int((time.time() - start) * 1000)
         _log_cycle(
             "signal_linkedin_draft", 1, 0, duration_ms, {"approval_id": approval_id, "hashtags": selected_hashtags}

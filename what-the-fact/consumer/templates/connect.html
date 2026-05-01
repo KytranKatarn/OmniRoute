@@ -1,131 +1,126 @@
 {% extends "base.html" %}
-{% block title %}Join What The Fact — AI-Powered Canadian Journalism{% endblock %}
+{% block title %}Subscribe — What The Fact · Canadian AI Newsroom{% endblock %}
 {% block content %}
 
 <!-- Hero -->
-<div style="background:linear-gradient(180deg,#050d1a 0%,#080f1c 100%);border-bottom:1px solid #112233;padding:64px 16px 48px;text-align:center;">
-  <div style="font-size:0.65rem;letter-spacing:3px;color:var(--wtf-accent);margin-bottom:16px;text-transform:uppercase;">
-    <span class="wtf-live-dot"></span> &nbsp; What The Fact · Canadian AI Newsroom
+<div style="background:linear-gradient(180deg,#050d1a 0%,#080f1c 100%);border-bottom:1px solid #112233;padding:72px 16px 56px;text-align:center;">
+  <div style="font-size:0.6rem;letter-spacing:3px;color:var(--wtf-accent);margin-bottom:18px;text-transform:uppercase;">
+    <span class="wtf-live-dot"></span> &nbsp; Canadian AI Newsroom
   </div>
-  <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:2.4rem;color:#f0f0f0;letter-spacing:2px;margin:0 0 16px;">RADICAL TRANSPARENCY.<br>ZERO SPIN.</h1>
-  <p style="color:#6b7280;font-size:0.9rem;max-width:560px;margin:0 auto 36px;line-height:1.8;">
-    Every article. Every bias score. Every AI verdict — published openly. What The Fact is Canada's first AI-powered newsroom built on a single principle: you deserve to know how the story is being told.
+  <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:2.6rem;color:#f0f0f0;letter-spacing:2px;margin:0 0 20px;line-height:1.2;">THE NEWS, UNFILTERED.<br>THE BIAS, EXPOSED.</h1>
+  <p style="color:#6b7280;font-size:0.88rem;max-width:520px;margin:0 auto 16px;line-height:1.9;">
+    What The Fact is Canada's AI-powered newsroom. Every article scored for bias. Every claim fact-checked. Every outlet mapped across the political spectrum. No spin. No agenda. Just data.
   </p>
+  <p style="color:#444;font-size:0.75rem;margin:0 auto 40px;">Part of the <a href="/join#watch-series" style="color:var(--wtf-accent);text-decoration:none;">Kytran Watch Series</a>.</p>
   <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
     <a href="https://platform.kytranempowerment.com/signup"
-       style="background:var(--wtf-accent);color:#fff;padding:13px 28px;border-radius:5px;text-decoration:none;font-family:Georgia,serif;font-size:0.85rem;letter-spacing:1px;">
-      Create Free Account →
+       style="background:var(--wtf-accent);color:#fff;padding:14px 36px;border-radius:5px;text-decoration:none;font-family:Georgia,serif;font-size:0.9rem;letter-spacing:1px;font-weight:600;">
+      Subscribe Now →
     </a>
     <a href="https://platform.kytranempowerment.com/login"
-       style="background:transparent;border:1px solid #334455;color:#9ca3af;padding:13px 28px;border-radius:5px;text-decoration:none;font-size:0.85rem;letter-spacing:1px;">
+       style="background:transparent;border:1px solid #334455;color:#9ca3af;padding:14px 28px;border-radius:5px;text-decoration:none;font-size:0.85rem;">
       Sign In
     </a>
   </div>
 </div>
 
 <!-- Stats bar -->
-<div style="background:#060d14;border-bottom:1px solid #112233;padding:20px 16px;">
+<div style="background:#060d14;border-bottom:1px solid #112233;padding:22px 16px;">
   <div style="display:flex;justify-content:center;gap:48px;flex-wrap:wrap;max-width:800px;margin:0 auto;">
     {% for stat, label in [
       (source_count|string + ' Sources', 'Canadian outlets monitored'),
-      (total_articles|string, 'Articles analyzed'),
-      ('6 Agents', 'AI agents in the newsroom'),
-      ('100%', 'Open methodology'),
+      (total_articles|string, 'Articles scored'),
+      ('6 Agents', 'AI agents on the desk'),
+      ('24 / 7', 'Live ingest pipeline'),
     ] %}
     <div style="text-align:center;">
-      <div style="font-family:Georgia,serif;font-size:1.6rem;color:#e0e0e0;font-weight:700;">{{ stat }}</div>
-      <div style="font-size:0.6rem;color:#555;letter-spacing:1.5px;text-transform:uppercase;margin-top:3px;">{{ label }}</div>
+      <div style="font-family:Georgia,serif;font-size:1.7rem;color:#e0e0e0;font-weight:700;">{{ stat }}</div>
+      <div style="font-size:0.58rem;color:#555;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">{{ label }}</div>
     </div>
     {% endfor %}
   </div>
 </div>
 
-<!-- Feature comparison -->
-<div style="max-width:900px;margin:0 auto;padding:48px 16px;">
-  <div style="text-align:center;margin-bottom:36px;">
-    <div style="font-size:0.6rem;letter-spacing:3px;color:#555;text-transform:uppercase;margin-bottom:10px;">What you get</div>
-    <h2 style="font-family:Georgia,serif;font-size:1.5rem;color:#e0e0e0;margin:0;">Free access. Deeper access for members.</h2>
+<!-- What's included -->
+<div style="max-width:860px;margin:0 auto;padding:56px 16px 0;">
+  <div style="text-align:center;margin-bottom:40px;">
+    <div style="font-size:0.58rem;letter-spacing:3px;color:#555;text-transform:uppercase;margin-bottom:10px;">What you get</div>
+    <h2 style="font-family:Georgia,serif;font-size:1.6rem;color:#e0e0e0;margin:0;">Full access. Every feature. One subscription.</h2>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:48px;">
-
-    <!-- Free -->
-    <div style="background:#0a0f1a;border:1px solid #112233;border-radius:6px;padding:24px;">
-      <div style="font-size:0.6rem;letter-spacing:2px;color:#6b7280;text-transform:uppercase;margin-bottom:16px;">Free</div>
-      {% for f in [
-        'Live news feed — all 15 Canadian sources',
-        'Heuristic bias scores on every article',
-        'Meet the AI team — 6 agents',
-        'Agent activity log (9,000+ events)',
-        'Methodology transparency page',
-        'Canada news map',
-        'Story clusters + summaries',
-      ] %}
-      <div style="display:flex;gap:10px;margin-bottom:10px;font-size:0.78rem;color:#9ca3af;">
-        <span style="color:#10b981;flex-shrink:0;">✓</span> {{ f }}
-      </div>
-      {% endfor %}
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-bottom:52px;">
+    {% set features = [
+      ('🗞️', 'Live News Feed', 'Real-time articles from 15 Canadian outlets — Global News, CBC, Globe and Mail, National Post and more.'),
+      ('⚖️', 'Bias Scoring', 'Every article scored Left → Right by B.I.A.S. Heuristic tier runs instantly. Full LLM analysis on priority stories.'),
+      ('✅', 'Fact-Checking', 'V.E.R.I.F.Y. extracts claims and returns verdicts: verified, mixed, disputed, or unverifiable.'),
+      ('📍', 'Geographic Intelligence', 'L.O.C.A.L. maps every story to a Canadian province. Identify news deserts and regional coverage gaps.'),
+      ('🗺️', 'Canada News Map', 'Interactive live map — see where stories are breaking, coloured by bias band.'),
+      ('🔬', 'Story Clusters', 'I.N.K. groups related articles. See how the same story is told differently across outlets, side by side.'),
+      ('📋', 'AI Summaries', 'D.R.A.F.T. writes plain-language summaries of every story cluster.'),
+      ('📊', 'Agent Activity Log', 'Full audit trail — every score, verdict, and cluster created by every agent. 9,000+ events and growing.'),
+      ('📡', 'Source Bias Profiles', 'Rolling bias averages per outlet. Track how each outlet drifts over time.'),
+      ('🔍', 'Score Any URL', 'Submit any Canadian news URL for full bias + fact-check analysis on demand.'),
+      ('📬', 'Weekly Bias Digest', 'Email report — top stories, outlet comparisons, and the political spectrum map for the week.'),
+      ('🔔', 'Breaking Alerts', 'Get notified when stories break in your province or from your tracked outlets.'),
+    ] %}
+    {% for icon, title, desc in features %}
+    <div style="background:#0a0f1a;border:1px solid #112233;border-radius:5px;padding:18px;">
+      <div style="font-size:1.3rem;margin-bottom:8px;">{{ icon }}</div>
+      <div style="font-size:0.75rem;color:#e0e0e0;font-weight:600;margin-bottom:6px;">{{ title }}</div>
+      <div style="font-size:0.68rem;color:#6b7280;line-height:1.6;">{{ desc }}</div>
     </div>
+    {% endfor %}
+  </div>
 
-    <!-- Premium -->
-    <div style="background:#0a0f1a;border:1px solid rgba(220,38,38,0.3);border-radius:6px;padding:24px;position:relative;">
-      <div style="position:absolute;top:-1px;right:16px;background:var(--wtf-accent);color:#fff;font-size:0.55rem;padding:3px 8px;border-radius:0 0 4px 4px;letter-spacing:1px;">COMING SOON</div>
-      <div style="font-size:0.6rem;letter-spacing:2px;color:var(--wtf-accent);text-transform:uppercase;margin-bottom:16px;">Member</div>
-      {% for f in [
-        'Full LLM analysis on any article (B.I.A.S. + V.E.R.I.F.Y.)',
-        'Real-time breaking news alerts by province or source',
-        'Weekly Canada bias digest — email report',
-        'Score any URL on-demand',
-        'Side-by-side outlet comparison on any story',
-        'Bias drift tracker — see how outlets shift over time',
-        'Custom source watchlist + notifications',
-      ] %}
-      <div style="display:flex;gap:10px;margin-bottom:10px;font-size:0.78rem;color:#6b7280;">
-        <span style="color:#555;flex-shrink:0;">⬡</span> {{ f }}
-      </div>
-      {% endfor %}
-      <div style="margin-top:20px;">
-        <a href="https://platform.kytranempowerment.com/signup"
-           style="display:block;text-align:center;background:var(--wtf-accent);color:#fff;padding:10px;border-radius:4px;text-decoration:none;font-size:0.75rem;letter-spacing:1px;">
-          Get Early Access →
-        </a>
-      </div>
+  <!-- Pricing CTA -->
+  <div style="background:#0a0f1a;border:1px solid rgba(220,38,38,0.25);border-radius:8px;padding:40px;text-align:center;margin-bottom:52px;">
+    <div style="font-size:0.6rem;letter-spacing:2px;color:var(--wtf-accent);text-transform:uppercase;margin-bottom:12px;">Subscribe</div>
+    <h3 style="font-family:Georgia,serif;font-size:1.4rem;color:#f0f0f0;margin:0 0 8px;">What The Fact</h3>
+    <p style="color:#555;font-size:0.75rem;margin:0 0 28px;">Manage your subscription through the Kytran platform.</p>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <a href="https://platform.kytranempowerment.com/signup"
+         style="background:var(--wtf-accent);color:#fff;padding:13px 32px;border-radius:5px;text-decoration:none;font-size:0.82rem;letter-spacing:1px;">
+        Create Account →
+      </a>
+      <a href="https://business.kytranempowerment.com"
+         style="background:transparent;border:1px solid #334455;color:#6b7280;padding:13px 24px;border-radius:5px;text-decoration:none;font-size:0.82rem;">
+        Business Plans
+      </a>
     </div>
   </div>
 
   <!-- Watch Series -->
-  <div style="margin-bottom:48px;">
-    <div style="text-align:center;margin-bottom:24px;">
-      <div style="font-size:0.6rem;letter-spacing:3px;color:#555;text-transform:uppercase;margin-bottom:8px;">Part of the</div>
-      <h2 style="font-family:Georgia,serif;font-size:1.4rem;color:#e0e0e0;margin:0;">Kytran Watch Series</h2>
-      <p style="color:#555;font-size:0.75rem;margin-top:8px;">AI-powered intelligence tools covering every dimension of Canadian public life.</p>
+  <div id="watch-series" style="margin-bottom:52px;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="font-size:0.58rem;letter-spacing:3px;color:#555;text-transform:uppercase;margin-bottom:10px;">Kytran Watch Series</div>
+      <h2 style="font-family:Georgia,serif;font-size:1.4rem;color:#e0e0e0;margin:0;">AI intelligence across every dimension of Canadian life.</h2>
+      <p style="color:#555;font-size:0.72rem;margin:10px 0 0;">Subscribe to one or bundle all five.</p>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;">
       {% set watches = [
-        ('What The Fact', 'https://what-the-fact.com', 'AI bias scoring + fact-checking for Canadian news', '#dc2626'),
-        ('Civic Watch', 'https://civic.kytranempowerment.com', 'City council, municipal decisions + local government', '#3b82f6'),
-        ('Legal Watch', 'https://legal.kytranempowerment.com', 'Court decisions, legislation + legal trends', '#8b5cf6'),
-        ('Gov Watch', 'https://gov.kytranempowerment.com', 'Federal tenders, procurement + government spending', '#10b981'),
-        ('Market Watch', 'https://market.kytranempowerment.com', 'Canadian market intelligence + economic signals', '#f59e0b'),
+        ('What The Fact', 'https://what-the-fact.com', 'AI bias scoring + fact-checking for Canadian news', '#dc2626', '🗞️'),
+        ('Civic Watch', 'https://civic.kytranempowerment.com', 'City council, municipal decisions + local government', '#3b82f6', '🏛️'),
+        ('Legal Watch', 'https://legal.kytranempowerment.com', 'Court decisions, legislation + legal trends', '#8b5cf6', '⚖️'),
+        ('Gov Watch', 'https://gov.kytranempowerment.com', 'Federal tenders, procurement + government spending', '#10b981', '🏦'),
+        ('Market Watch', 'https://market.kytranempowerment.com', 'Canadian market intelligence + economic signals', '#f59e0b', '📈'),
       ] %}
-      {% for name, url, desc, col in watches %}
-      <a href="{{ url }}" target="_blank"
-         style="background:#0a0f1a;border:1px solid {{ col }}22;border-radius:5px;padding:16px;text-decoration:none;display:block;transition:border-color 0.2s;"
-         onmouseover="this.style.borderColor='{{ col }}55'" onmouseout="this.style.borderColor='{{ col }}22'">
-        <div style="font-size:0.65rem;color:{{ col }};letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">{{ name }}</div>
-        <div style="font-size:0.7rem;color:#6b7280;line-height:1.5;">{{ desc }}</div>
+      {% for name, url, desc, col, icon in watches %}
+      <a href="{{ url }}" target="_blank" style="background:#0a0f1a;border:1px solid {{ col }}33;border-radius:5px;padding:18px;text-decoration:none;display:block;">
+        <div style="font-size:1.2rem;margin-bottom:8px;">{{ icon }}</div>
+        <div style="font-size:0.65rem;color:{{ col }};letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">{{ name }}</div>
+        <div style="font-size:0.68rem;color:#6b7280;line-height:1.5;">{{ desc }}</div>
       </a>
       {% endfor %}
     </div>
   </div>
 
-  <!-- Final CTA -->
-  <div style="text-align:center;padding:40px;background:#0a0f1a;border:1px solid #112233;border-radius:6px;">
-    <h3 style="font-family:Georgia,serif;font-size:1.2rem;color:#e0e0e0;margin:0 0 12px;">The news doesn't have an agenda.<br>But your newsroom might.</h3>
-    <p style="color:#555;font-size:0.75rem;margin:0 0 24px;">Join What The Fact. Free forever for the basics. Member access for the full picture.</p>
+  <!-- Bottom CTA -->
+  <div style="text-align:center;padding:48px 16px 64px;">
+    <h3 style="font-family:Georgia,serif;font-size:1.3rem;color:#e0e0e0;margin:0 0 10px;">The news doesn't have an agenda.<br>But your newsroom might.</h3>
+    <p style="color:#555;font-size:0.72rem;margin:0 0 28px;">Subscribe to What The Fact. Know how your news is being told.</p>
     <a href="https://platform.kytranempowerment.com/signup"
-       style="background:var(--wtf-accent);color:#fff;padding:12px 32px;border-radius:5px;text-decoration:none;font-size:0.8rem;letter-spacing:1px;">
-      Start Free →
+       style="background:var(--wtf-accent);color:#fff;padding:14px 40px;border-radius:5px;text-decoration:none;font-size:0.82rem;letter-spacing:1px;">
+      Subscribe Now →
     </a>
   </div>
 </div>

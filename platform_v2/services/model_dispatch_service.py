@@ -322,6 +322,52 @@ def _continue_signal_pipeline(task: dict, english_draft: str) -> None:
     threading.Thread(target=_run, daemon=True, name="signal-pipeline-cont").start()
 
 
+def _free_comfyui_vram_if_idle() -> bool:
+    """Free ComfyUI VRAM when Pixel has no active generation jobs.
+
+    Offloads ComfyUI models to CPU (container stays running) so Ollama
+    text models can use the GPU. Skips if ComfyUI queue is non-empty.
+    """
+    import json as _json
+    import os
+    import urllib.request
+
+    comfyui_url = os.getenv("COMFYUI_HOST", "http://host.docker.internal:8188")
+    try:
+        # Skip if ComfyUI is generating
+        with urllib.request.urlopen(f"{comfyui_url}/queue", timeout=3) as r:
+            q = _json.loads(r.read())
+        if q.get("queue_running") or q.get("queue_pending"):
+            log.info("model_dispatch: ComfyUI busy — skipping VRAM free")
+            return False
+
+        # Check how much VRAM ComfyUI is holding
+        with urllib.request.urlopen(f"{comfyui_url}/system_stats", timeout=3) as r:
+            stats = _json.loads(r.read())
+        devices = stats.get("devices", [])
+        vram_held = sum(d.get("vram_total", 0) - d.get("vram_free", 0) for d in devices)
+        if vram_held < 100 * 1024 * 1024:
+            return False  # nothing to free
+
+        # Free — offloads to CPU, container stays alive
+        payload = _json.dumps({"unload_models": True, "free_memory": True}).encode()
+        req = urllib.request.Request(
+            f"{comfyui_url}/free",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=10)
+        log.info(
+            "model_dispatch: ComfyUI VRAM freed (Pixel idle) — %.1f GB released",
+            vram_held / 1e9,
+        )
+        return True
+    except Exception as exc:
+        log.debug("model_dispatch: ComfyUI VRAM free skipped: %s", exc)
+        return False
+
+
 def _ensure_ram_for_model(model_name: str) -> bool:
     """Free RAM to make room for model_name by evicting idle loaded models.
 
@@ -352,7 +398,12 @@ def _ensure_ram_for_model(model_name: str) -> bool:
             needed_gb = 5.0  # conservative default
 
         if available_gb >= needed_gb:
-            return True  # already enough room
+            # Still check VRAM — free ComfyUI if it's holding the GPU idle
+            _free_comfyui_vram_if_idle()
+            return True
+
+        # Try freeing ComfyUI VRAM first (faster than evicting Ollama models)
+        _free_comfyui_vram_if_idle()
 
         log.info(
             "model_dispatch: need %.1fGB for %s, have %.1fGB — evicting idle models",

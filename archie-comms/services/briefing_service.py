@@ -196,14 +196,16 @@ def submit_director_report(
                 rid, severity, category, director_agent, title,
             )
 
-            # Critical reports get immediate escalation — mark escalated to prevent triage resend
+            # Critical reports get immediate escalation.
+            # Mark escalated BEFORE calling _escalate_report so a crash
+            # inside _mirror_to_chat cannot leave the row unescalated.
             if severity == "critical":
-                _escalate_report(rid, department, director_agent, title, summary, severity, category=category)
                 cur.execute(
                     "UPDATE director_reports SET escalated=TRUE, escalation_channel='telegram', escalated_at=NOW() WHERE id=%s",
                     (rid,),
                 )
                 conn.commit()
+                _escalate_report(rid, department, director_agent, title, summary, severity, category=category)
 
             return rid
 

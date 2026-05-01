@@ -80,7 +80,14 @@ def _send_approval_telegram(
         lines = [f"Approval #{approval_id} required for: {action_type}"]
         if reason:
             lines.append(f"Reason: {reason}")
-        if action_data:
+        if action_data and action_type == "linkedin_post":
+            post_type = action_data.get("post_type", "")
+            hashtags = action_data.get("hashtags", [])
+            if post_type:
+                lines.append(f"Type: {post_type}")
+            if hashtags:
+                lines.append("Tags: " + " ".join(f"#{h}" for h in hashtags))
+        elif action_data:
             for k, v in list(action_data.items())[:3]:
                 lines.append(f"{k}: {v}")
 

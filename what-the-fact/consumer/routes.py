@@ -103,6 +103,20 @@ TEAM_AGENTS = [
 ]
 
 
+@bp.get("/join")
+def join():
+    S = _schema()
+    with _db().begin() as c:
+        source_count = c.execute(
+            text(f"SELECT COUNT(*) FROM {S}.sources")
+        ).scalar() or 0
+        total_articles = c.execute(
+            text(f"SELECT COUNT(*) FROM {S}.articles")
+        ).scalar() or 0
+    return render_template("connect.html", source_count=source_count,
+                           total_articles=total_articles)
+
+
 @bp.get("/news")
 def news():
     from flask import request as _req

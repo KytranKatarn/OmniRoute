@@ -114,6 +114,19 @@ a { color: inherit; }
 
 /* Nav actions (globe + hamburger) */
 .wtf-nav-actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.wtf-nav-join {
+  background: var(--wtf-accent);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  letter-spacing: 1px;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.wtf-nav-join:hover { opacity: 0.85; color: #fff; }
+
 .wtf-lang-btn {
   background: rgba(255,255,255,0.06);
   border: 1px solid #1a2a3a;

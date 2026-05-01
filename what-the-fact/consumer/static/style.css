@@ -284,11 +284,11 @@ a { color: inherit; }
   padding: 24px 16px;
   max-width: 1200px;
   margin: 0 auto;
-  background: var(--wtf-bg);
+  background: #050d1a;
 }
 .wtf-team-card {
-  background: var(--wtf-bg-card);
-  border: 1px solid var(--wtf-border);
+  background: #0a0f1a;
+  border: 1px solid #112233;
   border-radius: 4px;
   padding: 20px;
   position: relative;
@@ -320,7 +320,7 @@ a { color: inherit; }
 }
 .wtf-team-expansion {
   font-size: 9px;
-  color: var(--wtf-text-muted);
+  color: #6b7280;
   text-transform: uppercase;
   letter-spacing: 1px;
   margin-bottom: 8px;
@@ -328,13 +328,13 @@ a { color: inherit; }
 }
 .wtf-team-role {
   font-size: 11px;
-  color: var(--wtf-text-muted);
+  color: #9ca3af;
   margin-bottom: 6px;
 }
 .wtf-team-model {
   display: inline-block;
-  background: var(--wtf-bg-panel);
-  border: 1px solid var(--wtf-border);
+  background: #060d14;
+  border: 1px solid #1a2a3a;
   color: #4a9;
   font-size: 9px;
   padding: 2px 7px;
@@ -344,7 +344,7 @@ a { color: inherit; }
 .wtf-team-desc {
   font-family: Georgia, 'Times New Roman', serif;
   font-size: 12px;
-  color: var(--wtf-text-muted);
+  color: #6b7280;
   line-height: 1.6;
 }
 .wtf-team-badge {
@@ -356,15 +356,15 @@ a { color: inherit; }
   border-radius: 2px;
 }
 .wtf-badge-active { background: #0a2a1a; color: #4a9; }
-.wtf-badge-soon   { background: var(--wtf-bg-panel); color: var(--wtf-text-muted); }
+.wtf-badge-soon   { background: #111827; color: #6b7280; }
 .wtf-badge-phase2 { background: #1a0a3a; color: #a0f; }
 
 .wtf-team-footer {
   text-align: center;
   padding: 24px;
   font-size: 11px;
-  color: var(--wtf-text-muted);
-  border-top: 1px solid var(--wtf-border);
-  background: var(--wtf-bg);
+  color: #6b7280;
+  border-top: 1px solid #112233;
+  background: #050d1a;
 }
 .wtf-team-footer a { color: var(--wtf-accent); text-decoration: none; }

@@ -90,6 +90,16 @@ TEAM_AGENTS = [
         "portrait_url": _PLATFORM + "/static/media/images/2026-04-20/e7149ec2-f73.png",
         "accent_colour": "#6b7280",
     },
+    {
+        "name": "A.U.R.O.R.A.",
+        "full": "Atmospheric & Universal Resource for Observation, Research & Analysis",
+        "role": "Weather Intelligence",
+        "model": "qwen2.5:7b",
+        "description": "Environment Canada + NASA EarthData + NOAA. Weather intelligence integrated into every story — because in Canada, the weather IS the news.",
+        "coming_soon": True,
+        "portrait_url": _PLATFORM + "/static/media/images/2026-04-30/7b1193b5-868.png",
+        "accent_colour": "#7c3aed",
+    },
 ]
 
 

@@ -58,3 +58,68 @@ def register_theme_routes(bp, admin_required):
         data = request.get_json() or {}
         scene = upsert_scene(theme_id, scene_id=scene_id, **data)
         return jsonify(scene)
+
+    # ── Calendar ──────────────────────────────────────────────────
+
+    @bp.route("/api/signal/calendar")
+    @admin_required
+    def api_signal_calendar():
+        from platform_v2.tools.media_studio.services.calendar_service import get_week_calendar
+
+        return jsonify({"days": get_week_calendar()})
+
+    @bp.route("/api/signal/calendar/slots")
+    @admin_required
+    def api_signal_calendar_slots():
+        from platform_v2.tools.media_studio.services.calendar_service import get_calendar_slots
+
+        return jsonify({"slots": get_calendar_slots()})
+
+    @bp.route("/api/signal/calendar/slots", methods=["POST"])
+    @admin_required
+    def api_signal_upsert_slot():
+        from platform_v2.tools.media_studio.services.calendar_service import upsert_calendar_slot
+
+        data = request.get_json() or {}
+        day = data.pop("day_of_week", 0)
+        order = data.pop("slot_order", 0)
+        slot = upsert_calendar_slot(day_of_week=day, slot_order=order, **data)
+        return jsonify(slot), 201
+
+    @bp.route("/api/signal/calendar/slots/<int:slot_id>", methods=["DELETE"])
+    @admin_required
+    def api_signal_delete_slot(slot_id):
+        from platform_v2.tools.media_studio.services.calendar_service import delete_calendar_slot
+
+        ok = delete_calendar_slot(slot_id)
+        return jsonify({"deleted": ok})
+
+    @bp.route("/api/signal/calendar/generate-caption", methods=["POST"])
+    @admin_required
+    def api_signal_generate_caption():
+        from platform_v2.tools.media_studio.services.calendar_service import generate_themed_caption
+
+        data = request.get_json() or {}
+        agent_id = data.get("agent_id")
+        theme_id = data.get("theme_id")
+        if not agent_id or not theme_id:
+            return jsonify({"error": "agent_id and theme_id required"}), 400
+        caption = generate_themed_caption(agent_id, theme_id, data.get("scene_description", ""))
+        return jsonify({"caption": caption})
+
+    # ── Agent Voice ────────────────────────────────────────────────
+
+    @bp.route("/api/signal/agent/<int:agent_id>/voice")
+    @admin_required
+    def api_signal_agent_voice(agent_id):
+        from platform_v2.tools.media_studio.services.calendar_service import get_agent_voice
+
+        return jsonify(get_agent_voice(agent_id))
+
+    @bp.route("/api/signal/agent/<int:agent_id>/voice", methods=["PATCH"])
+    @admin_required
+    def api_signal_update_agent_voice(agent_id):
+        from platform_v2.tools.media_studio.services.calendar_service import upsert_agent_voice
+
+        data = request.get_json() or {}
+        return jsonify(upsert_agent_voice(agent_id, **data))

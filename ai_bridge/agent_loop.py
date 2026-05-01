@@ -1277,6 +1277,17 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #66: S.I.G.N.A.L. Content Auto-Suggest (daily 8am)
+        self.scheduler.add_job(
+            with_app_context(self._social_content_auto_suggest),
+            "cron",
+            hour=8,
+            minute=0,
+            id="social_content_auto_suggest",
+            name="S.I.G.N.A.L.: Content Auto-Suggest",
+            replace_existing=True,
+        )
+
         # ── V.I.G.I.L. Security & Compliance Department Jobs ──
 
         self.scheduler.add_job(
@@ -6964,6 +6975,58 @@ class AgentLoop:
 
         except Exception as e:
             logger.exception("[SlideshowRender] Worker error: %s", e)
+
+    def _social_content_auto_suggest(self):
+        """Daily 8am: auto-generate content for calendar slots + detect gaps → Telegram."""
+        try:
+            from platform_v2.tools.media_studio.services.calendar_service import (
+                generate_themed_caption,
+                get_empty_days_this_week,
+                get_slots_due_for_generation,
+            )
+            from platform_v2.tools.media_studio.services.social_video_service import svq_create
+
+            due = get_slots_due_for_generation(days_ahead=3)
+            for slot in due:
+                agent_id = slot.get("featured_agent_id") or slot.get("agent_id_val")
+                theme_id = slot.get("theme_id")
+                if not agent_id or not theme_id:
+                    continue
+                caption = generate_themed_caption(agent_id, theme_id)
+                if not caption:
+                    logger.warning("[AutoSuggest] Caption generation failed for slot %s", slot.get("id"))
+                    continue
+                svq_create(
+                    title=slot.get("theme_name", "Untitled"),
+                    quote_text=caption,
+                    media_ids=[],
+                    audio_mode="music",
+                    platform=slot.get("platform", "linkedin"),
+                    scheduled_at=None,
+                    user_id=1,
+                    theme_id=theme_id,
+                )
+                logger.info("[AutoSuggest] Queued slot %s (theme: %s)", slot.get("id"), slot.get("theme_name"))
+
+            # Gap detection: notify if tomorrow has no content
+            from datetime import date, timedelta
+
+            tomorrow_dow = (date.today() + timedelta(days=1)).weekday()
+            empty = get_empty_days_this_week()
+            if tomorrow_dow in empty:
+                _day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+                try:
+                    from services.telegram_service import send_info
+
+                    send_info(
+                        f"\U0001f4c5 S.I.G.N.A.L. Calendar: {_day_names[tomorrow_dow]} has no content queued. "
+                        "Visit Media Studio → Social Video to create a post."
+                    )
+                except Exception as tg_err:
+                    logger.debug("[AutoSuggest] Telegram notify failed (non-blocking): %s", tg_err)
+
+        except Exception as e:
+            logger.exception("[AutoSuggest] Worker error: %s", e)
 
     # ── V.I.G.I.L. Handler Methods ──
 

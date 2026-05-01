@@ -1476,6 +1476,7 @@ function renderSignalShell() {
         + '<button class="signal-sub" data-sub="postlog" onclick="switchSignalTab(\'postlog\')">Post Log</button>'
         + '<button class="signal-sub" data-sub="pending" onclick="switchSignalTab(\'pending\')">Pending <span id="signalPendingBadge" class="signal-badge" style="display:none">0</span></button>'
         + '<button class="signal-sub" data-sub="hashtags" onclick="switchSignalTab(\'hashtags\')">Hashtags</button>'
+        + '<button class="signal-sub" data-sub="calendar" onclick="switchSignalTab(\'calendar\')">📅 Calendar</button>'
         + '<button class="signal-sub" data-sub="themes" onclick="switchSignalTab(\'themes\')">Themes</button>'
         + '</div>'
         + '<div id="signalContent" class="dhq-loading" style="min-height:200px">Loading...</div>';
@@ -1507,7 +1508,8 @@ async function loadSignalTab(tab) {
             case 'compose':   renderSignalCompose(el);          break;
             case 'postlog':   await renderSignalPostLog(el);   break;
             case 'pending':   await renderSignalPending(el);   break;
-            case 'hashtags':  await renderSignalHashtags(el);  break;
+            case 'hashtags':  await renderSignalHashtags(el);   break;
+            case 'calendar':  await renderSignalCalendar(el);  break;
             case 'themes':    await renderSignalThemes(el);    break;
         }
     } catch (err) {
@@ -1746,6 +1748,40 @@ async function renderSignalHashtags(el) {
             + '</tr>';
     }
     setHtml(el, html + '</tbody></table>');
+}
+
+async function renderSignalCalendar(el) {
+    var data = await api('/api/signal/calendar');
+    var days = data.days || [];
+    var DAY_ABBR = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
+    var html = '<div style="margin-bottom:10px;color:#555;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;">Content Calendar — This Week</div>'
+        + '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;">';
+    for (var i = 0; i < days.length; i++) {
+        var day = days[i];
+        var slots = day.slots || [];
+        var hasContent = (day.queue_status || []).length > 0;
+        var border = hasContent ? '#22c55e' : '#333';
+        html += '<div style="background:#0d1117;border:1px solid ' + border + '44;border-radius:5px;padding:7px;min-height:80px;">'
+            + '<div style="font-size:0.52rem;color:' + border + ';font-family:\'Orbitron\',sans-serif;margin-bottom:3px;">' + DAY_ABBR[i] + '</div>'
+            + '<div style="font-size:0.48rem;color:#333;margin-bottom:5px;">' + day.date.substring(5) + '</div>';
+        if (!slots.length) {
+            html += '<div style="font-size:0.5rem;color:#2a2a2a;font-style:italic;">empty</div>';
+        }
+        for (var j = 0; j < slots.length; j++) {
+            var slot = slots[j];
+            var c = slot.accent_color || '#8b5cf6';
+            html += '<div style="border-left:2px solid ' + c + ';padding-left:4px;margin-bottom:3px;">'
+                + '<div style="font-size:0.48rem;color:' + c + ';line-height:1.3;">' + esc(slot.theme_name || '') + '</div>'
+                + '<div style="font-size:0.45rem;color:#555;">' + esc(slot.agent_name || '—') + '</div>'
+                + (slot.auto_generate ? '<div style="font-size:0.42rem;color:#a78bfa;">⚡ auto</div>' : '')
+                + '</div>';
+        }
+        if (hasContent) {
+            html += '<div style="font-size:0.45rem;color:#22c55e;margin-top:3px;">✓ queued</div>';
+        }
+        html += '</div>';
+    }
+    setHtml(el, html + '</div><div style="margin-top:10px;font-size:0.55rem;color:#444;">Toggle ⚡ auto on a slot to enable daily auto-generation</div>');
 }
 
 async function renderSignalThemes(el) {

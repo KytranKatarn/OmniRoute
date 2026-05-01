@@ -105,40 +105,130 @@ TEAM_AGENTS = [
 
 @bp.get("/news")
 def news():
+    from flask import request as _req
     S = _schema()
-    wtf_tech_url = os.environ.get("WTF_TECH_URL", "https://what-the-fact.tech")
+    PAGE_SIZE = 50
+    page = max(1, int(_req.args.get("page", 1)))
+    VALID_BANDS = {"all", "left", "center-left", "center", "center-right", "right"}
+    band_filter = _req.args.get("band", "all")
+    if band_filter not in VALID_BANDS:
+        band_filter = "all"
+    offset = (page - 1) * PAGE_SIZE
+
     with _db().begin() as c:
+        source_count = c.execute(
+            text(f"SELECT COUNT(*) FROM {S}.sources")
+        ).scalar() or 0
+        band_params = {}
+        if band_filter == "all":
+            band_where = ""
+        else:
+            band_where = "AND b.band = :band"
+            band_params["band"] = band_filter
+        total = c.execute(text(f"""
+            SELECT COUNT(*) FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE 1=1 {band_where}
+        """), band_params).scalar() or 0
         rows = c.execute(text(f"""
             SELECT a.id, a.title, a.url, a.published_at,
                    s.name AS source, b.band, a.ai_analyzed, a.province_code
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-            ORDER BY a.published_at DESC LIMIT 200
-        """)).mappings().all()
-        source_count = c.execute(
-            text(f"SELECT COUNT(*) FROM {S}.sources")
-        ).scalar() or 0
+            WHERE 1=1 {band_where}
+            ORDER BY a.published_at DESC
+            LIMIT {PAGE_SIZE} OFFSET {offset}
+        """), band_params).mappings().all()
+
+    total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     return render_template("news.html", articles=rows, source_count=source_count,
-                           wtf_tech_url=wtf_tech_url)
+                           total=total, page=page, total_pages=total_pages,
+                           page_size=PAGE_SIZE, band_filter=band_filter)
 
 
 @bp.get("/activity")
 def activity():
-    import requests as _req
-    wtf_tech_url = os.environ.get("WTF_TECH_URL", "https://what-the-fact.tech")
+    from flask import request as _req
     S = _schema()
+    PAGE_SIZE = 100
+    page = max(1, int(_req.args.get("page", 1)))
+    agent_filter = _req.args.get("agent", "all")
+    offset = (page - 1) * PAGE_SIZE
+
     with _db().begin() as c:
         source_count = c.execute(
             text(f"SELECT COUNT(*) FROM {S}.sources")
         ).scalar() or 0
-    try:
-        resp = _req.get(wtf_tech_url + "/api/v1/agent-activity?limit=200", timeout=5)
-        events = resp.json().get("events", [])
-    except Exception:
-        events = []
+
+        # Build unified event query per agent type, then union + paginate
+        agent_queries = {
+            "F.A.C.T.": f"""
+                SELECT 'F.A.C.T.' AS agent, a.id AS article_id, a.title AS title,
+                       'ingested' AS result, at.created_at AS ts, s.name AS source
+                FROM {S}.audit_trail at
+                JOIN {S}.articles a ON a.id = at.article_id
+                JOIN {S}.sources s ON s.id = a.source_id
+                WHERE at.event_type = 'ingested'""",
+            "B.I.A.S.": f"""
+                SELECT 'B.I.A.S.' AS agent, a.id AS article_id, a.title AS title,
+                       bs.band AS result, bs.computed_at AS ts, s.name AS source
+                FROM {S}.bias_scores bs
+                JOIN {S}.articles a ON a.id = bs.article_id
+                JOIN {S}.sources s ON s.id = a.source_id""",
+            "V.E.R.I.F.Y.": f"""
+                SELECT 'V.E.R.I.F.Y.' AS agent, a.id AS article_id, a.title AS title,
+                       fc.overall_verdict AS result, fc.checked_at AS ts, s.name AS source
+                FROM {S}.fact_checks fc
+                JOIN {S}.articles a ON a.id = fc.article_id
+                JOIN {S}.sources s ON s.id = a.source_id""",
+            "L.O.C.A.L.": f"""
+                SELECT 'L.O.C.A.L.' AS agent, a.id AS article_id, a.title AS title,
+                       a.province_code AS result, at.created_at AS ts, s.name AS source
+                FROM {S}.articles a
+                JOIN {S}.sources s ON s.id = a.source_id
+                JOIN {S}.audit_trail at ON at.article_id = a.id AND at.event_type = 'ingested'
+                WHERE a.province_code IS NOT NULL""",
+            "D.R.A.F.T.": f"""
+                SELECT 'D.R.A.F.T.' AS agent, NULL AS article_id,
+                       sc.representative_title AS title,
+                       'summarized' AS result, su.created_at AS ts, NULL AS source
+                FROM {S}.summaries su
+                JOIN {S}.story_clusters sc ON sc.id = su.cluster_id""",
+            "I.N.K.": f"""
+                SELECT 'I.N.K.' AS agent, NULL AS article_id,
+                       representative_title AS title,
+                       CONCAT(article_count::text, ' articles') AS result,
+                       created_at AS ts, NULL AS source
+                FROM {S}.story_clusters""",
+        }
+
+        if agent_filter != "all" and agent_filter in agent_queries:
+            selected = {agent_filter: agent_queries[agent_filter]}
+        else:
+            selected = agent_queries
+
+        union_sql = " UNION ALL ".join(f"({q})" for q in selected.values())
+        total = c.execute(text(f"SELECT COUNT(*) FROM ({union_sql}) x")).scalar() or 0
+
+        rows = c.execute(text(f"""
+            SELECT * FROM ({union_sql}) x
+            ORDER BY ts DESC NULLS LAST
+            LIMIT {PAGE_SIZE} OFFSET {offset}
+        """)).fetchall()
+
+    events = [
+        {"agent": r[0], "article_id": r[1], "title": (r[2] or "")[:120],
+         "result": r[3] or "", "source": r[5] or "",
+         "ts": r[4].isoformat() if r[4] else None}
+        for r in rows
+    ]
+    total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+
     return render_template("activity.html", events=events, source_count=source_count,
-                           wtf_tech_url=wtf_tech_url)
+                           total=total, page=page, total_pages=total_pages,
+                           page_size=PAGE_SIZE, agent_filter=agent_filter)
 
 
 @bp.get("/team")

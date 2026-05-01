@@ -15,21 +15,21 @@
 
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
     <div style="color:#6b7280;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;">
-      {{ articles|length }} articles
+      {{ total }} articles &middot; page {{ page }} / {{ total_pages }}
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;">
-      <button onclick="filterNews('all')" id="nf-all" class="wtf-act-filter wtf-act-filter--active">All</button>
-      <button onclick="filterNews('left')" id="nf-left" class="wtf-act-filter" style="color:#3b82f6;border-color:#3b82f644;">Left</button>
-      <button onclick="filterNews('center-left')" id="nf-cl" class="wtf-act-filter" style="color:#93c5fd;border-color:#93c5fd44;">Ctr-Left</button>
-      <button onclick="filterNews('center')" id="nf-c" class="wtf-act-filter">Center</button>
-      <button onclick="filterNews('center-right')" id="nf-cr" class="wtf-act-filter" style="color:#fca5a5;border-color:#fca5a544;">Ctr-Right</button>
-      <button onclick="filterNews('right')" id="nf-right" class="wtf-act-filter" style="color:#ef4444;border-color:#ef444444;">Right</button>
+      {% set bands = [('all','All',''),('left','Left','#3b82f6'),('center-left','Ctr-Left','#93c5fd'),('center','Center',''),('center-right','Ctr-Right','#fca5a5'),('right','Right','#ef4444')] %}
+      {% for val, label, col in bands %}
+      <a href="/news?band={{ val }}&page=1"
+         class="wtf-act-filter {% if band_filter == val %}wtf-act-filter--active{% endif %}"
+         style="text-decoration:none;{% if col %}color:{{ col }};{% endif %}">{{ label }}</a>
+      {% endfor %}
     </div>
   </div>
 
   {% for a in articles %}
   {% set band = (a.band or 'center') | replace(' ', '-') %}
-  <div class="wtf-article-card wtf-article-card--{{ band }} wtf-news-row" data-band="{{ band }}">
+  <div class="wtf-article-card wtf-article-card--{{ band }}">
     <div class="wtf-card-meta">
       <span>{{ a.source or '' }}{% if a.province_code %} &middot; {{ a.province_code }}{% endif %}</span>
       <span style="color:#555;font-size:0.65rem;">{{ a.published_at.strftime('%b %d %H:%M') if a.published_at else '' }}</span>
@@ -46,6 +46,19 @@
   </div>
   {% endfor %}
 
+
+  {% if total_pages > 1 %}
+  <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:24px 0;">
+    {% if page > 1 %}
+    <a href="/news?band={{ band_filter }}&page={{ page - 1 }}" class="wtf-act-filter" style="text-decoration:none;">← Prev</a>
+    {% endif %}
+    <span style="color:#6b7280;font-size:0.7rem;">Page {{ page }} of {{ total_pages }} &middot; {{ total }} articles</span>
+    {% if page < total_pages %}
+    <a href="/news?band={{ band_filter }}&page={{ page + 1 }}" class="wtf-act-filter" style="text-decoration:none;">Next →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
 </div>
 
 <style>
@@ -55,21 +68,6 @@
   letter-spacing: 1px; cursor: pointer; font-family: inherit; text-transform: uppercase;
 }
 .wtf-act-filter--active { border-color: var(--wtf-accent); color: var(--wtf-accent); }
-.wtf-news-row { margin-bottom: 10px; }
 </style>
-
-<script>
-function filterNews(band) {
-  document.querySelectorAll('.wtf-news-row').forEach(function(row) {
-    row.style.display = (band === 'all' || row.dataset.band === band) ? '' : 'none';
-  });
-  document.querySelectorAll('.wtf-act-filter').forEach(function(b) {
-    b.classList.remove('wtf-act-filter--active');
-  });
-  var ids = {'all':'nf-all','left':'nf-left','center-left':'nf-cl','center':'nf-c','center-right':'nf-cr','right':'nf-right'};
-  var el = document.getElementById(ids[band] || 'nf-all');
-  if (el) el.classList.add('wtf-act-filter--active');
-}
-</script>
 
 {% endblock %}

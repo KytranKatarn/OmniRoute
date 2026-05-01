@@ -8,23 +8,22 @@
     LIVE &middot; AI NEWSROOM
   </div>
   <h1 style="font-size:1.6rem;">AGENT ACTIVITY LOG</h1>
-  <p>Every analysis B.I.A.S. and V.E.R.I.F.Y. have run — bias scores, fact-check verdicts, sorted by most recent.</p>
+  <p>Every action across all 6 agents — ingests, scores, verdicts, geo-maps, summaries, clusters.</p>
 </div>
 
 <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
 
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
     <div style="color:#6b7280;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;">
-      {{ events|length }} events
+      {{ total }} events &middot; page {{ page }} / {{ total_pages }}
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;">
-      <button onclick="filterActivity('all')" id="btn-all" class="wtf-act-filter wtf-act-filter--active">All</button>
-      <button onclick="filterActivity('F.A.C.T.')" id="btn-fact" class="wtf-act-filter">F.A.C.T.</button>
-      <button onclick="filterActivity('B.I.A.S.')" id="btn-bias" class="wtf-act-filter">B.I.A.S.</button>
-      <button onclick="filterActivity('V.E.R.I.F.Y.')" id="btn-verify" class="wtf-act-filter">V.E.R.I.F.Y.</button>
-      <button onclick="filterActivity('L.O.C.A.L.')" id="btn-local" class="wtf-act-filter">L.O.C.A.L.</button>
-      <button onclick="filterActivity('D.R.A.F.T.')" id="btn-draft" class="wtf-act-filter">D.R.A.F.T.</button>
-      <button onclick="filterActivity('I.N.K.')" id="btn-ink" class="wtf-act-filter">I.N.K.</button>
+      {% set agents = [('all','All'),('F.A.C.T.','F.A.C.T.'),('B.I.A.S.','B.I.A.S.'),('V.E.R.I.F.Y.','V.E.R.I.F.Y.'),('L.O.C.A.L.','L.O.C.A.L.'),('D.R.A.F.T.','D.R.A.F.T.'),('I.N.K.','I.N.K.')] %}
+      {% for val, label in agents %}
+      <a href="/activity?agent={{ val }}&page=1"
+         class="wtf-act-filter {% if agent_filter == val %}wtf-act-filter--active{% endif %}"
+         style="text-decoration:none;">{{ label }}</a>
+      {% endfor %}
     </div>
   </div>
 
@@ -71,6 +70,18 @@
 
   {% if not events %}
   <div style="color:#555;text-align:center;padding:48px;font-size:0.8rem;">No activity recorded yet.</div>
+  {% endif %}
+
+  {% if total_pages > 1 %}
+  <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:24px 0;">
+    {% if page > 1 %}
+    <a href="/activity?agent={{ agent_filter }}&page={{ page - 1 }}" class="wtf-act-filter" style="text-decoration:none;">← Prev</a>
+    {% endif %}
+    <span style="color:#6b7280;font-size:0.7rem;">Page {{ page }} of {{ total_pages }} &middot; {{ total }} events</span>
+    {% if page < total_pages %}
+    <a href="/activity?agent={{ agent_filter }}&page={{ page + 1 }}" class="wtf-act-filter" style="text-decoration:none;">Next →</a>
+    {% endif %}
+  </div>
   {% endif %}
 
 </div>
@@ -141,22 +152,5 @@
 .wtf-act-result--unverifiable  { background: #111827; color: #6b7280; }
 </style>
 
-<script>
-var agentBtnMap = {
-  'all': 'btn-all', 'F.A.C.T.': 'btn-fact', 'B.I.A.S.': 'btn-bias',
-  'V.E.R.I.F.Y.': 'btn-verify', 'L.O.C.A.L.': 'btn-local',
-  'D.R.A.F.T.': 'btn-draft', 'I.N.K.': 'btn-ink'
-};
-function filterActivity(agent) {
-  document.querySelectorAll('.wtf-act-row').forEach(function(row) {
-    row.style.display = (agent === 'all' || row.dataset.agent === agent) ? '' : 'none';
-  });
-  document.querySelectorAll('.wtf-act-filter').forEach(function(btn) {
-    btn.classList.remove('wtf-act-filter--active');
-  });
-  var el = document.getElementById(agentBtnMap[agent] || 'btn-all');
-  if (el) el.classList.add('wtf-act-filter--active');
-}
-</script>
 
 {% endblock %}

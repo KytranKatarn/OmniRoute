@@ -123,7 +123,6 @@ def agent_activity():
             FROM {S}.bias_scores bs
             JOIN {S}.articles a ON a.id = bs.article_id
             JOIN {S}.sources s ON s.id = a.source_id
-            WHERE bs.analyzed_by = 'BIAS_LLM'
             ORDER BY bs.computed_at DESC LIMIT 5
         """)).fetchall()
 
@@ -133,7 +132,6 @@ def agent_activity():
             FROM {S}.fact_checks fc
             JOIN {S}.articles a ON a.id = fc.article_id
             JOIN {S}.sources s ON s.id = a.source_id
-            WHERE fc.analyzed_by = 'VERIFY_LLM'
             ORDER BY fc.checked_at DESC LIMIT 5
         """)).fetchall()
 

@@ -504,9 +504,9 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="wtf_hub",
         name="WTF Hub",
-        description="Internal Bridge dispatch surface for What The Fact ingest pipeline",
+        description="Orchestration hub for what-the-fact.com — Bridge dispatch, ingest pipeline, story clustering",
         icon="globe",
-        category=ModuleCategory.MEDIA_OUTREACH,
+        category=ModuleCategory.AI_COMMAND,
         route="/tools/wtf-hub",
         blueprint_import="tools.wtf_hub:wtf_hub_bp",
         required_permissions=[],
@@ -516,7 +516,7 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=None,
         priority=7,
-        tags=["wtf", "news", "media", "dispatch"],
+        tags=["wtf", "news", "orchestration", "ai-command"],
     ),
     ModuleDefinition(
         id="scheduler",

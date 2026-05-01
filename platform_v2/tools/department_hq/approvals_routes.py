@@ -189,7 +189,6 @@ def register_approvals_routes(bp, admin_required_decorator):
     """Register all approvals endpoints on the department_hq blueprint."""
 
     @bp.route("/api/approvals/pending", methods=["GET"])
-    @login_required
     @admin_required_decorator
     def approvals_pending():
         """List pending approvals from every source the platform uses.
@@ -387,7 +386,6 @@ def register_approvals_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": str(exc)}), 500
 
     @bp.route("/api/approvals/hire/<int:hire_id>/approve", methods=["POST"])
-    @login_required
     @admin_required_decorator
     def approve_hire(hire_id: int):
         """Approve a hiring_candidates row via web UI.
@@ -425,7 +423,6 @@ def register_approvals_routes(bp, admin_required_decorator):
         return jsonify(result), status
 
     @bp.route("/api/approvals/hire/<int:hire_id>/reject", methods=["POST"])
-    @login_required
     @admin_required_decorator
     def reject_hire(hire_id: int):
         """Reject a hiring_candidates row via web UI.
@@ -454,7 +451,6 @@ def register_approvals_routes(bp, admin_required_decorator):
         return jsonify(result), status
 
     @bp.route("/api/approvals/<path:approval_id>/approve", methods=["POST"])
-    @login_required
     @admin_required_decorator
     def approvals_approve(approval_id):
         """Approve a pending approval via web UI (mirrors Telegram approve).
@@ -499,7 +495,6 @@ def register_approvals_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": str(exc)}), 500
 
     @bp.route("/api/approvals/<path:approval_id>/deny", methods=["POST"])
-    @login_required
     @admin_required_decorator
     def approvals_deny(approval_id):
         """Deny a pending approval via web UI (mirrors Telegram deny).
@@ -535,7 +530,6 @@ def register_approvals_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": str(exc)}), 500
 
     @bp.route("/api/approvals/history", methods=["GET"])
-    @login_required
     @admin_required_decorator
     def approvals_history():
         """Recent approval history across all three sources."""

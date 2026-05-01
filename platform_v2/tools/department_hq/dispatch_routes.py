@@ -26,7 +26,6 @@ def register_dispatch_routes(bp, admin_required_decorator):
     """Register dispatch & orchestration monitoring endpoints."""
 
     @bp.route("/api/dispatch/overview", methods=["GET"])
-    @login_required
     @admin_required_decorator
     def dispatch_overview():
         """Aggregate endpoint: Ollama + active jobs + metrics + workload + loop jobs."""
@@ -239,7 +238,6 @@ def register_dispatch_routes(bp, admin_required_decorator):
     # ── Job Control Actions ──
 
     @bp.route("/api/dispatch/jobs/<name>/toggle", methods=["POST"])
-    @login_required
     @admin_required_decorator
     def dispatch_job_toggle(name):
         """Enable or disable a loop job."""
@@ -259,7 +257,6 @@ def register_dispatch_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": str(e)}), 500
 
     @bp.route("/api/dispatch/jobs/<name>/run", methods=["POST"])
-    @login_required
     @admin_required_decorator
     def dispatch_job_run(name):
         """Manually trigger a loop job."""
@@ -276,7 +273,6 @@ def register_dispatch_routes(bp, admin_required_decorator):
     # ── Server Loop Toggles ──
 
     @bp.route("/api/dispatch/loops", methods=["GET"])
-    @login_required
     @admin_required_decorator
     def dispatch_loops_status():
         """Get server loop statuses (embedding, analysis, translate)."""
@@ -291,7 +287,6 @@ def register_dispatch_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": str(e)}), 500
 
     @bp.route("/api/dispatch/loops/toggle", methods=["POST"])
-    @login_required
     @admin_required_decorator
     def dispatch_loop_toggle():
         """Toggle a server loop on/off."""
@@ -310,7 +305,6 @@ def register_dispatch_routes(bp, admin_required_decorator):
     # ── Approvals ──
 
     @bp.route("/api/dispatch/approvals", methods=["GET"])
-    @login_required
     @admin_required_decorator
     def dispatch_approvals():
         """Fetch approval queue items."""
@@ -345,7 +339,6 @@ def register_dispatch_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": str(e)}), 500
 
     @bp.route("/api/dispatch/approvals/<int:approval_id>/<action>", methods=["POST"])
-    @login_required
     @admin_required_decorator
     def dispatch_approval_action(approval_id, action):
         """Approve or reject an approval item."""
@@ -370,7 +363,6 @@ def register_dispatch_routes(bp, admin_required_decorator):
     # ── History ──
 
     @bp.route("/api/dispatch/history", methods=["GET"])
-    @login_required
     @admin_required_decorator
     def dispatch_history():
         """Unified dispatch + loop history."""
@@ -418,7 +410,6 @@ def register_dispatch_routes(bp, admin_required_decorator):
     # ── System Components ──
 
     @bp.route("/api/dispatch/components", methods=["GET"])
-    @login_required
     @admin_required_decorator
     def dispatch_components():
         """System health: Ollama, Telegram, scheduler, per-dept agent counts."""
@@ -494,7 +485,6 @@ def register_dispatch_routes(bp, admin_required_decorator):
     # ── Scheduler Jobs ──
 
     @bp.route("/api/dispatch/scheduler", methods=["GET"])
-    @login_required
     @admin_required_decorator
     def dispatch_scheduler():
         """APScheduler job list with next_run times."""
@@ -520,7 +510,6 @@ def register_dispatch_routes(bp, admin_required_decorator):
     # ── Configuration ──
 
     @bp.route("/api/dispatch/config", methods=["GET"])
-    @login_required
     @admin_required_decorator
     def dispatch_config():
         """Autonomy configuration key/value pairs."""
@@ -534,7 +523,6 @@ def register_dispatch_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": str(e)}), 500
 
     @bp.route("/api/dispatch/config/<key>", methods=["PUT"])
-    @login_required
     @admin_required_decorator
     def dispatch_config_update(key):
         """Update a config value."""
@@ -557,7 +545,6 @@ def register_dispatch_routes(bp, admin_required_decorator):
     # ── Job Monitoring by Department ──
 
     @bp.route("/api/jobs/by-department")
-    @login_required
     @admin_required_decorator
     def jobs_by_department():
         """Job monitoring — all jobs organized by department with failure stats."""
@@ -616,7 +603,6 @@ def register_dispatch_routes(bp, admin_required_decorator):
     # ── Repair Pipeline ──
 
     @bp.route("/api/dispatch/repair-pipeline", methods=["GET"])
-    @login_required
     @admin_required_decorator
     def dispatch_repair_pipeline():
         """Repair pipeline status: proposals, sessions, CREED, audits."""
@@ -668,7 +654,6 @@ def register_dispatch_routes(bp, admin_required_decorator):
     # ── Ops Summary (migrated from Autonomy — powers global alert bar) ──
 
     @bp.route("/api/dispatch/ops-summary", methods=["GET"])
-    @login_required
     @admin_required_decorator
     def dispatch_ops_summary():
         """Lightweight counts for the global ops alert bar."""

@@ -1643,7 +1643,7 @@ async function signalRunNow(btn) {
     btn.textContent = '⏳ Queuing...';
     btn.disabled = true;
     try {
-        await apiPost('/api/dispatch/jobs/signal_linkedin_draft/run', {});
+        await apiPost('/api/signal/run-now', {});
         btn.textContent = '✓ Queued';
         setTimeout(function() { btn.textContent = orig; btn.disabled = false; }, 3000);
     } catch (err) {

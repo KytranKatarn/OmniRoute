@@ -15,7 +15,7 @@ Endpoints:
   GET    /api/social/stats                          -- Social presence stats
 """
 
-from flask import jsonify, request
+from flask import current_app, jsonify, request
 from services.agent_service import get_agent
 from services.agent_social_service import (
     get_social_profiles,
@@ -551,3 +551,16 @@ def register_social_routes(bp, admin_required):
             },
         ]
         return jsonify({"themes": themes})
+
+    @bp.route("/api/signal/run-now", methods=["POST"])
+    @admin_required
+    def api_signal_run_now():
+        """Trigger signal_linkedin_draft job immediately via job service."""
+        try:
+            svc = current_app.config.get("JOB_SERVICE")
+            if not svc:
+                return jsonify({"success": False, "error": "Job service unavailable"}), 503
+            svc.run_job("signal_linkedin_draft")
+            return jsonify({"success": True, "message": "signal_linkedin_draft triggered"})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500

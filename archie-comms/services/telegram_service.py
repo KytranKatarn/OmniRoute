@@ -282,12 +282,19 @@ def send(
         import re as _re
         _safe_text = _re.sub(r'\*\*(.+?)\*\*', r'\1', text, flags=_re.DOTALL)
         _safe_text = _re.sub(r'__(.+?)__', r'\1', _safe_text, flags=_re.DOTALL)
+        _safe_text = _re.sub(r'\*([^*\n]+)\*', r'\1', _safe_text)
+        _safe_text = _re.sub(r'_([^_\n]+)_', r'\1', _safe_text)
+        _safe_text = _re.sub(r'`([^`\n]+)`', r'\1', _safe_text)
+        # Dynamic content (approvals, reports) can't be safely Markdown-escaped
+        # Use plain text for these categories to avoid HTTP 400 parse errors
+        _use_parse_mode = category not in ("approval_request", "security", "signal_checkin")
         _payload = {
             "chat_id": target,
             "text": _safe_text,
-            "parse_mode": "Markdown",
             "disable_web_page_preview": True,
         }
+        if _use_parse_mode:
+            _payload["parse_mode"] = "Markdown"
         if reply_markup is not None:
             _payload["reply_markup"] = reply_markup
         resp = requests.post(

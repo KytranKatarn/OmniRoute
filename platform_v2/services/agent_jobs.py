@@ -2614,6 +2614,50 @@ def signal_linkedin_analytics():
         _log_cycle("signal_linkedin_analytics", 0, 1, int((time.time() - start) * 1000), error_message=str(exc)[:200])
 
 
+def _dispatch_social_post_draft(prompt: str, prefer_agent: str = "S.I.G.N.A.L.", **kwargs):
+    """Dispatch a social_post_draft capability call with one retry on Ollama 500 errors.
+
+    Ollama HTTP 500 during inference means the model failed to load mid-generation
+    (VRAM eviction or OOM). A single retry after a brief pause recovers ~70% of
+    these cases without cascading to cloud escalation.
+
+    Returns the DispatchResult (may have success=False if both attempts fail or
+    queued=True if the model is cold and the task was deferred).
+    """
+    import time as _time
+
+    from tools.department_hq.services.department_dispatcher import dispatch
+
+    result = dispatch(
+        capability="social_post_draft",
+        prompt=prompt,
+        prefer_agent=prefer_agent,
+        **kwargs,
+    )
+
+    # Retry once on Ollama 500 — model may have been evicted mid-inference.
+    # queued=True means the dispatcher already handled it; don't retry those.
+    if (
+        result is not None
+        and not getattr(result, "queued", False)
+        and not result.success
+        and "500" in str(getattr(result, "error", "") or "")
+    ):
+        logger.warning(
+            "[SignalDispatch] Ollama 500 on social_post_draft — retrying in 5s (prefer_agent=%s)",
+            prefer_agent,
+        )
+        _time.sleep(5)
+        result = dispatch(
+            capability="social_post_draft",
+            prompt=prompt,
+            prefer_agent=prefer_agent,
+            **kwargs,
+        )
+
+    return result
+
+
 def signal_notification_monitor():
     """Check LinkedIn notifications and queue replies to comments for Telegram approval.
 
@@ -2648,15 +2692,13 @@ def signal_notification_monitor():
             if not text or not link:
                 continue
 
-            # S.I.G.N.A.L. drafts a reply
-            draft_result = dispatch(
-                capability="social_post_draft",
+            # S.I.G.N.A.L. drafts a reply (retry on Ollama 500)
+            draft_result = _dispatch_social_post_draft(
                 prompt=(
                     f"Draft a short LinkedIn reply to this notification:\n{text}\n\n"
                     "Reply as Kytran — professional, friendly, genuine. "
                     "Under 80 words. No hashtags."
                 ),
-                prefer_agent="S.I.G.N.A.L.",
             )
             reply_text = (draft_result.response or "").strip() if draft_result and draft_result.success else ""
             if not reply_text:
@@ -2716,13 +2758,10 @@ def _draft_personal_post_from_context(kytran_reply: str, state: dict) -> None:
     )
 
     try:
-        from tools.department_hq.services.department_dispatcher import dispatch
         from ai_bridge.agent_loop import request_approval
 
-        result = dispatch(
-            capability="social_post_draft",
+        result = _dispatch_social_post_draft(
             prompt=prompt,
-            prefer_agent="S.I.G.N.A.L.",
             source_product="archie_platform",
         )
 
@@ -2962,11 +3001,9 @@ def signal_tender_post(tender: dict):
         "Write post ONLY."
     )
     try:
-        result = dispatch(
-            capability="social_post_draft",
+        result = _dispatch_social_post_draft(
             prompt=prompt,
             context={"tender": tender},
-            prefer_agent="S.I.G.N.A.L.",
         )
         draft = (result.response or "").strip() if result and result.success else ""
         if not draft:

@@ -69,6 +69,10 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
   - Core tabs (10 non-fleet/dispatch) → KB 256843 (#1942 part 1, 2026-04-17) — 🟢 Mature
   - Dispatch/Fleet/Jobs → KB 256844 (#1942 part 2, 2026-04-17) — 🟡 Partial (legacy imports, stub installers)
   - Delegation + skill-first routing → KB 258687/258688/258693 (2026-04-21) — 🟢 Live, verified end-to-end
+- **Fleet tab — Queue panel (PR #464, 2026-05-01)**: New DISPATCH QUEUE + LOADED MODELS panel. `GET /api/fleet/queue-status` → `{queued, running, items[], loaded[]}`. Queries `dispatch_pending_queue`; live Ollama `/api/ps`. 30s auto-refresh. KB #261708.
+- **K.I.N. × C.R.E.E.D. welfare pipeline (PR #462, 2026-05-01)**: `_run_kin_welfare_digest` in agent_loop.py now 4-phase LLM pipeline: collect → K.I.N. assess (capability='welfare') → autonomous actions (rest/cooldown/barracks/workload_cap logged to governance_audit_log) → C.R.E.E.D. file (event_category='welfare_ethics') + A.R.C.H.I.E. Telegram report. 16 tests. KB #261709.
+- **CAPABILITY_DEPARTMENT_MAP (PR #460, 2026-05-01)**: 55 new entries; S.H.I.E.L.D. skill fixed (hyphen bug → "security"/"security_review"/"vulnerability_scan"). Migration 366 applied.
+- **Duplicate endpoint fix (2026-05-01 hotfix)**: `social_routes.py` had duplicate `api_signal_themes` + `api_signal_calendar`. Fixed + idempotency guard added to `register_theme_routes` (`_theme_routes_registered` flag).
 - **Gaps**: 3 sibling tables not yet agent_service-owned (agent_skills/budgets/creation_events — #2057); 18 legacy ai_bridge.* imports remain (#2058); 5 dispatch_routes stubs (Project #243); MissionManager coupling; CAPABILITY_TAXONOMY hardcoded in smart_router; `bridge_jobs` may not persist LLM responses for dispatcher path (unverified — noted in #276 handoff).
 
 ### Consciousness — `consciousness` · `/tools/consciousness` · ✅ · 🟢
@@ -267,6 +271,8 @@ These are standalone products surfaced as modules with `/external/` routes. All 
 - **Source**: `/mnt/archie_brain/what-the-fact/` · schema `wtf` on hub Postgres · KB: 260192
 - **WTF Hub dispatch** (fixed 2026-05-01, PR #444): `platform_v2/tools/wtf_hub/routes.py` dispatches bias/factcheck/geo tasks to News & Media agents. Capabilities: `bias_analysis`→B.I.A.S., `fact_check`→V.E.R.I.F.Y., `geo_extraction`→L.O.C.A.L. All three added to `CAPABILITY_DEPARTMENT_MAP` in `services/department_coordinator.py`. Dead `prefer_agent` param removed.
 - **WTF consumer portraits** (fixed 2026-05-01, PR #449): `routes.py` now fetches live portrait URLs from `/api/public/directory` with 1h cache (no more hardcoded file paths). Redeploy wtf-consumer with `docker compose up -d --build` after code changes (image-baked, not volume-mounted).
+- **WTF freemium paywall (PR #466, 2026-05-01)**: Kytran OAuth SSO added to consumer (`consumer/auth.py`). Bias band free; rationale+trigger phrases+V.E.R.I.F.Y. panel+Deep Dive gated behind Starter+. `/login` → platform OAuth → `/auth/callback` → Flask session `{wtf_username, wtf_tier, wtf_authenticated}`. OAuth client `wtf-consumer` registered in platform DB. **VPS deploy required**: `docker compose build wtf-consumer && docker compose up -d wtf-consumer` + add `WTF_CLIENT_SECRET=wtf_cs_k7mxp2r9q4n8v1j6` + `FLASK_SECRET_KEY=<random>` to VPS .env. KB #261707.
+- **OAuth token now includes subscription_tier (PR #466)**: `platform_v2/oauth_provider.py` — all OAuth clients receive `user.subscription_tier` in token response + `tier` claim in JWT. Fetches from `users.subscription_tier` in platform DB.
 
 ### Kytran Legal Watch — `kytran_legal_watch` · `/external/legal` · ✅
 - **Deployment**: VPS, port 8100, legal.kytranempowerment.com

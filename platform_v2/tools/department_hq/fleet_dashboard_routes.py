@@ -1385,3 +1385,61 @@ def register_dashboard_routes(bp, auth_decorator):
         except Exception as e:
             logger.error(f"Workload scores error: {e}")
             return jsonify(success=False, error=str(e)[:200]), 500
+
+    @bp.route("/api/fleet/queue-status")
+    @auth_decorator
+    def api_fleet_queue_status():
+        """Dispatch queue depth by model + live loaded models on hub Ollama."""
+        import json as _json
+        import urllib.request as _ureq
+
+        try:
+            with get_db_cursor(commit=False) as (_, cur):
+                cur.execute(
+                    """
+                    SELECT model_needed, capability, status, COUNT(*) AS cnt,
+                           MIN(queued_at) AS oldest
+                    FROM dispatch_pending_queue
+                    WHERE status IN ('queued', 'running')
+                    GROUP BY model_needed, capability, status
+                    ORDER BY status DESC, cnt DESC
+                    """
+                )
+                items = [
+                    {
+                        "model": r["model_needed"],
+                        "capability": r["capability"],
+                        "status": r["status"],
+                        "count": r["cnt"],
+                        "oldest": r["oldest"].isoformat() if r["oldest"] else None,
+                    }
+                    for r in cur.fetchall()
+                ]
+                cur.execute(
+                    """
+                    SELECT status, COUNT(*) AS cnt
+                    FROM dispatch_pending_queue
+                    WHERE status IN ('queued', 'running')
+                    GROUP BY status
+                    """
+                )
+                totals = {r["status"]: r["cnt"] for r in cur.fetchall()}
+
+            loaded = []
+            try:
+                resp = _ureq.urlopen("http://192.168.1.200:11434/api/ps", timeout=3)
+                for m in _json.loads(resp.read()).get("models", []):
+                    loaded.append({"name": m["name"], "vram_gb": round(m.get("size_vram", 0) / 1e9, 1)})
+            except Exception:
+                pass
+
+            return jsonify(
+                success=True,
+                queued=totals.get("queued", 0),
+                running=totals.get("running", 0),
+                items=items,
+                loaded=loaded,
+            )
+        except Exception as exc:
+            logger.error("api_fleet_queue_status: %s", exc)
+            return jsonify(success=False, error=str(exc)[:200]), 500

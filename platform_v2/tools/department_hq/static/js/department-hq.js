@@ -2519,6 +2519,7 @@ function loadFleet() {
         loadFleetUsage();
         loadCloudProviders();
         loadProviderManagement();
+        loadQueueStatus();
         startFleetRefresh();
     }, 200);
 }
@@ -2538,7 +2539,98 @@ function startFleetRefresh() {
         loadFleetUsage();
         loadCloudProviders();
         loadProviderManagement();
+        loadQueueStatus();
     }, 30000);
+}
+
+/* ============================================================
+   DISPATCH QUEUE & MODEL LOAD STATUS — task #2522
+   All values are escaped with escHtml() before DOM insertion.
+   ============================================================ */
+function loadQueueStatus() {
+    fetch('/tools/department-hq/api/fleet/queue-status')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var total = (data.queued || 0) + (data.running || 0);
+
+            // Badge
+            var badge = document.getElementById('queueTotalBadge');
+            if (badge) {
+                if (total === 0) {
+                    badge.textContent = 'idle';
+                    badge.style.color = 'var(--dhq-text-dim)';
+                } else {
+                    badge.textContent = data.queued + ' queued · ' + data.running + ' running';
+                    badge.style.color = data.running > 0 ? '#10b981' : '#f59e0b';
+                }
+            }
+
+            // Queue items
+            var qp = document.getElementById('queueItemsPanel');
+            if (qp) {
+                if (!data.items || data.items.length === 0) {
+                    qp.textContent = '';
+                    var idle = document.createElement('span');
+                    idle.style.cssText = 'color:var(--dhq-text-dim);font-style:italic;';
+                    idle.textContent = 'No pending dispatches';
+                    qp.appendChild(idle);
+                } else {
+                    qp.textContent = '';
+                    data.items.forEach(function(item) {
+                        var row = document.createElement('div');
+                        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);';
+                        var dot = document.createElement('span');
+                        dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + (item.status === 'running' ? '#10b981' : '#f59e0b') + ';';
+                        var model = document.createElement('span');
+                        model.style.cssText = 'color:var(--dhq-text-main);font-family:"IBM Plex Mono",monospace;font-size:0.75rem;';
+                        model.textContent = item.model;
+                        var cap = document.createElement('span');
+                        cap.style.cssText = 'color:var(--dhq-text-dim);font-size:0.72rem;';
+                        cap.textContent = item.capability;
+                        var cnt = document.createElement('span');
+                        cnt.style.cssText = 'margin-left:auto;font-weight:600;color:' + (item.status === 'running' ? '#10b981' : '#f59e0b') + ';';
+                        cnt.textContent = item.count + '×';
+                        var st = document.createElement('span');
+                        st.style.cssText = 'color:var(--dhq-text-dim);font-size:0.68rem;text-transform:uppercase;';
+                        st.textContent = item.status;
+                        row.appendChild(dot); row.appendChild(model); row.appendChild(cap);
+                        row.appendChild(cnt); row.appendChild(st);
+                        qp.appendChild(row);
+                    });
+                }
+            }
+
+            // Loaded models
+            var countEl = document.getElementById('loadedModelCount');
+            if (countEl) countEl.textContent = data.loaded && data.loaded.length ? data.loaded.length + ' loaded' : '';
+            var lp = document.getElementById('loadedModelsPanel');
+            if (lp) {
+                lp.textContent = '';
+                if (!data.loaded || data.loaded.length === 0) {
+                    var none = document.createElement('span');
+                    none.style.cssText = 'color:var(--dhq-text-dim);font-style:italic;';
+                    none.textContent = 'No models currently loaded in VRAM';
+                    lp.appendChild(none);
+                } else {
+                    data.loaded.forEach(function(m) {
+                        var row = document.createElement('div');
+                        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);';
+                        var dot = document.createElement('span');
+                        dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#10b981;flex-shrink:0;';
+                        var name = document.createElement('span');
+                        name.style.cssText = 'color:var(--dhq-text-main);font-family:"IBM Plex Mono",monospace;font-size:0.75rem;';
+                        name.textContent = m.name;
+                        var vram = document.createElement('span');
+                        vram.style.cssText = 'margin-left:auto;color:var(--dhq-text-dim);font-size:0.72rem;';
+                        vram.textContent = m.vram_gb + ' GB VRAM';
+                        row.appendChild(dot); row.appendChild(name); row.appendChild(vram);
+                        lp.appendChild(row);
+                    });
+                }
+            }
+        })
+        .catch(function() {});
 }
 
 function stopFleetRefresh() {

@@ -341,6 +341,21 @@
         <div id="fleetProvidersGrid"></div>
       </div>
 
+      <!-- Dispatch Queue & Model Load Status -->
+      <div class="dhq-dispatch-section" id="queueStatusSection">
+        <div class="dhq-section-title">
+          DISPATCH QUEUE
+          <span id="queueTotalBadge" style="margin-left:8px;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--dhq-text-dim);">--</span>
+          <button onclick="loadQueueStatus()" style="float:right;background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">↻ REFRESH</button>
+        </div>
+        <div id="queueItemsPanel" style="font-size:0.78rem;min-height:24px;"></div>
+        <div class="dhq-section-title" style="margin-top:14px;">
+          LOADED MODELS — HUB
+          <span id="loadedModelCount" style="margin-left:8px;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--dhq-text-dim);"></span>
+        </div>
+        <div id="loadedModelsPanel" style="font-size:0.78rem;min-height:24px;"></div>
+      </div>
+
       <!-- Fleet Detail Panel (hidden by default) -->
       <div id="fleetDetailPanel" style="display:none;">
         <div class="dhq-section-title" id="fleetDetailTitle">Node Details</div>

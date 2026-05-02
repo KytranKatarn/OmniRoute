@@ -2399,9 +2399,10 @@ def _get_agent_models():
                     ON tel.agent_name = a.name
                     AND tel.created_at > NOW() - INTERVAL '7 days'
                 WHERE a.status = 'active'
+                    AND a.worker_type = 'ai'
                     AND a.model IS NOT NULL AND a.model != '' AND a.model != 'none'
                     AND a.model NOT LIKE '%%:cloud'
-                    AND COALESCE(a.shift_state, 'active') != 'barracked'
+                    AND a.shift_state NOT IN ('barracked', 'decommissioned')
                 GROUP BY a.model
                 ORDER BY dispatch_count DESC
             """
@@ -2415,9 +2416,10 @@ def _get_agent_models():
                 cur.execute(
                     """
                     SELECT DISTINCT model FROM agents
-                    WHERE status = 'active' AND model IS NOT NULL AND model != ''
+                    WHERE status = 'active' AND worker_type = 'ai'
+                        AND model IS NOT NULL AND model != ''
                         AND model NOT LIKE '%%:cloud'
-                        AND COALESCE(shift_state, 'active') != 'barracked'
+                        AND shift_state NOT IN ('barracked', 'decommissioned')
                 """
                 )
                 for row in cur.fetchall():

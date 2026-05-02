@@ -4198,32 +4198,67 @@ class AgentLoop:
             logger.error("triage_consumer failed: %s", e)
 
     def _run_kin_welfare_digest(self):
-        """Daily K.I.N. digest — welfare (stress/mood) + budget utilization.
+        """Daily K.I.N. digest — 4-phase welfare intelligence pipeline.
 
-        Delegates the aggregation to
-        ``services.agent_service.get_kin_welfare_digest`` (single source of
-        truth). Always writes an ``autonomy_loop_log`` row; surfaces a
-        ``system_notifications`` row when severity ≥ 'warning' and a
-        Telegram alert when severity == 'error'.
+        Phase 1: get_kin_welfare_digest() collects raw data (Python, unchanged).
+        Phase 2: K.I.N. LLM assessment via dispatcher (_kin_assess_welfare).
+        Phase 3: K.I.N. autonomous actions — recovery/cooldown/barracks/workload_cap.
+        Phase 4: C.R.E.E.D. governance filings + A.R.C.H.I.E. severity report.
 
-        The MCP tool ``mcp__archie__get_welfare_digest`` composes onto the
-        same service function so Kytran can poll on demand.
+        Graceful degradation: if K.I.N. dispatch fails, falls back to error-severity
+        Telegram (old behaviour) and still logs the cycle.
         """
         start = time.time()
         try:
             import sys
-
             sys.path.insert(0, "/mnt/archie_brain/platform_v2")
             from services.agent_service import (
                 format_kin_digest_message,
                 get_kin_welfare_digest,
             )
 
+            # Phase 1: Data collection
             digest = get_kin_welfare_digest()
             severity = digest["severity"]
             metrics = digest["summary_metrics"]
-            duration_ms = int((time.time() - start) * 1000)
 
+            # Phase 2: K.I.N. LLM assessment
+            assessment = self._kin_assess_welfare(digest)
+            duration_ms = int((time.time() - start) * 1000)
+            actions_taken = 0
+            flags_filed = 0
+
+            if assessment:
+                conn = get_db()
+                try:
+                    # Phase 3: Autonomous actions
+                    actions_taken = self._kin_execute_actions(
+                        assessment.get("actions", []), conn
+                    )
+                    # Phase 4a: C.R.E.E.D. ethics filing
+                    flags_filed = self._kin_file_creed(
+                        assessment.get("creed_flags", []), conn
+                    )
+                finally:
+                    conn.close()
+
+                # Phase 4b: A.R.C.H.I.E. severity report
+                try:
+                    self._kin_report_to_archie(
+                        assessment["archie_report"], actions_taken, flags_filed
+                    )
+                except Exception as report_err:
+                    logger.warning("K.I.N.: A.R.C.H.I.E. report failed: %s", report_err)
+
+            else:
+                # K.I.N. unavailable — fallback: send Telegram directly for error severity
+                if severity == "error":
+                    try:
+                        self._send_telegram(format_kin_digest_message(digest))
+                    except Exception:
+                        pass
+
+            # Always log the cycle
             self._log_cycle(
                 job_name="kin_welfare_digest",
                 items_processed=metrics["per_agent_flag_count"],
@@ -4234,15 +4269,19 @@ class AgentLoop:
                     "summary_metrics": metrics,
                     "reasons": digest.get("reasons", []),
                     "department_count": metrics["department_count"],
+                    "kin_assessed": assessment is not None,
+                    "actions_taken": actions_taken,
+                    "creed_flags_filed": flags_filed,
                 },
             )
 
+            # Legacy system_notifications for warning/error (keeps dashboard alert working)
             if severity in ("warning", "error"):
-                body = format_kin_digest_message(digest)
                 try:
-                    conn = get_db()
-                    cur = conn.cursor()
-                    cur.execute(
+                    body = format_kin_digest_message(digest)
+                    conn2 = get_db()
+                    cur2 = conn2.cursor()
+                    cur2.execute(
                         """
                         INSERT INTO system_notifications
                           (type, title, message, source, priority, source_icon,
@@ -4263,103 +4302,247 @@ class AgentLoop:
                             psycopg2.extras.Json(metrics),
                         ),
                     )
-                    conn.commit()
-                    cur.close()
-                    conn.close()
+                    conn2.commit()
+                    cur2.close()
+                    conn2.close()
                 except Exception as notify_err:
                     logger.warning(
-                        "K.I.N. digest: system_notifications insert failed: %s",
-                        notify_err,
+                        "K.I.N. digest: system_notifications insert failed: %s", notify_err
                     )
 
-            if severity == "error":
-                try:
-                    self._send_telegram(format_kin_digest_message(digest))
-                except Exception as tg_err:
-                    logger.warning(
-                        "K.I.N. digest: Telegram dispatch failed: %s", tg_err
-                    )
-
-            # Forward welfare violations to C.R.E.E.D. governance event log
-            # (fire-and-forget — never block the digest)
-            try:
-                import os as _os
-                import requests as _req
-
-                _creed_url = _os.getenv("CREED_API_URL", "http://192.168.1.200:8086")
-                _creed_token = _os.getenv("CREED_SERVICE_TOKEN", "")
-                _headers = {"Content-Type": "application/json"}
-                if _creed_token:
-                    _headers["Authorization"] = f"Bearer {_creed_token}"
-                for _flag in digest.get("per_agent_flags", []):
-                    _ft = _flag.get("flag", "")
-                    if _ft == "starving_idle":
-                        _ev = {
-                            "category": "accountability",
-                            "severity": "warning",
-                            "event_type": "agent_starvation",
-                            "agent_id": str(_flag["agent_id"]),
-                            "description": (
-                                f"Agent {_flag['name']} ({_flag['department']}) "
-                                "active but receiving no dispatch work"
-                            ),
-                        }
-                    elif _ft == "over_budget":
-                        _ev = {
-                            "category": "fairness",
-                            "severity": "warning",
-                            "event_type": "budget_overrun",
-                            "agent_id": str(_flag["agent_id"]),
-                            "description": (
-                                f"Agent {_flag['name']} used "
-                                f">{int(_flag.get('token_usage_pct', 0) * 100)}% "
-                                "of daily token budget"
-                            ),
-                        }
-                    elif _flag.get("stress_trend") == "rising" and _flag.get("stress_level", 0) > 0.8:
-                        _ev = {
-                            "category": "safety",
-                            "severity": "violation",
-                            "event_type": "welfare_stress_critical",
-                            "agent_id": str(_flag["agent_id"]),
-                            "description": (
-                                f"Agent {_flag['name']} critical stress "
-                                f"{_flag['stress_level']:.2f} (trend: rising)"
-                            ),
-                        }
-                    else:
-                        continue
-                    try:
-                        _req.post(
-                            f"{_creed_url}/api/v1/events",
-                            json=_ev,
-                            headers=_headers,
-                            timeout=5,
-                        )
-                    except Exception:
-                        pass
-            except Exception as _creed_err:
-                logger.debug("K.I.N. digest: C.R.E.E.D. bridge error: %s", _creed_err)
-
-            logger.info(
-                "K.I.N. welfare digest: severity=%s flags=%d in %dms",
-                severity,
-                metrics["per_agent_flag_count"],
-                duration_ms,
-            )
-        except Exception as e:
+        except Exception as exc:
             duration_ms = int((time.time() - start) * 1000)
-            logger.error("K.I.N. welfare digest failed: %s", e)
+            self._log_cycle(
+                job_name="kin_welfare_digest",
+                items_processed=0,
+                items_failed=1,
+                duration_ms=duration_ms,
+                error_message=str(exc)[:200],
+            )
+            logger.exception("K.I.N. welfare digest failed")
+
+    def _kin_assess_welfare(self, digest: dict):
+        """Phase 2: Dispatch to K.I.N. for LLM welfare assessment. Returns parsed dict or None."""
+        import json as _json
+        import os as _os
+        import sys as _sys
+        _platform_v2 = _os.path.join(
+            _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+            "platform_v2"
+        )
+        _sys.path.insert(0, _platform_v2)
+        import tools.department_hq.services.department_dispatcher as _ddd
+
+        metrics = digest.get("summary_metrics", {})
+        flags = digest.get("per_agent_flags", [])[:20]  # cap prompt size
+
+        prompt = (
+            "You are K.I.N. (Kinship & Internal Nurturing), Director of Human Resources & Culture "
+            "on the A.R.C.H.I.E. platform.\n"
+            f"Today's welfare snapshot:\n{_json.dumps({'metrics': metrics, 'agent_flags': flags}, indent=2)}\n\n"
+            "Assess the platform's welfare state. Return ONLY valid JSON with this exact schema "
+            "(no markdown, no explanation):\n"
+            '{"summary":"<2-3 sentences>","at_risk_agents":[{"agent_id":0,"name":"","reason":"","severity":"low"}],'
+            '"idle_neglected":[{"agent_id":0,"name":"","days_idle":0,"department":""}],'
+            '"actions":[{"type":"welfare_recovery","agent_id":0,"reason":"","value":null}],'
+            '"creed_flags":[{"event_type":"","agent_id":0,"reason":"","severity":"low"}],'
+            '"archie_report":{"message":"","severity":"info"}}'
+        )
+
+        try:
+            result = _ddd.dispatch(
+                capability="welfare",
+                prompt=prompt,
+                prefer_agent="K.I.N.",
+                source_product="archie_platform",
+            )
+        except Exception as exc:
+            logger.warning("K.I.N. welfare: dispatch failed: %s", exc)
+            return None
+
+        if not result or getattr(result, "queued", False) or not result.success:
+            return None
+
+        try:
+            import re as _re
+            text = (result.response or "").strip()
+            text = _re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
+            return _json.loads(text.strip())
+        except Exception:
+            logger.warning("K.I.N. welfare: failed to parse JSON from K.I.N. response")
+            return None
+
+    def _kin_execute_actions(self, actions: list, conn) -> int:
+        """Phase 3: Execute K.I.N.'s autonomous welfare decisions. Returns count of applied actions."""
+        import sys as _sys
+        import os as _os
+        import psycopg2.extras as _extras
+        from datetime import date as _date
+        _platform_v2 = _os.path.join(
+            _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+            "platform_v2"
+        )
+        _sys.path.insert(0, _platform_v2)
+        from services.agent_service import recover_idle, transition_shift_state
+        from database import get_db_cursor
+
+        applied = 0
+        for action in actions:
+            action_type = action.get("type")
+            agent_id = action.get("agent_id")
+            reason = action.get("reason", "K.I.N. welfare assessment")
+            if not action_type or not agent_id:
+                try:
+                    cur = conn.cursor()
+                    try:
+                        cur.execute(
+                            """INSERT INTO governance_audit_log
+                               (event_type, event_category, agent_id, action, reason, outcome, details)
+                               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                            (
+                                "kin_welfare_action", "welfare_ethics", agent_id,
+                                action_type or "unknown", reason, "skipped",
+                                _extras.Json({"filed_by": "K.I.N.", "digest_date": str(_date.today()), "skip_reason": "missing agent_id or action_type"}),
+                            ),
+                        )
+                        conn.commit()
+                    finally:
+                        cur.close()
+                except Exception:
+                    pass
+                continue
+
+            outcome = "applied"
             try:
-                self._log_cycle(
-                    job_name="kin_welfare_digest",
-                    items_processed=0,
-                    items_failed=1,
-                    duration_ms=duration_ms,
-                    error_message=str(e),
-                )
-            except Exception:
-                pass
+                if action_type == "welfare_recovery":
+                    recover_idle(agent_id)
+                elif action_type == "cooldown":
+                    transition_shift_state(agent_id, "cooldown", "kin_welfare_action")
+                elif action_type == "barracks":
+                    transition_shift_state(agent_id, "barracked", "kin_welfare_action")
+                elif action_type == "workload_cap":
+                    cap = int(action.get("value") or 25)
+                    with get_db_cursor(commit=True) as (_, cur):
+                        cur.execute(
+                            "UPDATE agent_budgets SET task_queue_limit = %s WHERE agent_id = %s",
+                            (cap, agent_id),
+                        )
+                        if cur.rowcount == 0:
+                            raise ValueError(f"No agent_budgets row for agent_id={agent_id}")
+                else:
+                    continue
+                applied += 1
+            except Exception as exc:
+                logger.warning("K.I.N. action %s on agent %s failed: %s", action_type, agent_id, exc)
+                outcome = "failed"
+
+            try:
+                cur = conn.cursor()
+                try:
+                    cur.execute(
+                        """INSERT INTO governance_audit_log
+                           (event_type, event_category, agent_id, action, reason, outcome, details)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                        (
+                            "kin_welfare_action", "welfare_ethics", agent_id,
+                            action_type, reason, outcome,
+                            _extras.Json({"filed_by": "K.I.N.", "digest_date": str(_date.today())}),
+                        ),
+                    )
+                    conn.commit()
+                finally:
+                    cur.close()
+            except Exception as log_exc:
+                logger.warning("K.I.N.: governance log failed for action %s: %s", action_type, log_exc)
+
+        return applied
+
+    def _kin_file_creed(self, creed_flags: list, conn) -> int:
+        """Phase 4a: File K.I.N.'s ethics concerns to C.R.E.E.D. governance_audit_log.
+        Returns count of filed entries. Non-fatal — logs warnings on failure."""
+        import psycopg2.extras as _extras
+        from datetime import date as _date
+
+        filed = 0
+        for flag in creed_flags:
+            try:
+                cur = conn.cursor()
+                try:
+                    cur.execute(
+                        """INSERT INTO governance_audit_log
+                           (event_type, event_category, agent_id, action, reason, outcome, details)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                        (
+                            flag.get("event_type", "ethics_concern"),
+                            "welfare_ethics",
+                            flag.get("agent_id"),
+                            "ethics_concern",
+                            flag.get("reason", ""),
+                            "flagged",
+                            _extras.Json({
+                                "severity": flag.get("severity", "low"),
+                                "filed_by": "K.I.N.",
+                                "digest_date": str(_date.today()),
+                            }),
+                        ),
+                    )
+                    conn.commit()
+                    filed += 1
+                finally:
+                    cur.close()
+            except Exception as exc:
+                logger.warning("K.I.N.: C.R.E.E.D. filing failed for %s: %s", flag.get("event_type"), exc)
+        return filed
+
+    def _kin_report_to_archie(self, archie_report: dict, actions_taken: int, flags_filed: int):
+        """Phase 4b: Route K.I.N.'s welfare report through A.R.C.H.I.E. with severity-based escalation.
+
+        K.I.N. reports UP to A.R.C.H.I.E. — never directly to Telegram.
+        A.R.C.H.I.E. controls the outbound voice based on severity.
+          critical/alert → send (category="alert") → immediate Telegram push
+          warning        → send (category="info")  → included in digest
+          info           → internal log only, no Telegram
+        """
+        import sys as _sys
+        import os as _os
+        _platform_v2 = _os.path.join(
+            _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+            "platform_v2"
+        )
+        _sys.path.insert(0, _platform_v2)
+        from services.telegram_service import send as tg_send
+
+        severity = archie_report.get("severity", "info")
+        message = archie_report.get("message", "K.I.N. welfare assessment complete.")
+        if actions_taken or flags_filed:
+            message += f"\n\n✅ Actions taken: {actions_taken} | C.R.E.E.D. filings: {flags_filed}"
+
+        common_kwargs = dict(
+            source_agent="K.I.N.",
+            source_department="Human Resources & Culture",
+            source_module="agent_loop",
+        )
+
+        if severity in ("critical", "alert"):
+            tg_send(
+                category="alert",
+                title="K.I.N. Welfare Alert",
+                message=message,
+                **common_kwargs,
+            )
+        elif severity == "warning":
+            tg_send(
+                category="info",
+                title="K.I.N. Welfare Digest",
+                message=message,
+                **common_kwargs,
+            )
+        # severity == "info" → no Telegram; A.R.C.H.I.E. stays quiet on healthy days
+
+        logger.info(
+            "K.I.N. welfare report sent: severity=%s actions=%d creed=%d",
+            severity, actions_taken, flags_filed,
+        )
 
     # ------------------------------------------------------------------
     # F.O.R.G.E. Dependency Drift Audit (Project #272 Phase 2 / Task #2109)

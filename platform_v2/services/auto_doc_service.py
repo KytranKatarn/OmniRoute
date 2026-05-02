@@ -162,15 +162,11 @@ def generate_project_docs(project_id: int, gap_data: Optional[Dict] = None) -> D
         if not prompt:
             return {"success": False, "kb_id": None, "error": "Failed to build prompt"}
 
-        # Dispatch to D.A.R.W.I.N.
-        import sys
+        # Dispatch to D.A.R.W.I.N. via canonical dispatcher
+        from tools.department_hq.services.department_dispatcher import dispatch
 
-        sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-        from bridge_dispatcher import get_dispatcher
-
-        dispatcher = get_dispatcher()
-        result = dispatcher.request_work(
-            capability="auto_document",
+        result = dispatch(
+            capability="research",
             prompt=prompt,
             module_id="consciousness",
             system_prompt="You are D.A.R.W.I.N., Research & Development director. Generate structured project intelligence reports. Always respond with valid JSON.",

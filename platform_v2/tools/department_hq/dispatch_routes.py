@@ -740,3 +740,106 @@ def register_dispatch_routes(bp, admin_required_decorator):
         except Exception as e:
             logger.error("[Dispatch] Ops summary failed: %s", e)
             return jsonify({"approvals": {}, "active_jobs": {}, "errors_1h": {}, "alerts": []})
+
+    # ── Dispatch Traffic Panel ──
+
+    @bp.route("/api/dispatch/traffic", methods=["GET"])
+    @admin_required_decorator
+    def dispatch_traffic():
+        """Live dispatch traffic feed and aggregations — powers Traffic Panel (Decision #540)."""
+        hours = min(int(request.args.get("hours", 1)), 24)
+        limit = min(int(request.args.get("limit", 30)), 100)
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT agent_name, capability, model_used, module_source,
+                              success, duration_ms, created_at
+                       FROM task_execution_log
+                       WHERE created_at > NOW() - INTERVAL '%s hours'
+                       ORDER BY created_at DESC LIMIT %s""",
+                    (hours, limit),
+                )
+                feed = []
+                for row in cur.fetchall():
+                    r = dict(row)
+                    feed.append(
+                        {
+                            "agent": r.get("agent_name") or "—",
+                            "capability": r.get("capability") or "—",
+                            "model": r.get("model_used") or "—",
+                            "source": r.get("module_source") or "—",
+                            "success": r.get("success"),
+                            "duration_ms": r.get("duration_ms"),
+                            "ts": r["created_at"].isoformat() if r.get("created_at") else None,
+                        }
+                    )
+
+                cur.execute(
+                    """SELECT COALESCE(module_source, 'unknown') AS label,
+                              COUNT(*) AS total,
+                              COUNT(*) FILTER (WHERE success) AS successes,
+                              ROUND(AVG(duration_ms))::int AS avg_ms
+                       FROM task_execution_log
+                       WHERE created_at > NOW() - INTERVAL '%s hours'
+                       GROUP BY module_source ORDER BY total DESC LIMIT 15""",
+                    (hours,),
+                )
+                by_source = [dict(r) for r in cur.fetchall()]
+
+                cur.execute(
+                    """SELECT COALESCE(agent_name, 'unknown') AS label,
+                              COUNT(*) AS total,
+                              COUNT(*) FILTER (WHERE success) AS successes,
+                              ROUND(AVG(duration_ms))::int AS avg_ms
+                       FROM task_execution_log
+                       WHERE created_at > NOW() - INTERVAL '%s hours'
+                       GROUP BY agent_name ORDER BY total DESC LIMIT 15""",
+                    (hours,),
+                )
+                by_agent = [dict(r) for r in cur.fetchall()]
+
+                cur.execute(
+                    """SELECT COALESCE(model_used, 'unknown') AS label,
+                              COUNT(*) AS total,
+                              COUNT(*) FILTER (WHERE success) AS successes,
+                              ROUND(AVG(duration_ms))::int AS avg_ms
+                       FROM task_execution_log
+                       WHERE created_at > NOW() - INTERVAL '%s hours'
+                       GROUP BY model_used ORDER BY total DESC LIMIT 15""",
+                    (hours,),
+                )
+                by_model = [dict(r) for r in cur.fetchall()]
+
+                by_node = []
+                try:
+                    cur.execute(
+                        """SELECT COALESCE(rn.node_name, 'hub') AS label,
+                                  COUNT(*) AS total
+                           FROM dispatch_pending_queue dpq
+                           LEFT JOIN remote_nodes rn ON dpq.node_id = rn.id
+                           WHERE dpq.created_at > NOW() - INTERVAL '%s hours'
+                           GROUP BY rn.node_name ORDER BY total DESC LIMIT 10""",
+                        (hours,),
+                    )
+                    by_node = [dict(r) for r in cur.fetchall()]
+                except Exception:
+                    pass
+
+            total = len(feed)
+            successes = sum(1 for f in feed if f["success"])
+            return jsonify(
+                {
+                    "success": True,
+                    "hours": hours,
+                    "total": total,
+                    "success_rate": round(successes / total * 100) if total else 0,
+                    "feed": feed,
+                    "by_source": by_source,
+                    "by_agent": by_agent,
+                    "by_model": by_model,
+                    "by_node": by_node,
+                }
+            )
+        except Exception as e:
+            logger.error("[Dispatch] Traffic failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500

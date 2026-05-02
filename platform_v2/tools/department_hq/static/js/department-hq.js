@@ -2128,6 +2128,7 @@ async function loadDispatch() {
     loadDispatchConfig();
     loadDispatchRepairPipeline();
     loadJobMonitoring();
+    loadDispatchTraffic();
 }
 
 function renderOllamaHud(o) {
@@ -2445,6 +2446,89 @@ async function loadDispatchRepairPipeline() {
         html += '</div>';
         setHtml(el, html);
     } catch(e) { setHtml(el, '<div class="dhq-empty">Pipeline unavailable</div>'); }
+}
+
+// ───────────────────────────────────────────────────────────────
+// Dispatch Traffic Panel (Decision #540)
+// ───────────────────────────────────────────────────────────────
+
+var _trafficData = null;
+var _trafficView = 'feed';
+
+async function loadDispatchTraffic() {
+    var el = document.getElementById('trafficContent');
+    var sumEl = document.getElementById('trafficSummary');
+    if (!el) return;
+    var hours = (document.getElementById('trafficHours') || {}).value || 1;
+    try {
+        _trafficData = await api('/api/dispatch/traffic?hours=' + hours);
+        if (sumEl) {
+            var rate = _trafficData.success_rate != null ? _trafficData.success_rate + '% ok' : '';
+            sumEl.textContent = '(' + (_trafficData.total || 0) + ' dispatches · ' + rate + ')';
+        }
+        showTrafficView(_trafficView);
+    } catch(e) {
+        setHtml(el, '<div class="dhq-empty">Traffic unavailable: ' + esc(e.message) + '</div>');
+    }
+}
+
+function showTrafficView(view) {
+    _trafficView = view;
+    ['feed','source','agent','model'].forEach(function(v) {
+        var btn = document.getElementById('trafficBtn-' + v);
+        if (btn) btn.className = 'dhq-traffic-btn' + (v === view ? ' dhq-traffic-btn-active' : '');
+    });
+    var el = document.getElementById('trafficContent');
+    if (!el || !_trafficData) return;
+    if (view === 'feed') {
+        var rows = (_trafficData.feed || []);
+        if (!rows.length) { setHtml(el, '<div class="dhq-empty">No dispatches in window</div>'); return; }
+        var html = '<table style="width:100%;border-collapse:collapse;font-size:0.72rem">'
+            + '<tr style="color:var(--dhq-text-dim);border-bottom:1px solid var(--dhq-border)">'
+            + '<th style="text-align:left;padding:2px 6px;font-weight:400">TIME</th>'
+            + '<th style="text-align:left;padding:2px 6px;font-weight:400">AGENT</th>'
+            + '<th style="text-align:left;padding:2px 6px;font-weight:400">CAPABILITY</th>'
+            + '<th style="text-align:left;padding:2px 6px;font-weight:400">MODEL</th>'
+            + '<th style="text-align:left;padding:2px 6px;font-weight:400">SOURCE</th>'
+            + '<th style="text-align:right;padding:2px 6px;font-weight:400">MS</th>'
+            + '</tr>';
+        rows.forEach(function(r) {
+            var ok = r.success;
+            var dot = '<span style="color:' + (ok ? '#10B981' : '#EF4444') + '">' + (ok ? '✓' : '✗') + '</span>';
+            html += '<tr style="border-bottom:1px solid var(--dhq-border)">'
+                + '<td style="padding:3px 6px;color:var(--dhq-text-dim);white-space:nowrap">' + (r.ts ? fmtTime(r.ts) : '—') + '</td>'
+                + '<td style="padding:3px 6px">' + dot + ' ' + esc(r.agent) + '</td>'
+                + '<td style="padding:3px 6px;color:var(--dhq-accent)">' + esc(r.capability) + '</td>'
+                + '<td style="padding:3px 6px;color:var(--dhq-text-dim)">' + esc(r.model) + '</td>'
+                + '<td style="padding:3px 6px;color:var(--dhq-text-dim)">' + esc(r.source) + '</td>'
+                + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.duration_ms != null ? r.duration_ms : '—') + '</td>'
+                + '</tr>';
+        });
+        setHtml(el, html + '</table>');
+    } else {
+        var key = view === 'source' ? 'by_source' : view === 'agent' ? 'by_agent' : 'by_model';
+        var rows = (_trafficData[key] || []);
+        var label = view === 'source' ? 'SOURCE' : view === 'agent' ? 'AGENT' : 'MODEL';
+        if (!rows.length) { setHtml(el, '<div class="dhq-empty">No data</div>'); return; }
+        var html = '<table style="width:100%;border-collapse:collapse;font-size:0.72rem">'
+            + '<tr style="color:var(--dhq-text-dim);border-bottom:1px solid var(--dhq-border)">'
+            + '<th style="text-align:left;padding:2px 6px;font-weight:400">' + label + '</th>'
+            + '<th style="text-align:right;padding:2px 6px;font-weight:400">TOTAL</th>'
+            + '<th style="text-align:right;padding:2px 6px;font-weight:400">OK%</th>'
+            + '<th style="text-align:right;padding:2px 6px;font-weight:400">AVG MS</th>'
+            + '</tr>';
+        rows.forEach(function(r) {
+            var pct = r.total > 0 ? Math.round(r.successes / r.total * 100) : 0;
+            var pctColor = pct >= 90 ? '#10B981' : pct >= 70 ? '#FFAA00' : '#EF4444';
+            html += '<tr style="border-bottom:1px solid var(--dhq-border)">'
+                + '<td style="padding:3px 6px;color:var(--dhq-accent)">' + esc(r.label || '—') + '</td>'
+                + '<td style="padding:3px 6px;text-align:right">' + r.total + '</td>'
+                + '<td style="padding:3px 6px;text-align:right;color:' + pctColor + '">' + pct + '%</td>'
+                + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.avg_ms != null ? r.avg_ms : '—') + '</td>'
+                + '</tr>';
+        });
+        setHtml(el, html + '</table>');
+    }
 }
 
 // ───────────────────────────────────────────────────────────────

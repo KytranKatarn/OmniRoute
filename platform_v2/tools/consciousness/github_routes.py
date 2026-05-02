@@ -874,7 +874,7 @@ def run_reindex_background(repos_list, job_id):
     2. Index files into knowledge_base via Tree API
     3. Update github_repositories with local_path, indexed_at, status
     """
-    from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+    from tools.department_hq.services.department_dispatcher import get_dispatcher
 
     d = get_dispatcher()
     total_indexed = 0

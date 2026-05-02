@@ -161,6 +161,11 @@ _API_GENERATE_ALLOWLIST: set[str] = {
     # Added when updating endpoints from /tools/starbase/ → /tools/department-hq/.
     "node_client/node_sync.py",
     "node_client/node_api.py",
+    # Dev HQ routes — model warmup ping: POST /api/generate with keep_alive=5m
+    # and prompt="warmup" to pre-warm a model before dispatch. Not user-facing
+    # inference; cannot route through build_options() (warmup, not generation).
+    # Surfaced by consciousness dispatch migration (Task #2536).
+    "platform_v2/tools/consciousness/devhq_routes.py",
 }
 
 

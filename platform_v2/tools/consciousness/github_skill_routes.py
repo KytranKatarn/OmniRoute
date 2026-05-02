@@ -191,7 +191,7 @@ def register_github_skill_routes(bp, admin_required):
             rewrite_result = None
             if auto_rewrite:
                 try:
-                    from ai_bridge.bridge_dispatcher import dispatch_json
+                    from tools.department_hq.services.department_dispatcher import dispatch_json
 
                     kb_content = ""
                     if original.get("kb_entry_id"):

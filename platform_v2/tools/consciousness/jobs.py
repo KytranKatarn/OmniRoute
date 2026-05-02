@@ -770,7 +770,7 @@ def analyze_discovered_skills():
 
     try:
         from database import get_db_cursor
-        from bridge_dispatcher import dispatch_json
+        from tools.department_hq.services.department_dispatcher import dispatch_json
         from services.agent_service import add_skill
 
         # Fetch up to 25 unanalyzed skills (increased from 10 to clear backlog faster)
@@ -1108,7 +1108,7 @@ def analyze_repo_relevance():
 
     try:
         from database import get_db_cursor
-        from bridge_dispatcher import dispatch_json
+        from tools.department_hq.services.department_dispatcher import dispatch_json
 
         # Fetch repos needing review (skip recently reviewed)
         with get_db_cursor() as (conn, cur):
@@ -1401,7 +1401,7 @@ capabilities: [<list>]
             )
 
             try:
-                from bridge_dispatcher import dispatch
+                from tools.department_hq.services.department_dispatcher import dispatch
 
                 # prefer_model typo — same rationale as the earlier call
                 # site in this file. Route to W.A.T.C.H. which owns the
@@ -1787,7 +1787,7 @@ def test_installed_skills():
     try:
         from database import get_db_cursor
 
-        from bridge_dispatcher import dispatch
+        from tools.department_hq.services.department_dispatcher import dispatch
 
         # Fetch ONE untested installation — single dispatch per cycle
         with get_db_cursor() as (conn, cur):

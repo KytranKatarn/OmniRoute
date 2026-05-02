@@ -100,7 +100,7 @@ def register_github_repo_routes(bp, admin_required):
         # If no paths specified, use the recursive tree API for full repo index
         if not paths:
             try:
-                from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+                from tools.department_hq.services.department_dispatcher import get_dispatcher
 
                 # Look up repo_type and max_files from github_repositories
                 conn = _get_db()
@@ -148,7 +148,7 @@ def register_github_repo_routes(bp, admin_required):
                     )
 
                 def _bg_index(o, r, rt, imp, mx, jid):
-                    from tools.department_hq.services.bridge_dispatcher import get_dispatcher as _gd
+                    from tools.department_hq.services.department_dispatcher import get_dispatcher as _gd
 
                     d = _gd()
                     try:
@@ -343,7 +343,7 @@ def register_github_repo_routes(bp, admin_required):
         Skips repos indexed within the last 7 days unless force=true.
         """
         try:
-            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             data = request.get_json() or {}
             force = data.get("force", False)
@@ -457,7 +457,7 @@ def register_github_repo_routes(bp, admin_required):
         Creates a bridge_job so the work is visible in Starbase Command.
         """
         try:
-            from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             conn = _get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -500,7 +500,7 @@ def register_github_repo_routes(bp, admin_required):
                 )
 
             def _bg_reindex_single(o, r, rt, mx, jid):
-                from tools.department_hq.services.bridge_dispatcher import get_dispatcher as _gd
+                from tools.department_hq.services.department_dispatcher import get_dispatcher as _gd
 
                 d = _gd()
                 try:

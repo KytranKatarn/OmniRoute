@@ -22,7 +22,7 @@ from enum import Enum
 logger = logging.getLogger(__name__)
 
 try:
-    from ai_bridge.bridge_dispatcher import get_dispatcher
+    from tools.department_hq.services.department_dispatcher import get_dispatcher
 
     _dispatcher = get_dispatcher()
 except Exception:

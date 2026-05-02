@@ -1436,7 +1436,7 @@ def register_devhq_routes(bp, admin_required):
         Sends minimal prompts through the dispatcher to pre-load models into RAM.
         Routed through Bridge per ADR-013 — dispatcher handles model loading.
         """
-        from bridge_dispatcher import dispatch
+        from tools.department_hq.services.department_dispatcher import dispatch
 
         models = ["dolphin3-8k:latest", "arctic-embed-cpu:latest", "qwen25-classify:latest"]
         results = []

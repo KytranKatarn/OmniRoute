@@ -1,18 +1,22 @@
 ---
 name: archie-qa
-description: Run P.R.O.B.E. QA tests — list suites, run by name, generate PDF reports
+description: Run P.R.O.B.E. QA tests — list suites, run by suite name or ID, generate PDF reports. For module-scoped scans after editing code use /archie-scan. For full dashboard use /archie-probe.
 allowed-tools: Bash, mcp__archie__run_qa_suite, mcp__archie__list_qa_suites, mcp__archie__get_qa_results
-argument: Suite name (e.g., "consciousness"), "all", or "list". Add --pdf for PDF report. Add --branded for client report.
+argument: Suite name (e.g., "consciousness"), suite ID (e.g., "23"), "all", or "list". Add --pdf for PDF report. Add --branded for client report.
 ---
 
 # P.R.O.B.E. QA Runner
+
+## Related skills
+- `/archie-scan <module>` — run only the suites for one module (faster, targeted)
+- `/archie-probe` — full P.R.O.B.E. status dashboard (all suites + proposals + coverage)
 
 ## Parse Arguments
 
 Parse `$ARGUMENTS`:
 - Empty or "list" → list available suites
-- Suite name (e.g., "consciousness") → run that suite
-- "all" → run all active suites
+- Suite name (e.g., "consciousness") or ID (e.g., "23") → run that suite
+- "all" → run all active suites (54 suites, ~20 min including Playwright)
 - `--pdf` flag → generate PDF report after run
 - `--branded` flag → generate branded (client-facing) PDF
 

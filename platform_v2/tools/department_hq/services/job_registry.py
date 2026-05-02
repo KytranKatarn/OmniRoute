@@ -123,8 +123,8 @@ JOB_REGISTRY = {
     # ── QA / Code Quality ──
     "qa_scheduled_run": {
         "department": "Engineering & Technology",
-        "director": "F.O.R.G.E.",
-        "description": "P.R.O.B.E. scheduled QA test suite execution",
+        "director": "P.R.O.B.E.",
+        "description": "P.R.O.B.E. scheduled QA test suite execution — runs all active suites, auto-creates Repair Bay proposals on regression",
         "interval": "6h",
         "source_file": "ai_bridge/agent_loop.py",
     },

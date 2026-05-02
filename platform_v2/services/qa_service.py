@@ -160,6 +160,7 @@ def run_suite(suite_id, triggered_by="manual"):
         try:
             _create_proposals_from_failures(
                 suite_name=suite["name"],
+                suite_id=suite_id,
                 run_id=run_id,
                 results=results,
             )
@@ -441,11 +442,43 @@ def _send_qa_telegram_alert(suite_name, run_id, total, passed, failed, errors, r
         logger.warning("Failed to send QA alert via telegram_service: %s", exc)
 
 
-def _create_proposals_from_failures(suite_name, run_id, results):
+def _was_previously_passing(suite_id, test_name, current_run_id):
+    """Check if a test passed in the most recent completed run before current_run_id.
+
+    Returns True (regression), False (known failure), or None (no prior data).
+    """
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT tr.status
+                   FROM qa_test_results tr
+                   JOIN qa_test_runs r ON tr.run_id = r.id
+                   WHERE r.suite_id = %s
+                     AND tr.test_name = %s
+                     AND r.id < %s
+                     AND r.status IN ('completed', 'failed')
+                   ORDER BY r.id DESC
+                   LIMIT 1""",
+                (suite_id, test_name, current_run_id),
+            )
+            row = cur.fetchone()
+        if row:
+            return row["status"] == "pass"
+        return None  # first time this test has run
+    except Exception as exc:
+        logger.warning("Regression check failed for '%s': %s", test_name, exc)
+        return None
+
+
+def _create_proposals_from_failures(suite_name, run_id, results, suite_id=None):
     """Auto-create Repair Bay improvement proposals from QA test failures.
 
     Follows the scan_pipeline pattern: dedup by source + test_name,
     map severity from error type, insert into improvement_proposals.
+
+    Regression detection: only creates proposals for tests that were passing
+    in the most recent prior run — skips tests that have been consistently
+    failing (the open dedup proposal already exists for those).
     """
     failures = [r for r in results if r.get("status") in ("fail", "error")]
     if not failures:
@@ -459,6 +492,14 @@ def _create_proposals_from_failures(suite_name, run_id, results):
         url = result.get("url", "")
         actual_status = result.get("actual_status")
         expected_status = result.get("expected_status")
+
+        # Regression detection — skip consistently-failing tests (dedup handles them)
+        was_passing = _was_previously_passing(suite_id, test_name, run_id) if suite_id else None
+        is_regression = was_passing is True  # True = was passing → now failing = regression
+        if was_passing is False:
+            # Known failure — open proposal already exists (dedup below will confirm)
+            logger.debug("Skipping proposal for '%s' — test was already failing", test_name)
+            continue
 
         # Determine severity from error pattern
         if "SSL" in error_msg or "certificate" in error_msg.lower():
@@ -515,9 +556,11 @@ def _create_proposals_from_failures(suite_name, run_id, results):
             "test_name": test_name,
             "test_type": test_type,
             "suite_name": suite_name,
+            "suite_id": suite_id,
             "run_id": run_id,
             "url": url,
             "severity": severity,
+            "is_regression": is_regression,
             "auto_generated": True,
         }
 

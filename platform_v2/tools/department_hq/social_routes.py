@@ -545,49 +545,6 @@ def register_social_routes(bp, admin_required):
 
         return jsonify({"days": days})
 
-    @bp.route("/api/signal/themes")
-    @admin_required
-    def api_signal_themes():
-        """Content theme lanes for S.I.G.N.A.L.'s posting strategy."""
-        themes = [
-            {
-                "name": "Vision & Mission",
-                "curator_name": "S.I.G.N.A.L.",
-                "accent_color": "#8b5cf6",
-                "scene_count": 1,
-                "music_mood": "Mondays",
-            },
-            {
-                "name": "Product Spotlight",
-                "curator_name": "S.I.G.N.A.L.",
-                "accent_color": "#06b6d4",
-                "scene_count": 1,
-                "music_mood": "Wednesdays",
-            },
-            {
-                "name": "Building in Public",
-                "curator_name": "S.I.G.N.A.L.",
-                "accent_color": "#10b981",
-                "scene_count": 1,
-                "music_mood": "Fridays",
-            },
-            {
-                "name": "Gov Watch Tender Alert",
-                "curator_name": "P.R.O.C.U.R.E.",
-                "accent_color": "#f59e0b",
-                "scene_count": 0,
-                "music_mood": "On demand",
-            },
-            {
-                "name": "KBS Announcement",
-                "curator_name": "S.I.G.N.A.L.",
-                "accent_color": "#ec4899",
-                "scene_count": 0,
-                "music_mood": "On demand",
-            },
-        ]
-        return jsonify({"themes": themes})
-
     @bp.route("/api/signal/run-now", methods=["POST"])
     @admin_required
     def api_signal_run_now():

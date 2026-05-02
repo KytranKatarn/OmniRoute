@@ -911,7 +911,7 @@ def _handle_code_update(config, payload):
 
     # --- Download updated Python files ---
     for fname in files:
-        url = f"{hub_url}/tools/department-hq/api/nodes/{fname}"
+        url = f"{hub_url}/tools/department-hq/api/nodes/ota/{fname}"
         logger.info("[code_update] Downloading %s", fname)
         status, resp = http_get(url, headers)
         if status == 200:

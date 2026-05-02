@@ -33,6 +33,7 @@ DATABASE_URL = os.environ.get(
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://ollama:11434")
 NODE_ID = os.environ.get("NODE_ID", "unknown")
 NODE_TIMEZONE = os.environ.get("NODE_TIMEZONE", "America/Toronto")
+SKILLS_DIR = os.environ.get("SKILLS_DIR", "/skills")
 
 
 def get_db():
@@ -1408,6 +1409,34 @@ loadSaasApps();
 </script>
 </body>
 </html>"""
+
+
+@app.route("/api/skills/push", methods=["POST"])
+def skills_push():
+    """Receive a skill from the hub and write to local SKILLS_DIR filesystem.
+
+    No postgres required — DB-free so it works on lightweight nodes (VPS)
+    that do not have a local database.
+    """
+    data = request.get_json() or {}
+    slug = data.get("slug", "").strip()
+    content = data.get("content", "")
+    repo_slug = data.get("repo_slug", "unknown")
+
+    if not slug or not content:
+        return jsonify({"success": False, "error": "slug and content are required"}), 400
+
+    repo_dir = os.path.join(SKILLS_DIR, repo_slug)
+    try:
+        os.makedirs(repo_dir, exist_ok=True)
+        skill_path = os.path.join(repo_dir, f"{slug}.md")
+        with open(skill_path, "w") as fh:
+            fh.write(content)
+        logger.info("[SkillPush] Wrote %s/%s.md", repo_slug, slug)
+        return jsonify({"success": True, "slug": slug, "path": skill_path})
+    except Exception as e:
+        logger.error("[SkillPush] Failed to write %s/%s: %s", repo_slug, slug, e)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 if __name__ == "__main__":

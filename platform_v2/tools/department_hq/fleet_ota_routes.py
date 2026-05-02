@@ -471,6 +471,38 @@ def register_ota_routes(bp, auth_decorator):
             logger.exception("Failed to queue v3.0 upgrade for node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
+    # Allowlist of files nodes may download via OTA code_update.
+    _OTA_ALLOWED_FILES = frozenset({"node_api.py", "node_sync.py", "node_triage.py"})
+    _NODE_CLIENT_DIR = os.path.normpath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "node_client")
+    )
+
+    @bp.route("/api/nodes/ota/<filename>")
+    @auth_decorator
+    def serve_node_file(filename):
+        """Serve node client source files for OTA code_update downloads.
+
+        node_sync.py fetches: GET {hub_url}/tools/department-hq/api/nodes/ota/{filename}
+        Returns JSON {"raw": "<file content>", "filename": "<name>"}.
+        Only files in _OTA_ALLOWED_FILES may be served (blocks path traversal).
+        """
+        if filename not in _OTA_ALLOWED_FILES:
+            return jsonify({"success": False, "error": f"File not permitted: {filename}"}), 403
+        if os.sep in filename:
+            return jsonify({"success": False, "error": f"File not permitted: {filename}"}), 403
+
+        file_path = os.path.join(_NODE_CLIENT_DIR, filename)
+        if not os.path.isfile(file_path):
+            return jsonify({"success": False, "error": "File not found"}), 404
+
+        try:
+            with open(file_path) as fh:
+                content = fh.read()
+            return jsonify({"raw": content, "filename": filename})
+        except Exception as e:
+            logger.exception("Failed to serve node file %s", filename)
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @bp.route("/api/nodes/<int:node_id>/sync-status")
     @auth_decorator
     def api_node_sync_status(node_id):

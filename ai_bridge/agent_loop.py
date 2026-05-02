@@ -5770,6 +5770,7 @@ class AgentLoop:
                 result = qa_service.run_suite(suite["id"], triggered_by="scheduled")
                 total_passed += result.get("passed", 0)
                 total_failed += result.get("failed", 0) + result.get("errors", 0)
+                time.sleep(2)  # let gunicorn workers settle between suite auth sessions
 
             duration_ms = int((time.time() - start) * 1000)
             self._log_cycle(

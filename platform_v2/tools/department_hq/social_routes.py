@@ -490,61 +490,6 @@ def register_social_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"error": str(e)}), 502
 
-    @bp.route("/api/signal/calendar")
-    @admin_required
-    def api_signal_calendar():
-        """This week's content calendar — 7 days with scheduled slots and queue status."""
-        from datetime import date, timedelta
-
-        today = date.today()
-        monday = today - timedelta(days=today.weekday())
-
-        # Theme schedule matching signal_linkedin_draft theme_map (0=Mon, 2=Wed, 4=Fri)
-        theme_schedule = {
-            0: {"theme_name": "Vision & Mission", "accent_color": "#8b5cf6"},
-            2: {"theme_name": "Product Spotlight", "accent_color": "#06b6d4"},
-            4: {"theme_name": "Building in Public", "accent_color": "#10b981"},
-        }
-
-        try:
-            with get_db_cursor() as (_conn, cur):
-                cur.execute(
-                    """SELECT DATE(created_at) as day
-                       FROM autonomy_approval_queue
-                       WHERE action_type = 'linkedin_post'
-                         AND status IN ('pending', 'approved')
-                         AND created_at >= %s""",
-                    (monday,),
-                )
-                queued_days = {r["day"] for r in cur.fetchall()}
-        except Exception:
-            queued_days = set()
-
-        days = []
-        for i in range(7):
-            d = monday + timedelta(days=i)
-            slot_def = theme_schedule.get(i)
-            days.append(
-                {
-                    "date": d.isoformat(),
-                    "slots": (
-                        [
-                            {
-                                "theme_name": slot_def["theme_name"],
-                                "agent_name": "S.I.G.N.A.L.",
-                                "accent_color": slot_def["accent_color"],
-                                "auto_generate": True,
-                            }
-                        ]
-                        if slot_def
-                        else []
-                    ),
-                    "queue_status": ["queued"] if d in queued_days else [],
-                }
-            )
-
-        return jsonify({"days": days})
-
     @bp.route("/api/signal/run-now", methods=["POST"])
     @admin_required
     def api_signal_run_now():

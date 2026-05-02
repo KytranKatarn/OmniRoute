@@ -9,6 +9,9 @@ logger = logging.getLogger(__name__)
 
 def register_theme_routes(bp, admin_required):
     """Register content theme management routes on the DHQ blueprint."""
+    if getattr(bp, "_theme_routes_registered", False):
+        return
+    bp._theme_routes_registered = True
 
     @bp.route("/api/signal/themes")
     @admin_required

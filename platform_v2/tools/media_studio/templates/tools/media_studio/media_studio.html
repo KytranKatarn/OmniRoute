@@ -2284,9 +2284,31 @@
     };
 
     window.openPortraitDetail = function(agentId) {
+        // Cancel any in-flight SSE stream from the previous agent
+        if (_activeRefineAbort) { _activeRefineAbort.abort(); _activeRefineAbort = null; }
         _currentAgentId = agentId;
         document.getElementById('ms-portrait-grid').style.display = 'none';
         document.getElementById('ms-portrait-detail').style.display = 'block';
+
+        // Reset M.U.S.E. panel so previous agent's state doesn't bleed through
+        var _rfi = document.getElementById('ms-refine-input');
+        if (_rfi) _rfi.value = '';
+        var _rfs = document.getElementById('ms-refine-stream');
+        if (_rfs) _rfs.style.display = 'none';
+        var _rfr = document.getElementById('ms-refine-result');
+        if (_rfr) _rfr.style.display = 'none';
+        var _rfst = document.getElementById('ms-refine-status');
+        if (_rfst) _rfst.textContent = '';
+        var _rfb = document.getElementById('ms-refine-btn');
+        if (_rfb) { _rfb.disabled = false; _rfb.textContent = 'ASK M.U.S.E.'; }
+        ['ms-step-vision-label','ms-step-agent-label','ms-step-muse-label'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) { el.textContent = '— Awaiting...'; el.style.color = 'rgba(255,255,255,0.3)'; }
+        });
+        ['ms-step-vision-result','ms-step-agent-result'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) { el.textContent = ''; el.style.display = 'none'; }
+        });
         var rosterLink = document.getElementById('ms-view-in-roster');
         if (rosterLink) rosterLink.href = '/tools/department-hq?agent=' + agentId + '#roster';
         _currentAgentName = (document.getElementById('ms-portrait-agent-name') || {}).textContent || '';
@@ -2403,7 +2425,7 @@
 
                 // Restore saved feedback draft from agent profile (DB — works across all browsers)
                 var refineInp = document.getElementById('ms-refine-input');
-                if (refineInp && data.refinement_draft) refineInp.value = data.refinement_draft;
+                if (refineInp) refineInp.value = data.refinement_draft || ''; // always reset, even if empty
 
                 // Gate: disable Generate if no identity_prompt saved in agent_portraits.
                 // identity_prompt is the VISUAL description used for consistent image generation.
@@ -2535,10 +2557,11 @@
         );
     };
 
-    // ── M.U.S.E. Collaborative Refinement — DHQ queue + polling ─────────────
+    // ── M.U.S.E. Collaborative Refinement ───────────────────────────────────
     var _refineHistory = [];
     var _refinePollTimer = null;
     var _currentAgentName = '';
+    var _activeRefineAbort = null; // AbortController for in-flight SSE stream
 
     // Auto-resume polling when opening a portrait with a pending/in_progress job
     function _checkResumePoll(agentId) {
@@ -2678,10 +2701,16 @@
         }
 
         // Consume SSE via fetch + ReadableStream (EventSource doesn't support POST)
+        // AbortController lets openPortraitDetail() cancel this if user switches agents mid-stream
+        if (_activeRefineAbort) { _activeRefineAbort.abort(); }
+        var _abort = new AbortController();
+        _activeRefineAbort = _abort;
+
         fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/refine-stream', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({feedback: feedback, history: _refineHistory})
+            body: JSON.stringify({feedback: feedback, history: _refineHistory}),
+            signal: _abort.signal
         }).then(function(resp) {
             if (!resp.ok) {
                 return resp.json().then(function(d) { throw new Error(d.error || 'Request failed'); });
@@ -2708,6 +2737,7 @@
             }
             return pump();
         }).catch(function(err) {
+            if (err && err.name === 'AbortError') return; // agent switched — suppress error
             if (btn) { btn.disabled = false; btn.textContent = 'ASK M.U.S.E.'; }
             if (statusEl) statusEl.textContent = '⚠ ' + err.message;
             if (streamEl) streamEl.style.display = 'none';

@@ -130,3 +130,21 @@ Each row normalised to `{id, source, category, display_name, reason, agent_name,
 The `reap_stale_pending_approvals` job (daily 04:30 UTC) auto-cancels `bridge_jobs.pending_approval` rows older than 7 days and decrements the matching `agent_budgets.current_task_count`.
 
 **Canonical "active work" for agent_budgets**: `bridge_jobs.status NOT IN ('completed', 'failed', 'cancelled')`. This is what `reconcile_task_counters` uses; any drift observer must share the same filter.
+
+## Capability Mapping Pitfalls (2026-05-02)
+
+**Never invent a custom capability string without registering it.** If a capability isn't in `CAPABILITY_DEPARTMENT_MAP` AND no agent has it in `agent_skills`, the dispatcher defaults to Engineering & Technology → F.O.R.G.E. wins on `is_department_ai` bonus regardless of whether F.O.R.G.E. is the right agent.
+
+Known fix applied: `auto_document` (used in `auto_doc_service.py`) was unmapped. Changed to `capability='research'` — D.A.R.W.I.N. has `research` Lv5 and is the correct agent for project intelligence reports. KB #261742.
+
+**Rule**: When dispatching from a service, use an existing capability that the target agent already has in `agent_skills`. Check `CAPABILITY_DEPARTMENT_MAP` in `services/department_coordinator.py` first.
+
+## Consciousness Module — Legacy Dispatch (Task #2536)
+
+7 files in `tools/consciousness/` still use deprecated `bridge_dispatcher` shims. Migration tracked as Task #2536. Until complete, these calls may bypass warm-model queue routing and cold-load timeout.
+
+Files: `jobs.py` (lines 773, 1111, 1201, 1404), `collaboration_engine.py`, `devhq_routes.py`, `github_skill_routes.py`, `github_repo_routes.py`, `github_routes.py`. KB #261744.
+
+## Dispatch Traffic Panel (Task #2535, Decision #540)
+
+Planned: live feed + aggregation by source/node/agent/model in DHQ Dispatch tab. All data in `task_execution_log` — `module_source`, `agent_name`, `capability`, `model_used`, `duration_ms`, `success`. Node attribution via `dispatch_pending_queue.node_id → remote_nodes.node_name`.

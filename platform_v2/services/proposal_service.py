@@ -337,6 +337,37 @@ def reject_proposal(proposal_id, reason="Rejected by user"):
 # ===================================================================
 
 
+def _trigger_module_qa(prop_meta, proposal_id):
+    """Fire P.R.O.B.E. QA suite(s) for the module affected by this proposal.
+
+    Runs in a daemon thread so it never blocks the deploy response.
+    Uses the file_path or suite_id stored in proposal metadata.
+    """
+    import threading
+
+    def _run():
+        try:
+            from services.qa_service import run_suite_for_module, run_suite
+
+            # If metadata has an explicit suite_id (from qa_pipeline proposals), use it
+            suite_id = (prop_meta or {}).get("suite_id")
+            if suite_id:
+                logger.info("[QA] Post-deploy: re-running suite %s for proposal #%s", suite_id, proposal_id)
+                run_suite(int(suite_id), triggered_by=f"repair_bay_deploy:{proposal_id}")
+                return
+
+            # Otherwise derive from file_path
+            file_path = (prop_meta or {}).get("file_path", "")
+            if file_path:
+                logger.info("[QA] Post-deploy: scanning module for '%s' (proposal #%s)", file_path, proposal_id)
+                run_suite_for_module(file_path, triggered_by=f"repair_bay_deploy:{proposal_id}")
+        except Exception as exc:
+            logger.warning("[QA] Post-deploy QA trigger failed for proposal #%s: %s", proposal_id, exc)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+
 def run_proposal(proposal_id, user_id, skip_backup=False, use_orchestrator=True, steps=None):
     """Run an approved proposal using WorkflowOrchestrator with retry support."""
     conn = None
@@ -407,6 +438,12 @@ def run_proposal(proposal_id, user_id, skip_backup=False, use_orchestrator=True,
             result["backup_created"] = True
             result["backup_name"] = backup_result["backup_name"]
             result["backup_path"] = backup_result.get("backup_path")
+
+        # Post-deploy: trigger P.R.O.B.E. QA re-run for the affected module
+        # Runs in a daemon thread so it doesn't block the deploy response.
+        if result.get("success"):
+            _trigger_module_qa(prop_meta, proposal_id)
+
         return result
 
     except Exception as e:

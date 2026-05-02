@@ -28,6 +28,98 @@ PYTEST_MODULES_DIR = os.path.join(
 
 
 # ---------------------------------------------------------------------------
+# Module → Suite mapping for post-deploy targeted QA
+# ---------------------------------------------------------------------------
+# Maps Flask blueprint / module directory name → suite ID(s).
+# Used by run_suite_for_module() and Repair Bay post-deploy hook.
+# Prefer the curated (hand-crafted) suite ID first; auto-generated as fallback.
+
+MODULE_SUITE_MAP: dict = {
+    # Admin Ops
+    "account_center": [16, 31],
+    "backup_manager": [19, 35],
+    "security_network": [5, 6, 8, 59],
+    "saas_manager": [57],
+    # AI Command
+    "department_hq": [11, 43],
+    "consciousness": [12, 39],
+    "archie_chat": [15],
+    "repair_bay": [13, 56],
+    "agent_academy": [14, 32],
+    "media_studio": [23, 50],
+    # SaaS Services
+    "email_manager": [45],
+    "google_work_suite": [49],
+    "user_profile": [63],
+    # Applications
+    "fitness": [30],
+    "therapy": [61],
+    "doc": [44],
+    "family_tree": [47],
+    "media_hub": [22],
+    # Creative Studios
+    "game_studio": [48],
+    # Crypto
+    "archie_pool": [34],
+    "pool_management": [54],
+    # Platform core
+    "app": [2],
+    "public_api": [55],
+    "oauth": [51],
+    "oauth_provider": [52],
+    # SaaS/Admin
+    "billing": [36],
+    "creed_admin": [40],
+    "creed_public": [41],
+    # Analytics (P.R.O.C.U.R.E.)
+    "gov_watch": [21],
+    # VPS / External
+    "wtf_hub": [64],
+    # Websites
+    "website_ke": [27],
+    "website_creed": [28],
+}
+
+
+def run_suite_for_module(module_name: str, triggered_by: str = "repair_bay") -> list:
+    """Run all QA suites mapped to a module. Called by Repair Bay after deploy.
+
+    Args:
+        module_name: Blueprint or directory name (e.g. 'media_studio', 'account_center').
+                     Also accepts a file path — extracts the module name automatically.
+        triggered_by: Label for the run record (default: 'repair_bay').
+
+    Returns:
+        List of run result dicts, one per suite triggered.
+    """
+    # Accept file paths like 'platform_v2/tools/media_studio/routes.py'
+    if "/" in module_name or "\\" in module_name:
+        parts = module_name.replace("\\", "/").split("/")
+        # Walk backwards looking for a known module name
+        for part in reversed(parts):
+            clean = part.replace(".py", "").replace(".html", "").replace(".js", "")
+            if clean in MODULE_SUITE_MAP:
+                module_name = clean
+                break
+        else:
+            logger.info("[QA] No suite mapping for file path: %s", module_name)
+            return []
+
+    suite_ids = MODULE_SUITE_MAP.get(module_name)
+    if not suite_ids:
+        logger.info("[QA] No suite mapping for module: %s", module_name)
+        return []
+
+    results = []
+    for sid in suite_ids:
+        logger.info("[QA] Post-deploy re-run: suite %d for module '%s'", sid, module_name)
+        result = run_suite(sid, triggered_by=triggered_by)
+        results.append(result)
+
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 

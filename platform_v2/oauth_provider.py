@@ -175,7 +175,7 @@ def token():
 
         # Fetch user info
         cur.execute(
-            "SELECT id, username, email, role FROM users WHERE id = %s",
+            "SELECT id, username, email, role, subscription_tier FROM users WHERE id = %s",
             (user_id,),
         )
         user_row = cur.fetchone()
@@ -187,6 +187,7 @@ def token():
     username = user_row["username"]
     email = user_row["email"]
     role = user_row["role"]
+    subscription_tier = user_row["subscription_tier"] or "free"
 
     # Generate JWT
     now = datetime.utcnow()
@@ -195,6 +196,7 @@ def token():
         "username": username,
         "email": email,
         "role": role,
+        "tier": subscription_tier,
         "iat": now,
         "exp": now + timedelta(hours=1),
     }
@@ -210,6 +212,7 @@ def token():
                 "username": username,
                 "email": email,
                 "role": role,
+                "subscription_tier": subscription_tier,
             },
         }
     )

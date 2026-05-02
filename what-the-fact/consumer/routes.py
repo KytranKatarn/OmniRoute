@@ -5,6 +5,7 @@ import urllib.request
 
 from flask import Blueprint, render_template, abort
 from sqlalchemy import create_engine, text
+from .auth import is_subscriber
 
 bp = Blueprint("wtf", __name__)
 _engine = None
@@ -388,4 +389,5 @@ def article(article_id: int):
                 a[field] = []
         elif val is None:
             a[field] = []
-    return render_template("article.html", a=a, wtf_tech_url=wtf_tech_url)
+    return render_template("article.html", a=a, wtf_tech_url=wtf_tech_url,
+                           is_subscriber=is_subscriber())

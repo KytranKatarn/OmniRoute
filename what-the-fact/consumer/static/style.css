@@ -139,6 +139,7 @@ a { color: inherit; }
   flex-shrink: 0;
 }
 .wtf-nav-login:hover { border-color: #6b7280; color: #e0e0e0; }
+.wtf-nav-user { font-size: 0.68rem; color: #6b7280; letter-spacing: 0.5px; white-space: nowrap; flex-shrink: 0; }
 @media (max-width: 860px) {
   .wtf-nav-subscribe, .wtf-nav-login { display: none; }
 }

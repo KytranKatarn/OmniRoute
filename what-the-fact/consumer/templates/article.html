@@ -52,6 +52,18 @@
 .wtf-how-scored { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 12px; margin: 12px 0; font-size: 11px; color: #666; }
 .wtf-how-scored summary { cursor: pointer; color: #0af; }
 .wtf-cross-source { font-size: 11px; color: #0af; text-decoration: none; }
+
+/* Paywall */
+.wtf-paywall-inline { font-size: 11px; color: #555; padding: 8px 10px; background: #080808; border: 1px solid #1a1a1a; border-radius: 3px; margin-top: 6px; }
+.wtf-paywall-inline a { color: #0af; text-decoration: none; }
+.wtf-paywall-panel { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 20px 16px; margin-bottom: 14px; text-align: center; }
+.wtf-paywall-panel-icon { font-size: 22px; margin-bottom: 6px; }
+.wtf-paywall-panel-text { font-size: 12px; color: #888; margin-bottom: 12px; line-height: 1.5; }
+.wtf-paywall-panel-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; align-items: center; }
+.wtf-paywall-cta { background: #0a2a3a; border: 1px solid #0af; color: #0af; padding: 8px 16px; border-radius: 3px; font-size: 12px; text-decoration: none; }
+.wtf-paywall-cta:hover { background: #0a3a4a; }
+.wtf-paywall-signin { font-size: 11px; color: #555; text-decoration: none; }
+.wtf-paywall-signin:hover { color: #0af; }
 </style>
 
 <div class="wtf-art-container">
@@ -89,14 +101,22 @@
     <div style="display:flex;justify-content:space-between;font-size:9px;color:#555;margin-bottom:6px;">
       <span>LEFT</span><span>CENTER</span><span>RIGHT</span>
     </div>
-    {% if a.bias_rationale %}
-    <div class="wtf-rationale">{{ a.bias_rationale }}</div>
-    {% endif %}
-    {% if a.trigger_phrases %}
-    <div style="margin-top:6px;">
-      {% for phrase in a.trigger_phrases %}
-      <span class="wtf-trigger-phrase">{{ phrase }}</span>
-      {% endfor %}
+    {% if is_subscriber %}
+      {% if a.bias_rationale %}
+      <div class="wtf-rationale">{{ a.bias_rationale }}</div>
+      {% endif %}
+      {% if a.trigger_phrases %}
+      <div style="margin-top:6px;">
+        {% for phrase in a.trigger_phrases %}
+        <span class="wtf-trigger-phrase">{{ phrase }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% elif a.bias_rationale or a.trigger_phrases %}
+    <div class="wtf-paywall-inline">
+      🔒 <a href="/login?next=/article/{{ a.id }}">Sign in</a> or
+      <a href="https://business.kytranempowerment.com/billing/checkout?product=membership_starter&amp;tier=starter&amp;return_url=https://what-the-fact.com/article/{{ a.id }}">Subscribe</a>
+      to unlock B.I.A.S. rationale &amp; trigger phrases
     </div>
     {% endif %}
   </div>
@@ -104,24 +124,38 @@
 
   <!-- Fact-check Panel -->
   {% if a.fact_check_claims %}
-  <div class="wtf-factcheck-panel">
-    <div class="wtf-panel-label">V.E.R.I.F.Y. FACT-CHECK</div>
-    {% if a.overall_verdict %}
-    <div style="margin-bottom:8px;font-size:12px;color:#aaa;">
-      Overall: <strong>{{ a.overall_verdict.replace('_',' ').title() }}</strong>
+    {% if is_subscriber %}
+    <div class="wtf-factcheck-panel">
+      <div class="wtf-panel-label">V.E.R.I.F.Y. FACT-CHECK</div>
+      {% if a.overall_verdict %}
+      <div style="margin-bottom:8px;font-size:12px;color:#aaa;">
+        Overall: <strong>{{ a.overall_verdict.replace('_',' ').title() }}</strong>
+      </div>
+      {% endif %}
+      {% for claim in a.fact_check_claims %}
+      {% set verdict_key = claim.verdict | default('unverifiable') %}
+      <div class="wtf-claim">
+        <div class="wtf-claim-text">{{ claim.text | default('') }}</div>
+        <span class="wtf-verdict wtf-verdict--{{ verdict_key }}">{{ verdict_key.upper().replace('_',' ') }}</span>
+        {% if claim.reasoning %}
+        <div class="wtf-claim-reason">{{ claim.reasoning }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="wtf-paywall-panel">
+      <div class="wtf-paywall-panel-icon">🔒</div>
+      <div class="wtf-paywall-panel-text">
+        V.E.R.I.F.Y. has fact-checked this article.<br>
+        Subscribe to see claim-by-claim verdicts and reasoning.
+      </div>
+      <div class="wtf-paywall-panel-actions">
+        <a href="https://business.kytranempowerment.com/billing/checkout?product=membership_starter&amp;tier=starter&amp;return_url=https://what-the-fact.com/article/{{ a.id }}" class="wtf-paywall-cta">Subscribe — Starter</a>
+        <a href="/login?next=/article/{{ a.id }}" class="wtf-paywall-signin">Already subscribed? Sign in →</a>
+      </div>
     </div>
     {% endif %}
-    {% for claim in a.fact_check_claims %}
-    {% set verdict_key = claim.verdict | default('unverifiable') %}
-    <div class="wtf-claim">
-      <div class="wtf-claim-text">{{ claim.text | default('') }}</div>
-      <span class="wtf-verdict wtf-verdict--{{ verdict_key }}">{{ verdict_key.upper().replace('_',' ') }}</span>
-      {% if claim.reasoning %}
-      <div class="wtf-claim-reason">{{ claim.reasoning }}</div>
-      {% endif %}
-    </div>
-    {% endfor %}
-  </div>
   {% endif %}
 
   <!-- Agent Bylines + Deep Dive -->
@@ -132,7 +166,11 @@
       <div class="wtf-byline" style="border-left:2px solid #0af;">&#x1F4CD; <strong>L.O.C.A.L.</strong> &mdash; Geo Analyst</div>
     {% else %}
       <div class="wtf-byline" style="border-left:2px solid #555;">&#x26A1; Quick Score &mdash; not yet AI analyzed</div>
+      {% if is_subscriber %}
       <button class="wtf-deep-dive-btn" id="wtf-dive-btn" onclick="deepDive({{ a.id }})">&#x1F50D; Deep Dive &mdash; Full AI Analysis</button>
+      {% else %}
+      <a href="/login?next=/article/{{ a.id }}" class="wtf-deep-dive-btn" style="text-decoration:none;">&#x1F512; Sign in to Deep Dive</a>
+      {% endif %}
     {% endif %}
   </div>
 

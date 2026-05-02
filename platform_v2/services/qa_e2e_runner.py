@@ -83,6 +83,14 @@ class E2ERunner:
             for test in tests:
                 result = await self._execute_single(test, base_url, auth, run_id)
                 results.append(result)
+                # Recycle the page between tests — accumulated JS heap / event
+                # listeners / open connections from heavy pages (Media Studio,
+                # DHQ) crash the renderer on the 5th+ navigation otherwise.
+                try:
+                    await self.page.close()
+                    self.page = await self.context.new_page()
+                except Exception:
+                    pass
         finally:
             await self.close()
         return results

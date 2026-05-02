@@ -273,6 +273,9 @@ def check_ip_rate_limit(ip_address):
     """Check if an IP has exceeded the login rate limit.
     Returns (is_limited, seconds_remaining) tuple.
     """
+    # Loopback never rate-limited — internal tools (QA runner) run from localhost
+    if ip_address in ("127.0.0.1", "::1"):
+        return False, 0
     now = datetime.utcnow()
     cutoff = now - timedelta(seconds=IP_RATE_WINDOW)
 

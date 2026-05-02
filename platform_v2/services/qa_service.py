@@ -46,7 +46,7 @@ MODULE_SUITE_MAP: dict = {
     "archie_chat": [15],
     "repair_bay": [13, 56],
     "agent_academy": [14, 32],
-    "media_studio": [23, 50],
+    "media_studio": [23],  # #50 deactivated (auto-generated duplicate)
     # SaaS Services
     "email_manager": [45],
     "google_work_suite": [49],
@@ -114,6 +114,9 @@ def run_suite_for_module(module_name: str, triggered_by: str = "repair_bay") -> 
     for sid in suite_ids:
         logger.info("[QA] Post-deploy re-run: suite %d for module '%s'", sid, module_name)
         result = run_suite(sid, triggered_by=triggered_by)
+        if not result.get("success") and "not found or inactive" in result.get("error", ""):
+            logger.debug("[QA] Suite %d skipped (inactive or not found)", sid)
+            continue
         results.append(result)
 
     return results

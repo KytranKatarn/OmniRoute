@@ -412,6 +412,14 @@ class AgentLoop:
         # )
 
         self.scheduler.add_job(
+            with_app_context(self._run_resolve_oversight),
+            trigger=IntervalTrigger(minutes=30),
+            id="resolve_email_oversight",
+            name="Agent Loop: R.E.S.O.L.V.E. Email Oversight",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
             with_app_context(self._forward_notifications_to_telegram),
             trigger=IntervalTrigger(seconds=15),
             id="agent_telegram_notify",
@@ -4828,6 +4836,49 @@ class AgentLoop:
             try:
                 self._log_cycle(
                     job_name="codex_event_docs",
+                    items_processed=0,
+                    items_failed=1,
+                    duration_ms=duration_ms,
+                    error_message=str(e),
+                )
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # R.E.S.O.L.V.E. Email Oversight (Task #2490)
+    # ------------------------------------------------------------------
+
+    def _run_resolve_oversight(self):
+        """Scan for unanswered inbound emails, assign to R.E.S.O.L.V.E., create tickets."""
+        start = time.time()
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from tools.email_manager.hq_routes import run_resolve_oversight
+
+            result = run_resolve_oversight(threshold_hours=24)
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle(
+                job_name="resolve_email_oversight",
+                items_processed=result["scanned"],
+                items_failed=0,
+                duration_ms=duration_ms,
+                details=result,
+            )
+            logger.info(
+                "R.E.S.O.L.V.E. oversight: scanned=%d flagged=%d tickets=%d in %dms",
+                result["scanned"],
+                result["flagged"],
+                result["tickets_created"],
+                duration_ms,
+            )
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            logger.error("R.E.S.O.L.V.E. oversight failed: %s", e)
+            try:
+                self._log_cycle(
+                    job_name="resolve_email_oversight",
                     items_processed=0,
                     items_failed=1,
                     duration_ms=duration_ms,

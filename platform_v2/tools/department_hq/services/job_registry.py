@@ -42,6 +42,13 @@ JOB_REGISTRY = {
         "interval": "5m",
         "source_file": "ai_bridge/agent_loop.py",
     },
+    "resolve_email_oversight": {
+        "department": "Customer Success & Support",
+        "director": "R.E.S.O.L.V.E.",
+        "description": "R.E.S.O.L.V.E. scans for unanswered inbound emails >24h, auto-assigns and creates unified_tasks as tickets, sends Telegram alert",
+        "interval": "30m",
+        "source_file": "ai_bridge/agent_loop.py",
+    },
     "agent_notification_cleanup": {
         "department": "Operations & Infrastructure",
         "director": "B.A.S.E.",

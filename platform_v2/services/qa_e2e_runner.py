@@ -102,7 +102,10 @@ class E2ERunner:
         start = time.time()
         try:
             # Navigate (browser already running, auth already done)
-            await self.page.goto(f"{base_url}{path}", wait_until="networkidle", timeout=15000)
+            # Use "load" not "networkidle" — heavy pages (Media Studio, DHQ) have
+            # persistent polling that prevents networkidle from resolving, crashing
+            # the tab on the 5th+ navigation. Element readiness handled by wait_for actions.
+            await self.page.goto(f"{base_url}{path}", wait_until="load", timeout=15000)
 
             # Execute actions
             for action in actions:
@@ -168,7 +171,10 @@ class E2ERunner:
                 await self.authenticate(base_url, auth)
 
             # Navigate
-            await self.page.goto(f"{base_url}{path}", wait_until="networkidle", timeout=15000)
+            # Use "load" not "networkidle" — heavy pages (Media Studio, DHQ) have
+            # persistent polling that prevents networkidle from resolving, crashing
+            # the tab on the 5th+ navigation. Element readiness handled by wait_for actions.
+            await self.page.goto(f"{base_url}{path}", wait_until="load", timeout=15000)
 
             # Execute actions
             for action in actions:

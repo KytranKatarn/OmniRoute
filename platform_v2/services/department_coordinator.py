@@ -87,6 +87,10 @@ CAPABILITY_DEPARTMENT_MAP = {
     "security": "Security & Compliance",
     "compliance": "Security & Compliance",
     "support": "Customer Success & Support",
+    # R.E.S.O.L.V.E. handles user-facing chat conversations in archie_chat.
+    # Previously unmapped → defaulted to Engineering → F.O.R.G.E. (wrong).
+    "conversation": "Customer Success & Support",
+    "chat": "Customer Success & Support",
     "research": "Research & Development",
     "research_synthesis": "Research & Development",
     # Marketing & Communications (S.I.G.N.A.L.) — social media content generation

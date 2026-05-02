@@ -3202,6 +3202,49 @@ def email_oversight(flask_app):
         _log_cycle("email_oversight", 0, 1, 0, error_message=str(exc))
 
 
+def backup_retention_prune():
+    """Enforce GFS backup retention policy — weekly Sunday 04:00.
+
+    Calls cleanup_old_backups(dry_run=False) from the Backup Manager module.
+    Policy: keep 7 daily + 4 weekly + 6 monthly, delete the rest.
+    Logs freed space to autonomy_loop_log.
+    """
+    import time as _time
+    import sys as _sys
+
+    _sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+
+    start = _time.time()
+    try:
+        from tools.backup_manager.backup_manager_routes import cleanup_old_backups
+
+        result = cleanup_old_backups(dry_run=False)
+        deleted_count = len(result.get("deleted", []))
+        space_freed_mb = result.get("space_freed_mb", 0)
+        duration_ms = int((_time.time() - start) * 1000)
+
+        _log_cycle(
+            "backup_retention_prune",
+            deleted_count,
+            0,
+            duration_ms,
+            details={
+                "deleted": result.get("deleted", []),
+                "kept": result.get("kept", []),
+                "space_freed_mb": space_freed_mb,
+            },
+        )
+        logger.info(
+            "[BackupRetention] Pruned %d backup(s), freed %.1f MB",
+            deleted_count,
+            space_freed_mb,
+        )
+    except Exception as exc:
+        duration_ms = int((_time.time() - start) * 1000)
+        _log_cycle("backup_retention_prune", 0, 1, duration_ms, error_message=str(exc)[:200])
+        logger.warning("[BackupRetention] Prune failed: %s", exc)
+
+
 def poll_outpost_heartbeat():
     """Refresh last_heartbeat for external fleet nodes so node_router keeps them eligible.
 
@@ -3467,6 +3510,17 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(minutes=30),
         id="email_oversight",
         name="Email HQ: Oversight — Flag Unanswered >24h",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # Backup retention prune — weekly Sunday 04:00, enforces GFS policy (7d/4w/6m)
+    scheduler.add_job(
+        backup_retention_prune,
+        trigger=CronTrigger(day_of_week="sun", hour=4, minute=0),
+        id="backup_retention_prune",
+        name="Backup Manager: GFS Retention Prune",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

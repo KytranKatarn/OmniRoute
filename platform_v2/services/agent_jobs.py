@@ -2655,6 +2655,17 @@ def _dispatch_social_post_draft(prompt: str, prefer_agent: str = "S.I.G.N.A.L.",
             **kwargs,
         )
 
+    # Cold boot: model not loaded yet. Mark as queued so callers skip gracefully
+    # rather than logging a failure. The job will retry on the next scheduled cycle.
+    if result is not None and not result.success and not getattr(result, "queued", False):
+        _err = str(getattr(result, "error", "") or "")
+        if "cold boot" in _err or "not ready" in _err:
+            logger.info(
+                "[SignalDispatch] social_post_draft cold boot — deferring to next cycle (prefer_agent=%s)",
+                prefer_agent,
+            )
+            result.queued = True
+
     return result
 
 

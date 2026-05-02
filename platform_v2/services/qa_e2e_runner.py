@@ -27,7 +27,12 @@ class E2ERunner:
         from playwright.async_api import async_playwright
 
         self._pw = await async_playwright().start()
-        self.browser = await self._pw.chromium.launch(headless=True)
+        # --disable-dev-shm-usage: Docker limits /dev/shm to 64MB by default;
+        # without this, Chrome crashes after ~4 heavy page loads (OOM on shm).
+        self.browser = await self._pw.chromium.launch(
+            headless=True,
+            args=["--disable-dev-shm-usage", "--no-sandbox", "--disable-gpu"],
+        )
         self.context = await self.browser.new_context(
             viewport={"width": 1280, "height": 720},
             ignore_https_errors=True,

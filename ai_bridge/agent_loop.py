@@ -4004,6 +4004,23 @@ class AgentLoop:
     # Archie-as-delegate worker (Project #276 / Task #2209)
     # ------------------------------------------------------------------
 
+    # Per-capability timeouts for delegated task execution. The dispatcher
+    # has its own 300s budget (CAPABILITY_TIMEOUTS in department_dispatcher.py);
+    # these are the OUTER ceiling that keeps the worker alive when any layer
+    # below hangs. Saw 7+ hour outage on 2026-05-03 when deploy_vps rsync
+    # stalled and APScheduler max_instances=1 + coalesce=True locked us out.
+    _DELEGATE_CAPABILITY_TIMEOUTS = {
+        "deploy_vps": 600,
+        "deploy_static": 600,
+        "run_qa_suite": 300,
+        "run_misroute_audit": 120,
+        "run_misroute_to_proposal_adapter": 120,
+        "check_dep_drift": 60,
+        "health_check": 30,
+        "check_platform_health": 30,
+    }
+    _DELEGATE_DEFAULT_TIMEOUT_SECS = 360  # dispatcher 300s + 60s buffer
+
     def _run_delegate_task_worker(self):
         """Pick up pending delegated tasks and execute via OrchestrationEngine.
 
@@ -4012,6 +4029,13 @@ class AgentLoop:
         tasks to avoid starving other agent-loop jobs. Each claimed task
         is flipped to ``in_progress`` before execution; on completion or
         failure, status + a ``work_notes`` row are written.
+
+        Per-task timeout shield: each ``execute_delegated_task`` call runs
+        in a worker-owned thread pool with a per-capability timeout. If a
+        layer below hangs (rsync, Playwright cold-start, model load), the
+        future bails out, the task is marked blocked, and the worker
+        keeps running. Without this shield, APScheduler's
+        ``max_instances=1, coalesce=True`` permanently freezes the job.
 
         Logs one ``autonomy_loop_log`` row per cycle via ``_log_cycle``
         so the Dev HQ job-monitoring view (#2105 infrastructure) shows
@@ -4022,6 +4046,10 @@ class AgentLoop:
         failed = 0
         try:
             import sys
+            from concurrent.futures import (
+                ThreadPoolExecutor,
+                TimeoutError as FutureTimeoutError,
+            )
 
             sys.path.insert(0, "/mnt/archie_brain/platform_v2")
             from services.delegation_service import (
@@ -4037,6 +4065,15 @@ class AgentLoop:
             if not tasks:
                 # Silent no-op when queue is empty — avoids autonomy_loop_log spam.
                 return
+
+            # Lazy-init a dedicated single-thread executor. Reused across cycles.
+            # Single worker → one delegated task in flight at a time, matching the
+            # design's serial-claim model; the loop iterates 3 tasks max per cycle.
+            if not hasattr(self, "_delegate_pool"):
+                self._delegate_pool = ThreadPoolExecutor(
+                    max_workers=1,
+                    thread_name_prefix="delegate-task",
+                )
 
             for task in tasks:
                 task_id = task["id"]
@@ -4063,8 +4100,43 @@ class AgentLoop:
                     streaming_channel=streaming_channel,
                 )
 
+                timeout_secs = self._DELEGATE_CAPABILITY_TIMEOUTS.get(
+                    capability, self._DELEGATE_DEFAULT_TIMEOUT_SECS
+                )
+
                 try:
-                    result = execute_delegated_task(task)
+                    future = self._delegate_pool.submit(execute_delegated_task, task)
+                    try:
+                        result = future.result(timeout=timeout_secs)
+                    except FutureTimeoutError:
+                        # Outer shield fired. mark_task_failed sets status='blocked'
+                        # so the row is retry-able once the underlying issue clears.
+                        # The orphaned thread keeps running until it finishes/dies;
+                        # this is strictly better than freezing APScheduler.
+                        timeout_summary = (
+                            f"Delegate worker timed out after {timeout_secs}s "
+                            f"(capability={capability})"
+                        )
+                        logger.error(
+                            "Delegate task #%s %s — marking blocked, worker continues",
+                            task_id,
+                            timeout_summary,
+                        )
+                        try:
+                            mark_task_failed(task_id, timeout_summary)
+                            emit_delegation_event(
+                                task_id,
+                                "fail",
+                                capability=capability,
+                                summary=timeout_summary,
+                                delegation_source=delegation_source,
+                                streaming_channel=streaming_channel,
+                            )
+                        except Exception:
+                            pass
+                        failed += 1
+                        continue
+
                     if result.get("success"):
                         summary = result.get("summary", "")
                         mark_task_completed(task_id, summary)

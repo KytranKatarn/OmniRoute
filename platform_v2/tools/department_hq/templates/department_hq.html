@@ -264,6 +264,20 @@
         </div>
         <div id="dispatchHistoryContent" class="dhq-loading">Loading history...</div>
       </div>
+      <!-- Claude Requests (Task #1297) -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>CLAUDE REQUESTS <span id="dispatchClaudeCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></span>
+          <select id="dispatchClaudeHours" onchange="loadClaudeFeed()" style="background:var(--dhq-surface-2);color:var(--dhq-text);border:1px solid var(--dhq-border);border-radius:4px;padding:4px 8px;font-size:0.7rem">
+            <option value="1">Last 1h</option>
+            <option value="6">Last 6h</option>
+            <option value="24" selected>Last 24h</option>
+            <option value="72">Last 3d</option>
+            <option value="168">Last 7d</option>
+          </select>
+        </div>
+        <div id="dispatchClaudeContent" class="dhq-loading">Loading Claude requests...</div>
+      </div>
       <!-- System Components -->
       <div class="dhq-dispatch-section">
         <div class="dhq-section-title">SYSTEM COMPONENTS</div>

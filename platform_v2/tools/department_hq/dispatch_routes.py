@@ -843,3 +843,76 @@ def register_dispatch_routes(bp, admin_required_decorator):
         except Exception as e:
             logger.error("[Dispatch] Traffic failed: %s", e)
             return jsonify({"success": False, "error": str(e)}), 500
+
+    # ── Claude Requests Feed (Task #1297) ──
+
+    @bp.route("/api/dispatch/claude-feed", methods=["GET"])
+    @admin_required_decorator
+    def dispatch_claude_feed():
+        """Recent Claude MCP-initiated dispatches.
+
+        Pulls task_execution_log rows tagged with request_origin='claude'
+        by the dispatch_context wrapper in mcp_server/server.py. Powers the
+        DHQ Dispatch tab "Claude Requests" panel.
+        """
+        limit = min(int(request.args.get("limit", 50)), 200)
+        hours = min(int(request.args.get("hours", 24)), 168)
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT id, mcp_tool, agent_name, capability,
+                              model_used, success, duration_ms, cost,
+                              error_message, station_code, created_at
+                       FROM task_execution_log
+                       WHERE request_origin = 'claude'
+                         AND created_at > NOW() - INTERVAL %s
+                       ORDER BY id DESC
+                       LIMIT %s""",
+                    (f"{hours} hours", limit),
+                )
+                feed = []
+                for row in cur.fetchall():
+                    r = dict(row)
+                    feed.append(
+                        {
+                            "id": r["id"],
+                            "mcp_tool": r.get("mcp_tool") or "",
+                            "agent": r.get("agent_name") or "",
+                            "capability": r.get("capability") or "",
+                            "model": r.get("model_used") or "",
+                            "success": r.get("success"),
+                            "duration_ms": r.get("duration_ms"),
+                            "cost_usd": float(r["cost"]) if r.get("cost") is not None else None,
+                            "error": r.get("error_message"),
+                            "station": r.get("station_code") or "",
+                            "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+                        }
+                    )
+
+                # Aggregates
+                cur.execute(
+                    """SELECT mcp_tool, COUNT(*) AS n,
+                              SUM(CASE WHEN success THEN 1 ELSE 0 END) AS ok
+                       FROM task_execution_log
+                       WHERE request_origin = 'claude'
+                         AND created_at > NOW() - INTERVAL %s
+                       GROUP BY mcp_tool ORDER BY n DESC LIMIT 10""",
+                    (f"{hours} hours",),
+                )
+                by_tool = [dict(r) for r in cur.fetchall()]
+
+            total = len(feed)
+            successes = sum(1 for f in feed if f["success"])
+            return jsonify(
+                {
+                    "success": True,
+                    "hours": hours,
+                    "total": total,
+                    "success_rate": round(successes / total * 100) if total else 0,
+                    "feed": feed,
+                    "by_tool": by_tool,
+                }
+            )
+        except Exception as e:
+            logger.error("[Dispatch] Claude feed failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500

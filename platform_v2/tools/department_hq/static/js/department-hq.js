@@ -2123,6 +2123,7 @@ async function loadDispatch() {
     loadServerLoops();
     loadDispatchApprovals();
     loadDispatchHistory();
+    loadClaudeFeed();
     loadDispatchComponents();
     loadDispatchScheduler();
     loadDispatchConfig();
@@ -2358,6 +2359,64 @@ async function loadDispatchHistory() {
                 + '<td style="color:var(--dhq-text-dim)">' + dur + '</td>'
                 + '<td style="color:var(--dhq-text-dim)">' + fmtTime(h.created_at) + '</td>'
                 + '</tr>';
+        });
+        html += '</tbody></table>';
+        setHtml(el, html);
+    } catch (e) { setHtml(el, '<div class="dhq-empty">Error: ' + esc(e.message) + '</div>'); }
+}
+
+// ── Claude Requests Feed (Task #1297) ──
+
+async function loadClaudeFeed() {
+    var el = document.getElementById('dispatchClaudeContent');
+    var countEl = document.getElementById('dispatchClaudeCount');
+    var hoursEl = document.getElementById('dispatchClaudeHours');
+    var hours = hoursEl ? hoursEl.value : 24;
+    if (!el) return;
+    try {
+        var data = await api('/api/dispatch/claude-feed?hours=' + hours + '&limit=50');
+        var feed = data.feed || [];
+        var byTool = data.by_tool || [];
+        if (countEl) {
+            countEl.textContent = '(' + (data.total || 0) + ' · ' + (data.success_rate || 0) + '% ok)';
+        }
+        if (!feed.length) {
+            setHtml(el, '<div class="dhq-empty">No Claude requests in this period — restart your Claude Code session if you expect attribution to flow.</div>');
+            return;
+        }
+        // Top tools summary chips
+        var chips = '';
+        if (byTool.length) {
+            chips = '<div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.6rem">';
+            byTool.forEach(function(t) {
+                var okRate = t.n ? Math.round((t.ok || 0) / t.n * 100) : 0;
+                var color = okRate >= 90 ? '#10B981' : okRate >= 60 ? '#f59e0b' : '#ef4444';
+                chips += '<span style="padding:3px 8px;background:var(--dhq-surface-2);border:1px solid var(--dhq-border);border-radius:4px;font-size:0.7rem;font-family:monospace">'
+                    + esc(t.mcp_tool || '?') + ' <span style="color:' + color + ';font-weight:600">' + t.n + '</span></span>';
+            });
+            chips += '</div>';
+        }
+        var html = chips + '<table class="dhq-loop-table"><thead><tr>'
+            + '<th>TOOL</th><th>AGENT</th><th>CAPABILITY</th><th>MODEL</th><th>STATUS</th><th>DURATION</th><th>COST</th><th>TIME</th>'
+            + '</tr></thead><tbody>';
+        feed.forEach(function(f) {
+            var statusCls = f.success ? 'dhq-loop-ok' : 'dhq-loop-err';
+            var statusTxt = f.success ? 'success' : 'failed';
+            var dur = f.duration_ms ? (f.duration_ms / 1000).toFixed(1) + 's' : '—';
+            var cost = (f.cost_usd != null && f.cost_usd > 0) ? '$' + f.cost_usd.toFixed(4) : '—';
+            html += '<tr>'
+                + '<td style="font-family:monospace;color:var(--dhq-accent)">' + esc(f.mcp_tool || '?') + '</td>'
+                + '<td>' + esc(f.agent || '—') + '</td>'
+                + '<td style="color:var(--dhq-text-dim);font-size:0.72rem">' + esc(f.capability || '') + '</td>'
+                + '<td style="color:var(--dhq-text-dim);font-size:0.72rem">' + esc(f.model || '') + '</td>'
+                + '<td class="' + statusCls + '">' + statusTxt + '</td>'
+                + '<td style="color:var(--dhq-text-dim)">' + dur + '</td>'
+                + '<td style="color:var(--dhq-text-dim)">' + cost + '</td>'
+                + '<td style="color:var(--dhq-text-dim)">' + fmtTime(f.created_at) + '</td>'
+                + '</tr>';
+            if (f.error) {
+                html += '<tr><td colspan="8" style="color:#ef4444;font-size:0.7rem;font-family:monospace;padding-left:1rem">' + esc(f.error) + '</td></tr>';
+            }
         });
         html += '</tbody></table>';
         setHtml(el, html);

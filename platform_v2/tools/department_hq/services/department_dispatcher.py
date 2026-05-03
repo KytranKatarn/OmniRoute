@@ -3103,6 +3103,11 @@ class DepartmentDispatcher:
             cur.close()
             conn.close()
 
+            # Notification hook for Claude MCP-initiated dispatches (Task #1299).
+            # Always-on for in-platform; Telegram gated on failures or cost-bearing.
+            if request_origin == "claude":
+                self._notify_claude_dispatch(result, mcp_tool, is_contractor)
+
             # Also update agent-level performance summary via agent_service
             # (Project #241 Track C.3). Skip when contractor did the work —
             # don't credit the agent.
@@ -3123,6 +3128,72 @@ class DepartmentDispatcher:
             self._record_agent_memory(result, module_id)
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] Failed to log execution: {e}")
+
+    def _notify_claude_dispatch(
+        self,
+        result: "DispatchResult",
+        mcp_tool: Optional[str],
+        is_contractor: bool,
+    ):
+        """Fire platform notification (and optionally Telegram) when a Claude
+        MCP request completes a dispatch (Task #1299).
+
+        Routing:
+        - Always: in-platform admin notification (DHQ alerts dropdown)
+        - Telegram: only on failures or cost-bearing dispatches (cost > 0
+          or contractor tier), gated by env CLAUDE_DISPATCH_TELEGRAM=1.
+          The cost/contractor Tier-2 approval flow runs INSIDE dispatch()
+          before this point — we only post-notify.
+        """
+        try:
+            cost = float(getattr(result, "cost_usd", 0) or 0)
+            is_cost_bearing = is_contractor or cost > 0
+            status_emoji = "✓" if result.success else "✗"
+            title = f"Claude → {mcp_tool or 'dispatch'}"
+            parts = [
+                f"{status_emoji} agent={result.agent_name or 'unknown'}",
+                f"capability={result.capability}",
+                f"model={result.model_used or 'n/a'}",
+            ]
+            if is_cost_bearing:
+                parts.append(f"cost=${cost:.4f}")
+            if not result.success and result.error:
+                parts.append(f"error={result.error[:120]}")
+            msg = " · ".join(parts)
+
+            if not result.success:
+                notif_type = "error"
+                priority = "high"
+            elif is_cost_bearing:
+                notif_type = "warning"
+                priority = "high"
+            else:
+                notif_type = "info"
+                priority = "low"
+
+            try:
+                from services.notification_service import create_notification
+
+                create_notification(
+                    notification_type=notif_type,
+                    title=title,
+                    message=msg,
+                    source="dispatcher",
+                    priority=priority,
+                    visibility="admin",
+                )
+            except Exception as exc:
+                logger.warning(f"[ClaudeNotify] platform notify failed: {exc}")
+
+            if (not result.success or is_cost_bearing) and os.getenv("CLAUDE_DISPATCH_TELEGRAM", "0") == "1":
+                try:
+                    from services.telegram_service import send_info
+
+                    send_info(title, msg)
+                except Exception as exc:
+                    logger.warning(f"[ClaudeNotify] telegram send failed: {exc}")
+        except Exception as exc:
+            logger.warning(f"[ClaudeNotify] hook failed: {exc}")
 
     def _update_agent_welfare(self, agent_id: Optional[int], success: bool):
         """Update agent emotional state after each dispatch using 1-hour rolling window."""

@@ -3730,8 +3730,15 @@ def init_consciousness_scheduler(flask_app):
         return None
 
 
-# Initialize scheduler when not in debug reload mode
-if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+# Initialize scheduler when not in debug reload mode AND this process owns
+# the scheduler. Path C (decision_id 557) extracts the scheduler into a
+# sidecar container; ``ARCHIE_RUN_SCHEDULER`` defaults to "1" so legacy
+# single-container deploys keep working unchanged. The sidecar daemon sets
+# it to "1" explicitly; once the platform container delegates scheduling
+# to the sidecar, its compose entry sets it to "0" and the entire init
+# block becomes a no-op so jobs don't double-fire.
+_run_scheduler_here = os.getenv("ARCHIE_RUN_SCHEDULER", "1") == "1"
+if (os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug) and _run_scheduler_here:
     _scheduler = init_consciousness_scheduler(app)
 
     # Initialize Agent Loop (Project Autonomy)
@@ -3826,7 +3833,11 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
         # delivered to whichever instance wins the race and silently dropped.
         # The lock file lives on tmpfs and is held for the life of the winning
         # process; when it dies the OS releases the FD automatically.
-        _tg_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        # Path C: skip Telegram gateway in the scheduler sidecar — only the
+        # platform container should own the bot's fcntl lock and getUpdates
+        # poller. Defaults to "1" so single-container deploys are unchanged.
+        _run_telegram_here = os.getenv("ARCHIE_RUN_TELEGRAM", "1") == "1"
+        _tg_token = os.getenv("TELEGRAM_BOT_TOKEN") if _run_telegram_here else None
         if _tg_token:
             import fcntl
 

@@ -201,6 +201,9 @@ def register_dispatch_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": str(e)}), 500
 
         # ── Scheduler next_run times ──
+        # In-process scheduler exists when ARCHIE_RUN_SCHEDULER=1 here. When
+        # the scheduler runs in the sidecar container, fall back to the
+        # heartbeat row (Path C, decision_id 557).
         next_run_map = {}
         try:
             scheduler = current_app.config.get("CONSCIOUSNESS_SCHEDULER")
@@ -208,6 +211,11 @@ def register_dispatch_routes(bp, admin_required_decorator):
                 for sj in scheduler.get_jobs():
                     nrt = sj.next_run_time
                     next_run_map[sj.id] = nrt.isoformat() if nrt else None
+            else:
+                from services import scheduler_health
+
+                for sj in scheduler_health.get_jobs():
+                    next_run_map[sj["id"]] = sj.get("next_run")
         except Exception:
             pass
 
@@ -422,29 +430,57 @@ def register_dispatch_routes(bp, admin_required_decorator):
         except Exception:
             components.append({"name": "Ollama", "ok": False, "detail": "Unreachable"})
 
-        # Scheduler
+        # Scheduler + Agent Loop. When the scheduler is in-process we read
+        # the live object; when it's in the sidecar container (Path C,
+        # decision_id 557) we read the heartbeat row instead. Heartbeat
+        # row also wins over an in-process scheduler that's been stopped
+        # but not torn down.
         try:
             sched = current_app.config.get("CONSCIOUSNESS_SCHEDULER")
-            components.append(
-                {
-                    "name": "Scheduler",
-                    "ok": bool(sched and sched.running),
-                    "detail": f"{len(sched.get_jobs())} jobs" if sched and sched.running else "Stopped",
-                }
-            )
+            if sched and sched.running:
+                components.append(
+                    {
+                        "name": "Scheduler",
+                        "ok": True,
+                        "detail": f"{len(sched.get_jobs())} jobs",
+                    }
+                )
+            else:
+                from services import scheduler_health
+
+                hs = scheduler_health.read_status()
+                components.append(
+                    {
+                        "name": "Scheduler",
+                        "ok": hs["scheduler_running"],
+                        "detail": (f"{hs['jobs_total']} jobs (sidecar)" if hs["scheduler_running"] else hs["detail"]),
+                    }
+                )
         except Exception:
             components.append({"name": "Scheduler", "ok": False, "detail": "Error"})
 
         # Agent Loop
         try:
             agent_loop = current_app.config.get("AGENT_LOOP")
-            components.append(
-                {
-                    "name": "Agent Loop",
-                    "ok": bool(agent_loop and getattr(agent_loop, "running", False)),
-                    "detail": "Running" if agent_loop and getattr(agent_loop, "running", False) else "Stopped",
-                }
-            )
+            if agent_loop and getattr(agent_loop, "running", False):
+                components.append(
+                    {
+                        "name": "Agent Loop",
+                        "ok": True,
+                        "detail": "Running",
+                    }
+                )
+            else:
+                from services import scheduler_health
+
+                hs = scheduler_health.read_status()
+                components.append(
+                    {
+                        "name": "Agent Loop",
+                        "ok": hs["agent_loop_running"],
+                        "detail": "Running (sidecar)" if hs["agent_loop_running"] else hs["detail"],
+                    }
+                )
         except Exception:
             components.append({"name": "Agent Loop", "ok": False, "detail": "Error"})
 
@@ -503,6 +539,11 @@ def register_dispatch_routes(bp, admin_required_decorator):
                             "trigger": str(sj.trigger) if sj.trigger else "",
                         }
                     )
+            else:
+                # Path C: read job list from sidecar heartbeat
+                from services import scheduler_health
+
+                jobs = scheduler_health.get_jobs()
         except Exception as e:
             logger.warning("[Dispatch] Scheduler list failed: %s", e)
 
@@ -707,6 +748,16 @@ def register_dispatch_routes(bp, admin_required_decorator):
             agent_loop_running = bool(agent_loop and getattr(agent_loop, "is_running", False))
             scheduler = current_app.config.get("CONSCIOUSNESS_SCHEDULER")
             scheduler_running = bool(scheduler and scheduler.running)
+            # Path C: when scheduler is in the sidecar container, the
+            # in-process objects above are None — fall back to heartbeat.
+            if not scheduler_running or not agent_loop_running:
+                from services import scheduler_health
+
+                hs = scheduler_health.read_status()
+                if not scheduler_running:
+                    scheduler_running = hs["scheduler_running"]
+                if not agent_loop_running:
+                    agent_loop_running = hs["agent_loop_running"]
 
             active_jobs = {
                 "bridge_running": bj.get("running") or 0,

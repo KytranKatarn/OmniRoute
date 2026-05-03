@@ -120,6 +120,11 @@ _API_GENERATE_ALLOWLIST: set[str] = {
     # messages / new). Not Ollama inference. Follow-up to refine the guardrail
     # regex so route decorators no longer trigger: task #2228.
     "archie-comms/app_comms.py",
+    # Consciousness module — Flask route decorators for `/api/chat-volume`,
+    # `/api/chat/history`, `/api/chat/upload` (admin-side conversation analytics
+    # routes). Not Ollama inference. Same false-positive shape as archie-comms;
+    # cleared by the same regex refinement (#2228).
+    "platform_v2/tools/consciousness/routes.py",
     # Media Hub standalone — M.A.V.E.N. chat surface (task #2238, phase 1)
     # talks to Ollama directly at 192.168.1.200:11434 because the standalone
     # container doesn't ship tools.department_hq.services.ollama_options.

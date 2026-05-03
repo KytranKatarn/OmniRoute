@@ -2695,8 +2695,12 @@ def scheduler_status():
             status["scheduled_jobs"] = jobs
             status["scheduler_running"] = scheduler.running
         else:
-            status["scheduler_running"] = False
-            status["scheduled_jobs"] = []
+            # Path C: scheduler runs in sidecar container — read heartbeat.
+            from services import scheduler_health
+
+            hs = scheduler_health.read_status()
+            status["scheduler_running"] = hs["scheduler_running"]
+            status["scheduled_jobs"] = hs["jobs"]
 
         return jsonify(status)
 

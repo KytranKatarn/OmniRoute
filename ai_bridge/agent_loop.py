@@ -509,6 +509,18 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Path C: scheduler sidecar heartbeat. HTTP routes that previously
+        # read `current_app.config["AGENT_LOOP"].running` now read
+        # scheduler_heartbeat instead, since the scheduler can live in a
+        # different container than gunicorn.
+        self.scheduler.add_job(
+            with_app_context(self._write_scheduler_heartbeat),
+            trigger=IntervalTrigger(seconds=30),
+            id="scheduler_heartbeat",
+            name="Agent Loop: Scheduler Heartbeat (30s)",
+            replace_existing=True,
+        )
+
         self.scheduler.add_job(
             with_app_context(self._comfyui_idle_stop),
             trigger=IntervalTrigger(minutes=5),
@@ -5779,6 +5791,67 @@ class AgentLoop:
                 int((time.time() - start) * 1000),
                 error_message=str(e),
             )
+
+    def _write_scheduler_heartbeat(self):
+        """Write a row to scheduler_heartbeat every 30s.
+
+        Path C (decision_id 557): the scheduler runs in a sidecar container
+        in production, so HTTP routes can no longer read
+        ``app.config["AGENT_LOOP"].running`` (the in-process Python object
+        lives in another process). They consume this table instead.
+
+        Also prunes rows older than 24h so the table stays bounded.
+        """
+        try:
+            import json
+            import socket
+            from database import get_db_cursor
+            from psycopg2.extras import Json
+
+            scheduler = self.scheduler
+            jobs = scheduler.get_jobs() if scheduler else []
+            jobs_total = len(jobs)
+            running = bool(scheduler and getattr(scheduler, "running", False))
+            next_run = None
+            jobs_summary = []
+            for j in jobs:
+                nr = getattr(j, "next_run_time", None)
+                if nr and (next_run is None or nr < next_run):
+                    next_run = nr
+                jobs_summary.append({
+                    "id": j.id,
+                    "name": j.name or j.id,
+                    "next_run": nr.isoformat() if nr else None,
+                    "trigger": str(j.trigger) if j.trigger else "",
+                })
+
+            details = {
+                "source": "agent_loop",
+                "jobs": jobs_summary,
+            }
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO scheduler_heartbeat
+                        (hostname, ts, running, jobs_total, jobs_pending, next_run_ts, details)
+                    VALUES (%s, now(), %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        socket.gethostname(),
+                        running,
+                        jobs_total,
+                        0,  # jobs_pending — APScheduler doesn't track this directly
+                        next_run,
+                        Json(details),
+                    ),
+                )
+                # Bounded retention — heartbeats are diagnostic, not historical
+                cur.execute(
+                    "DELETE FROM scheduler_heartbeat WHERE ts < now() - interval '24 hours'"
+                )
+        except Exception as e:
+            logger.warning("scheduler_heartbeat write failed: %s", e)
 
     def _platform_watchdog(self):
         """Alert when host is under memory/CPU pressure.

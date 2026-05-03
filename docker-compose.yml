@@ -228,6 +228,149 @@ services:
       retries: 3
       start_period: 40s
 
+  # A.R.C.H.I.E. Scheduler — APScheduler sidecar (Path C, decision_id 557).
+  # Runs the same code as archie_platform but with ARCHIE_RUN_SCHEDULER=1
+  # (and ARCHIE_RUN_TELEGRAM=0). Owns all 117 scheduled jobs and the
+  # AgentLoop. Disabled by default via `profiles: [scheduler]` so this PR
+  # is a no-op until activated. Activation:
+  #   1) edit archie_platform's environment to set ARCHIE_RUN_SCHEDULER=0
+  #   2) docker compose --profile scheduler up -d archie_scheduler
+  #   3) verify scheduler_heartbeat row appears every 30s
+  #   4) follow-up PR removes `profiles:` and bumps platform --workers
+  archie_scheduler:
+    profiles: ["scheduler"]
+    build: ./platform_v2
+    container_name: archie_scheduler
+    command: ["python3", "scheduler_daemon.py"]
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m
+      - /var/run:size=16m
+      - /var/log:size=128m
+      - /root/.cache:size=1g,exec
+      - /mnt/archie_brain/logs:size=64m
+    mem_limit: 2g
+    cpus: 2.0
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - DAC_READ_SEARCH
+      - CHOWN
+      - FOWNER
+      - SETGID
+      - SETUID
+    env_file:
+      - .env
+    environment:
+      TZ: America/Toronto
+      PYTHONPATH: /mnt/archie_brain
+      ARCHIE_RUN_SCHEDULER: "1"
+      ARCHIE_RUN_TELEGRAM: "0"
+      SECRET_KEY: ${SECRET_KEY}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
+      FLASK_ENV: production
+      DB_HOST: archie_database
+      DB_PORT: 5432
+      DB_NAME: archie
+      DB_USER: archie
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      DB_PASSWORD: ""
+      OLLAMA_PRIMARY: ${OLLAMA_PRIMARY}
+      CODE_SERVER_URL: ${CODE_SERVER_URL}
+      OLLAMA_HOST: ${OLLAMA_PRIMARY}
+      HOST_IP: "192.168.1.200"
+      NPM_API_URL: http://nginx_proxy_manager:81/api
+      NPM_ADMIN_EMAIL: ${NPM_ADMIN_EMAIL}
+      NPM_ADMIN_PASSWORD: ${NPM_ADMIN_PASSWORD}
+      HOSTINGER_API_KEY: ${HOSTINGER_API_KEY:-}
+      HOSTINGER_DOMAIN: ${HOSTINGER_DOMAIN:-kytranempowerment.com}
+      HA_URL: ${HA_URL:-http://192.168.1.200:8123}
+      HA_API_TOKEN: ${HA_API_TOKEN:-}
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-hub}
+      OLLAMA_MODELS: /mnt/llm_drive/ollama/models
+      TELEGRAM_BOT_TOKEN: ""
+      COMFYUI_HOST: ${COMFYUI_HOST:-http://172.27.0.11:8188}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_USERNAME: ${GITHUB_USERNAME:-KytranKatarn}
+    extra_hosts:
+      - "host.docker.internal:192.168.1.200"
+    secrets:
+      - db_password
+      - stripe_secret_key
+      - stripe_webhook_secret
+      - stripe_publishable_key
+    volumes:
+      - ./ai_bridge:/mnt/archie_brain/ai_bridge:rw
+      - ./docs:/mnt/archie_brain/docs:rw
+      - ./platform_v2:/app:rw
+      - ./backups:/backups
+      - /mnt/external-backup:/mnt/external-backup:rw
+      - ./conversation_logs:/mnt/archie_brain/conversation_logs:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.sandbox.yml:/mnt/archie_brain/docker-compose.sandbox.yml:ro
+      - ./database/migrations:/mnt/archie_brain/database/migrations:rw
+      - ./host_monitor_data.json:/mnt/archie_brain/host_monitor_data.json:ro
+      - ./fleet/catalog:/mnt/archie_brain/fleet/catalog:ro
+      - /opt/archie-fleet/certs:/opt/archie-fleet/certs:rw
+      - ./bandwidth_history.json:/mnt/archie_brain/bandwidth_history.json:ro
+      - ./n8n_workflows:/mnt/archie_brain/n8n_workflows:rw
+      - ./persistence/n8n:/mnt/archie_brain/persistence/n8n:ro
+      - ./scripts:/mnt/archie_brain/scripts:rw
+      - ./nginx:/mnt/archie_brain/nginx:ro
+      - ./docker-compose.yml:/mnt/archie_brain/docker-compose.yml:ro
+      - ./goose:/mnt/archie_brain/goose:rw
+      - ./.mcp.json:/mnt/archie_brain/.mcp.json:ro
+      - ./CLAUDE.md:/mnt/archie_brain/CLAUDE.md:ro
+      - ./.claude/rules:/mnt/archie_brain/.claude/rules:rw
+      - ./.claude/skills:/mnt/archie_brain/.claude/skills:rw
+      - ./.git:/mnt/archie_brain/.git:rw
+      - ./repos:/mnt/archie_brain/repos:rw
+      - ./secrets:/mnt/archie_brain/secrets:ro
+      - ./node_client:/mnt/archie_brain/node_client:ro
+      - ./website:/mnt/archie_brain/website:ro
+      - ./website/kytranempowerment.com/data:/mnt/archie_brain/website/kytranempowerment.com/data:rw
+      - ./website/creed-ai.org/data:/mnt/archie_brain/website/creed-ai.org/data:rw
+      - ./website/kytranempowerment.com/assets/portraits:/mnt/archie_brain/website/kytranempowerment.com/assets/portraits:rw
+      - ./website/creed-ai.org/assets/portraits:/mnt/archie_brain/website/creed-ai.org/assets/portraits:rw
+      - ./kytran-server-manager:/mnt/archie_brain/kytran-server-manager:ro
+      - ./host_commands:/mnt/archie_brain/host_commands:rw
+      - ./migrations:/mnt/archie_brain/migrations:ro
+      - /mnt/stacks:/mnt/stacks:ro
+      - monitoring_nagios_data:/opt/nagios-data:ro
+      - /etc/ssh:/etc/ssh:ro
+      - /etc/docker:/etc/docker:ro
+      - /etc/security:/etc/security:ro
+      - /etc/pam.d:/etc/pam.d:ro
+      - /etc/audit:/etc/audit:ro
+      - /etc/login.defs:/etc/login.defs:ro
+      - /etc/modprobe.d:/etc/modprobe.d:ro
+      - /etc/sysctl.conf:/etc/sysctl.conf:ro
+      - /etc/sysctl.d:/etc/sysctl.d:ro
+      - /etc/rsyslog.conf:/host/etc/rsyslog.conf:ro
+      - /etc/rsyslog.d:/host/etc/rsyslog.d:ro
+      - /etc/crontab:/host/etc/crontab:ro
+      - /etc/sudoers.d:/host/etc/sudoers.d:ro
+      - /etc/sudoers:/host/etc/sudoers:ro
+      - /etc/systemd/journald.conf:/host/etc/journald.conf:ro
+      - /proc/1/mounts:/host/proc/mounts:ro
+      - /etc/ufw:/etc/ufw:ro
+      - /mnt/standalone/websites/what-the-fact.com/data:/mnt/standalone/websites/what-the-fact.com/data:rw
+      - ./stalwart-mail:/mnt/archie_brain/stalwart-mail:ro
+    networks:
+      - archie_internal
+      - network_tools_ext
+    depends_on:
+      archie_database:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import os, psycopg2; c=psycopg2.connect(host='archie_database', dbname='archie', user='archie', password=open('/run/secrets/db_password').read().strip()); cur=c.cursor(); cur.execute(\\\"SELECT EXTRACT(EPOCH FROM (now()-ts))::int FROM scheduler_heartbeat ORDER BY ts DESC LIMIT 1\\\"); r=cur.fetchone(); assert r and r[0] < 120, 'no recent heartbeat'\""]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
   # A.R.C.H.I.E. Comms — Independent communication layer (Decision #442)
   # Survives platform crashes. Voice, Telegram, chat UI, watchdog.
   archie_comms:

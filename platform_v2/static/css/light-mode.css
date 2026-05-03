@@ -716,3 +716,67 @@ body.light-mode #cs-knowledge-graph-canvas {
     background: rgba(var(--cat-accent-rgb), 0.03);
     border-color: rgba(var(--cat-accent-rgb), 0.1);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §17 - NEURAL CORE HUD (Consciousness module)
+   .nc-hud-item bg is rgba(6,6,12,0.65) — opaque dark on light bg, labels invisible
+   ───────────────────────────────────────────────────────────────────────────── */
+body.light-mode .nc-hud-item {
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(var(--nc-accent-rgb), 0.3);
+    color: var(--archie-text-primary);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+body.light-mode .nc-hud-label {
+    color: var(--archie-text-tertiary);
+}
+
+/* HUD value colors are accent shades; tone down the glow shadow in light mode */
+body.light-mode .nc-hud-value {
+    text-shadow: 0 0 4px currentColor;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §18 - CONSCIOUSNESS STAT TILES
+   .cs-stat uses rgba(255,255,255,0.03) — invisible on white background
+   ───────────────────────────────────────────────────────────────────────────── */
+body.light-mode .cs-stat {
+    background: rgba(255, 255, 255, 0.7) !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+    border-left: 3px solid rgba(var(--cat-accent-rgb), 0.5) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+body.light-mode .cs-stat:hover {
+    border-color: rgba(var(--cat-accent-rgb), 0.4) !important;
+    box-shadow: 0 4px 12px rgba(var(--cat-accent-rgb), 0.12);
+}
+
+/* Stat value/label readability inside .cs-stat */
+body.light-mode .cs-stat .cs-stat-value,
+body.light-mode .cs-stat-value {
+    color: var(--archie-text-primary);
+}
+
+body.light-mode .cs-stat .cs-stat-label,
+body.light-mode .cs-stat-label {
+    color: var(--archie-text-tertiary);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §19 - DEEP BACKGROUND ALIAS
+   --archie-bg-deep is defined at :root as var(--archie-bg-void). Re-declare it
+   under body.light-mode so module containers using it (Account Center,
+   Backup Manager) pick up the light value, not the inherited dark.
+   Also direct backstops on the two known consumers.
+   ───────────────────────────────────────────────────────────────────────────── */
+body.light-mode {
+    --archie-bg-deep: var(--archie-bg-void);
+}
+
+body.light-mode .account-center-container,
+body.light-mode .backup-manager-container {
+    background: var(--archie-bg-void) !important;
+}

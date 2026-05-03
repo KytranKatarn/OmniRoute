@@ -23,9 +23,15 @@ os.environ.setdefault("FLASK_SECRET_KEY", "test-secret-key")
 
 
 def _load_flask_app():
-    """Load app.py directly to avoid __init__.py package shadowing."""
+    """Load app.py directly to avoid __init__.py package shadowing.
+
+    Registers the module as sys.modules["app"] before exec so that any
+    internal import (e.g. `from app import User`) resolves to this module
+    rather than the /app/__init__.py package stub.
+    """
     spec = importlib.util.spec_from_file_location("flask_app_module", "/app/app.py")
     mod = importlib.util.module_from_spec(spec)
+    sys.modules["app"] = mod  # shadow the package stub before exec
     spec.loader.exec_module(mod)
     return mod.app
 

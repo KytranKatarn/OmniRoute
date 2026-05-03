@@ -12,6 +12,7 @@ from flask import (
     request,
     jsonify,
     session,
+    g,
 )
 from flask_login import (
     LoginManager,
@@ -30,6 +31,7 @@ import time
 import json
 import secrets
 from config import Config
+from services import nav_service
 
 
 # Custom JSON encoder for datetime objects
@@ -2971,6 +2973,43 @@ def inject_theme_context():
         "layout_family": layout_family,
         "is_admin_module": is_admin_module,
     }
+
+
+@app.context_processor
+def inject_category_siblings():
+    """Auto-populate `header_shortcuts` for any template that includes lcars-header.html.
+
+    Per-request memoized via flask.g. If the route already set
+    g.header_shortcuts_override, the override wins. Defensive: never raises.
+
+    See: docs/superpowers/specs/2026-05-03-lcars-nav-strategy-design.md
+    """
+    try:
+        # Per-request memoization
+        if hasattr(g, "_nav_shortcuts_cached"):
+            return {"header_shortcuts": g._nav_shortcuts_cached}
+
+        # Per-route override path
+        override = getattr(g, "header_shortcuts_override", None)
+        if override is not None:
+            g._nav_shortcuts_cached = override
+            return {"header_shortcuts": override}
+
+        # Resolve current module from request endpoint
+        endpoint = getattr(request, "endpoint", None)
+        module_id = nav_service.resolve_module_id(endpoint)
+        if module_id is None:
+            g._nav_shortcuts_cached = []
+            return {"header_shortcuts": []}
+
+        shortcuts = nav_service.get_category_siblings(module_id, current_user)
+        g._nav_shortcuts_cached = shortcuts
+        return {"header_shortcuts": shortcuts}
+    except Exception as exc:  # noqa: BLE001 — defensive: nav must never crash
+        import logging
+
+        logging.getLogger(__name__).warning("inject_category_siblings failed: %s", exc)
+        return {"header_shortcuts": []}
 
 
 # ============================================================================

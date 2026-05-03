@@ -5876,7 +5876,11 @@ class AgentLoop:
             logger.warning(f"Failed: {e}")
 
     def _run_qa_scheduled(self):
-        """Run all active internal QA suites on schedule (every 6h)."""
+        """Run all active internal QA suites on schedule (every 6h).
+
+        Per-suite results are recorded in details so the boot briefing can
+        surface which suites failed without DB digging (PR #503).
+        """
         try:
             import sys
             sys.path.insert(0, "/mnt/archie_brain/platform_v2")
@@ -5888,19 +5892,36 @@ class AgentLoop:
 
             total_passed = 0
             total_failed = 0
+            per_suite = []
 
             for suite in internal_suites:
                 result = qa_service.run_suite(suite["id"], triggered_by="scheduled")
-                total_passed += result.get("passed", 0)
-                total_failed += result.get("failed", 0) + result.get("errors", 0)
+                p = result.get("passed", 0)
+                f = result.get("failed", 0)
+                e = result.get("errors", 0)
+                total_passed += p
+                total_failed += f + e
+                per_suite.append({
+                    "suite_id": suite["id"],
+                    "name": suite.get("name", "?"),
+                    "passed": p,
+                    "failed": f,
+                    "errors": e,
+                })
                 time.sleep(2)  # let gunicorn workers settle between suite auth sessions
 
             duration_ms = int((time.time() - start) * 1000)
+            failing = [s for s in per_suite if s["failed"] > 0 or s["errors"] > 0]
             self._log_cycle(
                 "qa_scheduled",
                 total_passed,
                 total_failed,
                 duration_ms,
+                details={
+                    "per_suite": per_suite,
+                    "failing_suite_count": len(failing),
+                    "failing_suites": [s["name"] for s in failing],
+                },
             )
         except Exception as e:
             logger.warning(f"QA scheduled run failed: {e}")

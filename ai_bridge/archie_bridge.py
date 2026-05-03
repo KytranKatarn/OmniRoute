@@ -186,9 +186,20 @@ def call_ollama_json(
             if resp.status_code != 200:
                 continue
 
-            raw = resp.json().get("response", "")
+            ollama_response = resp.json()
+            raw = ollama_response.get("response", "")
+            # Extract token counts so DispatchResult / agent_budgets get real
+            # usage data. Without these, every JSON-mode dispatch logged 0
+            # tokens and welfare digest false-flagged working agents as
+            # "starving" (Bug B, 2026-05-03).
+            tokens_meta = {
+                "prompt_tokens": ollama_response.get("prompt_eval_count", 0),
+                "completion_tokens": ollama_response.get("eval_count", 0),
+                "model": model,
+                "provider": "ollama",
+            }
             data = json.loads(raw)
-            return {"success": True, "data": data, "raw": raw, "error": None}
+            return {"success": True, "data": data, "raw": raw, "error": None, **tokens_meta}
 
         except json.JSONDecodeError:
             # Try to extract JSON from markdown fences or mixed text
@@ -198,7 +209,7 @@ def call_ollama_json(
             if match:
                 try:
                     data = json.loads(match.group())
-                    return {"success": True, "data": data, "raw": raw, "error": None}
+                    return {"success": True, "data": data, "raw": raw, "error": None, **tokens_meta}
                 except json.JSONDecodeError:
                     pass
             continue
@@ -355,6 +366,12 @@ def call_ollama(
                 "node_id": node_id,
                 "node_url": ollama_host,
                 "response_ms": response_ms,
+                # Surface token counts so DispatchResult / task_execution_log /
+                # agent_budgets can track real usage. Without these the dispatcher
+                # logs every call as 0 tokens and welfare digest false-flags
+                # working agents as "starving" (Bug B, 2026-05-03).
+                "prompt_tokens": result.get("prompt_eval_count", 0),
+                "completion_tokens": result.get("eval_count", 0),
             }
         else:
             # Log failed request

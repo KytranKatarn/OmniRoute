@@ -6,6 +6,7 @@ agent workload, and autonomy loop job visibility.
 ADR-045 pattern: register_dispatch_routes(bp, admin_required_decorator)
 """
 
+import json
 import logging
 import os
 
@@ -901,6 +902,48 @@ def register_dispatch_routes(bp, admin_required_decorator):
                 )
                 by_tool = [dict(r) for r in cur.fetchall()]
 
+                # Queued + in-flight delegations (not yet completed). The
+                # ContextVar attribution in PR #493 only catches synchronous
+                # MCP→dispatch flows; mcp__archie__delegate_task is async by
+                # design (queues to unified_tasks, dispatched later by
+                # delegate_task_worker), so its rows never reach
+                # task_execution_log with request_origin='claude'. This
+                # second source closes the gap.
+                cur.execute(
+                    """SELECT id, status, title, delegation_args,
+                              created_at, completed_at,
+                              EXTRACT(EPOCH FROM (NOW() - created_at))::int AS age_secs
+                       FROM unified_tasks
+                       WHERE delegation_source = 'claude'
+                         AND status != 'completed'
+                         AND created_at > NOW() - INTERVAL %s
+                       ORDER BY id DESC
+                       LIMIT %s""",
+                    (f"{hours} hours", limit),
+                )
+                pending = []
+                for row in cur.fetchall():
+                    r = dict(row)
+                    args = r.get("delegation_args") or {}
+                    if isinstance(args, str):
+                        try:
+                            args = json.loads(args)
+                        except Exception:
+                            args = {}
+                    pending.append(
+                        {
+                            "id": r["id"],
+                            "status": r.get("status") or "",
+                            "title": r.get("title") or "",
+                            "capability": args.get("capability") or "",
+                            "reason": args.get("reason") or "",
+                            "requested_by": args.get("requested_by") or "",
+                            "age_secs": r.get("age_secs"),
+                            "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+                            "completed_at": r["completed_at"].isoformat() if r.get("completed_at") else None,
+                        }
+                    )
+
             total = len(feed)
             successes = sum(1 for f in feed if f["success"])
             return jsonify(
@@ -911,6 +954,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     "success_rate": round(successes / total * 100) if total else 0,
                     "feed": feed,
                     "by_tool": by_tool,
+                    "pending": pending,
                 }
             )
         except Exception as e:

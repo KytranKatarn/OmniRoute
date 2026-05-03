@@ -2377,11 +2377,54 @@ async function loadClaudeFeed() {
         var data = await api('/api/dispatch/claude-feed?hours=' + hours + '&limit=50');
         var feed = data.feed || [];
         var byTool = data.by_tool || [];
+        var pending = data.pending || [];
         if (countEl) {
-            countEl.textContent = '(' + (data.total || 0) + ' · ' + (data.success_rate || 0) + '% ok)';
+            var dispatchedSummary = '(' + (data.total || 0) + ' dispatched · ' + (data.success_rate || 0) + '% ok)';
+            if (pending.length) {
+                dispatchedSummary = '(' + pending.length + ' queued · ' + (data.total || 0) + ' dispatched · ' + (data.success_rate || 0) + '% ok)';
+            }
+            countEl.textContent = dispatchedSummary;
+        }
+        if (!feed.length && !pending.length) {
+            setHtml(el, '<div class="dhq-empty">No Claude requests or delegations in this period — restart your Claude Code session if you expect attribution to flow.</div>');
+            return;
+        }
+
+        // Queued + in-flight delegations (mcp__archie__delegate_task is async,
+        // so its rows live in unified_tasks until the worker dispatches them).
+        var pendingHtml = '';
+        if (pending.length) {
+            pendingHtml = '<div style="margin-bottom:0.8rem">'
+                + '<div style="font-size:0.7rem;color:var(--dhq-text-dim);margin-bottom:0.3rem;font-family:\'Antonio\',sans-serif;letter-spacing:0.08em">DELEGATION QUEUE — ' + pending.length + ' not yet completed</div>'
+                + '<table class="dhq-loop-table"><thead><tr>'
+                + '<th>STATUS</th><th>CAPABILITY</th><th>REASON</th><th>SOURCE</th><th>AGE</th><th>QUEUED</th>'
+                + '</tr></thead><tbody>';
+            pending.forEach(function(p) {
+                var statusColor = '#94a3b8';
+                if (p.status === 'in_progress') statusColor = '#3b82f6';
+                else if (p.status === 'pending') statusColor = '#f59e0b';
+                else if (p.status === 'blocked' || p.status === 'failed') statusColor = '#ef4444';
+                var ageStr = '—';
+                if (p.age_secs != null) {
+                    if (p.age_secs < 60) ageStr = p.age_secs + 's';
+                    else if (p.age_secs < 3600) ageStr = Math.round(p.age_secs / 60) + 'm';
+                    else ageStr = Math.round(p.age_secs / 3600) + 'h';
+                }
+                var reason = (p.reason || '').replace(/\s+/g, ' ').trim();
+                if (reason.length > 80) reason = reason.slice(0, 77) + '…';
+                pendingHtml += '<tr>'
+                    + '<td style="color:' + statusColor + ';font-weight:600;font-family:monospace;font-size:0.72rem">' + esc(p.status || '?') + '</td>'
+                    + '<td style="font-family:monospace;color:var(--dhq-accent);font-size:0.72rem">' + esc(p.capability || '?') + '</td>'
+                    + '<td style="color:var(--dhq-text-dim);font-size:0.72rem">' + esc(reason) + '</td>'
+                    + '<td style="color:var(--dhq-text-dim);font-size:0.72rem">' + esc(p.requested_by || '—') + '</td>'
+                    + '<td style="color:var(--dhq-text-dim);font-size:0.72rem">' + ageStr + '</td>'
+                    + '<td style="color:var(--dhq-text-dim);font-size:0.72rem">' + fmtTime(p.created_at) + '</td>'
+                    + '</tr>';
+            });
+            pendingHtml += '</tbody></table></div>';
         }
         if (!feed.length) {
-            setHtml(el, '<div class="dhq-empty">No Claude requests in this period — restart your Claude Code session if you expect attribution to flow.</div>');
+            setHtml(el, pendingHtml + '<div class="dhq-empty" style="margin-top:0.6rem">No dispatched requests yet — queue items above will move here once the worker completes them with attribution.</div>');
             return;
         }
         // Top tools summary chips
@@ -2396,7 +2439,10 @@ async function loadClaudeFeed() {
             });
             chips += '</div>';
         }
-        var html = chips + '<table class="dhq-loop-table"><thead><tr>'
+        var dispatchedHeader = pendingHtml
+            ? '<div style="font-size:0.7rem;color:var(--dhq-text-dim);margin-bottom:0.3rem;font-family:\'Antonio\',sans-serif;letter-spacing:0.08em">DISPATCHED — ' + feed.length + ' completed</div>'
+            : '';
+        var html = pendingHtml + dispatchedHeader + chips + '<table class="dhq-loop-table"><thead><tr>'
             + '<th>TOOL</th><th>AGENT</th><th>CAPABILITY</th><th>MODEL</th><th>STATUS</th><th>DURATION</th><th>COST</th><th>TIME</th>'
             + '</tr></thead><tbody>';
         feed.forEach(function(f) {

@@ -178,3 +178,50 @@ def test_is_stale_with_no_heartbeat():
     n = dict(HUB)
     n["last_heartbeat"] = None
     assert is_stale(n) is True
+
+
+# ---------------------------------------------------------------------------
+# should_dispatch_to_node — Phase 2 wire-in guard
+# ---------------------------------------------------------------------------
+
+
+def test_should_dispatch_allows_well_matched_dispatch():
+    from services.fleet_resource_router import should_dispatch_to_node
+
+    allowed, reason = should_dispatch_to_node(HUB, "qwen2.5:7b", enforce=True)
+    assert allowed is True
+    assert "score=" in reason
+
+
+def test_should_dispatch_blocks_mismatch_when_enforce_true():
+    from services.fleet_resource_router import should_dispatch_to_node
+
+    allowed, reason = should_dispatch_to_node(OUTPOST, "qwen2.5:7b", enforce=True)
+    assert allowed is False
+    assert "capacity-mismatch" in reason
+    assert "qwen2.5:7b" in reason
+
+
+def test_should_dispatch_warns_but_allows_mismatch_when_enforce_false():
+    from services.fleet_resource_router import should_dispatch_to_node
+
+    # Same mismatch, but flag off — proceed with a logged reason.
+    allowed, reason = should_dispatch_to_node(OUTPOST, "qwen2.5:7b", enforce=False)
+    assert allowed is True
+    assert "capacity-mismatch" in reason
+
+
+def test_should_dispatch_reason_includes_node_label():
+    from services.fleet_resource_router import should_dispatch_to_node
+
+    _, reason = should_dispatch_to_node(OUTPOST, "qwen2.5:7b", enforce=True)
+    assert "outpost-us" in reason
+
+
+def test_should_dispatch_unnamed_node_falls_back_to_node_id():
+    from services.fleet_resource_router import should_dispatch_to_node
+
+    node = dict(OUTPOST)
+    node.pop("node_name")
+    _, reason = should_dispatch_to_node(node, "qwen2.5:7b", enforce=True)
+    assert "outpost_us_001" in reason

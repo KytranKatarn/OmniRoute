@@ -1738,6 +1738,47 @@ class DepartmentDispatcher:
         node_id = agent_info["node_id"]
         node_name = agent_info.get("node_name", "unknown")
 
+        # Resource-aware routing precheck (#2516 Phase 2 / ADR-555).
+        # Off by default — logs only. Flip FLEET_RESOURCE_ROUTING_ENABLED=true
+        # to make capacity mismatches refuse dispatch (caller falls through to
+        # the next escalation tier).
+        try:
+            enforce = os.getenv("FLEET_RESOURCE_ROUTING_ENABLED", "false").lower() == "true"
+            from services.fleet_resource_router import should_dispatch_to_node
+            from psycopg2.extras import RealDictCursor
+
+            node_row = None
+            try:
+                _conn = self._get_db()
+                _cur = _conn.cursor(cursor_factory=RealDictCursor)
+                _cur.execute(
+                    """
+                    SELECT node_id, node_name, gpu_available, gpu_vram_gb, ram_gb,
+                           current_load, max_concurrent, priority, last_heartbeat,
+                           extra_capabilities
+                      FROM remote_nodes WHERE node_id = %s
+                    """,
+                    (node_id,),
+                )
+                node_row = _cur.fetchone()
+                _cur.close()
+                _conn.close()
+            except Exception as fetch_err:
+                logger.debug(f"[BridgeDispatcher] capacity row fetch failed: {fetch_err}")
+
+            if node_row:
+                allowed, reason = should_dispatch_to_node(dict(node_row), model, enforce)
+                if not allowed:
+                    logger.warning(f"[BridgeDispatcher] Refusing fleet dispatch (flag enforced): {reason}")
+                    return None
+                if "capacity-mismatch" in reason:
+                    logger.warning(f"[BridgeDispatcher] Capacity mismatch (flag off, proceeding): {reason}")
+                else:
+                    logger.debug(f"[BridgeDispatcher] Capacity check: {reason}")
+        except Exception as cap_err:
+            # Fail-open: capacity precheck must never block real dispatch.
+            logger.debug(f"[BridgeDispatcher] Capacity precheck skipped: {cap_err}")
+
         # Create bridge_job for tracking
         bridge_job_id = None
         try:

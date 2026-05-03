@@ -123,3 +123,28 @@ def is_stale(node: dict[str, Any], seconds: int = STALE_HEARTBEAT_SECONDS) -> bo
         except ValueError:
             return True
     return (datetime.utcnow() - last_hb) > timedelta(seconds=seconds)
+
+
+def should_dispatch_to_node(node: dict[str, Any], model: str, enforce: bool) -> tuple[bool, str]:
+    """Pre-dispatch capacity guard.
+
+    Returns ``(allowed, reason)``. The reason string is always populated
+    so callers can log it regardless of outcome — useful for soft-warn
+    mode (``enforce=False``) where the dispatch proceeds anyway.
+
+    When ``enforce=False`` (default — flag off): returns ``allowed=True``
+    even if the node would be disqualified, but the reason explains the
+    mismatch so it shows up in logs.
+
+    When ``enforce=True`` (FLEET_RESOURCE_ROUTING_ENABLED=true): a None
+    score from ``score_node_for_model`` returns ``allowed=False``,
+    causing the caller to refuse the dispatch.
+
+    Phase 2 of #2516. ADR-555.
+    """
+    score = score_node_for_model(node, model)
+    if score is None:
+        node_label = node.get("node_name") or node.get("node_id") or "<unknown>"
+        reason = f"capacity-mismatch: model={model!r} disqualifies node={node_label!r}"
+        return (not enforce, reason)
+    return (True, f"score={round(score, 2)}")

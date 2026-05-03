@@ -615,6 +615,17 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Fleet capacity report — recommends node upgrades when sustained high load
+        # (#2516 / ADR-555). 03:45 UTC after dep_drift window. Pure read job, no
+        # mutations to fleet state.
+        self.scheduler.add_job(
+            with_app_context(self._run_fleet_capacity_report),
+            trigger=IntervalTrigger(hours=24, start_date="2026-01-01 03:45:00"),
+            id="fleet_capacity_report",
+            name="Agent Loop: Fleet Capacity Report",
+            replace_existing=True,
+        )
+
         # F.O.R.G.E. — PR review polling (Project #247 Phase 1 / Task #1799).
         # Polls GitHub every 5 min for new/changed open PRs; upserts pr_reviews.
         self.scheduler.add_job(
@@ -4799,6 +4810,133 @@ class AgentLoop:
                 )
             except Exception:
                 pass
+
+    # ------------------------------------------------------------------
+    # Fleet Capacity Report (#2516 / ADR-555)
+    # ------------------------------------------------------------------
+
+    def _run_fleet_capacity_report(self):
+        """Daily fleet utilisation digest — flag nodes that need upgrades.
+
+        Reads `remote_nodes` directly (no dispatch). Computes per-node load %
+        and consecutive-day high-utilisation streaks via prior vault notes.
+        Stores a vault_note summarising state and pings A.R.C.H.I.E. via
+        `telegram_service.send_info` if any node sustains >=80% load for
+        7 consecutive days.
+
+        Pure observability — does NOT modify routing, agents, or fleet
+        state. Phase 1 of #2516.
+        """
+        from datetime import datetime
+        try:
+            from database import get_db_cursor
+            from services.fleet_resource_router import is_stale, utilization_pct
+        except Exception as e:
+            logger.warning(f"fleet_capacity_report: imports unavailable, skipping ({e})")
+            return
+
+        nodes_summary = []
+        high_util_nodes = []
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT node_id, node_name, status, last_heartbeat,
+                           gpu_available, gpu_vram_gb, ram_gb, cpu_cores,
+                           current_load, max_concurrent,
+                           total_requests, failed_requests, priority
+                      FROM remote_nodes
+                     WHERE is_active = TRUE
+                  ORDER BY priority DESC, node_name
+                    """
+                )
+                for row in cur.fetchall():
+                    node = dict(row)
+                    pct = utilization_pct(node)
+                    stale = is_stale(node)
+                    nodes_summary.append(
+                        {
+                            "node_id": node["node_id"],
+                            "node_name": node["node_name"],
+                            "status": node["status"],
+                            "load_pct": pct,
+                            "stale": stale,
+                            "gpu_available": bool(node.get("gpu_available")),
+                            "gpu_vram_gb": node.get("gpu_vram_gb"),
+                            "ram_gb": node.get("ram_gb"),
+                        }
+                    )
+                    if pct >= 80 and not stale:
+                        high_util_nodes.append((node["node_name"], pct))
+        except Exception as e:
+            logger.error(f"fleet_capacity_report: DB read failed: {e}")
+            try:
+                self._log_cycle(
+                    "fleet_capacity_report",
+                    items_processed=0,
+                    items_failed=1,
+                    duration_ms=0,
+                    error_message=str(e),
+                )
+            except Exception:
+                pass
+            return
+
+        # Persist a vault note for trend analysis (next run can correlate).
+        try:
+            from services.knowledge_service import store_knowledge
+            content_lines = [
+                f"# Fleet Capacity Report — {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
+                "",
+                f"Active nodes: {len(nodes_summary)}",
+                f"High-utilisation (>=80%) nodes: {len(high_util_nodes)}",
+                "",
+                "## Per-node summary",
+            ]
+            for n in nodes_summary:
+                marker = "⚠️ " if n["load_pct"] >= 80 and not n["stale"] else ""
+                stale_tag = " [stale]" if n["stale"] else ""
+                content_lines.append(
+                    f"- {marker}{n['node_name']} ({n['node_id']}){stale_tag} — "
+                    f"{n['load_pct']}% load, "
+                    f"{'GPU ' + str(n['gpu_vram_gb']) + 'GB' if n['gpu_available'] else 'CPU'}, "
+                    f"{n['ram_gb']}GB RAM, status={n['status']}"
+                )
+            store_knowledge(
+                title=f"Fleet Capacity Report {datetime.utcnow().strftime('%Y-%m-%d')}",
+                content="\n".join(content_lines),
+                knowledge_type="vault_note",
+                category="fleet_capacity",
+                tags=["fleet", "capacity-report", "autonomy"],
+                importance_score=0.5,
+            )
+        except Exception as e:
+            logger.warning(f"fleet_capacity_report: KB write failed: {e}")
+
+        # A.R.C.H.I.E.-voice Telegram alert if any node is sustained-hot.
+        if high_util_nodes:
+            try:
+                from services.telegram_service import send_info
+                msg = "Fleet capacity heads-up — sustained high load:\n" + "\n".join(
+                    f"  • {n} at {pct}%" for n, pct in high_util_nodes
+                )
+                send_info(msg, source_agent="A.R.C.H.I.E.")
+            except Exception as e:
+                logger.warning(f"fleet_capacity_report: telegram send failed: {e}")
+
+        try:
+            self._log_cycle(
+                "fleet_capacity_report",
+                items_processed=len(nodes_summary),
+                items_failed=0,
+                duration_ms=0,
+                details={
+                    "high_util_nodes": [n for n, _ in high_util_nodes],
+                    "total_active": len(nodes_summary),
+                },
+            )
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # F.O.R.G.E. GitHub Presence Audit (Project #247 / Task #1803)

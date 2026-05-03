@@ -23,6 +23,7 @@ from rbac import require_permission, Permission
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from database import get_db_cursor, check_fleet_model_unique
+from services.fleet_resource_router import is_stale, utilization_pct
 import requests
 
 from .fleet_helpers import (
@@ -231,6 +232,63 @@ def register_dashboard_routes(bp, auth_decorator):
 
         except Exception as e:
             logger.error(f"Error getting agent utilization: {e}")
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    @bp.route("/api/node-utilization")
+    @auth_decorator
+    def get_node_utilization():
+        """Per-node capacity + live state for resource-aware routing (#2516, ADR-555).
+
+        Returns one row per active fleet node with load %, fail rate, and a
+        stale-heartbeat flag. Used by the dispatch tab and by the
+        fleet_capacity_report agent_loop job that recommends upgrades when
+        a node sustains high utilisation.
+        """
+        try:
+            nodes = []
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT node_id, node_name, status, last_heartbeat,
+                           gpu_available, gpu_model, gpu_vram_gb,
+                           cpu_model, cpu_cores, ram_gb,
+                           current_load, max_concurrent,
+                           total_requests, successful_requests, failed_requests,
+                           avg_latency_ms,
+                           ollama_available, comfyui_available, foocus_available,
+                           extra_capabilities, priority
+                      FROM remote_nodes
+                     WHERE is_active = TRUE
+                  ORDER BY priority DESC, node_name
+                    """
+                )
+                for row in cur.fetchall():
+                    node = dict(row)
+                    total = node.get("total_requests") or 0
+                    failed = node.get("failed_requests") or 0
+                    last_hb = node.get("last_heartbeat")
+                    nodes.append(
+                        {
+                            **node,
+                            "last_heartbeat": last_hb.isoformat() if last_hb else None,
+                            "load_pct": utilization_pct(node),
+                            "fail_rate": round(100 * failed / total, 2) if total else 0.0,
+                            "stale": is_stale(node),
+                        }
+                    )
+
+            online = sum(1 for n in nodes if n["status"] == "online" and not n["stale"])
+            return jsonify(
+                {
+                    "success": True,
+                    "nodes": nodes,
+                    "online_count": online,
+                    "total_count": len(nodes),
+                    "generated_at": datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error getting node utilization: {e}")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/models/live")

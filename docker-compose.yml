@@ -47,7 +47,14 @@ services:
   archie_platform:
     build: ./platform_v2
     container_name: archie_platform
-    command: ["gunicorn", "--bind", "0.0.0.0:3000", "--workers", "1", "--threads", "8", "--timeout", "300", "app:app"]
+    # --workers bumped 1 → 4 once Path C (PR #511) moved APScheduler into
+    # the archie_scheduler sidecar. Only the sidecar holds the singleton
+    # advisory lock, so multiple gunicorn workers cannot double-fire jobs.
+    # Telegram fcntl lock is already worker-safe (LOCK_NB; first worker wins,
+    # others fall through). mem_limit raised 4g → 8g to fit 4 workers each
+    # ~1.5GB RSS without --preload (avoiding the Telegram daemon-thread fork
+    # gotcha that comes with shared imports).
+    command: ["gunicorn", "--bind", "0.0.0.0:3000", "--workers", "4", "--threads", "8", "--timeout", "300", "app:app"]
     restart: unless-stopped
     read_only: true
     tmpfs:
@@ -56,7 +63,7 @@ services:
       - /var/log:size=128m
       - /root/.cache:size=1g,exec
       - /mnt/archie_brain/logs:size=64m
-    mem_limit: 4g
+    mem_limit: 8g  # bumped from 4g for --workers 4 (each worker ~1.5GB RSS)
     cpus: 4.0
     cap_drop:
       - ALL
@@ -99,6 +106,10 @@ services:
       NPM_ADMIN_PASSWORD: ${NPM_ADMIN_PASSWORD}
       HOSTINGER_API_KEY: ${HOSTINGER_API_KEY:-}
       PLAYWRIGHT_BROWSERS_PATH: /opt/playwright
+      # Path C activation: scheduler runs in archie_scheduler sidecar.
+      # See decision_id 558. Set to "1" to bring scheduling back into
+      # this container (requires stopping the sidecar first).
+      ARCHIE_RUN_SCHEDULER: "0"
       HOSTINGER_DOMAIN: ${HOSTINGER_DOMAIN:-kytranempowerment.com}
       HA_URL: ${HA_URL:-http://192.168.1.200:8123}
       HA_API_TOKEN: ${HA_API_TOKEN:-}

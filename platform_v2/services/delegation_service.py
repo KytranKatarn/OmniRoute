@@ -401,10 +401,7 @@ def emit_delegation_event(
     event_type: one of ``start``, ``complete``, ``fail``.
     """
     try:
-        from concurrent.futures import (
-            ThreadPoolExecutor,
-            TimeoutError as FutureTimeoutError,
-        )
+        import threading
 
         from services import telegram_service  # local import — avoids boot cycle
 
@@ -430,21 +427,33 @@ def emit_delegation_event(
         # Failure events escalate via send_system (warning priority);
         # start/complete stay informational. Both can hit the
         # director_reports inbox HTTP path which has been observed
-        # to take 30–60s when the comms bridge is slow. Wrap with a
-        # hard 5s timeout — events are best-effort, dropping a slow
-        # one is strictly preferable to stalling the worker.
+        # to take 30–60s when the comms bridge is slow.
+        #
+        # Fire-and-forget on a daemon thread: returns immediately, the
+        # thread runs to completion (or never; daemon=True means it
+        # won't block process shutdown). PR #497 used a
+        # ThreadPoolExecutor with a 5s future timeout, but the `with`
+        # block then called shutdown(wait=True) which blocked anyway
+        # — defeating the timeout. Streaming is best-effort, so a
+        # cleaner approach is "do not wait for it at all."
         send_fn = telegram_service.send_system if event_type == "fail" else telegram_service.send_info
 
-        with ThreadPoolExecutor(max_workers=1, thread_name_prefix="delegate-emit") as pool:
-            future = pool.submit(send_fn, title, message, **send_kwargs)
+        def _send_fire_and_forget() -> None:
             try:
-                future.result(timeout=5)
-            except FutureTimeoutError:
-                logger.warning(
-                    "emit_delegation_event(task=%s event=%s) dropped — comms bridge >5s",
+                send_fn(title, message, **send_kwargs)
+            except Exception as inner_exc:
+                logger.debug(
+                    "emit_delegation_event background send failed (task=%s event=%s): %s",
                     task_id,
                     event_type,
+                    inner_exc,
                 )
+
+        threading.Thread(
+            target=_send_fire_and_forget,
+            name=f"delegate-emit-{task_id}-{event_type}",
+            daemon=True,
+        ).start()
     except Exception as exc:
         # Streaming must never break the worker loop. Log and move on.
         logger.warning(

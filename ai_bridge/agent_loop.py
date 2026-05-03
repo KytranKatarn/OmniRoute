@@ -6046,7 +6046,7 @@ class AgentLoop:
                     "failed": f,
                     "errors": e,
                 })
-                time.sleep(2)  # let gunicorn workers settle between suite auth sessions
+                time.sleep(8)  # let gunicorn workers drain between suite auth sessions (was 2s — caused auth flake on slower suites)
 
             duration_ms = int((time.time() - start) * 1000)
             failing = [s for s in per_suite if s["failed"] > 0 or s["errors"] > 0]

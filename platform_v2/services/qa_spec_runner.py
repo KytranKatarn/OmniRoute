@@ -81,28 +81,30 @@ def execute_spec(spec, session=None, suite_id=None, run_id=None):
     if session is None:
         session = http_requests.Session()
 
-    # Authenticate if credentials provided — retry up to 3 times to handle
-    # platform startup window (scheduler may fire before gunicorn is ready)
+    # Authenticate if credentials provided — retry up to 3 times with short
+    # backoff. Previous policy (6×30s) ate 150s per flaky suite during bulk
+    # scheduled runs and crowded out real diagnostics.
     if auth.get("username") and auth.get("password"):
         auth_error = None
-        for attempt in range(6):
+        max_attempts = 3
+        for attempt in range(max_attempts):
             try:
                 _authenticate(session, base_url, auth)
                 auth_error = None
                 break
             except Exception as e:
                 auth_error = e
-                if attempt < 5:
-                    logger.warning("Auth attempt %d/6 failed (%s) — retrying in 30s", attempt + 1, e)
-                    time.sleep(30)
+                if attempt < max_attempts - 1:
+                    logger.warning("Auth attempt %d/%d failed (%s) — retrying in 5s", attempt + 1, max_attempts, e)
+                    time.sleep(5)
         if auth_error is not None:
-            logger.error("Authentication failed after 6 attempts: %s", auth_error)
+            logger.error("Authentication failed after %d attempts: %s", max_attempts, auth_error)
             return [
                 {
                     "test_name": t.get("name", f"test_{i}"),
                     "test_type": t.get("type", "unknown"),
                     "status": "error",
-                    "error_message": f"Authentication failed after 6 attempts: {auth_error}",
+                    "error_message": f"Authentication failed after {max_attempts} attempts: {auth_error}",
                 }
                 for i, t in enumerate(tests)
             ]

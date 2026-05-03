@@ -5044,13 +5044,14 @@ class DepartmentDispatcher:
             system_prompt = agent.get("system_prompt")
         temperature = agent.get("temperature", 0.5)
 
-        agent_name = None
-        for name, info in self._agent_cache.items():
-            if info.get("id") == agent.get("id"):
-                agent_name = name
-                break
-        if not agent_name:
-            agent_name = "ARCHIE"
+        # The agent dict returned by coordinator.select_agent() already has its
+        # canonical name. The previous lookup-by-id-in-cache was both redundant
+        # and silently buggy: if the chosen agent wasn't in self._agent_cache
+        # (e.g. barracked specialist activated via wake-on-demand fallback in
+        # #2217), it fell back to "ARCHIE" — corrupting agent_name in
+        # task_execution_log for ~50% of dispatches and breaking welfare /
+        # routing analytics that aggregate by name (Bug A, 2026-05-03).
+        agent_name = agent.get("name") or "ARCHIE"
 
         # 3.5 Proficiency-aware augmentation
         skill_entry = agent.get("skills", {}).get(capability, {})

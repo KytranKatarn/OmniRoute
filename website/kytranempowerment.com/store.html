@@ -488,7 +488,7 @@
             // --- Cart count ---
             async function updateCartCount() {
                 try {
-                    var response = await fetch('https://store.kytranempowerment.com/api/cart/' + userSessionId);
+                    var response = await fetch('https://business.kytranempowerment.com/plugins/store/api/cart/' + userSessionId);
                     if (!response.ok) throw new Error('HTTP ' + response.status);
                     var data = await response.json();
                     var cart = data.cart_items || [];
@@ -511,7 +511,7 @@
                         alert('Please select a size/variant.');
                         return;
                     }
-                    var response = await fetch('https://store.kytranempowerment.com/api/cart/add', {
+                    var response = await fetch('https://business.kytranempowerment.com/plugins/store/api/cart/add', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -583,7 +583,7 @@
                 var countEl = document.getElementById('productCount');
 
                 try {
-                    var response = await fetch('https://store.kytranempowerment.com/api/products');
+                    var response = await fetch('https://business.kytranempowerment.com/plugins/store/api/products');
                     if (!response.ok) throw new Error('HTTP ' + response.status);
                     var data = await response.json();
                     var products = (data.products || []).filter(function(p) {

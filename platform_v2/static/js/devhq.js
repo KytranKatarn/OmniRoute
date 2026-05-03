@@ -136,6 +136,7 @@
     switch (tab) {
       case "overview":   loadOverview(); break;
       case "projects":   loadProjects(); break;
+      case "board":      loadBoardProjects(); break;
       case "ideas":      loadIdeas(); break;
       case "knowledge":  loadKnowledge(); break;
       case "decisions":  loadDecisions(); break;
@@ -2081,4 +2082,77 @@
       el = document.getElementById("moduleDocsSearch"); if (el) el.addEventListener("input", function () { _moduleDocsState.page = 0; debounceReload("moduleDocs", loadModuleDocs); });
     }
   });
+
+  /* ========================================================================
+     BOARD TAB (KANBAN)
+  ======================================================================== */
+
+  var _boardProjects = [];
+
+  function loadBoardProjects() {
+    api("/api/projects?status=active&per_page=100")
+      .then(function (data) {
+        if (!data.success) { loadBoard(); return; }
+        _boardProjects = data.projects || [];
+        var opts = '<option value="">All Projects</option>' +
+          _boardProjects.map(function (p) {
+            return '<option value="' + p.id + '">' + escHtml(p.name) + "</option>";
+          }).join("");
+        setHtml("boardProjectFilter", opts);
+        loadBoard();
+      })
+      .catch(function () { loadBoard(); });
+  }
+
+  window.loadBoard = function () {
+    var projectId = (document.getElementById("boardProjectFilter") || {}).value || "";
+    var priority  = (document.getElementById("boardPriorityFilter") || {}).value || "";
+    var params = new URLSearchParams();
+    if (projectId) params.set("project_id", projectId);
+    if (priority)  params.set("priority", priority);
+
+    var cols = ["pending", "in_progress", "review", "completed"];
+    cols.forEach(function (s) {
+      setHtml("board-col-" + s, '<div class="devhq-board-loading">Loading…</div>');
+    });
+
+    api("/api/board?" + params.toString())
+      .then(function (data) {
+        if (!data.success) { renderBoardError(); return; }
+        cols.forEach(function (s) {
+          var tasks = (data.board && data.board[s]) || [];
+          var html = tasks.length
+            ? tasks.map(createBoardCard).join("")
+            : '<div class="devhq-board-empty">No tasks</div>';
+          setHtml("board-col-" + s, html);
+        });
+        refreshIcons();
+      })
+      .catch(renderBoardError);
+  };
+
+  function renderBoardError() {
+    ["pending", "in_progress", "review", "completed"].forEach(function (s) {
+      setHtml("board-col-" + s, '<div class="devhq-board-empty">Error loading</div>');
+    });
+  }
+
+  function createBoardCard(t) {
+    var pri = t.priority || 5;
+    var priClass = pri >= 7 ? "high" : pri >= 4 ? "medium" : "low";
+    var due = t.due_date
+      ? '<span class="devhq-board-card-due">' + escHtml(t.due_date.substring(0, 10)) + "</span>"
+      : "";
+    var proj = t.project_name
+      ? '<span class="devhq-board-card-proj">' + escHtml(t.project_name) + "</span>"
+      : "";
+    return (
+      '<div class="devhq-board-card" onclick="openProjectDetail(' + (t.project_id || 0) + ')">' +
+      '<div class="devhq-board-card-title">' + escHtml(t.title || t.name || "Untitled") + "</div>" +
+      '<div class="devhq-board-card-meta">' + proj +
+      '<span class="devhq-badge ' + priClass + '" style="font-size:0.6rem;">P' + pri + "</span>" +
+      due + "</div></div>"
+    );
+  }
+
 })();

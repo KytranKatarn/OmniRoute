@@ -2961,6 +2961,7 @@
                             <div class="cs-subtabs" id="devhqSubtabs" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
                                 <button class="cs-subtab active" data-subtab="dh-overview" onclick="switchDevHQTab('overview')">Overview</button>
                                 <button class="cs-subtab" data-subtab="dh-projects" onclick="switchDevHQTab('projects')">Projects</button>
+                                <button class="cs-subtab" data-subtab="dh-board" onclick="switchDevHQTab('board')">Board</button>
                                 <button class="cs-subtab" data-subtab="dh-ideas" onclick="switchDevHQTab('ideas')">Ideas</button>
                                 <button class="cs-subtab" data-subtab="dh-decisions" onclick="switchDevHQTab('decisions')">Decisions</button>
                                 <button class="cs-subtab" data-subtab="dh-system" onclick="switchDevHQTab('system')">System</button>
@@ -3204,6 +3205,54 @@
                 </div>
 
             </div><!-- /dh-projects -->
+
+            <!-- BOARD subtab (Kanban) -->
+            <div class="cs-subpanel" id="dh-board" style="display:none;">
+                <div style="--frame-color:#38bdf8; --frame-rgb:56,189,248; margin-bottom:20px;">
+                    <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                        <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+                            <div class="lcars-elbow-top" style="height: 52px !important; background: #38bdf8 !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #38bdf8 !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #0ea5e9 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div class="lcars-elbow-bottom" style="margin-top: auto !important; height: 52px !important; background: #38bdf8 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                        </div>
+                        <div class="lcars-content" style="flex: 1 !important; min-width: 0 !important; padding: 16px 20px !important;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+                                <div style="font-size:0.8rem;font-weight:700;color:#38bdf8;letter-spacing:0.06em;">TASK BOARD</div>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <select id="boardProjectFilter" onchange="loadBoard()" style="font-size:0.72rem;padding:4px 8px;background:var(--archie-surface-2);border:1px solid var(--archie-border);border-radius:4px;color:var(--archie-text-primary);">
+                                        <option value="">All Projects</option>
+                                    </select>
+                                    <select id="boardPriorityFilter" onchange="loadBoard()" style="font-size:0.72rem;padding:4px 8px;background:var(--archie-surface-2);border:1px solid var(--archie-border);border-radius:4px;color:var(--archie-text-primary);">
+                                        <option value="">All Priorities</option>
+                                        <option value="high">High (7–10)</option>
+                                        <option value="medium">Medium (4–6)</option>
+                                        <option value="low">Low (1–3)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="boardColumns" class="devhq-board">
+                                <div class="devhq-board-col" data-status="pending">
+                                    <div class="devhq-board-col-header"><span class="devhq-board-col-dot pending"></span>Pending</div>
+                                    <div class="devhq-board-cards" id="board-col-pending"></div>
+                                </div>
+                                <div class="devhq-board-col" data-status="in_progress">
+                                    <div class="devhq-board-col-header"><span class="devhq-board-col-dot in_progress"></span>In Progress</div>
+                                    <div class="devhq-board-cards" id="board-col-in_progress"></div>
+                                </div>
+                                <div class="devhq-board-col" data-status="review">
+                                    <div class="devhq-board-col-header"><span class="devhq-board-col-dot review"></span>Review</div>
+                                    <div class="devhq-board-cards" id="board-col-review"></div>
+                                </div>
+                                <div class="devhq-board-col" data-status="completed">
+                                    <div class="devhq-board-col-header"><span class="devhq-board-col-dot completed"></span>Completed</div>
+                                    <div class="devhq-board-cards" id="board-col-completed"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- /dh-board -->
 
             <!-- IDEAS subtab -->
             <div class="cs-subpanel" id="dh-ideas" style="display:none;">

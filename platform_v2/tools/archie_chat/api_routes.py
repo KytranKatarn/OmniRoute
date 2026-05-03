@@ -15,6 +15,7 @@ from .auth_middleware import (
     get_chat_user,
     generate_api_key,
     check_rate_limit,
+    require_scope,
 )
 from .chat_service import (
     check_chat_access,
@@ -122,6 +123,7 @@ def register_routes(bp, admin_required):
     # ------------------------------------------------------------------
     @bp.route("/api/v1/chat/message", methods=["POST"])
     @chat_auth_required
+    @require_scope("chat")
     def send_message():
         start = time.time()
         user = get_chat_user()
@@ -300,6 +302,45 @@ def register_routes(bp, admin_required):
             except Exception:
                 response_data["knowledge_used"] = []
 
+        # M.U.S.E. portrait action card — detect portrait refinement intent in user message
+        _portrait_kw = {"portrait", "refine", "appearance", "looks like", "redesign", "image", "picture", "photo"}
+        if any(kw in message.lower() for kw in _portrait_kw):
+            try:
+                from database import get_db_cursor as _gc
+
+                # Find agent referenced in message or conversation agent_target
+                _agent_name = agent_target if agent_target and agent_target not in ("auto", "ARCHIE") else None
+                _portrait_agent_id = None
+                _portrait_agent_name = None
+                if _agent_name:
+                    with _gc() as (_c, _cur):
+                        _cur.execute(
+                            "SELECT id, display_name FROM agents WHERE name ILIKE %s AND worker_type='ai' LIMIT 1",
+                            (_agent_name,),
+                        )
+                        _row = _cur.fetchone()
+                        if _row:
+                            _portrait_agent_id = _row["id"]
+                            _portrait_agent_name = _row["display_name"] or _agent_name
+
+                if _portrait_agent_id:
+                    response_data["actions"] = [
+                        {
+                            "type": "portrait_refinement",
+                            "label": f"Refine {_portrait_agent_name}'s portrait with M.U.S.E.",
+                            "agent_id": _portrait_agent_id,
+                            "agent_name": _portrait_agent_name,
+                            "endpoint": f"/api/portraits/{_portrait_agent_id}/agent-refine",
+                            "method": "POST",
+                            "description": "Queue an agent-initiated portrait revision. M.U.S.E. synthesises a new prompt from the agent's voice and current portrait.",
+                            "fields": [
+                                {"name": "feedback", "type": "text", "label": "Optional direction", "required": False}
+                            ],
+                        }
+                    ]
+            except Exception as _exc:
+                log.debug("Portrait action card skipped: %s", _exc)
+
         return jsonify(response_data), 200
 
     # ------------------------------------------------------------------
@@ -307,6 +348,7 @@ def register_routes(bp, admin_required):
     # ------------------------------------------------------------------
     @bp.route("/api/v1/chat/conversations", methods=["GET"])
     @chat_auth_required
+    @require_scope("read")
     def list_conversations():
         user = get_chat_user()
         user_id = user["id"]
@@ -336,6 +378,7 @@ def register_routes(bp, admin_required):
     # ------------------------------------------------------------------
     @bp.route("/api/v1/chat/conversations", methods=["POST"])
     @chat_auth_required
+    @require_scope("chat")
     def create_new_conversation():
         user = get_chat_user()
         user_id = user["id"]
@@ -366,6 +409,7 @@ def register_routes(bp, admin_required):
     # ------------------------------------------------------------------
     @bp.route("/api/v1/chat/conversations/<string:conv_uuid>/messages", methods=["GET"])
     @chat_auth_required
+    @require_scope("read")
     def get_messages(conv_uuid):
         user = get_chat_user()
         user_id = user["id"]
@@ -402,6 +446,7 @@ def register_routes(bp, admin_required):
     # ------------------------------------------------------------------
     @bp.route("/api/v1/chat/conversations/<int:conv_id>", methods=["DELETE"])
     @chat_auth_required
+    @require_scope("chat")
     def delete_conversation(conv_id):
         user = get_chat_user()
         user_id = user["id"]
@@ -417,6 +462,7 @@ def register_routes(bp, admin_required):
     # ------------------------------------------------------------------
     @bp.route("/api/v1/chat/agents", methods=["GET"])
     @chat_auth_required
+    @require_scope("read")
     def list_agents():
         try:
             from database import get_db_cursor as _gc
@@ -456,6 +502,7 @@ def register_routes(bp, admin_required):
     # ------------------------------------------------------------------
     @bp.route("/api/v1/chat/stations", methods=["GET"])
     @chat_auth_required
+    @require_scope("read")
     def list_stations():
         return jsonify({"success": True, "stations": STATIONS}), 200
 
@@ -464,6 +511,7 @@ def register_routes(bp, admin_required):
     # ------------------------------------------------------------------
     @bp.route("/api/v1/chat/keys", methods=["POST"])
     @chat_auth_required
+    @require_scope("admin")
     def create_api_key():
         user = get_chat_user()
         if not user.get("is_admin"):
@@ -500,6 +548,7 @@ def register_routes(bp, admin_required):
     # ------------------------------------------------------------------
     @bp.route("/api/v1/chat/keys", methods=["GET"])
     @chat_auth_required
+    @require_scope("admin")
     def list_api_keys():
         user = get_chat_user()
         try:
@@ -529,6 +578,7 @@ def register_routes(bp, admin_required):
     # ------------------------------------------------------------------
     @bp.route("/api/v1/chat/keys/<int:key_id>", methods=["DELETE"])
     @chat_auth_required
+    @require_scope("admin")
     def revoke_api_key(key_id):
         user = get_chat_user()
         try:
@@ -556,6 +606,7 @@ def register_routes(bp, admin_required):
     # ------------------------------------------------------------------
     @bp.route("/api/v1/chat/conversations/search", methods=["GET"])
     @chat_auth_required
+    @require_scope("read")
     def search_convos():
         user = get_chat_user()
         query = request.args.get("q", "").strip()
@@ -573,6 +624,7 @@ def register_routes(bp, admin_required):
     # ------------------------------------------------------------------
     @bp.route("/api/v1/chat/knowledge/search", methods=["GET"])
     @chat_auth_required
+    @require_scope("read")
     def search_knowledge():
         query = request.args.get("q", "").strip()
         if not query:

@@ -29,8 +29,24 @@ var HeroAnimations = (function () {
 
         initParticles(hero);
         initEntrance(hero);
-        initStatsCounter();
         initScrollReveals();
+
+        // Fetch live agent count before counter animation — 1.5s timeout fallback
+        _fetchAgentCount().then(function () { initStatsCounter(); });
+    }
+
+    function _fetchAgentCount() {
+        var el = document.querySelector('.hero__stat-number[data-count]');
+        if (!el) return Promise.resolve();
+        var timeout = new Promise(function (res) { setTimeout(res, 1500); });
+        var req = fetch('https://platform.kytranempowerment.com/api/public/directory')
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                var count = d && d.summary && d.summary.total;
+                if (count && count > 0) { el.setAttribute('data-count', count); }
+            })
+            .catch(function () {});
+        return Promise.race([req, timeout]);
     }
 
     /* ====================================================================

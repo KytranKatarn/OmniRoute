@@ -73,7 +73,7 @@ def _get_db():
     )
 
 
-def _dispatch(capability: str, prompt: str, system_prompt: str = None, timeout: int = 300, job_id: int = None, local_only: bool = False) -> str:
+def _dispatch(capability: str, prompt: str, system_prompt: str = None, timeout: int = 300, job_id: int = None, local_only: bool = False, prefer_agent: str = None) -> str:
     """Route an LLM call through the BridgeDispatcher (ADR-013).
 
     All LLM work goes through the bridge so that:
@@ -105,6 +105,7 @@ def _dispatch(capability: str, prompt: str, system_prompt: str = None, timeout: 
             timeout=timeout,
             job_id=job_id,
             local_only=local_only,
+            prefer_agent=prefer_agent,
         )
         if result.success:
             return result.response
@@ -302,7 +303,7 @@ def batch_translate(
             "[Linguistics] %s batch %d/%d (%d strings)",
             language, batch_num, total_batches, len(batch),
         )
-        raw = _dispatch("translate", prompt, timeout=600, job_id=job_id, local_only=True)
+        raw = _dispatch("translate", prompt, timeout=600, job_id=job_id, local_only=True, prefer_agent="C.O.D.E.X.")
 
         # Parse JSON from response
         translations = _parse_batch_response(raw, len(batch))

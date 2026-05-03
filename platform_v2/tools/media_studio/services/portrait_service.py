@@ -441,6 +441,80 @@ def generate_variant(agent_id: int, style: Optional[str] = None, pose: Optional[
     )
 
 
+_FANOUT_STYLES = [
+    "",
+    "cinematic lighting, dramatic shadows",
+    "soft studio lighting, professional headshot",
+]
+
+
+def generate_fanout(agent_id: int, prompt_override: Optional[str] = None) -> Dict:
+    """Submit N portrait generation jobs in one click.
+
+    If agent has an approved canonical with ip_adapter_ref_path, generates
+    IP-Adapter style variants.  Otherwise generates N canonical attempts with
+    different style suffixes and random seeds.
+
+    Returns {"success": True, "queue_ids": [...], "count": N}
+    """
+    from .generation_service import submit_generation
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT a.name, a.display_name, a.first_name, a.last_name,
+                   p.identity_prompt, p.face_seed,
+                   p.approved, p.ip_adapter_ref_path
+            FROM agents a
+            LEFT JOIN agent_portraits p ON p.agent_id = a.id
+            WHERE a.id = %s
+            """,
+            (agent_id,),
+        )
+        row = cur.fetchone()
+
+    if not row:
+        return {"success": False, "error": "Agent not found"}
+
+    identity_prompt = prompt_override or (row.get("identity_prompt") or "")
+    if not identity_prompt.strip():
+        return {"success": False, "error": "No identity prompt set. Add one in DHQ Roster first."}
+
+    queue_ids = []
+    use_ip_adapter = bool(row.get("approved") and row.get("ip_adapter_ref_path"))
+
+    for style in _FANOUT_STYLES:
+        prompt = identity_prompt + (f", {style}" if style else "")
+        params: Dict = {
+            "model": "sd_xl_base_1.0.safetensors",
+            "width": 1024,
+            "height": 1024,
+            "steps": 30,
+            "cfg": 7.0,
+            "sampler": "euler_ancestral",
+            "seed": -1,
+        }
+        if use_ip_adapter:
+            params["ip_adapter_ref"] = row["ip_adapter_ref_path"]
+            params["ip_adapter_weight"] = 0.85
+
+        result = submit_generation(
+            user_id=None,
+            media_type="image",
+            prompt=prompt,
+            negative_prompt="blurry, deformed, extra limbs, bad anatomy, text, watermark, low quality",
+            params=params,
+            owner_type="agent",
+            owner_id=agent_id,
+        )
+        if "queue_id" in result:
+            queue_ids.append(result["queue_id"])
+
+    if not queue_ids:
+        return {"success": False, "error": "Fan-out submitted 0 jobs — check generation service logs"}
+    return {"success": True, "queue_ids": queue_ids, "count": len(queue_ids)}
+
+
 def _load_refinement_context(agent_id: int) -> Optional[Dict]:
     """Load agent portrait context needed for the refinement pipeline."""
     with get_db_cursor() as (conn, cur):

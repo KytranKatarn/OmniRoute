@@ -115,6 +115,46 @@ def get_chat_user():
     return getattr(g, "chat_user", None)
 
 
+def require_scope(scope):
+    """Decorator: enforce a required scope on API-key callers.
+
+    Session-authenticated users (browser) always pass — scopes only restrict
+    bearer-token keys. Stacks with @chat_auth_required (must come after).
+
+    Usage:
+        @chat_auth_required
+        @require_scope("admin")
+        def my_route(): ...
+    """
+
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            user = getattr(g, "chat_user", None)
+            if user and user.get("auth_method") == "api_key":
+                scopes = user.get("scopes") or []
+                if scope not in scopes:
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": {
+                                    "code": "SCOPE_DENIED",
+                                    "message": f"API key missing required scope: {scope}",
+                                    "required": scope,
+                                    "granted": scopes,
+                                },
+                            }
+                        ),
+                        403,
+                    )
+            return f(*args, **kwargs)
+
+        return decorated
+
+    return decorator
+
+
 def generate_api_key(user_id, name, rate_limit=30):
     """Create a new API key. Returns the raw key (shown once).
 

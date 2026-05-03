@@ -389,5 +389,14 @@ def article(article_id: int):
                 a[field] = []
         elif val is None:
             a[field] = []
+
+    # Server-side paywall — redact premium fields for non-subscribers
+    # bias_band is free (teaser); rationale + trigger_phrases + fact_check data are paid
+    subscribed = is_subscriber()
+    if not subscribed:
+        a["bias_rationale"] = None
+        a["trigger_phrases"] = []
+        a["fact_check_claims"] = []
+
     return render_template("article.html", a=a, wtf_tech_url=wtf_tech_url,
-                           is_subscriber=is_subscriber())
+                           is_subscriber=subscribed)

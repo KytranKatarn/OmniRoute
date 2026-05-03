@@ -511,7 +511,7 @@
         /* ── Cart count ── */
         async function updateCartCount() {
             try {
-                const response = await fetch('https://store.kytranempowerment.com/api/cart/' + userSessionId);
+                const response = await fetch('https://business.kytranempowerment.com/plugins/store/api/cart/' + userSessionId);
                 if (!response.ok) throw new Error('HTTP ' + response.status);
                 const data = await response.json();
                 const cart = data.cart_items || [];
@@ -526,7 +526,7 @@
         /* ── Update quantity ── */
         async function updateCartItemQuantityBackend(cartItemId, newQuantity) {
             try {
-                const response = await fetch('https://store.kytranempowerment.com/api/cart/update_quantity/' + cartItemId, {
+                const response = await fetch('https://business.kytranempowerment.com/plugins/store/api/cart/update_quantity/' + cartItemId, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ quantity: parseInt(newQuantity) }),
@@ -545,7 +545,7 @@
         async function removeCartItemBackend(cartItemId, productName) {
             if (!confirm('Remove "' + productName + '" from your cart?')) return;
             try {
-                const response = await fetch('https://store.kytranempowerment.com/api/cart/remove/' + cartItemId, {
+                const response = await fetch('https://business.kytranempowerment.com/plugins/store/api/cart/remove/' + cartItemId, {
                     method: 'DELETE',
                 });
                 const result = await response.json();
@@ -678,7 +678,7 @@
             while (container.firstChild) container.removeChild(container.firstChild);
 
             try {
-                var response = await fetch('https://store.kytranempowerment.com/api/cart/' + userSessionId);
+                var response = await fetch('https://business.kytranempowerment.com/plugins/store/api/cart/' + userSessionId);
                 if (!response.ok) throw new Error('HTTP ' + response.status);
                 var data = await response.json();
                 var cartItems = data.cart_items || [];

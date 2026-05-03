@@ -630,6 +630,19 @@ def api_generate_variant(agent_id):
     return jsonify(result), 201
 
 
+@media_studio_bp.route("/api/portraits/<int:agent_id>/generate-fanout", methods=["POST"])
+@login_required
+def api_generate_fanout(agent_id):
+    """Fan-out portrait generation — submits N jobs with style variations in one click."""
+    from .services.portrait_service import generate_fanout
+
+    data = request.get_json() or {}
+    result = generate_fanout(agent_id, prompt_override=data.get("prompt"))
+    if not result.get("success"):
+        return jsonify(result), 400
+    return jsonify(result), 201
+
+
 @media_studio_bp.route("/api/portraits/<int:agent_id>/refine-prompt", methods=["POST"])
 @login_required
 def api_refine_prompt(agent_id):
@@ -667,6 +680,95 @@ def api_refine_prompt(agent_id):
         task_id = cur.fetchone()["id"]
 
     return jsonify({"task_id": task_id, "status": "queued"})
+
+
+@media_studio_bp.route("/api/portraits/<int:agent_id>/agent-refine", methods=["POST"])
+def api_agent_initiated_refine(agent_id):
+    """Agent-initiated portrait revision — 3-way collaborative voice.
+
+    The agent provides their own perspective (drawn from their system_prompt),
+    moondream describes the current portrait, and M.U.S.E. synthesises all three.
+    No login required — called internally by agents or the delegation worker.
+    Result is queued for Kytran approval via Telegram.
+
+    JSON body: { "feedback": "optional extra context", "agent_token": "..." }
+    Returns: { "task_id": N, "status": "queued", "agent_voice": "..." }
+    """
+    import psycopg2.extras
+    from database import get_db_cursor
+
+    data = request.get_json(silent=True) or {}
+    extra_feedback = (data.get("feedback") or "").strip()
+
+    # Fetch agent identity
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT id, name, display_name, system_prompt FROM agents WHERE id = %s",
+            (agent_id,),
+        )
+        agent = cur.fetchone()
+
+    if not agent:
+        return jsonify({"error": "Agent not found"}), 404
+
+    # Build agent voice from their system_prompt — what they'd say about their ideal portrait
+    system_prompt = (agent.get("system_prompt") or "").strip()
+    agent_voice = (
+        f"I am {agent.get('display_name') or agent.get('name')}. "
+        f"Based on my identity and role, my portrait should reflect: {system_prompt[:300]}"
+        if system_prompt
+        else f"I am {agent.get('display_name') or agent.get('name')}. "
+        f"I want my portrait to reflect my unique character and role."
+    )
+    if extra_feedback:
+        agent_voice += f" Additional direction: {extra_feedback}"
+
+    job_meta = psycopg2.extras.Json(
+        {
+            "agent_id": agent_id,
+            "feedback": agent_voice,
+            "history": [],
+            "agent_initiated": True,
+            "agent_voice": agent_voice,
+            "extra_feedback": extra_feedback,
+        }
+    )
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """INSERT INTO unified_tasks
+               (title, task_type, status, priority, metadata, tags)
+               VALUES (%s, 'portrait_refinement', 'pending', 8, %s,
+                       ARRAY['portrait_refinement','agent_initiated'])
+               RETURNING id""",
+            (
+                f"[Agent Identity] {agent.get('display_name') or agent.get('name')} requests portrait revision",
+                job_meta,
+            ),
+        )
+        task_id = cur.fetchone()["id"]
+
+    # Notify Kytran via Telegram
+    try:
+        from services.telegram_service import send_info
+
+        send_info(
+            f"🎨 Agent Identity Evolution\n"
+            f"{agent.get('display_name') or agent.get('name')} has requested a portrait revision.\n"
+            f"Voice: {agent_voice[:200]}\n"
+            f"Review in Media Studio → Portraits tab (task #{task_id})"
+        )
+    except Exception as exc:
+        current_app.logger.warning("[agent-refine] Telegram alert failed: %s", exc)
+
+    return jsonify(
+        {
+            "task_id": task_id,
+            "status": "queued",
+            "agent_voice": agent_voice,
+            "message": "Portrait revision queued for M.U.S.E. synthesis and Kytran approval",
+        }
+    )
 
 
 @media_studio_bp.route("/api/portraits/<int:agent_id>/refine-status/<int:task_id>")

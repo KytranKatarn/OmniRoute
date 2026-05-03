@@ -64,6 +64,10 @@
             <i data-lucide="folder-kanban"></i>
             <span data-i18n="devhq.tabs.projects">Projects</span>
         </button>
+        <button class="devhq-tab" data-tab="board" onclick="switchDevHQTab('board')">
+            <i data-lucide="kanban"></i>
+            <span>Board</span>
+        </button>
         <button class="devhq-tab" data-tab="ideas" onclick="switchDevHQTab('ideas')">
             <i data-lucide="lightbulb"></i>
             <span data-i18n="devhq.tabs.ideas">Ideas</span>
@@ -227,7 +231,41 @@
         </div>
     </div>
 
-    <!-- ===== TAB 3: IDEAS (NEW) ===== -->
+    <!-- ===== TAB 3: BOARD (KANBAN) ===== -->
+    <div class="devhq-panel" id="panel-board">
+        <div class="devhq-filters">
+            <select id="boardProjectFilter" onchange="loadBoard()">
+                <option value="">All Projects</option>
+            </select>
+            <select id="boardPriorityFilter" onchange="loadBoard()">
+                <option value="">All Priorities</option>
+                <option value="high">High (7–10)</option>
+                <option value="medium">Medium (4–6)</option>
+                <option value="low">Low (1–3)</option>
+            </select>
+            <button class="devhq-btn primary" onclick="openTaskModal(null)" data-i18n="devhq.actions.new_task_btn">+ New Task</button>
+        </div>
+        <div id="boardColumns" class="devhq-board">
+            <div class="devhq-board-col" data-status="pending">
+                <div class="devhq-board-col-header"><span class="devhq-board-col-dot pending"></span>Pending</div>
+                <div class="devhq-board-cards" id="board-col-pending"></div>
+            </div>
+            <div class="devhq-board-col" data-status="in_progress">
+                <div class="devhq-board-col-header"><span class="devhq-board-col-dot in_progress"></span>In Progress</div>
+                <div class="devhq-board-cards" id="board-col-in_progress"></div>
+            </div>
+            <div class="devhq-board-col" data-status="review">
+                <div class="devhq-board-col-header"><span class="devhq-board-col-dot review"></span>Review</div>
+                <div class="devhq-board-cards" id="board-col-review"></div>
+            </div>
+            <div class="devhq-board-col" data-status="completed">
+                <div class="devhq-board-col-header"><span class="devhq-board-col-dot completed"></span>Completed</div>
+                <div class="devhq-board-cards" id="board-col-completed"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== TAB 4: IDEAS (NEW) ===== -->
     <div class="devhq-panel" id="panel-ideas">
         <div class="devhq-filters">
             <select id="ideaFilterCategory">

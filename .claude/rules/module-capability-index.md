@@ -83,7 +83,8 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 ### A.R.C.H.I.E. Chat — `archie_chat` · `/tools/archie-chat` · ✅ · 🟡
 - **Capability**: Text messaging (Claude-routed or Telegram-bridged), conversation CRUD, agent roster, bridge stations, API key mgmt, Home Assistant voice synth w/ ARCHIE emotional tone. ~1,640 LOC across routes + chat_service + ha_bridge + auth_middleware.
 - **Tables**: conversations, messages (source=ha_voice/telegram/web), api_keys, agent_assignments
-- **Gaps**: Telegram via external `archie_comms` container (:3002); **STT (voice input) missing**; team convo scoping partial; API key scopes not enforced per endpoint.
+- **API key scopes (2026-05-02, #2259)**: `require_scope()` decorator in auth_middleware.py enforces per-endpoint scopes for bearer-token callers: `chat` (POST /message, POST/DELETE /conversations), `read` (GET lists/search/agents), `admin` (key CRUD). Session users bypass scope checks.
+- **Gaps**: Telegram via external `archie_comms` container (:3002); **STT (voice input) missing**; team convo scoping partial.
 - **Audit**: KB 256846 · **Rules**: `autonomy.md`
 
 ### Repair Bay — `repair_bay` · `/tools/repair-bay` · ✅ · 🟡

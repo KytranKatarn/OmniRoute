@@ -97,8 +97,12 @@ class VisualRunner:
         finally:
             await page.close()
 
-    async def _snapshot(self, context, base_url, path, selectors, breakpoint_px, screenshot_name=None):
+    async def _snapshot(self, context, base_url, path, selectors, breakpoint_px, screenshot_name=None, theme=None):
         """Capture CSS computed-style snapshot + optional pixel screenshot.
+
+        Args:
+            theme: optional 'light' or 'dark' — injects theme before CSS capture.
+                   Uses window.setArchieTheme() if available, falls back to class toggle.
 
         Returns:
             (css_snap dict, screenshot_relative_path or None)
@@ -110,6 +114,24 @@ class VisualRunner:
         try:
             await page.set_viewport_size({"width": breakpoint_px, "height": 1024})
             await page.goto(f"{base_url}{path}", wait_until="networkidle", timeout=20000)
+
+            if theme:
+                await page.evaluate(
+                    """(t) => {
+                        localStorage.setItem('archie-theme', t);
+                        if (typeof window.setArchieTheme === 'function') {
+                            window.setArchieTheme(t);
+                        } else {
+                            if (t === 'light') {
+                                document.body.classList.add('light-mode');
+                            } else {
+                                document.body.classList.remove('light-mode');
+                            }
+                        }
+                    }""",
+                    theme,
+                )
+                await page.wait_for_timeout(400)
             css_snap = await page.evaluate(
                 """
                 (args) => {
@@ -172,6 +194,7 @@ class VisualRunner:
         breakpoints = test.get("breakpoints") or [1024]
         snapshot_name = test.get("snapshot_name") or test.get("name")
         name_base = test.get("name", "unnamed_visual")
+        theme = test.get("theme")  # optional: 'light' or 'dark'
 
         if not selectors:
             return [
@@ -200,6 +223,7 @@ class VisualRunner:
                         selectors,
                         int(bp),
                         screenshot_name=ss_name,
+                        theme=theme,
                     )
                 except Exception as e:
                     results.append(

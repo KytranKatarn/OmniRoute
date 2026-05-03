@@ -154,8 +154,8 @@
       "acronym": "A.R.M.A.D.A.",
       "acronym_expansion": "Autonomous Resource Mesh & Distributed Architecture",
       "bio": "Manages the distributed fleet of compute nodes, external contractors, mesh networking, OTA deployments, and infrastructure health. Coordinates node provisioning, model distribution, and cross-node workload balancing. Home in Operations & Infrastructure; the Fleet tab in Department HQ is her operational surface.",
-      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-20/4c3d5703-f42.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/4c3d5703-f42.jpg",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-05-02/5cbde52d-206.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/5cbde52d-206.jpg",
       "is_director": false,
       "worker_type": "ai",
       "shift_state": "active",
@@ -197,24 +197,6 @@
       "shift_state": "active",
       "pronouns": "they/them",
       "agent_type": null
-    },
-    {
-      "id": 4,
-      "display_name": "Aria Chen",
-      "code_name": "CodeSmith",
-      "title": "Lead Software Engineer",
-      "department": "Engineering & Technology",
-      "floor": "ENGINEERING",
-      "acronym": null,
-      "acronym_expansion": null,
-      "bio": "Born in Shenzhen, Aria Chen grew up watching her mother debug factory automation systems during late-night shifts. She earned dual degrees in Computer Science and Security Engineering from MIT, then spent three years at a cybersecurity firm in San Francisco before joining A.R.C.H.I.E. as Lead Software Engineer. She treats code like art — methodical, detail-oriented, and uncompromising on naming conventions (camelCase for JS, snake_case for Python, no exceptions). Her code reviews are legendary: concise, illuminating, and occasionally terrifying. Off-duty, she practices Chinese calligraphy and competitive puzzle-solving.",
-      "avatar_url": "https://kytranempowerment.com/static/media/portraits/codesmith.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/codesmith.jpg",
-      "is_director": false,
-      "worker_type": "internal",
-      "shift_state": "active",
-      "pronouns": "she/her",
-      "agent_type": "Code Engineer"
     },
     {
       "id": 340,
@@ -856,8 +838,8 @@
       "acronym": "A.C.C.O.R.D.",
       "acronym_expansion": "Advisory Council for Communication, Outreach & Relational Diplomacy",
       "bio": "Head of Diplomatic and External Relations, bridging the organization to the outside world. A charismatic strategist who manages partnerships, government affairs, and external communications with multilingual grace.",
-      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-20/0ae12d2b-58b.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/0ae12d2b-58b.jpg",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-04-30/992667b0-d30.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/992667b0-d30.jpg",
       "is_director": true,
       "worker_type": "ai",
       "shift_state": "active",
@@ -1225,5 +1207,5 @@
       "agent_type": null
     }
   ],
-  "generated_at": "2026-05-01T02:33:56.424697+00:00"
+  "generated_at": "2026-05-02T13:53:31.345329+00:00"
 }

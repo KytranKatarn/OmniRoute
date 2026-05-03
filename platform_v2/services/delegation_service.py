@@ -41,6 +41,7 @@ KNOWN_TOOL_CAPABILITIES = {
     "run_misroute_to_proposal_adapter",
     "deploy_static",
     "deploy_vps",
+    "portrait_refinement",
 }
 
 VALID_DELEGATION_SOURCES = {
@@ -195,18 +196,19 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
         }
 
     if capability == "run_qa_suite":
-        # qa_service lives inside platform_v2/tools/probe/... — import lazily
-        # to avoid pulling PROBE on every delegation service import.
-        from services.qa_service import run_qa_suite as _run_qa
+        from services.qa_service import run_suite as _run_suite
 
-        suite_name = payload.get("suite_name") or payload.get("suite") or "default"
-        result = _run_qa(suite_name=suite_name)
+        suite_id = payload.get("suite_id")
+        suite_name = payload.get("suite_name") or payload.get("suite") or "unknown"
+        if not suite_id:
+            return {"success": False, "summary": "run_qa_suite requires suite_id in args"}
+        results = _run_suite(int(suite_id), triggered_by="delegate_task")
+        passed = sum(1 for r in results if r.get("status") == "pass")
+        failed = sum(1 for r in results if r.get("status") in ("fail", "error"))
         return {
-            "success": bool(result.get("success")),
-            "summary": (
-                f"QA suite {suite_name}: passed={result.get('passed', 0)} " f"failed={result.get('failed', 0)}"
-            ),
-            "result": result,
+            "success": failed == 0,
+            "summary": f"QA suite {suite_name} (#{suite_id}): passed={passed} failed={failed}",
+            "result": {"passed": passed, "failed": failed, "total": len(results)},
         }
 
     if capability in ("health_check", "check_platform_health"):
@@ -260,6 +262,41 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
                 "error": result.error,
                 "metadata": result.metadata,
             },
+        }
+
+    if capability == "portrait_refinement":
+        agent_id = payload.get("agent_id")
+        feedback = (payload.get("feedback") or reason or "").strip()
+        if not agent_id or not feedback:
+            return {
+                "success": False,
+                "summary": "portrait_refinement requires agent_id and feedback in args",
+                "error": "missing_args",
+            }
+        import psycopg2.extras
+        from database import get_db_cursor
+
+        job_meta = psycopg2.extras.Json(
+            {
+                "agent_id": int(agent_id),
+                "feedback": feedback,
+                "history": payload.get("history") or [],
+                "initiated_by": "mcp_delegate",
+            }
+        )
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO unified_tasks
+                   (title, task_type, status, priority, metadata, tags)
+                   VALUES (%s, 'portrait_refinement', 'pending', 7, %s, ARRAY['portrait_refinement','mcp_delegate'])
+                   RETURNING id""",
+                (f"[Portrait Refine via CLI] Agent {agent_id}: {feedback[:60]}", job_meta),
+            )
+            task_id = cur.fetchone()["id"]
+        return {
+            "success": True,
+            "summary": f"Portrait refinement queued for agent {agent_id} (task #{task_id})",
+            "result": {"task_id": task_id, "agent_id": agent_id, "status": "queued"},
         }
 
     return {

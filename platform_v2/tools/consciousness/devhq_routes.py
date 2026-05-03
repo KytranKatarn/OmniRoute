@@ -349,6 +349,55 @@ def register_devhq_routes(bp, admin_required):
             finally:
                 cur.close()
 
+    @bp.route("/api/devhq/board")
+    @login_required
+    @admin_required
+    def devhq_api_board():
+        """Kanban board — all tasks across projects grouped by status.
+
+        Columns: pending → in_progress → review → completed
+        Optional: ?project_id=N to filter to one project, ?priority=high
+        """
+        project_id = request.args.get("project_id", type=int)
+        priority_filter = request.args.get("priority", "").strip()
+
+        _COLUMNS = ["pending", "in_progress", "review", "completed", "blocked"]
+        board: dict = {col: [] for col in _COLUMNS}
+
+        with get_db_connection() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                conditions = ["1=1"]
+                params: list = []
+                if project_id:
+                    conditions.append("t.project_id = %s")
+                    params.append(project_id)
+                if priority_filter:
+                    conditions.append("t.estimated_effort = %s")
+                    params.append(priority_filter)
+                cur.execute(
+                    f"""SELECT t.id, t.title, t.status, t.priority,
+                               t.task_type, t.estimated_effort, t.due_date,
+                               t.assigned_agent_id, t.assigned_user_id,
+                               t.tags, t.project_id,
+                               p.name AS project_name
+                        FROM unified_tasks t
+                        LEFT JOIN unified_projects p ON p.id = t.project_id
+                        WHERE {' AND '.join(conditions)}
+                          AND t.status NOT IN ('archived', 'cancelled')
+                        ORDER BY t.priority DESC, t.created_at ASC""",
+                    params,
+                )
+                for row in cur.fetchall():
+                    col = row["status"] if row["status"] in _COLUMNS else "pending"
+                    board[col].append(dict(row))
+                totals = {col: len(cards) for col, cards in board.items()}
+                return jsonify({"success": True, "board": board, "columns": _COLUMNS, "totals": totals})
+            except Exception as e:
+                return jsonify({"success": False, "error": str(e)}), 500
+            finally:
+                cur.close()
+
     # ---------------------------------------------------------------------------
     # Knowledge + Activity
     # ---------------------------------------------------------------------------

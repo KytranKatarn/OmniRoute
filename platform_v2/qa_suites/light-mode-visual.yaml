@@ -1,0 +1,202 @@
+# P.R.O.B.E. Light Mode Visual Suite
+# Captures CSS computed-styles + screenshots for every enabled module in light mode.
+# First run creates baselines (status=skip). Accept baselines, then re-run after
+# CSS fixes to catch regressions.
+#
+# Theme injection: sets window.setArchieTheme('light') after each page load,
+# waits 400ms for CSS vars to recompute, then snapshots.
+#
+# Task: #1997 / #1998 / #1999 — Light Mode QA
+
+suite:
+  name: "Light Mode Visual — All Modules"
+  description: "Playwright visual snapshots of every enabled module with light mode active. Baseline run documents current state; re-run after CSS fixes confirms resolution."
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+
+  # ── Core / Dashboard ──────────────────────────────────────────────────────
+  - name: lm-dashboard
+    type: visual_snapshot
+    path: /dashboard
+    theme: light
+    breakpoints: [480, 768, 1280]
+    selectors: [":root", "body", ".dashboard-grid", ".module-card"]
+    snapshot_name: lm-dashboard-v1
+
+  # ── Admin Ops ─────────────────────────────────────────────────────────────
+  - name: lm-account-center
+    type: visual_snapshot
+    path: /tools/account-center/
+    theme: light
+    breakpoints: [480, 768, 1280]
+    selectors: [":root", "body", ".ac-panel", ".ac-tab"]
+    snapshot_name: lm-account-center-v1
+
+  - name: lm-backup-manager
+    type: visual_snapshot
+    path: /tools/backup-manager/
+    theme: light
+    breakpoints: [768, 1280]
+    selectors: [":root", "body", ".bm-frame", ".bm-content"]
+    snapshot_name: lm-backup-manager-v1
+
+  - name: lm-security-network
+    type: visual_snapshot
+    path: /tools/security-network/
+    theme: light
+    breakpoints: [768, 1280]
+    selectors: [":root", "body", ".sn-panel"]
+    snapshot_name: lm-security-network-v1
+
+  - name: lm-saas-manager
+    type: visual_snapshot
+    path: /tools/saas-manager/
+    theme: light
+    breakpoints: [768, 1280]
+    selectors: [":root", "body"]
+    snapshot_name: lm-saas-manager-v1
+
+  # ── AI Command ────────────────────────────────────────────────────────────
+  - name: lm-department-hq
+    type: visual_snapshot
+    path: /tools/department-hq/
+    theme: light
+    breakpoints: [480, 768, 1280]
+    selectors: [":root", "body", ".dhq-panel", ".dhq-tab"]
+    snapshot_name: lm-department-hq-v1
+
+  - name: lm-consciousness
+    type: visual_snapshot
+    path: /tools/consciousness/
+    theme: light
+    breakpoints: [768, 1280]
+    selectors: [":root", "body", ".cs-panel", ".cs-tab"]
+    snapshot_name: lm-consciousness-v1
+
+  - name: lm-archie-chat
+    type: visual_snapshot
+    path: /tools/archie-chat/
+    theme: light
+    breakpoints: [480, 768, 1280]
+    selectors: [":root", "body", ".chat-panel"]
+    snapshot_name: lm-archie-chat-v1
+
+  - name: lm-repair-bay
+    type: visual_snapshot
+    path: /tools/repair-bay/
+    theme: light
+    breakpoints: [768, 1280]
+    selectors: [":root", "body", ".rb-panel"]
+    snapshot_name: lm-repair-bay-v1
+
+  - name: lm-agent-academy
+    type: visual_snapshot
+    path: /tools/agent-academy/
+    theme: light
+    breakpoints: [768, 1280]
+    selectors: [":root", "body"]
+    snapshot_name: lm-agent-academy-v1
+
+  - name: lm-media-studio
+    type: visual_snapshot
+    path: /tools/media-studio/
+    theme: light
+    breakpoints: [768, 1280]
+    selectors: [":root", "body", ".ms-panel"]
+    snapshot_name: lm-media-studio-v1
+
+  # ── SaaS Services ─────────────────────────────────────────────────────────
+  - name: lm-email-manager
+    type: visual_snapshot
+    path: /tools/email-manager/
+    theme: light
+    breakpoints: [768, 1280]
+    selectors: [":root", "body"]
+    snapshot_name: lm-email-manager-v1
+
+  - name: lm-google-work-suite
+    type: visual_snapshot
+    path: /tools/google-work-suite/
+    theme: light
+    breakpoints: [768, 1280]
+    selectors: [":root", "body"]
+    snapshot_name: lm-google-work-suite-v1
+
+  - name: lm-user-profile
+    type: visual_snapshot
+    path: /tools/my-profile/
+    theme: light
+    breakpoints: [480, 768, 1280]
+    selectors: [":root", "body"]
+    snapshot_name: lm-user-profile-v1
+
+  # ── Applications ──────────────────────────────────────────────────────────
+  - name: lm-media-hub
+    type: visual_snapshot
+    path: /tools/media-hub/
+    theme: light
+    breakpoints: [768, 1280]
+    selectors: [":root", "body"]
+    snapshot_name: lm-media-hub-v1
+
+  - name: lm-family-tree
+    type: visual_snapshot
+    path: /tools/family-tree/
+    theme: light
+    breakpoints: [768, 1280]
+    selectors: [":root", "body"]
+    snapshot_name: lm-family-tree-v1
+
+  - name: lm-fitness
+    type: visual_snapshot
+    path: /tools/fitness/
+    theme: light
+    breakpoints: [480, 768, 1280]
+    selectors: [":root", "body"]
+    snapshot_name: lm-fitness-v1
+
+  - name: lm-therapy
+    type: visual_snapshot
+    path: /tools/therapy/
+    theme: light
+    breakpoints: [480, 768, 1280]
+    selectors: [":root", "body"]
+    snapshot_name: lm-therapy-v1
+
+  - name: lm-doc
+    type: visual_snapshot
+    path: /tools/doc/
+    theme: light
+    breakpoints: [480, 768, 1280]
+    selectors: [":root", "body"]
+    snapshot_name: lm-doc-v1
+
+  # ── Creative Studios ──────────────────────────────────────────────────────
+  - name: lm-game-studio
+    type: visual_snapshot
+    path: /tools/game-studio/
+    theme: light
+    breakpoints: [768, 1280]
+    selectors: [":root", "body"]
+    snapshot_name: lm-game-studio-v1
+
+  # ── Crypto ────────────────────────────────────────────────────────────────
+  - name: lm-archie-pool
+    type: visual_snapshot
+    path: /tools/archie-pool/
+    theme: light
+    breakpoints: [768, 1280]
+    selectors: [":root", "body"]
+    snapshot_name: lm-archie-pool-v1
+
+  - name: lm-pool-management
+    type: visual_snapshot
+    path: /tools/pool-management/
+    theme: light
+    breakpoints: [768, 1280]
+    selectors: [":root", "body"]
+    snapshot_name: lm-pool-management-v1

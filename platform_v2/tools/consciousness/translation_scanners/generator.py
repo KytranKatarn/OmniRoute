@@ -104,6 +104,7 @@ def _generate_translation(en_text: str, language: str, glossary: Optional[list] 
         capability="translate",
         prompt=prompt,
         module_id="coverage_scan",
+        prefer_agent="C.O.D.E.X.",
     )
     if not isinstance(r, dict):
         return {"translated": "", "confidence": 0.0}

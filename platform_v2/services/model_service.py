@@ -65,7 +65,19 @@ class ModelService:
         ollama_host: Optional[str] = None,
         ram_budget_gb: float = _DEFAULT_RAM_BUDGET_GB,
     ) -> None:
-        raw_host = ollama_host or os.getenv("OLLAMA_HOST", _DEFAULT_OLLAMA_HOST)
+        # Env-var fallback chain — OLLAMA_HOST is canonical for this module,
+        # but OLLAMA_URL/OLLAMA_PRIMARY are the names used in .mcp.json and
+        # platform docs. Accept all three so a host-process consumer (MCP
+        # server) doesn't silently fall through to the Docker-only default.
+        # Per-node dispatch (orchestration → remote_nodes) passes target_host
+        # explicitly to ensure_model_ready() and bypasses this fallback.
+        raw_host = (
+            ollama_host
+            or os.getenv("OLLAMA_HOST")
+            or os.getenv("OLLAMA_URL")
+            or os.getenv("OLLAMA_PRIMARY")
+            or _DEFAULT_OLLAMA_HOST
+        )
         if not raw_host.startswith(("http://", "https://")):
             raw_host = f"http://{raw_host}"
         self.ollama_host = raw_host.rstrip("/")

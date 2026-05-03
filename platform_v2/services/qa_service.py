@@ -127,8 +127,19 @@ def run_suite_for_module(module_name: str, triggered_by: str = "repair_bay") -> 
 # ---------------------------------------------------------------------------
 
 
-def run_suite(suite_id, triggered_by="manual"):
+def run_suite(suite_id, triggered_by="manual", session=None, skip_auth=False):
     """Execute all specs in a test suite and record results.
+
+    Args:
+        suite_id: id of the suite in qa_test_suites.
+        triggered_by: tag stored on the qa_test_runs row (manual, scheduled,
+            claude_pr507_validation, etc.).
+        session: optional pre-built ``requests.Session`` to reuse across
+            multiple suites in a batch — avoids re-authenticating per suite.
+        skip_auth: when True, callers guarantee ``session`` is already
+            authenticated against the spec's base_url. Used by the scheduled
+            batch runner to bypass per-suite auth and dodge single-worker
+            gunicorn contention.
 
     Returns dict: {success, run_id, status, total, passed, failed, errors}
     """
@@ -165,7 +176,13 @@ def run_suite(suite_id, triggered_by="manual"):
     start_time = time.time()
 
     try:
-        results = execute_spec(spec_data, suite_id=suite_id, run_id=run_id)
+        results = execute_spec(
+            spec_data,
+            session=session,
+            suite_id=suite_id,
+            run_id=run_id,
+            skip_auth=skip_auth,
+        )
     except Exception as exc:
         logger.error("Suite %s execution failed: %s", suite_id, exc)
         results = [

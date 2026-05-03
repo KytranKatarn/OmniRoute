@@ -55,7 +55,7 @@ def _resolve_env_vars(obj):
     return obj
 
 
-def execute_spec(spec, session=None, suite_id=None, run_id=None):
+def execute_spec(spec, session=None, suite_id=None, run_id=None, skip_auth=False):
     """
     Execute all tests in a parsed spec.
 
@@ -67,6 +67,10 @@ def execute_spec(spec, session=None, suite_id=None, run_id=None):
             ux_score so scores can be keyed by suite.
         run_id: Parent run id — used by ux_score to write to
             qa_ux_rubric_scores keyed by run.
+        skip_auth: If True, do not authenticate. Caller guarantees ``session``
+            is already authenticated against the spec's base_url. Used by the
+            scheduled batch runner to share one session across suites and avoid
+            single-worker auth contention (Path B of PR #507 follow-up).
 
     Returns:
         List of result dicts.
@@ -84,7 +88,7 @@ def execute_spec(spec, session=None, suite_id=None, run_id=None):
     # Authenticate if credentials provided — retry up to 3 times with short
     # backoff. Previous policy (6×30s) ate 150s per flaky suite during bulk
     # scheduled runs and crowded out real diagnostics.
-    if auth.get("username") and auth.get("password"):
+    if not skip_auth and auth.get("username") and auth.get("password"):
         auth_error = None
         max_attempts = 3
         for attempt in range(max_attempts):

@@ -6018,22 +6018,95 @@ class AgentLoop:
 
         Per-suite results are recorded in details so the boot briefing can
         surface which suites failed without DB digging (PR #503).
+
+        Path B (post PR #507): authenticate once per (base_url, username) pair
+        and reuse the resulting requests.Session across every suite that
+        matches. The platform runs gunicorn with --workers=1 (APScheduler is
+        in-process and bumping workers double-fires jobs); under the bulk
+        55-suite loop, repeated logins contended on that single worker and
+        ~50% of suites failed at auth init in 10s. Sharing an authenticated
+        session removes the contention without touching gunicorn config.
         """
         try:
             import sys
             sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            import requests as http_requests
             from services import qa_service
+            from services.qa_spec_runner import _authenticate, _resolve_env_vars
+            from database import get_db_cursor
 
             start = time.time()
             suites = qa_service.get_suites()
             internal_suites = [s for s in suites if s.get("suite_type") == "internal"]
 
+            # qa_service.get_suites() omits the spec column — fetch it once
+            # for every internal suite so we can group by (base_url, auth).
+            specs_by_id = {}
+            if internal_suites:
+                ids = tuple(s["id"] for s in internal_suites)
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        "SELECT id, spec FROM qa_test_suites WHERE id = ANY(%s)",
+                        (list(ids),),
+                    )
+                    for row in cur.fetchall():
+                        specs_by_id[row["id"]] = row["spec"] or {}
+
             total_passed = 0
             total_failed = 0
             per_suite = []
+            shared_session = None
+            shared_key = None  # (base_url, username) — password compared too but excluded from logs
+            shared_password = None
+            session_reuse_count = 0
 
             for suite in internal_suites:
-                result = qa_service.run_suite(suite["id"], triggered_by="scheduled")
+                spec_data = specs_by_id.get(suite["id"], {}) or {}
+                spec_resolved = _resolve_env_vars(spec_data)
+                suite_meta = spec_resolved.get("suite", {}) if isinstance(spec_resolved, dict) else {}
+                base_url = (suite_meta.get("base_url") or "http://localhost:3000").rstrip("/")
+                auth = suite_meta.get("auth") or {}
+                has_auth = bool(auth.get("username") and auth.get("password"))
+
+                use_shared = False
+                if has_auth:
+                    key = (base_url, auth["username"])
+                    if shared_key == key and shared_password == auth["password"] and shared_session is not None:
+                        use_shared = True
+                    else:
+                        # New auth pair — build a fresh session and pre-auth once
+                        try:
+                            fresh = http_requests.Session()
+                            _authenticate(fresh, base_url, auth)
+                            shared_session = fresh
+                            shared_key = key
+                            shared_password = auth["password"]
+                            use_shared = True
+                            session_reuse_count = 0
+                            logger.info(
+                                "QA scheduled: pre-authenticated shared session for %s as %s",
+                                base_url, auth["username"],
+                            )
+                        except Exception as auth_err:
+                            logger.warning(
+                                "QA scheduled: shared session pre-auth failed for %s as %s — "
+                                "falling back to per-suite auth: %s",
+                                base_url, auth["username"], auth_err,
+                            )
+                            shared_session = None
+                            shared_key = None
+                            shared_password = None
+                            use_shared = False
+
+                if use_shared:
+                    session_reuse_count += 1
+
+                result = qa_service.run_suite(
+                    suite["id"],
+                    triggered_by="scheduled",
+                    session=(shared_session if use_shared else None),
+                    skip_auth=use_shared,
+                )
                 p = result.get("passed", 0)
                 f = result.get("failed", 0)
                 e = result.get("errors", 0)
@@ -6045,8 +6118,12 @@ class AgentLoop:
                     "passed": p,
                     "failed": f,
                     "errors": e,
+                    "shared_session": use_shared,
                 })
-                time.sleep(8)  # let gunicorn workers drain between suite auth sessions (was 2s — caused auth flake on slower suites)
+                # Sharing a session eliminates the per-suite auth round-trip
+                # that was contending on the single gunicorn worker, so 2s
+                # between suites is enough to keep request volume civil.
+                time.sleep(2)
 
             duration_ms = int((time.time() - start) * 1000)
             failing = [s for s in per_suite if s["failed"] > 0 or s["errors"] > 0]
@@ -6059,6 +6136,7 @@ class AgentLoop:
                     "per_suite": per_suite,
                     "failing_suite_count": len(failing),
                     "failing_suites": [s["name"] for s in failing],
+                    "shared_session_suites": sum(1 for s in per_suite if s.get("shared_session")),
                 },
             )
         except Exception as e:

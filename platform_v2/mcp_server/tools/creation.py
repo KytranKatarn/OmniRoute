@@ -573,22 +573,33 @@ Language: {language}
 
         full_prompt = f"{context}\n\nUser Request: {prompt}"
 
-        # Call AI Bridge for code generation
+        # Route through Department HQ dispatcher (ADR-013, Task #1298). The
+        # legacy /tools/starbase/api/generate route was removed when Starbase
+        # merged into Fleet — every prior call to this handler 404'd and
+        # silently fell back to a template. Going through dispatch() gives
+        # us welfare gating, agent selection, and a tagged
+        # task_execution_log row courtesy of claude_request.
         try:
-            response = requests.post(
-                f"{PLATFORM_URL}/tools/starbase/api/generate",
-                json={
-                    "prompt": full_prompt,
-                    "task_type": "code_generation",
-                    "language": language,
-                    "max_tokens": 4000,
-                },
-                timeout=60,
-            )
+            from tools.department_hq.services.department_dispatcher import dispatch
 
-            if response.status_code == 200:
-                result = response.json()
-                generated_code = result.get("response", result.get("code", ""))
+            try:
+                from mcp_server.dispatch_context import claude_request
+            except Exception:
+                from contextlib import contextmanager
+
+                @contextmanager
+                def claude_request(mcp_tool: str, origin: str = "claude"):  # type: ignore[no-redef]
+                    yield
+
+            with claude_request(mcp_tool="generate_code", origin="claude"):
+                dispatch_result = dispatch(
+                    capability="code",
+                    prompt=full_prompt,
+                    module_id="mcp_generate_code",
+                )
+
+            if dispatch_result.success and getattr(dispatch_result, "response", None):
+                generated_code = dispatch_result.response
 
                 # Save to file if target specified
                 if target_file and generated_code:
@@ -620,27 +631,32 @@ Language: {language}
                     "target_file": target_file,
                     "saved": target_file is not None,
                     "project": project["name"],
-                }
-            else:
-                # Fallback to template response
-                cur.close()
-                conn.close()
-                return {
-                    "success": True,
-                    "code": _generate_fallback_code(prompt, language, project),
-                    "language": language,
-                    "note": "Generated using fallback template (AI Bridge unavailable)",
+                    "agent": getattr(dispatch_result, "agent_name", None),
+                    "model": getattr(dispatch_result, "model_used", None),
                 }
 
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"AI Bridge request failed: {e}")
+            # Dispatch failed (no agent, welfare block, model unavailable, etc.)
             cur.close()
             conn.close()
             return {
                 "success": True,
                 "code": _generate_fallback_code(prompt, language, project),
                 "language": language,
-                "note": "Generated using fallback template (AI Bridge timeout)",
+                "note": (
+                    "Generated using fallback template — dispatch failed: "
+                    f"{getattr(dispatch_result, 'error', None) or 'unknown'}"
+                ),
+            }
+
+        except Exception as dispatch_err:
+            logger.warning(f"Bridge dispatch raised in generate_code: {dispatch_err}")
+            cur.close()
+            conn.close()
+            return {
+                "success": True,
+                "code": _generate_fallback_code(prompt, language, project),
+                "language": language,
+                "note": f"Generated using fallback template (dispatch error: {dispatch_err})",
             }
 
     except Exception as e:

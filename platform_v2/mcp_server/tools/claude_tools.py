@@ -432,21 +432,67 @@ async def trigger_code_review_handler(arguments: Dict[str, Any]) -> Dict[str, An
         if not files:
             return {"success": False, "error": "No files to review"}
 
-        # Try CodeRabbit API
+        # Route through Department HQ dispatcher (ADR-013, Task #1298). The
+        # legacy /tools/coderabbit/api/analyze route was removed; every prior
+        # call 404'd and silently fell through to the regex static-analysis
+        # fallback. Going through dispatch() gives proper agent selection
+        # (P.R.O.B.E. / V.I.G.I.L. on Engineering & Technology) and tagged
+        # task_execution_log rows.
         try:
-            response = requests.post(
-                f"{PLATFORM_URL}/tools/coderabbit/api/analyze",
-                json={
-                    "files": files[:10],  # Limit to 10 files
-                    "analysis_type": review_type,
-                },
-                timeout=30,
+            from tools.department_hq.services.department_dispatcher import dispatch
+
+            try:
+                from mcp_server.dispatch_context import claude_request
+            except Exception:
+                from contextlib import contextmanager
+
+                @contextmanager
+                def claude_request(mcp_tool: str, origin: str = "claude"):  # type: ignore[no-redef]
+                    yield
+
+            review_files = files[:10]
+            file_blocks = []
+            for file_path in review_files:
+                full_path = os.path.join(GIT_REPO_PATH, file_path)
+                if os.path.exists(full_path):
+                    try:
+                        with open(full_path, "r") as f:
+                            content = f.read()
+                        file_blocks.append(f"### {file_path}\n```\n{content[:6000]}\n```")
+                    except Exception:
+                        continue
+
+            review_prompt = (
+                f"Review these files for {review_type} issues — "
+                "report security, code-quality, and best-practice problems. "
+                "Output a JSON-like list of issues with file path, type "
+                "(security/quality/style), and a one-line description.\n\n" + "\n\n".join(file_blocks)
             )
 
-            if response.status_code == 200:
-                return {"success": True, "review": response.json()}
-        except requests.RequestException as e:
-            logger.warning(f"CodeRabbit API unavailable: {e}")
+            with claude_request(mcp_tool="trigger_code_review", origin="claude"):
+                dispatch_result = dispatch(
+                    capability="code_review",
+                    prompt=review_prompt,
+                    module_id="mcp_trigger_code_review",
+                )
+
+            if dispatch_result.success and getattr(dispatch_result, "response", None):
+                return {
+                    "success": True,
+                    "review": {
+                        "files_analyzed": len(review_files),
+                        "report": dispatch_result.response,
+                        "agent": getattr(dispatch_result, "agent_name", None),
+                        "model": getattr(dispatch_result, "model_used", None),
+                    },
+                }
+
+            logger.warning(
+                "code_review dispatch did not produce a response; falling back to static checks: %s",
+                getattr(dispatch_result, "error", None),
+            )
+        except Exception as e:
+            logger.warning(f"Bridge dispatch raised in trigger_code_review: {e}")
 
         # Fallback: basic static analysis
         issues = []

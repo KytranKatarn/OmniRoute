@@ -166,6 +166,14 @@ _API_GENERATE_ALLOWLIST: set[str] = {
     # inference; cannot route through build_options() (warmup, not generation).
     # Surfaced by consciousness dispatch migration (Task #2536).
     "platform_v2/tools/consciousness/devhq_routes.py",
+    # MCP server creation tools — line 801 references the legacy
+    # /tools/figma/api/generate URL inside import_figma_design (vision/
+    # multimodal handler). Same dead-route pattern as generate_code +
+    # trigger_code_review which were migrated to dispatch() in this commit;
+    # Figma needs a vision/multimodal capability path and is split out as a
+    # follow-up to Task #1298. The match is on the URL path string, not an
+    # actual Ollama inference call.
+    "platform_v2/mcp_server/tools/creation.py",
 }
 
 

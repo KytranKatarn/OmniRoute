@@ -173,7 +173,7 @@ def generate_project_docs(project_id: int, gap_data: Optional[Dict] = None) -> D
             json_mode=True,
             project_id=project_id,
             prefer_agent="D.A.R.W.I.N.",
-            timeout=120,
+            timeout=600,
         )
 
         if not result or not result.success:

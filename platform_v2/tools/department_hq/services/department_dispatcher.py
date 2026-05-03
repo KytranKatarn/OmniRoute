@@ -3044,6 +3044,21 @@ class DepartmentDispatcher:
             is_contractor = meta.get("is_cloud", False)
             worker_type = "contract" if is_contractor else "internal"
 
+            # Pick up Claude MCP attribution if dispatch was called from
+            # within an MCP tool handler (Tasks #1297/#1298).
+            request_origin = None
+            mcp_tool = None
+            try:
+                from mcp_server.dispatch_context import (
+                    get_request_origin,
+                    get_mcp_tool,
+                )
+
+                request_origin = get_request_origin()
+                mcp_tool = get_mcp_tool()
+            except Exception:
+                pass
+
             cur.execute(
                 """
                 INSERT INTO task_execution_log (
@@ -3051,13 +3066,13 @@ class DepartmentDispatcher:
                     model_used, provider, prompt_tokens, completion_tokens,
                     tokens_used, duration_ms, success, error_message,
                     station_code, requested_by, priority, request_metadata, job_id,
-                    worker_type
+                    worker_type, request_origin, mcp_tool
                 ) VALUES (
                     %s, %s, %s, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
-                    %s
+                    %s, %s, %s
                 )
                 """,
                 (
@@ -3080,6 +3095,8 @@ class DepartmentDispatcher:
                     json.dumps(result.metadata or {}),
                     job_id,
                     worker_type,
+                    request_origin,
+                    mcp_tool,
                 ),
             )
             conn.commit()

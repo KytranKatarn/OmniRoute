@@ -19,6 +19,8 @@ from typing import Any, Dict, List, Optional, Callable
 from dataclasses import dataclass, field
 import requests
 
+from mcp_server.dispatch_context import claude_request
+
 
 class MCPJSONEncoder(json.JSONEncoder):
     """JSON encoder that handles datetime objects and other non-serializable types"""
@@ -344,18 +346,23 @@ class ArchieMCPServer:
                     pass
 
         try:
-            # If tool has a direct handler, use it
-            if tool.handler:
-                result = await tool.handler(params)
-            # Otherwise, call the HTTP endpoint
-            elif tool.endpoint_path:
-                result = await self._call_http_endpoint(tool, params)
-            else:
-                return {
-                    "error": True,
-                    "code": "NO_HANDLER",
-                    "message": f"Tool '{name}' has no handler configured",
-                }
+            # Tag this call as a Claude MCP-initiated request — any
+            # `department_dispatcher.dispatch()` invoked downstream will
+            # write request_origin='claude' + mcp_tool=<name> to
+            # task_execution_log (Tasks #1297/#1298, ADR-013).
+            with claude_request(mcp_tool=name):
+                # If tool has a direct handler, use it
+                if tool.handler:
+                    result = await tool.handler(params)
+                # Otherwise, call the HTTP endpoint
+                elif tool.endpoint_path:
+                    result = await self._call_http_endpoint(tool, params)
+                else:
+                    return {
+                        "error": True,
+                        "code": "NO_HANDLER",
+                        "message": f"Tool '{name}' has no handler configured",
+                    }
 
             # Log successful call with output info
             execution_time = (datetime.now() - start_time).total_seconds() * 1000

@@ -564,6 +564,12 @@ def _run_api_test(test, base_url, session, auth):
         "assertions": {},
     }
 
+    # Per-test timeout override. LLM-backed endpoints (devotional, prayer,
+    # workout generation, etc.) need >30s on cold-load — wake-on-demand for a
+    # barracked agent + Ollama model load + generation can run 60-120s.
+    # Default stays 30s so non-LLM tests fail fast.
+    timeout_s = test.get("timeout_ms", 30000) / 1000.0
+
     try:
         start = time.time()
         resp = req_session.request(
@@ -574,7 +580,7 @@ def _run_api_test(test, base_url, session, auth):
             data=body if body and method not in ("POST", "PUT", "PATCH") else None,
             params=params,
             allow_redirects=False,
-            timeout=30,
+            timeout=timeout_s,
         )
         elapsed_ms = (time.time() - start) * 1000
 
@@ -662,9 +668,12 @@ def _run_page_load_test(test, base_url, session):
         "assertions": {},
     }
 
+    # Per-test timeout override (mirrors _run_api_test).
+    timeout_s = test.get("timeout_ms", 30000) / 1000.0
+
     try:
         start = time.time()
-        resp = session.get(url, allow_redirects=True, timeout=30)
+        resp = session.get(url, allow_redirects=True, timeout=timeout_s)
         elapsed_ms = (time.time() - start) * 1000
 
         result["actual_status"] = resp.status_code

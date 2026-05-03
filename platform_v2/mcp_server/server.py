@@ -6,9 +6,21 @@ Implements Model Context Protocol for AI model integration.
 Supports stdio transport for Claude Code and other MCP clients.
 """
 
+import sys
+
+# Mirror platform_v2/app.py:284-285 — make ai_bridge modules (e.g. `db`,
+# `archie_bridge`) importable so handlers that pull in
+# tools.department_hq.services.department_dispatcher resolve their bare
+# `from db import ...` chain. Without this, PR #499's sync dispatch path
+# (trigger_code_review, generate_code) raises ModuleNotFoundError at
+# dispatch-import time and silently falls through to its static-analysis
+# fallback. See task #1298.
+for _p in ("/mnt/archie_brain", "/mnt/archie_brain/ai_bridge"):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
 import os
 from database import _get_db_password
-import sys
 import json
 import asyncio
 import logging

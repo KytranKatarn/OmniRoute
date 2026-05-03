@@ -145,6 +145,7 @@ def execute_delegated_task(task: Dict[str, Any]) -> Dict[str, Any]:
         capability = args.get("capability")
         payload = args.get("args") or {}
         reason = args.get("reason", "")
+        delegation_source = task.get("delegation_source") or args.get("delegation_source") or "mcp_client"
 
         if not capability:
             return {
@@ -156,7 +157,7 @@ def execute_delegated_task(task: Dict[str, Any]) -> Dict[str, Any]:
         if capability in KNOWN_TOOL_CAPABILITIES:
             return _execute_known_tool(capability, payload, reason)
 
-        return _execute_via_dispatcher(capability, payload, reason)
+        return _execute_via_dispatcher(capability, payload, reason, origin=delegation_source)
     except Exception as exc:
         logger.exception("execute_delegated_task failed for task #%s", task.get("id"))
         return {
@@ -306,13 +307,37 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
     }
 
 
-def _execute_via_dispatcher(capability: str, payload: Dict[str, Any], reason: str) -> Dict[str, Any]:
+def _execute_via_dispatcher(
+    capability: str,
+    payload: Dict[str, Any],
+    reason: str,
+    origin: str = "mcp_client",
+) -> Dict[str, Any]:
     """Fallback: hand to the Department HQ dispatcher.
 
     Constructs a natural-language prompt so the LLM agent picked by
     ``smart_router`` gets the full context, not just a capability tag.
+
+    Wraps the dispatch in ``claude_request(mcp_tool='delegate_task',
+    origin=origin)`` so the resulting ``task_execution_log`` row is
+    tagged with ``request_origin`` matching the delegation_source.
+    Without this, the ContextVar set by the original MCP handler is
+    lost across the async worker boundary, and Claude-delegated rows
+    show up as un-attributed in the DHQ Claude Requests panel.
     """
     from tools.department_hq.services.department_dispatcher import dispatch
+
+    # Lazy import — keeps delegation_service usable even if the MCP
+    # subpackage is unavailable (e.g. in tests). claude_request is a
+    # no-op context manager when mcp_server is missing.
+    try:
+        from mcp_server.dispatch_context import claude_request
+    except Exception:
+        from contextlib import contextmanager
+
+        @contextmanager
+        def claude_request(mcp_tool: str, origin: str = "claude"):  # type: ignore[no-redef]
+            yield
 
     prompt_lines = [f"Delegated task — capability: {capability}"]
     if reason:
@@ -321,11 +346,12 @@ def _execute_via_dispatcher(capability: str, payload: Dict[str, Any], reason: st
         prompt_lines.append(f"Args: {json.dumps(payload)[:500]}")
     prompt = "\n".join(prompt_lines)
 
-    dispatch_result = dispatch(
-        capability=capability,
-        prompt=prompt,
-        module_id="delegation_service",
-    )
+    with claude_request(mcp_tool="delegate_task", origin=origin):
+        dispatch_result = dispatch(
+            capability=capability,
+            prompt=prompt,
+            module_id="delegation_service",
+        )
     if not dispatch_result.success:
         return {
             "success": False,
@@ -375,6 +401,11 @@ def emit_delegation_event(
     event_type: one of ``start``, ``complete``, ``fail``.
     """
     try:
+        from concurrent.futures import (
+            ThreadPoolExecutor,
+            TimeoutError as FutureTimeoutError,
+        )
+
         from services import telegram_service  # local import — avoids boot cycle
 
         verb = {
@@ -397,11 +428,23 @@ def emit_delegation_event(
             send_kwargs["chat_id"] = streaming_channel.split(":", 1)[1] or None
 
         # Failure events escalate via send_system (warning priority);
-        # start/complete stay informational.
-        if event_type == "fail":
-            telegram_service.send_system(title, message, **send_kwargs)
-        else:
-            telegram_service.send_info(title, message, **send_kwargs)
+        # start/complete stay informational. Both can hit the
+        # director_reports inbox HTTP path which has been observed
+        # to take 30–60s when the comms bridge is slow. Wrap with a
+        # hard 5s timeout — events are best-effort, dropping a slow
+        # one is strictly preferable to stalling the worker.
+        send_fn = telegram_service.send_system if event_type == "fail" else telegram_service.send_info
+
+        with ThreadPoolExecutor(max_workers=1, thread_name_prefix="delegate-emit") as pool:
+            future = pool.submit(send_fn, title, message, **send_kwargs)
+            try:
+                future.result(timeout=5)
+            except FutureTimeoutError:
+                logger.warning(
+                    "emit_delegation_event(task=%s event=%s) dropped — comms bridge >5s",
+                    task_id,
+                    event_type,
+                )
     except Exception as exc:
         # Streaming must never break the worker loop. Log and move on.
         logger.warning(

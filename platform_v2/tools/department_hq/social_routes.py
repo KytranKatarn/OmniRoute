@@ -603,6 +603,71 @@ def register_social_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
 
+    # ── SIGNAL Phase 4 — Retry / Abandon ────────────────────────
+
+    @bp.route("/api/signal/posts/<int:approval_id>/retry", methods=["POST"])
+    @admin_required
+    def api_signal_retry(approval_id):
+        """Retry a failed LinkedIn post: reset status='approved' so the
+        autonomy worker re-picks it up and re-fires the skill.
+
+        Defense-in-depth: WHERE clause enforces failure-state check on execution_result
+        to prevent re-posting of already-successful posts."""
+        from database import get_db_cursor
+
+        try:
+            with get_db_cursor(commit=True) as (_conn, cur):
+                cur.execute(
+                    """UPDATE autonomy_approval_queue
+                       SET status = 'approved',
+                           execution_result = NULL,
+                           executed_at = NULL,
+                           updated_at = NOW()
+                       WHERE id = %s
+                         AND action_type = 'linkedin_post'
+                         AND status = 'executed'
+                         AND (
+                                (execution_result->>'success')::text = 'false'
+                             OR (execution_result->'result'->>'success')::text = 'false'
+                             OR (execution_result->>'_status') IN ('failed', 'timeout')
+                             OR (execution_result->'result'->>'_status') IN ('failed', 'timeout')
+                         )
+                       RETURNING id""",
+                    (approval_id,),
+                )
+                row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Not found or not in a failed state"}), 404
+            return jsonify({"success": True, "approval_id": approval_id})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/signal/posts/<int:approval_id>/abandon", methods=["POST"])
+    @admin_required
+    def api_signal_abandon(approval_id):
+        """Abandon (Mark Won't Fix) a post: terminal state='abandoned'.
+        No worker action — chip displays as 'rejected' grey via classifier mapping."""
+        from database import get_db_cursor
+
+        try:
+            with get_db_cursor(commit=True) as (_conn, cur):
+                cur.execute(
+                    """UPDATE autonomy_approval_queue
+                       SET status = 'abandoned',
+                           updated_at = NOW()
+                       WHERE id = %s
+                         AND action_type = 'linkedin_post'
+                         AND status NOT IN ('abandoned', 'rejected', 'pending')
+                       RETURNING id""",
+                    (approval_id,),
+                )
+                row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Not found or not in an abandonable state"}), 404
+            return jsonify({"success": True, "approval_id": approval_id})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
     # ── SIGNAL Calendar Live ──────────────────────────────────────
 
     @bp.route("/api/signal/calendar/live", methods=["GET"])

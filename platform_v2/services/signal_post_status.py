@@ -39,7 +39,7 @@ def classify(
     status = approval_row.get("status")
 
     # Terminal / non-execution states
-    if status == "rejected":
+    if status in ("rejected", "abandoned"):
         return "rejected"
     if status == "deferred_session":
         return "deferred"

@@ -2201,14 +2201,15 @@ function _renderModalActions(post) {
              + '</button>';
     }
     if (post.status === 'failed') {
-        btns += '<button type="button" style="' + btnBase + 'opacity:0.5;"'
-             +    _phase4Stub('Retry') + '>Retry</button>';
-        btns += '<button type="button" style="' + btnBase + 'opacity:0.5;"'
-             +    _phase4Stub("Mark Won't Fix") + ">Mark Won't Fix</button>";
+        btns += '<button type="button" style="' + btnBase + 'background:#3b82f6;color:#04101f;border-color:#2563eb;" '
+             +    'onclick="_signalRetryPost(' + aid + ')">Retry</button>';
+        btns += '<button type="button" style="' + btnBase + 'background:#9ca3af;color:#0d0f12;border-color:#6b7280;" '
+             +    'onclick="_signalAbandonPost(' + aid + ')">Mark Won\'t Fix</button>';
     }
     if (post.status === 'rejected') {
-        btns += '<button type="button" style="' + btnBase + 'opacity:0.5;"'
-             +    _phase4Stub('Re-draft') + '>Re-draft</button>';
+        var redraftAccount = post.post_type || (signalAccount || 'company');
+        btns += '<button type="button" style="' + btnBase + 'background:#22d3ee;color:#04130a;border-color:#06b6d4;" '
+             +    'onclick="_signalRedraftPost(\'' + esc(redraftAccount) + '\')">Re-draft</button>';
     }
     if (post.status === 'deferred') {
         btns += '<button type="button" style="' + btnBase + 'opacity:0.5;"'
@@ -2272,6 +2273,42 @@ async function _signalRejectPost(approvalId) {
         loadSignalTab('calendar', true);
     } catch (err) {
         alert('Reject failed: ' + (err && err.message ? err.message : String(err)));
+    }
+}
+
+async function _signalRetryPost(approvalId) {
+    if (!approvalId) return;
+    if (!confirm('Retry this post? It will re-fire the LinkedIn skill with the same content.')) return;
+    try {
+        await apiPost('/api/signal/posts/' + approvalId + '/retry', {});
+        _closeSignalPostModal();
+        loadSignalTab('calendar', true);
+    } catch (err) {
+        alert('Retry failed: ' + (err && err.message ? err.message : String(err)));
+    }
+}
+
+async function _signalAbandonPost(approvalId) {
+    if (!approvalId) return;
+    if (!confirm("Mark this post Won't Fix? It will be terminal — no further retries.")) return;
+    try {
+        await apiPost('/api/signal/posts/' + approvalId + '/abandon', {});
+        _closeSignalPostModal();
+        loadSignalTab('calendar', true);
+    } catch (err) {
+        alert('Abandon failed: ' + (err && err.message ? err.message : String(err)));
+    }
+}
+
+async function _signalRedraftPost(account) {
+    if (!account) return;
+    if (!confirm('Re-draft for ' + account + '? This fires both EN and FR for that account.')) return;
+    try {
+        await apiPost('/api/signal/run-now', { account: account });
+        _closeSignalPostModal();
+        loadSignalTab('calendar', true);
+    } catch (err) {
+        alert('Re-draft failed: ' + (err && err.message ? err.message : String(err)));
     }
 }
 

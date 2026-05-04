@@ -65,6 +65,11 @@ class TestStatusClassifier:
         }
         assert svc.classify(approval, post_log=None) == "failed"
 
+    def test_rejected_when_status_abandoned(self, svc):
+        """Phase 4: 'abandoned' status maps to 'rejected' chip color."""
+        approval = {"id": 1, "status": "abandoned", "execution_result": None}
+        assert svc.classify(approval, post_log=None) == "rejected"
+
     def test_unknown_status_falls_back_to_pending(self, svc):
         # Defensive — unrecognised approval status defaults to pending
         approval = {"id": 1, "status": "weird_unknown_state", "execution_result": None}

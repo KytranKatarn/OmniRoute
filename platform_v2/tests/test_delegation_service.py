@@ -35,6 +35,18 @@ _stub_telegram.send_info = MagicMock(return_value={"sent": True})
 _stub_telegram.send_system = MagicMock(return_value={"sent": True})
 sys.modules.setdefault("services.telegram_service", _stub_telegram)
 
+# Stub the translation orchestrator. The real module imports ``database`` and
+# scanner submodules; the test only needs the symbol resolvable for patch().
+_pkg_consciousness = sys.modules.setdefault("tools.consciousness", types.ModuleType("tools.consciousness"))
+_pkg_translation_scanners = sys.modules.setdefault(
+    "tools.consciousness.translation_scanners",
+    types.ModuleType("tools.consciousness.translation_scanners"),
+)
+_stub_orchestrator = types.ModuleType("tools.consciousness.translation_scanners.orchestrator")
+_stub_orchestrator.run_translation_coverage_scan = MagicMock(return_value={})
+sys.modules["tools.consciousness.translation_scanners.orchestrator"] = _stub_orchestrator
+_pkg_translation_scanners.orchestrator = _stub_orchestrator
+
 
 def _mock_cursor(row=None, rows=None):
     """Return a context-manager mock that fetches ``row`` / ``rows``."""
@@ -165,6 +177,40 @@ class TestExecuteKnownTools:
         assert result["success"] is True
         assert "severity=info" in result["summary"]
         assert "window=24h" in result["summary"]
+
+    def test_routes_translation_coverage_scan(self, delegation_service):
+        with patch(
+            "tools.consciousness.translation_scanners.orchestrator.run_translation_coverage_scan",
+            return_value={
+                "gaps_found": 7,
+                "auto_fixed": 3,
+                "routed": 2,
+                "bundles_written": 1,
+                "duration_ms": 4250,
+            },
+        ) as run:
+            result = delegation_service.execute_delegated_task(
+                {
+                    "id": 4,
+                    "delegation_args": {
+                        "capability": "translation_coverage_scan",
+                        "args": {"trigger": "git_hook", "changed_count": 2},
+                    },
+                }
+            )
+        run.assert_called_once_with()
+        assert result["success"] is True
+        assert "gaps=7" in result["summary"]
+        assert "auto_fixed=3" in result["summary"]
+        assert "bundles=1" in result["summary"]
+        assert result["result"]["duration_ms"] == 4250
+
+    def test_translation_coverage_scan_is_known_tool(self, delegation_service):
+        """Regression guard — capability must stay in KNOWN_TOOL_CAPABILITIES.
+        If it falls out of the set, dispatcher fallback would route the
+        request to an LLM agent and bypass the deterministic orchestrator.
+        """
+        assert "translation_coverage_scan" in delegation_service.KNOWN_TOOL_CAPABILITIES
 
     def test_routes_misroute_adapter(self, delegation_service):
         with patch(

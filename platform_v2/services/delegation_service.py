@@ -42,6 +42,7 @@ KNOWN_TOOL_CAPABILITIES = {
     "deploy_static",
     "deploy_vps",
     "portrait_refinement",
+    "translation_coverage_scan",
 }
 
 VALID_DELEGATION_SOURCES = {
@@ -263,6 +264,28 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
                 "error": result.error,
                 "metadata": result.metadata,
             },
+        }
+
+    if capability == "translation_coverage_scan":
+        # Orchestrator does per-source isolation + ON CONFLICT upserts on
+        # translation_gaps (migration 322), and the worker enforces
+        # max_instances=1 / coalesce=True — collision with the daily cron at
+        # 02:00 UTC is rare and at worst redoes work, never corrupts state.
+        from tools.consciousness.translation_scanners.orchestrator import (
+            run_translation_coverage_scan,
+        )
+
+        summary = run_translation_coverage_scan()
+        return {
+            "success": True,
+            "summary": (
+                f"Translation scan: gaps={summary.get('gaps_found', 0)} "
+                f"auto_fixed={summary.get('auto_fixed', 0)} "
+                f"routed={summary.get('routed', 0)} "
+                f"bundles={summary.get('bundles_written', 0)} "
+                f"({summary.get('duration_ms', 0)}ms)"
+            ),
+            "result": summary,
         }
 
     if capability == "portrait_refinement":

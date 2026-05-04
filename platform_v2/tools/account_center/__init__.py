@@ -10,5 +10,7 @@ account_center_bp = Blueprint("account_center", __name__, url_prefix="/tools/acc
 
 from . import routes
 from .notify_routes import register_notify_routes
+from .email_link_routes import register_email_link_routes
 
 register_notify_routes(account_center_bp)
+register_email_link_routes(account_center_bp)

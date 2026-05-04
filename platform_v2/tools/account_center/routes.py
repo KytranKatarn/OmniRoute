@@ -2707,3 +2707,6 @@ def reset_password_via_token(token):
 from .access_routes import access_bp as _access_bp  # noqa: E402
 
 account_center_bp.register_blueprint(_access_bp)
+
+# account_link_verify_bp is registered directly on the Flask app in app.py
+# (no url_prefix) so /account/verify-alternate is a short public URL for emails.

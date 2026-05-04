@@ -534,16 +534,9 @@ def initiate_password_reset(email: str, base_url: str = "https://platform.kytran
 
     Returns True always — silent success prevents email enumeration.
     """
-    with get_db_connection() as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cur.execute(
-                "SELECT id, email FROM users WHERE email = %s AND is_active = TRUE",
-                (email.strip().lower(),),
-            )
-            user = cur.fetchone()
-        finally:
-            cur.close()
+    from services.account_link_service import find_user_by_any_email  # noqa: PLC0415
+
+    user = find_user_by_any_email(email.strip().lower(), active_only=True)
 
     if not user:
         return True  # Silent — don't reveal whether email exists

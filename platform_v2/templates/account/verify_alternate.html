@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Email Verification — A.R.C.H.I.E.{% endblock %}
+{% block content %}
+<div class="lcars-container" style="max-width:680px;margin:60px auto;padding:30px">
+  <div class="lcars-frame" style="padding:30px;border-radius:12px">
+    {% if state == "success" %}
+      <h1 style="color:var(--archie-accent-cyan)">Email Verified</h1>
+      <p>The email <strong>{{ email }}</strong> is now linked to your account.</p>
+      <p>You can sign in with this email via Google OAuth or use it as an alias.</p>
+      <p style="margin-top:30px">
+        <a href="/dashboard" class="lcars-btn">Continue to Dashboard</a>
+      </p>
+    {% else %}
+      <h1 style="color:var(--archie-accent-red)">Verification Failed</h1>
+      <p>{{ error or "Unknown error" }}</p>
+      <p>If your link expired, request a new verification from your account settings.</p>
+      <p style="margin-top:30px">
+        <a href="/dashboard" class="lcars-btn">Back to Dashboard</a>
+      </p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

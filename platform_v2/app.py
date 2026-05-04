@@ -2294,6 +2294,11 @@ from public_api import public_api_bp  # noqa: E402
 
 app.register_blueprint(public_api_bp)
 
+# Alternate email verification — public endpoint at /account/verify-alternate
+from tools.account_center.email_link_routes import account_link_verify_bp  # noqa: E402
+
+app.register_blueprint(account_link_verify_bp)
+
 # HR Management Module (Phase 51) - Registered via module_registry
 
 # API Documentation — consolidating into Consciousness (Task #1985)

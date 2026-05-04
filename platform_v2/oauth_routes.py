@@ -100,15 +100,11 @@ def google_callback():
         )
         user_data = cur.fetchone()
 
-        # If not found by google_id, check by email
+        # If not found by google_id, check by email (honors verified alternate_emails)
         if not user_data:
-            cur.execute(
-                """
-                SELECT * FROM users WHERE email = %s
-            """,
-                (email,),
-            )
-            user_data = cur.fetchone()
+            from services.account_link_service import find_user_by_any_email  # noqa: PLC0415
+
+            user_data = find_user_by_any_email(email)
 
             if user_data:
                 # Link existing account with Google

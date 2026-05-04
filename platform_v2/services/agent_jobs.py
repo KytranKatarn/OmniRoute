@@ -2364,8 +2364,9 @@ def signal_linkedin_draft(account_filter="all"):
         except Exception:
             pass
 
-        # Personal check-in section — skipped when account_filter='company'
-        goto_company = account_filter == "company"
+        # Personal check-in section — skipped when account_filter='company' or 'creed'
+        # (those accounts have no personal check-in step; they draft directly).
+        goto_company = account_filter in ("company", "creed")
         if not goto_company:
             import json as _json
             from datetime import datetime as _dt, timezone as _tz, timedelta as _td
@@ -2451,6 +2452,71 @@ def signal_linkedin_draft(account_filter="all"):
         # Skip company section when running personal-only
         if account_filter == "personal":
             logger.info("[LinkedInDraft] personal-only run — skipping company posts")
+            return
+
+        # Creed-only path: draft EN + FR posts for the C.R.E.E.D. Institute org page.
+        # Mirrors the company EN+FR cadence (30 min apart) but routes to a separate
+        # post_type so the autonomy worker dispatches to linkedin_creed_post skill.
+        if account_filter == "creed":
+            _CREED_STAGGER_SECS = 30 * 60  # 30 minutes between EN and FR
+
+            def _queue_creed_single(lang, delay_secs=0):
+                def _run():
+                    if delay_secs:
+                        import time as _t
+
+                        _t.sleep(delay_secs)
+                    try:
+                        from signal_dispatch import _draft_and_queue
+
+                        system = None
+                        try:
+                            from database import get_db_cursor
+
+                            with get_db_cursor() as (_c, _cur):
+                                _cur.execute(
+                                    "SELECT system_prompt FROM agents WHERE name = %s",
+                                    ("S.I.G.N.A.L.",),
+                                )
+                                _row = _cur.fetchone()
+                                if _row and _row.get("system_prompt"):
+                                    system = _row["system_prompt"]
+                        except Exception:
+                            pass
+
+                        announcement = (
+                            "Weekly C.R.E.E.D. Institute post on AI ethics, governance, "
+                            f"or accountability. Theme: {_theme}. Recent platform context: {_ann_context}"
+                        )
+                        aid, _ = _draft_and_queue(
+                            announcement, "creed", "professional", _hashtags_copy, 5, system, language_only=lang
+                        )
+                        if aid == -1:
+                            logger.info(
+                                "[LinkedInDraft] Creed %s draft deferred — model cold, callback registered",
+                                lang.upper(),
+                            )
+                        else:
+                            logger.info("[LinkedInDraft] Creed %s draft queued (id=%s)", lang.upper(), aid)
+                    except Exception as _e:
+                        logger.error("[LinkedInDraft] Creed %s draft failed: %s", lang.upper(), _e)
+
+                return _run
+
+            t1 = threading.Thread(target=_queue_creed_single("en", delay_secs=10), daemon=True)
+            t1.start()
+            t2 = threading.Thread(target=_queue_creed_single("fr", delay_secs=_CREED_STAGGER_SECS), daemon=True)
+            t2.start()
+            logger.info("[LinkedInDraft] Creed posts scheduled: EN first, FR 30 min later")
+
+            duration_ms = int((time.time() - start) * 1000)
+            _log_cycle(
+                "signal_linkedin_draft",
+                1,
+                0,
+                duration_ms,
+                {"account": "creed", "hashtags": selected_hashtags},
+            )
             return
 
         # Company posts: EN + FR as separate posts, 30 min apart.

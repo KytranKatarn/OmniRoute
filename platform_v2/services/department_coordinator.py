@@ -101,6 +101,8 @@ CAPABILITY_DEPARTMENT_MAP = {
     # Browser agent capabilities (archie_browser container, Task 6 2026-04-27)
     "web_interaction": "Marketing & Communications",
     "linkedin_post": "Marketing & Communications",
+    "linkedin_company_post": "Marketing & Communications",
+    "linkedin_creed_post": "Marketing & Communications",
     "linkedin_profile_edit": "Marketing & Communications",
     "meta_portal_setup": "Marketing & Communications",
     "twitter_post": "Marketing & Communications",

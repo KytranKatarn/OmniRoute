@@ -3431,9 +3431,21 @@ class AgentLoop:
 
                 content = _clean_linkedin(content)
 
-                skill = "linkedin_company_post" if post_type == "company" else "linkedin_post"
+                if post_type == "creed":
+                    skill = "linkedin_creed_post"
+                elif post_type == "company":
+                    skill = "linkedin_company_post"
+                else:
+                    skill = "linkedin_post"
                 params = {"content": content, "hashtags": hashtags}
-                if post_type == "company":
+                if post_type == "creed":
+                    # Creed slug: action_data > env var > numeric default
+                    creed_slug = data.get("company_slug") or _os.getenv(
+                        "LINKEDIN_CREED_SLUG", "115977300"
+                    )
+                    params["company_slug"] = creed_slug
+                    company_slug = creed_slug
+                elif post_type == "company":
                     params["company_slug"] = company_slug
 
                 result = run_skill_sync(skill, params, agent_id=agent_id, timeout_s=120)
@@ -3454,7 +3466,7 @@ class AgentLoop:
                                 content,
                                 hashtags,
                                 post_type,
-                                company_slug if post_type == "company" else None,
+                                company_slug if post_type in ("company", "creed") else None,
                                 "posted" if result.get("success") else "failed",
                                 item["id"],
                             ),

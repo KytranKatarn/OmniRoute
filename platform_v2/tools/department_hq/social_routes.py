@@ -367,7 +367,12 @@ def register_social_routes(bp, admin_required):
 
         account = request.args.get("account", "personal")
         limit = min(int(request.args.get("limit", 30)), 100)
-        post_type_filter = "personal" if account == "personal" else "company"
+        if account == "personal":
+            post_type_filter = "personal"
+        elif account == "creed":
+            post_type_filter = "creed"
+        else:
+            post_type_filter = "company"
         try:
             with get_db_cursor() as (_conn, cur):
                 cur.execute(

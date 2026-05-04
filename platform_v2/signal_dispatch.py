@@ -69,6 +69,17 @@ _VOICE_HINTS = {
         "NEVER use: acquired, implemented, integrated, leveraged, utilized — these are weak filler words. "
         "Keep it grounded and real — no hype, no AI buzzwords. Under 150 words."
     ),
+    "creed": (
+        "Write as the C.R.E.E.D. Institute (Compliance, Rights & Ethical Enforcement Directive). "
+        "C.R.E.E.D. is a nonprofit AI ethics institute, separate from Kytran Empowerment Inc. — "
+        "it does not promote Kytran or the company. Voice is institutional, ethics-first, "
+        "transparency-focused. Speak AS the Institute (use 'the Institute' / 'we' as the org), "
+        "not for it or about it. Topics: AI governance, accountability, the 5 Trust Service Criteria, "
+        "agent welfare, audit trails, ethical guardrails, public-interest oversight. "
+        "Avoid hype, sales language, or product mentions. Frame everything in terms of public benefit "
+        "and verifiable behaviour. Tone: measured, principled, evidence-based. Under 150 words. "
+        "End with a question that invites public discourse, not a lead-gen CTA."
+    ),
 }
 
 _TONE_HINTS = {
@@ -200,7 +211,12 @@ def _draft_and_queue(
     tone_hint = _TONE_HINTS.get(tone, _TONE_HINTS["professional"])
     platform_hint = _PLATFORM_HINTS.get("linkedin", "")
     voice_hint = _VOICE_HINTS.get(post_type, _VOICE_HINTS["personal"])
-    account_label = "Kytran Katarn" if post_type == "personal" else "Kytran Empowerment Inc."
+    if post_type == "creed":
+        account_label = "C.R.E.E.D. Institute"
+    elif post_type == "personal":
+        account_label = "Kytran Katarn"
+    else:
+        account_label = "Kytran Empowerment Inc."
 
     hashtag_line = (
         f"Use these hashtags: {', '.join(hashtag_override)}"
@@ -297,7 +313,12 @@ def _draft_and_queue(
     sys.path.insert(0, "/app")
     from ai_bridge.agent_loop import request_approval
 
-    account_emoji = "👤" if post_type == "personal" else "🏢"
+    if post_type == "creed":
+        account_emoji = "🔒"
+    elif post_type == "personal":
+        account_emoji = "👤"
+    else:
+        account_emoji = "🏢"
     approval_id = request_approval(
         action_type="linkedin_post",
         action_data={

@@ -176,6 +176,20 @@ def linkedin_company_post(
     )
 
 
+def linkedin_creed_post(
+    content: str, company_slug: str = "115977300", hashtags: list = None, agent_id: int = DEFAULT_AGENT_ID
+) -> dict:
+    """Post to Creed-AI Institute LinkedIn organization page.
+
+    Default slug is the numeric LinkedIn company ID; override via LINKEDIN_CREED_SLUG env.
+    """
+    return run_skill_sync(
+        "linkedin_creed_post",
+        {"content": content, "company_slug": company_slug, "hashtags": hashtags or []},
+        agent_id,
+    )
+
+
 def linkedin_follow(url: str, name: str = "", agent_id: int = DEFAULT_AGENT_ID) -> dict:
     return run_skill_sync("linkedin_follow", {"url": url, "name": name}, agent_id, timeout_s=60)
 

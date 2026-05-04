@@ -3940,6 +3940,24 @@ def _require_internal_key(f):
     return decorated
 
 
+@app.route("/api/internal/sessions/<int:agent_id>/<platform>/state", methods=["GET"])
+@_require_internal_key
+def api_internal_get_session_state(agent_id, platform):
+    """archie_browser fetches Playwright storage_state for a (agent, platform).
+
+    Service-to-service: Authorization: Bearer <INTERNAL_API_KEY>.
+    Registered at app level (not on department_hq blueprint) because the
+    /tools/department-hq/* prefix has invisible auth middleware that
+    redirects all unauthenticated requests to /dashboard.
+    """
+    from services import browser_session_service
+
+    state = browser_session_service.load_session(agent_id, platform)
+    if state is None:
+        return jsonify({"error": "no active session"}), 404
+    return jsonify({"state": state}), 200
+
+
 @app.route("/api/internal/delegation/submit", methods=["POST"])
 @_require_internal_key
 def api_internal_delegation_submit():

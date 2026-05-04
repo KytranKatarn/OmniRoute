@@ -46,30 +46,40 @@ def _get_conn():
 
 
 def load_session(agent_id: int, platform: str) -> Optional[dict]:
-    """Load and decrypt storageState. Returns dict or None."""
-    conn = None
+    """Load Playwright storage_state for (agent_id, platform).
+
+    Layer A Phase 1: fetch from platform HTTP API instead of local disk.
+    Returns None on any failure — caller (skill_runner) handles by passing
+    None to Playwright's new_context (= unauthenticated session). The
+    skill will fail naturally; reactive layer (Phase 3) will mark stale.
+    """
+    import requests
+
+    platform_url = os.getenv("ARCHIE_PLATFORM_URL", "http://archie_platform:3000")
+    internal_key = os.getenv("INTERNAL_API_KEY", "")
+    if not internal_key:
+        logger.warning("INTERNAL_API_KEY not set; cannot load session via HTTP")
+        return None
+
+    # /tools/department-hq/* has invisible auth middleware that 302-redirects
+    # all unauth requests to /dashboard. Use the app-level internal route
+    # (Bearer auth, matches /api/internal/delegation/* pattern) instead.
+    url = f"{platform_url}/api/internal/sessions/{agent_id}/{platform}/state"
     try:
-        conn = _get_conn()
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT session_data_encrypted, status FROM agent_browser_sessions "
-            "WHERE agent_id = %s AND platform = %s",
-            (agent_id, platform),
+        resp = requests.get(
+            url, headers={"Authorization": f"Bearer {internal_key}"}, timeout=5
         )
-        row = cur.fetchone()
-        cur.close()
-        if not row or not row["session_data_encrypted"] or row["status"] == "expired":
-            return None
-        return json.loads(_decrypt(row["session_data_encrypted"]))
-    except InvalidToken:
-        logger.error("load_session(%s, %s): decryption failed -- key mismatch or corrupt data", agent_id, platform)
-        return None
     except Exception as exc:
-        logger.warning("load_session(%s, %s) failed: %s", agent_id, platform, type(exc).__name__)
+        logger.warning("session HTTP fetch failed: %s", exc)
         return None
-    finally:
-        if conn:
-            conn.close()
+
+    if resp.status_code == 404:
+        return None  # no active session — skill will fail at next selector
+    if resp.status_code != 200:
+        logger.warning("session HTTP fetch %s: %s", resp.status_code, resp.text[:120])
+        return None
+
+    return resp.json().get("state")
 
 
 def save_session(agent_id: int, platform: str, storage_state: dict) -> None:

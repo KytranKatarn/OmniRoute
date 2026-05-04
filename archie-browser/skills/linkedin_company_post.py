@@ -70,7 +70,14 @@ def _open_share_box(page) -> bool:
 
 
 def execute(page, params: dict) -> dict:
-    company_slug = params.get("company_slug", "kytran-empowerment")
+    # Slug priority: explicit param > LINKEDIN_COMPANY_SLUG env > correct default.
+    # Old default was "kytran-empowerment" which 404s — KE Inc. lives at
+    # /company/kytran-empowerment-inc/.
+    company_slug = (
+        params.get("company_slug")
+        or os.getenv("LINKEDIN_COMPANY_SLUG")
+        or "kytran-empowerment-inc"
+    )
     content = params.get("content", "").strip()
     hashtags = params.get("hashtags", [])
     if not content:

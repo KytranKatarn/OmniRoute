@@ -962,6 +962,8 @@ services:
       - BROWSER_API_KEY=${BROWSER_API_KEY}
       - KYTRAN_LOGO_PATH=/app/assets/kytran-logo.png
       - KYTRAN_PORTRAIT_PATH=/app/assets/kytran-portrait.png
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - ARCHIE_PLATFORM_URL=http://archie_platform:3000
     dns:
       - 192.168.1.200
       - 1.1.1.1

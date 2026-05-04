@@ -2980,6 +2980,18 @@ class AgentLoop:
                     conn.commit()
                     processed += 1
 
+                    # Layer A Phase 1 — alert on logical failure (success path that returned an error)
+                    try:
+                        from services.skill_failure_alerts import alert_on_skill_failure
+
+                        alert_on_skill_failure(
+                            approval_id=item["id"],
+                            skill_name=item.get("action_type", "unknown"),
+                            execution_result=result or {},
+                        )
+                    except Exception:
+                        logger.exception("[skill_failure_alerts] hook failed")
+
                     log_governance_event(
                         "autonomy_execution",
                         f"execute:{item['action_type']}",
@@ -3001,6 +3013,18 @@ class AgentLoop:
                     )
                     conn.commit()
                     failed += 1
+
+                    # Layer A Phase 1 — alert on hard exception
+                    try:
+                        from services.skill_failure_alerts import alert_on_skill_failure
+
+                        alert_on_skill_failure(
+                            approval_id=item["id"],
+                            skill_name=item.get("action_type", "unknown"),
+                            execution_result={"success": False, "error": str(e), "_status": "exception"},
+                        )
+                    except Exception:
+                        logger.exception("[skill_failure_alerts] hook failed")
 
             cur.close()
             conn.close()

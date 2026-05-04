@@ -15,6 +15,60 @@ def _screenshot(page, name):
     return path
 
 
+def _diagnostic_dump(page, label: str) -> dict:
+    """Capture page URL + title + first ~30 visible button labels.
+    Helps next-debug session see what LinkedIn actually rendered.
+    """
+    info: dict = {"label": label, "url": "", "title": "", "buttons": []}
+    try:
+        info["url"] = page.url
+    except Exception:
+        pass
+    try:
+        info["title"] = page.title()
+    except Exception:
+        pass
+    try:
+        # First 30 buttons that have visible text — gives a fingerprint of
+        # what's actually on the page when our selectors miss.
+        btns = page.locator("button:visible").all()[:30]
+        info["buttons"] = [
+            (b.inner_text(timeout=500) or "").strip()[:60] for b in btns
+        ]
+    except Exception:
+        pass
+    return info
+
+
+def _open_share_box(page) -> bool:
+    """Try every known selector for the share-box trigger. Return True if
+    we successfully opened the post composer."""
+    attempts = [
+        # 2025+ LinkedIn: company admin "Create a post" button (most common)
+        lambda: page.get_by_role("button", name="Create a post", exact=False).click(timeout=8000),
+        lambda: page.locator('button:has-text("Create a post")').first.click(timeout=8000),
+        # Older / personal-style "Start a post"
+        lambda: page.get_by_placeholder("Start a post", exact=False).click(timeout=6000),
+        lambda: page.get_by_role("button", name="Start a post", exact=False).click(timeout=6000),
+        lambda: page.locator('button:has-text("Start a post")').first.click(timeout=6000),
+        # Generic share-box class hooks
+        lambda: page.locator('[class*="share-box"] button').first.click(timeout=6000),
+        lambda: page.locator('[class*="share-creation"] button').first.click(timeout=6000),
+        # Plain text fallback
+        lambda: page.get_by_text("Create a post", exact=False).first.click(timeout=5000),
+        lambda: page.get_by_text("Start a post", exact=False).first.click(timeout=5000),
+        # Header "Post" CTA on some company-page layouts
+        lambda: page.locator('header').get_by_role("button", name="Post", exact=True).click(timeout=5000),
+    ]
+    for attempt in attempts:
+        try:
+            attempt()
+            return True
+        except Exception:
+            continue
+    return False
+
+
 def execute(page, params: dict) -> dict:
     company_slug = params.get("company_slug", "kytran-empowerment")
     content = params.get("content", "").strip()
@@ -25,34 +79,46 @@ def execute(page, params: dict) -> dict:
     if hashtags:
         content += "\n\n" + " ".join(f"#{tag.lstrip('#')}" for tag in hashtags)
 
-    # Navigate to company admin page — posting as company happens from here
-    admin_url = f"https://www.linkedin.com/company/{company_slug}/admin/overview/"
-    page.goto(admin_url, wait_until="domcontentloaded")
-    page.wait_for_timeout(3000)
-    _screenshot(page, "company_post_before")
+    # Try multiple admin entry URLs — /admin/overview/ is the analytics
+    # dashboard and no longer shows a share box. /admin/page-posts/published/
+    # consistently shows the "Create a post" CTA at the top of the posts
+    # list. /admin/feed/ is a legacy fallback.
+    candidate_urls = [
+        f"https://www.linkedin.com/company/{company_slug}/admin/page-posts/published/",
+        f"https://www.linkedin.com/company/{company_slug}/admin/feed/",
+        f"https://www.linkedin.com/company/{company_slug}/admin/overview/",
+    ]
 
-    # Click "Start a post" / "Create a post" share box
-    clicked = False
-    for attempt in [
-        lambda: page.get_by_placeholder("Start a post", exact=False).click(timeout=8000),
-        lambda: page.get_by_role("button", name="Start a post", exact=False).click(timeout=8000),
-        lambda: page.locator('button:has-text("Start a post")').first.click(timeout=8000),
-        lambda: page.locator('[class*="share-box"] button').first.click(timeout=8000),
-        lambda: page.get_by_text("Start a post", exact=False).first.click(timeout=8000),
-        # Company pages sometimes have "Create a post" instead
-        lambda: page.get_by_role("button", name="Create a post", exact=False).click(timeout=6000),
-        lambda: page.get_by_text("Create a post", exact=False).first.click(timeout=6000),
-    ]:
+    opened = False
+    diagnostics: list = []
+    for url in candidate_urls:
         try:
-            attempt()
-            clicked = True
-            break
+            page.goto(url, wait_until="domcontentloaded", timeout=20000)
         except Exception:
+            diagnostics.append({"url": url, "goto": "failed"})
             continue
+        try:
+            page.wait_for_load_state("networkidle", timeout=12000)
+        except Exception:
+            # networkidle can time out on heavy LinkedIn pages; not fatal
+            pass
+        page.wait_for_timeout(2000)
+        _screenshot(page, f"company_post_landed_{url.rsplit('/admin/', 1)[-1].replace('/', '_')}")
 
-    if not clicked:
+        if _open_share_box(page):
+            opened = True
+            break
+        # Capture what we saw on this URL before trying the next one
+        diagnostics.append(_diagnostic_dump(page, f"share_box_miss:{url}"))
+
+    if not opened:
         _screenshot(page, "company_post_btn_fail")
-        raise RuntimeError("Could not find Start a post button on company page")
+        # RuntimeError message includes the diagnostics so the next-failure
+        # debugging starts with the actual button labels we found.
+        raise RuntimeError(
+            "Could not find Start/Create a post button on company page; "
+            f"tried {len(candidate_urls)} URLs. diagnostics={diagnostics}"
+        )
 
     page.wait_for_timeout(2000)
     _screenshot(page, "company_post_editor_open")
@@ -76,6 +142,18 @@ def execute(page, params: dict) -> dict:
     editor.fill(content, timeout=10000)
     page.wait_for_timeout(1000)
     _screenshot(page, "company_post_filled")
+
+    # DRY_RUN safety net — set ARCHIE_LINKEDIN_DRY_RUN=1 to compose without
+    # submitting. Useful for verifying selector fixes against real LinkedIn
+    # without spamming the company feed.
+    if os.getenv("ARCHIE_LINKEDIN_DRY_RUN") == "1":
+        return {
+            "success": True,
+            "result": f"DRY RUN — composed {len(content)} chars as {company_slug}, did not submit",
+            "company_slug": company_slug,
+            "dry_run": True,
+            "screenshot_path": _screenshot(page, "company_post_dryrun"),
+        }
 
     # Post
     for post_btn in [

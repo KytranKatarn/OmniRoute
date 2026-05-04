@@ -3,7 +3,6 @@
 {% block title %}Social Media Command Center - A.R.C.H.I.E.{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/category-nav.css') }}">
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/social-media.css') }}">
 {% endblock %}
@@ -14,19 +13,9 @@
     {% set cat_accent_rgb = '255,105,180' %}
     {% set cat_accent_light = '#db2777' %}
     {% set cat_label = 'BUSINESS' %}
-    {% set cat_icon = 'briefcase' %}
-    {% set cat_modules = [
-        {'url': url_for('social_media.index'), 'endpoint_prefix': 'social_media', 'icon': 'share-2', 'label': 'Social', 'title': 'Social Media'},
-        {'url': url_for('website_studio.index'), 'endpoint_prefix': 'website_studio', 'icon': 'globe', 'label': 'Website', 'title': 'Website Studio'},
-        {'url': url_for('call_center.index'), 'endpoint_prefix': 'call_center', 'icon': 'phone', 'label': 'Calls', 'title': 'Call Center'},
-        {'url': url_for('crm.index'), 'endpoint_prefix': 'crm', 'icon': 'users', 'label': 'CRM', 'title': 'CRM'},
-        {'url': url_for('google_work_suite.index'), 'endpoint_prefix': 'google_work_suite', 'icon': 'mail', 'label': 'Email', 'title': 'Google Work Suite'},
-        {'url': url_for('store_builder.index'), 'endpoint_prefix': 'store_builder', 'icon': 'shopping-cart', 'label': 'Store', 'title': 'Store Builder'},
-        {'url': url_for('invoicing.index'), 'endpoint_prefix': 'invoicing', 'icon': 'receipt', 'label': 'Invoice', 'title': 'Invoicing'},
-        {'url': url_for('automations.index'), 'endpoint_prefix': 'automations', 'icon': 'settings', 'label': 'Automate', 'title': 'Automations'},
-        {'url': url_for('task_planner.index'), 'endpoint_prefix': 'task_planner', 'icon': 'list-checks', 'label': 'Tasks', 'title': 'Task Planner'}
-    ] %}
-    {% include 'includes/category_nav.html' %}
+    {% set module_title = 'SOCIAL MEDIA' %}
+    {% set module_back_url = '/dashboard' %}
+    {% include 'includes/lcars-header.html' %}
 
     <!-- Scanline Overlay -->
     <div class="sm-scanlines"></div>

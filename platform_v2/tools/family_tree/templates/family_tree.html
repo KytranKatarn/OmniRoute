@@ -6,14 +6,9 @@
 {% set cat_accent_rgb = '16,185,129' %}
 {% set cat_accent_light = '#059669' %}
 {% set cat_label = 'APPS' %}
-{% set cat_icon = 'tree-deciduous' %}
-{% set cat_modules = [
-    {'url': '/tools/doc', 'endpoint_prefix': 'doc', 'icon': 'stethoscope', 'label': 'DOC', 'title': 'DOC'},
-    {'url': '/tools/therapy', 'endpoint_prefix': 'therapy', 'icon': 'flower-2', 'label': 'Therapy', 'title': 'Therapy'},
-    {'url': '/tools/fitness', 'endpoint_prefix': 'fitness', 'icon': 'dumbbell', 'label': 'Fitness', 'title': 'Fitness'},
-    {'url': '/tools/family-tree', 'endpoint_prefix': 'family_tree', 'icon': 'tree-deciduous', 'label': 'Family Tree', 'title': 'Family Tree'},
-] %}
-{% include 'includes/category_nav.html' %}
+{% set module_title = 'FAMILY TREE' %}
+{% set module_back_url = '/dashboard' %}
+{% include 'includes/lcars-header.html' %}
 
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('family_tree.static', filename='css/family-tree.css') }}">

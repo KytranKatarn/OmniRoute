@@ -10,9 +10,7 @@
     button,
     .btn,
     .tab-btn,
-    .chat-mode-btn,
-    .nav-module-btn,
-    .nav-icon-btn {
+    .chat-mode-btn {
         min-height: 44px;
         min-width: 44px;
     }
@@ -382,14 +380,6 @@ body.light-mode .mobile-nav-toggle {
     /* Compact nav */
     .admin-ops-nav {
         padding: 6px 8px;
-    }
-    .nav-category-label {
-        font-size: 0.6rem;
-        letter-spacing: 0.05em;
-    }
-    .nav-back-btn {
-        padding: 6px 10px;
-        font-size: 0.65rem;
     }
 
     /* Compact chat */

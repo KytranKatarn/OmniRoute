@@ -18,13 +18,9 @@
 {% set cat_accent_rgb = '0,255,255' %}
 {% set cat_accent_light = '#00cccc' %}
 {% set cat_label = 'AI COMMAND' %}
-{% set cat_icon = 'brain' %}
-{% set cat_modules = [
-    {'url': url_for('department_hq.index'), 'endpoint_prefix': 'department_hq', 'icon': 'rocket', 'label': 'A.R.M.A.D.A.', 'title': 'A.R.M.A.D.A.'},
-    {'url': url_for('consciousness.index'), 'endpoint_prefix': 'consciousness', 'icon': 'brain', 'label': 'Mind', 'title': 'Consciousness'},
-    {'url': url_for('archie_chat.index'), 'endpoint_prefix': 'archie_chat', 'icon': 'message-circle', 'label': 'Chat', 'title': 'A.R.C.H.I.E. Chat'}
-] %}
-{% include 'includes/category_nav.html' %}
+{% set module_title = 'DEV HQ' %}
+{% set module_back_url = '/dashboard' %}
+{% include 'includes/lcars-header.html' %}
 
 <!-- ===== MAIN CONTAINER ===== -->
 <div class="devhq">

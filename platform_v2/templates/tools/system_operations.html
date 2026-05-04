@@ -18,14 +18,9 @@
     {% set cat_accent_rgb = "249,115,22" %}
     {% set cat_accent_light = "#ea580c" %}
     {% set cat_label = "ADMIN TOOLS" %}
-    {% set cat_icon = "settings-2" %}
-    {% set cat_modules = [
-        {'url': url_for('account_center.index'), 'endpoint_prefix': 'account_center', 'icon': 'user', 'label': 'Accounts', 'title': 'Account Center'},
-        {'url': 'https://server.kytranempowerment.com', 'endpoint_prefix': 'kso_external', 'icon': 'server', 'label': 'System Ops', 'title': 'Kytran System Operations'},
-        {'url': url_for('backup_manager.index'), 'endpoint_prefix': 'backup_manager', 'icon': 'hard-drive', 'label': 'Backups', 'title': 'Backup Manager'},
-        {'url': url_for('security_network.index'), 'endpoint_prefix': 'security_network', 'icon': 'shield', 'label': 'Security', 'title': 'Security & Network'}
-    ] %}
-    {% include "includes/category_nav.html" %}
+    {% set module_title = "SYSTEM OPERATIONS" %}
+    {% set module_back_url = "/dashboard" %}
+    {% include "includes/lcars-header.html" %}
 
     <div class="lcars-frame">
         <!-- LEFT SIDEBAR -->

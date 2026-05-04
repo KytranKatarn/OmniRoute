@@ -337,32 +337,170 @@ def reject_proposal(proposal_id, reason="Rejected by user"):
 # ===================================================================
 
 
+_PERF_ACTION_PRIORITY = {"rollback": 3, "pause": 2, "flag": 1, "none": 0, None: 0}
+
+
+def _evaluate_perf_gate(run_ids, proposal_id):
+    """Run qa_baseline_service.evaluate_post_deploy for each run and apply the
+    strongest action across them (rollback > pause > flag > none).
+
+    Defensive: any failure inside the gate is logged + Telegram'd as
+    "FAILED OPEN" — must never raise out of the daemon thread.
+    """
+    if not run_ids:
+        return
+    try:
+        from services import qa_baseline_service
+        from services import telegram_service
+        from database import get_db_cursor
+
+        actions = []
+        for rid in run_ids:
+            try:
+                actions.append(qa_baseline_service.evaluate_post_deploy(run_id=rid, proposal_id=proposal_id))
+            except Exception as _eval_exc:  # noqa: BLE001 — defensive
+                logger.warning("[PerfGate] evaluate_post_deploy failed for run %s: %s", rid, _eval_exc)
+                actions.append(None)
+
+        strongest = max(actions, key=lambda a: _PERF_ACTION_PRIORITY.get(a, 0)) if actions else "none"
+        logger.info(
+            "[PerfGate] proposal #%s — runs=%s actions=%s strongest=%s",
+            proposal_id,
+            run_ids,
+            actions,
+            strongest,
+        )
+
+        if strongest == "rollback":
+            backup_name = None
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT backup_name FROM improvement_proposals WHERE id = %s",
+                    (proposal_id,),
+                )
+                row = cur.fetchone()
+                backup_name = row.get("backup_name") if row else None
+
+            if backup_name:
+                try:
+                    from tools.repair_bay.services.auto_rollback import AutoRollbackManager
+
+                    rb = AutoRollbackManager()
+                    rollback_result = rb.rollback_deployment(
+                        deployment_id=None,
+                        backup_name=backup_name,
+                        reason=f"Perf regression on critical test (proposal #{proposal_id})",
+                    )
+                except Exception as _rb_exc:  # noqa: BLE001
+                    rollback_result = {"success": False, "error": str(_rb_exc)}
+            else:
+                rollback_result = {"success": False, "error": "no backup_name on proposal"}
+
+            if rollback_result.get("success"):
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "UPDATE improvement_proposals SET status = 'regression' WHERE id = %s",
+                        (proposal_id,),
+                    )
+                telegram_service.send_system(
+                    title="AUTO-ROLLBACK — perf regression",
+                    message=(
+                        f"Critical perf regression on proposal #{proposal_id}. "
+                        f"Auto-rollback succeeded (backup: {backup_name})."
+                    ),
+                    source_agent="P.R.O.B.E.",
+                )
+            else:
+                telegram_service.send_system(
+                    title="MANUAL ROLLBACK REQUIRED",
+                    message=(
+                        f"Critical perf regression on proposal #{proposal_id}. "
+                        f"Auto-rollback FAILED: {rollback_result.get('error')}"
+                    ),
+                    source_agent="P.R.O.B.E.",
+                )
+
+        elif strongest == "pause":
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE improvement_proposals SET status = 'paused_for_perf_review' WHERE id = %s",
+                    (proposal_id,),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO system_config (key, value, updated_at)
+                    VALUES ('deploy_paused_perf', 'true', NOW())
+                    ON CONFLICT (key) DO UPDATE SET value = 'true', updated_at = NOW()
+                    """
+                )
+            telegram_service.send_system(
+                title="DEPLOYS PAUSED — perf regression",
+                message=(
+                    f"Non-critical perf regression (2-of-3) on proposal #{proposal_id}. "
+                    f"Clear via /api/qa/regressions/<id>/clear."
+                ),
+                source_agent="P.R.O.B.E.",
+            )
+
+        elif strongest == "flag":
+            telegram_service.send_info(
+                title="PERF FLAG",
+                message=(f"Perf regression on proposal #{proposal_id}. See dashboard for details."),
+                source_agent="P.R.O.B.E.",
+            )
+        # 'none' / None → no action, no alert
+
+    except Exception as _gate_exc:  # noqa: BLE001 — fail open
+        logger.warning("[PerfGate] failed open on proposal #%s: %s", proposal_id, _gate_exc)
+        try:
+            from services import telegram_service
+
+            telegram_service.send_system(
+                title="PERF GATE FAILED OPEN",
+                message=(f"Proposal #{proposal_id}: {_gate_exc}. Deploy proceeded without perf check."),
+                source_agent="P.R.O.B.E.",
+            )
+        except Exception:
+            pass  # Telegram failure must not propagate
+
+
 def _trigger_module_qa(prop_meta, proposal_id):
     """Fire P.R.O.B.E. QA suite(s) for the module affected by this proposal.
 
     Runs in a daemon thread so it never blocks the deploy response.
     Uses the file_path or suite_id stored in proposal metadata.
+    After QA completes, evaluates the perf gate and applies
+    rollback / pause / flag / none per qa_baseline_service.evaluate_post_deploy.
     """
     import threading
 
     def _run():
+        run_ids = []
         try:
             from services.qa_service import run_suite_for_module, run_suite
 
-            # If metadata has an explicit suite_id (from qa_pipeline proposals), use it
             suite_id = (prop_meta or {}).get("suite_id")
             if suite_id:
                 logger.info("[QA] Post-deploy: re-running suite %s for proposal #%s", suite_id, proposal_id)
-                run_suite(int(suite_id), triggered_by=f"repair_bay_deploy:{proposal_id}")
-                return
-
-            # Otherwise derive from file_path
-            file_path = (prop_meta or {}).get("file_path", "")
-            if file_path:
-                logger.info("[QA] Post-deploy: scanning module for '%s' (proposal #%s)", file_path, proposal_id)
-                run_suite_for_module(file_path, triggered_by=f"repair_bay_deploy:{proposal_id}")
+                result = run_suite(int(suite_id), triggered_by=f"repair_bay_deploy:{proposal_id}")
+                rid = (result or {}).get("run_id")
+                if rid:
+                    run_ids.append(rid)
+            else:
+                file_path = (prop_meta or {}).get("file_path", "")
+                if file_path:
+                    logger.info("[QA] Post-deploy: scanning module for '%s' (proposal #%s)", file_path, proposal_id)
+                    results = run_suite_for_module(file_path, triggered_by=f"repair_bay_deploy:{proposal_id}")
+                    for r in results or []:
+                        rid = r.get("run_id")
+                        if rid:
+                            run_ids.append(rid)
         except Exception as exc:
             logger.warning("[QA] Post-deploy QA trigger failed for proposal #%s: %s", proposal_id, exc)
+
+        # Perf gate evaluation runs after QA regardless of which path fired,
+        # using whatever run_ids we managed to capture.
+        _evaluate_perf_gate(run_ids, proposal_id)
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()

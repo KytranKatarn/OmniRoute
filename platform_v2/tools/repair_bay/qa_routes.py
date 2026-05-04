@@ -293,3 +293,152 @@ def register_qa_routes(bp, admin_required):
         except Exception as e:
             logger.exception("Failed to accept baselines for suite %d run %s", suite_id, run_id)
             return jsonify({"success": False, "error": str(e)}), 500
+
+    # -----------------------------------------------------------------------
+    # P.R.O.B.E. perf baselines + regressions (Task 11 of perf-baselines plan)
+    # -----------------------------------------------------------------------
+
+    @bp.route("/api/qa/baselines", methods=["GET"])
+    @login_required
+    @admin_required
+    def api_qa_baselines():
+        """List all qa_perf_baselines (one row per suite/test pair with ≥10 samples)."""
+        from database import get_db_cursor
+
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT b.id, b.suite_id, s.name AS suite_name, b.test_name,
+                           b.baseline_p95_ms, b.sample_count, b.last_updated_at
+                      FROM qa_perf_baselines b
+                      LEFT JOIN qa_test_suites s ON s.id = b.suite_id
+                     ORDER BY s.name, b.test_name
+                    """
+                )
+                rows = [dict(r) for r in cur.fetchall()]
+            return jsonify({"baselines": rows})
+        except Exception as e:
+            logger.exception("Failed to list qa baselines")
+            return jsonify({"baselines": [], "error": str(e)}), 500
+
+    @bp.route("/api/qa/regressions", methods=["GET"])
+    @login_required
+    @admin_required
+    def api_qa_regressions():
+        """List qa_perf_regressions, filterable by ?status=pending|cleared|accepted."""
+        from database import get_db_cursor
+
+        status = (request.args.get("status") or "").strip()
+        try:
+            sql = """
+                SELECT r.id, r.run_id, r.suite_id, s.name AS suite_name, r.test_name,
+                       r.baseline_ms, r.observed_ms, r.pct_over, r.is_critical,
+                       r.action_taken, r.proposal_id, r.status,
+                       r.created_at, r.cleared_at, r.cleared_by
+                  FROM qa_perf_regressions r
+                  LEFT JOIN qa_test_suites s ON s.id = r.suite_id
+            """
+            params = ()
+            if status:
+                sql += " WHERE r.status = %s"
+                params = (status,)
+            sql += " ORDER BY r.created_at DESC LIMIT 200"
+
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(sql, params)
+                rows = [dict(r) for r in cur.fetchall()]
+            return jsonify({"regressions": rows})
+        except Exception as e:
+            logger.exception("Failed to list qa regressions")
+            return jsonify({"regressions": [], "error": str(e)}), 500
+
+    @bp.route("/api/qa/regressions/<int:regression_id>/clear", methods=["POST"])
+    @login_required
+    @admin_required
+    def api_qa_regression_clear(regression_id: int):
+        """Mark regression cleared. If no other pending rows remain, lift the
+        deploy_paused_perf flag so the sandbox queue resumes claims."""
+        from flask_login import current_user
+        from database import get_db_cursor
+
+        try:
+            cleared_by = getattr(current_user, "username", None) or "system"
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """UPDATE qa_perf_regressions
+                          SET status = 'cleared',
+                              cleared_at = NOW(),
+                              cleared_by = %s
+                        WHERE id = %s
+                        RETURNING id""",
+                    (cleared_by, regression_id),
+                )
+                if cur.fetchone() is None:
+                    return jsonify({"success": False, "error": "regression not found"}), 404
+
+                # If no more pending regressions, lift the global pause flag
+                cur.execute("SELECT COUNT(*) AS n FROM qa_perf_regressions WHERE status = 'pending'")
+                pending = cur.fetchone()["n"]
+                if pending == 0:
+                    cur.execute(
+                        """INSERT INTO system_config (key, value, updated_at)
+                           VALUES ('deploy_paused_perf', 'false', NOW())
+                           ON CONFLICT (key) DO UPDATE
+                               SET value = 'false', updated_at = NOW()"""
+                    )
+
+            return jsonify({"success": True, "regression_id": regression_id, "pending_remaining": pending})
+        except Exception as e:
+            logger.exception("Failed to clear regression #%s", regression_id)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/qa/regressions/<int:regression_id>/accept", methods=["POST"])
+    @login_required
+    @admin_required
+    def api_qa_regression_accept(regression_id: int):
+        """Mark regression accepted as new normal. Records qa_perf_acceptances
+        and immediately recomputes the baseline so subsequent runs gauge against
+        the post-accept window."""
+        from flask_login import current_user
+        from database import get_db_cursor
+        from services import qa_baseline_service
+
+        try:
+            accepted_by = getattr(current_user, "username", None) or "system"
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """UPDATE qa_perf_regressions
+                          SET status = 'accepted'
+                        WHERE id = %s
+                        RETURNING suite_id, test_name""",
+                    (regression_id,),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    return jsonify({"success": False, "error": "regression not found"}), 404
+
+                suite_id = row["suite_id"]
+                test_name = row["test_name"]
+                cur.execute(
+                    """INSERT INTO qa_perf_acceptances
+                           (suite_id, test_name, accepted_at, accepted_by)
+                       VALUES (%s, %s, NOW(), %s)
+                       ON CONFLICT (suite_id, test_name) DO UPDATE
+                           SET accepted_at = NOW(),
+                               accepted_by = EXCLUDED.accepted_by""",
+                    (suite_id, test_name, accepted_by),
+                )
+
+            # Recompute baseline immediately so the new normal lands ASAP
+            try:
+                p95, count = qa_baseline_service.compute_baseline(suite_id, test_name)
+                if p95 is not None:
+                    qa_baseline_service._upsert_baseline(suite_id, test_name, p95, count)
+            except Exception as _rc_exc:  # noqa: BLE001 — non-blocking
+                logger.warning("post-accept recompute failed for suite=%s test=%s: %s", suite_id, test_name, _rc_exc)
+
+            return jsonify({"success": True, "regression_id": regression_id})
+        except Exception as e:
+            logger.exception("Failed to accept regression #%s", regression_id)
+            return jsonify({"success": False, "error": str(e)}), 500

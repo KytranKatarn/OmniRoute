@@ -239,6 +239,55 @@ def run_suite(suite_id, triggered_by="manual", session=None, skip_auth=False):
                 ),
             )
 
+        # Perf gate hook — defensive: must never break a test run.
+        # Fires only on passing timing-based tests (api / page_load / e2e) whose
+        # qa_spec_runner attached perf_flags. Other test types pass through silently.
+        try:
+            perf_flags = result.get("perf_flags")
+            observed_ms = result.get("response_time_ms")
+            test_name = result.get("test_name", "unnamed")
+            if perf_flags is not None and status == "pass" and isinstance(observed_ms, int) and observed_ms > 0:
+                from services import qa_baseline_service
+
+                if qa_baseline_service.check_regression(
+                    suite_id=suite_id,
+                    test_name=test_name,
+                    observed_ms=observed_ms,
+                    override_ms=perf_flags.get("baseline_ms_override"),
+                ):
+                    baseline_record = qa_baseline_service._get_baseline_record(suite_id, test_name)
+                    baseline_ms = perf_flags.get("baseline_ms_override") or (
+                        baseline_record["baseline_p95_ms"] if baseline_record else observed_ms
+                    )
+                    pct_over = int(((observed_ms - baseline_ms) / baseline_ms) * 100) if baseline_ms else 0
+
+                    with get_db_cursor(commit=True) as (conn, cur):
+                        cur.execute(
+                            """
+                            INSERT INTO qa_perf_regressions
+                                (run_id, suite_id, test_name, baseline_ms, observed_ms,
+                                 pct_over, is_critical, status, created_at)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', NOW())
+                            ON CONFLICT (run_id, test_name) DO NOTHING
+                            """,
+                            (
+                                run_id,
+                                suite_id,
+                                test_name,
+                                baseline_ms,
+                                observed_ms,
+                                pct_over,
+                                bool(perf_flags.get("critical", False)),
+                            ),
+                        )
+        except Exception as _perf_exc:  # noqa: BLE001 — defensive: never fail the suite
+            logger.warning(
+                "perf gate hook failed for suite=%s test=%s: %s",
+                suite_id,
+                result.get("test_name"),
+                _perf_exc,
+            )
+
     total = passed + failed + errors
     duration_ms = int((time.time() - start_time) * 1000)
     run_status = "completed" if failed == 0 and errors == 0 else "failed"

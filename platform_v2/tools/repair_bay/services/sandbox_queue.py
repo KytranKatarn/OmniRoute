@@ -22,6 +22,32 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _is_deploy_paused_for_perf() -> bool:
+    """Return True iff system_config.deploy_paused_perf is set to 'true'.
+
+    Set by the post-deploy perf gate (proposal_service._evaluate_perf_gate)
+    when a non-critical regression hits the 2-of-3 pattern. Cleared via
+    /api/qa/regressions/<id>/clear or by ops setting the row to 'false'.
+
+    Fail-open: any DB / lookup error returns False so a pause-flag bug
+    can never wedge the entire deploy pipeline.
+    """
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT value FROM system_config WHERE key = 'deploy_paused_perf'")
+            row = cur.fetchone()
+        if not row:
+            return False
+        # get_db_cursor returns RealDictCursor by default; tolerate both shapes
+        value = row["value"] if isinstance(row, dict) else row[0]
+        return str(value).lower() == "true"
+    except Exception as _exc:  # noqa: BLE001 — fail open
+        logger.warning("deploy_paused_perf check failed: %s", _exc)
+        return False
+
+
 class SandboxQueue:
     """Manages the proposal queue for sandbox testing"""
 
@@ -80,8 +106,14 @@ class SandboxQueue:
         Get all proposals waiting in queue for sandbox
 
         Returns:
-            List of proposals in queue (approved but not yet in sandbox)
+            List of proposals in queue (approved but not yet in sandbox).
+            Returns [] when system_config.deploy_paused_perf='true' so no
+            new claims fire while we're awaiting human review of a perf
+            regression. Fails open (continues query) on lookup error.
         """
+        if _is_deploy_paused_for_perf():
+            return []
+
         conn = self.get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -134,6 +166,15 @@ class SandboxQueue:
                 'queue_position': int or None
             }
         """
+        # Perf gate — refuse direct claims when deploys paused for perf review
+        if _is_deploy_paused_for_perf():
+            return {
+                "can_use": False,
+                "reason": "Deploys paused — awaiting human review of a perf regression",
+                "current_proposal": None,
+                "queue_position": None,
+            }
+
         current = self.get_current_sandbox_proposal()
 
         # If no sandbox in use, this proposal can use it

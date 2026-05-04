@@ -55,6 +55,29 @@ def _resolve_env_vars(obj):
     return obj
 
 
+def extract_perf_flags(test_entry: dict) -> dict:
+    """Extract per-test perf flags (critical, baseline_ms_override) from YAML entry.
+
+    Defaults: critical=False, baseline_ms_override=None.
+    Bad override values (non-int, ≤0) → None + log warning.
+    """
+    critical = bool(test_entry.get("critical", False))
+
+    raw_override = test_entry.get("baseline_ms_override")
+    override = None
+    if raw_override is not None:
+        if isinstance(raw_override, int) and not isinstance(raw_override, bool) and raw_override > 0:
+            override = raw_override
+        else:
+            logger.warning(
+                "Invalid baseline_ms_override=%r in test %r — falling back to auto-baseline",
+                raw_override,
+                test_entry.get("name"),
+            )
+
+    return {"critical": critical, "baseline_ms_override": override}
+
+
 def execute_spec(spec, session=None, suite_id=None, run_id=None, skip_auth=False):
     """
     Execute all tests in a parsed spec.
@@ -206,12 +229,15 @@ def execute_spec(spec, session=None, suite_id=None, run_id=None, skip_auth=False
         try:
             if test_type == "api":
                 result = _run_api_test(test, base_url, session, auth)
+                result["perf_flags"] = extract_perf_flags(test)
                 results.append(result)
             elif test_type == "page_load":
                 result = _run_page_load_test(test, base_url, session)
+                result["perf_flags"] = extract_perf_flags(test)
                 results.append(result)
             elif test_type == "e2e":
                 result = e2e_results_map.get(id(test)) or _run_e2e_test(test, base_url, auth)
+                result["perf_flags"] = extract_perf_flags(test)
                 results.append(result)
             elif test_type == "visual_snapshot":
                 # May produce multiple results (one per breakpoint).

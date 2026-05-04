@@ -497,6 +497,34 @@ def daily_code_health_scan():
         )
 
 
+def daily_recompute_perf_baselines():
+    """Job #59: Nightly recompute of P.R.O.B.E. perf baselines (03:45 EDT).
+
+    Walks every (suite_id, test_name) pair with ≥10 successful samples and
+    upserts qa_perf_baselines.baseline_p95_ms. Drift-correcting nightly batch
+    so the post-deploy gate stays calibrated to recent production behaviour.
+
+    Defensive: never raises. Loop log captures success count or error.
+    """
+    start = time.time()
+    try:
+        from services import qa_baseline_service
+
+        updated = qa_baseline_service.recompute_all_baselines()
+        duration_ms = int((time.time() - start) * 1000)
+        logger.info("[PerfBaselines] Recomputed %d baselines", updated)
+        _log_cycle("recompute_perf_baselines", updated, 0, duration_ms)
+    except Exception as e:
+        logger.warning(f"Perf baselines recompute failed: {e}")
+        _log_cycle(
+            "recompute_perf_baselines",
+            0,
+            1,
+            int((time.time() - start) * 1000),
+            error_message=str(e),
+        )
+
+
 def competitor_landscape_scan(flask_app):
     """Job #52: Scan AI competitor landscape every 2 weeks, update knowledge_base, notify via Telegram."""
     start = time.time()
@@ -684,4 +712,17 @@ def _register_own_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[DeptHQ] Registered 6 code health/audit jobs")
+    # Job #59 — Nightly Recompute Perf Baselines (3:45 AM)
+    # 03:00 reserved by #40 (code_metrics), 03:15 by forge_dep_drift,
+    # 03:30 by #58 (module_audit) — 03:45 is the next clean slot.
+    scheduler.add_job(
+        daily_recompute_perf_baselines,
+        trigger=CronTrigger(hour=3, minute=45),
+        id="agent_recompute_perf_baselines",
+        name="Agent Loop: Nightly Recompute Perf Baselines",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    logger.info("[DeptHQ] Registered 7 code health/audit jobs")

@@ -3921,6 +3921,50 @@ if (os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug) and _run_sch
             logger.info("Telegram gateway not configured (no TELEGRAM_BOT_TOKEN)")
 
 
+# ── Telegram gateway bootstrap (out of init_consciousness_scheduler) ──
+# PR #511 sets ARCHIE_RUN_SCHEDULER=0 in archie_platform to delegate
+# scheduling to the archie_scheduler sidecar. The Telegram bot startup was
+# nested inside init_consciousness_scheduler() which is gated on
+# ARCHIE_RUN_SCHEDULER — silent regression: bot stopped starting in
+# archie_platform when scheduling was delegated. Re-bootstrap here at
+# module top level so the bot runs regardless of scheduler-here state.
+# Gated only by ARCHIE_RUN_TELEGRAM (scheduler_daemon sets it to "0").
+# fcntl lock prevents double-start if the in-function block also runs in
+# single-container deploys.
+_run_telegram_here_top = os.getenv("ARCHIE_RUN_TELEGRAM", "1") == "1"
+_tg_token_top = os.getenv("TELEGRAM_BOT_TOKEN") if _run_telegram_here_top else None
+if _tg_token_top and not app.config.get("TELEGRAM_GATEWAY"):
+    import fcntl as _fcntl_top
+
+    _tg_lock_path_top = "/tmp/archie_telegram_gateway.lock"
+    try:
+        _tg_lock_fd_top = open(_tg_lock_path_top, "w")
+        _fcntl_top.flock(_tg_lock_fd_top, _fcntl_top.LOCK_EX | _fcntl_top.LOCK_NB)
+        try:
+            from telegram_gateway import TelegramGateway as _TelegramGateway_top
+
+            _telegram_top = _TelegramGateway_top(bot_token=_tg_token_top, flask_app=app)
+            _telegram_top.start()
+            app.config["TELEGRAM_GATEWAY"] = _telegram_top
+            app.config["_TELEGRAM_GATEWAY_LOCK_FD"] = _tg_lock_fd_top
+            logger.info("Telegram gateway initialized at module top (lock acquired)")
+        except Exception as _tg_err_top:
+            logger.error("Failed to initialize Telegram gateway at module top: %s", _tg_err_top)
+            app.config.setdefault("TELEGRAM_GATEWAY", None)
+            try:
+                _fcntl_top.flock(_tg_lock_fd_top, _fcntl_top.LOCK_UN)
+                _tg_lock_fd_top.close()
+            except Exception:
+                pass
+    except BlockingIOError:
+        logger.info("Telegram gateway top-level bootstrap skipped — another process holds the lock")
+        app.config.setdefault("TELEGRAM_GATEWAY", None)
+elif not _tg_token_top and not app.config.get("TELEGRAM_GATEWAY"):
+    app.config["TELEGRAM_GATEWAY"] = None
+    if _run_telegram_here_top:
+        logger.info("Telegram gateway top-level bootstrap: no TELEGRAM_BOT_TOKEN")
+
+
 # ── Internal Delegation API (Sub-C #2351) ──────────────────────────
 import os as _os_delegation
 from functools import wraps as _wraps_delegation

@@ -308,7 +308,10 @@ services:
       HA_API_TOKEN: ${HA_API_TOKEN:-}
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-hub}
       OLLAMA_MODELS: /mnt/llm_drive/ollama/models
-      TELEGRAM_BOT_TOKEN: ""
+      # Required so run_triage() (scheduled in this sidecar) can escalate
+      # director_reports inbox items to Telegram. ARCHIE_RUN_TELEGRAM=0 above
+      # stays — that disables the long-poll bot daemon, not push sends.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       COMFYUI_HOST: ${COMFYUI_HOST:-http://172.27.0.11:8188}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_USERNAME: ${GITHUB_USERNAME:-KytranKatarn}

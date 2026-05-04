@@ -17,16 +17,21 @@ def test_processor_returns_dict_with_header_shortcuts(app):
 
 
 def test_processor_respects_override(app):
-    """If g.header_shortcuts_override is set, processor returns it unchanged."""
+    """If g.header_shortcuts_override is set, processor returns it unchanged
+    AND get_category_siblings is not called (override is a fast-path bypass)."""
+    from services import nav_service
+
     sentinel = [{"id": "x", "label": "X", "icon": "x", "url": "/x", "external": False, "active": False}]
-    with app.test_request_context("/tools/backup-manager"):
-        from flask import g
+    with patch.object(nav_service, "get_category_siblings") as mock_fn:
+        with app.test_request_context("/tools/backup-manager"):
+            from flask import g
 
-        g.header_shortcuts_override = sentinel
-        from app import inject_category_siblings
+            g.header_shortcuts_override = sentinel
+            from app import inject_category_siblings
 
-        result = inject_category_siblings()
-        assert result["header_shortcuts"] == sentinel
+            result = inject_category_siblings()
+            assert result["header_shortcuts"] == sentinel
+            mock_fn.assert_not_called()
 
 
 def test_processor_never_raises(app):

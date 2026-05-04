@@ -12,6 +12,26 @@
 
 ---
 
+## Schema Corrections Discovered During Phase 1 Implementation
+
+Two assumptions in this plan turned out wrong. They were corrected in PR #515 (Phase 1 pilot) and **must be applied to every code block below** when executing remaining waves. The inline code in this plan still uses the original (incorrect) assumptions; treat that as historical and apply these corrections:
+
+1. **`MODULES` is a `List[ModuleDefinition]`, NOT a dict.**
+   - `for module_id, mod in MODULES.items()` → `for mod in MODULES` (then use `mod.id`)
+   - `for sid, m in MODULES.items()` → `for m in MODULES` (then use `m.id`)
+   - `MODULES.get(module_id)` → `next((m for m in MODULES if m.id == module_id), None)`
+   - `MODULES[module_id]` → `next(m for m in MODULES if m.id == module_id)`
+
+2. **`ModuleDefinition` has no `status` field.** Real fields are `enabled: bool`, `coming_soon: bool`, `beta: bool` (all on the dataclass).
+   - `getattr(m, "status", "enabled") != "enabled"` → `not m.enabled or m.coming_soon`
+   - `getattr(m, 'status', 'enabled') == 'enabled'` → `m.enabled and not m.coming_soon`
+   - In docstrings: "status='enabled'" → "enabled and not coming_soon"
+   - Note: `m.beta` is NOT a disable flag — beta modules should still appear in nav.
+
+**Wave scope was also revised after audit.** Only 6 modules remain on `category_nav.html` (not ~14): `doc`, `fitness`, `therapy`, `archie_chat`, `social_media` (disabled), `system_operations` (disabled). The 4-wave plan compresses to 1-2 PRs of real migration plus the cleanup PR.
+
+---
+
 ## File Structure
 
 | Path | Status | Responsibility |

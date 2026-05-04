@@ -16,14 +16,14 @@ def register_theme_routes(bp, admin_required):
     @bp.route("/api/signal/themes")
     @admin_required
     def api_signal_themes():
-        from platform_v2.tools.media_studio.services.theme_service import get_all_themes
+        from tools.media_studio.services.theme_service import get_all_themes
 
         return jsonify({"themes": get_all_themes(active_only=False)})
 
     @bp.route("/api/signal/themes/<int:theme_id>/scenes")
     @admin_required
     def api_signal_theme_scenes(theme_id):
-        from platform_v2.tools.media_studio.services.theme_service import (
+        from tools.media_studio.services.theme_service import (
             get_scenes_for_theme,
             get_theme,
         )
@@ -36,7 +36,7 @@ def register_theme_routes(bp, admin_required):
     @bp.route("/api/signal/themes/<int:theme_id>", methods=["PATCH"])
     @admin_required
     def api_signal_update_theme(theme_id):
-        from platform_v2.tools.media_studio.services.theme_service import update_theme
+        from tools.media_studio.services.theme_service import update_theme
 
         data = request.get_json() or {}
         updated = update_theme(theme_id, **data)
@@ -47,7 +47,7 @@ def register_theme_routes(bp, admin_required):
     @bp.route("/api/signal/themes/<int:theme_id>/scenes", methods=["POST"])
     @admin_required
     def api_signal_add_scene(theme_id):
-        from platform_v2.tools.media_studio.services.theme_service import upsert_scene
+        from tools.media_studio.services.theme_service import upsert_scene
 
         data = request.get_json() or {}
         scene = upsert_scene(theme_id, scene_id=None, **data)
@@ -56,7 +56,7 @@ def register_theme_routes(bp, admin_required):
     @bp.route("/api/signal/themes/<int:theme_id>/scenes/<int:scene_id>", methods=["PATCH"])
     @admin_required
     def api_signal_update_scene(theme_id, scene_id):
-        from platform_v2.tools.media_studio.services.theme_service import upsert_scene
+        from tools.media_studio.services.theme_service import upsert_scene
 
         data = request.get_json() or {}
         scene = upsert_scene(theme_id, scene_id=scene_id, **data)
@@ -67,21 +67,21 @@ def register_theme_routes(bp, admin_required):
     @bp.route("/api/signal/calendar")
     @admin_required
     def api_signal_calendar():
-        from platform_v2.tools.media_studio.services.calendar_service import get_week_calendar
+        from tools.media_studio.services.calendar_service import get_week_calendar
 
         return jsonify({"days": get_week_calendar()})
 
     @bp.route("/api/signal/calendar/slots")
     @admin_required
     def api_signal_calendar_slots():
-        from platform_v2.tools.media_studio.services.calendar_service import get_calendar_slots
+        from tools.media_studio.services.calendar_service import get_calendar_slots
 
         return jsonify({"slots": get_calendar_slots()})
 
     @bp.route("/api/signal/calendar/slots", methods=["POST"])
     @admin_required
     def api_signal_upsert_slot():
-        from platform_v2.tools.media_studio.services.calendar_service import upsert_calendar_slot
+        from tools.media_studio.services.calendar_service import upsert_calendar_slot
 
         data = request.get_json() or {}
         day = data.pop("day_of_week", 0)
@@ -92,7 +92,7 @@ def register_theme_routes(bp, admin_required):
     @bp.route("/api/signal/calendar/slots/<int:slot_id>", methods=["DELETE"])
     @admin_required
     def api_signal_delete_slot(slot_id):
-        from platform_v2.tools.media_studio.services.calendar_service import delete_calendar_slot
+        from tools.media_studio.services.calendar_service import delete_calendar_slot
 
         ok = delete_calendar_slot(slot_id)
         return jsonify({"deleted": ok})
@@ -100,7 +100,7 @@ def register_theme_routes(bp, admin_required):
     @bp.route("/api/signal/calendar/generate-caption", methods=["POST"])
     @admin_required
     def api_signal_generate_caption():
-        from platform_v2.tools.media_studio.services.calendar_service import generate_themed_caption
+        from tools.media_studio.services.calendar_service import generate_themed_caption
 
         data = request.get_json() or {}
         agent_id = data.get("agent_id")
@@ -115,14 +115,14 @@ def register_theme_routes(bp, admin_required):
     @bp.route("/api/signal/agent/<int:agent_id>/voice")
     @admin_required
     def api_signal_agent_voice(agent_id):
-        from platform_v2.tools.media_studio.services.calendar_service import get_agent_voice
+        from tools.media_studio.services.calendar_service import get_agent_voice
 
         return jsonify(get_agent_voice(agent_id))
 
     @bp.route("/api/signal/agent/<int:agent_id>/voice", methods=["PATCH"])
     @admin_required
     def api_signal_update_agent_voice(agent_id):
-        from platform_v2.tools.media_studio.services.calendar_service import upsert_agent_voice
+        from tools.media_studio.services.calendar_service import upsert_agent_voice
 
         data = request.get_json() or {}
         return jsonify(upsert_agent_voice(agent_id, **data))

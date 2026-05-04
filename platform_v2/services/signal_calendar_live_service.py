@@ -94,6 +94,7 @@ def _row_to_post(row: Dict[str, Any]) -> Dict[str, Any]:
         "executed_at": row["executed_at"].isoformat() if row.get("executed_at") else None,
         "linkedin_url": row.get("post_url"),
         "preview": preview,
+        "content": content,
         "telegram_message_id": row.get("telegram_message_id"),
         "error": error,
     }

@@ -1942,10 +1942,13 @@ var _SIGNAL_STATUS_VISUALS = {
 
 var _SIGNAL_LANG_EMOJI = { en: '🇨🇦', fr: '⚜️' };
 
-// Phase 3 will replace this stub with the modal opener.
 function _onSignalChipClick(approvalId, status) {
-    console.log('[SIGNAL chip click]', { approvalId: approvalId, status: status });
-    // Phase 3: openSignalPostModal(approvalId);
+    var post = _signalCalendarPostCache[approvalId];
+    if (!post) {
+        console.warn('[SIGNAL chip click] post not in cache', approvalId);
+        return;
+    }
+    _openSignalPostModal(post);
 }
 
 function _renderSignalChip(post) {
@@ -1955,7 +1958,7 @@ function _renderSignalChip(post) {
         ? 'animation:bmLightPulse 1.4s ease-in-out infinite;'
         : '';
     return '<button type="button" class="signal-chip"'
-        + ' onclick="_onSignalChipClick(' + post.approval_id + ',\'' + post.status + '\')"'
+        + ' onclick="_onSignalChipClick(' + (post.approval_id || 0) + ',\'' + post.status + '\')"'
         + ' title="' + esc(v.label + ' — click for details (Phase 3)') + '"'
         + ' style="display:flex;align-items:center;gap:4px;width:100%;'
         +         'background:' + v.bg + ';color:' + v.fg + ';'
@@ -1982,6 +1985,18 @@ async function renderSignalCalendar(el) {
     }
 
     var days = data.days || [];
+
+    // Phase 3: populate post cache so chip clicks can look up full post object
+    _signalCalendarPostCache = {};
+    for (var di = 0; di < days.length; di++) {
+        var dposts = days[di].posts || [];
+        for (var pi = 0; pi < dposts.length; pi++) {
+            if (dposts[pi].approval_id != null) {
+                _signalCalendarPostCache[dposts[pi].approval_id] = dposts[pi];
+            }
+        }
+    }
+
     var DAY_ABBR = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
 
     var weekStart = data.week_start || '';
@@ -2047,6 +2062,222 @@ function _renderSignalLegend() {
             + '</span>';
     }
     return '<div style="margin-top:12px;padding-top:8px;border-top:1px solid #1a1a1a;">' + items + '</div>';
+}
+
+// ===== Phase 3: SIGNAL post modal =====
+
+// JS-side cache populated by renderSignalCalendar — keyed by approval_id.
+var _signalCalendarPostCache = {};
+
+function _signalAccountLabel(account) {
+    if (account === 'company')  return 'KE Inc.';
+    if (account === 'personal') return 'Kytran Katarn';
+    if (account === 'creed')    return 'Creed-AI';
+    return esc(account || '');
+}
+
+function _signalDayLabel(dateStr) {
+    if (!dateStr) return '';
+    var DAYS = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+    try {
+        var d = new Date(dateStr + 'T12:00:00');
+        return DAYS[d.getUTCDay()] + ' ' + dateStr;
+    } catch (e) { return dateStr; }
+}
+
+function _renderModalHeader(post, account) {
+    var v = _SIGNAL_STATUS_VISUALS[post.status] || _SIGNAL_STATUS_VISUALS.failed;
+    var langEmoji = _SIGNAL_LANG_EMOJI[post.lang] || '🌐';
+    var langLabel = post.lang === 'fr' ? 'FR' : (post.lang === 'en' ? 'EN' : esc((post.lang||'??').toUpperCase()));
+    var dayDate = (post.drafted_at || '').substring(0, 10);
+    return '<div style="padding:14px 18px;border-bottom:1px solid #1a1a1a;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">'
+        +     '<span style="color:#aaa;font-family:\'Antonio\',sans-serif;font-size:0.7rem;letter-spacing:1px;">'
+        +         esc(_signalAccountLabel(account))
+        +     '</span>'
+        +     '<span style="color:#555;">·</span>'
+        +     '<span style="color:#888;font-size:0.65rem;">' + esc(_signalDayLabel(dayDate)) + '</span>'
+        +     '<span style="color:#555;">·</span>'
+        +     '<span style="font-size:0.7rem;">' + esc(langEmoji) + ' ' + langLabel + '</span>'
+        +     '<div style="flex:1;"></div>'
+        +     '<span style="background:' + v.bg + ';color:' + v.fg + ';border-radius:4px;'
+        +              'padding:4px 10px;font-family:\'IBM Plex Mono\',monospace;'
+        +              'font-size:0.55rem;font-weight:700;letter-spacing:1px;">'
+        +         esc(v.icon) + ' ' + esc(v.label)
+        +     '</span>'
+        + '</div>';
+}
+
+function _renderModalContent(post) {
+    var content = post.content || post.preview || '';
+    if (!content) {
+        return '<div style="padding:14px 18px;color:#555;font-style:italic;font-size:0.65rem;">'
+             + '(no content)</div>';
+    }
+    return '<div style="padding:14px 18px;">'
+        +     '<div style="color:#666;font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">'
+        +         'Content'
+        +     '</div>'
+        +     '<div style="background:#0d1117;border:1px solid #1a1a1a;border-radius:4px;'
+        +              'padding:10px 12px;color:#bbb;font-size:0.7rem;line-height:1.5;'
+        +              'max-height:280px;overflow-y:auto;white-space:pre-wrap;">'
+        +         esc(content)
+        +     '</div>'
+        + '</div>';
+}
+
+function _renderModalError(post) {
+    if (!post.error) return '';
+    return '<div style="padding:0 18px 14px;">'
+        +     '<div style="color:#ef4444;font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">'
+        +         'Error'
+        +     '</div>'
+        +     '<div style="background:#1a0404;border:1px solid #ef4444;border-radius:4px;'
+        +              'padding:10px 12px;color:#fca5a5;font-size:0.65rem;line-height:1.5;font-family:\'IBM Plex Mono\',monospace;">'
+        +         esc(post.error)
+        +     '</div>'
+        + '</div>';
+}
+
+function _renderModalTimeline(post) {
+    var rows = '';
+    function fmt(iso) {
+        if (!iso) return '';
+        try { return iso.substring(11, 16) + ' UTC'; }
+        catch (e) { return ''; }
+    }
+    if (post.drafted_at)  rows += '<div style="margin-bottom:6px;">v <span style="color:#666;">' + esc(fmt(post.drafted_at)) + '</span> Drafted</div>';
+    if (post.approved_at) rows += '<div style="margin-bottom:6px;">v <span style="color:#666;">' + esc(fmt(post.approved_at)) + '</span> Approved</div>';
+    if (post.executed_at) {
+        var verb = post.status === 'posted' ? 'Posted to LinkedIn'
+                 : post.status === 'failed' ? 'Skill execution failed'
+                 : 'Executed';
+        var mark = post.status === 'failed' ? 'x' : 'v';
+        rows += '<div style="margin-bottom:6px;">' + mark
+             + ' <span style="color:#666;">' + esc(fmt(post.executed_at)) + '</span> ' + esc(verb) + '</div>';
+    }
+    if (post.telegram_message_id) {
+        rows += '<div style="margin-bottom:6px;color:#888;">Telegram msg #' + esc(String(post.telegram_message_id)) + '</div>';
+    }
+    if (!rows) {
+        rows = '<div style="color:#555;font-style:italic;">(no timeline events yet)</div>';
+    }
+    return '<div style="padding:0 18px 14px;">'
+        +     '<div style="color:#666;font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">'
+        +         'Timeline'
+        +     '</div>'
+        +     '<div style="font-size:0.65rem;color:#aaa;font-family:\'IBM Plex Mono\',monospace;">'
+        +         rows
+        +     '</div>'
+        + '</div>';
+}
+
+function _phase4Stub(label) {
+    var safe = String(label).replace(/'/g, "\\'");
+    return ' onclick="alert(\'' + safe + ' - Phase 4. Use Telegram bot for now.\')"';
+}
+
+function _renderModalActions(post) {
+    var btns = '';
+    var btnBase = 'background:#1f2937;color:#e5e7eb;border:1px solid #374151;'
+                + 'border-radius:4px;padding:8px 14px;cursor:pointer;'
+                + 'font-family:\'Antonio\',sans-serif;font-size:0.7rem;letter-spacing:1px;'
+                + 'text-transform:uppercase;';
+    var aid = post.approval_id || 0;
+
+    if (post.status === 'posted' && post.linkedin_url && /^https:\/\//i.test(post.linkedin_url)) {
+        btns += '<a href="' + esc(post.linkedin_url) + '" target="_blank" rel="noopener" '
+             +    'style="' + btnBase + 'background:#22c55e;color:#04130a;border-color:#16a34a;text-decoration:none;">'
+             +    'Open on LinkedIn'
+             + '</a>';
+    }
+    if (post.status === 'pending') {
+        btns += '<button type="button" style="' + btnBase + 'background:#22c55e;color:#04130a;border-color:#16a34a;" '
+             +    'onclick="_signalApprovePost(' + aid + ')">'
+             +    'Approve'
+             + '</button>';
+        btns += '<button type="button" style="' + btnBase + 'background:#ef4444;color:#1a0404;border-color:#dc2626;" '
+             +    'onclick="_signalRejectPost(' + aid + ')">'
+             +    'Reject'
+             + '</button>';
+    }
+    if (post.status === 'failed') {
+        btns += '<button type="button" style="' + btnBase + 'opacity:0.5;"'
+             +    _phase4Stub('Retry') + '>Retry</button>';
+        btns += '<button type="button" style="' + btnBase + 'opacity:0.5;"'
+             +    _phase4Stub("Mark Won't Fix") + ">Mark Won't Fix</button>";
+    }
+    if (post.status === 'rejected') {
+        btns += '<button type="button" style="' + btnBase + 'opacity:0.5;"'
+             +    _phase4Stub('Re-draft') + '>Re-draft</button>';
+    }
+    if (post.status === 'deferred') {
+        btns += '<button type="button" style="' + btnBase + 'opacity:0.5;"'
+             +    _phase4Stub('Reconnect') + '>Reconnect</button>';
+    }
+    btns += '<button type="button" style="' + btnBase + '" onclick="_closeSignalPostModal()">Close</button>';
+
+    return '<div style="padding:14px 18px;border-top:1px solid #1a1a1a;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">'
+        +     btns
+        + '</div>';
+}
+
+function _openSignalPostModal(post) {
+    if (!post) return;
+    _closeSignalPostModal();
+
+    var account = signalAccount || post.post_type || 'company';
+
+    var overlay = document.createElement('div');
+    overlay.className = 'bm-overlay active bm-signal-post-modal';
+    overlay.style.cssText = '--bm-accent:#22d3ee;--bm-accent-rgb:34,211,238;';
+    overlay.onclick = function(e) { if (e.target === overlay) _closeSignalPostModal(); };
+
+    var shell = document.createElement('div');
+    shell.className = 'bm-shell';
+    shell.style.cssText = 'max-width:680px;background:#070b10;color:#e5e7eb;border-radius:8px;'
+                        + 'border:1px solid #1f2937;overflow:hidden;display:flex;flex-direction:column;';
+    shell.onclick = function(e) { e.stopPropagation(); };
+
+    setHtml(shell,
+        _renderModalHeader(post, account)
+      + _renderModalContent(post)
+      + _renderModalError(post)
+      + _renderModalTimeline(post)
+      + _renderModalActions(post)
+    );
+
+    overlay.appendChild(shell);
+    document.body.appendChild(overlay);
+}
+
+async function _signalApprovePost(approvalId) {
+    if (!approvalId) return;
+    if (!confirm('Approve this post?')) return;
+    try {
+        await apiPost('/api/signal/pending/' + approvalId + '/approve', {});
+        _closeSignalPostModal();
+        loadSignalTab('calendar', true);  // force-refresh chip status
+    } catch (err) {
+        alert('Approve failed: ' + (err && err.message ? err.message : String(err)));
+    }
+}
+
+async function _signalRejectPost(approvalId) {
+    if (!approvalId) return;
+    var reason = prompt('Reason for rejection (optional):', '');
+    if (reason === null) return;  // user clicked Cancel
+    try {
+        await apiPost('/api/signal/pending/' + approvalId + '/deny', { reason: reason || '' });
+        _closeSignalPostModal();
+        loadSignalTab('calendar', true);
+    } catch (err) {
+        alert('Reject failed: ' + (err && err.message ? err.message : String(err)));
+    }
+}
+
+function _closeSignalPostModal() {
+    var existing = document.querySelector('.bm-overlay.bm-signal-post-modal');
+    if (existing) existing.remove();
 }
 
 async function renderSignalThemes(el) {

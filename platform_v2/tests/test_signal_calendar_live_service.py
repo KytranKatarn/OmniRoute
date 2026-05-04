@@ -146,3 +146,28 @@ class TestGetWeekView:
         # Day 2 (Wed) should be today; rest not
         assert out["days"][2]["is_today"] is True
         assert sum(1 for d in out["days"] if d["is_today"]) == 1
+
+
+class TestRowToPost:
+    def test_row_to_post_includes_full_content(self):
+        """Phase 3: response must carry full content for modal display."""
+        from services.signal_calendar_live_service import _row_to_post
+
+        long_text = "X" * 500  # well over the 200-char preview cap
+        row = {
+            "id": 99,
+            "status": "executed",
+            "action_data": {"post_type": "company", "language": "en", "content": long_text},
+            "execution_result": {"success": True},
+            "reason": "[TEST]",
+            "created_at": datetime(2026, 5, 4, 13, 0),
+            "approved_at": None,
+            "executed_at": None,
+            "telegram_message_id": None,
+            "post_type": "company",
+            "post_log_status": None,
+            "post_url": None,
+        }
+        post = _row_to_post(row)
+        assert post["content"] == long_text
+        assert len(post["preview"]) <= 203  # preview still truncated (200 + "...")

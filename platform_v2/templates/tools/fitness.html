@@ -13,15 +13,9 @@
 {% set cat_accent_rgb = '239,68,68' %}
 {% set cat_accent_light = '#dc2626' %}
 {% set cat_label = 'APPS' %}
-{% set cat_icon = 'heart-pulse' %}
-{% set cat_modules = [
-    {'url': url_for('doc.index'), 'endpoint_prefix': 'doc', 'icon': 'stethoscope', 'label': 'DOC', 'title': 'DOC'},
-    {'url': url_for('therapy.index'), 'endpoint_prefix': 'therapy', 'icon': 'flower-2', 'label': 'Therapy', 'title': 'Therapy'},
-    {'url': url_for('fitness.index'), 'endpoint_prefix': 'fitness', 'icon': 'dumbbell', 'label': 'Fitness', 'title': 'Fitness'},
-    {'url': url_for('archie_pool.index'), 'endpoint_prefix': 'archie_pool', 'icon': 'pickaxe', 'label': 'Pool', 'title': 'Archie Pool'},
-    {'url': 'https://media.kytranempowerment.com', 'endpoint_prefix': 'media_hub', 'icon': 'tv-2', 'label': 'Media', 'title': 'Media Hub'}
-] %}
-{% include 'includes/category_nav.html' %}
+{% set module_title = 'FITNESS' %}
+{% set module_back_url = '/dashboard' %}
+{% include 'includes/lcars-header.html' %}
 
 <!-- Scanline Overlay -->
 <div class="scanline-overlay"></div>

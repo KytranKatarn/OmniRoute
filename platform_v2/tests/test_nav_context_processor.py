@@ -89,3 +89,24 @@ def test_module_backup_manager_renders(app):
         body = resp.get_data(as_text=True)
         assert "lcars-header" in body
         assert "category_nav" not in body  # Old include is gone from this page
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "/tools/doc",
+        "/tools/fitness",
+        "/tools/therapy",
+        "/tools/archie-chat",
+    ],
+)
+def test_wave_modules_render_with_lcars_header(app, url):
+    """Wave-migrated modules load with lcars-header.html — old include is gone."""
+    client = app.test_client()
+    resp = client.get(url)
+    # Accept 200 / 302 (auth redirect) / 308 (trailing slash redirect)
+    assert resp.status_code in (200, 302, 308)
+    if resp.status_code == 200:
+        body = resp.get_data(as_text=True)
+        assert "lcars-header" in body
+        assert "category_nav" not in body

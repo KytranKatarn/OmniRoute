@@ -602,3 +602,34 @@ def register_social_routes(bp, admin_required):
             )
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
+
+    # ── SIGNAL Calendar Live ──────────────────────────────────────
+
+    @bp.route("/api/signal/calendar/live", methods=["GET"])
+    @admin_required
+    def api_signal_calendar_live():
+        """Return the 7-day living-dashboard view for one account.
+
+        Query params:
+            account: 'personal' | 'company' | 'creed' (required)
+        """
+        import logging
+
+        from services import signal_calendar_live_service
+
+        _logger = logging.getLogger("platform.signal_calendar_live")
+
+        account = (request.args.get("account") or "").strip().lower()
+        if account not in ("personal", "company", "creed"):
+            return (
+                jsonify({"error": "account must be one of: personal, company, creed"}),
+                400,
+            )
+
+        try:
+            view = signal_calendar_live_service.get_week_view(account=account)
+        except Exception:
+            _logger.exception("[signal-calendar-live] failed to build view")
+            return jsonify({"error": "failed to build calendar view"}), 500
+
+        return jsonify(view), 200

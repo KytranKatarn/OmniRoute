@@ -1462,6 +1462,9 @@ var signalTab = 'overview';
 var _signalTabCache = {};   // {tab: {html, ts}} — persists across sub-tab switches
 var _signalTabTTL = { overview: 30, postlog: 60, pending: 15, hashtags: 120, calendar: 30, themes: 600 };
 var _signalLastRun = {};  // {account: timestamp} — per-account Run Now cooldown
+// Phase 5: setInterval handle for live calendar polling. Cleared on every
+// loadSignalTab() entry; re-established at the end of loadSignalTab('calendar').
+var _signalCalendarPollHandle = null;
 
 async function loadSocialFeed() {
     var el = document.getElementById('socialFeedContent');
@@ -1507,6 +1510,11 @@ function switchSignalTab(tab) {
 }
 
 async function loadSignalTab(tab, forceRefresh) {
+    // Phase 5: clear any prior calendar polling on every tab switch
+    if (_signalCalendarPollHandle) {
+        clearInterval(_signalCalendarPollHandle);
+        _signalCalendarPollHandle = null;
+    }
     var el = document.getElementById('signalContent');
     if (!el) return;
 
@@ -1539,6 +1547,16 @@ async function loadSignalTab(tab, forceRefresh) {
         }
     } catch (err) {
         setHtml(el, '<div class="dhq-empty">Error: ' + esc(err.message) + '</div>');
+    }
+    // Phase 5: re-establish polling if we just rendered the calendar
+    if (tab === 'calendar' && !_signalCalendarPollHandle) {
+        _signalCalendarPollHandle = setInterval(function () {
+            // Skip if the post modal is open — don't disrupt the user mid-read
+            if (document.querySelector('.bm-overlay.bm-signal-post-modal')) {
+                return;
+            }
+            loadSignalTab('calendar', true);
+        }, 30000);
     }
 }
 

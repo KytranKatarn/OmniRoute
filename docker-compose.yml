@@ -367,6 +367,13 @@ services:
       - /etc/systemd/journald.conf:/host/etc/journald.conf:ro
       - /proc/1/mounts:/host/proc/mounts:ro
       - /etc/ufw:/etc/ufw:ro
+      # ── Standalone Products + Websites (read-only for Code Health scanner) ──
+      # Mirrors archie_platform line 220. Without this parent mount, scheduled
+      # Code Health scans (jobs #40 + #55) silently miss every standalone product
+      # and report ~35% fewer files / ~18% fewer lines than reality.
+      - /mnt/standalone:/mnt/standalone:ro
+      # Translation bundle export (#2089) — nested :rw override on data/ only
+      # so _export_bundle can write translations.json for the standalone site.
       - /mnt/standalone/websites/what-the-fact.com/data:/mnt/standalone/websites/what-the-fact.com/data:rw
       - ./stalwart-mail:/mnt/archie_brain/stalwart-mail:ro
     networks:

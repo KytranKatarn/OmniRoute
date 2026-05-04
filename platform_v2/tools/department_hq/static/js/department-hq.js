@@ -1460,7 +1460,7 @@ async function publishPost(postId, agentId) {
 var signalAccount = 'personal';
 var signalTab = 'overview';
 var _signalTabCache = {};   // {tab: {html, ts}} — persists across sub-tab switches
-var _signalTabTTL = { overview: 30, postlog: 60, pending: 15, hashtags: 120, calendar: 300, themes: 600 };
+var _signalTabTTL = { overview: 30, postlog: 60, pending: 15, hashtags: 120, calendar: 30, themes: 600 };
 var _signalLastRun = {};  // {account: timestamp} — per-account Run Now cooldown
 
 async function loadSocialFeed() {
@@ -1930,38 +1930,123 @@ async function renderSignalHashtags(el) {
     setHtml(el, html + '</tbody></table>');
 }
 
+// Phase 2: status -> chip visual map. Aligned with services/signal_post_status.py classifier.
+var _SIGNAL_STATUS_VISUALS = {
+    posted:    { bg:'#22c55e', fg:'#04130a', icon:'✓',  label:'POSTED'    },
+    pending:   { bg:'#f59e0b', fg:'#1a0f00', icon:'⏳', label:'PENDING'   },
+    executing: { bg:'#3b82f6', fg:'#04101f', icon:'⟳',  label:'EXECUTING' },
+    failed:    { bg:'#ef4444', fg:'#1a0404', icon:'✗',  label:'FAILED'    },
+    rejected:  { bg:'#9ca3af', fg:'#0d0f12', icon:'🚫', label:'REJECTED'  },
+    deferred:  { bg:'#8b5cf6', fg:'#0a041a', icon:'⏸', label:'DEFERRED'  }
+};
+
+var _SIGNAL_LANG_EMOJI = { en: '🇨🇦', fr: '⚜️' };
+
+// Phase 3 will replace this stub with the modal opener.
+function _onSignalChipClick(approvalId, status) {
+    console.log('[SIGNAL chip click]', { approvalId: approvalId, status: status });
+    // Phase 3: openSignalPostModal(approvalId);
+}
+
+function _renderSignalChip(post) {
+    var v = _SIGNAL_STATUS_VISUALS[post.status] || _SIGNAL_STATUS_VISUALS.failed;
+    var langEmoji = _SIGNAL_LANG_EMOJI[post.lang] || '🌐';
+    var pulseAnim = post.status === 'executing'
+        ? 'animation:bmLightPulse 1.4s ease-in-out infinite;'
+        : '';
+    return '<button type="button" class="signal-chip"'
+        + ' onclick="_onSignalChipClick(' + post.approval_id + ',\'' + post.status + '\')"'
+        + ' title="' + esc(v.label + ' — click for details (Phase 3)') + '"'
+        + ' style="display:flex;align-items:center;gap:4px;width:100%;'
+        +         'background:' + v.bg + ';color:' + v.fg + ';'
+        +         'border:none;border-radius:4px;padding:4px 6px;margin-bottom:3px;'
+        +         'font-family:\'IBM Plex Mono\',monospace;font-size:0.5rem;letter-spacing:0.5px;'
+        +         'cursor:pointer;text-align:left;' + pulseAnim + '">'
+        +     '<span style="font-size:0.65rem;">' + langEmoji + '</span>'
+        +     '<span style="font-weight:700;">' + v.icon + '</span>'
+        +     '<span style="flex:1;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+        +         esc(v.label)
+        +     '</span>'
+        + '</button>';
+}
+
 async function renderSignalCalendar(el) {
-    var data = await api('/api/signal/calendar');
+    var account = signalAccount || 'company';
+    var data;
+    try {
+        data = await api('/api/signal/calendar/live?account=' + encodeURIComponent(account));
+    } catch (err) {
+        setHtml(el, '<div class="dhq-empty" style="color:#ef4444;">Calendar load failed: '
+            + esc(err && err.message ? err.message : String(err)) + '</div>');
+        return;
+    }
+
     var days = data.days || [];
     var DAY_ABBR = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
-    var html = '<div style="margin-bottom:10px;color:#555;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;">Content Calendar — This Week</div>'
-        + '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;">';
-    for (var i = 0; i < days.length; i++) {
-        var day = days[i];
-        var slots = day.slots || [];
-        var hasContent = (day.queue_status || []).length > 0;
-        var border = hasContent ? '#22c55e' : '#333';
-        html += '<div style="background:#0d1117;border:1px solid ' + border + '44;border-radius:5px;padding:7px;min-height:80px;">'
-            + '<div style="font-size:0.52rem;color:' + border + ';font-family:\'Orbitron\',sans-serif;margin-bottom:3px;">' + DAY_ABBR[i] + '</div>'
-            + '<div style="font-size:0.48rem;color:#333;margin-bottom:5px;">' + day.date.substring(5) + '</div>';
-        if (!slots.length) {
-            html += '<div style="font-size:0.5rem;color:#2a2a2a;font-style:italic;">empty</div>';
-        }
-        for (var j = 0; j < slots.length; j++) {
-            var slot = slots[j];
-            var c = slot.accent_color || '#8b5cf6';
-            html += '<div style="border-left:2px solid ' + c + ';padding-left:4px;margin-bottom:3px;">'
-                + '<div style="font-size:0.48rem;color:' + c + ';line-height:1.3;">' + esc(slot.theme_name || '') + '</div>'
-                + '<div style="font-size:0.45rem;color:#555;">' + esc(slot.agent_name || '—') + '</div>'
-                + (slot.auto_generate ? '<div style="font-size:0.42rem;color:#a78bfa;">⚡ auto</div>' : '')
-                + '</div>';
-        }
-        if (hasContent) {
-            html += '<div style="font-size:0.45rem;color:#22c55e;margin-top:3px;">✓ queued</div>';
-        }
-        html += '</div>';
+
+    var weekStart = data.week_start || '';
+    var headerLine = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
+        +     '<div style="color:#555;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;">'
+        +         'Living Dashboard — Week of ' + esc(weekStart) + ' · Account: ' + esc(account)
+        +     '</div>'
+        +     '<div style="color:#22d3ee;font-size:0.55rem;letter-spacing:1px;">'
+        +         '⟳ refresh on tab switch'
+        +     '</div>'
+        + '</div>';
+
+    var grid = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;">';
+    for (var i = 0; i < 7; i++) {
+        grid += _renderSignalDayCell(days[i] || { date:'', is_today:false, posts:[] }, DAY_ABBR[i]);
     }
-    setHtml(el, html + '</div><div style="margin-top:10px;font-size:0.55rem;color:#444;">Toggle ⚡ auto on a slot to enable daily auto-generation</div>');
+    grid += '</div>';
+
+    var legend = _renderSignalLegend();
+
+    setHtml(el, headerLine + grid + legend);
+}
+
+function _renderSignalDayCell(day, abbr) {
+    var posts = day.posts || [];
+    var isToday = !!day.is_today;
+    var border = isToday ? '#22d3ee' : '#333';
+    var glow = isToday ? 'box-shadow:0 0 8px rgba(34,211,238,0.3);' : '';
+    var dateLabel = (day.date || '').substring(5); // MM-DD
+
+    var html = '<div style="background:#0d1117;border:1px solid ' + border + ';border-radius:5px;'
+        +         'padding:7px;min-height:120px;display:flex;flex-direction:column;' + glow + '">'
+        +     '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">'
+        +         '<span style="font-size:0.55rem;color:' + border + ';font-family:\'Orbitron\',sans-serif;letter-spacing:1px;">'
+        +             abbr + (isToday ? ' • TODAY' : '')
+        +         '</span>'
+        +         '<span style="font-size:0.45rem;color:#555;">' + esc(dateLabel) + '</span>'
+        +     '</div>';
+
+    if (!posts.length) {
+        html += '<div style="flex:1;display:flex;align-items:center;justify-content:center;'
+            +         'border:1px dashed #2a2a2a;border-radius:4px;color:#444;'
+            +         'font-size:0.5rem;font-style:italic;">+ Draft now</div>';
+    } else {
+        for (var p = 0; p < posts.length; p++) {
+            html += _renderSignalChip(posts[p]);
+        }
+    }
+
+    html += '</div>';
+    return html;
+}
+
+function _renderSignalLegend() {
+    var keys = ['posted','pending','executing','failed','rejected','deferred'];
+    var items = '';
+    for (var i = 0; i < keys.length; i++) {
+        var v = _SIGNAL_STATUS_VISUALS[keys[i]];
+        items += '<span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;'
+            +              'font-size:0.5rem;color:#777;letter-spacing:1px;">'
+            +     '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:' + v.bg + ';"></span>'
+            +     v.label
+            + '</span>';
+    }
+    return '<div style="margin-top:12px;padding-top:8px;border-top:1px solid #1a1a1a;">' + items + '</div>';
 }
 
 async function renderSignalThemes(el) {

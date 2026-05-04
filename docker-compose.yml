@@ -182,6 +182,13 @@ services:
       - ./website/kytranempowerment.com/assets/portraits:/mnt/archie_brain/website/kytranempowerment.com/assets/portraits:rw
       - ./website/creed-ai.org/assets/portraits:/mnt/archie_brain/website/creed-ai.org/assets/portraits:rw
       - ./kytran-server-manager:/mnt/archie_brain/kytran-server-manager:ro
+      # Hub-resident standalone product source (read-only for Code Health
+      # scanner). These products live in the hub repo but outside the
+      # /mnt/standalone tree, so the resolver's fallback candidate
+      # /mnt/archie_brain/<dir> needs the matching bind to find them.
+      - ./archie-comms:/mnt/archie_brain/archie-comms:ro
+      - ./what-the-fact:/mnt/archie_brain/what-the-fact:ro
+      - ./standalone/media_hub:/mnt/archie_brain/standalone/media_hub:ro
       # Host command queue (shared with host_monitor.py for storage operations)
       - ./host_commands:/mnt/archie_brain/host_commands:rw
       # Migration compose files for Docker stack management
@@ -377,6 +384,13 @@ services:
       # Browser automation screenshots — scheduled jobs that screenshot pages
       # write here; mirrors archie_platform mount.
       - ./platform_v2/static/screenshots:/app/static/screenshots:rw
+      # Hub-resident standalone product source (read-only for Code Health
+      # scanner). Mirrors archie_platform; resolver finds these via the
+      # /mnt/archie_brain/<dir> + /mnt/archie_brain/standalone/<dir>
+      # fallback candidates in code_metrics_service._resolve_standalone_path.
+      - ./archie-comms:/mnt/archie_brain/archie-comms:ro
+      - ./what-the-fact:/mnt/archie_brain/what-the-fact:ro
+      - ./standalone/media_hub:/mnt/archie_brain/standalone/media_hub:ro
       # ── Standalone Products + Websites (read-only for Code Health scanner) ──
       # Mirrors archie_platform line 220. Without this parent mount, scheduled
       # Code Health scans (jobs #40 + #55) silently miss every standalone product

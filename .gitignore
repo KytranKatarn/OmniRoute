@@ -138,6 +138,7 @@ market-watch/
 # HTML mockup files in root
 /*.html
 .worktrees/
+.claude/worktrees/
 repos/
 platform_v2/static/downloads/*.exe
 .superpowers/

@@ -367,6 +367,16 @@ services:
       - /etc/systemd/journald.conf:/host/etc/journald.conf:ro
       - /proc/1/mounts:/host/proc/mounts:ro
       - /etc/ufw:/etc/ufw:ro
+      # Media stack configs for Media Hub service discovery (mirrors platform)
+      - /mnt/Plex/config:/mnt/Plex/config:ro
+      # Ollama model storage on LLM SSD (read-only — sidecar jobs may inspect
+      # model registry but never mutate files)
+      - /mnt/llm_drive/ollama/models:/mnt/llm_drive/ollama/models:ro
+      # Google OAuth credentials (rw: token refresh writes back at runtime)
+      - ./credentials:/app/credentials:rw
+      # Browser automation screenshots — scheduled jobs that screenshot pages
+      # write here; mirrors archie_platform mount.
+      - ./platform_v2/static/screenshots:/app/static/screenshots:rw
       # ── Standalone Products + Websites (read-only for Code Health scanner) ──
       # Mirrors archie_platform line 220. Without this parent mount, scheduled
       # Code Health scans (jobs #40 + #55) silently miss every standalone product

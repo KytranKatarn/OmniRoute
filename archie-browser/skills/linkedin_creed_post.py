@@ -1,4 +1,24 @@
-"""LinkedIn creed post — publishes a post as the C.R.E.E.D. Institute organization page."""
+"""LinkedIn creed post — publishes a post AS the CREED AI organization page.
+
+Selector chain pinned via DOM probe on 2026-05-04 (KB #263349):
+
+  /feed/  →  share box  →  .share-unified-settings-entry-button
+            →  "Post settings" dialog
+            →  .share-unified-settings-menu__actor-toggle
+            →  "Posting as" dialog (radio list)
+            →  pick the "CREED AI" radio
+            →  click "Save" (closes "Posting as")
+            →  click "Done" (closes "Post settings")
+            →  back at share modal: fill .ql-editor, click "Post"
+
+The /admin/* path is NOT used — LinkedIn auth-walls admin URLs even when the
+session is valid for /feed/ (task #2598). Posting via the actor switcher
+sidesteps that auth wall entirely.
+
+LinkedIn renamed the page "CREED AI" (not "C.R.E.E.D. Institute"). The
+_CREED_PAGE_NAMES list keeps several variants in case the display label
+changes; first hit wins.
+"""
 import os
 from datetime import datetime
 
@@ -8,6 +28,19 @@ PLATFORMS = ["linkedin"]
 _SCREENSHOTS_DIR = os.getenv("SCREENSHOTS_DIR", "/tmp/browser_screenshots")
 os.makedirs(_SCREENSHOTS_DIR, exist_ok=True)
 
+# Display labels LinkedIn might render in the "Posting as" radio list.
+# Order matters — first match wins. Keep both UPPER-CASE and dotted variants
+# so a page rename doesn't silently break us.
+_CREED_PAGE_NAMES = [
+    "CREED AI",
+    "Creed AI",
+    "Creed-AI",
+    "C.R.E.E.D. Institute",
+    "C.R.E.E.D.",
+    "Creed Institute",
+    "Creed",
+]
+
 
 def _screenshot(page, name):
     path = f"{_SCREENSHOTS_DIR}/{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
@@ -16,7 +49,6 @@ def _screenshot(page, name):
 
 
 def _diagnostic_dump(page, label: str) -> dict:
-    """Capture page URL + title + first ~30 visible button labels."""
     info: dict = {"label": label, "url": "", "title": "", "buttons": []}
     try:
         info["url"] = page.url
@@ -28,27 +60,87 @@ def _diagnostic_dump(page, label: str) -> dict:
         pass
     try:
         btns = page.locator("button:visible").all()[:30]
-        info["buttons"] = [
-            (b.inner_text(timeout=500) or "").strip()[:60] for b in btns
-        ]
+        info["buttons"] = [(b.inner_text(timeout=500) or "").strip()[:60] for b in btns]
     except Exception:
         pass
     return info
 
 
 def _open_share_box(page) -> bool:
-    """Try every known selector for the share-box trigger."""
+    """Open the feed-level share-box composer."""
     attempts = [
-        lambda: page.get_by_role("button", name="Create a post", exact=False).click(timeout=8000),
-        lambda: page.locator('button:has-text("Create a post")').first.click(timeout=8000),
-        lambda: page.get_by_placeholder("Start a post", exact=False).click(timeout=6000),
-        lambda: page.get_by_role("button", name="Start a post", exact=False).click(timeout=6000),
-        lambda: page.locator('button:has-text("Start a post")').first.click(timeout=6000),
-        lambda: page.locator('[class*="share-box"] button').first.click(timeout=6000),
-        lambda: page.locator('[class*="share-creation"] button').first.click(timeout=6000),
-        lambda: page.get_by_text("Create a post", exact=False).first.click(timeout=5000),
-        lambda: page.get_by_text("Start a post", exact=False).first.click(timeout=5000),
-        lambda: page.locator('header').get_by_role("button", name="Post", exact=True).click(timeout=5000),
+        lambda: page.get_by_placeholder("Start a post", exact=False).click(timeout=8000),
+        lambda: page.locator(".share-box-feed-entry__trigger").first.click(timeout=8000),
+        lambda: page.locator('[class*="share-box"]').first.click(timeout=8000),
+        lambda: page.get_by_text("Start a post", exact=False).first.click(timeout=8000),
+        lambda: page.locator('button:has-text("Start a post")').click(timeout=8000),
+    ]
+    for attempt in attempts:
+        try:
+            attempt()
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def _open_post_settings(page) -> bool:
+    """Click the unified settings entry pill (shows current actor + audience)."""
+    attempts = [
+        lambda: page.locator(".share-unified-settings-entry-button").first.click(timeout=5000),
+        lambda: page.locator("button.share-unified-settings-entry-button").first.click(timeout=5000),
+    ]
+    for attempt in attempts:
+        try:
+            attempt()
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def _open_actor_toggle(page) -> bool:
+    """Inside Post settings dialog, click the actor toggle to open page list."""
+    attempts = [
+        lambda: page.locator(".share-unified-settings-menu__actor-toggle").first.click(timeout=5000),
+        lambda: page.locator('button[class*="actor-toggle"]').first.click(timeout=5000),
+    ]
+    for attempt in attempts:
+        try:
+            attempt()
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def _select_creed_page(page) -> str | None:
+    """Pick the CREED AI radio from the 'Posting as' list. Returns matched label."""
+    for name in _CREED_PAGE_NAMES:
+        # The radio rows render with role=radio + class sharing-shared-generic-list__item-button
+        # Locator with text= match (case-insensitive via has-text).
+        try:
+            page.locator(
+                '.sharing-shared-generic-list__item-button:has-text("{}")'.format(name)
+            ).first.click(timeout=2500)
+            return name
+        except Exception:
+            pass
+        try:
+            page.get_by_role("radio", name=name, exact=False).first.click(timeout=2500)
+            return name
+        except Exception:
+            continue
+    return None
+
+
+def _click_settings_dialog_button(page, label: str) -> bool:
+    """Click a footer button (Save / Done / Back) in the open settings dialog."""
+    attempts = [
+        lambda: page.locator(
+            f'.share-box-footer__primary-btn:has-text("{label}")'
+        ).first.click(timeout=4000),
+        lambda: page.get_by_role("button", name=label, exact=True).first.click(timeout=4000),
     ]
     for attempt in attempts:
         try:
@@ -60,14 +152,6 @@ def _open_share_box(page) -> bool:
 
 
 def execute(page, params: dict) -> dict:
-    # Slug priority: explicit param > LINKEDIN_CREED_SLUG env > numeric default.
-    # Creed-AI Institute lives at /company/115977300/ (numeric ID required for /admin paths,
-    # see KB #263310). Kytran is super-admin on this organization page.
-    company_slug = (
-        params.get("company_slug")
-        or os.getenv("LINKEDIN_CREED_SLUG")
-        or "115977300"
-    )
     content = params.get("content", "").strip()
     hashtags = params.get("hashtags", [])
     if not content:
@@ -76,42 +160,67 @@ def execute(page, params: dict) -> dict:
     if hashtags:
         content += "\n\n" + " ".join(f"#{tag.lstrip('#')}" for tag in hashtags)
 
-    candidate_urls = [
-        f"https://www.linkedin.com/company/{company_slug}/admin/page-posts/published/",
-        f"https://www.linkedin.com/company/{company_slug}/admin/feed/",
-        f"https://www.linkedin.com/company/{company_slug}/admin/dashboard/",
-    ]
+    # 1. Land on /feed/.
+    page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=20000)
+    page.wait_for_timeout(3000)
+    _screenshot(page, "creed_post_feed_landed")
 
-    opened = False
-    diagnostics: list = []
-    for url in candidate_urls:
-        try:
-            page.goto(url, wait_until="domcontentloaded", timeout=20000)
-        except Exception:
-            diagnostics.append({"url": url, "goto": "failed"})
-            continue
-        try:
-            page.wait_for_load_state("networkidle", timeout=12000)
-        except Exception:
-            pass
-        page.wait_for_timeout(2000)
-        _screenshot(page, f"creed_post_landed_{url.rsplit('/admin/', 1)[-1].replace('/', '_')}")
+    if "feed" not in page.url:
+        diag = _diagnostic_dump(page, "feed_redirected")
+        raise RuntimeError(f"Feed unreachable; landed on {page.url}. diagnostics={diag}")
 
-        if _open_share_box(page):
-            opened = True
-            break
-        diagnostics.append(_diagnostic_dump(page, f"share_box_miss:{url}"))
+    # 2. Open share box.
+    if not _open_share_box(page):
+        diag = _diagnostic_dump(page, "share_box_miss")
+        _screenshot(page, "creed_post_share_miss")
+        raise RuntimeError(f"Could not find feed share box. diagnostics={diag}")
+    page.wait_for_timeout(2500)
+    _screenshot(page, "creed_post_share_open")
 
-    if not opened:
-        _screenshot(page, "creed_post_btn_fail")
-        raise RuntimeError(
-            "Could not find Start/Create a post button on Creed-AI page; "
-            f"tried {len(candidate_urls)} URLs. diagnostics={diagnostics}"
-        )
-
+    # 3. Open Post settings dialog.
+    if not _open_post_settings(page):
+        diag = _diagnostic_dump(page, "post_settings_miss")
+        _screenshot(page, "creed_post_settings_miss")
+        raise RuntimeError(f"Could not open Post settings dialog. diagnostics={diag}")
     page.wait_for_timeout(2000)
-    _screenshot(page, "creed_post_editor_open")
+    _screenshot(page, "creed_post_settings_open")
 
+    # 4. Open actor toggle (page-list sub-sheet).
+    if not _open_actor_toggle(page):
+        diag = _diagnostic_dump(page, "actor_toggle_miss")
+        _screenshot(page, "creed_post_actor_toggle_miss")
+        raise RuntimeError(f"Could not open actor toggle. diagnostics={diag}")
+    page.wait_for_timeout(2000)
+    _screenshot(page, "creed_post_actor_list")
+
+    # 5. Pick CREED AI radio.
+    matched = _select_creed_page(page)
+    if not matched:
+        diag = _diagnostic_dump(page, "creed_pick_miss")
+        _screenshot(page, "creed_post_pick_miss")
+        raise RuntimeError(
+            "Could not find CREED AI in actor list — page may be renamed or "
+            f"super-admin grant lost. diagnostics={diag}"
+        )
+    page.wait_for_timeout(800)
+    _screenshot(page, f"creed_post_picked_{matched.replace(' ', '_')}")
+
+    # 6. Save (closes Posting-as sheet).
+    if not _click_settings_dialog_button(page, "Save"):
+        diag = _diagnostic_dump(page, "save_miss")
+        _screenshot(page, "creed_post_save_miss")
+        raise RuntimeError(f"Could not click Save in Posting-as sheet. diagnostics={diag}")
+    page.wait_for_timeout(1500)
+
+    # 7. Done (closes Post-settings dialog).
+    if not _click_settings_dialog_button(page, "Done"):
+        diag = _diagnostic_dump(page, "done_miss")
+        _screenshot(page, "creed_post_done_miss")
+        raise RuntimeError(f"Could not click Done in Post-settings dialog. diagnostics={diag}")
+    page.wait_for_timeout(1500)
+    _screenshot(page, "creed_post_settings_closed")
+
+    # 8. Fill the editor.
     editor = None
     for sel in ['.ql-editor', '[role="textbox"]', '[contenteditable="true"]']:
         try:
@@ -121,10 +230,9 @@ def execute(page, params: dict) -> dict:
             break
         except Exception:
             continue
-
     if editor is None:
-        _screenshot(page, "creed_post_editor_fail")
-        raise RuntimeError("Could not find post editor")
+        _screenshot(page, "creed_post_editor_miss")
+        raise RuntimeError("Editor not found after closing settings dialogs")
 
     editor.click(timeout=5000)
     editor.fill(content, timeout=10000)
@@ -134,26 +242,34 @@ def execute(page, params: dict) -> dict:
     if os.getenv("ARCHIE_LINKEDIN_DRY_RUN") == "1":
         return {
             "success": True,
-            "result": f"DRY RUN — composed {len(content)} chars as {company_slug}, did not submit",
-            "company_slug": company_slug,
+            "result": f"DRY RUN — composed {len(content)} chars as {matched}, did not submit",
+            "actor": matched,
             "dry_run": True,
             "screenshot_path": _screenshot(page, "creed_post_dryrun"),
         }
 
+    # 9. Publish.
+    posted = False
     for post_btn in [
         lambda: page.get_by_role("button", name="Post", exact=True).click(timeout=10000),
         lambda: page.locator('button:has-text("Post")').last.click(timeout=8000),
+        lambda: page.locator(".share-actions__primary-action").first.click(timeout=8000),
     ]:
         try:
             post_btn()
+            posted = True
             break
         except Exception:
             continue
+    if not posted:
+        _screenshot(page, "creed_post_publish_miss")
+        raise RuntimeError("Could not click Post button after composing")
 
-    page.wait_for_timeout(3000)
+    page.wait_for_timeout(4000)
 
+    # Dismiss any follow-up modal.
     try:
-        page.get_by_role("button", name="No thanks", exact=False).click(timeout=3000)
+        page.get_by_role("button", name="No thanks", exact=False).first.click(timeout=3000)
         page.wait_for_timeout(500)
     except Exception:
         try:
@@ -164,7 +280,8 @@ def execute(page, params: dict) -> dict:
     final = _screenshot(page, "creed_post_final")
     return {
         "success": True,
-        "result": f"Posted {len(content)} characters as {company_slug}",
-        "company_slug": company_slug,
+        "result": f"Posted {len(content)} characters as {matched} via /feed/ + actor switcher",
+        "actor": matched,
+        "post_url": "",  # Page-post URL capture left for follow-up; main goal is publish.
         "screenshot_path": final,
     }

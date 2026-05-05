@@ -807,7 +807,7 @@ def register_fleet_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(_translation_coverage_scan_wrapper),
-        trigger=CronTrigger(hour=2, minute=0),
+        trigger=CronTrigger(hour=2, minute=0, timezone="America/Toronto"),
         id="translation_coverage_scan",
         name="Agent Loop: Translation Coverage Scan",
         replace_existing=True,
@@ -815,7 +815,7 @@ def register_fleet_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(_probe_domain_visual_trigger_wrapper),
-        trigger=CronTrigger(hour=3, minute=30),
+        trigger=CronTrigger(hour=3, minute=30, timezone="America/Toronto"),
         id="probe_domain_visual_trigger",
         name="Agent Loop: P.R.O.B.E. Domain Visual Scan Trigger",
         max_instances=1,
@@ -825,7 +825,7 @@ def register_fleet_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(department_metrics_rollup),
-        trigger=CronTrigger(hour=2, minute=0),
+        trigger=CronTrigger(hour=2, minute=0, timezone="America/Toronto"),
         id="department_metrics_rollup",
         name="Agent Loop: Department Metrics Rollup",
         replace_existing=True,
@@ -833,7 +833,7 @@ def register_fleet_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(renew_fleet_ssl),
-        trigger=CronTrigger(hour=3, minute=0),
+        trigger=CronTrigger(hour=3, minute=0, timezone="America/Toronto"),
         id="fleet_ssl_renewal",
         name="Agent Loop: Fleet SSL Renewal",
         replace_existing=True,

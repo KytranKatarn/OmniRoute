@@ -16,7 +16,7 @@ import sys
 import time
 import logging
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Blueprint, render_template, jsonify, request
 from flask_login import login_required, current_user
 from rbac import require_permission, Permission
@@ -284,7 +284,7 @@ def register_dashboard_routes(bp, auth_decorator):
                     "nodes": nodes,
                     "online_count": online,
                     "total_count": len(nodes),
-                    "generated_at": datetime.utcnow().isoformat(),
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
         except Exception as e:

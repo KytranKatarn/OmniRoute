@@ -12,7 +12,7 @@ Tables: oauth_clients, oauth_codes (created by Task 1 migration)
 import base64
 import hashlib
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import jwt
 from flask import Blueprint, redirect, request, jsonify
@@ -75,7 +75,7 @@ def authorize():
 
     # Generate code and store with 5-minute expiry
     code = secrets.token_urlsafe(48)
-    expires_at = datetime.utcnow() + timedelta(minutes=5)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
 
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
@@ -151,7 +151,7 @@ def token():
 
         if code_row["used"]:
             return jsonify({"error": "code_already_used"}), 400
-        if datetime.utcnow() > code_row["expires_at"]:
+        if datetime.now(timezone.utc) > code_row["expires_at"]:
             return jsonify({"error": "code_expired"}), 400
         if code_row["redirect_uri"] != redirect_uri:
             return jsonify({"error": "redirect_uri_mismatch"}), 400
@@ -190,7 +190,7 @@ def token():
     subscription_tier = user_row["subscription_tier"] or "free"
 
     # Generate JWT
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     payload = {
         "sub": str(uid),
         "username": username,

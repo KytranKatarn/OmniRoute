@@ -14,7 +14,7 @@ import logging
 import os
 from database import _get_db_password
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 
 import psycopg2
 
@@ -159,7 +159,7 @@ def _record_retry_failure(op, error_msg=""):
     state = _get_retry_state()
     op_state = state.get(op, {"count": 0})
     op_state["count"] = op_state.get("count", 0) + 1
-    op_state["last_failure"] = datetime.utcnow().isoformat() + "Z"
+    op_state["last_failure"] = datetime.now(timezone.utc).isoformat() + "Z"
     op_state["last_error"] = str(error_msg)[:200] if error_msg else ""
     state[op] = op_state
     _set_retry_state(state)
@@ -171,7 +171,7 @@ def _record_retry_success(op):
     state = _get_retry_state()
     op_state = state.get(op, {})
     op_state["count"] = 0
-    op_state["last_success"] = datetime.utcnow().isoformat() + "Z"
+    op_state["last_success"] = datetime.now(timezone.utc).isoformat() + "Z"
     state[op] = op_state
     _set_retry_state(state)
 

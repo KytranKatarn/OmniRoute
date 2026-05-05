@@ -661,7 +661,7 @@ def _register_own_jobs(scheduler, flask_app):
     # Job #40 — Daily Code Metrics Scan (3:00 AM)
     scheduler.add_job(
         with_ctx(daily_code_metrics_scan),
-        trigger=CronTrigger(hour=3, minute=0),
+        trigger=CronTrigger(hour=3, minute=0, timezone="America/Toronto"),
         id="agent_code_metrics",
         name="Agent Loop: Daily Code Metrics Scan",
         replace_existing=True,
@@ -670,7 +670,7 @@ def _register_own_jobs(scheduler, flask_app):
     # Job #41 — Pattern Compliance Check (4:00 AM)
     scheduler.add_job(
         with_ctx(pattern_compliance_check),
-        trigger=CronTrigger(hour=4, minute=0),
+        trigger=CronTrigger(hour=4, minute=0, timezone="America/Toronto"),
         id="agent_pattern_compliance",
         name="Agent Loop: Pattern Compliance Check",
         replace_existing=True,
@@ -679,7 +679,7 @@ def _register_own_jobs(scheduler, flask_app):
     # Job #58 — Automated Module Audit (daily 3:30 AM)
     scheduler.add_job(
         with_ctx_app(automated_module_audit),
-        trigger=CronTrigger(hour=3, minute=30),
+        trigger=CronTrigger(hour=3, minute=30, timezone="America/Toronto"),
         id="agent_automated_module_audit",
         name="Agent Loop: Automated Module Audit",
         replace_existing=True,
@@ -688,7 +688,7 @@ def _register_own_jobs(scheduler, flask_app):
     # Job #51 — Daily Code Health Digest (8:00 AM)
     scheduler.add_job(
         with_ctx_app_sched(daily_code_health_digest),
-        trigger=CronTrigger(hour=8, minute=0),
+        trigger=CronTrigger(hour=8, minute=0, timezone="America/Toronto"),
         id="agent_code_health_digest",
         name="Agent Loop: Daily Code Health Digest",
         replace_existing=True,
@@ -697,7 +697,7 @@ def _register_own_jobs(scheduler, flask_app):
     # Job #55 — Daily Code Health Scan (2:00 AM)
     scheduler.add_job(
         with_ctx(daily_code_health_scan),
-        trigger=CronTrigger(hour=2, minute=0),
+        trigger=CronTrigger(hour=2, minute=0, timezone="America/Toronto"),
         id="agent_code_health_scan",
         name="Agent Loop: Daily Code Health Scan",
         replace_existing=True,
@@ -717,7 +717,7 @@ def _register_own_jobs(scheduler, flask_app):
     # 03:30 by #58 (module_audit) — 03:45 is the next clean slot.
     scheduler.add_job(
         daily_recompute_perf_baselines,
-        trigger=CronTrigger(hour=3, minute=45),
+        trigger=CronTrigger(hour=3, minute=45, timezone="America/Toronto"),
         id="agent_recompute_perf_baselines",
         name="Agent Loop: Nightly Recompute Perf Baselines",
         replace_existing=True,

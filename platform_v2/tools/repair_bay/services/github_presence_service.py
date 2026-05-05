@@ -3,7 +3,7 @@
 from __future__ import annotations
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 import requests
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ def run_presence_audit() -> dict:
         )
 
     repo_summary = "\n".join(lines)
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     prompt = (
         f"You are F.O.R.G.E., reviewing the public GitHub profile of {_GITHUB_ORG}.\n\n"

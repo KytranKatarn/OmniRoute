@@ -11,7 +11,7 @@ import os
 from database import _get_db_password
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import render_template, jsonify, request
 from flask_login import login_required, current_user
 import psycopg2
@@ -1023,9 +1023,11 @@ def ai_chat():
                 history = row[0] if row and row[0] else []
                 if isinstance(history, str):
                     history = json.loads(history)
-                history.append({"role": "user", "message": message, "timestamp": datetime.utcnow().isoformat()})
                 history.append(
-                    {"role": "ai", "message": response_text[:500], "timestamp": datetime.utcnow().isoformat()}
+                    {"role": "user", "message": message, "timestamp": datetime.now(timezone.utc).isoformat()}
+                )
+                history.append(
+                    {"role": "ai", "message": response_text[:500], "timestamp": datetime.now(timezone.utc).isoformat()}
                 )
                 history = history[-50:]  # keep last 50
                 cur.execute(
@@ -1372,7 +1374,7 @@ def get_world_map():
     from database import get_db_cursor
     from datetime import datetime, timedelta
 
-    one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+    one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
     result = {
         "shooter_battles": [],
         "explorer_routes": [],
@@ -1404,7 +1406,7 @@ def get_world_map():
                             "x": data.get("x", 0),
                             "y": data.get("y", 0),
                             "age_s": (
-                                (datetime.utcnow() - r["created_at"].replace(tzinfo=None)).total_seconds()
+                                (datetime.now(timezone.utc) - r["created_at"].replace(tzinfo=None)).total_seconds()
                                 if r["created_at"]
                                 else 999
                             ),

@@ -10,7 +10,7 @@ import subprocess
 import re
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
 
 
@@ -55,7 +55,7 @@ class TestRunner:
             Dictionary with test results
         """
         results = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "backend": None,
             "frontend": None,
             "overall_success": True,

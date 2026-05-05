@@ -16,7 +16,7 @@ ADR-555.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from services.model_sizes import lookup
@@ -94,7 +94,7 @@ def score_node_for_model(node: dict[str, Any], model: str) -> Optional[float]:
             except ValueError:
                 last_hb = None
         if last_hb is not None:
-            age = (datetime.utcnow() - last_hb).total_seconds()
+            age = (datetime.now(timezone.utc) - last_hb).total_seconds()
             if age > STALE_HEARTBEAT_SECONDS:
                 score -= STALE_HEARTBEAT_PENALTY
     else:
@@ -122,7 +122,7 @@ def is_stale(node: dict[str, Any], seconds: int = STALE_HEARTBEAT_SECONDS) -> bo
             last_hb = datetime.fromisoformat(last_hb)
         except ValueError:
             return True
-    return (datetime.utcnow() - last_hb) > timedelta(seconds=seconds)
+    return (datetime.now(timezone.utc) - last_hb) > timedelta(seconds=seconds)
 
 
 def should_dispatch_to_node(node: dict[str, Any], model: str, enforce: bool) -> tuple[bool, str]:

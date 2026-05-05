@@ -12,7 +12,7 @@ import json
 import logging
 import re
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import threading
 
@@ -240,7 +240,7 @@ def is_account_locked(user_data):
                 if hasattr(last_attempt, "tzinfo") and last_attempt.tzinfo:
                     last_attempt = last_attempt.replace(tzinfo=None)
                 unlock_at = last_attempt + timedelta(minutes=LOCKOUT_MINUTES)
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 if now < unlock_at:
                     remaining = int((unlock_at - now).total_seconds() / 60) + 1
                     return True, remaining
@@ -276,7 +276,7 @@ def check_ip_rate_limit(ip_address):
     # Loopback never rate-limited — internal tools (QA runner) run from localhost
     if ip_address in ("127.0.0.1", "::1"):
         return False, 0
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     cutoff = now - timedelta(seconds=IP_RATE_WINDOW)
 
     with _ip_lock:
@@ -543,7 +543,7 @@ def initiate_password_reset(email: str, base_url: str = "https://platform.kytran
 
     token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(token.encode()).hexdigest()
-    expires_at = datetime.utcnow() + timedelta(hours=1)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
 
     with get_db_connection() as conn:
         cur = conn.cursor()

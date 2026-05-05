@@ -18,7 +18,7 @@ Date: 2026-01-07
 import json
 import re
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Try to import database for file storage
 DB_AVAILABLE = False
@@ -238,7 +238,7 @@ Application Configuration
 Load settings from environment variables
 """
 import os
-from datetime import timedelta
+from datetime import timedelta, timezone
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -518,7 +518,7 @@ __all__ = [{', '.join([f"'{self._to_class_name(t['table_name'])}'" for t in tabl
 {class_name} Model
 """
 from app import db
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class {class_name}(db.Model):
@@ -762,7 +762,7 @@ from flask import Blueprint, request, jsonify
 from app import db
 from models.users import User
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 import bcrypt
 from config import get_config
@@ -776,8 +776,8 @@ def create_token(user_id):
     """Create JWT access token"""
     payload = {
         'user_id': user_id,
-        'exp': datetime.utcnow() + config.JWT_ACCESS_TOKEN_EXPIRES,
-        'iat': datetime.utcnow()
+        'exp': datetime.now(timezone.utc) + config.JWT_ACCESS_TOKEN_EXPIRES,
+        'iat': datetime.now(timezone.utc)
     }
     return jwt.encode(payload, config.JWT_SECRET_KEY, algorithm='HS256')
 
@@ -786,8 +786,8 @@ def create_refresh_token(user_id):
     """Create JWT refresh token"""
     payload = {
         'user_id': user_id,
-        'exp': datetime.utcnow() + config.JWT_REFRESH_TOKEN_EXPIRES,
-        'iat': datetime.utcnow(),
+        'exp': datetime.now(timezone.utc) + config.JWT_REFRESH_TOKEN_EXPIRES,
+        'iat': datetime.now(timezone.utc),
         'type': 'refresh'
     }
     return jwt.encode(payload, config.JWT_SECRET_KEY, algorithm='HS256')

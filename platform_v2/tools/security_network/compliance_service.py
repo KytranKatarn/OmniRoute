@@ -10,10 +10,12 @@ import logging
 import os
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from psycopg2.extras import Json
+
+from services.time_utils import FMT_DATETIME_LOCAL_SHORT, format_local, now_local
 
 from database import get_db_cursor
 
@@ -146,7 +148,7 @@ def run_scan(pack_ids=None, triggered_by="manual"):
         dict with scan_id, score, counts, per-pack breakdown
     """
     scan_id = str(uuid.uuid4())
-    started_at = datetime.utcnow()
+    started_at = datetime.now(timezone.utc)
     _clear_file_cache()
 
     # Load rules from DB
@@ -252,7 +254,7 @@ def run_scan(pack_ids=None, triggered_by="manual"):
 
     # Calculate overall score
     score = round((passed / total) * 100, 1) if total > 0 else 0
-    completed_at = datetime.utcnow()
+    completed_at = datetime.now(timezone.utc)
 
     # Update scan record
     with get_db_cursor(commit=True) as (conn, cur):
@@ -2812,7 +2814,7 @@ def _compute_soc2_scores(cur, scan_id):
     for row in cur.fetchall():
         last = row["last_collected"]
         if last:
-            age_hours = (datetime.utcnow() - last).total_seconds() / 3600
+            age_hours = (datetime.now(timezone.utc) - last).total_seconds() / 3600
             evidence_freshness[row["artifact_type"]] = {
                 "last_collected": last.isoformat(),
                 "age_hours": round(age_hours, 1),
@@ -3451,16 +3453,9 @@ def generate_report_html(scan_id, client_name="System Assessment"):
             }
         )
 
-    # --- Format dates ---
-    scan_date = ""
-    if scan.get("completed_at"):
-        dt = scan["completed_at"]
-        scan_date = dt.strftime("%Y-%m-%d %H:%M UTC") if hasattr(dt, "strftime") else str(dt)
-    elif scan.get("started_at"):
-        dt = scan["started_at"]
-        scan_date = dt.strftime("%Y-%m-%d %H:%M UTC") if hasattr(dt, "strftime") else str(dt)
-
-    generated_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    # --- Format dates (rendered in America/Toronto for user-facing reports) ---
+    scan_date = format_local(scan.get("completed_at") or scan.get("started_at"), FMT_DATETIME_LOCAL_SHORT)
+    generated_at = format_local(now_local(), FMT_DATETIME_LOCAL_SHORT)
 
     # --- Truncate values for display ---
     for r in all_results:

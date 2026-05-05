@@ -1,7 +1,7 @@
 """Fleet Module — Dispatch routes (activity, overview, jobs, cross-station analytics)"""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import jsonify, request
 from flask_login import login_required
 from database import get_db_cursor
@@ -452,7 +452,7 @@ def register_dispatch_routes(bp, admin_required):
                     )
                 jobs = cur.fetchall()
 
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 result = []
                 for j in jobs:
                     total = j["total_steps"] or 1

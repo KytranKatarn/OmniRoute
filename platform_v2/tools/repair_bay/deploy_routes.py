@@ -285,7 +285,7 @@ def register_deploy_routes(bp, admin_required):
                     },
                 )
                 status = "success" if result.success else "failed"
-                ts = datetime.datetime.utcnow().isoformat()
+                ts = datetime.datetime.now(timezone.utc).isoformat()
                 with _get_db(commit=True) as (conn, cur):
                     for k, v in [(key_ts, ts), (key_st, status)]:
                         cur.execute(

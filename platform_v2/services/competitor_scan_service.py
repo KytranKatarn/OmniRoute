@@ -5,7 +5,7 @@ knowledge_base entries, updates stale records, and returns a summary for Telegra
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from database import get_db_cursor
 from psycopg2.extras import Json
@@ -50,7 +50,7 @@ def run_competitor_scan():
     created = 0
     updated = 0
     summary_lines = []
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     stale_threshold = now - timedelta(days=30)
 
     with get_db_cursor(commit=True) as (conn, cur):

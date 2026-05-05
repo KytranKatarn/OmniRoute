@@ -25,7 +25,7 @@ from flask_login import (
 from werkzeug.security import check_password_hash, generate_password_hash
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 import time
 import json
@@ -1553,7 +1553,7 @@ def api_public_stats():
                 "knowledge_entries": kb_count,
                 "languages": 8,
             },
-            "updated_at": datetime.utcnow().isoformat() + "Z",
+            "updated_at": datetime.now(timezone.utc).isoformat() + "Z",
         }
 
         _public_stats_cache["data"] = stats
@@ -3437,7 +3437,7 @@ def competitors_page():
     """Public page comparing ARCHIE against 25+ AI agent frameworks."""
     from datetime import datetime
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     stardate = f"{now.year}.{now.strftime('%j')}"
     return render_template("competitors.html", stardate=stardate)
 
@@ -3579,7 +3579,7 @@ def crew_wellness_tick(flask_app):
                 active_trainings = cur.fetchall()
 
                 for training in active_trainings:
-                    now = datetime.datetime.utcnow()
+                    now = datetime.datetime.now(timezone.utc)
                     updated_at = training["updated_at"]
                     hours_since_update = (now - updated_at).total_seconds() / 3600.0
                     current_level = training["current_proficiency"]
@@ -3678,7 +3678,7 @@ def crew_wellness_tick(flask_app):
                 active_rests = cur.fetchall()
 
                 for rest in active_rests:
-                    now = datetime.datetime.utcnow()
+                    now = datetime.datetime.now(timezone.utc)
                     hours_resting = (now - rest["started_at"]).total_seconds() / 3600.0
 
                     stress_at_start = float(rest["stress_at_start"])

@@ -14,7 +14,7 @@ import re
 import secrets
 import smtplib
 import ssl
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 from typing import Any, Dict, Optional
 
@@ -151,7 +151,7 @@ def request_alternate_email(user_id: int, email: str) -> Dict[str, Any]:
         )
 
         token = generate_token()
-        expires = datetime.utcnow() + timedelta(hours=VERIFICATION_TOKEN_TTL_HOURS)
+        expires = datetime.now(timezone.utc) + timedelta(hours=VERIFICATION_TOKEN_TTL_HOURS)
         cur.execute(
             """INSERT INTO alternate_email_verifications
                    (user_id, alternate_email, token_hash, expires_at)
@@ -196,7 +196,7 @@ def verify_alternate_email(token: str) -> Dict[str, Any]:
         if row["used_at"] is not None:
             return {"success": False, "error": "Token already used"}
 
-        if row["expires_at"] < datetime.utcnow():
+        if row["expires_at"] < datetime.now(timezone.utc):
             return {"success": False, "error": "Token expired"}
 
         # Promote: append to array (lower-cased dedup) + mark used.

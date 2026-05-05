@@ -8,7 +8,7 @@ as actionable hints in the family_hints table.
 
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 
 from database import get_db_cursor
@@ -95,7 +95,7 @@ def _get_persons_for_user(user_id):
 
 def _person_has_recent_hints(user_id, person_id):
     """Check if this person already has hints generated within the freshness window."""
-    cutoff = datetime.utcnow() - timedelta(days=HINT_FRESHNESS_DAYS)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=HINT_FRESHNESS_DAYS)
     sql = """
         SELECT COUNT(*) AS cnt FROM family_hints
         WHERE user_id = %(user_id)s

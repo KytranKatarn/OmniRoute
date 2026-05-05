@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -126,7 +126,7 @@ class TestVerifyAlternateEmail:
             "id": 1,
             "user_id": 7,
             "alternate_email": "alt@gmail.com",
-            "expires_at": datetime.utcnow() + timedelta(hours=1),
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=1),
             "used_at": None,
         }
         base.update(overrides)
@@ -155,14 +155,14 @@ class TestVerifyAlternateEmail:
         assert "invalid" in result["error"].lower() or "not found" in result["error"].lower()
 
     def test_returns_false_on_expired_token(self, svc):
-        row = self._staging_row(expires_at=datetime.utcnow() - timedelta(hours=1))
+        row = self._staging_row(expires_at=datetime.now(timezone.utc) - timedelta(hours=1))
         with patch("services.account_link_service.get_db_cursor", return_value=_mock_cursor(row=row)):
             result = svc.verify_alternate_email("expired")
         assert result["success"] is False
         assert "expired" in result["error"].lower()
 
     def test_returns_false_on_already_used_token(self, svc):
-        row = self._staging_row(used_at=datetime.utcnow() - timedelta(minutes=5))
+        row = self._staging_row(used_at=datetime.now(timezone.utc) - timedelta(minutes=5))
         with patch("services.account_link_service.get_db_cursor", return_value=_mock_cursor(row=row)):
             result = svc.verify_alternate_email("used")
         assert result["success"] is False

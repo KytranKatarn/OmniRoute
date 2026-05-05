@@ -21,7 +21,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger("agent_loop")
 
@@ -233,7 +233,7 @@ def check_ssl_expiry():
                     s.connect((domain, 443))
                     cert = s.getpeercert()
                     expiry = datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y %Z")
-                    days_left = (expiry - datetime.utcnow()).days
+                    days_left = (expiry - datetime.now(timezone.utc)).days
 
                     if days_left <= 14:
                         priority = "critical" if days_left <= 3 else "high" if days_left <= 7 else "normal"
@@ -1763,7 +1763,7 @@ def register_security_jobs(scheduler, flask_app):
     # --- Security audit ---
     scheduler.add_job(
         with_ctx(run_security_audit),
-        trigger=CronTrigger(day_of_week="sun", hour=3),
+        trigger=CronTrigger(day_of_week="sun", hour=3, timezone="America/Toronto"),
         id="agent_security_audit",
         name="Agent Loop: Weekly Security Audit",
         replace_existing=True,
@@ -1781,7 +1781,7 @@ def register_security_jobs(scheduler, flask_app):
     # --- DNS monitoring ---
     scheduler.add_job(
         with_ctx(daily_dns_report),
-        trigger=CronTrigger(hour=7, minute=0),
+        trigger=CronTrigger(hour=7, minute=0, timezone="America/Toronto"),
         id="agent_daily_dns_report",
         name="Agent Loop: Daily DNS Report",
         replace_existing=True,
@@ -1910,7 +1910,7 @@ def register_security_jobs(scheduler, flask_app):
     # --- V.I.G.I.L. daily threat report ---
     scheduler.add_job(
         with_ctx(generate_vigil_threat_report),
-        trigger=CronTrigger(hour=8, minute=0),
+        trigger=CronTrigger(hour=8, minute=0, timezone="America/Toronto"),
         id="agent_vigil_threat_report",
         name="Agent Loop: V.I.G.I.L. Daily Threat Report",
         replace_existing=True,
@@ -1919,7 +1919,7 @@ def register_security_jobs(scheduler, flask_app):
     # --- Weekly security report ---
     scheduler.add_job(
         with_ctx(generate_weekly_security_report),
-        trigger=CronTrigger(day_of_week="mon", hour=8, minute=0),
+        trigger=CronTrigger(day_of_week="mon", hour=8, minute=0, timezone="America/Toronto"),
         id="agent_weekly_security_report",
         name="Agent Loop: Weekly Security Report",
         replace_existing=True,

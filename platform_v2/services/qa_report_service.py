@@ -8,7 +8,7 @@ path is persisted on the qa_test_runs row.
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 import jinja2
 
@@ -60,7 +60,7 @@ def generate_report(run_id, branded=False):
 
         html_content = _build_template_html(run, branded=branded)
 
-        timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
 
         # Try PDF first, fall back to HTML if weasyprint unavailable
         if WeasyprintHTML is not None:
@@ -121,7 +121,7 @@ def _build_template_html(run, branded=False):
     template = jinja2.Template(template_str)
     return template.render(
         suite_name=run.get("suite_name", "Unknown Suite"),
-        run_date=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        run_date=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         run_id=run.get("id", "?"),
         total=total,
         passed=passed,
@@ -180,7 +180,7 @@ def _build_report_html(run):
                 <td class="details">{t_error}</td>
             </tr>"""
 
-    generated_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     html = f"""<!DOCTYPE html>
 <html lang="en">

@@ -16,7 +16,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 logger = logging.getLogger("agent_loop")
@@ -233,7 +233,7 @@ def track_agent_hr():
             conn.close()
             return
 
-        today = datetime.utcnow().date()
+        today = datetime.now(timezone.utc).date()
 
         # 1. Aggregate today's task_execution_log into agent_daily_summary
         cur.execute(
@@ -262,7 +262,7 @@ def track_agent_hr():
 
             # Calculate utilization
             hours_elapsed = max(
-                (datetime.utcnow() - datetime.combine(today, datetime.min.time())).total_seconds() / 3600,
+                (datetime.now(timezone.utc) - datetime.combine(today, datetime.min.time())).total_seconds() / 3600,
                 0.1,
             )
             work_hours = stat["total_duration"] / 3_600_000  # ms -> hours
@@ -1028,7 +1028,7 @@ def _check_proficiency_degradation(cur, conn):
                 last_degraded = skill_row["last_degraded_at"]
                 if hasattr(last_degraded, "tzinfo") and last_degraded.tzinfo is None:
                     last_degraded = last_degraded.replace(tzinfo=timezone.utc)
-                now_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
+                now_utc = datetime.now(timezone.utc).replace(tzinfo=timezone.utc)
                 if (now_utc - last_degraded).total_seconds() < 86400:
                     continue
 
@@ -3453,7 +3453,7 @@ def register_agent_welfare_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(check_understaffed_capabilities),
-        trigger=CronTrigger(hour=9, minute=0),
+        trigger=CronTrigger(hour=9, minute=0, timezone="America/Toronto"),
         id="agent_understaffed_digest",
         name="Agent Loop: K.I.N. Understaffed Capabilities Digest",
         replace_existing=True,
@@ -3461,7 +3461,7 @@ def register_agent_welfare_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(kin_generate_hire_proposals),
-        trigger=CronTrigger(hour=9, minute=5, timezone="UTC"),
+        trigger=CronTrigger(hour=9, minute=5, timezone="America/Toronto"),
         id="kin_generate_hire_proposals",
         name="Agent Loop: Hire Proposals",
         replace_existing=True,
@@ -3470,7 +3470,7 @@ def register_agent_welfare_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(expire_stale_hire_proposals),
-        trigger=CronTrigger(hour=4, minute=30, timezone="UTC"),
+        trigger=CronTrigger(hour=4, minute=30, timezone="America/Toronto"),
         id="expire_stale_hire_proposals",
         name="Agent Loop: Expire Stale Hire Proposals",
         replace_existing=True,
@@ -3487,7 +3487,7 @@ def register_agent_welfare_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(department_welfare_digest),
-        trigger=CronTrigger(hour=9, minute=5),
+        trigger=CronTrigger(hour=9, minute=5, timezone="America/Toronto"),
         id="department_welfare_digest",
         name="Agent Loop: K.I.N. Department Welfare Digest",
         replace_existing=True,
@@ -3503,7 +3503,7 @@ def register_agent_welfare_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(reap_stale_pending_approvals),
-        trigger=CronTrigger(hour=4, minute=30),
+        trigger=CronTrigger(hour=4, minute=30, timezone="America/Toronto"),
         id="reap_stale_pending_approvals",
         name="Agent Loop: Reap Stale pending_approval Jobs",
         replace_existing=True,
@@ -3530,7 +3530,7 @@ def register_agent_welfare_jobs(scheduler, flask_app):
     # S.I.G.N.A.L. LinkedIn content calendar — Mon(Vision)/Wed(Product)/Fri(Building) at 09:00
     scheduler.add_job(
         with_ctx(signal_linkedin_draft),
-        trigger=CronTrigger(day_of_week="mon,wed,fri", hour=9, minute=0),
+        trigger=CronTrigger(day_of_week="mon,wed,fri", hour=9, minute=0, timezone="America/Toronto"),
         id="signal_linkedin_draft",
         name="S.I.G.N.A.L.: LinkedIn Draft → Telegram Approval",
         replace_existing=True,
@@ -3560,7 +3560,7 @@ def register_agent_welfare_jobs(scheduler, flask_app):
     # S.I.G.N.A.L. notification monitor — daily 08:00, check comments/mentions → draft replies
     scheduler.add_job(
         with_ctx(signal_notification_monitor),
-        trigger=CronTrigger(hour=8, minute=0),
+        trigger=CronTrigger(hour=8, minute=0, timezone="America/Toronto"),
         id="signal_notification_monitor",
         name="S.I.G.N.A.L.: LinkedIn Notification Monitor → Reply Drafts",
         replace_existing=True,
@@ -3595,7 +3595,7 @@ def register_agent_welfare_jobs(scheduler, flask_app):
     # Backup retention prune — weekly Sunday 04:00, enforces GFS policy (7d/4w/6m)
     scheduler.add_job(
         backup_retention_prune,
-        trigger=CronTrigger(day_of_week="sun", hour=4, minute=0),
+        trigger=CronTrigger(day_of_week="sun", hour=4, minute=0, timezone="America/Toronto"),
         id="backup_retention_prune",
         name="Backup Manager: GFS Retention Prune",
         replace_existing=True,

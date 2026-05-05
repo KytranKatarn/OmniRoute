@@ -3,7 +3,7 @@
 import json
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 from flask import jsonify, request, Response, stream_with_context
 from flask_login import login_required, current_user
@@ -29,7 +29,7 @@ def register_mission_routes(bp, admin_required):
         """SSE endpoint for real-time agent activity events."""
 
         def generate():
-            last_sent_time = datetime.utcnow().isoformat() + "Z"
+            last_sent_time = datetime.now(timezone.utc).isoformat() + "Z"
             while True:
                 new_events = [e for e in _activity_queue if e["created_at"] > last_sent_time]
                 for evt in reversed(new_events):

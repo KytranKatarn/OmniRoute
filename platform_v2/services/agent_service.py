@@ -1661,7 +1661,7 @@ def update_welfare_after_task(agent_id, success=True):
                 from datetime import datetime
 
                 duration_minutes = max(
-                    int((datetime.utcnow() - prior["timestamp"]).total_seconds() / 60),
+                    int((datetime.now(timezone.utc) - prior["timestamp"]).total_seconds() / 60),
                     0,
                 )
 

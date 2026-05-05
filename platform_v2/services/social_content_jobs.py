@@ -205,7 +205,7 @@ def register_social_content_jobs(scheduler) -> None:
 
     scheduler.add_job(
         generate_weekly_content,
-        trigger=CronTrigger(day_of_week="mon", hour=8, minute=0, jitter=300),
+        trigger=CronTrigger(day_of_week="mon", hour=8, minute=0, jitter=300, timezone="America/Toronto"),
         id="signal_weekly_content",
         name="Agent Loop: S.I.G.N.A.L. Weekly Content Queue",
         replace_existing=True,

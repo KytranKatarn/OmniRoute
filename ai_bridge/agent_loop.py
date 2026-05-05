@@ -16,7 +16,7 @@ import logging
 import os
 import smtplib
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any, Dict, List, Optional
@@ -31,6 +31,7 @@ from db import get_db
 if "/mnt/archie_brain/platform_v2" not in sys.path:
     sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 
+from services.time_utils import now_local_str
 from services.agent_service import (
     add_skill,
     recover_idle,
@@ -813,7 +814,7 @@ class AgentLoop:
 
         self.scheduler.add_job(
             with_app_context(self._website_deploy_worker),
-            trigger=_CronTrigger(hour=3, minute=0),
+            trigger=_CronTrigger(hour=3, minute=0, timezone="America/Toronto"),
             id="website_deploy_worker",
             name="Agent Loop: Website Deploy (Operations / B.A.S.E.)",
             max_instances=1,
@@ -1173,7 +1174,7 @@ class AgentLoop:
         # Batch medium issues (Sunday 2 AM)
         self.scheduler.add_job(
             with_app_context(self._batch_medium_issues),
-            trigger=CronTrigger(day_of_week="sun", hour=2, minute=0),
+            trigger=CronTrigger(day_of_week="sun", hour=2, minute=0, timezone="America/Toronto"),
             id="agent_batch_medium_issues",
             name="Agent Loop: Weekly Code Issue Batch",
             replace_existing=True,
@@ -1191,7 +1192,7 @@ class AgentLoop:
         # Weekly dependency scan (Sunday 4 AM)
         self.scheduler.add_job(
             with_app_context(self._weekly_dependency_scan),
-            trigger=CronTrigger(day_of_week="sun", hour=4, minute=0),
+            trigger=CronTrigger(day_of_week="sun", hour=4, minute=0, timezone="America/Toronto"),
             id="agent_weekly_dependency_scan",
             name="Agent Loop: Weekly Dependency Scan",
             replace_existing=True,
@@ -1396,7 +1397,7 @@ class AgentLoop:
 
         self.scheduler.add_job(
             with_app_context(self._vigilil_daily_report),
-            trigger=CronTrigger(hour=6, minute=0),
+            trigger=CronTrigger(hour=6, minute=0, timezone="America/Toronto"),
             id="vigilil_daily_report",
             name="V.I.G.I.L.: Daily Bandwidth Reporter",
             replace_existing=True,
@@ -1675,7 +1676,7 @@ class AgentLoop:
                 logger.exception("[WebsiteDeploy] %s error: %s", domain, exc)
                 status = "failed"
 
-            ts = datetime.datetime.utcnow().isoformat()
+            ts = datetime.datetime.now(timezone.utc).isoformat()
             try:
                 with get_db_cursor(commit=True) as (conn, cur):
                     for k, v in [(key_ts, ts), (key_st, status)]:
@@ -1808,7 +1809,7 @@ class AgentLoop:
         try:
             count = compute_snapshot(period_type='hourly')
             logger.info(f"[Analytics] Hourly: {count} snapshots")
-            if datetime.utcnow().hour == 0:
+            if datetime.now(timezone.utc).hour == 0:
                 daily_count = compute_snapshot(period_type='daily')
                 logger.info(f"[Analytics] Daily: {daily_count} snapshots")
         except Exception as e:
@@ -1867,7 +1868,7 @@ class AgentLoop:
             # Daily summary at ~6pm UTC
             from datetime import datetime
 
-            if datetime.utcnow().hour == 18:
+            if datetime.now(timezone.utc).hour == 18:
                 from tools.google_work_suite.services.drive_service import (
                     generate_daily_summary,
                 )
@@ -4934,7 +4935,7 @@ class AgentLoop:
         try:
             from services.knowledge_service import store_knowledge
             content_lines = [
-                f"# Fleet Capacity Report — {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
+                f"# Fleet Capacity Report — {now_local_str()}",
                 "",
                 f"Active nodes: {len(nodes_summary)}",
                 f"High-utilisation (>=80%) nodes: {len(high_util_nodes)}",
@@ -4951,7 +4952,7 @@ class AgentLoop:
                     f"{n['ram_gb']}GB RAM, status={n['status']}"
                 )
             store_knowledge(
-                title=f"Fleet Capacity Report {datetime.utcnow().strftime('%Y-%m-%d')}",
+                title=f"Fleet Capacity Report {datetime.now(timezone.utc).strftime('%Y-%m-%d')}",
                 content="\n".join(content_lines),
                 knowledge_type="vault_note",
                 category="fleet_capacity",
@@ -6401,7 +6402,7 @@ class AgentLoop:
                     last_degraded = skill_row["last_degraded_at"]
                     if hasattr(last_degraded, 'tzinfo') and last_degraded.tzinfo is None:
                         last_degraded = last_degraded.replace(tzinfo=timezone.utc)
-                    now_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
+                    now_utc = datetime.now(timezone.utc).replace(tzinfo=timezone.utc)
                     if (now_utc - last_degraded).total_seconds() < 86400:
                         continue
 

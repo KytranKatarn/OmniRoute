@@ -2,7 +2,7 @@
 
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -15,11 +15,11 @@ from services.fleet_resource_router import (
 
 
 def _fresh_hb():
-    return datetime.utcnow() - timedelta(seconds=10)
+    return datetime.now(timezone.utc) - timedelta(seconds=10)
 
 
 def _stale_hb():
-    return datetime.utcnow() - timedelta(seconds=STALE_HEARTBEAT_SECONDS + 60)
+    return datetime.now(timezone.utc) - timedelta(seconds=STALE_HEARTBEAT_SECONDS + 60)
 
 
 HUB = {

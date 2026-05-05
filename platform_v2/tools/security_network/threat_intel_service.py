@@ -6,7 +6,7 @@ cross-references against local DNS/traffic data, and tracks hits.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 from urllib.parse import urlparse
 
@@ -89,7 +89,7 @@ class ThreatIntelService:
         Returns list of newly created hit records.
         """
         new_hits: List[Dict[str, Any]] = []
-        cutoff = datetime.utcnow() - timedelta(hours=24)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
 
         new_hits.extend(self._check_domain_hits(cutoff))
         new_hits.extend(self._check_ip_hits(cutoff))
@@ -232,7 +232,7 @@ class ThreatIntelService:
 
         new_count = 0
         updated_count = 0
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         with get_db_cursor(commit=True) as (conn, cur):
             for ioc in iocs:
@@ -296,7 +296,7 @@ class ThreatIntelService:
             )
             rows = cur.fetchall()
 
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             for r in rows:
                 cur.execute(
                     """
@@ -345,7 +345,7 @@ class ThreatIntelService:
             )
             rows = cur.fetchall()
 
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             for r in rows:
                 cur.execute(
                     """

@@ -70,7 +70,7 @@ API_TIMEOUT = 5
 
 
 def _ts():
-    return datetime.datetime.utcnow().isoformat() + "Z"
+    return datetime.datetime.now(timezone.utc).isoformat() + "Z"
 
 
 def _ok(label, detail=""):
@@ -359,7 +359,7 @@ def audit_a3_agent_loop_jobs():
     except Exception as exc:
         return [_err("query autonomy_loop_log", str(exc))]
 
-    now = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
+    now = datetime.datetime.now(timezone.utc).replace(tzinfo=datetime.timezone.utc)
     stale_jobs = []
     stuck_jobs = []
     fail_jobs = []
@@ -618,7 +618,7 @@ def audit_a5_knowledge_pipeline():
                         last_started = datetime.datetime.fromisoformat(last_started.replace("Z", "+00:00"))
                     if hasattr(last_started, "replace"):
                         age_min = (
-                            datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
+                            datetime.datetime.now(timezone.utc).replace(tzinfo=datetime.timezone.utc)
                             - last_started.replace(tzinfo=datetime.timezone.utc)
                         ).total_seconds() / 60
                     else:
@@ -660,7 +660,7 @@ def audit_a5_knowledge_pipeline():
                         last_started = datetime.datetime.fromisoformat(last_started.replace("Z", "+00:00"))
                     if hasattr(last_started, "replace"):
                         age_min = (
-                            datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
+                            datetime.datetime.now(timezone.utc).replace(tzinfo=datetime.timezone.utc)
                             - last_started.replace(tzinfo=datetime.timezone.utc)
                         ).total_seconds() / 60
                     else:

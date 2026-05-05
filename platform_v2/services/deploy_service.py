@@ -132,7 +132,7 @@ def _deploy_static_hostinger(domain: str, source_path: str) -> bool:
 
     key_st = f"website_deploy_last_status_{domain}"
     key_ts = f"website_deploy_last_run_{domain}"
-    ts = datetime.datetime.utcnow().isoformat()
+    ts = datetime.datetime.now(timezone.utc).isoformat()
 
     with get_db_cursor(commit=True) as (_, cur):
         for k, v in [(key_ts, ts), (key_st, "deploy_pending")]:

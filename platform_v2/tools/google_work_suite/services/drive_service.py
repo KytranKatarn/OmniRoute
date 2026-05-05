@@ -256,7 +256,7 @@ def generate_daily_summary(account_id, agent_name):
     from database import get_db_cursor  # noqa: PLC0415
     from datetime import datetime, timedelta  # noqa: PLC0415
 
-    yesterday = datetime.utcnow() - timedelta(hours=24)
+    yesterday = datetime.now(timezone.utc) - timedelta(hours=24)
 
     # Gather activity data
     with get_db_cursor() as (conn, cur):
@@ -272,7 +272,7 @@ def generate_daily_summary(account_id, agent_name):
         display_name = account["display_name"] if account else agent_name
 
     # Build summary content
-    date_str = datetime.utcnow().strftime("%Y-%m-%d")
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     title = f"Daily Summary — {display_name} — {date_str}"
 
     sections = [

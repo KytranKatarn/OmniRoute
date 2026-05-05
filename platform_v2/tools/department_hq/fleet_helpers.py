@@ -301,7 +301,7 @@ def push_agent_event(event_type, agent_id=None, data=None):
         "event_type": event_type,
         "agent_id": agent_id,
         "data": data or {},
-        "created_at": datetime.utcnow().isoformat() + "Z",
+        "created_at": datetime.now(timezone.utc).isoformat() + "Z",
     }
     _activity_queue.appendleft(evt)
 

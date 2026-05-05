@@ -8,7 +8,7 @@ Import:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from database import get_db_cursor
 
@@ -167,7 +167,7 @@ def grant_trial(user_id, module, tier_price_id, duration_days, granted_by_user_i
     Returns:
         Dict with keys: id, expires_at — or None on failure.
     """
-    expires_at = datetime.utcnow() + timedelta(days=duration_days)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=duration_days)
     try:
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(

@@ -9,7 +9,10 @@ import json
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Dict, Any, List
+
 from database import get_db_cursor
+from services.time_utils import now_local_str
+
 
 _BASE_DIR = os.getenv("ARCHIE_BASE_DIR", "/mnt/archie_brain")
 SCANS_DIR = os.path.join(_BASE_DIR, "security_scans")
@@ -266,7 +269,7 @@ def generate_html_report(scan_data: Dict[str, Any], title: str = "Security Scan 
     <h1>{title}</h1>
     <div class="meta">
         <p><strong>Scanner:</strong> {scanner.upper()}</p>
-        <p><strong>Generated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        <p><strong>Generated:</strong> {now_local_str()}</p>
 """
 
     if scanner == "nmap":
@@ -526,7 +529,7 @@ def generate_assessment_report(
     <h1>{assessment_name}</h1>
     <div class="meta">
         <p><strong>Client:</strong> {client_name}</p>
-        <p><strong>Date:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        <p><strong>Date:</strong> {now_local_str()}</p>
         <p><strong>Scans Included:</strong> {len(all_scan_data)}</p>
     </div>
 

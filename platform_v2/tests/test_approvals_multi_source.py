@@ -16,7 +16,7 @@ import sys
 import pytest
 import psycopg2
 import psycopg2.extras
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 def _get_db_password():
@@ -193,7 +193,7 @@ class TestApprove:
                 row = cur.fetchone()
             assert row["status"] == "approved"
             assert row["approved_by"] == TEST_USER_ID
-            expected = datetime.utcnow() + timedelta(days=14)
+            expected = datetime.now(timezone.utc) + timedelta(days=14)
             assert abs((row["expires_at"].replace(tzinfo=None) - expected).total_seconds()) < 3600
         finally:
             _cleanup(db, "contractor_approval_requests", row_id)

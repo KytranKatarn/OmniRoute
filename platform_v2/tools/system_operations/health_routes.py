@@ -9,7 +9,7 @@ Endpoints: health alerts CRUD, health config, webhooks, system-health-full
 from flask import jsonify, request
 from flask_login import login_required, current_user
 from psycopg2.extras import RealDictCursor
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .helpers import get_db
 
@@ -384,7 +384,7 @@ def register_health_routes(bp, admin_required_decorator):
             payload = {
                 "event_type": "test",
                 "message": "Test alert from A.R.C.H.I.E. Health Monitoring",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "test": True,
             }
 

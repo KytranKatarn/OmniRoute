@@ -22,7 +22,7 @@ import time
 import os
 from db import _get_db_password
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
@@ -7887,7 +7887,7 @@ class DepartmentDispatcher:
                 # Update cache
                 self._fleet_health_cache[node_id] = {
                     "online": is_online,
-                    "last_check": datetime.utcnow().isoformat(),
+                    "last_check": datetime.now(timezone.utc).isoformat(),
                 }
 
                 # --- TRANSITION: online → offline ---

@@ -432,6 +432,7 @@ services:
     cap_add:
       - NET_BIND_SERVICE
     environment:
+      - TZ=America/Toronto
       - DB_HOST=archie_database
       - DB_NAME=archie
       - DB_USER=archie
@@ -496,6 +497,7 @@ services:
               count: 1
               capabilities: [gpu]
     environment:
+      - TZ=America/Toronto
       - OLLAMA_KEEP_ALIVE=5m
       - OLLAMA_MAX_LOADED_MODELS=13
       - OLLAMA_NUM_PARALLEL=4
@@ -549,6 +551,8 @@ services:
       timeout: 10s
       retries: 3
 
+    environment:
+      TZ: America/Toronto
   archie_n8n:
     image: n8nio/n8n:1.85.4
     container_name: archie_n8n
@@ -568,6 +572,7 @@ services:
       - SETUID
       - DAC_OVERRIDE
     environment:
+      - TZ=America/Toronto
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
       - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-change_this_password}
@@ -640,7 +645,11 @@ services:
       - comfyui_output:/comfyui/output
       - ./platform_v2/static/media:/media
       - ./comfyui/workflows:/comfyui/user/default/workflows
+      # Image lacks tzdata — bind-mount host zoneinfo so TZ env actually resolves.
+      - /etc/localtime:/etc/localtime:ro
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
     environment:
+      - TZ=America/Toronto
       - NVIDIA_VISIBLE_DEVICES=all
     networks:
       - archie_internal
@@ -706,6 +715,7 @@ services:
       - SYS_MODULE
       - NET_RAW
     environment:
+      TZ: America/Toronto
       TS_AUTHKEY: ${HEADSCALE_HUB_AUTHKEY:-}
       TS_STATE_DIR: /var/lib/tailscale
       TS_EXTRA_ARGS: "--login-server=https://mesh.kytranempowerment.com --ssh --accept-dns=false --advertise-routes=192.168.1.0/24"
@@ -764,6 +774,8 @@ services:
       retries: 3
       start_period: 30s
 
+    environment:
+      TZ: America/Toronto
   kbs-redis:
     image: redis:7-alpine
     container_name: kbs_redis
@@ -789,6 +801,8 @@ services:
       timeout: 5s
       retries: 3
 
+    environment:
+      TZ: America/Toronto
   kbs-worker:
     build: ./kytran-business-suite
     container_name: kbs_worker
@@ -819,6 +833,8 @@ services:
       retries: 3
       start_period: 20s
 
+    environment:
+      TZ: America/Toronto
   kytran_market_api:
     build: ./market-watch
     container_name: kytran_market_api
@@ -827,6 +843,7 @@ services:
     volumes:
       - ./market-watch/data:/app/data
     environment:
+      - TZ=America/Toronto
       - ARCHIE_HUB_URL=http://192.168.1.200:3000
       - ALPACA_API_KEY=${ALPACA_API_KEY:-}
       - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY:-}
@@ -881,6 +898,8 @@ services:
       timeout: 10s
       retries: 3
 
+    environment:
+      TZ: America/Toronto
   security_nmap:
     image: instrumentisto/nmap:7.94
     container_name: security_nmap
@@ -899,6 +918,8 @@ services:
     entrypoint: ["tail", "-f", "/dev/null"]
     restart: unless-stopped
 
+    environment:
+      TZ: America/Toronto
   security_nikto:
     image: secfigo/nikto:latest
     container_name: security_nikto
@@ -914,6 +935,8 @@ services:
     entrypoint: ["tail", "-f", "/dev/null"]
     restart: unless-stopped
 
+    environment:
+      TZ: America/Toronto
   security_nuclei:
     image: projectdiscovery/nuclei:latest
     container_name: security_nuclei
@@ -926,6 +949,8 @@ services:
     entrypoint: ["tail", "-f", "/dev/null"]
     restart: unless-stopped
 
+    environment:
+      TZ: America/Toronto
   security_testssl:
     image: drwetter/testssl.sh:3.2
     container_name: security_testssl
@@ -941,6 +966,8 @@ services:
     entrypoint: ["tail", "-f", "/dev/null"]
     restart: unless-stopped
 
+    environment:
+      TZ: America/Toronto
   security_zap:
     image: ghcr.io/zaproxy/zaproxy:stable
     container_name: security_zap
@@ -955,11 +982,14 @@ services:
     entrypoint: ["zap.sh", "-daemon", "-host", "0.0.0.0", "-port", "8090", "-config", "api.addrs.addr.name=.*", "-config", "api.addrs.addr.regex=true", "-config", "api.disablekey=true"]
     restart: unless-stopped
 
+    environment:
+      TZ: America/Toronto
   archie_browser:
     build: ./archie-browser
     container_name: archie_browser
     restart: unless-stopped
     environment:
+      - TZ=America/Toronto
       - DATABASE_URL=postgresql://archie:${DB_PASSWORD}@archie_database:5432/archie
       - BROWSER_ENCRYPTION_KEY=${BROWSER_ENCRYPTION_KEY}
       - BROWSER_API_KEY=${BROWSER_API_KEY}

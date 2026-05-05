@@ -393,7 +393,7 @@ def register_github_repo_routes(bp, admin_required):
                 if oldest:
                     from datetime import datetime
 
-                    days_ago = (datetime.utcnow() - oldest).days
+                    days_ago = (datetime.now(timezone.utc) - oldest).days
                 return jsonify(
                     {
                         "success": True,

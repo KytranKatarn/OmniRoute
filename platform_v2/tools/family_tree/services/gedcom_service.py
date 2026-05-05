@@ -223,7 +223,7 @@ def export_gedcom(user_id: int, persons: list[dict], relationships: list[dict]) 
     # ------------------------------------------------------------------
     # Header
     # ------------------------------------------------------------------
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(timezone.utc)
     lines += [
         "0 HEAD",
         "1 SOUR ARCHIE-FAMILY-TREE",

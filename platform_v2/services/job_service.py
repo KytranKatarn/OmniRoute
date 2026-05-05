@@ -61,7 +61,7 @@ class JobService:
             self.run_job(name)
 
         if cron_hour is not None:
-            trigger = CronTrigger(hour=cron_hour, minute=cron_minute)
+            trigger = CronTrigger(hour=cron_hour, minute=cron_minute, timezone="America/Toronto")
         else:
             trigger = IntervalTrigger(hours=interval_hours)
 

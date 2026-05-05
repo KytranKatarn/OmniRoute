@@ -56,3 +56,17 @@ repos:
         language: system
         types: [python]
         pass_filenames: true
+
+      # Timezone drift guardrail (PR #543, Phase 3).
+      # Fails commits that introduce: deprecated datetime.utcnow() OR
+      # literal "UTC" suffixes in user-facing strings (rendered to reports,
+      # Telegram messages, KB vault notes). Storage stays UTC, display
+      # uses services.time_utils.format_local() / now_local_str() so the
+      # actual TZ abbreviation (EDT/EST) appears in user output.
+      # See .claude/rules/timezone.md for the full convention.
+      - id: timezone-drift-guardrail
+        name: Timezone — drift guardrail (storage UTC, display EDT)
+        entry: python3 scripts/check_timezone_drift.py
+        language: system
+        types: [python]
+        pass_filenames: true

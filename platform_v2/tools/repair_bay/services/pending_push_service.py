@@ -9,7 +9,7 @@ at /mnt/archie_brain inside the container (mounted from host).
 """
 
 import subprocess
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 
 REPO_PATH = "/mnt/archie_brain"
@@ -124,7 +124,7 @@ def summarize():
     return {
         "freeze_active": is_freeze_active(),
         "freeze_lift_date": FREEZE_LIFT_DATE.isoformat(),
-        "scanned_at": datetime.utcnow().isoformat() + "Z",
+        "scanned_at": datetime.now(timezone.utc).isoformat() + "Z",
         "pending_branches": len(pending),
         "total_branches": len(rows),
         "total_commits_queued": sum(r["commits_ahead"] for r in pending),

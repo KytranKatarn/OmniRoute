@@ -208,7 +208,7 @@ class DeviceRegistryService:
         # Strip timezone info — DB stores naive UTC
         if last_seen_at.tzinfo is not None:
             last_seen_at = last_seen_at.replace(tzinfo=None)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         return (now - last_seen_at) < timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
 
     def _get_dns_active_clients(self) -> dict:
@@ -291,7 +291,7 @@ class DeviceRegistryService:
                 try:
                     lq = d["dns_last_query"].replace("Z", "").split(".")[0]
                     last_q = datetime.fromisoformat(lq)
-                    diff_mins = (datetime.utcnow() - last_q).total_seconds() / 60
+                    diff_mins = (datetime.now(timezone.utc) - last_q).total_seconds() / 60
                     d["dns_active"] = diff_mins <= 15
                     dns_online = diff_mins <= 5
                 except Exception as e:
@@ -345,7 +345,7 @@ class DeviceRegistryService:
             conditions.append("status = %s")
             params.append(status)
         if online is not None:
-            threshold = datetime.utcnow() - timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
+            threshold = datetime.now(timezone.utc) - timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
             if online:
                 conditions.append("last_seen_at >= %s")
             else:
@@ -383,13 +383,13 @@ class DeviceRegistryService:
 
         with get_db_cursor(commit=False) as (conn, cur):
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            threshold = datetime.utcnow() - timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
+            threshold = datetime.now(timezone.utc) - timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
 
             cur.execute("SELECT COUNT(*) AS total FROM network_devices WHERE status = 'active'")
             total = cur.fetchone()["total"]
 
             # Online = last DNS query within 5 min OR last_seen within 15 min
-            dns_threshold = datetime.utcnow() - timedelta(minutes=5)
+            dns_threshold = datetime.now(timezone.utc) - timedelta(minutes=5)
             cur.execute("SELECT ip_address, last_seen_at FROM network_devices WHERE status = 'active'")
             online = 0
             for row in cur.fetchall():

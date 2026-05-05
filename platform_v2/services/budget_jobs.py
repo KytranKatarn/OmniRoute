@@ -26,7 +26,7 @@ def register_budget_jobs(job_service):
         cron_hour=4,
         cron_minute=0,
         department="Operations & Infrastructure",
-        description="Daily zero-out of agent task counts and token usage (04:00 UTC)",
+        description="Daily zero-out of agent task counts and token usage (04:00 EDT)",
     )
     job_service.register_job(
         name="cooldown_recovery",
@@ -34,6 +34,6 @@ def register_budget_jobs(job_service):
         cron_hour=4,
         cron_minute=5,
         department="Operations & Infrastructure",
-        description="Transition cooldown agents with cleared budgets back to active (04:05 UTC)",
+        description="Transition cooldown agents with cleared budgets back to active (04:05 EDT)",
     )
     logger.info("[BudgetJobs] Registered budget_reset and cooldown_recovery jobs")

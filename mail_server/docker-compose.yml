@@ -16,6 +16,7 @@ services:
       - ./data:/opt/stalwart-mail
       - ./dkim-private.pem:/opt/stalwart/etc/dkim-private.pem:ro
     environment:
+      - TZ=America/Toronto
       - STALWART_HOSTNAME=mail.kytranempowerment.com
     labels:
       - "com.centurylinklabs.watchtower.enable=false"

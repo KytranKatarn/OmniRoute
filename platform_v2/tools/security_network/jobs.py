@@ -22,6 +22,7 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
+from services.time_utils import now_local
 
 logger = logging.getLogger("agent_loop")
 
@@ -1531,7 +1532,7 @@ def generate_vigil_threat_report():
                     VALUES (%s, %s, 'vault_note', 0.85, 'security')
                     """,
                     (
-                        f"V.I.G.I.L. Threat Report — {datetime.now().strftime('%Y-%m-%d')}",
+                        f"V.I.G.I.L. Threat Report — {now_local().strftime('%Y-%m-%d')}",
                         json.dumps(report, indent=2, default=str),
                     ),
                 )
@@ -1593,7 +1594,7 @@ def generate_weekly_security_report():
                 VALUES (%s, %s, 'vault_note', 0.80, 'security')
                 """,
                 (
-                    f"Weekly Security Report — {datetime.now().strftime('%Y-%m-%d')}",
+                    f"Weekly Security Report — {now_local().strftime('%Y-%m-%d')}",
                     json.dumps(report, indent=2, default=str),
                 ),
             )

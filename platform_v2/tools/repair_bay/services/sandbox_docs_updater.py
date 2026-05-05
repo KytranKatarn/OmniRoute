@@ -14,6 +14,7 @@ from database import _get_db_password
 import json
 import logging
 from datetime import datetime
+from services.time_utils import now_local
 from typing import Optional, Dict, Any, List
 
 # Setup logging
@@ -188,7 +189,7 @@ class SandboxDocsUpdater:
             content = f.read()
 
         # Create entry
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = now_local().strftime("%Y-%m-%d")
         category_emoji = {
             "feature": "Added",
             "bugfix": "Fixed",
@@ -244,7 +245,7 @@ class SandboxDocsUpdater:
             content = f.read()
 
         # Create entry
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = now_local().strftime("%Y-%m-%d")
         entry = f"""
 ### Sandbox Deployment Failed - {module_id} (#{proposal_id})
 **Date:** {today}

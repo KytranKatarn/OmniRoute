@@ -24,6 +24,7 @@ services:
               count: all
               capabilities: [gpu]
     environment:
+      - TZ=America/Toronto
       - OLLAMA_KEEP_ALIVE=5m
       - OLLAMA_NUM_PARALLEL=4
       - NVIDIA_VISIBLE_DEVICES=all
@@ -45,6 +46,7 @@ services:
     container_name: archie_starship_db
     restart: unless-stopped
     environment:
+      TZ: America/Toronto
       POSTGRES_USER: archie_node
       POSTGRES_PASSWORD: ${DB_PASSWORD:-archie_node_default}
       POSTGRES_DB: archie_node
@@ -71,6 +73,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      TZ: America/Toronto
       NODE_ID: ${NODE_ID}
       HUB_URL: ${HUB_URL}
       HUB_API_KEY: ${HUB_API_KEY}
@@ -107,6 +110,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      TZ: America/Toronto
       DATABASE_URL: postgresql://archie_node:${DB_PASSWORD:-archie_node_default}@postgres:5432/archie_node
       OLLAMA_HOST: http://ollama:11434
       NODE_ID: ${NODE_ID}
@@ -148,6 +152,8 @@ services:
       - starship_net
 
   # === Tailscale mesh VPN — connects node to ARCHIE fleet mesh ===
+    environment:
+      TZ: America/Toronto
   tailscale:
     image: tailscale/tailscale:stable
     container_name: archie_starship_tailscale
@@ -157,6 +163,7 @@ services:
       - NET_ADMIN
       - SYS_MODULE
     environment:
+      TZ: America/Toronto
       TS_AUTHKEY: ${HEADSCALE_AUTHKEY:-}
       TS_STATE_DIR: /var/lib/tailscale
       TS_EXTRA_ARGS: "--login-server=${HEADSCALE_URL:-http://192.168.1.200:8095} --ssh"

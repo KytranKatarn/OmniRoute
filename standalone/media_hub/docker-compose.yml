@@ -10,6 +10,7 @@ services:
     container_name: mediahub_db
     restart: unless-stopped
     environment:
+      TZ: America/Toronto
       POSTGRES_USER: mediahub
       POSTGRES_PASSWORD: ${MEDIA_HUB_DB_PASSWORD:?set in .env}
       POSTGRES_DB: mediahub
@@ -19,7 +20,7 @@ services:
       - ../../platform_v2/tools/media_hub/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     # Compliance hardening per .claude/rules/compliance-standards.md
     cap_drop: ["ALL"]
-    cap_add:  ["CHOWN", "SETGID", "SETUID", "DAC_OVERRIDE", "FOWNER"]
+    cap_add: ["CHOWN", "SETGID", "SETUID", "DAC_OVERRIDE", "FOWNER"]
     security_opt: ["no-new-privileges:true"]
     mem_limit: 512m
     cpus: 1.0
@@ -46,6 +47,7 @@ services:
       - "plex.kytranempowerment.com:192.168.1.200"
       - "jellyfin.kytranempowerment.com:192.168.1.200"
     environment:
+      TZ: America/Toronto
       DATABASE_URL: postgresql://mediahub:${MEDIA_HUB_DB_PASSWORD}@mediahub_db:5432/mediahub
       MEDIA_HUB_SECRET_KEY: ${MEDIA_HUB_SECRET_KEY:?set in .env}
       MEDIA_HUB_ENCRYPTION_KEY: ${MEDIA_HUB_ENCRYPTION_KEY:?set in .env}

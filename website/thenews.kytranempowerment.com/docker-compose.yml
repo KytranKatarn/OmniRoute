@@ -12,3 +12,5 @@ services:
     mem_limit: 64m
     cpus: 0.25
     restart: unless-stopped
+    environment:
+      TZ: America/Toronto

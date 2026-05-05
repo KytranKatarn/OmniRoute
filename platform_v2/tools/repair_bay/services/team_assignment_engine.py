@@ -6,6 +6,7 @@ Automatically assigns agents to improvement proposals based on skills, availabil
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
+from services.time_utils import now_local_str
 from typing import List, Dict, Optional, Tuple
 import logging
 
@@ -425,7 +426,7 @@ class TeamAssignmentEngine:
             """,
                 (
                     new_agent_id,
-                    f"[REASSIGNED] {reason} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    f"[REASSIGNED] {reason} at {now_local_str()}",
                     assignment_id,
                 ),
             )

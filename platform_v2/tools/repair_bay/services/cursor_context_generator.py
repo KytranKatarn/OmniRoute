@@ -13,6 +13,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from typing import Dict, List, Optional
 from datetime import datetime
+from services.time_utils import now_local_str
 
 sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 from git_branch_manager import GitBranchManager
@@ -397,7 +398,7 @@ If you're stuck or need clarification:
 
 ---
 
-**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+**Generated**: {now_local_str()}
 **Branch**: {branch_name}
 **Proposal**: #{proposal['id']} - {proposal['title']}
 

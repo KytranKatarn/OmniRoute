@@ -10,6 +10,7 @@ services:
       - "8025:8025"
       - "8443:443"
     environment:
+      - TZ=America/Toronto
       - MAIL_DOMAIN=kytranempowerment.com
       - MAIL_ADMIN_PASSWORD=KytranMail2026!
       - MAIL_HOSTNAME=mail.kytranempowerment.com

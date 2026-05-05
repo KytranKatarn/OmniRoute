@@ -13,6 +13,8 @@ services:
     networks:
       - archie_network
 
+    environment:
+      TZ: America/Toronto
 networks:
   archie_network:
     external: true

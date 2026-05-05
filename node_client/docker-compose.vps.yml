@@ -22,6 +22,7 @@ services:
     restart: unless-stopped
     command: python3 -u node_api.py
     environment:
+      TZ: America/Toronto
       NODE_ID: ${NODE_ID:-outpost_us_001}
       HUB_URL: ${HUB_URL:-https://platform.kytranempowerment.com}
       HUB_API_KEY: ${HUB_API_KEY:-}

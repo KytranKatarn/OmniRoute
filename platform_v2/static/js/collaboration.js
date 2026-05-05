@@ -1793,7 +1793,9 @@ function buildCollabMarkdown() {
 
     var lines = [];
     lines.push('# AI Collaboration: ' + (collabSession.topic || 'Untitled'));
-    lines.push('**Date**: ' + (collabSession.created_at || new Date().toISOString()) +
+    var dateIso = collabSession.created_at || new Date().toISOString();
+    var dateLocal = (typeof ArchieTime !== 'undefined') ? ArchieTime.format(dateIso, 'datetime') : dateIso;
+    lines.push('**Date**: ' + dateLocal +
         ' | **Status**: ' + (collabSession.status || 'unknown') +
         ' | **Messages**: ' + (collabSession.messages ? collabSession.messages.length : 0));
     lines.push('');

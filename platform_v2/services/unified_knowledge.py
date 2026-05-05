@@ -16,6 +16,7 @@ Date: 2026-01-11
 import json
 import logging
 from datetime import datetime, timedelta
+from services.time_utils import now_local_str
 from typing import Dict, List, Optional, Any, Tuple
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -451,7 +452,7 @@ class UnifiedKnowledgeService:
 - Session: {context.get('session_name', 'unknown')}
 - Branch: {context.get('git_branch', 'unknown')}
 - File: {context.get('file_path', 'unknown')}
-- Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+- Date: {now_local_str('%Y-%m-%d %H:%M %Z')}
 
 ## Prevention
 To avoid this error in the future:

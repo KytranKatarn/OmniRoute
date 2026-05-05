@@ -6,6 +6,7 @@ services:
     working_dir: /app
     command: python3 node_sync.py
     environment:
+      - TZ=America/Toronto
       - NODE_ID=${NODE_ID}
       - HUB_URL=${HUB_URL}
       - HUB_API_KEY=${HUB_API_KEY}
@@ -32,6 +33,7 @@ services:
     ports:
       - "3001:3001"
     environment:
+      - TZ=America/Toronto
       - NODE_ID=${NODE_ID}
       - HUB_URL=${HUB_URL}
       - HUB_API_KEY=${HUB_API_KEY}
@@ -65,6 +67,8 @@ services:
           memory: 128M
           cpus: "0.25"
 
+    environment:
+      TZ: America/Toronto
 volumes:
   caddy_data:
   caddy_config:

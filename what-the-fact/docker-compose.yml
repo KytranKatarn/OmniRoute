@@ -1,6 +1,6 @@
 services:
   wtf-ingest:
-    build: { context: ., dockerfile: Dockerfile.ingest }
+    build: {context: ., dockerfile: Dockerfile.ingest}
     image: ghcr.io/kytrankatarn/wtf-ingest:0.1.0
     restart: unless-stopped
     env_file: [.env]
@@ -10,8 +10,10 @@ services:
     mem_limit: 512m
     cpus: 0.5
 
+    environment:
+      TZ: America/Toronto
   wtf-consumer:
-    build: { context: ., dockerfile: Dockerfile.consumer }
+    build: {context: ., dockerfile: Dockerfile.consumer}
     image: ghcr.io/kytrankatarn/wtf-consumer:0.1.0
     restart: unless-stopped
     env_file: [.env]
@@ -22,9 +24,11 @@ services:
     mem_limit: 512m
     cpus: 0.5
     networks: [default, archie_net]
+    environment:
+      TZ: America/Toronto
 
   wtf-tech:
-    build: { context: ., dockerfile: Dockerfile.tech }
+    build: {context: ., dockerfile: Dockerfile.tech}
     image: ghcr.io/kytrankatarn/wtf-tech:0.1.0
     restart: unless-stopped
     env_file: [.env]
@@ -35,6 +39,8 @@ services:
     mem_limit: 512m
     cpus: 0.5
     networks: [default, archie_net]
+    environment:
+      TZ: America/Toronto
 
 networks:
   archie_net:

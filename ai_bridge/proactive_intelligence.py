@@ -16,6 +16,7 @@ import logging
 import os
 import time
 from datetime import datetime
+from services.time_utils import now_local_str
 from typing import Any, Dict, List, Optional
 
 import psycopg2
@@ -156,7 +157,7 @@ class BriefingGenerator:
     def _compose_briefing(self, briefing: dict, sections_data: dict) -> str:
         """Compose a natural language briefing using AI."""
         briefing_type = briefing.get("briefing_type", "daily")
-        now = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
+        now = now_local_str("%A, %B %d, %Y at %I:%M %p %Z")
 
         # Build raw data summary
         raw_parts = [f"{briefing_type.title()} Briefing — {now}\n"]

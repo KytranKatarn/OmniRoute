@@ -471,7 +471,14 @@ def _expire_stale_tasks() -> int:
 
 
 def _get_highest_priority_queued_model() -> Optional[str]:
-    """Return the model_needed for the highest-priority waiting batch."""
+    """Return the model_needed for the highest-priority waiting batch.
+
+    Skips rows with invalid/sentinel model names ('none', 'None', '',
+    'comfyui') — those are non-Ollama tasks that shouldn't have landed here
+    in the first place (see department_dispatcher INSERT guard). Without
+    this filter, the worker pings Ollama with a bogus name every cycle and
+    the 404 spam blocks every other deferred draft (KB mistake_learned filed).
+    """
     try:
         with get_db_cursor() as (_conn, cur):
             cur.execute(
@@ -480,6 +487,8 @@ def _get_highest_priority_queued_model() -> Optional[str]:
                 FROM dispatch_pending_queue
                 WHERE status = 'queued'
                   AND (expires_at IS NULL OR expires_at > NOW())
+                  AND model_needed IS NOT NULL
+                  AND lower(trim(model_needed)) NOT IN ('', 'none', 'null', 'comfyui')
                 GROUP BY model_needed
                 ORDER BY max_prio DESC, cnt DESC
                 LIMIT 1

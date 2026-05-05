@@ -5248,6 +5248,31 @@ class DepartmentDispatcher:
             # Background tasks (not critical) with cold models → queue for later.
             # The model_dispatch_worker will execute them when the model is warm.
             if model_not_ready and priority != "critical":
+                # Guard: don't queue rows with sentinel/invalid model names.
+                # The worker filters them, but writing them in the first place
+                # is the actual bug (caller dispatched without resolving an
+                # Ollama model — likely a non-LLM capability that shouldn't
+                # have hit the queue). Drop here with a warning instead.
+                _model_str = str(model).strip().lower() if model else ""
+                if not _model_str or _model_str in ("none", "null", "comfyui"):
+                    logger.warning(
+                        "[BridgeDispatcher] Refusing to queue cap=%s with invalid model_needed=%r — non-LLM capability landed in LLM queue",
+                        capability,
+                        model,
+                    )
+                    return DispatchResult(
+                        success=False,
+                        queued=False,
+                        response="",
+                        agent_name=agent.get("name", "?") if agent else "?",
+                        agent_id=agent.get("id") if agent else None,
+                        model_used=model or "",
+                        department=dispatch_department,
+                        capability=capability,
+                        duration_ms=int((time.time() - start) * 1000),
+                        error=f"capability '{capability}' has no Ollama model — not queueable",
+                    )
+
                 try:
                     from database import get_db_cursor
 

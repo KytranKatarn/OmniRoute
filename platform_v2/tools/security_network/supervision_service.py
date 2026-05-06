@@ -124,7 +124,7 @@ class SupervisionService:
 
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
-                f"UPDATE parental_schedules SET {', '.join(parts)} WHERE id = %s",
+                "UPDATE parental_schedules SET " + ", ".join(parts) + " WHERE id = %s",
                 values,
             )
             return cur.rowcount > 0

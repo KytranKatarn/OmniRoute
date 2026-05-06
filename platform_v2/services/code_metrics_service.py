@@ -1718,10 +1718,11 @@ def audit_single_module(module_name, module_path=None, module_data=None):
     else:
         count, notes, issues_list = _audit_module_python(module_name, module_path)
 
-    # Only count as violations if there are red/yellow issues (not just info)
-    has_actionable = any(i.get("severity") in ("red", "yellow") for i in issues_list) if issues_list else False
-    status = "violations_found" if has_actionable else "completed"
-    return (count, notes, status, issues_list, profile)
+    # Only red (critical) issues count — yellow = warnings, info = advisory
+    red_issues = [i for i in issues_list if i.get("severity") == "red"] if issues_list else []
+    has_critical = len(red_issues) > 0
+    status = "violations_found" if has_critical else "completed"
+    return (len(red_issues), notes, status, issues_list, profile)
 
 
 def log_audit(

@@ -313,17 +313,9 @@ def recall_memories(query, user_id=None, memory_type=None, limit=10):
         params.append(limit)
 
         cur.execute(
-            f"""
-            SELECT *,
-                   EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400 as age_days
-            FROM long_term_memory
-            WHERE {where_clause}
-            ORDER BY
-                importance_score DESC,
-                access_count DESC,
-                created_at DESC
-            LIMIT %s
-        """,
+            "SELECT *, EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400 as age_days "
+            "FROM long_term_memory WHERE " + where_clause + " "
+            "ORDER BY importance_score DESC, access_count DESC, created_at DESC LIMIT %s",
             params,
         )
 
@@ -397,57 +389,44 @@ def get_memory_stats(user_id=None):
             params = [user_id]
 
         # Total memories
-        cur.execute(f"SELECT COUNT(*) as total FROM long_term_memory {user_filter}", params)
+        cur.execute(
+            "SELECT COUNT(*) as total FROM long_term_memory " + user_filter,
+            params,
+        )
         total = cur.fetchone()["total"]
 
         # By type
         cur.execute(
-            f"""
-            SELECT memory_type, COUNT(*) as count
-            FROM long_term_memory
-            {user_filter}
-            GROUP BY memory_type
-            ORDER BY count DESC
-        """,
+            "SELECT memory_type, COUNT(*) as count FROM long_term_memory "
+            + user_filter
+            + " GROUP BY memory_type ORDER BY count DESC",
             params,
         )
         by_type = cur.fetchall()
 
         # By category
         cur.execute(
-            f"""
-            SELECT category, COUNT(*) as count
-            FROM long_term_memory
-            {user_filter}
-            GROUP BY category
-            ORDER BY count DESC
-        """,
+            "SELECT category, COUNT(*) as count FROM long_term_memory "
+            + user_filter
+            + " GROUP BY category ORDER BY count DESC",
             params,
         )
         by_category = cur.fetchall()
 
         # Most accessed
         cur.execute(
-            f"""
-            SELECT content, access_count, importance_score
-            FROM long_term_memory
-            {user_filter}
-            ORDER BY access_count DESC
-            LIMIT 10
-        """,
+            "SELECT content, access_count, importance_score FROM long_term_memory "
+            + user_filter
+            + " ORDER BY access_count DESC LIMIT 10",
             params,
         )
         most_accessed = cur.fetchall()
 
         # Recent memories
         cur.execute(
-            f"""
-            SELECT content, memory_type, created_at
-            FROM long_term_memory
-            {user_filter}
-            ORDER BY created_at DESC
-            LIMIT 10
-        """,
+            "SELECT content, memory_type, created_at FROM long_term_memory "
+            + user_filter
+            + " ORDER BY created_at DESC LIMIT 10",
             params,
         )
         recent = cur.fetchall()

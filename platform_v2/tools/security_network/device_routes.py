@@ -441,14 +441,12 @@ def register_device_routes(bp, admin_required_decorator):
         try:
             with get_db_cursor() as (conn, cur):
                 cur.execute(
-                    f"""
-                    SELECT hour_bucket, bytes_in, bytes_out
-                    FROM network_traffic_stats
-                    WHERE device_ip = %s
-                      AND hour_bucket >= NOW() - INTERVAL '{interval}'
-                    ORDER BY hour_bucket
-                    """,
-                    (device_ip,),
+                    "SELECT hour_bucket, bytes_in, bytes_out "
+                    "FROM network_traffic_stats "
+                    "WHERE device_ip = %s "
+                    "AND hour_bucket >= NOW() - %s::interval "
+                    "ORDER BY hour_bucket",
+                    (device_ip, interval),
                 )
                 rows = cur.fetchall()
                 history = [
@@ -476,18 +474,14 @@ def register_device_routes(bp, admin_required_decorator):
         try:
             with get_db_cursor() as (conn, cur):
                 cur.execute(
-                    f"""
-                    SELECT
-                        date_trunc('hour', nts.hour_bucket) AS hour,
-                        COALESCE(nd.owner, nd.friendly_name, nd.hostname, 'Unknown') AS user_name,
-                        SUM(nts.bytes_in) AS bytes_in,
-                        SUM(nts.bytes_out) AS bytes_out
-                    FROM network_traffic_stats nts
-                    LEFT JOIN network_devices nd ON nd.ip_address = nts.device_ip::inet
-                    WHERE nts.hour_bucket >= NOW() - INTERVAL '{interval}'
-                    GROUP BY hour, user_name
-                    ORDER BY hour
-                    """,
+                    "SELECT date_trunc('hour', nts.hour_bucket) AS hour, "
+                    "COALESCE(nd.owner, nd.friendly_name, nd.hostname, 'Unknown') AS user_name, "
+                    "SUM(nts.bytes_in) AS bytes_in, SUM(nts.bytes_out) AS bytes_out "
+                    "FROM network_traffic_stats nts "
+                    "LEFT JOIN network_devices nd ON nd.ip_address = nts.device_ip::inet "
+                    "WHERE nts.hour_bucket >= NOW() - %s::interval "
+                    "GROUP BY hour, user_name ORDER BY hour",
+                    (interval,),
                 )
                 rows = cur.fetchall()
                 history = [

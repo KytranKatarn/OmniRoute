@@ -4961,3 +4961,241 @@ document.addEventListener('click', function(e) {
     var n = Number(raw);
     fn((raw !== '' && !isNaN(n)) ? n : raw);
 });
+
+// ---------------------------------------------------------------------------
+// Overview, tab navigation, invite system — extracted from inline scripts
+// ---------------------------------------------------------------------------
+
+const _origFetch = window.fetch;
+window.fetch = function(url, opts) {
+    if (typeof url === 'string' && url.includes('/tools/account-center/api/users') && !url.includes('/api/users/')) {
+        const statusEl = document.getElementById('filter-status');
+        if (statusEl && !url.includes('status=')) {
+            url = url + (url.includes('?') ? '&' : '?') + 'status=' + encodeURIComponent(statusEl.value);
+        }
+    }
+    return _origFetch.call(this, url, opts);
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    const statusEl = document.getElementById('filter-status');
+    if (statusEl) statusEl.addEventListener('change', () => { if (typeof loadUsers === 'function') loadUsers(); });
+});
+
+const _editObserver = new MutationObserver(() => {
+    document.querySelectorAll('#users-table-body .btn-sm:not(.btn-danger)').forEach(btn => {
+        if (btn.textContent.trim() === 'Edit') btn.style.display = 'none';
+    });
+});
+document.addEventListener('DOMContentLoaded', () => {
+    const tbody = document.getElementById('users-table-body');
+    if (tbody) _editObserver.observe(tbody, { childList: true, subtree: true });
+});
+
+function acGoToTab(tabId) {
+    const btn = document.querySelector('[data-tab="' + tabId + '"]');
+    if (btn) {
+        btn.click();
+    } else {
+        switchAccountTab(tabId);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function esc(str) {
+    const d = document.createElement('div');
+    d.textContent = str || '';
+    return d.innerHTML;
+}
+
+function mkEl(tag, styles, text) {
+    const el = document.createElement(tag);
+    if (styles) Object.assign(el.style, styles);
+    if (text !== undefined) el.textContent = text;
+    return el;
+}
+
+async function loadOverview() {
+    try {
+        const r = await fetch('/tools/account-center/api/overview');
+        const d = await r.json();
+
+        const alertsWrap = document.getElementById('overview-alerts');
+        const alertsList = document.getElementById('alerts-list');
+        if (d.alerts && d.alerts.length > 0) {
+            alertsWrap.style.display = 'block';
+            alertsList.textContent = '';
+            d.alerts.forEach(a => {
+                const div = mkEl('div', {background:'rgba(239,68,68,0.15)', border:'1px solid var(--archie-red)', borderRadius:'8px', padding:'10px 14px', marginBottom:'8px', color:'var(--archie-red)'});
+                div.textContent = '⚠ ' + a.message;
+                alertsList.appendChild(div);
+            });
+        }
+
+        const humanUsers = (d.active_users || []).filter(u => !u.is_system);
+        const systemUsers = (d.active_users || []).filter(u => u.is_system);
+
+        const statsRow = document.getElementById('overview-stats-row');
+        if (statsRow) {
+            statsRow.querySelector('#ov-active').textContent = d.active_users.length;
+            statsRow.querySelector('#ov-sessions').textContent = d.active_sessions;
+            statsRow.querySelector('#ov-failed').textContent = d.failed_logins_24h;
+        }
+
+        const grid = document.getElementById('overview-users-grid');
+        grid.textContent = '';
+        humanUsers.forEach(u => {
+            const card = mkEl('div', {background:'var(--archie-bg-secondary)', border:'1px solid rgba(0,255,255,0.2)', borderRadius:'10px', padding:'16px', display:'flex', alignItems:'center', gap:'14px'});
+            const avatar = mkEl('div', {width:'44px', height:'44px', borderRadius:'50%', background:'var(--archie-cyan)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Antonio,sans-serif', fontWeight:'700', color:'var(--archie-bg-primary)', flexShrink:'0'});
+            avatar.textContent = (u.username || '?').slice(0,2).toUpperCase();
+            const info = mkEl('div', {minWidth:'0'});
+            const name = mkEl('div', {fontWeight:'600', color:'var(--archie-text-primary)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}, u.username);
+            const email = mkEl('div', {fontSize:'0.75rem', color:'var(--archie-text-secondary)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}, u.email);
+            const meta = mkEl('div', {fontSize:'0.72rem', marginTop:'4px', display:'flex', gap:'8px'});
+            const badge = mkEl('span', {color:'var(--archie-cyan)'}, u.is_admin ? 'Admin' : 'User');
+            const lastSeen = mkEl('span', {color:'var(--archie-text-secondary)'}, 'Last: ' + u.last_login_display);
+            meta.appendChild(badge); meta.appendChild(lastSeen);
+            info.appendChild(name); info.appendChild(email); info.appendChild(meta);
+            card.appendChild(avatar); card.appendChild(info);
+            grid.appendChild(card);
+        });
+        if (!humanUsers.length) grid.textContent = 'No human accounts found.';
+
+        const sysGrid = document.getElementById('overview-system-grid');
+        sysGrid.textContent = '';
+        if (systemUsers.length > 0) {
+            systemUsers.forEach(u => {
+                const card = mkEl('div', {background:'var(--archie-bg-secondary)', border:'1px solid rgba(139,92,246,0.3)', borderRadius:'10px', padding:'16px', display:'flex', alignItems:'center', gap:'14px'});
+                const avatar = mkEl('div', {width:'44px', height:'44px', borderRadius:'50%', background:'rgba(139,92,246,0.3)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Antonio,sans-serif', fontWeight:'700', color:'var(--archie-purple)', flexShrink:'0'});
+                avatar.textContent = (u.username || '?').slice(0,2).toUpperCase();
+                const info = mkEl('div', {minWidth:'0'});
+                const name = mkEl('div', {fontWeight:'600', color:'var(--archie-text-primary)'}, u.username);
+                const email = mkEl('div', {fontSize:'0.75rem', color:'var(--archie-text-secondary)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}, u.email);
+                const meta = mkEl('span', {fontSize:'0.72rem', color:'var(--archie-purple)', marginTop:'4px', display:'block'}, 'System / Agent Account');
+                info.appendChild(name); info.appendChild(email); info.appendChild(meta);
+                card.appendChild(avatar); card.appendChild(info);
+                sysGrid.appendChild(card);
+            });
+        } else {
+            sysGrid.textContent = 'No system accounts active.';
+        }
+
+        const actEl = document.getElementById('overview-activity');
+        actEl.textContent = '';
+        if (d.recent_activity && d.recent_activity.length > 0) {
+            const table = document.createElement('table');
+            table.style.cssText = 'width:100%;border-collapse:collapse;';
+            const thead = table.createTHead();
+            const hr = thead.insertRow();
+            ['User','Event','Time'].forEach(h => {
+                const th = document.createElement('th');
+                th.style.cssText = 'text-align:left;padding:6px 8px;color:var(--archie-text-secondary);font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;';
+                th.textContent = h;
+                hr.appendChild(th);
+            });
+            const tbody = table.createTBody();
+            d.recent_activity.forEach(a => {
+                const row = tbody.insertRow();
+                row.style.borderTop = '1px solid rgba(255,255,255,0.05)';
+                const c1 = row.insertCell(); c1.style.padding = '8px'; c1.textContent = a.username;
+                const c2 = row.insertCell(); c2.style.padding = '8px';
+                const ok = a.action === 'login_success';
+                const evSpan = mkEl('span', {color: ok ? 'var(--archie-green)' : 'var(--archie-red)'}, ok ? 'Login OK' : 'Failed');
+                c2.appendChild(evSpan);
+                const c3 = row.insertCell(); c3.style.cssText = 'padding:8px;color:var(--archie-text-secondary);font-size:0.82rem;'; c3.textContent = a.display;
+            });
+            actEl.appendChild(table);
+        } else {
+            actEl.textContent = 'No login activity in the last 48 hours.';
+        }
+
+        const sessEl = document.getElementById('stat-sessions');
+        if (sessEl) sessEl.textContent = d.active_sessions;
+
+    } catch(e) { console.error('Overview load error:', e); }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadOverview();
+    document.querySelectorAll('[data-tab="overview"]').forEach(btn => {
+        btn.addEventListener('click', loadOverview);
+    });
+});
+
+async function acSendInvite(e) {
+    e.preventDefault();
+    const email = document.getElementById('inviteEmail').value.trim();
+    const role = document.getElementById('inviteRole').value;
+    const message = document.getElementById('inviteMessage').value.trim();
+    const resultEl = document.getElementById('inviteResult');
+    const linkBox = document.getElementById('inviteLinkBox');
+    resultEl.style.display = 'none';
+    linkBox.style.display = 'none';
+    try {
+        const res = await fetch('/tools/account-center/api/invites', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email, role, subscription_tier: role, message: message || null})
+        });
+        const data = await res.json();
+        resultEl.style.display = 'block';
+        resultEl.style.padding = '8px 12px';
+        resultEl.style.borderRadius = '6px';
+        if (data.success) {
+            resultEl.style.background = 'rgba(16,185,129,0.1)';
+            resultEl.style.border = '1px solid #10b981';
+            resultEl.style.color = '#10b981';
+            resultEl.textContent = data.email_sent ? '✓ Invite sent to ' + email : '✓ Invite created (email unavailable). Share the link:';
+            linkBox.style.display = 'block';
+            linkBox.textContent = '';
+            const label = mkEl('strong', {}, 'Invite Link: ');
+            const link = mkEl('span', {wordBreak:'break-all'}, data.invite_link);
+            const copyBtn = mkEl('button', {marginLeft:'6px', fontSize:'0.75rem', padding:'2px 8px', cursor:'pointer', borderRadius:'3px', border:'1px solid #7c3aed', background:'rgba(124,58,237,0.2)', color:'#7c3aed'}, 'Copy');
+            const inviteLink = data.invite_link;
+            copyBtn.addEventListener('click', () => navigator.clipboard.writeText(inviteLink));
+            linkBox.appendChild(label); linkBox.appendChild(link); linkBox.appendChild(copyBtn);
+        } else {
+            resultEl.style.background = 'rgba(239,68,68,0.1)';
+            resultEl.style.border = '1px solid #ef4444';
+            resultEl.style.color = '#ef4444';
+            resultEl.textContent = '✗ ' + (data.error || 'Failed');
+        }
+    } catch(err) { resultEl.style.display='block'; resultEl.textContent='✗ '+err.message; }
+}
+
+async function acLoadInvites() {
+    const sec = document.getElementById('pendingInvitesSection');
+    const list = document.getElementById('pendingInvitesList');
+    sec.style.display = sec.style.display === 'none' ? 'block' : 'none';
+    if (sec.style.display === 'none') return;
+    list.textContent = '';
+    const loading = mkEl('div', {color:'var(--archie-text-secondary)', fontSize:'0.85rem', padding:'8px 0'}, 'Loading...');
+    list.appendChild(loading);
+    try {
+        const data = await fetch('/tools/account-center/api/invites').then(r => r.json());
+        const pending = (data.invites || []).filter(i => i.status === 'pending');
+        list.textContent = '';
+        if (!pending.length) {
+            list.appendChild(mkEl('div', {color:'var(--archie-text-secondary)', padding:'8px 0'}, 'No pending invitations.'));
+            return;
+        }
+        pending.forEach(i => {
+            const row = mkEl('div', {display:'flex', alignItems:'center', gap:'12px', padding:'8px 0', borderBottom:'1px solid var(--archie-border-subtle)'});
+            row.appendChild(mkEl('span', {flex:'1', fontFamily:'monospace', fontSize:'0.85rem'}, i.email));
+            row.appendChild(mkEl('span', {color:'var(--archie-text-secondary)', fontSize:'0.8rem', background:'rgba(124,58,237,0.15)', padding:'2px 8px', borderRadius:'3px'}, i.role));
+            row.appendChild(mkEl('span', {color:'var(--archie-text-secondary)', fontSize:'0.75rem'}, 'exp. ' + new Date(i.expires_at).toLocaleDateString()));
+            const revoke = mkEl('button', {background:'rgba(239,68,68,0.1)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'4px', padding:'2px 8px', cursor:'pointer', fontSize:'0.75rem'}, 'Revoke');
+            revoke.addEventListener('click', () => acRevokeInvite(i.id, revoke));
+            row.appendChild(revoke);
+            list.appendChild(row);
+        });
+    } catch(err) {
+        list.textContent = '';
+        list.appendChild(mkEl('div', {color:'#ef4444'}, 'Error: ' + err.message));
+    }
+}
+
+async function acRevokeInvite(id, btn) {
+    if (!confirm('Revoke this invitation?')) return;
+    const data = await fetch('/tools/account-center/api/invites/' + id, {method:'DELETE'}).then(r => r.json());
+    if (data.success) btn.closest('div').remove(); else alert(data.error);
+}

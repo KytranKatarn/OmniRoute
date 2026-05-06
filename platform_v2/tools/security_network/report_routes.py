@@ -425,10 +425,9 @@ def _gather_report_content(report_type, date_start=None, date_end=None):
             dp = date_params if date_start else []
             try:
                 cur.execute(
-                    f"""SELECT severity, COUNT(*) as cnt
-                        FROM security_events
-                        WHERE 1=1 {df}
-                        GROUP BY severity ORDER BY cnt DESC""",
+                    "SELECT severity, COUNT(*) as cnt FROM security_events WHERE 1=1"
+                    + df
+                    + " GROUP BY severity ORDER BY cnt DESC",
                     dp,
                 )
                 content["events_by_severity"] = [{"severity": r[0], "count": r[1]} for r in cur.fetchall()]
@@ -439,10 +438,9 @@ def _gather_report_content(report_type, date_start=None, date_end=None):
 
             try:
                 cur.execute(
-                    f"""SELECT event_type, description, severity, status, created_at
-                        FROM security_events
-                        WHERE 1=1 {df}
-                        ORDER BY created_at DESC LIMIT 50""",
+                    "SELECT event_type, description, severity, status, created_at FROM security_events WHERE 1=1"
+                    + df
+                    + " ORDER BY created_at DESC LIMIT 50",
                     dp,
                 )
                 content["recent_events"] = [
@@ -465,10 +463,9 @@ def _gather_report_content(report_type, date_start=None, date_end=None):
             dp = date_params if date_start else []
             try:
                 cur.execute(
-                    f"""SELECT DATE(created_at) as day, severity, COUNT(*)
-                        FROM security_events
-                        WHERE 1=1 {df}
-                        GROUP BY day, severity ORDER BY day DESC""",
+                    "SELECT DATE(created_at) as day, severity, COUNT(*) FROM security_events WHERE 1=1"
+                    + df
+                    + " GROUP BY day, severity ORDER BY day DESC",
                     dp,
                 )
                 daily = {}
@@ -485,7 +482,7 @@ def _gather_report_content(report_type, date_start=None, date_end=None):
 
             try:
                 cur.execute(
-                    f"""SELECT COUNT(*) FROM security_events WHERE 1=1 {df}""",
+                    "SELECT COUNT(*) FROM security_events WHERE 1=1" + df,
                     dp,
                 )
                 content["total_events"] = cur.fetchone()[0]
@@ -497,9 +494,9 @@ def _gather_report_content(report_type, date_start=None, date_end=None):
             # Scan results summary
             try:
                 cur.execute(
-                    f"""SELECT severity, COUNT(*) FROM security_scan_results
-                        WHERE 1=1 {df}
-                        GROUP BY severity ORDER BY COUNT(*) DESC""",
+                    "SELECT severity, COUNT(*) FROM security_scan_results WHERE 1=1"
+                    + df
+                    + " GROUP BY severity ORDER BY COUNT(*) DESC",
                     dp,
                 )
                 content["scan_findings"] = [{"severity": r[0], "count": r[1]} for r in cur.fetchall()]
@@ -554,10 +551,9 @@ def _gather_report_content(report_type, date_start=None, date_end=None):
             # DNS changes
             try:
                 cur.execute(
-                    f"""SELECT source, action, domain, changed_by, created_at
-                        FROM security_dns_changes
-                        WHERE 1=1 {df}
-                        ORDER BY created_at DESC LIMIT 100""",
+                    "SELECT source, action, domain, changed_by, created_at FROM security_dns_changes WHERE 1=1"
+                    + df
+                    + " ORDER BY created_at DESC LIMIT 100",
                     dp,
                 )
                 content["dns_changes"] = [

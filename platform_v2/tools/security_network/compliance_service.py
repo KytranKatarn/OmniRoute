@@ -1540,12 +1540,10 @@ def list_remediation_plans(rule_id=None, status=None):
                 params.append(status)
             where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
             cur.execute(
-                f"""SELECT id, rule_id, pack_id, status, generated_at,
-                           started_at, completed_at, exemption_candidate,
-                           jsonb_array_length(COALESCE(steps, '[]'::jsonb)) AS step_count
-                   FROM compliance_remediation_plans
-                   {where}
-                   ORDER BY generated_at DESC LIMIT 50""",
+                "SELECT id, rule_id, pack_id, status, generated_at, "
+                "started_at, completed_at, exemption_candidate, "
+                "jsonb_array_length(COALESCE(steps, '[]'::jsonb)) AS step_count "
+                "FROM compliance_remediation_plans " + where + " ORDER BY generated_at DESC LIMIT 50",
                 params,
             )
             rows = [dict(r) for r in cur.fetchall()]

@@ -30,34 +30,20 @@ def register_sinkhole_routes(bp, admin_required_decorator):
             with get_db_cursor() as (conn, cur):
                 # Top 50 blocked domains by count
                 cur.execute(
-                    f"""
-                    SELECT domain, SUM(query_count) as block_count,
-                           COUNT(DISTINCT device_ip) as unique_devices
-                    FROM device_dns_history
-                    WHERE blocked = true
-                      {time_filter}
-                      AND domain LIKE '%%.%%'
-                    GROUP BY domain
-                    ORDER BY block_count DESC
-                    LIMIT 50
-                    """
+                    "SELECT domain, SUM(query_count) as block_count, COUNT(DISTINCT device_ip) as unique_devices "
+                    "FROM device_dns_history WHERE blocked = true " + time_filter + " AND domain LIKE '%%.%%' "
+                    "GROUP BY domain ORDER BY block_count DESC LIMIT 50"
                 )
                 top_blocked = [dict(row) for row in cur.fetchall()]
 
                 # Category breakdown: join blocked domains against traffic_categories
                 cur.execute(
-                    f"""
-                    SELECT COALESCE(tc.category, 'uncategorized') AS category,
-                           SUM(ddh.query_count) AS block_count
-                    FROM device_dns_history ddh
-                    LEFT JOIN traffic_categories tc
-                        ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
-                    WHERE ddh.blocked = true
-                      {time_filter.replace('hour_bucket', 'ddh.hour_bucket')}
-                      AND ddh.domain LIKE '%%.%%'
-                    GROUP BY tc.category
-                    ORDER BY block_count DESC
-                    """
+                    "SELECT COALESCE(tc.category, 'uncategorized') AS category, SUM(ddh.query_count) AS block_count "
+                    "FROM device_dns_history ddh "
+                    "LEFT JOIN traffic_categories tc ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$') "
+                    "WHERE ddh.blocked = true "
+                    + time_filter.replace("hour_bucket", "ddh.hour_bucket")
+                    + " AND ddh.domain LIKE '%%.%%' GROUP BY tc.category ORDER BY block_count DESC"
                 )
                 categories = [dict(row) for row in cur.fetchall()]
 
@@ -93,37 +79,21 @@ def register_sinkhole_routes(bp, admin_required_decorator):
             with get_db_cursor() as (conn, cur):
                 if category == "uncategorized":
                     cur.execute(
-                        f"""
-                        SELECT ddh.domain, SUM(ddh.query_count) AS block_count,
-                               COUNT(DISTINCT ddh.device_ip) AS unique_devices
-                        FROM device_dns_history ddh
-                        LEFT JOIN traffic_categories tc
-                            ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
-                        WHERE ddh.blocked = true
-                          AND tc.category IS NULL
-                          {time_filter}
-                          AND ddh.domain LIKE '%%.%%'
-                        GROUP BY ddh.domain
-                        ORDER BY block_count DESC
-                        LIMIT 30
-                        """
+                        "SELECT ddh.domain, SUM(ddh.query_count) AS block_count, COUNT(DISTINCT ddh.device_ip) AS unique_devices "
+                        "FROM device_dns_history ddh "
+                        "LEFT JOIN traffic_categories tc ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$') "
+                        "WHERE ddh.blocked = true AND tc.category IS NULL "
+                        + time_filter
+                        + " AND ddh.domain LIKE '%%.%%' GROUP BY ddh.domain ORDER BY block_count DESC LIMIT 30"
                     )
                 else:
                     cur.execute(
-                        f"""
-                        SELECT ddh.domain, SUM(ddh.query_count) AS block_count,
-                               COUNT(DISTINCT ddh.device_ip) AS unique_devices
-                        FROM device_dns_history ddh
-                        JOIN traffic_categories tc
-                            ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$')
-                        WHERE ddh.blocked = true
-                          AND tc.category = %s
-                          {time_filter}
-                          AND ddh.domain LIKE '%%.%%'
-                        GROUP BY ddh.domain
-                        ORDER BY block_count DESC
-                        LIMIT 30
-                        """,
+                        "SELECT ddh.domain, SUM(ddh.query_count) AS block_count, COUNT(DISTINCT ddh.device_ip) AS unique_devices "
+                        "FROM device_dns_history ddh "
+                        "JOIN traffic_categories tc ON tc.domain_pattern = SUBSTRING(ddh.domain FROM '([^.]+\\.[^.]+)$') "
+                        "WHERE ddh.blocked = true AND tc.category = %s "
+                        + time_filter
+                        + " AND ddh.domain LIKE '%%.%%' GROUP BY ddh.domain ORDER BY block_count DESC LIMIT 30",
                         (category,),
                     )
                 domains = [dict(row) for row in cur.fetchall()]
@@ -372,14 +342,9 @@ def register_sinkhole_routes(bp, admin_required_decorator):
 
             with get_db_cursor() as (conn, cur):
                 cur.execute(
-                    f"""
-                    SELECT date_trunc('{bucket}', hour_bucket) as bucket,
-                           SUM(query_count) as total,
-                           SUM(CASE WHEN blocked THEN query_count ELSE 0 END) as blocked
-                    FROM device_dns_history
-                    {time_filter}
-                    GROUP BY 1 ORDER BY 1
-                    """
+                    "SELECT date_trunc('" + bucket + "', hour_bucket) as bucket, "
+                    "SUM(query_count) as total, SUM(CASE WHEN blocked THEN query_count ELSE 0 END) as blocked "
+                    "FROM device_dns_history " + time_filter + " GROUP BY 1 ORDER BY 1"
                 )
                 points = []
                 for row in cur.fetchall():

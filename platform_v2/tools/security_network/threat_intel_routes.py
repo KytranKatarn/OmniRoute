@@ -113,14 +113,9 @@ def register_threat_intel_routes(bp, admin_required_decorator):
 
             with get_db_cursor() as (conn, cur):
                 cur.execute(
-                    f"""
-                    SELECT id, ioc_type, ioc_value, severity, feed_source,
-                           threat_type, first_seen, last_updated
-                    FROM threat_intel_iocs
-                    {where}
-                    ORDER BY last_updated DESC
-                    LIMIT %s
-                    """,
+                    "SELECT id, ioc_type, ioc_value, severity, feed_source, "
+                    "threat_type, first_seen, last_updated "
+                    "FROM threat_intel_iocs " + where + " ORDER BY last_updated DESC LIMIT %s",
                     params,
                 )
                 rows = cur.fetchall()

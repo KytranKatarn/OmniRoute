@@ -752,10 +752,7 @@ def api_update_user(user_id):
 
         with get_db_cursor() as (conn, cur):
             cur.execute(
-                f"""
-                UPDATE users SET {', '.join(updates)}
-                WHERE id = %s
-            """,
+                "UPDATE users SET " + ", ".join(updates) + " WHERE id = %s",
                 params,
             )
 

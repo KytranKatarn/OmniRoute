@@ -436,8 +436,7 @@ def register_domain_npm_routes(bp, admin_required_decorator):
 
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
-                    f"""UPDATE org_domains SET {set_clause}, updated_at = NOW()
-                        WHERE id = %s AND user_id = %s""",
+                    "UPDATE org_domains SET " + set_clause + ", updated_at = NOW() WHERE id = %s AND user_id = %s",
                     values,
                 )
                 if cur.rowcount == 0:
@@ -581,8 +580,9 @@ def register_domain_npm_routes(bp, admin_required_decorator):
                 values = list(updates.values())
                 values.extend([record_id, domain_id])
                 cur.execute(
-                    f"""UPDATE managed_dns_records SET {set_clause}, updated_at = NOW()
-                        WHERE id = %s AND domain_id = %s""",
+                    "UPDATE managed_dns_records SET "
+                    + set_clause
+                    + ", updated_at = NOW() WHERE id = %s AND domain_id = %s",
                     values,
                 )
                 if cur.rowcount == 0:

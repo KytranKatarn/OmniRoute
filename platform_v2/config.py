@@ -56,7 +56,9 @@ class Config:
     # Session
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
-    SESSION_COOKIE_SECURE = True  # Always HTTPS via NPM proxy
+    SESSION_COOKIE_SECURE = (
+        os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true"
+    )  # NPM proxy handles HTTPS termination — false is correct for internal HTTP access
     PERMANENT_SESSION_LIFETIME = 3600 * 24 * 7  # 7 days
 
     # A.R.C.H.I.E. Personality

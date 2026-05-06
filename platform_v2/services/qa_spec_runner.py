@@ -523,17 +523,45 @@ print(json.dumps(results))
 
 
 def _authenticate(session, base_url, auth):
-    """POST to /login then verify the session cookie is active on /dashboard.
+    """Authenticate the test session against the platform.
 
-    Verification follows redirects so transient gunicorn-startup redirects
-    (where /dashboard briefly 302s before all workers are ready) don't cause
-    false auth failures.  A successful auth lands on /dashboard (final URL
-    contains "/dashboard").  A failed auth redirects back to /login.
+    Primary path: POST /api/qa/auth with the ARCHIE_QA_TOKEN — bypasses CSRF
+    and rate limiting entirely. Works when the platform is running with the env
+    var set (standard dev + CI config).
+
+    Fallback: standard web-form login with CSRF double-submit cookie, for any
+    environment where the QA token endpoint is not available.
     """
+    qa_token = os.getenv("ARCHIE_QA_TOKEN", "")
+
+    if qa_token:
+        # Fast path: internal token auth, no CSRF, no rate limiting
+        qa_url = f"{base_url}/api/qa/auth"
+        resp = session.post(
+            qa_url,
+            json={"token": qa_token, "username": auth["username"]},
+            allow_redirects=True,
+            timeout=15,
+        )
+        if resp.status_code == 200 and resp.json().get("success"):
+            # Verify session is active
+            verify = session.get(f"{base_url}/dashboard", allow_redirects=True, timeout=15)
+            if "/login" not in (verify.url or ""):
+                logger.info("QA token auth succeeded for %s", auth["username"])
+                return
+        logger.warning("QA token auth failed (status=%s), falling back to form login", resp.status_code)
+
+    # Fallback: web-form login with CSRF double-submit cookie
     login_url = f"{base_url}/login"
+
+    # Step 1: GET /login to seed the Flask session + archie_csrf cookie
+    session.get(login_url, allow_redirects=True, timeout=15)
+    csrf_token = session.cookies.get("archie_csrf", "")
+
     payload = {
         "username": auth["username"],
         "password": auth["password"],
+        "_csrf_token": csrf_token,
     }
     resp = session.post(login_url, data=payload, allow_redirects=True, timeout=30)
     if resp.status_code >= 400:

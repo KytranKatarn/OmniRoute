@@ -70,10 +70,16 @@ class KytranAuth:
 
         @app.route("/auth/kytran/login")
         def kytran_login():
-            # Already logged in? Skip OAuth, go straight to destination
-            if "kytran_user" in session:
+            # Already logged in AND session is complete? Skip OAuth.
+            # NOTE: "kytran_user" alone is not enough — a previous failed _on_login
+            # can leave it set without completing Flask-Login. Rely on Flask-Login.
+            from flask_login import current_user as _cu
+            if "kytran_user" in session and _cu.is_authenticated:
                 next_url = request.args.get("next", "/dashboard")
                 return redirect(next_url)
+
+            # Clear any stale kytran session left over from a previous partial auth
+            session.pop("kytran_user", None)
 
             state = secrets.token_urlsafe(32)
             next_url = request.args.get("next", "/dashboard")
@@ -211,7 +217,7 @@ class KytranAuth:
                         f"<p><a href='{sdk.auth_url}'>Manage subscriptions</a></p>"
                     ), 403
 
-            # Store user in session
+            # Store user in session (includes product_tiers for per-product tier gating)
             _tier = userinfo.get("subscription_tier") or userinfo.get("tier") or "free"
             session["kytran_user"] = {
                 "sub": userinfo.get("sub"),
@@ -223,11 +229,27 @@ class KytranAuth:
                 "tier": _tier,
                 "is_owner": userinfo.get("is_owner", False),
                 "entitlements": entitlements,
+                "product_tiers": userinfo.get("product_tiers", {}),
                 "access_token": access_token,
             }
 
             if sdk._on_login:
-                sdk._on_login(session["kytran_user"])
+                try:
+                    # Pass the full userinfo from the /oauth/userinfo endpoint so
+                    # callbacks receive product_tiers, language_preference, etc.
+                    result = sdk._on_login(userinfo)
+                    # If callback returns a Flask response (e.g. redirect for blocked users)
+                    # honour it instead of continuing to next_url
+                    if result is not None:
+                        return result
+                except Exception as e:
+                    # Clear partial session so re-clicking SSO starts a fresh flow
+                    session.pop("kytran_user", None)
+                    return (
+                        "<h2>Login Failed</h2>"
+                        f"<p>An error occurred completing sign-in. Please try again.</p>"
+                        f'<p><a href="/auth/kytran/login">Try again</a></p>'
+                    ), 500
 
             return redirect(next_url)
 

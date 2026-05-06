@@ -1170,6 +1170,57 @@ def login():
     return render_template("login.html")
 
 
+@app.route("/api/qa/auth", methods=["POST"])
+def qa_auth():
+    """Internal QA authentication endpoint — bypasses CSRF and rate limiting.
+    Only works when ARCHIE_QA_TOKEN env var is set and the request comes from
+    a Docker-internal IP. Used by P.R.O.B.E. to avoid hairpin-NAT rate limit issues.
+    """
+    import hmac
+
+    qa_token = os.environ.get("ARCHIE_QA_TOKEN", "")
+    if not qa_token:
+        return jsonify({"error": "QA auth disabled"}), 403
+
+    # IP restriction — only Docker-internal networks
+    ip = request.remote_addr or ""
+    if not (ip.startswith("172.") or ip.startswith("10.") or ip in ("127.0.0.1", "::1")):
+        return jsonify({"error": "QA auth only available from internal networks"}), 403
+
+    data = request.get_json(silent=True) or {}
+    submitted_token = data.get("token", "")
+    username = data.get("username", "")
+
+    if not hmac.compare_digest(submitted_token, qa_token):
+        return jsonify({"error": "Invalid QA token"}), 401
+
+    from services.auth_service import get_user_by_username
+
+    user_data = get_user_by_username(username)
+    if not user_data or not user_data.get("is_active"):
+        return jsonify({"error": "User not found or inactive"}), 404
+
+    metadata = user_data.get("metadata") or {}
+    theme_pref = metadata.get("theme_preference") if isinstance(metadata, dict) else None
+    user = User(
+        id=user_data["id"],
+        username=user_data["username"],
+        email=user_data["email"],
+        role=user_data["role"],
+        is_admin=user_data.get("is_admin", False),
+        is_super_admin=user_data.get("is_super_admin", False),
+        subscription_tier=user_data.get("subscription_tier", "free"),
+        subscription_expires_at=user_data.get("subscription_expires_at"),
+        theme_preference=theme_pref,
+        profile_picture=user_data.get("profile_picture"),
+        oauth_picture=user_data.get("oauth_picture"),
+        created_at=user_data.get("created_at"),
+    )
+    login_user(user, remember=True)
+    create_user_session(user_data["id"])
+    return jsonify({"success": True, "username": username})
+
+
 @app.route("/verify-2fa", methods=["GET", "POST"])
 def verify_2fa():
     """Two-factor authentication verification page"""

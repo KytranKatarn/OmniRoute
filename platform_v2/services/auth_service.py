@@ -276,8 +276,10 @@ def check_ip_rate_limit(ip_address):
     """Check if an IP has exceeded the login rate limit.
     Returns (is_limited, seconds_remaining) tuple.
     """
-    # Loopback never rate-limited — internal tools (QA runner) run from localhost
-    if ip_address in ("127.0.0.1", "::1"):
+    # Loopback and Docker bridge IPs never rate-limited — internal tools (QA
+    # runner, MCP server) call via 192.168.1.200:3000 which hairpins through the
+    # Docker bridge gateway (172.x.x.x range), not 127.0.0.1
+    if ip_address in ("127.0.0.1", "::1") or ip_address.startswith("172."):
         return False, 0
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(seconds=IP_RATE_WINDOW)

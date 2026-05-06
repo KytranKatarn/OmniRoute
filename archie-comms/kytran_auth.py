@@ -212,12 +212,16 @@ class KytranAuth:
                     ), 403
 
             # Store user in session
+            _tier = userinfo.get("subscription_tier") or userinfo.get("tier") or "free"
             session["kytran_user"] = {
                 "sub": userinfo.get("sub"),
                 "username": userinfo.get("username"),
                 "email": userinfo.get("email"),
                 "name": userinfo.get("name"),
                 "role": userinfo.get("role"),
+                "subscription_tier": _tier,
+                "tier": _tier,
+                "is_owner": userinfo.get("is_owner", False),
                 "entitlements": entitlements,
                 "access_token": access_token,
             }

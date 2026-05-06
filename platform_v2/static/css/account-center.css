@@ -11,7 +11,7 @@
     .account-center-container {
         min-height: 100vh;
         background: var(--archie-bg-deep);
-        overflow-x: hidden;
+        overflow-x: clip;
     }
 
     /* Fix card header contrast - shared components.css lacks explicit color */
@@ -24,7 +24,7 @@
     }
 
     .account-center-content {
-        padding-top: 52px;
+        padding-top: 8px;
     }
 
     /* Stats Grid */
@@ -2328,3 +2328,105 @@
             font-size: 0.6rem;
         }
     }
+
+/* ============================================================
+   ACCOUNT CENTER MODAL — DARK LCARS THEME OVERRIDES
+   Always dark regardless of page theme (explicit hex values)
+   ============================================================ */
+
+/* Force dark shell and content — overrides light theme */
+#details-modal .bm-shell,
+#user-modal .bm-shell {
+    background: #06060c !important;
+}
+
+/* bm-body content area — dark */
+#user-details-content,
+#user-modal .bm-body {
+    background: #0d0d18 !important;
+    color: #e8e8f0 !important;
+}
+
+/* All text inside modal body — light */
+#user-details-content *,
+#user-modal .bm-body * {
+    color: #e8e8f0;
+    border-color: rgba(0,255,255,0.12);
+}
+
+/* User header section */
+#user-details-content .user-profile-header,
+#user-details-content > div:first-child {
+    background: #111127 !important;
+    border-bottom: 1px solid rgba(0,255,255,0.15) !important;
+    padding-bottom: 12px !important;
+}
+
+/* Section labels — cyan LCARS style */
+#user-details-content .section-header,
+#user-details-content h3,
+#user-details-content h4,
+#user-details-content .detail-section > div:first-child {
+    color: #00d4ff !important;
+    font-family: 'Antonio', sans-serif !important;
+    letter-spacing: 2px !important;
+    text-transform: uppercase !important;
+    font-size: 0.78rem !important;
+    border-bottom: 1px solid rgba(0,255,255,0.2) !important;
+    padding-bottom: 6px !important;
+    margin-bottom: 12px !important;
+}
+
+/* Tab navigation inside modal */
+#user-details-content .profile-tabs,
+#user-details-content .tab-nav {
+    background: #06060c !important;
+    border-bottom: 1px solid rgba(0,255,255,0.2) !important;
+}
+
+#user-details-content .profile-tabs button,
+#user-details-content .tab-nav button {
+    color: #888 !important;
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    padding: 8px 14px !important;
+    font-family: 'Antonio', sans-serif !important;
+    letter-spacing: 1px !important;
+}
+
+#user-details-content .profile-tabs button.active,
+#user-details-content .tab-nav button.active {
+    color: #00d4ff !important;
+    border-bottom-color: #00d4ff !important;
+}
+
+/* Row dividers */
+#user-details-content .detail-row,
+#user-details-content .info-row {
+    border-bottom: 1px solid rgba(0,255,255,0.07) !important;
+}
+
+/* Labels */
+#user-details-content .detail-label,
+#user-details-content .field-label {
+    color: #667 !important;
+    font-size: 0.72rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+}
+
+/* Edit buttons inside modal — LCARS outline style */
+#user-details-content .btn,
+#user-details-content .btn-sm {
+    border: 1px solid rgba(0,212,255,0.35) !important;
+    color: #00d4ff !important;
+    background: rgba(0,212,255,0.05) !important;
+    font-family: 'Antonio', sans-serif !important;
+    letter-spacing: 1px !important;
+}
+
+#user-details-content .btn:hover,
+#user-details-content .btn-sm:hover {
+    background: rgba(0,212,255,0.12) !important;
+}

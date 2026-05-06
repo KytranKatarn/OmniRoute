@@ -151,7 +151,7 @@ def token():
 
         if code_row["used"]:
             return jsonify({"error": "code_already_used"}), 400
-        if datetime.now(timezone.utc) > code_row["expires_at"]:
+        if datetime.now(timezone.utc).replace(tzinfo=None) > code_row["expires_at"]:
             return jsonify({"error": "code_expired"}), 400
         if code_row["redirect_uri"] != redirect_uri:
             return jsonify({"error": "redirect_uri_mismatch"}), 400

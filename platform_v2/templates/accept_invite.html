@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}A.R.C.H.I.E. - Accept Invitation{% endblock %}
+{% block module_name %}login{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}">
+
+<div class="login-page">
+    <div class="login-frame lcars-frame lcars-frame--tablet boot-hidden"
+         id="loginFrame"
+         style="--frame-color: #7c3aed; --frame-rgb: 124,58,237">
+
+        <div class="lcars-sidebar">
+            <div class="lcars-elbow-top"></div>
+            <div class="lcars-seg" style="--seg-color: #7c3aed"></div>
+            <div class="lcars-seg-light" style="--light-color: #7c3aed"></div>
+            <div class="lcars-seg" style="--seg-color: #00ffff"></div>
+            <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
+            <div class="lcars-seg-fill"></div>
+            <div class="lcars-seg" style="--seg-color: #7c3aed"></div>
+            <div class="lcars-elbow-bottom"></div>
+        </div>
+
+        <div class="lcars-content">
+            <div class="lcars-bar">
+                <span class="lcars-bar-title">A.R.C.H.I.E.</span>
+                <div class="lcars-bar-spacer"></div>
+                <div class="lcars-pips">
+                    <span class="lcars-pip" style="width:20px; background:#7c3aed"></span>
+                    <span class="lcars-pip" style="width:14px; background:#7c3aed"></span>
+                    <span class="lcars-pip" style="width:14px; background:#7c3aed"></span>
+                </div>
+            </div>
+
+            <div class="lcars-body">
+                <p class="login-subtitle">INVITATION ACCEPTED</p>
+                <p style="color:var(--archie-text-secondary); font-size:0.85rem; margin-bottom:20px; text-align:center;">
+                    You've been invited to join the platform.<br>
+                    <strong style="color:var(--archie-text-primary);">{{ email }}</strong>
+                </p>
+
+                {% if message %}
+                <div style="background:rgba(124,58,237,0.1); border:1px solid rgba(124,58,237,0.3); border-radius:6px; padding:10px 14px; margin-bottom:16px; font-size:0.85rem; color:var(--archie-text-secondary);">
+                    {{ message }}
+                </div>
+                {% endif %}
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                {% for category, message in messages %}
+                <div class="login-alert login-alert--{{ category }}" style="margin-bottom:12px;">{{ message }}</div>
+                {% endfor %}
+                {% endif %}
+                {% endwith %}
+
+                <form method="POST" action="/accept-invite?token={{ token }}" class="login-form">
+                    <input type="hidden" name="token" value="{{ token }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="login-form-group">
+                        <label class="login-form-label">Choose a Username</label>
+                        <input type="text" name="username" class="login-form-input"
+                               placeholder="e.g. alex" required autofocus autocomplete="username">
+                    </div>
+
+                    <div class="login-form-group">
+                        <label class="login-form-label">Password</label>
+                        <input type="password" name="password" class="login-form-input"
+                               placeholder="8+ chars, upper, lower, number, symbol"
+                               required autocomplete="new-password">
+                    </div>
+
+                    <div class="login-form-group">
+                        <label class="login-form-label">Confirm Password</label>
+                        <input type="password" name="confirm_password" class="login-form-input"
+                               placeholder="Repeat password" required autocomplete="new-password">
+                    </div>
+
+                    <div>
+                        <button type="submit" class="login-btn" style="background:#7c3aed;">
+                            Create Account
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="lcars-footer-bar">
+                <span class="lcars-footer-stardate" id="loginStardate">INVITE ACTIVATION</span>
+                <div class="lcars-footer-dots">
+                    <span class="lcars-footer-dot" style="background:#7c3aed"></span>
+                    <span class="lcars-footer-dot" style="background:#00ffff"></span>
+                    <span class="lcars-footer-dot" style="background:#f59e0b"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="login-status-strip">
+        <span>INVITATION SYSTEM: ACTIVE</span>
+        <span>PLATFORM ACCESS: RESTRICTED</span>
+        <span>TOKEN: VALID</span>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/login.js') }}"></script>
+{% endblock %}

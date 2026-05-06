@@ -180,28 +180,28 @@ def index():
 
     try:
         with get_db_cursor(commit=False) as (conn, cur):
-            # Get user counts
-            cur.execute("SELECT COUNT(*) as count FROM users WHERE is_active = true")
-            stats["total_users"] = cur.fetchone()["count"]
-
-            cur.execute("SELECT COUNT(*) as count FROM users WHERE is_admin = true")
-            stats["admins"] = cur.fetchone()["count"]
-
-            cur.execute(
-                "SELECT COUNT(*) as count FROM users WHERE subscription_tier IN ('pro', 'business', 'enterprise')"
-            )
-            stats["premium"] = cur.fetchone()["count"]
-
-            cur.execute(
-                "SELECT COUNT(*) as count FROM users WHERE subscription_tier = 'free' OR subscription_tier IS NULL"
-            )
-            stats["free"] = cur.fetchone()["count"]
-
+            # Consolidated user stats — single query instead of 5 separate COUNTs
             cur.execute(
                 """
-                SELECT COUNT(DISTINCT user_id) as count FROM user_activity_log
-                WHERE created_at > NOW() - INTERVAL '24 hours'
-            """
+                SELECT
+                    SUM(CASE WHEN is_active = true THEN 1 ELSE 0 END)::int            AS total_users,
+                    SUM(CASE WHEN is_admin = true THEN 1 ELSE 0 END)::int             AS admins,
+                    SUM(CASE WHEN subscription_tier IN ('pro','business','enterprise','kytran') THEN 1 ELSE 0 END)::int AS premium,
+                    SUM(CASE WHEN subscription_tier = 'free' OR subscription_tier IS NULL THEN 1 ELSE 0 END)::int AS free,
+                    SUM(CASE WHEN is_active = false AND last_login IS NULL THEN 1 ELSE 0 END)::int AS pending_approval
+                FROM users
+                """
+            )
+            row = cur.fetchone()
+            stats["total_users"] = row["total_users"] or 0
+            stats["admins"] = row["admins"] or 0
+            stats["premium"] = row["premium"] or 0
+            stats["free"] = row["free"] or 0
+            stats["pending_approval"] = row["pending_approval"] or 0
+
+            cur.execute(
+                "SELECT COUNT(DISTINCT user_id) as count FROM user_activity_log"
+                " WHERE created_at > NOW() - INTERVAL '24 hours'"
             )
             stats["active_today"] = cur.fetchone()["count"]
 
@@ -216,14 +216,106 @@ def index():
                 stats["organizations"] = cur.fetchone()["count"]
             except Exception:
                 stats["organizations"] = 0
-
-            # Count pending approval users (inactive, never logged in)
-            cur.execute("SELECT COUNT(*) as count FROM users WHERE is_active = false AND last_login IS NULL")
-            stats["pending_approval"] = cur.fetchone()["count"]
     except Exception as e:
         print(f"Error getting stats: {e}")
 
     return render_template("tools/account_center.html", stats=stats)
+
+
+# ============================================================================
+# OVERVIEW API
+# ============================================================================
+
+
+@account_center_bp.route("/api/overview")
+@login_required
+@admin_required
+def api_overview():
+    """Account Center overview — active users, recent logins, security alerts."""
+    from services.time_utils import format_local
+
+    result = {
+        "active_users": [],
+        "recent_activity": [],
+        "failed_logins_24h": 0,
+        "active_sessions": 0,
+        "alerts": [],
+    }
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Active users
+            cur.execute(
+                """SELECT id, username, email, role, is_admin, subscription_tier, last_login
+                   FROM users WHERE is_active = true ORDER BY last_login DESC NULLS LAST"""
+            )
+            system_usernames = {"claude", "archie", "probe"}
+            for row in cur.fetchall():
+                is_system = row["username"] in system_usernames
+                result["active_users"].append(
+                    {
+                        "id": row["id"],
+                        "username": row["username"],
+                        "email": row["email"],
+                        "role": row["role"],
+                        "is_admin": row["is_admin"],
+                        "tier": row["subscription_tier"] or "free",
+                        "is_system": is_system,
+                        "last_login": row["last_login"].isoformat() if row["last_login"] else None,
+                        "last_login_display": format_local(row["last_login"]) if row["last_login"] else "Never",
+                    }
+                )
+
+            # Recent login activity (last 48h)
+            cur.execute(
+                """SELECT u.username, al.action, al.created_at
+                   FROM audit_log al
+                   JOIN users u ON al.user_id = u.id
+                   WHERE al.action IN ('login_success', 'login_failed')
+                   AND al.created_at > NOW() - INTERVAL '48 hours'
+                   ORDER BY al.created_at DESC LIMIT 15"""
+            )
+            for row in cur.fetchall():
+                result["recent_activity"].append(
+                    {
+                        "username": row["username"],
+                        "action": row["action"],
+                        "created_at": row["created_at"].isoformat(),
+                        "display": format_local(row["created_at"]),
+                    }
+                )
+
+            # Failed logins last 24h
+            cur.execute(
+                "SELECT COUNT(*) as count FROM audit_log WHERE action = 'login_failed' AND created_at > NOW() - INTERVAL '24 hours'"
+            )
+            result["failed_logins_24h"] = cur.fetchone()["count"]
+
+            # Active sessions
+            cur.execute("SELECT COUNT(*) as count FROM active_sessions")
+            result["active_sessions"] = cur.fetchone()["count"]
+
+            # Security alerts — deactivated accounts that logged in today
+            cur.execute(
+                """SELECT u.username, MAX(al.created_at) as last_seen
+                   FROM audit_log al JOIN users u ON al.user_id = u.id
+                   WHERE al.action = 'login_success'
+                   AND u.is_active = false
+                   AND al.created_at > NOW() - INTERVAL '24 hours'
+                   GROUP BY u.username"""
+            )
+            for row in cur.fetchall():
+                result["alerts"].append(
+                    {
+                        "type": "deactivated_login",
+                        "message": f"Deactivated account '{row['username']}' logged in today",
+                        "severity": "high",
+                    }
+                )
+
+    except Exception as e:
+        print(f"Overview API error: {e}")
+
+    return jsonify(result)
 
 
 # ============================================================================
@@ -238,10 +330,11 @@ def api_list_users():
     """List all users with optional filtering"""
     try:
         with get_db_cursor(commit=False) as (conn, cur):
-            # Get filter parameters
+            # Get filter parameters — default to active users only
             role_filter = request.args.get("role", "")
             tier_filter = request.args.get("tier", "")
             search = request.args.get("search", "")
+            status_filter = request.args.get("status", "active")  # active | inactive | all
             limit = request.args.get("limit", 100, type=int)
             offset = request.args.get("offset", 0, type=int)
 
@@ -264,6 +357,11 @@ def api_list_users():
             """
             params = []
 
+            if status_filter == "active":
+                query += " AND u.is_active = true"
+            elif status_filter == "inactive":
+                query += " AND u.is_active = false"
+
             if role_filter:
                 query += " AND u.role = %s"
                 params.append(role_filter)
@@ -276,7 +374,7 @@ def api_list_users():
                 query += " AND (u.username ILIKE %s OR u.email ILIKE %s)"
                 params.extend([f"%{search}%", f"%{search}%"])
 
-            query += " ORDER BY u.created_at DESC LIMIT %s OFFSET %s"
+            query += " ORDER BY u.last_login DESC NULLS LAST LIMIT %s OFFSET %s"
             params.extend([limit, offset])
 
             cur.execute(query, params)
@@ -286,6 +384,10 @@ def api_list_users():
             count_query = "SELECT COUNT(*) as count FROM users WHERE 1=1"
             count_params = []
 
+            if status_filter == "active":
+                count_query += " AND is_active = true"
+            elif status_filter == "inactive":
+                count_query += " AND is_active = false"
             if role_filter:
                 count_query += " AND role = %s"
                 count_params.append(role_filter)
@@ -442,6 +544,171 @@ def api_create_user():
         return jsonify({"success": True, "user_id": new_id})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# INVITE SYSTEM
+# ============================================================================
+
+_INVITE_SMTP_HOST = "192.168.1.200"
+_INVITE_SMTP_PORT = 587
+_INVITE_FROM = "admin@kytranempowerment.com"
+
+
+def _send_invite_email(to_email, invite_link, inviter_name, message=None):
+    """Send invite email via Stalwart SMTP. Returns (ok, error_msg)."""
+    import smtplib
+    import ssl
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            "SELECT imap_password FROM email_mailboxes WHERE address = %s AND provisioned = TRUE AND active = TRUE",
+            (_INVITE_FROM,),
+        )
+        row = cur.fetchone()
+    if not row:
+        return False, "Invite mailbox not provisioned"
+
+    body = f"""You've been invited by {inviter_name} to join the Kytran Empowerment platform.
+
+Click the link below to accept your invitation (expires in 7 days):
+
+{invite_link}
+
+{("Personal message: " + message) if message else ""}
+
+If you did not expect this invitation, you can ignore this email.
+"""
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"Invitation to join Kytran Empowerment Platform"
+    msg["From"] = _INVITE_FROM
+    msg["To"] = to_email
+    msg.attach(MIMEText(body, "plain"))
+
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    try:
+        smtp_user = _INVITE_FROM.split("@")[0]
+        with smtplib.SMTP(_INVITE_SMTP_HOST, _INVITE_SMTP_PORT, timeout=30) as smtp:
+            smtp.ehlo()
+            smtp.starttls(context=ctx)
+            smtp.login(smtp_user, row["imap_password"])
+            smtp.sendmail(_INVITE_FROM, [to_email], msg.as_string())
+        return True, None
+    except Exception as exc:
+        return False, str(exc)
+
+
+@account_center_bp.route("/api/invites", methods=["POST"])
+@login_required
+@admin_required
+def api_create_invite():
+    """Send a platform invite to an email address."""
+    try:
+        data = request.get_json() or {}
+        email = data.get("email", "").strip().lower()
+        role = data.get("role", "collaborator")
+        tier = data.get("subscription_tier", "collaborator")
+        message = data.get("message", "").strip() or None
+
+        if not email or "@" not in email:
+            return jsonify({"success": False, "error": "Valid email required"}), 400
+
+        token = secrets.token_urlsafe(48)
+        with get_db_cursor() as (conn, cur):
+            # Expire any previous pending invites for this email
+            cur.execute(
+                "UPDATE user_invites SET status='expired' WHERE email=%s AND status='pending'",
+                (email,),
+            )
+            cur.execute(
+                """INSERT INTO user_invites (email, role, subscription_tier, invited_by, token, message)
+                   VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
+                (email, role, tier, current_user.id, token, message),
+            )
+            invite_id = cur.fetchone()["id"]
+
+        base_url = request.url_root.rstrip("/")
+        invite_link = f"{base_url}/accept-invite?token={token}"
+
+        email_sent, email_err = _send_invite_email(
+            email, invite_link, current_user.display_name or current_user.username, message
+        )
+
+        log_activity(current_user.id, "invite_sent", details={"email": email, "role": role})
+
+        return jsonify(
+            {
+                "success": True,
+                "invite_id": invite_id,
+                "invite_link": invite_link,
+                "email_sent": email_sent,
+                "email_error": email_err,
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@account_center_bp.route("/api/invites", methods=["GET"])
+@login_required
+@admin_required
+def api_list_invites():
+    """List all platform invites."""
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            """SELECT i.id, i.email, i.role, i.subscription_tier, i.status,
+                      i.created_at, i.expires_at, i.accepted_at,
+                      u.username AS invited_by_name
+               FROM user_invites i
+               JOIN users u ON u.id = i.invited_by
+               ORDER BY i.created_at DESC LIMIT 100""",
+        )
+        rows = cur.fetchall()
+    return jsonify({"success": True, "invites": [dict(r) for r in rows]})
+
+
+@account_center_bp.route("/api/invites/<int:invite_id>", methods=["DELETE"])
+@login_required
+@admin_required
+def api_revoke_invite(invite_id):
+    """Revoke a pending invite."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "UPDATE user_invites SET status='revoked' WHERE id=%s AND status='pending' RETURNING id",
+            (invite_id,),
+        )
+        if not cur.fetchone():
+            return jsonify({"success": False, "error": "Invite not found or already actioned"}), 404
+    return jsonify({"success": True})
+
+
+@account_center_bp.route("/api/invites/<int:invite_id>/resend", methods=["POST"])
+@login_required
+@admin_required
+def api_resend_invite(invite_id):
+    """Resend an invite email."""
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            "SELECT email, token, message FROM user_invites WHERE id=%s AND status='pending'",
+            (invite_id,),
+        )
+        row = cur.fetchone()
+    if not row:
+        return jsonify({"success": False, "error": "Invite not found or not pending"}), 404
+
+    base_url = request.url_root.rstrip("/")
+    invite_link = f"{base_url}/accept-invite?token={row['token']}"
+    ok, err = _send_invite_email(
+        row["email"], invite_link, current_user.display_name or current_user.username, row["message"]
+    )
+    return jsonify({"success": ok, "email_sent": ok, "email_error": err, "invite_link": invite_link})
+
+
+# ============================================================================
 
 
 @account_center_bp.route("/api/users/<int:user_id>", methods=["PUT"])
@@ -723,10 +990,12 @@ def api_list_roles():
     # Tier-to-role mapping (role_level from subscription_tiers table)
     tier_role_map = {
         0: ["PUBLIC"],
+        5: ["Guest"],
         10: ["Free"],
+        15: ["Collaborator"],
         20: ["Pro", "Business", "Enterprise"],
         90: ["Admin (manual)"],
-        100: ["Super Admin (manual)"],
+        100: ["Super Admin (manual)", "Kytran"],
     }
 
     roles = [
@@ -738,11 +1007,25 @@ def api_list_roles():
             "description": "Unauthenticated visitors with read-only access to public pages",
         },
         {
+            "name": "GUEST",
+            "level": 5,
+            "color": "#9ca3af",
+            "icon": "eye",
+            "description": "Demo/tour mode — view-only access to see the platform without modifying anything",
+        },
+        {
             "name": "USER",
             "level": 10,
             "color": "#06b6d4",
             "icon": "user",
             "description": "Free registered users with basic tools, chat, and limited app building",
+        },
+        {
+            "name": "COLLABORATOR",
+            "level": 15,
+            "color": "#7c3aed",
+            "icon": "users",
+            "description": "Invited partners with shared access, own agent, social & creative tools — no admin",
         },
         {
             "name": "PREMIUM",
@@ -969,6 +1252,8 @@ def api_list_permissions():
 @admin_required
 def api_update_user_role(user_id):
     """Update user's role"""
+    if user_id == current_user.id:
+        return jsonify({"success": False, "error": "Cannot change your own role"}), 403
     try:
         data = request.get_json()
         role = data.get("role", "user")
@@ -1509,6 +1794,9 @@ def api_get_activity():
             if module:
                 count_query += " AND module = %s"
                 count_params.append(module)
+            if action:
+                count_query += " AND action = %s"
+                count_params.append(action)
 
             cur.execute(count_query, count_params)
             total = cur.fetchone()["count"]
@@ -2126,7 +2414,7 @@ def api_bulk_import():
                 role = user_data.get("role", "user")
                 tier = user_data.get("subscription_tier", "free")
 
-                if not username or not password:
+                if not username or not password or not password.strip():
                     skipped += 1
                     continue
 

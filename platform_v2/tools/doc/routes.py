@@ -5,7 +5,16 @@ Updated: 2026-01-21 - Now uses Dr. Amara (Medical Advisor) via archie_bridge
 """
 
 from flask import render_template, jsonify, request
+from flask_login import login_required, current_user
 from . import doc_bp
+
+
+@doc_bp.before_request
+@login_required
+def require_login():
+    pass
+
+
 from .services.doc_service import (
     log_symptoms as svc_log_symptoms,
     get_symptom_history,

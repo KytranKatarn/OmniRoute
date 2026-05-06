@@ -100,6 +100,42 @@ If `session_briefing` is unavailable, call these individually:
 3. `mcp__archie__get_knowledge_stats`
 4. `mcp__archie__get_projects_brief`
 
+## Step 1.5: IDENTITY ASSERTION GATE — HARD HALT
+
+**This gate exists because Claude burned 40% of Kytran's Max 20x weekly bucket in 2 days (2026-05-04 → 2026-05-05) re-discovering identity facts that were already in memory at boot. Memory provided ≠ memory used. Compliance is what failed, not retrieval.**
+
+Before proceeding to Step 2, you MUST output an `## OWNER IDENTITY ASSERTION` block in your visible response that recites — in your own words — the contents of `~/.claude/projects/-mnt-archie-brain/memory/feedback_owner-context.md`. Read that file before this gate fires; it is the canonical source.
+
+The assertion block MUST contain ALL of:
+
+1. **Owner.** Who owns this platform — full name and the fact that they own EVERY standalone (gov-watch, civic-watch, legal-watch, market-watch, KBS, KSO, WTF, Media Hub, ARCHIE).
+2. **Canonical login.** The exact email address used for Google SSO.
+3. **Service accounts.** That `admin@kytranempowerment.com` and `admin@KytranEmpowerment.com` exist for Claude + A.R.C.H.I.E. **agent identity**, NOT the human owner. Kytran only ends up logging into them when Google SSO is broken.
+4. **Aliases.** That `Kytran@KytranEmpowerment.com`, `kytran@kytranempowerment.com`, and the canonical gmail address are ALL the same human (one identity, many DB rows from casing accidents).
+5. **Active fire.** The TOP entry of `~/.claude/projects/-mnt-archie-brain/memory/project_session-handoff.md` — what was just done, what is broken NOW, what the next 3-5 actions are. State this without paraphrase loss.
+6. **Trigger phrases that should make you stop.** Specifically: "tier='free'" near any owner email; framing Kytran as "this user" or "a free-tier user"; treating multiple Kytran emails as duplicate accounts before checking they're the same human.
+
+**Halt conditions:**
+- If `feedback_owner-context.md` is missing or empty → STOP. Tell the user. Do not guess.
+- If `project_session-handoff.md` top entry is more than 7 days old → STOP. Tell the user "handoff is stale, please confirm what happened in the gap."
+- If you cannot fully assert items 1–6 from memory in this turn → STOP. Read both files again. Do NOT proceed to Step 2 / 3 / 4 until the assertion is complete and correct.
+
+**You may not invoke any tool other than `Read` (on the two memory files above) until the assertion is published in your response.** No `mcp__archie__*` calls. No `Bash`. No `Edit`. No `Write`. No `ctx_execute`. No subagents. Read → recite → continue.
+
+**This is not a soft suggestion.** If you skip the assertion and the user catches it, they have explicit standing to `/clear` the session, run `/archie-boot` again, and the burned tokens are on you. Two of these failures in a session = you should ask the user whether to keep going or fully stop.
+
+**Why each item matters (so you don't strip it later):**
+- Owner — prevents "this user gets the upgrade card" framing.
+- Canonical login — prevents tonight's exact disaster (5 sessions, 6 user rows, wrong assumptions about which row is "his").
+- Service accounts — prevents accidentally treating admin@ as the human's identity.
+- Aliases — prevents proposing to "merge duplicate accounts" when all the rows are the same person.
+- Active fire — prevents asking "what should we work on?" when the handoff already says.
+- Trigger phrases — pre-loads stop conditions so you don't drift mid-session.
+
+After the assertion is complete, append one line: `Identity gate cleared, proceeding to Step 2.` Then call `Bash: touch /tmp/archie_identity_asserted` to activate the identity gate for this session. Then continue.
+
+---
+
 ## Step 2: Load Recent Corrections (ALWAYS — regardless of topic)
 
 Call `mcp__archie__search_knowledge` with query: "correction mistake failure lesson learned", types: ["mistake_learned"], limit: 10

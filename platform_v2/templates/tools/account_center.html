@@ -28,100 +28,102 @@
         ("Security", "shield", "/tools/security-network")
     ] %}
     {% set header_tabs = [
+        ("overview", "Overview", "layout-dashboard"),
         ("list", "Users", "users"),
-        ("pending", "Pending", "clock"),
         ("permissions", "Permissions", "lock"),
-        ("subscriptions", "Subscriptions", "credit-card"),
         ("security", "Security", "shield"),
         ("sessions", "Sessions", "monitor"),
-        ("api-keys", "API Keys", "key"),
-        ("bulk", "Bulk Ops", "layers"),
-        ("activity", "Activity", "activity"),
-        ("organizations", "Orgs", "building-2")
+        ("activity", "Activity", "activity")
     ] %}
     {% include 'includes/lcars-header.html' %}
 
     <div class="account-center-content">
-            <!-- Stats Overview -->
-            <div style="--frame-color: var(--archie-cyan); --frame-rgb: 0,255,255; margin-bottom: 20px;">
-                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
-                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                        <div style="height: 52px !important; background: var(--archie-cyan) !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: var(--archie-cyan) !important; flex-shrink: 0 !important;"></div>
-                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: var(--archie-cyan-dim) !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                        <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                        <div style="height: 36px !important; background: var(--archie-cyan) !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
-                    </div>
-                    <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                        <div style="height: 44px !important; background: var(--archie-cyan) !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
-                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: var(--archie-bg-primary) !important;">SYSTEM METRICS</span>
-                            <div style="flex:1"></div>
-                            <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
-                                <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
-                                <span style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
-                                <span style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+            <!-- OVERVIEW Tab -->
+            <div class="tab-content active" id="tab-overview">
+                <div style="--frame-color: var(--archie-cyan); --frame-rgb: 0,255,255; margin-bottom: 20px;">
+                    <div class="lcars-frame" style="display:flex !important; align-items:stretch !important;">
+                        <div class="lcars-sidebar" style="display:flex !important; flex-direction:column !important; flex-shrink:0 !important; width:56px !important; gap:4px !important;">
+                            <div style="height:52px !important; background:var(--archie-cyan) !important; border-radius:20px 0 0 0 !important; flex-shrink:0 !important;"></div>
+                            <div style="height:28px !important; border-radius:0 8px 8px 0 !important; background:var(--archie-cyan) !important; flex-shrink:0 !important;"></div>
+                            <div style="flex:1 !important; background:rgba(0,255,255,0.1) !important; border-radius:0 8px 8px 0 !important; min-height:20px !important;"></div>
+                            <div style="height:36px !important; background:var(--archie-cyan) !important; border-radius:0 0 0 20px !important; flex-shrink:0 !important;"></div>
+                        </div>
+                        <div style="flex:1 !important; display:flex !important; flex-direction:column !important; margin-left:8px !important; min-width:0 !important;">
+                            <div style="height:44px !important; background:var(--archie-cyan) !important; border-radius:0 20px 20px 0 !important; display:flex !important; align-items:center !important; padding:0 16px !important; flex-shrink:0 !important;">
+                                <span style="font-family:'Antonio',sans-serif !important; font-size:0.85rem !important; font-weight:500 !important; letter-spacing:2px !important; text-transform:uppercase !important; color:var(--archie-bg-primary) !important;">PLATFORM ACCESS OVERVIEW</span>
                             </div>
+                            <div style="flex:1 !important; padding:20px !important;">
+
+                                <!-- Quick Stats -->
+                                <div id="overview-stats-row" style="display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:20px;">
+                                    <div style="background:var(--archie-bg-secondary); border:1px solid rgba(0,255,255,0.2); border-radius:10px; padding:16px; text-align:center;">
+                                        <div style="font-family:Antonio,sans-serif; font-size:2rem; color:var(--archie-cyan);" id="ov-active">—</div>
+                                        <div style="font-size:0.75rem; color:var(--archie-text-secondary); text-transform:uppercase; letter-spacing:1px;">Active Accounts</div>
+                                    </div>
+                                    <div style="background:var(--archie-bg-secondary); border:1px solid rgba(0,255,255,0.2); border-radius:10px; padding:16px; text-align:center;">
+                                        <div style="font-family:Antonio,sans-serif; font-size:2rem; color:var(--archie-green);" id="ov-sessions">—</div>
+                                        <div style="font-size:0.75rem; color:var(--archie-text-secondary); text-transform:uppercase; letter-spacing:1px;">Active Sessions</div>
+                                    </div>
+                                    <div style="background:var(--archie-bg-secondary); border:1px solid rgba(0,255,255,0.2); border-radius:10px; padding:16px; text-align:center;">
+                                        <div style="font-family:Antonio,sans-serif; font-size:2rem; color:var(--archie-red);" id="ov-failed">—</div>
+                                        <div style="font-size:0.75rem; color:var(--archie-text-secondary); text-transform:uppercase; letter-spacing:1px;">Failed Logins (24h)</div>
+                                    </div>
+                                </div>
+
+                                <!-- Security Alerts -->
+                                <div id="overview-alerts" style="margin-bottom:20px; display:none;">
+                                    <div class="lcars-section-label"><div class="lcars-section-cap"></div><div class="lcars-section-title" style="color:var(--archie-red);">⚠ SECURITY ALERTS</div></div>
+                                    <div id="alerts-list"></div>
+                                </div>
+
+                                <!-- Human Users -->
+                                <div class="lcars-section-label"><div class="lcars-section-cap"></div><div class="lcars-section-title">WHO CAN LOG IN</div></div>
+                                <div id="overview-users-grid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; margin-bottom:24px;">
+                                    <div style="color:var(--archie-text-secondary); padding:12px;">Loading...</div>
+                                </div>
+
+                                <!-- System / Agent Accounts -->
+                                <div class="lcars-section-label"><div class="lcars-section-cap"></div><div class="lcars-section-title" style="color:var(--archie-purple);">SYSTEM & AGENT ACCOUNTS</div></div>
+                                <div id="overview-system-grid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; margin-bottom:24px;">
+                                    <div style="color:var(--archie-text-secondary); padding:12px;">Loading...</div>
+                                </div>
+
+                                <!-- Recent Activity -->
+                                <div class="lcars-section-label"><div class="lcars-section-cap"></div><div class="lcars-section-title">RECENT LOGIN ACTIVITY (48H)</div></div>
+                                <div id="overview-activity" style="margin-bottom:24px;">
+                                    <div style="color:var(--archie-text-secondary); padding:12px;">Loading...</div>
+                                </div>
+
+                                <!-- Quick Actions -->
+                                <div class="lcars-section-label"><div class="lcars-section-cap"></div><div class="lcars-section-title">QUICK ACTIONS</div></div>
+                                <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                                    <button class="btn btn-primary" onclick="acGoToTab('list')">👥 Manage Users</button>
+                                    <button class="btn btn-secondary" onclick="acGoToTab('activity')">📋 Activity Log</button>
+                                    <button class="btn btn-secondary" onclick="acGoToTab('security')">🔒 Security</button>
+                                    <a href="/tools/my-profile/" class="btn btn-secondary">👤 My Profile</a>
+                                </div>
+
+                            </div>
+                            <div style="height:6px !important; background:var(--archie-cyan) !important; border-radius:0 0 20px 0 !important; flex-shrink:0 !important;"></div>
                         </div>
-                        <div style="flex: 1 !important; padding: 16px !important;">
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.total_users">TOTAL USERS</span></div>
-                    <div class="stat-value" id="stat-total" style="color: rgb(255, 107, 107);">{{ stats.total_users }}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.admins">ADMINS</span></div>
-                    <div class="stat-value" id="stat-admins" style="color: rgb(239, 68, 68);">{{ stats.admins }}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.premium">PREMIUM</span></div>
-                    <div class="stat-value" id="stat-premium" style="color: rgb(255, 107, 107);">{{ stats.premium }}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.free">FREE</span></div>
-                    <div class="stat-value" id="stat-free" style="color: rgb(160, 160, 170);">{{ stats.free }}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.active_today">ACTIVE TODAY</span></div>
-                    <div class="stat-value" id="stat-active" style="color: rgb(0, 255, 255);">{{ stats.active_today }}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.sessions">SESSIONS</span></div>
-                    <div class="stat-value" id="stat-sessions" style="color: rgb(0, 255, 65);">{{ stats.active_sessions }}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.api_keys">API KEYS</span></div>
-                    <div class="stat-value" id="stat-apikeys" style="color: rgb(139, 92, 246);">{{ stats.api_keys }}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.orgs">ORGS</span></div>
-                    <div class="stat-value" id="stat-orgs" style="color: rgb(255, 107, 107);">{{ stats.organizations }}</div>
-                </div>
-                <div class="stat-card" id="pending-stat-card" style="cursor: pointer; {% if stats.pending_approval == 0 %}display: none;{% endif %}" data-action="focus-pending-tab">
-                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.pending_approval">PENDING APPROVAL</span></div>
-                    <div class="stat-value" id="stat-pending" style="color: rgb(255, 193, 7);">{{ stats.pending_approval }}</div>
-                </div>
-            </div>
-                        </div>
-                        <div style="height: 6px !important; background: var(--archie-cyan) !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                     </div>
                 </div>
             </div>
-
 
             <!-- LIST Tab -->
-            <div class="tab-content active" id="tab-list">
-<div style="--frame-color: var(--archie-palette-blue-500); --frame-rgb: 59,130,246; margin-bottom: 20px;">
+            <div class="tab-content" id="tab-list">
+<div style="--frame-color: #00d4ff; --frame-rgb: 0,212,255; margin-bottom: 20px;">
                 <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
                     <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                        <div style="height: 52px !important; background: var(--archie-palette-blue-500) !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: var(--archie-palette-blue-500) !important; flex-shrink: 0 !important;"></div>
-                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: var(--archie-palette-blue-600) !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                        <div style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                        <div style="height: 36px !important; background: var(--archie-palette-blue-500) !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 52px !important; background: #00d4ff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00d4ff !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00b8d9 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(0,212,255,0.1) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #00d4ff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                     </div>
                     <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                        <div style="height: 44px !important; background: var(--archie-palette-blue-500) !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
-                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: var(--archie-bg-primary) !important;">USER MANAGEMENT</span>
+                        <div style="height: 44px !important; background: #00d4ff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #06060c !important;">USER MANAGEMENT</span>
                             <div style="flex:1"></div>
                             <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
                                 <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
@@ -136,25 +138,31 @@
                 </div>
                 <div class="action-bar">
                     <div class="filters">
+                        <select id="filter-status" class="form-select">
+                            <option value="active" selected>Active Only</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="all">All Users</option>
+                        </select>
                         <select id="filter-role" class="form-select">
-                            <option value=""><span data-i18n="account_center.all_roles">All Roles</span></option>
-                            <option value="user"><span data-i18n="account_center.user">User</span></option>
-                            <option value="premium"><span data-i18n="account_center.premium_2">Premium</span></option>
-                            <option value="admin"><span data-i18n="account_center.admin">Admin</span></option>
-                            <option value="super_admin"><span data-i18n="account_center.super_admin">Super Admin</span></option>
+                            <option value="">All Roles</option>
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
                         </select>
-                        <select id="filter-tier" class="form-select">
-                            <option value=""><span data-i18n="account_center.all_tiers">All Tiers</span></option>
-                            <option value="free"><span data-i18n="account_center.free_2">Free</span></option>
-                            <option value="pro"><span data-i18n="account_center.pro">Pro</span></option>
-                            <option value="business"><span data-i18n="account_center.business">Business</span></option>
-                            <option value="enterprise"><span data-i18n="account_center.enterprise">Enterprise</span></option>
-                            <option value="kytran"><span data-i18n="account_center.kytran_staff">Kytran Staff</span></option>
-                            <option value="vip"><span data-i18n="account_center.vip">VIP</span></option>
-                        </select>
+                        <select id="filter-tier" style="display:none;"></select>
                         <input type="text" id="search-users" class="form-input" placeholder="Search users..." style="flex: 1; min-width: 120px;">
                     </div>
-                    <button class="btn btn-primary btn-sm" data-action="showAddUserModal" style="white-space: nowrap;"><span data-i18n="account_center.add_user">+ ADD USER</span></button>
+                    <button class="btn btn-primary btn-sm" data-action="showAddUserModal" style="white-space: nowrap;">+ ADD USER</button>
+                    <button class="btn btn-sm" onclick="document.getElementById('inviteModal').classList.add('active')" style="white-space: nowrap; background: #7c3aed; color: #fff; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer;">✉ INVITE</button>
+                    <button class="btn btn-sm" onclick="acLoadInvites()" style="white-space: nowrap; background: rgba(124,58,237,0.15); color: #7c3aed; border: 1px solid #7c3aed; padding: 6px 14px; border-radius: 4px; cursor: pointer;">PENDING INVITES</button>
+                </div>
+
+                <!-- Pending Invites Table (hidden by default) -->
+                <div id="pendingInvitesSection" style="display:none; margin-bottom:16px;">
+                    <div class="lcars-section-label" style="margin-top:8px;">
+                        <div class="lcars-section-cap" style="--lcars-accent-rgb:124,58,237;"></div>
+                        <div class="lcars-section-title" style="--lcars-accent-rgb:124,58,237;">PENDING INVITATIONS</div>
+                    </div>
+                    <div id="pendingInvitesList" style="font-size:0.85rem;"></div>
                 </div>
 
                 <div class="table-responsive">
@@ -201,27 +209,27 @@
                     </div>
                 </div>
                         </div>
-                        <div style="height: 6px !important; background: var(--archie-palette-blue-500) !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 6px !important; background: #00d4ff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                     </div>
                 </div>
             </div>
 
             </div>
 
-            <!-- PENDING APPROVAL Tab -->
+            <!-- PENDING APPROVAL Tab (hidden from nav — signup disabled, no new pending users) -->
             <div class="tab-content" id="tab-pending">
-<div style="--frame-color: var(--archie-palette-amber-500); --frame-rgb: 245,158,11; margin-bottom: 20px;">
+<div style="--frame-color: #00d4ff; --frame-rgb: 0,212,255; margin-bottom: 20px;">
                 <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
                     <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                        <div style="height: 52px !important; background: var(--archie-palette-amber-500) !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: var(--archie-palette-amber-500) !important; flex-shrink: 0 !important;"></div>
-                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: var(--archie-palette-amber-600) !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                        <div style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                        <div style="height: 36px !important; background: var(--archie-palette-amber-500) !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 52px !important; background: #00d4ff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00d4ff !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00b8d9 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(0,212,255,0.1) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #00d4ff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                     </div>
                     <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                        <div style="height: 44px !important; background: var(--archie-palette-amber-500) !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
-                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: var(--archie-bg-primary) !important;">PENDING APPROVAL</span>
+                        <div style="height: 44px !important; background: #00d4ff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #06060c !important;">PENDING APPROVAL</span>
                             <div style="flex:1"></div>
                             <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
                                 <span style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
@@ -444,17 +452,17 @@
 
             <!-- SECURITY Tab -->
             <div class="tab-content" id="tab-security">
-<div style="--frame-color: var(--archie-palette-pink-500); --frame-rgb: 236,72,153; margin-bottom: 20px;">
+<div style="--frame-color: #ec4899; --frame-rgb: 236,72,153; margin-bottom: 20px;">
                 <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
                     <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                        <div style="height: 52px !important; background: var(--archie-palette-pink-500) !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: var(--archie-palette-pink-500) !important; flex-shrink: 0 !important;"></div>
-                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: var(--archie-palette-pink-600) !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 52px !important; background: #ec4899 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ec4899 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #db2777 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
                         <div style="flex: 1 !important; background: rgba(236,72,153,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                        <div style="height: 36px !important; background: var(--archie-palette-pink-500) !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 36px !important; background: #ec4899 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                     </div>
                     <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                        <div style="height: 44px !important; background: var(--archie-palette-pink-500) !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                        <div style="height: 44px !important; background: #ec4899 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                             <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: var(--archie-bg-primary) !important;">SECURITY SETTINGS</span>
                             <div style="flex:1"></div>
                             <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -628,7 +636,7 @@
                     </div>
                 </div>
                         </div>
-                        <div style="height: 6px !important; background: var(--archie-palette-pink-500) !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 6px !important; background: #ec4899 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                     </div>
                 </div>
             </div>
@@ -637,17 +645,17 @@
 
             <!-- SESSIONS Tab -->
             <div class="tab-content" id="tab-sessions">
-<div style="--frame-color: var(--archie-palette-teal-500); --frame-rgb: 20,184,166; margin-bottom: 20px;">
+<div style="--frame-color: #14b8a6; --frame-rgb: 20,184,166; margin-bottom: 20px;">
                 <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
                     <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                        <div style="height: 52px !important; background: var(--archie-palette-teal-500) !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: var(--archie-palette-teal-500) !important; flex-shrink: 0 !important;"></div>
-                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: var(--archie-palette-teal-600) !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 52px !important; background: #14b8a6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #14b8a6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #0d9488 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
                         <div style="flex: 1 !important; background: rgba(20,184,166,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                        <div style="height: 36px !important; background: var(--archie-palette-teal-500) !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 36px !important; background: #14b8a6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                     </div>
                     <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                        <div style="height: 44px !important; background: var(--archie-palette-teal-500) !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                        <div style="height: 44px !important; background: #14b8a6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                             <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: var(--archie-bg-primary) !important;">ACTIVE SESSIONS</span>
                             <div style="flex:1"></div>
                             <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -723,7 +731,7 @@
                     </div>
                 </div>
                         </div>
-                        <div style="height: 6px !important; background: var(--archie-palette-teal-500) !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 6px !important; background: #14b8a6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                     </div>
                 </div>
             </div>
@@ -971,17 +979,17 @@
 
             <!-- ACTIVITY Tab -->
             <div class="tab-content" id="tab-activity">
-<div style="--frame-color: var(--archie-palette-blue-500); --frame-rgb: 59,130,246; margin-bottom: 20px;">
+<div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
                 <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
                     <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                        <div style="height: 52px !important; background: var(--archie-palette-blue-500) !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: var(--archie-palette-blue-500) !important; flex-shrink: 0 !important;"></div>
-                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: var(--archie-palette-blue-600) !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 52px !important; background: #3b82f6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #2563eb !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
                         <div style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                        <div style="height: 36px !important; background: var(--archie-palette-blue-500) !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 36px !important; background: #3b82f6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                     </div>
                     <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                        <div style="height: 44px !important; background: var(--archie-palette-blue-500) !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                        <div style="height: 44px !important; background: #3b82f6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                             <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: var(--archie-bg-primary) !important;">ACTIVITY LOG</span>
                             <div style="flex:1"></div>
                             <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -1068,7 +1076,7 @@
                     </div>
                 </div>
                         </div>
-                        <div style="height: 6px !important; background: var(--archie-palette-blue-500) !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 6px !important; background: #00d4ff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                     </div>
                 </div>
             </div>
@@ -1755,4 +1763,276 @@
 
 <script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script src="{{ url_for('static', filename='js/account_center.js') }}"></script>
+<script>
+// Intercept fetch to inject status filter into /api/users list calls
+const _origFetch = window.fetch;
+window.fetch = function(url, opts) {
+    if (typeof url === 'string' && url.includes('/tools/account-center/api/users') && !url.includes('/api/users/')) {
+        const statusEl = document.getElementById('filter-status');
+        if (statusEl && !url.includes('status=')) {
+            url = url + (url.includes('?') ? '&' : '?') + 'status=' + encodeURIComponent(statusEl.value);
+        }
+    }
+    return _origFetch.call(this, url, opts);
+};
+
+// Wire status filter to reload users table
+document.addEventListener('DOMContentLoaded', () => {
+    const statusEl = document.getElementById('filter-status');
+    if (statusEl) statusEl.addEventListener('change', () => { if(typeof loadUsers === 'function') loadUsers(); });
+});
+
+// Hide the standalone Edit button from table rows — View modal has inline Edit
+// Using MutationObserver so it works after the table loads dynamically
+const _editObserver = new MutationObserver(() => {
+    document.querySelectorAll('#users-table-body .btn-sm:not(.btn-danger)').forEach(btn => {
+        if (btn.textContent.trim() === 'Edit') btn.style.display = 'none';
+    });
+});
+document.addEventListener('DOMContentLoaded', () => {
+    const tbody = document.getElementById('users-table-body');
+    if (tbody) _editObserver.observe(tbody, { childList: true, subtree: true });
+});
+
+// Navigate to a tab, highlight nav button, scroll to top
+function acGoToTab(tabId) {
+    const btn = document.querySelector('[data-tab="' + tabId + '"]');
+    if (btn) {
+        btn.click(); // triggers LCARS header highlight + switchAccountTab
+    } else {
+        switchAccountTab(tabId);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Account Center Overview — safe DOM construction
+function esc(str) {
+    const d = document.createElement('div');
+    d.textContent = str || '';
+    return d.innerHTML;
+}
+
+function mkEl(tag, styles, text) {
+    const el = document.createElement(tag);
+    if (styles) Object.assign(el.style, styles);
+    if (text !== undefined) el.textContent = text;
+    return el;
+}
+
+async function loadOverview() {
+    try {
+        const r = await fetch('/tools/account-center/api/overview');
+        const d = await r.json();
+
+        // Security alerts
+        const alertsWrap = document.getElementById('overview-alerts');
+        const alertsList = document.getElementById('alerts-list');
+        if (d.alerts && d.alerts.length > 0) {
+            alertsWrap.style.display = 'block';
+            alertsList.textContent = '';
+            d.alerts.forEach(a => {
+                const div = mkEl('div', {background:'rgba(239,68,68,0.15)', border:'1px solid var(--archie-red)', borderRadius:'8px', padding:'10px 14px', marginBottom:'8px', color:'var(--archie-red)'});
+                div.textContent = '⚠ ' + a.message;
+                alertsList.appendChild(div);
+            });
+        }
+
+        // Split human vs system accounts
+        const humanUsers = (d.active_users || []).filter(u => !u.is_system);
+        const systemUsers = (d.active_users || []).filter(u => u.is_system);
+
+        // Stats row
+        const statsRow = document.getElementById('overview-stats-row');
+        if (statsRow) {
+            statsRow.querySelector('#ov-active').textContent = d.active_users.length;
+            statsRow.querySelector('#ov-sessions').textContent = d.active_sessions;
+            statsRow.querySelector('#ov-failed').textContent = d.failed_logins_24h;
+        }
+
+        // Active human users grid
+        const grid = document.getElementById('overview-users-grid');
+        grid.textContent = '';
+        humanUsers.forEach(u => {
+            const card = mkEl('div', {background:'var(--archie-bg-secondary)', border:'1px solid rgba(0,255,255,0.2)', borderRadius:'10px', padding:'16px', display:'flex', alignItems:'center', gap:'14px'});
+            const avatar = mkEl('div', {width:'44px', height:'44px', borderRadius:'50%', background:'var(--archie-cyan)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Antonio,sans-serif', fontWeight:'700', color:'var(--archie-bg-primary)', flexShrink:'0'});
+            avatar.textContent = (u.username || '?').slice(0,2).toUpperCase();
+            const info = mkEl('div', {minWidth:'0'});
+            const name = mkEl('div', {fontWeight:'600', color:'var(--archie-text-primary)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}, u.username);
+            const email = mkEl('div', {fontSize:'0.75rem', color:'var(--archie-text-secondary)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}, u.email);
+            const meta = mkEl('div', {fontSize:'0.72rem', marginTop:'4px', display:'flex', gap:'8px'});
+            const badge = mkEl('span', {color:'var(--archie-cyan)'}, u.is_admin ? '🔴 Admin' : '🔵 User');
+            const lastSeen = mkEl('span', {color:'var(--archie-text-secondary)'}, 'Last: ' + u.last_login_display);
+            meta.appendChild(badge); meta.appendChild(lastSeen);
+            info.appendChild(name); info.appendChild(email); info.appendChild(meta);
+            card.appendChild(avatar); card.appendChild(info);
+            grid.appendChild(card);
+        });
+        if (!humanUsers.length) grid.textContent = 'No human accounts found.';
+
+        // System accounts grid
+        const sysGrid = document.getElementById('overview-system-grid');
+        sysGrid.textContent = '';
+        if (systemUsers.length > 0) {
+            systemUsers.forEach(u => {
+                const card = mkEl('div', {background:'var(--archie-bg-secondary)', border:'1px solid rgba(139,92,246,0.3)', borderRadius:'10px', padding:'16px', display:'flex', alignItems:'center', gap:'14px'});
+                const avatar = mkEl('div', {width:'44px', height:'44px', borderRadius:'50%', background:'rgba(139,92,246,0.3)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Antonio,sans-serif', fontWeight:'700', color:'var(--archie-purple)', flexShrink:'0'});
+                avatar.textContent = (u.username || '?').slice(0,2).toUpperCase();
+                const info = mkEl('div', {minWidth:'0'});
+                const name = mkEl('div', {fontWeight:'600', color:'var(--archie-text-primary)'}, u.username);
+                const email = mkEl('div', {fontSize:'0.75rem', color:'var(--archie-text-secondary)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}, u.email);
+                const meta = mkEl('span', {fontSize:'0.72rem', color:'var(--archie-purple)', marginTop:'4px', display:'block'}, '🤖 System / Agent Account');
+                info.appendChild(name); info.appendChild(email); info.appendChild(meta);
+                card.appendChild(avatar); card.appendChild(info);
+                sysGrid.appendChild(card);
+            });
+        } else {
+            sysGrid.textContent = 'No system accounts active.';
+        }
+
+        // Recent activity table
+        const actEl = document.getElementById('overview-activity');
+        actEl.textContent = '';
+        if (d.recent_activity && d.recent_activity.length > 0) {
+            const table = document.createElement('table');
+            table.style.cssText = 'width:100%;border-collapse:collapse;';
+            const thead = table.createTHead();
+            const hr = thead.insertRow();
+            ['User','Event','Time'].forEach(h => {
+                const th = document.createElement('th');
+                th.style.cssText = 'text-align:left;padding:6px 8px;color:var(--archie-text-secondary);font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;';
+                th.textContent = h;
+                hr.appendChild(th);
+            });
+            const tbody = table.createTBody();
+            d.recent_activity.forEach(a => {
+                const row = tbody.insertRow();
+                row.style.borderTop = '1px solid rgba(255,255,255,0.05)';
+                const c1 = row.insertCell(); c1.style.padding = '8px'; c1.textContent = a.username;
+                const c2 = row.insertCell(); c2.style.padding = '8px';
+                const ok = a.action === 'login_success';
+                const evSpan = mkEl('span', {color: ok ? 'var(--archie-green)' : 'var(--archie-red)'}, ok ? '✅ Login' : '❌ Failed');
+                c2.appendChild(evSpan);
+                const c3 = row.insertCell(); c3.style.cssText = 'padding:8px;color:var(--archie-text-secondary);font-size:0.82rem;'; c3.textContent = a.display;
+            });
+            actEl.appendChild(table);
+        } else {
+            actEl.textContent = 'No login activity in the last 48 hours.';
+        }
+
+        // Update sessions stat
+        const sessEl = document.getElementById('stat-sessions');
+        if (sessEl) sessEl.textContent = d.active_sessions;
+
+    } catch(e) { console.error('Overview load error:', e); }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadOverview();
+    document.querySelectorAll('[data-tab="overview"]').forEach(btn => {
+        btn.addEventListener('click', loadOverview);
+    });
+});
+</script>
+
+<!-- ===== INVITE USER MODAL (LCARS) ===== -->
+<div class="bm-overlay" id="inviteModal" style="--bm-accent:#7c3aed;--bm-accent-rgb:124,58,237;"
+     onclick="if(event.target===this)document.getElementById('inviteModal').classList.remove('active')">
+    <div class="bm-shell">
+        <div class="bm-frame"></div>
+        <div class="bm-content">
+            <div class="bm-header">
+                <span class="bm-header-title">✉ INVITE TO PLATFORM</span>
+                <button class="bm-header-close" onclick="document.getElementById('inviteModal').classList.remove('active')">✕</button>
+            </div>
+            <div class="bm-body">
+                <div id="inviteResult" style="display:none; margin-bottom:12px;"></div>
+                <form id="inviteForm" onsubmit="acSendInvite(event)">
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:0.8rem; letter-spacing:1px; text-transform:uppercase; color:var(--archie-text-secondary);">Email Address</label>
+                        <input type="email" id="inviteEmail" class="form-input" placeholder="friend@example.com" required style="width:100%; margin-top:4px;">
+                    </div>
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:0.8rem; letter-spacing:1px; text-transform:uppercase; color:var(--archie-text-secondary);">Role</label>
+                        <select id="inviteRole" class="form-select" style="width:100%; margin-top:4px;">
+                            <option value="collaborator">Collaborator — shared access, own agent</option>
+                            <option value="user">User — basic access</option>
+                            <option value="admin">Admin — full access</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:0.8rem; letter-spacing:1px; text-transform:uppercase; color:var(--archie-text-secondary);">Personal Message (optional)</label>
+                        <textarea id="inviteMessage" class="form-input" rows="2" placeholder="Hey, joining me on the platform..." style="width:100%; margin-top:4px; resize:vertical;"></textarea>
+                    </div>
+                </form>
+                <div id="inviteLinkBox" style="display:none; margin-top:8px; padding:10px; background:rgba(124,58,237,0.1); border:1px solid rgba(124,58,237,0.3); border-radius:6px; word-break:break-all; font-size:0.8rem; font-family:monospace;"></div>
+            </div>
+            <div class="bm-footer">
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('inviteModal').classList.remove('active')">CANCEL</button>
+                <button class="btn btn-primary btn-sm" onclick="document.getElementById('inviteForm').requestSubmit()" style="background:#7c3aed; border-color:#7c3aed;">SEND INVITE</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function acSendInvite(e) {
+    e.preventDefault();
+    const email = document.getElementById('inviteEmail').value.trim();
+    const role = document.getElementById('inviteRole').value;
+    const message = document.getElementById('inviteMessage').value.trim();
+    const resultEl = document.getElementById('inviteResult');
+    const linkBox = document.getElementById('inviteLinkBox');
+    resultEl.style.display = 'none';
+    linkBox.style.display = 'none';
+    try {
+        const res = await fetch('/tools/account-center/api/invites', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email, role, subscription_tier: role, message: message || null})
+        });
+        const data = await res.json();
+        resultEl.style.display = 'block';
+        resultEl.style.padding = '8px 12px';
+        resultEl.style.borderRadius = '6px';
+        if (data.success) {
+            resultEl.style.background = 'rgba(16,185,129,0.1)';
+            resultEl.style.border = '1px solid #10b981';
+            resultEl.style.color = '#10b981';
+            resultEl.textContent = data.email_sent ? '✓ Invite sent to ' + email : '✓ Invite created (email unavailable). Share the link:';
+            const safeLink = data.invite_link.replace(/'/g,"&#39;");
+            linkBox.style.display = 'block';
+            linkBox.innerHTML = '<strong>Invite Link:</strong><br>' + data.invite_link + ' <button onclick="navigator.clipboard.writeText(\'' + safeLink + '\')" style="margin-left:6px;font-size:0.75rem;padding:2px 8px;cursor:pointer;border-radius:3px;border:1px solid #7c3aed;background:rgba(124,58,237,0.2);color:#7c3aed;">Copy</button>';
+        } else {
+            resultEl.style.background = 'rgba(239,68,68,0.1)';
+            resultEl.style.border = '1px solid #ef4444';
+            resultEl.style.color = '#ef4444';
+            resultEl.textContent = '✗ ' + (data.error || 'Failed');
+        }
+    } catch(err) { resultEl.style.display='block'; resultEl.textContent='✗ '+err.message; }
+}
+
+async function acLoadInvites() {
+    const sec = document.getElementById('pendingInvitesSection');
+    const list = document.getElementById('pendingInvitesList');
+    sec.style.display = sec.style.display === 'none' ? 'block' : 'none';
+    if (sec.style.display === 'none') return;
+    list.innerHTML = '<div style="color:var(--archie-text-secondary);font-size:0.85rem;padding:8px 0;">Loading...</div>';
+    try {
+        const data = await fetch('/tools/account-center/api/invites').then(r=>r.json());
+        const pending = (data.invites||[]).filter(i=>i.status==='pending');
+        if (!pending.length) { list.innerHTML='<div style="color:var(--archie-text-secondary);padding:8px 0;">No pending invitations.</div>'; return; }
+        list.innerHTML = pending.map(i=>`<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--archie-border-subtle);">
+            <span style="flex:1;font-family:monospace;font-size:0.85rem;">${i.email}</span>
+            <span style="color:var(--archie-text-secondary);font-size:0.8rem;background:rgba(124,58,237,0.15);padding:2px 8px;border-radius:3px;">${i.role}</span>
+            <span style="color:var(--archie-text-secondary);font-size:0.75rem;">exp. ${new Date(i.expires_at).toLocaleDateString()}</span>
+            <button onclick="acRevokeInvite(${i.id},this)" style="background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.4);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:0.75rem;">Revoke</button>
+        </div>`).join('');
+    } catch(err) { list.innerHTML='<div style="color:#ef4444;">Error: '+err.message+'</div>'; }
+}
+
+async function acRevokeInvite(id, btn) {
+    if (!confirm('Revoke this invitation?')) return;
+    const data = await fetch('/tools/account-center/api/invites/'+id, {method:'DELETE'}).then(r=>r.json());
+    if (data.success) btn.closest('div').remove(); else alert(data.error);
+}
+</script>
 {% endblock %}

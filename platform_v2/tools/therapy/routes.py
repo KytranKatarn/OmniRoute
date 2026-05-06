@@ -5,7 +5,16 @@ Updated: 2026-01-21 - Now uses River (Wellness Therapist) via archie_bridge
 """
 
 from flask import render_template, jsonify, request
+from flask_login import login_required, current_user
 from . import therapy_bp
+
+
+@therapy_bp.before_request
+@login_required
+def require_login():
+    pass
+
+
 from .services.therapy_service import (
     log_mood as svc_log_mood,
     get_mood_history,

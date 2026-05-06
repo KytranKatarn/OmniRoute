@@ -33,11 +33,14 @@ logger = logging.getLogger(__name__)
 
 
 def get_user_by_username(username):
-    """Lookup user by username. Returns full user row dict or None."""
+    """Lookup user by username OR email. Accepts either — Project Alpha 2026-05-06."""
     with get_db_connection() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            cur.execute("SELECT * FROM users WHERE username = %s", (username,))
+            cur.execute(
+                "SELECT * FROM users WHERE LOWER(username) = LOWER(%s) OR LOWER(email) = LOWER(%s)",
+                (username, username),
+            )
             return cur.fetchone()
         finally:
             cur.close()

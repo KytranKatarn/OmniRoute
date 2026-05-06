@@ -429,8 +429,8 @@
             <div class="container">
                 <div class="store-bar">
                     <span class="store-bar__count" id="productCount"></span>
-                    <a href="cart.html" class="cart-link">
-                        View Cart <span class="cart-badge" id="cartBadge">0</span>
+                    <a href="contact.html" class="cart-link">
+                        Inquire to Order
                     </a>
                 </div>
                 <div class="product-grid" id="productGrid">
@@ -538,11 +538,20 @@
                 return div.textContent;
             }
 
+            // --- Extract first image URL from images array ---
+            function getImageUrl(product) {
+                var imgs = product.images;
+                if (!imgs) return 'https://via.placeholder.com/400x260?text=No+Image';
+                if (typeof imgs === 'string') { try { imgs = JSON.parse(imgs); } catch(e) { return 'https://via.placeholder.com/400x260?text=No+Image'; } }
+                if (Array.isArray(imgs) && imgs.length > 0) return imgs[0].url || imgs[0].src || 'https://via.placeholder.com/400x260?text=No+Image';
+                return 'https://via.placeholder.com/400x260?text=No+Image';
+            }
+
             // --- Build a product card using safe DOM methods ---
             function createProductCard(product) {
-                var imageUrl = product.image_url || 'https://via.placeholder.com/400x260?text=No+Image';
+                var imageUrl = getImageUrl(product);
                 var name = product.name || 'Untitled';
-                var price = typeof product.price === 'number' ? '$' + product.price.toFixed(2) : '';
+                var price = product.price ? '$' + parseFloat(product.price).toFixed(2) : '';
 
                 var card = document.createElement('div');
                 card.className = 'product-card';
@@ -569,8 +578,8 @@
 
                 var btn = document.createElement('a');
                 btn.className = 'product-card__btn';
-                btn.href = 'product-detail.html?id=' + encodeURIComponent(product.id);
-                btn.textContent = 'View Details';
+                btn.href = 'contact.html';
+                btn.textContent = 'Order Now';
                 body.appendChild(btn);
 
                 card.appendChild(body);
@@ -583,7 +592,7 @@
                 var countEl = document.getElementById('productCount');
 
                 try {
-                    var response = await fetch('https://business.kytranempowerment.com/plugins/store/api/products');
+                    var response = await fetch('https://business.kytranempowerment.com/plugins/store/public/products');
                     if (!response.ok) throw new Error('HTTP ' + response.status);
                     var data = await response.json();
                     var products = (data.products || []).filter(function(p) {

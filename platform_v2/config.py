@@ -56,7 +56,8 @@ class Config:
     # Session
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
-    PERMANENT_SESSION_LIFETIME = 3600 * 24  # 24 hours
+    SESSION_COOKIE_SECURE = True  # Always HTTPS via NPM proxy
+    PERMANENT_SESSION_LIFETIME = 3600 * 24 * 7  # 7 days
 
     # A.R.C.H.I.E. Personality
     ARCHIE_NAME = "A.R.C.H.I.E."

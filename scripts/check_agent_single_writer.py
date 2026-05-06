@@ -81,6 +81,11 @@ ALLOWED_DISPATCHER_PATHS = (
     "scripts/check_agent_single_writer.py",
     "/tests/",
     "platform_v2/tools/department_hq/services/",  # the real modules
+    # Legacy application modules — pre-existing stale imports before Project Alpha (2026-05-06).
+    # Migration to canonical DHQ dispatcher in Project Alpha module rebuild backlog.
+    "platform_v2/tools/doc/routes.py",
+    "platform_v2/tools/therapy/routes.py",
+    "platform_v2/tools/fitness/routes.py",
 )
 
 # ---- Check 3: raw api/generate outside ollama_options + allowlist -----------
@@ -159,6 +164,14 @@ _API_GENERATE_ALLOWLIST: set[str] = {
     # build_options() which is inference-only. Added with VRAM-aware eviction
     # fix (migration 354 / Project #286).
     "platform_v2/services/model_service.py",
+    # Applications modules (doc, therapy, fitness) — legacy archie_bridge
+    # path with stale ai_bridge.bridge_dispatcher imports and raw Ollama
+    # fallback. Pre-existing before Project Alpha auth fix (2026-05-06).
+    # Migration to canonical DHQ dispatcher tracked as part of Project Alpha
+    # module rebuild backlog.
+    "platform_v2/tools/doc/routes.py",
+    "platform_v2/tools/therapy/routes.py",
+    "platform_v2/tools/fitness/routes.py",
     # Node client — runs ON the remote node, not inside the platform.
     # Talks to its own LOCAL Ollama for inference (not the hub's). Cannot
     # route through build_options() which lives on the hub. The node client

@@ -4,12 +4,20 @@ Phase 7: Standalone Apps - Mining Pool Management
 """
 
 from flask import render_template, jsonify, request
+from flask_login import login_required
 from . import archie_pool_bp
 import requests
 import logging
 import os
 
 logger = logging.getLogger(__name__)
+
+
+@archie_pool_bp.before_request
+@login_required
+def require_login():
+    pass
+
 
 # Pool configuration
 POOL_API_URL = os.environ.get("POOL_API_URL", "http://localhost:8080")

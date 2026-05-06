@@ -34,7 +34,9 @@ class Role(Enum):
     """User roles with numeric hierarchy"""
 
     PUBLIC = 0  # Not logged in
+    GUEST = 5  # Demo/tour mode — view-only, no modifications
     USER = 10  # Basic authenticated user
+    COLLABORATOR = 15  # Invited partner — shared access, own agent, no admin
     PREMIUM = 20  # Paid subscriber
     ADMIN = 90  # Administrator
     SUPER_ADMIN = 100  # System owner
@@ -126,6 +128,12 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
     Role.PUBLIC: {
         Permission.PUBLIC_VIEW,
     },
+    Role.GUEST: {
+        # Read-only demo mode — see everything, change nothing
+        Permission.PUBLIC_VIEW,
+        Permission.CODE_EDITOR_READ,
+        Permission.READ_OWN,
+    },
     Role.USER: {
         # Inherit PUBLIC
         Permission.PUBLIC_VIEW,
@@ -145,6 +153,27 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.GOOGLE_EMAIL,
         Permission.GOOGLE_CONTACTS,
         Permission.GOOGLE_CALENDAR,
+    },
+    Role.COLLABORATOR: {
+        # Inherit USER
+        Permission.PUBLIC_VIEW,
+        Permission.USER_CHAT,  # Chat with their own agent
+        Permission.CODE_EDITOR_READ,
+        Permission.CODE_EDITOR_WRITE,
+        Permission.USER_SETTINGS,
+        Permission.READ_OWN,
+        Permission.WRITE_OWN,
+        Permission.APP_BUILDER_CREATE,
+        Permission.TASK_PLANNER_SCHEDULE,
+        Permission.TASK_PLANNER_CALENDAR,
+        Permission.GOOGLE_EMAIL,
+        Permission.GOOGLE_CONTACTS,
+        Permission.GOOGLE_CALENDAR,
+        # COLLABORATOR specific — creative + social (no deploy, no admin)
+        Permission.SOCIAL_MEDIA_CREATE,
+        Permission.MEDIA_STUDIO_GENERATE,
+        Permission.AUTOMATION_CREATE,
+        Permission.AUTOMATION_MANAGE,
     },
     Role.PREMIUM: {
         # Inherit USER
@@ -250,6 +279,10 @@ def get_user_role(user=None) -> Role:
         tier = user.subscription_tier.lower() if user.subscription_tier else "free"
         if tier in ["pro", "business", "enterprise", "premium"]:
             return Role.PREMIUM
+        elif tier == "collaborator":
+            return Role.COLLABORATOR
+        elif tier == "guest":
+            return Role.GUEST
         else:
             return Role.USER
     else:

@@ -197,7 +197,7 @@ function renderUsersTable(userList) {
         const tdTier = document.createElement('td');
         const tierBadge = document.createElement('span');
         tierBadge.className = 'badge ' + getTierBadgeClass(user.subscription_tier);
-        tierBadge.textContent = (user.subscription_tier || 'free').toUpperCase();
+        tierBadge.textContent = getTierDisplayName(user.subscription_tier);
         tdTier.appendChild(tierBadge);
 
         const tdStatus = document.createElement('td');
@@ -259,8 +259,23 @@ function renderUsersTable(userList) {
 }
 
 function getTierBadgeClass(tier) {
-    const classes = { 'free': '', 'pro': 'badge-success', 'business': 'badge-warning', 'enterprise': 'badge-purple', 'kytran': 'badge-info', 'vip': 'badge-purple' };
+    const classes = { 'free': '', 'pro': 'badge-success', 'business': 'badge-warning', 'enterprise': 'badge-purple', 'kytran': 'badge-info', 'collaborator': 'badge-purple', 'guest': '', 'vip': 'badge-purple' };
     return classes[tier] || '';
+}
+
+function getTierDisplayName(tier) {
+    const names = {
+        'kytran':       'KE Owner',
+        'collaborator': 'Collaborator',
+        'guest':        'Guest',
+        'free':         'Free',
+        'pro':          'Pro',
+        'business':     'Business',
+        'enterprise':   'Enterprise',
+        'premium':      'Premium',
+        'vip':          'VIP',
+    };
+    return names[(tier || 'free').toLowerCase()] || (tier || 'free').toUpperCase();
 }
 
 // ─── Pending User Approval ───────────────────────────────────────────
@@ -920,7 +935,7 @@ async function loadUserEntitlements(userId) {
         const tierColors = {staff:'#f59e0b', vip:'#a855f7', enterprise:'#3b82f6', professional:'#22c55e', starter:'#06b6d4', explorer:'#6b7280'};
         const tc = tierColors[data.membership_tier] || '#6b7280';
         tierBadge.style.cssText = 'border: 1px solid ' + tc + '; color: ' + tc + '; font-weight: 600;';
-        tierBadge.textContent = (data.membership_tier || 'explorer').toUpperCase();
+        tierBadge.textContent = getTierDisplayName(data.membership_tier || 'free');
         tierRow.appendChild(tierLabel);
         tierRow.appendChild(tierBadge);
         contentEl.appendChild(tierRow);
@@ -1864,7 +1879,7 @@ async function loadSubMgmtUsers() {
                 var tdTier = document.createElement('td');
                 var tierBadge = document.createElement('span');
                 tierBadge.className = 'badge ' + getTierBadgeClass(u.subscription_tier);
-                tierBadge.textContent = (u.subscription_tier || 'free').toUpperCase();
+                tierBadge.textContent = getTierDisplayName(u.subscription_tier);
                 tdTier.appendChild(tierBadge);
 
                 var tdStatus = document.createElement('td');

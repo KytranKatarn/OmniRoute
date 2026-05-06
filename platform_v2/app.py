@@ -183,12 +183,14 @@ def create_user_session(user_id):
         token = secrets.token_hex(32)
         conn = get_db()
         cur = conn.cursor()
+        # Purge expired sessions before inserting (keeps table lean)
+        cur.execute("DELETE FROM active_sessions WHERE expires_at < NOW()")
         cur.execute(
             """INSERT INTO active_sessions
                (user_id, session_token, ip_address, user_agent,
                 created_at, last_activity, expires_at)
                VALUES (%s, %s, %s, %s, NOW(), NOW(),
-                NOW() + INTERVAL '24 hours')""",
+                NOW() + INTERVAL '7 days')""",
             (
                 user_id,
                 token,
@@ -200,6 +202,7 @@ def create_user_session(user_id):
         cur.close()
         conn.close()
         session["_session_token"] = token
+        session.permanent = True  # Honour PERMANENT_SESSION_LIFETIME (7 days)
     except Exception as e:
         print(f"[A.R.C.H.I.E.] Session tracking insert error: {e}")
 
@@ -1068,6 +1071,11 @@ def login():
         session.pop("pending_2fa_username", None)
 
     if request.method == "POST":
+        if not _verify_csrf_token():
+            app.logger.warning("CSRF token mismatch on login from %s", request.remote_addr)
+            flash("Security token expired. Please try again.", "error")
+            return redirect(url_for("login"))
+
         from services.auth_service import (
             get_user_by_username,
             record_failed_login,
@@ -1242,84 +1250,87 @@ def verify_2fa():
 
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
-    """User signup page with admin approval"""
+    """Self-registration disabled — Project Alpha (2026-05-06).
+    Access is by admin invitation only. Accounts are created via Account Center."""
     if current_user.is_authenticated:
         return redirect(url_for("dashboard"))
+    flash("Access is by invitation only. Contact the administrator to request an account.", "info")
+    return redirect(url_for("login"))
 
-    if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        email = request.form.get("email", "").strip()
-        password = request.form.get("password", "")
-        confirm_password = request.form.get("confirm_password", "")
 
-        # Validation
-        if not username or not email or not password:
-            flash("All fields are required", "error")
-            return render_template("signup.html")
+@app.route("/accept-invite", methods=["GET", "POST"])
+def accept_invite():
+    """Public invite acceptance page — converts a token into a new user account."""
+    from database import get_db
+    from werkzeug.security import generate_password_hash
+    from services.auth_service import validate_password_complexity
 
-        if password != confirm_password:
-            flash("Passwords do not match", "error")
-            return render_template("signup.html")
+    token = request.args.get("token") or request.form.get("token")
+    if not token:
+        flash("Invalid or missing invitation token.", "error")
+        return redirect(url_for("login"))
 
-        from services.auth_service import validate_password_complexity
-
-        pw_valid, pw_error = validate_password_complexity(password)
-        if not pw_valid:
-            flash(pw_error, "error")
-            return render_template("signup.html")
-
-        # Validate username (alphanumeric only)
-        if not username.replace("_", "").isalnum():
-            flash("Username must be alphanumeric (underscores allowed)", "error")
-            return render_template("signup.html")
-
-        try:
-            from services.auth_service import (
-                check_username_exists,
-                check_email_exists,
-                create_inactive_user,
-                log_signup_audit,
-            )
-
-            if check_username_exists(username):
-                flash("Username already exists", "error")
-                return render_template("signup.html")
-
-            if check_email_exists(email):
-                flash("Email already registered", "error")
-                return render_template("signup.html")
-
-            password_hash = generate_password_hash(password)
-            user_id = create_inactive_user(username, email, password_hash)
-            log_signup_audit(username, request.remote_addr)
-
-            # Auto-activate Explorer accounts (free tier, instant access)
-            if user_id:
-                try:
-                    from database import get_db_cursor
-
-                    with get_db_cursor() as (conn, cur):
-                        cur.execute(
-                            """UPDATE users
-                               SET is_active = TRUE,
-                                   subscription_tier = 'explorer'
-                               WHERE id = %s""",
-                            (user_id,),
-                        )
-                except Exception:
-                    logger.warning("Auto-activate failed for user %s", user_id)
-
-            flash(
-                "Welcome to A.R.C.H.I.E.! Your Explorer account is ready — log in to get started.",
-                "success",
-            )
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT id, email, role, subscription_tier, message
+               FROM user_invites
+               WHERE token = %s AND status = 'pending' AND expires_at > NOW()""",
+            (token,),
+        )
+        invite = cur.fetchone()
+        if not invite:
+            cur.close()
+            conn.close()
+            flash("This invitation link is invalid or has expired.", "error")
             return redirect(url_for("login"))
 
-        except Exception as e:
-            print(f"Signup error: {e}")
-            flash("An error occurred. Please try again.", "error")
-
-    return render_template("signup.html")
+        if request.method == "POST":
+            username = request.form.get("username", "").strip()
+            password = request.form.get("password", "")
+            confirm = request.form.get("confirm_password", "")
+            if not username:
+                flash("Username is required.", "error")
+            elif password != confirm:
+                flash("Passwords do not match.", "error")
+            else:
+                valid, msg = validate_password_complexity(password)
+                if not valid:
+                    flash(msg, "error")
+                else:
+                    cur.execute("SELECT id FROM users WHERE LOWER(username) = LOWER(%s)", (username,))
+                    if cur.fetchone():
+                        flash("Username already taken.", "error")
+                    else:
+                        invite_id, email, role, tier = invite[0], invite[1], invite[2], invite[3]
+                        pw_hash = generate_password_hash(password)
+                        cur.execute(
+                            """INSERT INTO users (username, email, password_hash, role, subscription_tier, is_active)
+                               VALUES (%s, %s, %s, %s, %s, true) RETURNING id""",
+                            (username, email, pw_hash, role, tier),
+                        )
+                        new_user_id = cur.fetchone()[0]
+                        cur.execute(
+                            "UPDATE user_invites SET status='accepted', accepted_at=NOW(), accepted_user_id=%s WHERE id=%s",
+                            (new_user_id, invite_id),
+                        )
+                        conn.commit()
+                        cur.close()
+                        conn.close()
+                        flash("Account created! You can now log in.", "success")
+                        return redirect(url_for("login"))
+        cur.close()
+        conn.close()
+        return render_template("accept_invite.html", token=token, email=invite[1], message=invite[4])
+    except Exception as e:
+        app.logger.error("accept_invite error: %s", e)
+        try:
+            conn.close()
+        except Exception:
+            pass
+        flash("An error occurred. Please contact the administrator.", "error")
+        return redirect(url_for("login"))
 
 
 @app.route("/logout")
@@ -2216,7 +2227,7 @@ from conversation_triage.routes import triage_bp  # noqa: E402
 
 # Initialize OAuth (Phase 6.5)
 init_oauth(app)
-logger.info("OAuth initialized with Google provider")
+logger.info("OAuth initialized (Google removed — email+password only, Project Alpha)")
 
 # OAuth Provider — "Sign in with Kytran" for standalone products
 from oauth_provider import init_oauth_provider  # noqa: E402
@@ -2820,6 +2831,53 @@ def update_session_activity():
                 session["_session_last_update"] = now
             except Exception:
                 pass
+
+
+@app.after_request
+def add_security_headers(response):
+    """Add security headers to every response (Project Alpha, 2026-05-06)."""
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    # Double-submit CSRF cookie — mirrors session token so POST survives NPM proxy session loss
+    csrf_token = session.get("_csrf_token")
+    if csrf_token and request.cookies.get("archie_csrf") != csrf_token:
+        response.set_cookie(
+            "archie_csrf", csrf_token, samesite="Lax", httponly=False, secure=False, max_age=86400, path="/"
+        )
+    return response
+
+
+def _generate_csrf_token():
+    """Generate a CSRF token stored in the session."""
+    import secrets
+
+    if "_csrf_token" not in session:
+        session["_csrf_token"] = secrets.token_hex(32)
+    return session["_csrf_token"]
+
+
+def _verify_csrf_token():
+    """Return True if the submitted token matches session or double-submit cookie."""
+    submitted = request.form.get("_csrf_token") or request.headers.get("X-CSRF-Token")
+    if not submitted:
+        return False
+    session_token = session.get("_csrf_token")
+    if session_token and secrets.compare_digest(session_token, submitted):
+        return True
+    # Double-submit cookie fallback — proxy-safe, survives session cookie loss
+    cookie_token = request.cookies.get("archie_csrf")
+    if cookie_token and secrets.compare_digest(cookie_token, submitted):
+        return True
+    return False
+
+
+@app.context_processor
+def inject_csrf_token():
+    """Make csrf_token() available in all templates."""
+    return {"csrf_token": _generate_csrf_token}
 
 
 @app.context_processor

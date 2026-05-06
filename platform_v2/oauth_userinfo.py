@@ -30,7 +30,7 @@ def userinfo():
 
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            "SELECT id, username, email, role, language_preference FROM users WHERE id = %s AND is_active = TRUE",
+            "SELECT id, username, email, role, subscription_tier, language_preference FROM users WHERE id = %s AND is_active = TRUE",
             (user_id,),
         )
         user = cur.fetchone()
@@ -102,6 +102,9 @@ def userinfo():
         if row:
             stripe_customer_id = row["stripe_customer_id"]
 
+    subscription_tier = user.get("subscription_tier") or "free"
+    is_owner = subscription_tier in ("kytran", "owner") or user["role"] == "admin"
+
     return jsonify(
         {
             "sub": str(user["id"]),
@@ -109,6 +112,9 @@ def userinfo():
             "email": user["email"] or "",
             "name": user["username"],
             "role": user["role"],
+            "subscription_tier": subscription_tier,
+            "tier": subscription_tier,
+            "is_owner": is_owner,
             "language_preference": user.get("language_preference") or "en",
             "entitlements": entitlements,
             "product_tiers": product_tiers,

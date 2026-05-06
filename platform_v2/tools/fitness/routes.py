@@ -5,7 +5,16 @@ Updated: 2026-01-21 - Now uses Wellness Coach via archie_bridge
 """
 
 from flask import render_template, jsonify, request
+from flask_login import login_required, current_user
 from . import fitness_bp
+
+
+@fitness_bp.before_request
+@login_required
+def require_login():
+    pass
+
+
 from .services.fitness_service import (
     log_workout as svc_log_workout,
     get_workout_history,

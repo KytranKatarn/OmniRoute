@@ -303,6 +303,16 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
   display: none;
 }
 
+@media (max-width: 600px) {
+  .lcars-header-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+}
+
 .lcars-header-tab {
   display: inline-flex;
   align-items: center;

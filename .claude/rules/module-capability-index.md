@@ -18,31 +18,27 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 
 ## admin_operations (5)
 
+**W.A.R.D.E.N. agent #363** (Operations & Infrastructure, qwen2.5:7b, Lv4) is the autonomous guardian for this category. Dispatch: `user_audit`, `backup_verify`, `compliance_check`, `account_management`, `access_review`. Skills file: `.claude/skills/warden-agent.md`. KB #263995. Decision #575.
+
 ### Backup Manager — `backup_manager` · `/tools/backup-manager` · ✅ · 🟢
-- **Capability**: DB dumps + file snapshots + config exports, restore w/ component granularity, checksum verify, retention policies, external USB sync, pre/post hooks, webhook triggers. 4,845 LOC + gdrive crypto module.
-- **Tables**: `backups`, `backup_locks`, `webhook_subscriptions`. All 19 routes `@admin_required`.
-- **Gaps**: GDrive upload/sync UI unexposed; 2h lock hardcoded; no incremental backups.
-- **Audit**: KB 256846 (#1946, 2026-04-17) · **Rules**: `admin-ops.md`
-- **Active**: Project #270 (Backup Redesign — 4-tier defense, 6/8 tasks)
+- **Capability**: DB dumps + file snapshots + config exports, restore w/ component granularity, checksum verify, retention policies, external USB sync, pre/post hooks, webhook triggers. 5,030 LOC + gdrive crypto module.
+- **Tables**: `backups`, `backup_locks`, `webhook_subscriptions`. All routes `@admin_required`.
+- **Code health**: ✅ completed (0 red issues, 2026-05-06). **QA**: Suite #19 23/23 passed.
+- **Gaps**: GDrive upload/sync UI unexposed; 2h lock hardcoded; no incremental backups. backup_manager_routes.py needs split (Task #2699).
+- **KB Docs**: #263993 (full user + developer guide, 2026-05-06) · **Rules**: `admin-ops.md`
 
 ### Security & Network — `security_network` · `/tools/security-network` · ✅ · 🟢
-- **Capability**: SSL/TLS cert watch, Hostinger DNS CRUD, NPM proxy host lifecycle, 5 compliance rule packs (Ubuntu STIG/Docker STIG/HIPAA/Network STIG/CIS Ubuntu), device discovery (AdGuard+ARP 5min), Home Assistant cameras, recon scans, 23 agent loop jobs.
-- **Distinguishing**: JSON rule pack abstraction, host_command queue bridge, full DNS audit trail.
-- **Gaps**: no SSL auto-renewal, camera scheduling suggest-only, single-tenant.
-- **Audit**: KB 256841 (2026-04-17) · **Rules**: `admin-ops.md`, `compliance-standards.md`
+- **Capability**: SSL/TLS cert watch, Hostinger DNS CRUD, NPM proxy host lifecycle, 5 compliance rule packs (Ubuntu STIG/Docker STIG/HIPAA/Network STIG/CIS Ubuntu), device discovery (AdGuard+ARP 5min), Home Assistant cameras, recon scans, supervision schedules (AdGuard per-device blocking), 23 agent loop jobs.
+- **Distinguishing**: JSON rule pack abstraction, host_command queue bridge, full DNS audit trail. Supervision blocks social/gaming/streaming/adult categories per device per time window.
+- **Code health**: ✅ completed (0 red issues, 2026-05-06). **QA**: Suites #5/#6/#8 21/21 passed. All f-string SQL removed (PR #551).
+- **KB Docs**: #263992 (full user + developer guide, 2026-05-06) · **Rules**: `admin-ops.md`, `compliance-standards.md`
 
-### Account Center — `account_center` · `/tools/account-center` · ✅ · 🟡
-- **Capability**: user CRUD, subscription tiers, login lockout (5 attempts→15min), IP rate limit (10/5min), password complexity, TOTP 2FA, auth event log. **Access control API** (Phase 0, PR #397): `POST /api/access/grant|revoke`, `GET /api/access/check|list` — timing-safe, HMAC token. **Internal notify endpoint** (Phase 4, PR #400): `POST /api/internal/notify` — validates `X-Internal-Key` header, forwards message to Telegram via `send_info` in daemon thread. Used by KBS and standalone products to fire Telegram alerts without direct bot access.
-- **Key security**: `auth_service.py` — **23 functions** (not 12 — rules drift); `auth_events` table
-- **Rules**: `admin-ops.md`, `app-core.md`
-- **Audits**: Cross-cutting OAuth/SSO audit → KB 256845 (#1948, 2026-04-17)
-- **Critical security gaps** (new tasks #2060–2065):
-  - #2060 No PKCE in authorization_code flow
-  - #2061 HS256 with static SECRET_KEY + hardcoded "fallback-secret" fallback
-  - #2062 CSRF protection unverified on login/signup/authorize forms
-  - #2063 No 2FA backup codes + no password reset flow
-  - #2064 kytran_auth.py SDK duplicated across 6 products — consolidate
-  - #2065 civic-watch + legal-watch missing from migration 305 client seeds
+### Account Center — `account_center` · `/tools/account-center` · ✅ · 🟢
+- **Capability**: 10 tabs — Overview, Users, Permissions, Subscriptions, Security, Sessions, API Keys, Bulk Ops, Activity, Orgs. User CRUD, role hierarchy (GUEST 5→SUPER_ADMIN 100), invite system (user_invites table, Stalwart SMTP), API key scopes (chat/read/admin), login lockout (5→15min), IP rate limit (20/15min), HMAC access control API, internal notify endpoint.
+- **Key security**: `auth_service.py` 23 functions; `SESSION_COOKIE_SECURE` env-driven; IP rate limit exempts 172.x for internal QA.
+- **Code health**: ✅ completed (0 red issues, 2026-05-06). **QA**: Suite #16 35/35 passed.
+- **KB Docs**: #263991 (full user + developer guide, 2026-05-06) · **Rules**: `admin-ops.md`, `app-core.md`
+- **Security gaps** (tasks #2060–2065): No PKCE, HS256 static key, no password reset, SDK duplication across 6 products.
 
 ### System Operations — `system_operations` · `/tools/system-operations` · ⛔
 - **Status**: Disabled in registry — replaced by Kytran System Operations (`kytran_system_ops` at `/external/kso`)

@@ -187,6 +187,12 @@ CAPABILITY_DEPARTMENT_MAP = {
     "infrastructure_planning": "Operations & Infrastructure",
     "bim_modeling": "Operations & Infrastructure",
     "arctic_infrastructure": "Operations & Infrastructure",
+    # W.A.R.D.E.N. — admin operations capabilities
+    "user_audit": "Operations & Infrastructure",
+    "backup_verify": "Operations & Infrastructure",
+    "compliance_check": "Operations & Infrastructure",
+    "account_management": "Operations & Infrastructure",
+    "access_review": "Operations & Infrastructure",
     # Logistics & Supply Chain
     "inventory_management": "Logistics & Supply Chain",
     "itinerary_planning": "Logistics & Supply Chain",

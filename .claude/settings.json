@@ -20,6 +20,11 @@
             "type": "command",
             "command": "bash /mnt/archie_brain/.claude/hooks/pre-edit-check.sh",
             "timeout": 3
+          },
+          {
+            "type": "command",
+            "command": "bash /mnt/archie_brain/.claude/hooks/infra-context-injector.sh",
+            "timeout": 3
           }
         ]
       },
@@ -29,6 +34,21 @@
           {
             "type": "command",
             "command": "bash /mnt/archie_brain/.claude/hooks/pre-edit-check.sh",
+            "timeout": 3
+          },
+          {
+            "type": "command",
+            "command": "bash /mnt/archie_brain/.claude/hooks/infra-context-injector.sh",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /mnt/archie_brain/.claude/hooks/infra-context-injector.sh",
             "timeout": 3
           }
         ]

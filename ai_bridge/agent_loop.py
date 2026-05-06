@@ -547,6 +547,29 @@ class AgentLoop:
         #     replace_existing=True,
         # )
 
+        # W.A.R.D.E.N. — admin ops autonomous jobs
+        self.scheduler.add_job(
+            with_app_context(self._run_warden_user_audit),
+            trigger=CronTrigger(hour=7, minute=0, timezone="America/Toronto"),
+            id="warden_user_audit",
+            name="W.A.R.D.E.N.: Daily User Account Audit",
+            replace_existing=True,
+        )
+        self.scheduler.add_job(
+            with_app_context(self._run_warden_backup_verify),
+            trigger=CronTrigger(hour=8, minute=0, timezone="America/Toronto"),
+            id="warden_backup_verify",
+            name="W.A.R.D.E.N.: Daily Backup Integrity Check",
+            replace_existing=True,
+        )
+        self.scheduler.add_job(
+            with_app_context(self._run_warden_compliance_check),
+            trigger=CronTrigger(day_of_week="sun", hour=6, minute=0, timezone="America/Toronto"),
+            id="warden_compliance_check",
+            name="W.A.R.D.E.N.: Weekly Admin Compliance Scan",
+            replace_existing=True,
+        )
+
         self.scheduler.add_job(
             with_app_context(self._run_proactive_scan),
             trigger=IntervalTrigger(hours=6),
@@ -6251,6 +6274,115 @@ class AgentLoop:
             )
         except Exception as e:
             logger.warning(f"QA scheduled run failed: {e}")
+
+    # ------------------------------------------------------------------
+    # W.A.R.D.E.N. admin ops jobs (agent #363, Operations & Infrastructure)
+    # ------------------------------------------------------------------
+
+    def _run_warden_user_audit(self):
+        """Daily user account audit — inactive users, locked accounts, expired invites."""
+        try:
+            import sys
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from tools.department_hq.services.department_dispatcher import dispatch
+
+            start = time.time()
+            result = dispatch(
+                capability="user_audit",
+                prompt=(
+                    "Run a daily user account audit for the A.R.C.H.I.E. platform. "
+                    "Check for: (1) users inactive for more than 30 days, "
+                    "(2) currently locked accounts (auth_events), "
+                    "(3) expired or pending invites older than 7 days. "
+                    "Summarise findings concisely. Flag anything that needs attention."
+                ),
+            )
+            duration_ms = int((time.time() - start) * 1000)
+            success = result.success if result else False
+            self._log_cycle(
+                "warden_user_audit",
+                1 if success else 0,
+                0 if success else 1,
+                duration_ms,
+                details={"response": result.response[:500] if result and result.response else "no response"},
+            )
+        except Exception as e:
+            logger.error("warden_user_audit failed: %s", e)
+
+    def _run_warden_backup_verify(self):
+        """Daily backup integrity check — checksums, age, retention policy."""
+        try:
+            import sys
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from tools.department_hq.services.department_dispatcher import dispatch
+            from database import get_db_cursor
+
+            start = time.time()
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT type, status, created_at, size_bytes
+                       FROM backups ORDER BY created_at DESC LIMIT 10"""
+                )
+                recent = cur.fetchall()
+
+            summary = ", ".join(
+                f"{r['type']}({r['status']}, {r['created_at'].strftime('%Y-%m-%d')})"
+                for r in (recent or [])
+            ) or "no backups found"
+
+            result = dispatch(
+                capability="backup_verify",
+                prompt=(
+                    f"Verify backup health. Recent backups: {summary}. "
+                    "Check: (1) is the most recent DB backup less than 24h old? "
+                    "(2) are any backups in failed/error status? "
+                    "(3) is retention policy being followed (7 daily, 4 weekly)? "
+                    "Flag anything that needs attention."
+                ),
+            )
+            duration_ms = int((time.time() - start) * 1000)
+            success = result.success if result else False
+            self._log_cycle(
+                "warden_backup_verify",
+                1 if success else 0,
+                0 if success else 1,
+                duration_ms,
+                details={"response": result.response[:500] if result and result.response else "no response"},
+            )
+        except Exception as e:
+            logger.error("warden_backup_verify failed: %s", e)
+
+    def _run_warden_compliance_check(self):
+        """Weekly compliance scan across all 4 admin modules."""
+        try:
+            import sys
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from tools.department_hq.services.department_dispatcher import dispatch
+
+            start = time.time()
+            result = dispatch(
+                capability="compliance_check",
+                prompt=(
+                    "Run a weekly compliance review for the 4 admin operations modules: "
+                    "account_center, security_network, backup_manager, system_operations. "
+                    "Check: (1) code health status in code_audit_log, "
+                    "(2) any new open improvement_proposals in the last 7 days, "
+                    "(3) QA suite pass rates from qa_suite_runs in the last 7 days. "
+                    "Produce a concise weekly admin health report."
+                ),
+            )
+            duration_ms = int((time.time() - start) * 1000)
+            success = result.success if result else False
+            self._log_cycle(
+                "warden_compliance_check",
+                1 if success else 0,
+                0 if success else 1,
+                duration_ms,
+                details={"response": result.response[:500] if result and result.response else "no response"},
+            )
+        except Exception as e:
+            logger.error("warden_compliance_check failed: %s", e)
+
 
     def _archive_stale_notifications(self):
         """Archive notifications older than 30 days (every 6 hours)."""

@@ -12,7 +12,7 @@ var Directory = {
 
     init: function () {
         var self = this;
-        fetch(this.API_URL)
+        fetch(this.API_URL, {cache: 'no-cache'})
             .then(function (r) {
                 if (!r.ok) throw new Error(r.status);
                 return r.json();

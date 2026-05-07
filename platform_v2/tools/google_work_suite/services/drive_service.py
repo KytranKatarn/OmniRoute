@@ -529,6 +529,10 @@ def backup_upload_file(service, file_path: str, folder_id: str, filename: str = 
 
     Returns:
         dict with file id, name, size, webViewLink
+
+    Raises:
+        RuntimeError: Clean, single-line error message suitable for backup_log.
+                      Never propagates raw googleapiclient tracebacks.
     """
     from googleapiclient.http import MediaFileUpload
 
@@ -552,10 +556,22 @@ def backup_upload_file(service, file_path: str, folder_id: str, filename: str = 
     )
 
     response = None
-    while response is None:
-        status, response = request.next_chunk()
-        if status and on_progress:
-            on_progress(int(status.resumable_progress), file_size)
+    bytes_sent = 0
+    try:
+        while response is None:
+            status, response = request.next_chunk()
+            if status:
+                bytes_sent = int(status.resumable_progress)
+                if on_progress:
+                    on_progress(bytes_sent, file_size)
+    except Exception as exc:
+        # Translate any googleapiclient / httplib2 error into a clean one-liner
+        # so backup_log.error_message is human-readable rather than a raw traceback.
+        exc_type = type(exc).__name__
+        detail = str(exc).split("\n")[0][:200]
+        sent_mb = bytes_sent // (1024 * 1024)
+        total_mb = file_size // (1024 * 1024)
+        raise RuntimeError(f"GDrive upload failed after {sent_mb}/{total_mb} MB — {exc_type}: {detail}") from exc
 
     return {
         "id": response["id"],

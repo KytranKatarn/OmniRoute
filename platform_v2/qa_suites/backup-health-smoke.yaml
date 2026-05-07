@@ -1,0 +1,99 @@
+suite:
+  name: "backup-health-smoke"
+  description: "Backup Manager — page load, list API, health, retention/storage status, cloud/external status, hooks, packages"
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: "backup-manager-page-loads"
+    type: api
+    method: GET
+    path: /tools/backup-manager
+    expect:
+      status: [200, 302, 308]
+
+  - name: "backup-list"
+    type: api
+    method: GET
+    path: /tools/backup-manager/list
+    expect:
+      status: [200]
+
+  - name: "backup-health"
+    type: api
+    method: GET
+    path: /tools/backup-manager/health
+    expect:
+      status: [200]
+
+  - name: "backup-retention-status"
+    type: api
+    method: GET
+    path: /tools/backup-manager/retention-status
+    expect:
+      status: [200]
+
+  - name: "backup-storage-stats"
+    type: api
+    method: GET
+    path: /tools/backup-manager/storage-stats
+    expect:
+      status: [200]
+
+  - name: "backup-lock-status"
+    type: api
+    method: GET
+    path: /tools/backup-manager/lock-status
+    expect:
+      status: [200]
+
+  - name: "backup-external-status"
+    type: api
+    method: GET
+    path: /tools/backup-manager/external-status
+    expect:
+      status: [200]
+
+  - name: "backup-cloud-status"
+    type: api
+    method: GET
+    path: /tools/backup-manager/cloud/status
+    expect:
+      status: [200]
+
+  - name: "backup-verify-modules"
+    type: api
+    method: GET
+    path: /tools/backup-manager/verify-modules
+    expect:
+      status: [200]
+
+  - name: "backup-hooks-list"
+    type: api
+    method: GET
+    path: /tools/backup-manager/api/hooks
+    expect:
+      status: [200]
+
+  - name: "backup-deployment-packages"
+    type: api
+    method: GET
+    path: /tools/backup-manager/api/deployment-packages
+    expect:
+      status: [200]
+
+  - name: "backup-modules-list"
+    type: api
+    method: GET
+    path: /tools/backup-manager/modules/list
+    expect:
+      status: [200]
+
+  - name: "backup-current-build"
+    type: api
+    method: GET
+    path: /tools/backup-manager/current-build
+    expect:
+      status: [200]

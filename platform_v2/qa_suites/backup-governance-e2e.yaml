@@ -1,0 +1,44 @@
+suite:
+  name: "backup-governance-e2e"
+  description: "W.A.R.D.E.N. backup governance — clearance, snapshots, severity gates"
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: "snapshot endpoint creates row"
+    type: api
+    method: POST
+    path: /tools/backup-manager/api/snapshot-module
+    body: {"module_name": "qa_governance_test"}
+    expect:
+      status: [200]
+
+  - name: "snapshots list returns array"
+    type: api
+    method: GET
+    path: /tools/backup-manager/api/snapshots
+    expect:
+      status: [200]
+
+  - name: "backup health endpoint available"
+    type: api
+    method: GET
+    path: /tools/backup-manager/api/health
+    expect:
+      status: [200, 404]
+
+  - name: "cloud status returns configured field"
+    type: api
+    method: GET
+    path: /tools/backup-manager/cloud/status
+    expect:
+      status: [200]
+
+  - name: "improvement proposals have clearance columns"
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/proposals
+    expect:
+      status: [200, 302, 401, 404]

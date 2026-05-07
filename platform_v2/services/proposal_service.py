@@ -529,6 +529,98 @@ def run_proposal(proposal_id, user_id, skip_backup=False, use_orchestrator=True,
                 "legacy": True,
             }
 
+        # ── W.A.R.D.E.N. pre-deploy governance check ─────────────────────────────
+        if not skip_backup:
+            try:
+                from services.backup_governance_service import request_deploy_clearance
+
+                # Use priority column (table has no severity column)
+                _proposal_severity = "medium"
+                try:
+                    with get_db_cursor() as (_c2, _cur2):
+                        _cur2.execute(
+                            "SELECT priority FROM improvement_proposals WHERE id = %s",
+                            (proposal_id,),
+                        )
+                        _row = _cur2.fetchone()
+                        if (
+                            _row
+                            and _row.get("priority")
+                            and _row["priority"].lower()
+                            in (
+                                "critical",
+                                "high",
+                                "medium",
+                                "low",
+                            )
+                        ):
+                            _proposal_severity = _row["priority"].lower()
+                except Exception:
+                    pass  # priority column fallback — use default
+
+                clearance = request_deploy_clearance(
+                    module=str(proposal_id),
+                    severity=_proposal_severity,
+                    triggered_by="probe",
+                    proposal_id=proposal_id,
+                )
+
+                # Record clearance result on the proposal row
+                try:
+                    with get_db_cursor(commit=True) as (_c3, _cur3):
+                        _cur3.execute(
+                            """UPDATE improvement_proposals SET
+                                   backup_clearance_approved = %s,
+                                   backup_clearance_snapshot_id = %s,
+                                   backup_clearance_reason = %s,
+                                   backup_clearance_at = NOW()
+                               WHERE id = %s""",
+                            (
+                                clearance["approved"],
+                                clearance.get("snapshot_id"),
+                                clearance["reason"],
+                                proposal_id,
+                            ),
+                        )
+                except Exception as _upd_err:
+                    logger.warning("Could not record clearance on proposal: %s", _upd_err)
+
+                if not clearance["approved"]:
+                    return {
+                        "success": False,
+                        "error": f"W.A.R.D.E.N. clearance denied: {clearance['reason']}",
+                        "clearance": clearance,
+                    }
+            except ImportError:
+                pass  # governance service not available — fail open
+            except Exception as _gov_err:
+                logger.warning("Governance check failed (fail-open): %s", _gov_err)
+
+        # ── F.O.R.G.E. PR compliance check (soft gate — never blocks) ─────────
+        try:
+            import subprocess as _forge_sp
+            from services.forge_gate_service import request_pr_clearance
+
+            _commit = None
+            try:
+                _commit = (
+                    _forge_sp.run(
+                        ["git", "-C", "/app", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=5
+                    ).stdout.strip()
+                    or None
+                )
+            except Exception:
+                pass
+            forge_clearance = request_pr_clearance(
+                git_commit=_commit,
+                severity=_proposal_severity if "_proposal_severity" in dir() else "medium",
+                proposal_id=proposal_id,
+            )
+            logger.info("F.O.R.G.E. gate: %s", forge_clearance.get("reason"))
+        except Exception as _forge_err:
+            logger.warning("F.O.R.G.E. gate failed (fail-open): %s", _forge_err)
+        # ─────────────────────────────────────────────────────────────────────
+
         # Step 1: Backup
         backup_result = None
         if not skip_backup:
@@ -941,6 +1033,20 @@ def deploy_to_production(proposal_id):
             ),
         )
         conn.commit()
+
+        # ── C.O.D.E.X. auto-documents the deploy (non-blocking, fire-and-forget) ─
+        try:
+            from services.codex_gate_service import document_deploy
+
+            document_deploy(
+                module=proposal.get("file_path", f"proposal_{proposal_id}"),
+                git_commit=locals().get("_commit"),
+                changes_summary=f"Repair Bay proposal #{proposal_id} deployed",
+                proposal_id=proposal_id,
+            )
+        except Exception as _doc_err:
+            logger.warning("C.O.D.E.X. doc gate suppressed: %s", _doc_err)
+        # ─────────────────────────────────────────────────────────────────────────
 
         return {
             "success": True,

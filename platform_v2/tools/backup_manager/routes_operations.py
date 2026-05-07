@@ -1,0 +1,834 @@
+"""Backup Manager — core operations (create, list, status, health, lock, verify, retention) routes.
+
+Split from the original backup_manager_routes.py monolith (Task #2699).
+All routes are registered via register_operations_routes(bp, admin_required).
+"""
+
+from flask import jsonify, request, send_file, render_template, current_app
+from flask_login import current_user
+import os
+import json
+import shutil
+import subprocess
+import tempfile
+import tarfile
+import gzip
+import time
+import hashlib
+import hmac
+import requests
+from datetime import datetime, timedelta
+import psycopg2
+from psycopg2 import sql
+from psycopg2.extras import RealDictCursor
+
+from database import _get_db_password
+
+# Pull every shared helper / constant / programmatic function into module scope
+from ._shared import (
+    BACKUP_DIR,
+    PLATFORM_DIR,
+    acquire_backup_lock,
+    admin_required,
+    backup_database_python,
+    check_backup_in_progress,
+    cleanup_old_backups,
+    copy_to_external_storage,
+    create_backup_programmatic,
+    execute_post_hooks,
+    execute_pre_hooks,
+    get_backup_db_cursor,
+    get_backup_retention_status,
+    get_current_build,
+    get_next_build_number,
+    get_platform_version,
+    is_external_storage_available,
+    release_backup_lock,
+    set_build_number,
+    trigger_webhooks,
+    verify_backup_integrity,
+)
+
+
+def register_operations_routes(bp, admin_required):
+    """Register core operations (create, list, status, health, lock, verify, retention) routes onto the supplied blueprint."""
+
+    @bp.route("/")
+    @admin_required
+    def index():
+        """Backup manager main page"""
+        return render_template("tools/backup_manager.html")
+
+    @bp.route("/list")
+    @admin_required
+    def list_backups():
+        """List all available backups — reads from backup_log DB table (source of truth)"""
+        try:
+            backups = []
+
+            with get_backup_db_cursor(commit=False, cursor_factory=RealDictCursor) as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT id, backup_type, file_path, file_size_bytes, size_bytes,
+                           status, created_by, created_at, completed_at,
+                           error_message, component, tier, duration_ms,
+                           verification_status, notes,
+                           git_commit, git_branch, triggered_by, proposal_id, pr_number
+                    FROM backup_log
+                    ORDER BY created_at DESC
+                    LIMIT 200
+                    """,
+                )
+                rows = cur.fetchall()
+
+            for row in rows:
+                # Derive a human-readable name from file_path (last path component)
+                raw_path = row.get("file_path") or ""
+                name = os.path.basename(raw_path.rstrip("/")) or f"backup-{row['id']}"
+
+                # Normalise size: prefer size_bytes, fall back to file_size_bytes
+                size = row.get("size_bytes") or row.get("file_size_bytes") or 0
+                total_size_mb = round(size / 1024 / 1024, 2) if size else 0
+
+                # created_at as ISO string for UI
+                created_at = row["created_at"].isoformat() if row.get("created_at") else None
+                # timestamp in YYYYMMDD_HHMMSS format for legacy UI consumers
+                timestamp = row["created_at"].strftime("%Y%m%d_%H%M%S") if row.get("created_at") else None
+
+                backups.append(
+                    {
+                        # Identity
+                        "id": row["id"],
+                        "name": name,
+                        "timestamp": timestamp,
+                        # Type & status
+                        "backup_type": row.get("backup_type") or row.get("component") or "backup",
+                        "component": row.get("component"),
+                        "tier": row.get("tier"),
+                        "status": row.get("status"),
+                        "verification_status": row.get("verification_status"),
+                        # Size
+                        "size": size,
+                        "total_size_mb": total_size_mb,
+                        # Timestamps
+                        "created_at": created_at,
+                        "completed_at": (row["completed_at"].isoformat() if row.get("completed_at") else None),
+                        "duration_ms": row.get("duration_ms"),
+                        # Authorship / notes
+                        "created_by": row.get("created_by") or "system",
+                        "description": row.get("notes") or "",
+                        "error_message": row.get("error_message"),
+                        # Path (for restore / download lookups)
+                        "path": raw_path,
+                        # Legacy fields expected by UI (safe defaults)
+                        "build_number": None,
+                        "compression": None,
+                        "external_copy": False,
+                        # Version tracking (migration 373)
+                        "git_commit": row.get("git_commit"),
+                        "git_branch": row.get("git_branch"),
+                        "triggered_by": row.get("triggered_by"),
+                        "proposal_id": row.get("proposal_id"),
+                        "pr_number": row.get("pr_number"),
+                    }
+                )
+
+            return jsonify({"success": True, "backups": backups, "current_build": get_current_build()})
+
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/current-build")
+    @admin_required
+    def api_current_build():
+        """Get current build number"""
+        return jsonify({"success": True, "current_build": get_current_build()})
+
+    @bp.route("/health")
+    @admin_required
+    def backup_health():
+        """Return backup system health status"""
+        try:
+            alerts = []
+            healthy = True
+
+            # Count backups
+            backups = []
+            total_size = 0
+            if os.path.exists(BACKUP_DIR):
+                for item in os.listdir(BACKUP_DIR):
+                    backup_path = os.path.join(BACKUP_DIR, item)
+                    if os.path.isdir(backup_path):
+                        metadata_file = os.path.join(backup_path, "metadata.json")
+                        if os.path.exists(metadata_file):
+                            with open(metadata_file, "r") as f:
+                                metadata = json.load(f)
+                                # Calculate size
+                                backup_size = 0
+                                for root, dirs, files in os.walk(backup_path):
+                                    for file in files:
+                                        filepath = os.path.join(root, file)
+                                        backup_size += os.path.getsize(filepath)
+                                metadata["size"] = backup_size
+                                total_size += backup_size
+                                backups.append(metadata)
+
+            # Sort by timestamp descending
+            backups.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+            backup_count = len(backups)
+
+            # Check: No backups
+            if backup_count == 0:
+                healthy = False
+                alerts.append(
+                    {
+                        "level": "critical",
+                        "message": "No backups found - system is unprotected",
+                    }
+                )
+
+            # Check: Latest backup age
+            latest_backup = None
+            latest_age_hours = None
+            if backups:
+                latest_backup = backups[0]
+                created_at = latest_backup.get("created_at")
+                if created_at:
+                    try:
+                        backup_time = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                        age = datetime.now() - backup_time.replace(tzinfo=None)
+                        latest_age_hours = age.total_seconds() / 3600
+
+                        if latest_age_hours > 48:
+                            healthy = False
+                            alerts.append(
+                                {
+                                    "level": "warning",
+                                    "message": f"Latest backup is {latest_age_hours:.1f} hours old (>48h)",
+                                }
+                            )
+                        elif latest_age_hours > 24:
+                            alerts.append(
+                                {
+                                    "level": "info",
+                                    "message": f"Latest backup is {latest_age_hours:.1f} hours old",
+                                }
+                            )
+                    except Exception:
+                        pass
+
+            # Check: Backup integrity (database.sql or database.sql.gz exists)
+            if latest_backup:
+                backup_path = os.path.join(BACKUP_DIR, latest_backup.get("name", ""))
+                db_file = os.path.join(backup_path, "database.sql.gz")
+                db_compressed = True
+                if not os.path.exists(db_file):
+                    db_file = os.path.join(backup_path, "database.sql")
+                    db_compressed = False
+
+                if os.path.exists(db_file):
+                    db_size = os.path.getsize(db_file)
+                    # For compressed files, even 512B is valid
+                    min_size = 512 if db_compressed else 1024
+                    if db_size < min_size:
+                        healthy = False
+                        alerts.append(
+                            {
+                                "level": "critical",
+                                "message": f"Latest backup database file is too small ({db_size} bytes)",
+                            }
+                        )
+                else:
+                    healthy = False
+                    alerts.append(
+                        {
+                            "level": "critical",
+                            "message": "Latest backup missing database.sql or database.sql.gz",
+                        }
+                    )
+
+            # Check: Disk space (warning if backups > 10GB)
+            if total_size > 10 * 1024 * 1024 * 1024:  # 10GB
+                alerts.append(
+                    {
+                        "level": "warning",
+                        "message": f"Backup storage exceeds 10GB ({total_size / (1024*1024*1024):.1f}GB)",
+                    }
+                )
+
+            # Phase 5 / Task 20: per-tier freshness from backup_log.
+            # Newest row per (component, tier) — feeds the LCARS tier-health card.
+            tiers: dict = {}
+            try:
+                with get_backup_db_cursor(commit=False) as (_tconn, _tcur):
+                    _tcur.execute(
+                        """
+                        SELECT DISTINCT ON (component, tier)
+                               component, tier, status, created_at, size_bytes,
+                               verification_status
+                          FROM backup_log
+                         WHERE component IS NOT NULL AND tier IS NOT NULL
+                         ORDER BY component, tier, created_at DESC
+                        """
+                    )
+                    for row in _tcur.fetchall():
+                        tiers.setdefault(row["tier"], []).append(
+                            {
+                                "component": row["component"],
+                                "status": row["status"],
+                                "created_at": (row["created_at"].isoformat() if row["created_at"] else None),
+                                "size_bytes": row["size_bytes"] or 0,
+                                "verification_status": row["verification_status"],
+                            }
+                        )
+            except Exception as _tier_err:
+                tiers = {"_error": str(_tier_err)}
+
+            return jsonify(
+                {
+                    "healthy": healthy,
+                    "total_backups": backup_count,
+                    "latest_backup": latest_backup.get("name") if latest_backup else None,
+                    "latest_age_hours": (round(latest_age_hours, 1) if latest_age_hours else None),
+                    "total_storage_bytes": total_size,
+                    "total_storage_formatted": f"{total_size / (1024*1024):.1f} MB",
+                    "platform_version": get_platform_version(),
+                    "current_build": get_current_build(),
+                    "alerts": alerts,
+                    "tiers": tiers,
+                }
+            )
+
+        except Exception as e:
+            return (
+                jsonify(
+                    {
+                        "healthy": False,
+                        "error": str(e),
+                        "alerts": [
+                            {
+                                "level": "critical",
+                                "message": f"Health check failed: {str(e)}",
+                            }
+                        ],
+                    }
+                ),
+                500,
+            )
+
+    @bp.route("/verify/<backup_name>")
+    @admin_required
+    def verify_backup(backup_name):
+        """Verify integrity of a specific backup"""
+        try:
+            result = verify_backup_integrity(backup_name)
+            return jsonify(result)
+        except Exception as e:
+            return (
+                jsonify({"valid": False, "backup_name": backup_name, "error": str(e)}),
+                500,
+            )
+
+    @bp.route("/create", methods=["POST"])
+    @admin_required
+    def api_create_backup():
+        """Create a new backup (API route - use create_backup_programmatic for code)"""
+        try:
+            data = request.get_json() or {}
+            description = data.get("description", "Manual backup")
+            backup_type = data.get("backup_type", "full")
+            custom_components = data.get("components", [])
+
+            # Capture git context (fail-safe — never crash the backup if git is unavailable)
+            def _git(cmd):
+                try:
+                    return (
+                        subprocess.run(
+                            ["git", "-C", "/app"] + cmd, capture_output=True, text=True, timeout=5
+                        ).stdout.strip()
+                        or None
+                    )
+                except Exception:
+                    return None
+
+            _git_commit = _git(["rev-parse", "HEAD"])
+            _git_branch = _git(["rev-parse", "--abbrev-ref", "HEAD"])
+            _triggered_by = data.get("triggered_by", "manual") if data else "manual"
+            _proposal_id = data.get("proposal_id") if data else None
+            _pr_number = data.get("pr_number") if data else None
+
+            # Define component sets for each backup type
+            ALL_COMPONENTS = [
+                "database",
+                "platform",
+                "documentation",
+                "ai_bridge",
+                "migrations",
+                "n8n_workflows",
+                "n8n_persistence",
+                "scripts",
+                "nginx",
+                "environment",
+                "conversation_logs",
+            ]
+            CRITICAL_COMPONENTS = ["database", "platform", "documentation", "environment"]
+            DATABASE_COMPONENTS = ["database"]
+
+            # Determine which components to backup based on type
+            if backup_type == "full":
+                components_to_backup = ALL_COMPONENTS
+            elif backup_type == "critical":
+                components_to_backup = CRITICAL_COMPONENTS
+            elif backup_type == "database":
+                components_to_backup = DATABASE_COMPONENTS
+            elif backup_type == "custom":
+                components_to_backup = custom_components if custom_components else ALL_COMPONENTS
+            else:
+                components_to_backup = ALL_COMPONENTS
+                backup_type = "full"
+
+            current_app.logger.info(f"Creating {backup_type} backup with components: {components_to_backup}")
+
+            # Generate backup name
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_name = f"{timestamp}_{description.replace(' ', '_')}"
+            backup_path = os.path.join(BACKUP_DIR, backup_name)
+
+            # Acquire backup lock
+            lock_acquired, lock_error = acquire_backup_lock(backup_name, current_user.username)
+            if not lock_acquired:
+                return jsonify({"success": False, "error": lock_error}), 409
+
+            # Execute pre-backup hooks
+            pre_ok, pre_results = execute_pre_hooks(backup_name)
+            if not pre_ok:
+                release_backup_lock()
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "Pre-backup hook failed",
+                            "hook_results": pre_results,
+                        }
+                    ),
+                    500,
+                )
+
+            os.makedirs(backup_path, exist_ok=True)
+
+            # Track which components were backed up
+            backed_up = {}
+            db_file_name = "database.sql.gz"  # Default to compressed
+
+            # 1. Backup database (with compression)
+            if "database" in components_to_backup:
+                current_app.logger.info("Backing up database (compressed)...")
+                db_file = os.path.join(backup_path, "database.sql")
+                actual_db_file = backup_database_python(db_file, compress=True)
+                db_file_name = os.path.basename(actual_db_file)
+                backed_up["database"] = True
+                current_app.logger.info(f"Database backup complete ({db_file_name})")
+
+            # 2. Backup platform files (configs, tools, templates)
+            if "platform" in components_to_backup:
+                current_app.logger.info("Backing up platform files...")
+                platform_backup = os.path.join(backup_path, "platform_v2")
+                platform_dirs = [
+                    "tools",
+                    "templates",
+                    "static",
+                    "consciousness",
+                    "migrations",
+                ]
+                for dir_name in platform_dirs:
+                    src = os.path.join(PLATFORM_DIR, dir_name)
+                    if os.path.exists(src):
+                        dst = os.path.join(platform_backup, dir_name)
+                        shutil.copytree(src, dst, dirs_exist_ok=True)
+                important_files = [
+                    "app.py",
+                    "requirements.txt",
+                    "docker-compose.yml",
+                    ".env",
+                ]
+                for file_name in important_files:
+                    src = os.path.join(PLATFORM_DIR, file_name)
+                    if os.path.exists(src):
+                        dst = os.path.join(platform_backup, file_name)
+                        os.makedirs(os.path.dirname(dst), exist_ok=True)
+                        shutil.copy2(src, dst)
+                backed_up["platform"] = True
+                current_app.logger.info("Platform files backup complete")
+
+            # 3. Backup documentation
+            docs_src = "/mnt/archie_brain/docs"
+            if "documentation" in components_to_backup and os.path.exists(docs_src):
+                current_app.logger.info("Backing up documentation...")
+                docs_dst = os.path.join(backup_path, "docs")
+                shutil.copytree(docs_src, docs_dst, dirs_exist_ok=True)
+                backed_up["documentation"] = True
+                current_app.logger.info(f"Documentation backup complete - {len(os.listdir(docs_dst))} files")
+
+            # 4. Backup AI bridge code
+            ai_bridge_src = "/mnt/archie_brain/ai_bridge"
+            if "ai_bridge" in components_to_backup and os.path.exists(ai_bridge_src):
+                current_app.logger.info("Backing up AI bridge...")
+                ai_bridge_dst = os.path.join(backup_path, "ai_bridge")
+                shutil.copytree(ai_bridge_src, ai_bridge_dst, dirs_exist_ok=True)
+                backed_up["ai_bridge"] = True
+                current_app.logger.info("AI bridge backup complete")
+
+            # 5. Backup database migrations
+            db_migrations_src = "/mnt/archie_brain/database/migrations"
+            if "migrations" in components_to_backup and os.path.exists(db_migrations_src):
+                current_app.logger.info("Backing up database migrations...")
+                db_migrations_dst = os.path.join(backup_path, "database/migrations")
+                os.makedirs(os.path.dirname(db_migrations_dst), exist_ok=True)
+                shutil.copytree(db_migrations_src, db_migrations_dst, dirs_exist_ok=True)
+                backed_up["migrations"] = True
+                current_app.logger.info("Database migrations backup complete")
+
+            # 6. Backup n8n workflows
+            n8n_workflows_src = "/mnt/archie_brain/n8n_workflows"
+            if "n8n_workflows" in components_to_backup and os.path.exists(n8n_workflows_src):
+                current_app.logger.info("Backing up n8n workflows...")
+                n8n_workflows_dst = os.path.join(backup_path, "n8n_workflows")
+                shutil.copytree(n8n_workflows_src, n8n_workflows_dst, dirs_exist_ok=True)
+                backed_up["n8n_workflows"] = True
+                current_app.logger.info(f"n8n workflows backup complete - {len(os.listdir(n8n_workflows_dst))} files")
+
+            # 7. Backup n8n persistence data
+            n8n_persistence_src = "/mnt/archie_brain/persistence/n8n"
+            if "n8n_persistence" in components_to_backup and os.path.exists(n8n_persistence_src):
+                current_app.logger.info("Backing up n8n persistence data...")
+                n8n_persistence_dst = os.path.join(backup_path, "persistence/n8n")
+                os.makedirs(os.path.dirname(n8n_persistence_dst), exist_ok=True)
+                shutil.copytree(n8n_persistence_src, n8n_persistence_dst, dirs_exist_ok=True)
+                backed_up["n8n_persistence"] = True
+                current_app.logger.info("n8n persistence backup complete")
+
+            # 8. Backup deployment scripts
+            scripts_src = "/mnt/archie_brain/scripts"
+            if "scripts" in components_to_backup and os.path.exists(scripts_src):
+                current_app.logger.info("Backing up deployment scripts...")
+                scripts_dst = os.path.join(backup_path, "scripts")
+                shutil.copytree(scripts_src, scripts_dst, dirs_exist_ok=True)
+                backed_up["scripts"] = True
+                current_app.logger.info(f"Scripts backup complete - {len(os.listdir(scripts_dst))} files")
+
+            # 9. Backup nginx configuration
+            nginx_src = "/mnt/archie_brain/nginx"
+            if "nginx" in components_to_backup and os.path.exists(nginx_src):
+                current_app.logger.info("Backing up nginx configuration...")
+                nginx_dst = os.path.join(backup_path, "nginx")
+                shutil.copytree(nginx_src, nginx_dst, dirs_exist_ok=True)
+                backed_up["nginx"] = True
+                current_app.logger.info("nginx configuration backup complete")
+
+            # 10. Backup docker-compose.yml from root (environment)
+            root_compose_src = "/mnt/archie_brain/docker-compose.yml"
+            if "environment" in components_to_backup and os.path.exists(root_compose_src):
+                current_app.logger.info("Backing up root docker-compose.yml...")
+                root_compose_dst = os.path.join(backup_path, "docker-compose.yml")
+                shutil.copy2(root_compose_src, root_compose_dst)
+                backed_up["environment"] = True
+                current_app.logger.info("Root docker-compose.yml backup complete")
+
+            # 11. Backup conversation logs (Claude Code hook transcripts)
+            conversation_logs_src = "/mnt/archie_brain/conversation_logs"
+            if "conversation_logs" in components_to_backup and os.path.exists(conversation_logs_src):
+                current_app.logger.info("Backing up conversation logs...")
+                conversation_logs_dst = os.path.join(backup_path, "conversation_logs")
+                shutil.copytree(conversation_logs_src, conversation_logs_dst, dirs_exist_ok=True)
+                backed_up["conversation_logs"] = True
+                current_app.logger.info("Conversation logs backup complete")
+
+            # Calculate total backup size
+            total_size = 0
+            for root, dirs, files in os.walk(backup_path):
+                for f in files:
+                    total_size += os.path.getsize(os.path.join(root, f))
+
+            # Copy to external storage if available
+            external_result = {"success": False, "error": "External storage not mounted"}
+            if is_external_storage_available():
+                current_app.logger.info("Copying to external storage...")
+                external_result = copy_to_external_storage(backup_name, backup_path)
+                if external_result["success"]:
+                    current_app.logger.info(f"External copy complete ({external_result.get('size_mb', 0)} MB)")
+
+            # 12. Create metadata with auto-assigned build number
+            new_build_number = get_next_build_number()
+            metadata = {
+                "name": backup_name,
+                "timestamp": timestamp,
+                "description": description,
+                "created_by": current_user.username,
+                "created_at": datetime.now().isoformat(),
+                "platform_version": get_platform_version(),
+                "build_number": new_build_number,
+                "backup_type": backup_type,
+                "compression": "gzip",
+                "database_file": db_file_name,
+                "total_size_bytes": total_size,
+                "total_size_mb": round(total_size / (1024 * 1024), 2),
+                "external_copy": external_result.get("success", False),
+                "components": backed_up,
+            }
+
+            metadata_file = os.path.join(backup_path, "metadata.json")
+            with open(metadata_file, "w") as f:
+                json.dump(metadata, f, indent=2)
+
+            # Generate rollback script (handles compressed database)
+            db_restore_cmd = (
+                f"zcat {backup_path}/{db_file_name} | docker exec -i archie_db psql -U archie -d archie"
+                if db_file_name.endswith(".gz")
+                else f"docker exec -i archie_db psql -U archie -d archie < {backup_path}/database.sql"
+            )
+            rollback_script = os.path.join(backup_path, "rollback.sh")
+            with open(rollback_script, "w") as f:
+                f.write(
+                    f"""#!/bin/bash
+    # A.R.C.H.I.E. Platform Rollback Script
+    # Backup: {backup_name}
+    # Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+    set -e
+
+    echo "Starting rollback to backup: {backup_name}"
+    echo ""
+
+    # Stop platform
+    echo "Stopping platform..."
+    cd /mnt/archie_brain
+    docker-compose stop archie_platform
+
+    # Restore database
+    echo "Restoring database..."
+    docker exec -i archie_db psql -U archie -c "DROP DATABASE IF EXISTS archie;"
+    docker exec -i archie_db psql -U archie -c "CREATE DATABASE archie;"
+    {db_restore_cmd}
+
+    # Restore platform files
+    echo "Restoring platform files..."
+    cd /mnt/archie_brain/platform_v2
+    cp -r {platform_backup}/* ./
+
+    # Restart platform
+    echo "Restarting platform..."
+    cd /mnt/archie_brain
+    docker-compose up -d archie_platform
+
+    echo ""
+    echo "✓ Rollback complete!"
+    echo "Platform should be available at http://192.168.1.200:3000"
+    """
+                )
+
+            os.chmod(rollback_script, 0o755)
+
+            # Set this backup as the current build
+            set_build_number(new_build_number)
+
+            # Execute post-backup hooks
+            post_results = execute_post_hooks(backup_name, metadata)
+            metadata["hook_results"] = {"pre": pre_results, "post": post_results}
+
+            # Update metadata with hook results
+            with open(metadata_file, "w") as f:
+                json.dump(metadata, f, indent=2)
+
+            # Trigger webhooks
+            webhook_results = trigger_webhooks(
+                "backup_complete",
+                {
+                    "event": "backup_complete",
+                    "backup_name": backup_name,
+                    "build_number": new_build_number,
+                    "platform_version": get_platform_version(),
+                    "backup_type": backup_type,
+                    "size_bytes": total_size,
+                    "compression": "gzip",
+                    "external_copy": external_result.get("success", False),
+                    "timestamp": datetime.now().isoformat(),
+                },
+            )
+
+            # Release lock
+            release_backup_lock()
+
+            current_app.logger.info(f"Backup created successfully: {backup_name} (Build #{new_build_number})")
+
+            # INSERT into backup_log so the list endpoint sees this backup immediately
+            try:
+                from database import get_db_cursor
+
+                with get_db_cursor(commit=True) as (_c, _cur):
+                    _cur.execute(
+                        """INSERT INTO backup_log
+                               (backup_type, file_path, size_bytes, status, tier,
+                                component, notes, git_commit, git_branch,
+                                triggered_by, proposal_id, pr_number, created_at)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())""",
+                        (
+                            backup_type,
+                            backup_path,
+                            total_size,
+                            "success",
+                            "primary",
+                            (
+                                ",".join(components_to_backup)
+                                if isinstance(components_to_backup, list)
+                                else str(components_to_backup)
+                            ),
+                            description if description else "",
+                            _git_commit,
+                            _git_branch,
+                            _triggered_by,
+                            _proposal_id,
+                            _pr_number,
+                        ),
+                    )
+            except Exception as _log_err:
+                current_app.logger.warning("backup_log INSERT failed (non-fatal): %s", _log_err)
+
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"Backup created successfully (Build #{new_build_number})",
+                    "backup": metadata,
+                    "external_copy": external_result,
+                    "webhook_results": webhook_results,
+                }
+            )
+
+        except Exception as e:
+            current_app.logger.error(f"Backup creation failed: {str(e)}")
+
+            # Trigger failure webhook
+            try:
+                trigger_webhooks(
+                    "backup_failed",
+                    {
+                        "event": "backup_failed",
+                        "description": description,
+                        "error": str(e),
+                        "timestamp": datetime.now().isoformat(),
+                    },
+                )
+            except Exception:
+                pass
+
+            # Clean up failed backup
+            if "backup_path" in locals() and os.path.exists(backup_path):
+                shutil.rmtree(backup_path)
+
+            # Release lock if acquired
+            if "lock_acquired" in locals() and lock_acquired:
+                release_backup_lock()
+
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/retention-status")
+    @admin_required
+    def retention_status():
+        """
+        Get current retention policy status showing which backups would be kept/deleted.
+
+        Returns:
+            {
+                'keep': [list of backup names to keep],
+                'delete': [list of backup names that can be deleted],
+                'stats': {
+                    'total_backups': int,
+                    'keep_count': int,
+                    'delete_count': int,
+                    'total_size_mb': float,
+                    'space_to_free_mb': float
+                }
+            }
+        """
+        try:
+            status = get_backup_retention_status()
+            return jsonify(
+                {
+                    "success": True,
+                    "retention_policy": "7 daily + 4 weekly + 6 monthly",
+                    **status,
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/cleanup", methods=["POST"])
+    @admin_required
+    def cleanup_backups():
+        """
+        Delete old backups based on retention policy.
+
+        Request body (optional):
+            {
+                'dry_run': true/false (default: true)
+            }
+
+        Returns:
+            {
+                'success': True,
+                'dry_run': True/False,
+                'deleted': [list of deleted backup names],
+                'kept': [list of kept backup names],
+                'space_freed_mb': float
+            }
+        """
+        try:
+            data = request.get_json() or {}
+            dry_run = data.get("dry_run", True)  # Default to dry run for safety
+
+            result = cleanup_old_backups(dry_run=dry_run)
+
+            if not dry_run:
+                current_app.logger.info(
+                    f"Retention cleanup: deleted {len(result['deleted'])} backups, freed {result['space_freed_mb']} MB"
+                )
+
+            return jsonify(result)
+
+        except Exception as e:
+            current_app.logger.error(f"Cleanup failed: {str(e)}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/set-current/<int:build_number>", methods=["POST"])
+    @admin_required
+    def set_current_build(build_number):
+        """Set current running build number"""
+        try:
+            current_build_file = "/backups/.current_build"
+            with open(current_build_file, "w") as f:
+                f.write(str(build_number))
+
+            return jsonify(
+                {
+                    "success": True,
+                    "current_build": build_number,
+                    "message": f"Current build set to #{build_number}",
+                }
+            )
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/lock-status")
+    @admin_required
+    def get_lock_status():
+        """Check if backup is currently in progress"""
+        try:
+            lock_info = check_backup_in_progress()
+            return jsonify(
+                {
+                    "success": True,
+                    "locked": lock_info is not None,
+                    "lock_info": lock_info,
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500

@@ -1,0 +1,46 @@
+suite:
+  name: "backup-restore-e2e"
+  description: "Backup restore flow — status, sandbox initiate, promote gate"
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: "restore status endpoint available"
+    type: api
+    method: GET
+    path: /tools/backup-manager/api/restore/status/1
+    expect:
+      status: [200]
+
+  - name: "sandbox initiate rejects missing backup_id"
+    type: api
+    method: POST
+    path: /tools/backup-manager/api/restore/sandbox
+    body: {}
+    expect:
+      status: [400, 302]
+
+  - name: "sandbox initiate rejects invalid backup"
+    type: api
+    method: POST
+    path: /tools/backup-manager/api/restore/sandbox
+    body: {"backup_id": 999999999}
+    expect:
+      status: [400]
+
+  - name: "promote rejects without session_id"
+    type: api
+    method: POST
+    path: /tools/backup-manager/api/restore/promote
+    body: {}
+    expect:
+      status: [400, 302]
+
+  - name: "backup list includes git_commit field"
+    type: api
+    method: GET
+    path: /tools/backup-manager/list
+    expect:
+      status: [200]

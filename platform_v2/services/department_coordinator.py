@@ -190,9 +190,17 @@ CAPABILITY_DEPARTMENT_MAP = {
     # W.A.R.D.E.N. — admin operations capabilities
     "user_audit": "Operations & Infrastructure",
     "backup_verify": "Operations & Infrastructure",
+    "backup_governance": "Operations & Infrastructure",
     "compliance_check": "Operations & Infrastructure",
     "account_management": "Operations & Infrastructure",
     "access_review": "Operations & Infrastructure",
+    "restore_sandbox": "Operations & Infrastructure",
+    # Deployment Triad gates
+    "pr_gate": "Engineering & Technology",  # F.O.R.G.E. PR compliance check
+    "doc_gate": "Documentation & Knowledge",  # C.O.D.E.X. auto-documentation
+    "restore_production": "Operations & Infrastructure",
+    "restore_verify": "Operations & Infrastructure",
+    "qa_sandbox_restore": "Engineering & Technology",
     # Logistics & Supply Chain
     "inventory_management": "Logistics & Supply Chain",
     "itinerary_planning": "Logistics & Supply Chain",

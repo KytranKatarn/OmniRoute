@@ -650,6 +650,11 @@
         loadDeploymentBackups();
         checkLockStatus();
         setInterval(checkLockStatus, 10000);
+        // Check if external USB storage is mounted
+        fetch('/tools/backup-manager/health', {credentials: 'same-origin'})
+            .then(r => r.json())
+            .then(d => { _externalEnabled = !!(d.external_storage && d.external_storage.available); })
+            .catch(() => {});
     });
 
     // Tab switching
@@ -885,14 +890,23 @@
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'backup-actions';
 
-            // Preview button
+            // Inspect button (formerly Preview)
             const previewBtn = document.createElement('button');
             previewBtn.className = 'btn btn-purple';
-            previewBtn.textContent = 'Preview';
+            previewBtn.textContent = 'Inspect';
+            previewBtn.title = 'View backup contents and component details';
             previewBtn.onclick = function() { previewRestore(backup.name); };
             actionsDiv.appendChild(previewBtn);
 
-            // Set Current button
+            // Download button
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'btn btn-cyan';
+            downloadBtn.textContent = 'Download';
+            downloadBtn.title = 'Download as tar.gz for off-site DRP';
+            downloadBtn.onclick = function() { downloadBackup(backup.name); };
+            actionsDiv.appendChild(downloadBtn);
+
+            // Set Current button (only for non-current builds with a build number)
             if (!isCurrent && backup.build_number) {
                 const setCurrentBtn = document.createElement('button');
                 setCurrentBtn.className = 'btn';
@@ -901,17 +915,17 @@
                 actionsDiv.appendChild(setCurrentBtn);
             }
 
-            // Sync USB button (only if not already copied)
-            if (!hasExternalCopy) {
+            // Sync USB — only when external storage is mounted and not already copied
+            if (_externalEnabled && !hasExternalCopy) {
                 const syncBtn = document.createElement('button');
                 syncBtn.className = 'btn btn-cyan';
                 syncBtn.textContent = 'Sync USB';
-                syncBtn.title = 'Copy to external storage';
+                syncBtn.title = 'Copy to external USB storage';
                 syncBtn.onclick = function() { syncToExternal(backup.name); };
                 actionsDiv.appendChild(syncBtn);
             }
 
-            // Upload to Cloud button
+            // Cloud — only when Google Drive is configured
             if (_cloudEnabled && (!_cloudBackupNames || !_cloudBackupNames.has(backup.name + '.tar.gz.enc'))) {
                 const cloudBtn = document.createElement('button');
                 cloudBtn.className = 'btn btn-blue';
@@ -920,13 +934,6 @@
                 cloudBtn.onclick = function() { uploadToCloud(backup.name); };
                 actionsDiv.appendChild(cloudBtn);
             }
-
-            // Download button
-            const downloadBtn = document.createElement('button');
-            downloadBtn.className = 'btn btn-cyan';
-            downloadBtn.textContent = 'Download';
-            downloadBtn.onclick = function() { downloadBackup(backup.name); };
-            actionsDiv.appendChild(downloadBtn);
 
             // Delete button
             const deleteBtn = document.createElement('button');
@@ -2287,6 +2294,7 @@
     // =====================================================================
 
     let _cloudEnabled = false;
+    let _externalEnabled = false;
     let _cloudBackupNames = new Set();
     let _cloudPassphraseCache = '';
     let _cloudPollingTimer = null;

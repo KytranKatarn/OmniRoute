@@ -121,6 +121,19 @@ def register_storage_routes(bp, admin_required):
             # Delete backup directory
             shutil.rmtree(backup_path)
 
+            # Clean up backup_log records for this backup
+            try:
+                from database import get_db_cursor
+
+                container_path = "/backups/" + backup_name
+                with get_db_cursor(commit=True) as (_c, _cur):
+                    _cur.execute(
+                        "DELETE FROM backup_log WHERE file_path = %s OR file_path = %s",
+                        (backup_path, container_path),
+                    )
+            except Exception as _db_err:
+                current_app.logger.warning("backup_log cleanup failed (non-fatal): %s", _db_err)
+
             return jsonify({"success": True, "message": "Backup deleted successfully"})
 
         except Exception as e:

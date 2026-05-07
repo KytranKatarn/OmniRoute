@@ -1428,66 +1428,74 @@ def preview_restore(backup_name):
         if not os.path.exists(db_file):
             db_file = os.path.join(backup_path, "database.sql")
 
+    # Fast-path: load metadata.json first for size/component info without expensive walks
+    _meta = {}
+    _meta_file = os.path.join(backup_path, "metadata.json")
+    if os.path.exists(_meta_file):
+        try:
+            with open(_meta_file) as _f:
+                _meta = json.load(_f)
+        except Exception:
+            pass
+
     if db_file and os.path.exists(db_file):
+        db_size = os.path.getsize(db_file)
         preview["components"].append(
             {
                 "name": "database",
                 "file": os.path.basename(db_file),
-                "size_bytes": os.path.getsize(db_file),
+                "size_bytes": db_size,
                 "compressed": db_file.endswith(".gz"),
             }
         )
-        preview["total_size_bytes"] += os.path.getsize(db_file)
+        preview["total_size_bytes"] += db_size
 
-        # Count tables by parsing SQL
+        # Get table count from metadata (fast) — avoid scanning large dump files
+        table_count = _meta.get("database_table_count")
+        if not table_count and not db_file.endswith(".gz"):
+            # Only scan plain SQL (not gzip) — gzip scan is too slow for large files
+            try:
+                table_count = 0
+                with open(db_file, "r", errors="replace") as f:
+                    for line in f:
+                        if "CREATE TABLE" in line:
+                            table_count += 1
+            except Exception:
+                pass
+        preview["database_tables"] = table_count or "see backup metadata"
+
+    # Check platform and other directories — use os.stat (fast) not os.walk
+    for dir_name in ["platform_v2", "ai_bridge", "docs", "scripts", "nginx", "n8n_workflows"]:
+        dir_path = os.path.join(backup_path, dir_name)
+        if not os.path.exists(dir_path):
+            continue
+        # Use du-style fast size via os.scandir rather than full os.walk
         try:
-            if db_file.endswith(".gz"):
-                with gzip.open(db_file, "rt", encoding="utf-8") as f:
-                    content = f.read()
-            else:
-                with open(db_file, "r") as f:
-                    content = f.read()
-            preview["database_tables"] = content.count("CREATE TABLE")
+            dir_size = sum(
+                entry.stat().st_size for entry in os.scandir(dir_path) if entry.is_file(follow_symlinks=False)
+            )
+            # Add a quick recursive estimate for subdirs (one level deep is enough for display)
+            for entry in os.scandir(dir_path):
+                if entry.is_dir(follow_symlinks=False):
+                    try:
+                        for sub in os.scandir(entry.path):
+                            if sub.is_file(follow_symlinks=False):
+                                dir_size += sub.stat().st_size
+                    except Exception:
+                        pass
+            file_count = sum(1 for _ in os.scandir(dir_path))
         except Exception:
-            pass
-
-    # Check platform files
-    platform_dir = os.path.join(backup_path, "platform_v2")
-    if os.path.exists(platform_dir):
-        file_count = 0
-        dir_size = 0
-        for root, dirs, files in os.walk(platform_dir):
-            file_count += len(files)
-            for f in files:
-                dir_size += os.path.getsize(os.path.join(root, f))
-
+            dir_size = 0
+            file_count = 0
         preview["components"].append(
             {
-                "name": "platform_v2",
+                "name": dir_name,
                 "file_count": file_count,
                 "size_bytes": dir_size,
             }
         )
         preview["files_to_restore"] += file_count
         preview["total_size_bytes"] += dir_size
-
-    # Check other directories
-    for dir_name in ["ai_bridge", "docs", "scripts", "nginx", "n8n_workflows"]:
-        dir_path = os.path.join(backup_path, dir_name)
-        if os.path.exists(dir_path):
-            file_count = sum(len(files) for _, _, files in os.walk(dir_path))
-            dir_size = sum(
-                os.path.getsize(os.path.join(root, f)) for root, _, files in os.walk(dir_path) for f in files
-            )
-            preview["components"].append(
-                {
-                    "name": dir_name,
-                    "file_count": file_count,
-                    "size_bytes": dir_size,
-                }
-            )
-            preview["files_to_restore"] += file_count
-            preview["total_size_bytes"] += dir_size
 
     # Load metadata for version info
     metadata_file = os.path.join(backup_path, "metadata.json")

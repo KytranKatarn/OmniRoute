@@ -49,3 +49,15 @@ def app():
 def client(app):
     """Create Flask test client."""
     return app.test_client()
+
+
+@pytest.fixture
+def db_conn(app):
+    """Raw psycopg2 connection via the platform DB module for direct SQL in tests."""
+    with app.app_context():
+        from database import get_db
+
+        conn = get_db()
+        yield conn
+        conn.rollback()
+        conn.close()

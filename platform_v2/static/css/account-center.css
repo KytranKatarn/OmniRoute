@@ -2367,7 +2367,7 @@
 #user-details-content h3,
 #user-details-content h4,
 #user-details-content .detail-section > div:first-child {
-    color: #00d4ff !important;
+    color: #ef4444 !important;
     font-family: 'Antonio', sans-serif !important;
     letter-spacing: 2px !important;
     text-transform: uppercase !important;
@@ -2397,8 +2397,8 @@
 
 #user-details-content .profile-tabs button.active,
 #user-details-content .tab-nav button.active {
-    color: #00d4ff !important;
-    border-bottom-color: #00d4ff !important;
+    color: #ef4444 !important;
+    border-bottom-color: #ef4444 !important;
 }
 
 /* Row dividers */
@@ -2420,7 +2420,7 @@
 #user-details-content .btn,
 #user-details-content .btn-sm {
     border: 1px solid rgba(0,212,255,0.35) !important;
-    color: #00d4ff !important;
+    color: #ef4444 !important;
     background: rgba(0,212,255,0.05) !important;
     font-family: 'Antonio', sans-serif !important;
     letter-spacing: 1px !important;

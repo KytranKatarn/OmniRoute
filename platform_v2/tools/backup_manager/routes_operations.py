@@ -135,7 +135,22 @@ def register_operations_routes(bp, admin_required):
                     }
                 )
 
-            return jsonify({"success": True, "backups": backups, "current_build": get_current_build()})
+            # Get true totals — list is capped at 200 so these must come from DB
+            with get_backup_db_cursor(commit=False, cursor_factory=RealDictCursor) as (conn, cur):
+                cur.execute("SELECT COUNT(*) AS cnt, COALESCE(SUM(size_bytes),0) AS total_bytes FROM backup_log")
+                row = cur.fetchone() or {}
+                total_count = row.get("cnt", len(backups))
+                total_size_bytes = int(row.get("total_bytes", 0))
+
+            return jsonify(
+                {
+                    "success": True,
+                    "backups": backups,
+                    "current_build": get_current_build(),
+                    "total_count": total_count,
+                    "total_size_bytes": total_size_bytes,
+                }
+            )
 
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
@@ -760,6 +775,9 @@ def register_operations_routes(bp, admin_required):
             {
                 'keep': [list of backup names to keep],
                 'delete': [list of backup names that can be deleted],
+                'retention_daily': int,
+                'retention_weekly': int,
+                'retention_monthly': int,
                 'stats': {
                     'total_backups': int,
                     'keep_count': int,
@@ -770,16 +788,64 @@ def register_operations_routes(bp, admin_required):
             }
         """
         try:
+            from tools.backup_manager._shared import get_retention_config
+
+            cfg = get_retention_config()
             status = get_backup_retention_status()
+
+            # Read last-run info
+            last_run = "Never"
+            last_count = "0"
+            with get_backup_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    "SELECT key, value FROM system_config "
+                    "WHERE key IN ('retention_last_run', 'retention_last_deleted_count')"
+                )
+                for key, val in cur.fetchall():
+                    if key == "retention_last_run":
+                        last_run = val
+                    elif key == "retention_last_deleted_count":
+                        last_count = val
+
             return jsonify(
                 {
                     "success": True,
-                    "retention_policy": "7 daily + 4 weekly + 6 monthly",
+                    "retention_policy": f"{cfg['daily']} daily + {cfg['weekly']} weekly + {cfg['monthly']} monthly",
+                    "retention_daily": cfg["daily"],
+                    "retention_weekly": cfg["weekly"],
+                    "retention_monthly": cfg["monthly"],
+                    "last_run": last_run,
+                    "last_deleted_count": last_count,
                     **status,
                 }
             )
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/retention-policy", methods=["PUT"])
+    @admin_required
+    def update_retention_policy():
+        """Update GFS retention values in system_config."""
+        data = request.get_json() or {}
+        updates = {}
+        for key in ("daily", "weekly", "monthly"):
+            val = data.get(key)
+            if val is not None:
+                try:
+                    updates[f"retention_{key}"] = max(1, int(val))
+                except (TypeError, ValueError):
+                    return jsonify({"success": False, "error": f"Invalid value for {key}"}), 400
+        if not updates:
+            return jsonify({"success": False, "error": "No valid fields provided"}), 400
+
+        with get_backup_db_cursor(commit=True) as (conn, cur):
+            for k, v in updates.items():
+                cur.execute(
+                    "INSERT INTO system_config (key, value, updated_at) VALUES (%s, %s, NOW()) "
+                    "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
+                    (k, str(v)),
+                )
+        return jsonify({"success": True, "updated": updates})
 
     @bp.route("/cleanup", methods=["POST"])
     @admin_required

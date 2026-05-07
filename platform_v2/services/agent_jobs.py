@@ -3296,7 +3296,7 @@ def backup_retention_prune():
 
     start = _time.time()
     try:
-        from tools.backup_manager.backup_manager_routes import cleanup_old_backups
+        from tools.backup_manager._shared import cleanup_old_backups
 
         result = cleanup_old_backups(dry_run=False)
         deleted_count = len(result.get("deleted", []))
@@ -3319,6 +3319,24 @@ def backup_retention_prune():
             deleted_count,
             space_freed_mb,
         )
+        # Write W.A.R.D.E.N. result to system_config for UI display
+        from database import get_db_cursor
+        from services.time_utils import now_utc
+
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "INSERT INTO system_config (key, value, updated_at) VALUES (%s, %s, NOW()) "
+                    "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
+                    ("retention_last_run", now_utc().isoformat()),
+                )
+                cur.execute(
+                    "INSERT INTO system_config (key, value, updated_at) VALUES (%s, %s, NOW()) "
+                    "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
+                    ("retention_last_deleted_count", str(len(result.get("deleted", [])))),
+                )
+        except Exception as e:
+            logger.warning("backup_retention_prune: failed to write last-run to system_config: %s", e)
     except Exception as exc:
         duration_ms = int((_time.time() - start) * 1000)
         _log_cycle("backup_retention_prune", 0, 1, duration_ms, error_message=str(exc)[:200])
@@ -3379,6 +3397,113 @@ def _run_warden_download_cleanup():
             logger.info("W.A.R.D.E.N.: cleaned %d expired download archives", count)
     except Exception as e:
         logger.warning("W.A.R.D.E.N. download cleanup failed (non-fatal): %s", e)
+
+
+def _run_warden_package_on_version_bump():
+    """W.A.R.D.E.N. — nightly: create deployment package if version changed since last package."""
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute("SELECT value FROM system_config WHERE key = 'platform_version'")
+            row = cur.fetchone()
+            if not row:
+                return
+            current_version = row[0]
+            cur.execute(
+                "SELECT package_name FROM deployment_package_jobs "
+                "WHERE status = 'ready' ORDER BY created_at DESC LIMIT 1"
+            )
+            last_pkg = cur.fetchone()
+
+        if last_pkg and current_version.replace(".", "_") in last_pkg[0]:
+            return
+
+        logger.info(
+            "W.A.R.D.E.N.: version bump to %s detected, queuing deployment package",
+            current_version,
+        )
+        from tools.backup_manager.routes_storage import enqueue_deployment_package_job
+
+        enqueue_deployment_package_job(
+            version_tag=current_version,
+            description=f"W.A.R.D.E.N. auto-package for {current_version}",
+        )
+    except Exception as e:
+        logger.warning("W.A.R.D.E.N. version-bump packager failed (non-fatal): %s", e)
+
+
+def _run_warden_standalone_backup():
+    """W.A.R.D.E.N. — weekly backup of all 9 standalone products (Wednesdays 02:00 EDT)."""
+    try:
+        from tools.backup_manager._shared import STANDALONE_PRODUCTS, backup_standalone
+
+        results = {}
+        for p in STANDALONE_PRODUCTS:
+            try:
+                r = backup_standalone(p["name"])
+                results[p["name"]] = "ok" if r["success"] else f"FAILED: {r.get('errors', [])}"
+            except Exception as e:
+                results[p["name"]] = f"ERROR: {e}"
+            logger.info("W.A.R.D.E.N. standalone backup %s: %s", p["name"], results[p["name"]])
+
+        failed = [k for k, v in results.items() if v != "ok"]
+        msg = f"W.A.R.D.E.N. standalone backup: {len(results)-len(failed)}/{len(results)} ok" + (
+            f" — FAILED: {', '.join(failed)}" if failed else ""
+        )
+        logger.info(msg)
+        try:
+            from services.telegram_service import send_info
+
+            send_info(msg)
+        except Exception:
+            pass
+    except Exception as e:
+        logger.error("W.A.R.D.E.N. standalone backup job failed: %s", e)
+
+
+def _run_warden_pre_deploy_verify():
+    """W.A.R.D.E.N. — verify integrity of most recent pre-deploy backup (runs every 5 min)."""
+    try:
+        from database import get_db_cursor
+        from tools.backup_manager._shared import BACKUP_DIR
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """SELECT backup_name FROM improvement_deployments
+                   WHERE backup_name IS NOT NULL AND status = 'deploying'
+                   AND deployed_at > NOW() - INTERVAL '10 minutes'
+                   ORDER BY deployed_at DESC LIMIT 1"""
+            )
+            row = cur.fetchone()
+
+        if not row:
+            return
+
+        backup_name = row[0]
+        backup_path = os.path.join(BACKUP_DIR, backup_name)
+        if not os.path.exists(backup_path):
+            logger.warning("W.A.R.D.E.N.: pre-deploy backup dir missing: %s", backup_name)
+            return
+
+        # Lightweight integrity check: metadata.json must exist and be non-empty
+        metadata_path = os.path.join(backup_path, "metadata.json")
+        ok = os.path.exists(metadata_path) and os.path.getsize(metadata_path) > 0
+        if not ok:
+            logger.error("W.A.R.D.E.N.: pre-deploy backup integrity check FAILED: %s", backup_name)
+            try:
+                from services.telegram_service import send_alert
+
+                send_alert(
+                    f"W.A.R.D.E.N.: Pre-deploy backup integrity FAILED for {backup_name}. "
+                    f"Review before accepting deploy."
+                )
+            except Exception:
+                pass
+        else:
+            logger.info("W.A.R.D.E.N.: pre-deploy backup verified OK: %s", backup_name)
+    except Exception as e:
+        logger.warning("W.A.R.D.E.N. pre-deploy verify failed (non-fatal): %s", e)
 
 
 def register_agent_welfare_jobs(scheduler, flask_app):
@@ -3624,6 +3749,39 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         trigger=CronTrigger(hour=4, minute=0, timezone="America/Toronto"),
         id="warden_download_cleanup",
         name="W.A.R.D.E.N.: Nightly Download Archive Cleanup",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # W.A.R.D.E.N. — verify integrity of most recent pre-deploy backup
+    scheduler.add_job(
+        with_ctx(_run_warden_pre_deploy_verify),
+        trigger=IntervalTrigger(minutes=5),
+        id="warden_pre_deploy_verify",
+        name="W.A.R.D.E.N.: Pre-Deploy Backup Verify",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # W.A.R.D.E.N. — nightly version-bump deployment package check
+    scheduler.add_job(
+        with_ctx(_run_warden_package_on_version_bump),
+        trigger=CronTrigger(hour=3, minute=30, timezone="America/Toronto"),
+        id="warden_version_bump_packager",
+        name="W.A.R.D.E.N.: Nightly Version-Bump Package Check",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # W.A.R.D.E.N. — weekly standalone systems backup
+    scheduler.add_job(
+        with_ctx(_run_warden_standalone_backup),
+        trigger=CronTrigger(day_of_week="wed", hour=2, minute=0, timezone="America/Toronto"),
+        id="warden_standalone_backup",
+        name="W.A.R.D.E.N.: Weekly Standalone Systems Backup",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

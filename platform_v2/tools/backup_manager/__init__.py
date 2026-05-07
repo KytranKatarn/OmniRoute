@@ -52,6 +52,7 @@ from .routes_webhooks import register_webhooks_routes  # noqa: E402
 from .routes_storage import register_storage_routes  # noqa: E402
 from .routes_admin import register_admin_routes  # noqa: E402
 from .routes_download import register_download_routes  # noqa: E402
+from .routes_standalones import register_standalone_routes  # noqa: E402
 
 register_operations_routes(backup_manager_bp, admin_required)
 register_restore_routes(backup_manager_bp, admin_required)
@@ -59,3 +60,4 @@ register_webhooks_routes(backup_manager_bp, admin_required)
 register_storage_routes(backup_manager_bp, admin_required)
 register_admin_routes(backup_manager_bp, admin_required)
 register_download_routes(backup_manager_bp, admin_required)
+register_standalone_routes(backup_manager_bp, admin_required)

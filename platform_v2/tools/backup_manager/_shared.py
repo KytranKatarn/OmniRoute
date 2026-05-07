@@ -124,7 +124,10 @@ LAST UPDATED: 2026-01-30
 from flask import Blueprint, render_template, jsonify, request, send_file, current_app
 from functools import wraps
 from flask_login import current_user
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 from database import _get_db_password
 import subprocess
 import json
@@ -705,6 +708,175 @@ POST_HOOKS_DIR = os.path.join(HOOKS_DIR, "post")
 # Ensure backup directory exists
 os.makedirs(BACKUP_DIR, exist_ok=True)
 
+# =============================================================================
+# STANDALONE PRODUCTS REGISTRY
+# =============================================================================
+
+STANDALONE_PRODUCTS = [
+    {
+        "name": "kbs",
+        "display_name": "Kytran Business Suite",
+        "code_path": "/mnt/archie_brain/kytran-business-suite",
+        "db_schema": "kbs",
+        "backup_type": "full",
+    },
+    {
+        "name": "media_hub",
+        "display_name": "Media Hub",
+        "code_path": "/mnt/archie_brain/standalone/media_hub",
+        "db_schema": "media_hub",
+        "backup_type": "config_only",
+        "exclude_paths": ["/mnt/Plex", "/mnt/data2", "media/", "data/"],
+        "exclude_extensions": [".mkv", ".mp4", ".avi", ".mov", ".m4v", ".iso"],
+    },
+    {
+        "name": "creed",
+        "display_name": "C.R.E.E.D. Governance",
+        "code_path": "/mnt/archie_brain/kytran-creed",
+        "db_schema": "creed",
+        "backup_type": "full",
+    },
+    {
+        "name": "kso",
+        "display_name": "Kytran System Operations",
+        "code_path": "/mnt/archie_brain/kytran-server-manager",
+        "db_schema": "kso",
+        "backup_type": "full",
+    },
+    {
+        "name": "gov_watch",
+        "display_name": "Gov Watch",
+        "code_path": "/mnt/standalone/kytran-gov-watch",
+        "db_schema": "gov_watch",
+        "backup_type": "full",
+    },
+    {
+        "name": "civic_watch",
+        "display_name": "Civic Watch",
+        "code_path": "/mnt/standalone/kytran-civic-watch",
+        "db_schema": "civic_watch",
+        "backup_type": "full",
+    },
+    {
+        "name": "legal_watch",
+        "display_name": "Legal Watch",
+        "code_path": "/mnt/standalone/kytran-legal-watch",
+        "db_schema": "legal_watch",
+        "backup_type": "full",
+    },
+    {
+        "name": "market_watch",
+        "display_name": "Market Watch",
+        "code_path": "/mnt/standalone/kytran-market-watch",
+        "db_schema": "market_watch",
+        "backup_type": "full",
+    },
+    {
+        "name": "wtf",
+        "display_name": "What The Fact",
+        "code_path": "/mnt/archie_brain/what-the-fact",
+        "db_schema": "wtf",
+        "backup_type": "full",
+    },
+]
+
+
+def backup_standalone(standalone_name):
+    """Backup one standalone: pg_dump of its schema + code tar.gz.
+    Returns {'success': bool, 'backup_name': str, 'errors': list}."""
+    import subprocess
+    import tarfile as _tarfile
+
+    product = next((p for p in STANDALONE_PRODUCTS if p["name"] == standalone_name), None)
+    if not product:
+        return {
+            "success": False,
+            "error": f"Unknown standalone: {standalone_name}",
+            "errors": [f"Unknown standalone: {standalone_name}"],
+        }
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_name = f"standalone_{standalone_name}_{timestamp}"
+    dest_dir = os.path.join(BACKUP_DIR, "standalones", standalone_name)
+    os.makedirs(dest_dir, exist_ok=True)
+    backup_path = os.path.join(dest_dir, backup_name)
+    os.makedirs(backup_path)
+
+    errors = []
+
+    # 1. pg_dump of schema
+    db_dump_path = os.path.join(backup_path, f"{standalone_name}_schema.sql")
+    pg_env = os.environ.copy()
+    if os.getenv("DB_PASSWORD"):
+        pg_env["PGPASSWORD"] = os.getenv("DB_PASSWORD", "")
+    try:
+        result = subprocess.run(
+            [
+                "pg_dump",
+                "-h",
+                os.getenv("DB_HOST", "192.168.1.200"),
+                "-U",
+                os.getenv("DB_USER", "archie"),
+                "-d",
+                os.getenv("DB_NAME", "archie"),
+                "-n",
+                product["db_schema"],
+                "-f",
+                db_dump_path,
+            ],
+            env=pg_env,
+            capture_output=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            errors.append(f"pg_dump: {result.stderr.decode()[:200]}")
+    except Exception as e:
+        errors.append(f"pg_dump error: {e}")
+
+    # 2. Code tar.gz
+    code_archive = os.path.join(backup_path, f"{standalone_name}_code.tar.gz")
+    code_path = product["code_path"]
+    exclude_paths = product.get("exclude_paths", [])
+    exclude_exts = set(e.lower() for e in product.get("exclude_extensions", []))
+    code_size = 0
+    if os.path.exists(code_path):
+        try:
+            with _tarfile.open(code_archive, "w:gz") as tar:
+                for dirpath, dirnames, filenames in os.walk(code_path):
+                    dirnames[:] = [
+                        d
+                        for d in dirnames
+                        if not any(excl.rstrip("/") in os.path.join(dirpath, d) for excl in exclude_paths)
+                    ]
+                    for fname in filenames:
+                        if os.path.splitext(fname)[1].lower() in exclude_exts:
+                            continue
+                        fpath = os.path.join(dirpath, fname)
+                        tar.add(fpath, arcname=os.path.relpath(fpath, code_path))
+                        code_size += os.path.getsize(fpath)
+        except Exception as e:
+            errors.append(f"tar error: {e}")
+    else:
+        errors.append(f"code_path not found: {code_path}")
+
+    db_size = os.path.getsize(db_dump_path) if os.path.exists(db_dump_path) else 0
+    total_size = code_size + db_size
+    status = "success" if not errors else "failed"
+
+    try:
+        with get_backup_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "INSERT INTO backup_log "
+                "(file_path, backup_type, standalone_name, size_bytes, status, created_at) "
+                "VALUES (%s, 'standalone', %s, %s, %s, NOW())",
+                (backup_path, standalone_name, total_size, status),
+            )
+    except Exception as e:
+        errors.append(f"DB log error: {e}")
+
+    return {"success": not errors, "backup_name": backup_name, "backup_path": backup_path, "errors": errors}
+
+
 # Ensure hook directories exist
 for d in [HOOKS_DIR, PRE_HOOKS_DIR, POST_HOOKS_DIR]:
     os.makedirs(d, exist_ok=True)
@@ -712,6 +884,26 @@ for d in [HOOKS_DIR, PRE_HOOKS_DIR, POST_HOOKS_DIR]:
 # =============================================================================
 # RETENTION POLICY - Grandfather-Father-Son (7 daily + 4 weekly + 6 monthly)
 # =============================================================================
+
+
+def get_retention_config():
+    """Read GFS retention values from system_config. Falls back to 7/4/6 if missing."""
+    defaults = {"daily": 7, "weekly": 4, "monthly": 6}
+    try:
+        with get_backup_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                "SELECT key, value FROM system_config "
+                "WHERE key IN ('retention_daily', 'retention_weekly', 'retention_monthly')"
+            )
+            for key, val in cur.fetchall():
+                short = key.replace("retention_", "")
+                try:
+                    defaults[short] = int(val)
+                except (TypeError, ValueError):
+                    pass
+    except Exception:
+        pass
+    return defaults
 
 
 def get_backup_retention_status():
@@ -738,6 +930,9 @@ def get_backup_retention_status():
     for item in os.listdir(BACKUP_DIR):
         backup_path = os.path.join(BACKUP_DIR, item)
         if os.path.isdir(backup_path) and item != "modules":
+            # Skip Daily_Triage dirs — managed by scripts/backup_triage.sh with its own retention
+            if item.endswith("_Daily_Triage"):
+                continue
             # Parse timestamp from backup name (format: YYYYMMDD_HHMMSS_description)
             try:
                 timestamp_str = item[:15]  # YYYYMMDD_HHMMSS
@@ -767,28 +962,30 @@ def get_backup_retention_status():
     # Sort by date (newest first)
     backups.sort(key=lambda x: x["date"], reverse=True)
 
+    cfg = get_retention_config()
+
     keep = set()
 
-    # Rule 1: Keep last 7 daily backups
+    # Rule 1: Keep last N daily backups (configurable, default 7)
     daily_kept = 0
     for backup in backups:
-        if daily_kept < 7:
+        if daily_kept < cfg["daily"]:
             keep.add(backup["name"])
             daily_kept += 1
 
-    # Rule 2: Keep last 4 weekly backups (prefer Sundays, but take latest each week)
+    # Rule 2: Keep last N weekly backups (configurable, default 4)
     weeks_seen = set()
     for backup in backups:
         week_key = backup["date"].strftime("%Y-%W")  # Year-Week number
-        if week_key not in weeks_seen and len(weeks_seen) < 4:
+        if week_key not in weeks_seen and len(weeks_seen) < cfg["weekly"]:
             keep.add(backup["name"])
             weeks_seen.add(week_key)
 
-    # Rule 3: Keep last 6 monthly backups (prefer 1st of month, but take latest each month)
+    # Rule 3: Keep last N monthly backups (configurable, default 6)
     months_seen = set()
     for backup in backups:
         month_key = backup["date"].strftime("%Y-%m")  # Year-Month
-        if month_key not in months_seen and len(months_seen) < 6:
+        if month_key not in months_seen and len(months_seen) < cfg["monthly"]:
             keep.add(backup["name"])
             months_seen.add(month_key)
 
@@ -846,19 +1043,31 @@ def cleanup_old_backups(dry_run=True):
     if not dry_run:
         for backup_name in retention["delete"]:
             backup_path = os.path.join(BACKUP_DIR, backup_name)
+            # Get size before deletion
             try:
-                # Get size before deletion
                 backup_size = sum(
                     os.path.getsize(os.path.join(dirpath, filename))
                     for dirpath, _, filenames in os.walk(backup_path)
                     for filename in filenames
                 )
+            except Exception:
+                backup_size = 0
 
+            # DB delete FIRST — so a crash leaves orphan directory (recoverable) not orphan log entry
+            try:
+                with get_backup_db_cursor(commit=True) as (conn, cur):
+                    cur.execute("DELETE FROM backup_log WHERE file_path = %s", (backup_path,))
+            except Exception as db_err:
+                logger.warning("cleanup_old_backups: failed to delete backup_log row for %s: %s", backup_name, db_err)
+                # Skip rmtree if DB delete failed — don't create filesystem-DB drift
+                continue
+
+            try:
                 shutil.rmtree(backup_path)
                 deleted.append(backup_name)
                 space_freed += backup_size
             except Exception as e:
-                print(f"Error deleting {backup_name}: {e}")
+                logger.warning("cleanup_old_backups: failed to delete dir %s: %s", backup_name, e)
 
     return {
         "success": True,

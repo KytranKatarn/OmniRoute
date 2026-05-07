@@ -30,6 +30,7 @@
         ("external", "External", "hard-drive"),
         ("deployments", "Deployment", "rocket"),
         ("modules", "Modules", "package"),
+        ("standalones", "Standalones", "server"),
         ("hooks", "Hooks", "webhook"),
         ("retention", "Retention", "clock"),
         ("packages", "Packages", "archive")
@@ -39,17 +40,17 @@
     <div class="backup-manager-content">
         <div class="toast-container" id="toastContainer"></div>
             <!-- Stats -->
-            <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+            <div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
                 <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
                     <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                        <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
-                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                        <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                        <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                        <div style="flex: 1 !important; background: rgba(239,68,68,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                     </div>
                     <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                        <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                        <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                             <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">BACKUP OVERVIEW</span>
                             <div style="flex:1"></div>
                             <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -83,7 +84,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                        <div style="height: 6px !important; background: #ef4444 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                     </div>
                 </div>
             </div>
@@ -96,17 +97,17 @@
 
             <!-- BACKUPS TAB -->
             <div class="tab-content active" id="tab-backups">
-                <div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
+                <div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
                     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
                         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                            <div style="height: 52px !important; background: #3b82f6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #2563eb !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                            <div style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                            <div style="height: 36px !important; background: #3b82f6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div style="flex: 1 !important; background: rgba(239,68,68,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                         </div>
                         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                            <div style="height: 44px !important; background: #3b82f6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">LOCAL BACKUPS</span>
                                 <div style="flex:1"></div>
                                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -120,20 +121,20 @@
                                 <div class="quick-backup">
                                     <h3><span data-i18n="backup_manager.quick_backup">Quick Backup</span></h3>
                                     <div class="backup-buttons">
-                                        <button class="backup-type-btn btn-full" onclick="createQuickBackup('full')" title="Complete Archive — everything including n8n, nginx, scripts. Use before major infrastructure changes or server migration.">
-                                            <div class="icon">&#x1F4E6;</div>
+                                        <button class="backup-type-btn btn-full" onclick="createQuickBackup('full')" title="Complete Archive — full snapshot: DB + code + n8n + nginx + scripts + conversation logs. Use for full system recovery or server migration.">
+                                            <div class="icon" style="font-size: 1.8rem; line-height: 1;">📦</div>
                                             <span>COMPLETE ARCHIVE</span>
-                                            <div class="size">Full server snapshot (~100-200 MB)</div>
+                                            <div class="size">Everything incl. n8n, logs, scripts (~850–900 MB)</div>
                                         </button>
                                         <button class="backup-type-btn btn-critical" onclick="createQuickBackup('critical')" title="Full Restore Backup — DB + platform code + .env secrets. Everything needed to restore on a new server. Use for DRP.">
-                                            <div class="icon">&#x1F6E1;</div>
+                                            <div class="icon" style="font-size: 1.8rem; line-height: 1;">🛡️</div>
                                             <span>FULL RESTORE</span>
-                                            <div class="size">DB + code + secrets (~30-50 MB)</div>
+                                            <div class="size">DB + code + env — minimal DRP (~800–850 MB)</div>
                                         </button>
                                         <button class="backup-type-btn btn-database" onclick="createQuickBackup('database')" title="Brain Backup — A.R.C.H.I.E.'s consciousness: all KB entries, agents, tasks, decisions. Fastest. Schedule daily.">
-                                            <div class="icon">&#x1F9E0;</div>
+                                            <div class="icon" style="font-size: 1.8rem; line-height: 1;">🧠</div>
                                             <span>BRAIN BACKUP</span>
-                                            <div class="size">Consciousness only (~450 MB)</div>
+                                            <div class="size">Consciousness only (~440–460 MB)</div>
                                         </button>
                                     </div>
                                     <div class="input-row">
@@ -147,7 +148,7 @@
                                     <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.loading_backups">Loading backups...</span></p></div>
                                 </div>
                             </div>
-                            <div style="height: 6px !important; background: #3b82f6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 6px !important; background: #ef4444 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                         </div>
                     </div>
                 </div>
@@ -155,17 +156,17 @@
 
             <!-- CLOUD BACKUP TAB -->
             <div class="tab-content" id="tab-cloud">
-                <div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+                <div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
                     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
                         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                            <div style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                            <div style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                            <div style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div style="flex: 1 !important; background: rgba(239,68,68,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                         </div>
                         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                            <div style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">CLOUD BACKUP</span>
                                 <div style="flex:1"></div>
                                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -176,7 +177,7 @@
                             </div>
                             <div style="flex: 1 !important; padding: 16px !important;">
                                 <div style="margin-bottom: var(--archie-space-5);">
-                                    <h3 class="section-header" style="color: #60a5fa;"><span data-i18n="backup_manager.google_drive_cloud_backup">Google Drive Cloud Backup</span></h3>
+                                    <h3 class="section-header" style="color: #fca5a5;"><span data-i18n="backup_manager.google_drive_cloud_backup">Google Drive Cloud Backup</span></h3>
                                     <p class="section-description"><span data-i18n="backup_manager.encrypted_cloud_backup_storage_using_google_drive">Encrypted cloud backup storage using Google Drive with AES-256-GCM encryption.</span></p>
                                 </div>
 
@@ -187,8 +188,8 @@
 
                                 <!-- Passphrase Section -->
                                 <div id="cloudPassphraseSection" style="display:none; margin-bottom: var(--archie-space-5);">
-                                    <div class="retention-info" style="border-color: #60a5fa;">
-                                        <h4 style="color: #60a5fa; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.encryption_passphrase">Encryption Passphrase</span></h4>
+                                    <div class="retention-info" style="border-color: #fca5a5;">
+                                        <h4 style="color: #fca5a5; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.encryption_passphrase">Encryption Passphrase</span></h4>
                                         <p style="font-size: var(--archie-text-sm); color: var(--archie-text-tertiary); margin-bottom: var(--archie-space-2);">
                                             <span data-i18n="backup_manager.encryption_passphrase_description">Required for uploading and downloading cloud backups. AES-256-GCM encryption.</span>
                                         </p>
@@ -213,13 +214,13 @@
 
                                 <!-- Cloud Backups List -->
                                 <div id="cloudBackupsSection" style="display:none;">
-                                    <h4 style="color: #60a5fa; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.cloud_backups">Cloud Backups</span></h4>
+                                    <h4 style="color: #fca5a5; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.cloud_backups">Cloud Backups</span></h4>
                                     <div id="cloudBackupsList" class="backup-list">
                                         <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.loading_cloud_backups">Loading cloud backups...</span></p></div>
                                     </div>
                                 </div>
                             </div>
-                            <div style="height: 6px !important; background: #8b5cf6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 6px !important; background: #ef4444 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                         </div>
                     </div>
                 </div>
@@ -227,17 +228,17 @@
 
             <!-- EXTERNAL STORAGE TAB -->
             <div class="tab-content" id="tab-external">
-                <div style="--frame-color: #14b8a6; --frame-rgb: 20,184,166; margin-bottom: 20px;">
+                <div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
                     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
                         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                            <div style="height: 52px !important; background: #14b8a6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #14b8a6 !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #0d9488 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                            <div style="flex: 1 !important; background: rgba(20,184,166,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                            <div style="height: 36px !important; background: #14b8a6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div style="flex: 1 !important; background: rgba(239,68,68,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                         </div>
                         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                            <div style="height: 44px !important; background: #14b8a6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">EXTERNAL STORAGE</span>
                                 <div style="flex:1"></div>
                                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -248,22 +249,22 @@
                             </div>
                             <div style="flex: 1 !important; padding: 16px !important;">
                                 <div style="margin-bottom: var(--archie-space-5);">
-                                    <h3 class="section-header" style="color: #22d3ee;"><span data-i18n="backup_manager.external_storage">External Storage</span></h3>
+                                    <h3 class="section-header" style="color: #ef4444;"><span data-i18n="backup_manager.external_storage">External Storage</span></h3>
                                     <p class="section-description"><span data-i18n="backup_manager.usb_external_drive_backup_storage_for_physical_dis">USB/external drive backup storage for physical disaster recovery.</span></p>
                                 </div>
 
                                 <!-- External Storage Status -->
-                                <div id="externalStatus" class="quick-backup" style="border-color: #22d3ee; background: rgba(34, 211, 238, 0.05);">
+                                <div id="externalStatus" class="quick-backup" style="border-color: #ef4444; background: rgba(34, 211, 238, 0.05);">
                                     <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.checking_external_storage">Checking external storage...</span></p></div>
                                 </div>
 
                                 <!-- External Backups List -->
-                                <h4 style="color: #22d3ee; margin: var(--archie-space-5) 0 var(--archie-space-3);"><span data-i18n="backup_manager.backups_on_external_storage">Backups on External Storage</span></h4>
+                                <h4 style="color: #ef4444; margin: var(--archie-space-5) 0 var(--archie-space-3);"><span data-i18n="backup_manager.backups_on_external_storage">Backups on External Storage</span></h4>
                                 <div id="externalBackupsList" class="backup-list">
                                     <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.loading_external_backups">Loading external backups...</span></p></div>
                                 </div>
                             </div>
-                            <div style="height: 6px !important; background: #14b8a6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 6px !important; background: #ef4444 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                         </div>
                     </div>
                 </div>
@@ -271,17 +272,17 @@
 
             <!-- HOOKS TAB -->
             <div class="tab-content" id="tab-hooks">
-                <div style="--frame-color: #f97316; --frame-rgb: 249,115,22; margin-bottom: 20px;">
+                <div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
                     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
                         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                            <div style="height: 52px !important; background: #f97316 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f97316 !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ea580c !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                            <div style="flex: 1 !important; background: rgba(249,115,22,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                            <div style="height: 36px !important; background: #f97316 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div style="flex: 1 !important; background: rgba(239,68,68,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                         </div>
                         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                            <div style="height: 44px !important; background: #f97316 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">HOOKS & WEBHOOKS</span>
                                 <div style="flex:1"></div>
                                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -292,14 +293,14 @@
                             </div>
                             <div style="flex: 1 !important; padding: 16px !important;">
                                 <div style="margin-bottom: var(--archie-space-5);">
-                                    <h3 class="section-header" style="color: #a855f7;"><span data-i18n="backup_manager.backup_hooks">Backup Hooks</span></h3>
+                                    <h3 class="section-header" style="color: #ef4444;"><span data-i18n="backup_manager.backup_hooks">Backup Hooks</span></h3>
                                     <p class="section-description"><span data-i18n="backup_manager.pre_and_post_backup_scripts_that_run_automatically">Pre and post backup scripts that run automatically during backup operations.</span></p>
                                 </div>
 
                                 <div class="hooks-grid">
                                     <!-- Pre Hooks -->
-                                    <div class="retention-info" style="border-color: #22c55e;">
-                                        <h4 style="color: #22c55e; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.pre_backup_hooks">Pre-Backup Hooks</span></h4>
+                                    <div class="retention-info" style="border-color: #fca5a5;">
+                                        <h4 style="color: #fca5a5; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.pre_backup_hooks">Pre-Backup Hooks</span></h4>
                                         <p style="font-size: var(--archie-text-sm); color: var(--archie-text-secondary); margin-bottom: var(--archie-space-3);">
                                             <span data-i18n="backup_manager.pre_hooks_description">Run before backup starts. If any hook fails, the backup is aborted.</span>
                                         </p>
@@ -309,8 +310,8 @@
                                     </div>
 
                                     <!-- Post Hooks -->
-                                    <div class="retention-info" style="border-color: #fb923c;">
-                                        <h4 style="color: #fb923c; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.post_backup_hooks">Post-Backup Hooks</span></h4>
+                                    <div class="retention-info" style="border-color: #dc2626;">
+                                        <h4 style="color: #dc2626; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.post_backup_hooks">Post-Backup Hooks</span></h4>
                                         <p style="font-size: var(--archie-text-sm); color: var(--archie-text-secondary); margin-bottom: var(--archie-space-3);">
                                             <span data-i18n="backup_manager.post_hooks_description">Run after backup completes. Failures are logged but don't fail the backup.</span>
                                         </p>
@@ -331,12 +332,12 @@
 
                                 <!-- Webhooks Section -->
                                 <div style="margin-top: var(--archie-space-6);">
-                                    <h3 class="section-header" style="color: #f97316;"><span data-i18n="backup_manager.webhooks">Webhooks</span></h3>
+                                    <h3 class="section-header" style="color: #ef4444;"><span data-i18n="backup_manager.webhooks">Webhooks</span></h3>
                                     <p class="section-description"><span data-i18n="backup_manager.http_endpoints_notified_on_backup_events">HTTP endpoints notified on backup events.</span></p>
 
                                     <div class="retention-info">
                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--archie-space-4);">
-                                            <h4 style="color: #f97316;"><span data-i18n="backup_manager.configured_webhooks">Configured Webhooks</span></h4>
+                                            <h4 style="color: #ef4444;"><span data-i18n="backup_manager.configured_webhooks">Configured Webhooks</span></h4>
                                             <button class="btn" onclick="showAddWebhookModal()"><span data-i18n="backup_manager.add_webhook">Add Webhook</span></button>
                                         </div>
                                         <div id="webhooksList">
@@ -345,7 +346,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div style="height: 6px !important; background: #f97316 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 6px !important; background: #ef4444 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                         </div>
                     </div>
                 </div>
@@ -353,17 +354,17 @@
 
             <!-- DEPLOYMENT BACKUPS TAB -->
             <div class="tab-content" id="tab-deployments">
-                <div style="--frame-color: #f59e0b; --frame-rgb: 245,158,11; margin-bottom: 20px;">
+                <div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
                     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
                         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                            <div style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                            <div style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                            <div style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div style="flex: 1 !important; background: rgba(239,68,68,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                         </div>
                         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                            <div style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">DEPLOYMENTS</span>
                                 <div style="flex:1"></div>
                                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -381,7 +382,7 @@
                                     <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.loading_deployment_backups">Loading deployment backups...</span></p></div>
                                 </div>
                             </div>
-                            <div style="height: 6px !important; background: #f59e0b !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 6px !important; background: #ef4444 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                         </div>
                     </div>
                 </div>
@@ -389,17 +390,17 @@
 
             <!-- MODULE BACKUPS TAB -->
             <div class="tab-content" id="tab-modules">
-                <div style="--frame-color: #22c55e; --frame-rgb: 34,197,94; margin-bottom: 20px;">
+                <div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
                     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
                         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                            <div style="height: 52px !important; background: #22c55e !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22c55e !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #16a34a !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                            <div style="flex: 1 !important; background: rgba(34,197,94,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                            <div style="height: 36px !important; background: #22c55e !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div style="flex: 1 !important; background: rgba(239,68,68,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                         </div>
                         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                            <div style="height: 44px !important; background: #22c55e !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">MODULE BACKUPS</span>
                                 <div style="flex:1"></div>
                                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -410,7 +411,7 @@
                             </div>
                             <div style="flex: 1 !important; padding: 16px !important;">
                                 <div style="margin-bottom: var(--archie-space-3);">
-                                    <h3 class="section-header" style="color: #a855f7;"><span data-i18n="backup_manager.module_backups">Module Backups</span></h3>
+                                    <h3 class="section-header" style="color: #ef4444;"><span data-i18n="backup_manager.module_backups">Module Backups</span></h3>
                                     <p class="section-description"><span data-i18n="backup_manager.select_modules_to_backup_last_backup_date_shown_pe">Select modules to backup. Last backup date shown per module.</span></p>
                                 </div>
 
@@ -431,10 +432,59 @@
                                 </div>
 
                                 <div class="input-row" style="margin-top: var(--archie-space-3);">
-                                    <input type="text" id="moduleBackupDescription" placeholder="Backup description (optional)" style="border-color: #a855f7;" data-i18n-placeholder="backup_manager.backup_description_placeholder">
+                                    <input type="text" id="moduleBackupDescription" placeholder="Backup description (optional)" style="border-color: #ef4444;" data-i18n-placeholder="backup_manager.backup_description_placeholder">
                                 </div>
                             </div>
-                            <div style="height: 6px !important; background: #22c55e !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 6px !important; background: #ef4444 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STANDALONE SYSTEMS TAB -->
+            <div class="tab-content" id="tab-standalones">
+                <div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
+                    <div class="lcars-frame" style="display:flex!important;align-items:stretch!important;">
+                        <div class="lcars-sidebar" style="display:flex!important;flex-direction:column!important;flex-shrink:0!important;width:56px!important;gap:4px!important;">
+                            <div style="height:52px!important;background:#ef4444!important;border-radius:20px 0 0 0!important;flex-shrink:0!important;"></div>
+                            <div style="height:28px!important;border-radius:0 8px 8px 0!important;background:#ef4444!important;flex-shrink:0!important;"></div>
+                            <div style="height:28px!important;border-radius:0 8px 8px 0!important;background:#dc2626!important;opacity:0.6!important;flex-shrink:0!important;"></div>
+                            <div style="flex:1!important;background:rgba(239,68,68,0.2)!important;border-radius:0 8px 8px 0!important;min-height:20px!important;"></div>
+                            <div style="height:36px!important;background:#ef4444!important;border-radius:0 0 0 20px!important;flex-shrink:0!important;"></div>
+                        </div>
+                        <div style="flex:1!important;display:flex!important;flex-direction:column!important;margin-left:8px!important;min-width:0!important;">
+                            <div style="height:44px!important;background:#ef4444!important;border-radius:0 20px 20px 0!important;display:flex!important;align-items:center!important;padding:0 16px!important;flex-shrink:0!important;">
+                                <span style="font-family:'Antonio',sans-serif!important;font-size:0.85rem!important;letter-spacing:2px!important;text-transform:uppercase!important;color:#010409!important;">STANDALONE SYSTEMS</span>
+                                <div style="flex:1"></div>
+                            </div>
+                            <div style="flex:1!important;padding:16px!important;">
+                                <!-- W.A.R.D.E.N. status strip -->
+                                <div id="wardenStandaloneStatus"
+                                     style="padding:10px 14px;margin-bottom:16px;background:rgba(167,139,250,0.05);
+                                            border:1px solid rgba(167,139,250,0.15);border-radius:8px;
+                                            font-size:12px;color:var(--archie-text-secondary);">
+                                    Loading W.A.R.D.E.N. standalone status...
+                                </div>
+                                <div style="margin-bottom:var(--archie-space-3);">
+                                    <h3 class="section-header" style="color:#ef4444;">Standalone Systems</h3>
+                                    <p class="section-description">Code + DB schema backup for all 9 standalone products. Media Hub = configs + schema only (no media files).</p>
+                                </div>
+                                <div class="module-toolbar">
+                                    <div class="toolbar-left">
+                                        <button class="btn" onclick="selectAllStandalones()">All</button>
+                                        <button class="btn" onclick="deselectAllStandalones()">None</button>
+                                        <span class="stat"><strong id="selectedStandaloneCount">0</strong> selected</span>
+                                    </div>
+                                    <div class="toolbar-right">
+                                        <button class="btn" style="color:#ef4444;border-color:#ef4444"
+                                                onclick="backupSelectedStandalones()">Backup Selected</button>
+                                    </div>
+                                </div>
+                                <div id="standaloneGrid" class="module-list" style="margin-top:12px;">
+                                    <div class="loading"><div class="spinner"></div><p>Loading...</p></div>
+                                </div>
+                            </div>
+                            <div style="height:6px!important;background:#ef4444!important;border-radius:0 0 20px 0!important;flex-shrink:0!important;"></div>
                         </div>
                     </div>
                 </div>
@@ -442,17 +492,17 @@
 
             <!-- RETENTION TAB -->
             <div class="tab-content" id="tab-retention">
-                <div style="--frame-color: #ec4899; --frame-rgb: 236,72,153; margin-bottom: 20px;">
+                <div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
                     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
                         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                            <div style="height: 52px !important; background: #ec4899 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ec4899 !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #db2777 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                            <div style="flex: 1 !important; background: rgba(236,72,153,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                            <div style="height: 36px !important; background: #ec4899 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div style="flex: 1 !important; background: rgba(239,68,68,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                         </div>
                         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                            <div style="height: 44px !important; background: #ec4899 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">RETENTION POLICY</span>
                                 <div style="flex:1"></div>
                                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -464,19 +514,29 @@
                             <div style="flex: 1 !important; padding: 16px !important;">
                                 <div class="retention-info">
                                     <h4><span data-i18n="backup_manager.retention_policy_gfs_grandfather_father_son">Retention Policy (GFS - Grandfather-Father-Son)</span></h4>
-                                    <div class="retention-grid">
+                                    <div class="retention-grid" id="retentionPolicyGrid">
                                         <div class="retention-card">
-                                            <div class="number">7</div>
+                                            <input type="number" id="retentionDaily" min="1" max="30" value="7"
+                                                   style="width:60px;font-size:2rem;font-weight:700;background:transparent;
+                                                          border:none;border-bottom:2px solid #ef4444;color:#fca5a5;text-align:center;">
                                             <div class="label"><span data-i18n="backup_manager.daily_backups">Daily Backups</span></div>
                                         </div>
                                         <div class="retention-card">
-                                            <div class="number">4</div>
+                                            <input type="number" id="retentionWeekly" min="1" max="12" value="4"
+                                                   style="width:60px;font-size:2rem;font-weight:700;background:transparent;
+                                                          border:none;border-bottom:2px solid #ef4444;color:#fca5a5;text-align:center;">
                                             <div class="label"><span data-i18n="backup_manager.weekly_backups">Weekly Backups</span></div>
                                         </div>
                                         <div class="retention-card">
-                                            <div class="number">6</div>
+                                            <input type="number" id="retentionMonthly" min="1" max="24" value="6"
+                                                   style="width:60px;font-size:2rem;font-weight:700;background:transparent;
+                                                          border:none;border-bottom:2px solid #ef4444;color:#fca5a5;text-align:center;">
                                             <div class="label"><span data-i18n="backup_manager.monthly_backups">Monthly Backups</span></div>
                                         </div>
+                                    </div>
+                                    <div style="margin-top: var(--archie-space-3);">
+                                        <button class="btn" onclick="saveRetentionPolicy()"
+                                                style="border-color:#ef4444;color:#fca5a5;">Save Policy</button>
                                     </div>
                                 </div>
 
@@ -492,8 +552,22 @@
                                     <button class="btn btn-orange" onclick="cleanupBackups(true)"><span data-i18n="backup_manager.preview_cleanup">Preview Cleanup</span></button>
                                     <button class="btn btn-red" onclick="cleanupBackups(false)"><span data-i18n="backup_manager.run_cleanup">Run Cleanup</span></button>
                                 </div>
+
+                                <div style="margin-top: var(--archie-space-5); padding: var(--archie-space-4);
+                                            background: rgba(167,139,250,0.05); border: 1px solid rgba(167,139,250,0.2);
+                                            border-radius: var(--archie-radius-lg);">
+                                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:var(--archie-space-3);">
+                                        <div style="width:8px;height:8px;border-radius:50%;background:#a78bfa;" class="sc-live"></div>
+                                        <span style="font-family:'Antonio',sans-serif;font-size:0.8rem;letter-spacing:2px;color:#a78bfa;">
+                                            W.A.R.D.E.N. RETENTION AGENT
+                                        </span>
+                                    </div>
+                                    <div id="wardenRetentionStatus" style="font-size:12px;color:var(--archie-text-secondary);">
+                                        Loading W.A.R.D.E.N. status...
+                                    </div>
+                                </div>
                             </div>
-                            <div style="height: 6px !important; background: #ec4899 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 6px !important; background: #ef4444 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                         </div>
                     </div>
                 </div>
@@ -501,17 +575,17 @@
 
             <!-- DEPLOYMENT PACKAGES TAB -->
             <div class="tab-content" id="tab-packages">
-                <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+                <div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
                     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
                         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                            <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                            <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                            <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div style="flex: 1 !important; background: rgba(239,68,68,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                         </div>
                         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                            <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">DEPLOYMENT PACKAGES</span>
                                 <div style="flex:1"></div>
                                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -522,23 +596,23 @@
                             </div>
                             <div style="flex: 1 !important; padding: 16px !important;">
                                 <div style="margin-bottom: var(--archie-space-5);">
-                                    <h3 class="section-header" style="color: #22d3ee;"><span data-i18n="backup_manager.deployment_packages">Deployment Packages</span></h3>
+                                    <h3 class="section-header" style="color: #ef4444;"><span data-i18n="backup_manager.deployment_packages">Deployment Packages</span></h3>
                                     <p class="section-description">
                                         <span data-i18n="backup_manager.deployment_packages_description">Create self-contained deployment packages for migrating A.R.C.H.I.E. to new machines. Each package includes all code, database, and a deploy.sh script for one-command installation.</span>
                                     </p>
                                 </div>
 
                                 <!-- Create Package Section -->
-                                <div class="quick-backup" style="border-color: #22d3ee; background: rgba(34, 211, 238, 0.05);">
-                                    <h3 style="color: #22d3ee;"><span data-i18n="backup_manager.create_deployment_package">Create Deployment Package</span></h3>
+                                <div class="quick-backup" style="border-color: #ef4444; background: rgba(34, 211, 238, 0.05);">
+                                    <h3 style="color: #ef4444;"><span data-i18n="backup_manager.create_deployment_package">Create Deployment Package</span></h3>
                                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--archie-space-4); margin-bottom: var(--archie-space-4);">
                                         <div>
                                             <label style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);"><span data-i18n="backup_manager.version_tag">Version Tag</span></label>
-                                            <input type="text" id="packageVersion" placeholder="e.g., v5.33.0" style="width: 100%; margin-top: var(--archie-space-1); padding: var(--archie-space-2) var(--archie-space-3); background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); color: #f97316; font-family: var(--archie-font-mono);" data-i18n-placeholder="backup_manager.version_tag_placeholder">
+                                            <input type="text" id="packageVersion" placeholder="e.g., v5.33.0" style="width: 100%; margin-top: var(--archie-space-1); padding: var(--archie-space-2) var(--archie-space-3); background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); color: #ef4444; font-family: var(--archie-font-mono);" data-i18n-placeholder="backup_manager.version_tag_placeholder">
                                         </div>
                                         <div>
                                             <label style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);"><span data-i18n="backup_manager.target_platform">Target Platform</span></label>
-                                            <select id="packagePlatform" style="width: 100%; margin-top: var(--archie-space-1); padding: var(--archie-space-2) var(--archie-space-3); background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); color: #f97316; font-family: var(--archie-font-mono);">
+                                            <select id="packagePlatform" style="width: 100%; margin-top: var(--archie-space-1); padding: var(--archie-space-2) var(--archie-space-3); background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); color: #ef4444; font-family: var(--archie-font-mono);">
                                                 <option value="linux"><span data-i18n="backup_manager.linux_ubuntu_debian">Linux (Ubuntu/Debian)</span></option>
                                                 <option value="docker"><span data-i18n="backup_manager.docker_only">Docker Only</span></option>
                                                 <option value="all"><span data-i18n="backup_manager.all_platforms">All Platforms</span></option>
@@ -547,7 +621,7 @@
                                     </div>
                                     <div style="margin-bottom: var(--archie-space-4);">
                                         <label style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);"><span data-i18n="backup_manager.description">Description</span></label>
-                                        <input type="text" id="packageDescription" placeholder="e.g., Production release with Phase 31 features" style="width: 100%; margin-top: var(--archie-space-1); padding: var(--archie-space-2) var(--archie-space-3); background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); color: #f97316; font-family: var(--archie-font-mono);" data-i18n-placeholder="backup_manager.package_description_placeholder">
+                                        <input type="text" id="packageDescription" placeholder="e.g., Production release with Phase 31 features" style="width: 100%; margin-top: var(--archie-space-1); padding: var(--archie-space-2) var(--archie-space-3); background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); color: #ef4444; font-family: var(--archie-font-mono);" data-i18n-placeholder="backup_manager.package_description_placeholder">
                                     </div>
                                     <div style="display: flex; gap: var(--archie-space-2);">
                                         <button class="btn btn-cyan" onclick="createDeploymentPackage()"><span data-i18n="backup_manager.create_package">Create Package</span></button>
@@ -556,12 +630,12 @@
                                 </div>
 
                                 <!-- Packages List -->
-                                <h4 style="color: #22d3ee; margin-bottom: var(--archie-space-4);"><span data-i18n="backup_manager.available_packages">Available Packages</span></h4>
+                                <h4 style="color: #ef4444; margin-bottom: var(--archie-space-4);"><span data-i18n="backup_manager.available_packages">Available Packages</span></h4>
                                 <div id="packagesList">
                                     <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.loading_packages">Loading packages...</span></p></div>
                                 </div>
                             </div>
-                            <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 6px !important; background: #ef4444 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                         </div>
                     </div>
                 </div>
@@ -571,90 +645,178 @@
 </div><!-- /backup-manager-container -->
 
 <!-- Restore Preview Modal -->
-<div class="modal-overlay" id="restore-preview-modal" style="display: none;">
-    <div class="modal" style="max-width: 600px;">
-        <div class="modal-header">
-            <h3 id="restore-preview-title"><span data-i18n="backup_manager.restore_preview">Restore Preview</span></h3>
-            <button class="modal-close" onclick="closeRestorePreviewModal()"><span data-i18n="backup_manager.times">&times;</span></button>
+<div class="bm-overlay" id="restore-preview-modal">
+    <div class="bm-shell" style="--bm-accent: #ef4444; --bm-accent-rgb: 239,68,68;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
         </div>
-        <div class="modal-body" id="restore-preview-body">
-            <!-- Content populated by JavaScript -->
-        </div>
-        <div class="modal-footer">
-            <button type="button" class="btn btn-ghost" onclick="closeRestorePreviewModal()"><span data-i18n="backup_manager.cancel">Cancel</span></button>
-            <button type="button" class="btn btn-primary" id="restore-preview-proceed"><span data-i18n="backup_manager.proceed_to_restore">Proceed to Restore</span></button>
+        <div class="bm-content">
+            <div class="bm-header">
+                <h3 id="restore-preview-title"><span data-i18n="backup_manager.restore_preview">Restore Preview</span></h3>
+                <button class="bm-close" onclick="closeRestorePreviewModal()">×</button>
+            </div>
+            <div class="bm-body" id="restore-preview-body">
+                <!-- Content populated by JavaScript -->
+            </div>
+            <div class="bm-footer">
+                <button type="button" class="btn btn-ghost" onclick="closeRestorePreviewModal()"><span data-i18n="backup_manager.cancel">Cancel</span></button>
+                <button type="button" class="btn btn-primary" id="restore-preview-proceed"><span data-i18n="backup_manager.proceed_to_restore">Proceed to Restore</span></button>
+            </div>
         </div>
     </div>
 </div>
 
 <!-- Selective Restore Modal -->
-<div class="modal-overlay" id="selective-restore-modal" style="display: none;">
-    <div class="modal" style="max-width: 500px;">
-        <div class="modal-header">
-            <h3><span data-i18n="backup_manager.select_components_to_restore">Select Components to Restore</span></h3>
-            <button class="modal-close" onclick="closeSelectiveRestoreModal()"><span data-i18n="backup_manager.times_2">&times;</span></button>
+<div class="bm-overlay" id="selective-restore-modal">
+    <div class="bm-shell" style="--bm-accent: #ef4444; --bm-accent-rgb: 239,68,68;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
         </div>
-        <div class="modal-body">
-            <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);">
-                <span data-i18n="backup_manager.select_components_description">Select which components you want to restore from this backup:</span>
-            </p>
-            <div id="component-checkboxes" style="display: flex; flex-direction: column; gap: var(--archie-space-2);">
-                <!-- Checkboxes populated by JavaScript -->
+        <div class="bm-content">
+            <div class="bm-header">
+                <h3><span data-i18n="backup_manager.select_components_to_restore">Select Components to Restore</span></h3>
+                <button class="bm-close" onclick="closeSelectiveRestoreModal()">×</button>
             </div>
-            <div style="margin-top: var(--archie-space-4); padding-top: var(--archie-space-3); border-top: 1px solid var(--archie-border-default);">
-                <label style="display: flex; align-items: center; gap: var(--archie-space-2); cursor: pointer; color: var(--archie-text-secondary);">
-                    <input type="checkbox" id="select-all-components" onchange="toggleAllComponents(this.checked)">
-                    <span><span data-i18n="backup_manager.select_all">Select All</span></span>
-                </label>
+            <div class="bm-body">
+                <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);">
+                    <span data-i18n="backup_manager.select_components_description">Select which components you want to restore from this backup:</span>
+                </p>
+                <div id="component-checkboxes" style="display: flex; flex-direction: column; gap: var(--archie-space-2);">
+                    <!-- Checkboxes populated by JavaScript -->
+                </div>
+                <div style="margin-top: var(--archie-space-4); padding-top: var(--archie-space-3); border-top: 1px solid var(--archie-border-default);">
+                    <label style="display: flex; align-items: center; gap: var(--archie-space-2); cursor: pointer; color: var(--archie-text-secondary);">
+                        <input type="checkbox" id="select-all-components" onchange="toggleAllComponents(this.checked)">
+                        <span><span data-i18n="backup_manager.select_all">Select All</span></span>
+                    </label>
+                </div>
             </div>
-        </div>
-        <div class="modal-footer">
-            <button type="button" class="btn btn-ghost" onclick="closeSelectiveRestoreModal()"><span data-i18n="backup_manager.cancel_2">Cancel</span></button>
-            <button type="button" class="btn btn-danger" id="selective-restore-confirm"><span data-i18n="backup_manager.restore_selected">Restore Selected</span></button>
+            <div class="bm-footer">
+                <button type="button" class="btn btn-ghost" onclick="closeSelectiveRestoreModal()"><span data-i18n="backup_manager.cancel_2">Cancel</span></button>
+                <button type="button" class="btn btn-danger" id="selective-restore-confirm"><span data-i18n="backup_manager.restore_selected">Restore Selected</span></button>
+            </div>
         </div>
     </div>
 </div>
 
 <!-- Confirm Restore Modal -->
-<div class="modal-overlay" id="confirm-restore-modal" style="display: none;">
-    <div class="modal" style="max-width: 450px;">
-        <div class="modal-header">
-            <h3 style="color: #ef4444;"><span data-i18n="backup_manager.confirm_restore">⚠️ Confirm Restore</span></h3>
-            <button class="modal-close" onclick="closeConfirmRestoreModal()"><span data-i18n="backup_manager.times_3">&times;</span></button>
+<div class="bm-overlay" id="confirm-restore-modal">
+    <div class="bm-shell" style="--bm-accent: #ef4444; --bm-accent-rgb: 239,68,68;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
         </div>
-        <div class="modal-body">
-            <p style="color: var(--archie-text-primary); margin-bottom: var(--archie-space-3);" id="confirm-restore-message">
-                <!-- Message populated by JavaScript -->
-            </p>
-            <p style="color: #ef4444; font-weight: 500;">
-                <span data-i18n="backup_manager.overwrite_warning">This will overwrite current files and cannot be undone!</span>
-            </p>
+        <div class="bm-content">
+            <div class="bm-header">
+                <h3 style="color: #ef4444;"><span data-i18n="backup_manager.confirm_restore">⚠️ Confirm Restore</span></h3>
+                <button class="bm-close" onclick="closeConfirmRestoreModal()">×</button>
+            </div>
+            <div class="bm-body">
+                <p style="color: var(--archie-text-primary); margin-bottom: var(--archie-space-3);" id="confirm-restore-message">
+                    <!-- Message populated by JavaScript -->
+                </p>
+                <p style="color: #ef4444; font-weight: 500;">
+                    <span data-i18n="backup_manager.overwrite_warning">This will overwrite current files and cannot be undone!</span>
+                </p>
+            </div>
+            <div class="bm-footer">
+                <button type="button" class="btn btn-ghost" onclick="closeConfirmRestoreModal()"><span data-i18n="backup_manager.cancel_3">Cancel</span></button>
+                <button type="button" class="btn btn-danger" id="confirm-restore-btn"><span data-i18n="backup_manager.yes_restore_now">Yes, Restore Now</span></button>
+            </div>
         </div>
-        <div class="modal-footer">
-            <button type="button" class="btn btn-ghost" onclick="closeConfirmRestoreModal()"><span data-i18n="backup_manager.cancel_3">Cancel</span></button>
-            <button type="button" class="btn btn-danger" id="confirm-restore-btn"><span data-i18n="backup_manager.yes_restore_now">Yes, Restore Now</span></button>
+    </div>
+</div>
+
+<!-- Generic LCARS Confirmation Modal -->
+<div class="bm-overlay" id="bm-confirm-modal">
+    <div class="bm-shell" style="--bm-accent: #ef4444; --bm-accent-rgb: 239,68,68; max-width: 420px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
+        </div>
+        <div class="bm-content">
+            <div class="bm-header">
+                <h3 id="bm-confirm-title">Confirm</h3>
+                <button class="bm-close" onclick="_bmConfirmResolve && _bmConfirmResolve(false)">×</button>
+            </div>
+            <div class="bm-body">
+                <p id="bm-confirm-message" style="color: var(--archie-text-primary);"></p>
+            </div>
+            <div class="bm-footer">
+                <button type="button" class="btn btn-ghost" onclick="_bmConfirmResolve && _bmConfirmResolve(false)">Cancel</button>
+                <button type="button" id="bm-confirm-ok" class="btn btn-danger" onclick="_bmConfirmResolve && _bmConfirmResolve(true)">Confirm</button>
+            </div>
         </div>
     </div>
 </div>
 
 <script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script>
+    // Generic LCARS confirmation dialog (replaces browser confirm())
+    // message: string OR array of {text, style} — each item becomes a paragraph
+    let _bmConfirmResolve = null;
+    function showBmConfirm(title, message, confirmLabel, isDanger) {
+        confirmLabel = confirmLabel || 'Confirm';
+        isDanger = isDanger !== false;
+        return new Promise(function(resolve) {
+            _bmConfirmResolve = function(result) {
+                document.getElementById('bm-confirm-modal').classList.remove('active');
+                _bmConfirmResolve = null;
+                resolve(result);
+            };
+            document.getElementById('bm-confirm-title').textContent = title;
+            var msgEl = document.getElementById('bm-confirm-message');
+            msgEl.textContent = '';
+            var parts = Array.isArray(message) ? message : [message];
+            parts.forEach(function(part) {
+                var p = document.createElement('p');
+                if (typeof part === 'object') {
+                    p.textContent = part.text;
+                    if (part.style) p.setAttribute('style', part.style);
+                } else {
+                    p.textContent = part;
+                }
+                p.style.marginBottom = '8px';
+                msgEl.appendChild(p);
+            });
+            var okBtn = document.getElementById('bm-confirm-ok');
+            okBtn.textContent = confirmLabel;
+            okBtn.className = 'btn ' + (isDanger ? 'btn-danger' : 'btn-primary');
+            document.getElementById('bm-confirm-modal').classList.add('active');
+        });
+    }
+
     let currentBuildNum = null;
     let availableModules = [];
     let pendingRestoreBackup = null;
     let pendingRestoreComponents = [];
 
     // Initialize
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', async function() {
+        // Check external storage FIRST so _externalEnabled is set before backup list renders
+        try {
+            const extResp = await fetch('/tools/backup-manager/external-status', {credentials: 'same-origin'});
+            const extData = await extResp.json();
+            _externalEnabled = !!(extData.available);
+        } catch(e) {}
         loadBackups();
         loadDeploymentBackups();
         checkLockStatus();
         setInterval(checkLockStatus, 10000);
-        // Check if external USB storage is mounted
-        fetch('/tools/backup-manager/health', {credentials: 'same-origin'})
-            .then(r => r.json())
-            .then(d => { _externalEnabled = !!(d.external_storage && d.external_storage.available); })
-            .catch(() => {});
     });
 
     // Tab switching
@@ -666,8 +828,9 @@
         if (tabId === 'deployments') loadDeploymentBackups();
         if (tabId === 'modules') { loadAvailableModules(); loadModuleBackups(); }
         if (tabId === 'packages') loadDeploymentPackages();
-        if (tabId === 'retention') checkRetention();
+        if (tabId === 'retention') { checkRetention(); }
         if (tabId === 'external') { loadExternalStatus(); loadExternalBackups(); }
+        if (tabId === 'standalones') loadStandaloneSystems();
         if (tabId === 'cloud') { loadCloudStatus(); }
         if (tabId === 'hooks') { loadHooks(); loadWebhooks(); }
     }
@@ -730,7 +893,7 @@
             if (data.success) {
                 currentBuildNum = data.current_build;
                 renderBackupsList(data.backups);
-                updateStats(data.backups, data.current_build);
+                updateStats(data.backups, data.current_build, data.total_count, data.total_size_bytes);
             } else {
                 showToast('Error loading backups: ' + data.error, 'error');
             }
@@ -784,9 +947,10 @@
             // Type badge
             const typeBadgeSpan = document.createElement('span');
             typeBadgeSpan.className = 'badge';
-            if (backupType === 'full') { typeBadgeSpan.classList.add('badge-full'); typeBadgeSpan.textContent = 'FULL'; }
-            else if (backupType === 'critical') { typeBadgeSpan.classList.add('badge-critical'); typeBadgeSpan.textContent = 'CRITICAL'; }
-            else if (backupType === 'database') { typeBadgeSpan.classList.add('badge-database'); typeBadgeSpan.textContent = 'DATABASE'; }
+            typeBadgeSpan.style.cssText = 'font-size: 1rem; line-height: 1; padding: 2px 6px;';
+            if (backupType === 'full') { typeBadgeSpan.classList.add('badge-full'); typeBadgeSpan.textContent = '📦'; typeBadgeSpan.title = 'FULL'; }
+            else if (backupType === 'critical') { typeBadgeSpan.classList.add('badge-critical'); typeBadgeSpan.textContent = '🛡️'; typeBadgeSpan.title = 'CRITICAL'; }
+            else if (backupType === 'database') { typeBadgeSpan.classList.add('badge-database'); typeBadgeSpan.textContent = '🧠'; typeBadgeSpan.title = 'DATABASE'; }
             else if (backupType === 'custom') { typeBadgeSpan.classList.add('badge-custom'); typeBadgeSpan.textContent = 'CUSTOM'; }
             else { typeBadgeSpan.classList.add('badge-legacy'); typeBadgeSpan.textContent = 'LEGACY'; }
             titleDiv.appendChild(typeBadgeSpan);
@@ -795,7 +959,7 @@
             if (isCompressed) {
                 const gzipBadge = document.createElement('span');
                 gzipBadge.className = 'badge';
-                gzipBadge.style.cssText = 'background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid #22c55e;';
+                gzipBadge.style.cssText = 'background: rgba(34, 197, 94, 0.2); color: #fca5a5; border: 1px solid #22c55e;';
                 gzipBadge.textContent = 'GZIP';
                 titleDiv.appendChild(gzipBadge);
             }
@@ -804,7 +968,7 @@
             if (hasExternalCopy) {
                 const usbBadge = document.createElement('span');
                 usbBadge.className = 'badge';
-                usbBadge.style.cssText = 'background: rgba(34, 211, 238, 0.2); color: #22d3ee; border: 1px solid #22d3ee;';
+                usbBadge.style.cssText = 'background: rgba(34, 211, 238, 0.2); color: #ef4444; border: 1px solid #22d3ee;';
                 usbBadge.title = 'Copied to external storage';
                 usbBadge.textContent = 'USB';
                 titleDiv.appendChild(usbBadge);
@@ -903,6 +1067,7 @@
             downloadBtn.dataset.backupName = backup.name;
             downloadBtn.dataset.downloadState = 'idle';
             downloadBtn.dataset.jobId = '';
+            const _dlKey = 'dl_job_' + backup.name;
             const _setDlState = (btn, state, jobId) => {
                 btn.dataset.downloadState = state;
                 btn.dataset.jobId = jobId || '';
@@ -911,17 +1076,31 @@
                     btn.textContent = 'Download';
                     btn.disabled = false;
                     btn.style.cssText = '';
+                    localStorage.removeItem(_dlKey);
                 } else if (state === 'preparing') {
                     btn.className = 'btn';
                     btn.textContent = 'Preparing…';
                     btn.disabled = true;
                     btn.style.cssText = 'background:#333;color:#888;border-color:#555;';
+                    if (jobId) localStorage.setItem(_dlKey, String(jobId));
                 } else if (state === 'ready') {
                     btn.className = 'btn';
                     btn.textContent = 'Download Ready';
                     btn.disabled = false;
                     btn.style.cssText = 'background:#1a4a1a;color:#4ade80;border:1px solid #4ade80;';
+                    if (jobId) localStorage.setItem(_dlKey, String(jobId) + ':ready');
                 }
+            };
+            // Helper: start the poll loop for a given jobId
+            const _startDlPoll = (btn, jobId) => {
+                const poll = setInterval(async () => {
+                    try {
+                        const r2 = await fetch('/tools/backup-manager/api/download/status/' + jobId, {credentials:'same-origin'});
+                        const s = await r2.json();
+                        if (s.status === 'ready') { clearInterval(poll); _setDlState(btn, 'ready', jobId); showToast('Download ready!', 'success'); }
+                        else if (s.status === 'failed' || s.status === 'expired') { clearInterval(poll); showToast('Prep failed: ' + (s.error||'unknown'), 'error'); _setDlState(btn, 'idle', ''); }
+                    } catch(e) { /* network hiccup, keep polling */ }
+                }, 5000);
             };
             downloadBtn.onclick = async function() {
                 const state = this.dataset.downloadState;
@@ -934,7 +1113,11 @@
                     return;
                 }
                 if (state === 'preparing') return;
-                if (!confirm('Prepare "' + bname + '" for download?\n\nThis compresses the backup in the background (~30–90s). You can navigate away — the button will show "Download Ready" when complete.')) return;
+                if (!await showBmConfirm('Prepare Download', [
+                    {text: bname, style: 'font-family: var(--archie-font-mono); font-size: 0.8rem; color: var(--archie-text-secondary); word-break: break-all;'},
+                    {text: 'This backup will be compressed in the background. Estimated time: 30–90 seconds.', style: 'color: var(--archie-text-primary);'},
+                    {text: 'You can navigate away — the Download button will show "Download Ready" when complete.', style: 'color: var(--archie-text-secondary); font-size: 0.85rem;'}
+                ], 'Prepare', false)) return;
                 _setDlState(this, 'preparing', '');
                 const btn = this;
                 try {
@@ -942,18 +1125,31 @@
                     const d = await r.json();
                     if (!d.success) { showToast('Download prep failed: ' + d.error, 'error'); _setDlState(btn, 'idle', ''); return; }
                     const jobId = d.job_id;
+                    _setDlState(btn, 'preparing', jobId);  // persist job_id in localStorage
                     if (d.status === 'ready') { _setDlState(btn, 'ready', jobId); return; }
-                    const poll = setInterval(async () => {
-                        try {
-                            const r2 = await fetch('/tools/backup-manager/api/download/status/' + jobId, {credentials:'same-origin'});
-                            const s = await r2.json();
-                            if (s.status === 'ready') { clearInterval(poll); _setDlState(btn, 'ready', jobId); showToast('Download ready!', 'success'); }
-                            else if (s.status === 'failed') { clearInterval(poll); showToast('Prep failed: ' + (s.error||'unknown'), 'error'); _setDlState(btn, 'idle', ''); }
-                        } catch(e) { /* network hiccup, keep polling */ }
-                    }, 5000);
+                    _startDlPoll(btn, jobId);
                 } catch(e) { showToast('Error: ' + e.message, 'error'); _setDlState(btn, 'idle', ''); }
             };
-            _setDlState(downloadBtn, 'idle', '');
+            // Restore state from localStorage on page load / navigation back
+            const _savedEntry = localStorage.getItem(_dlKey);
+            if (_savedEntry) {
+                const _savedReady = _savedEntry.endsWith(':ready');
+                const _savedJobId = _savedReady ? _savedEntry.replace(':ready','') : _savedEntry;
+                if (_savedReady) {
+                    _setDlState(downloadBtn, 'ready', _savedJobId);
+                } else {
+                    // Was preparing — check current status and resume if still active
+                    _setDlState(downloadBtn, 'preparing', _savedJobId);
+                    fetch('/tools/backup-manager/api/download/status/' + _savedJobId, {credentials:'same-origin'})
+                        .then(r => r.json()).then(s => {
+                            if (s.status === 'ready') { _setDlState(downloadBtn, 'ready', _savedJobId); }
+                            else if (s.status === 'failed' || s.status === 'expired' || !s.success) { _setDlState(downloadBtn, 'idle', ''); }
+                            else { _startDlPoll(downloadBtn, _savedJobId); } // still running — resume poll
+                        }).catch(() => _setDlState(downloadBtn, 'idle', ''));
+                }
+            } else {
+                _setDlState(downloadBtn, 'idle', '');
+            }
             actionsDiv.appendChild(downloadBtn);
 
             // Set Current button (only for non-current builds with a build number)
@@ -997,15 +1193,17 @@
         });
     }
 
-    function updateStats(backups, currentBuild) {
-        document.getElementById('stat-total').textContent = backups.length;
+    function updateStats(backups, currentBuild, totalCount, totalSizeBytes) {
+        // Use server totals (true DB values) — list is capped at 200
+        document.getElementById('stat-total').textContent = totalCount || backups.length;
 
         if (backups.length > 0) {
             const latest = backups[0].created_at || backups[0].name;
             document.getElementById('stat-latest').textContent = formatTime(latest);
 
-            const totalSize = backups.reduce((sum, b) => sum + (b.size || 0), 0);
-            document.getElementById('stat-size').textContent = (totalSize / 1024 / 1024).toFixed(1) + ' MB';
+            // Use server-computed total_size_bytes when available
+            const sizeBytes = totalSizeBytes || backups.reduce((sum, b) => sum + (b.size || 0), 0);
+            document.getElementById('stat-size').textContent = (sizeBytes / 1024 / 1024).toFixed(1) + ' MB';
         }
 
         if (currentBuild) {
@@ -1076,7 +1274,10 @@
     }
 
     async function deleteBackup(name) {
-        if (!confirm('Delete backup: ' + name + '?')) return;
+        if (!await showBmConfirm('Delete Backup', [
+            {text: name, style: 'font-family: var(--archie-font-mono); font-size: 0.8rem; color: var(--archie-text-secondary); word-break: break-all;'},
+            {text: 'Are you sure you want to permanently delete this backup? This action cannot be undone.', style: 'color: var(--archie-text-primary);'}
+        ], 'Delete', true)) return;
 
         try {
             const response = await fetch('/tools/backup-manager/delete/' + encodeURIComponent(name), {
@@ -1150,7 +1351,7 @@
                     <h4>${escapeHtml(d.proposal_title || 'Proposal #' + d.proposal_id)}</h4>
                     <div class="deployment-meta">
                         ${escapeHtml(formatTime(d.deployed_at))} |
-                        Backup: <span style="color: #22d3ee;">${escapeHtml(d.backup_name || 'none')}</span>
+                        Backup: <span style="color: #ef4444;">${escapeHtml(d.backup_name || 'none')}</span>
                     </div>
                 </div>
                 <div class="deployment-stats">
@@ -1165,6 +1366,18 @@
                     <span class="badge badge-${isSuccess ? 'deployed' : 'failed'}">${escapeHtml(d.status)}</span>
                 </div>
             `;
+            if (d.backup_name) {
+                const actDiv = document.createElement('div');
+                actDiv.style.cssText = 'display:flex;justify-content:flex-end;padding:8px 0 4px;';
+                const restBtn = document.createElement('button');
+                restBtn.className = 'btn btn-orange';
+                restBtn.textContent = 'Restore Pre-Deploy Snapshot';
+                restBtn.title = 'Restore the backup taken before this proposal was deployed';
+                const bname = d.backup_name;
+                restBtn.addEventListener('click', function() { previewRestore(bname); });
+                actDiv.appendChild(restBtn);
+                item.appendChild(actDiv);
+            }
             container.appendChild(item);
         });
     }
@@ -1279,6 +1492,20 @@
             }
             row.appendChild(ageSpan);
 
+            // Restore button — only when a backup exists for this module
+            if (backup) {
+                const restBtn = document.createElement('button');
+                restBtn.className = 'btn btn-red';
+                restBtn.textContent = 'Restore';
+                restBtn.style.cssText = 'font-size:0.7rem;padding:2px 8px;margin-left:8px;';
+                restBtn.title = 'Restore module from last backup';
+                restBtn.onclick = function(e) {
+                    e.stopPropagation(); // don't toggle selection
+                    restoreModuleBackup(backup.name);
+                };
+                row.appendChild(restBtn);
+            }
+
             list.appendChild(row);
         });
     }
@@ -1319,7 +1546,16 @@
 
         const description = document.getElementById('moduleBackupDescription').value || 'Module backup';
 
-        if (!confirm('Backup ' + selectedModules.length + ' module(s)?')) return;
+        const ok = await showBmConfirm(
+            'BACKUP MODULES',
+            [
+                { text: 'Back up ' + selectedModules.length + ' module(s): ' + selectedModules.join(', '), style: 'font-family: monospace; color: var(--archie-accent);' },
+                { text: 'This will create a code snapshot for the selected modules.' }
+            ],
+            'BACKUP',
+            false
+        );
+        if (!ok) return;
 
         showToast('Creating module backup...', 'info');
 
@@ -1347,7 +1583,16 @@
     }
 
     async function restoreModuleBackup(backupName) {
-        if (!confirm('Restore module backup: ' + backupName + '?')) return;
+        const ok = await showBmConfirm(
+            'RESTORE MODULE BACKUP',
+            [
+                { text: 'Backup: ' + backupName, style: 'font-family: monospace; color: var(--archie-accent);' },
+                { text: 'This will overwrite the current module files. The platform will be temporarily disrupted.' }
+            ],
+            'RESTORE',
+            true
+        );
+        if (!ok) return;
 
         try {
             const response = await fetch('/tools/backup-manager/restore-module/' + encodeURIComponent(backupName), {
@@ -1385,6 +1630,7 @@
             emptyDiv.textContent = 'Error loading';
             container.appendChild(emptyDiv);
         }
+        loadWardenRetentionStatus();
     }
 
     function renderRetentionStatus(data) {
@@ -1451,6 +1697,57 @@
             successDiv.textContent = 'All backups within retention policy';
             container.appendChild(successDiv);
         }
+    }
+
+    async function saveRetentionPolicy() {
+        const daily = parseInt(document.getElementById('retentionDaily').value);
+        const weekly = parseInt(document.getElementById('retentionWeekly').value);
+        const monthly = parseInt(document.getElementById('retentionMonthly').value);
+        if ([daily, weekly, monthly].some(v => isNaN(v) || v < 1)) {
+            showToast('Invalid retention values', 'error');
+            return;
+        }
+        try {
+            const resp = await fetch('/tools/backup-manager/retention-policy', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({daily, weekly, monthly})
+            });
+            const data = await resp.json();
+            if (data.success) showToast('Retention policy saved', 'success');
+            else showToast('Failed: ' + escapeHtml(data.error || 'unknown'), 'error');
+        } catch (e) { showToast('Network error', 'error'); }
+    }
+
+    async function loadWardenRetentionStatus() {
+        try {
+            const resp = await fetch('/tools/backup-manager/retention-status',
+                                     {credentials: 'same-origin'});
+            const data = await resp.json();
+            const el = document.getElementById('wardenRetentionStatus');
+            if (!el) return;
+            if (data.retention_daily) document.getElementById('retentionDaily').value = data.retention_daily;
+            if (data.retention_weekly) document.getElementById('retentionWeekly').value = data.retention_weekly;
+            if (data.retention_monthly) document.getElementById('retentionMonthly').value = data.retention_monthly;
+
+            // Build status text safely using DOM methods (no innerHTML with user data)
+            el.textContent = '';
+            const parts = [
+                ['Last prune: ', String(data.last_run || 'Never')],
+                ['Deleted: ', String(data.last_deleted_count || '0')],
+                ['Next: ', 'Sunday 04:00 EDT'],
+            ];
+            parts.forEach(([label, value], i) => {
+                const lSpan = document.createElement('span');
+                lSpan.textContent = (i > 0 ? ' · ' : '') + label;
+                const vSpan = document.createElement('strong');
+                vSpan.style.color = '#e2e8f0';
+                vSpan.textContent = value;
+                el.appendChild(lSpan);
+                el.appendChild(vSpan);
+            });
+        } catch (e) { /* non-fatal */ }
     }
 
     async function cleanupBackups(dryRun) {
@@ -1545,8 +1842,8 @@
             metaDiv.innerHTML = `
                 ${escapeHtml(pkg.description || 'Deployment package')}<br>
                 <span style="color: var(--archie-text-tertiary);">
-                    Version: <span style="color: #f97316;">${escapeHtml(pkg.version_tag || '-')}</span> |
-                    Platform: <span style="color: #fb923c;">${escapeHtml(pkg.target_platform || 'linux')}</span> |
+                    Version: <span style="color: #ef4444;">${escapeHtml(pkg.version_tag || '-')}</span> |
+                    Platform: <span style="color: #dc2626;">${escapeHtml(pkg.target_platform || 'linux')}</span> |
                     Created: ${escapeHtml(formatTime(pkg.created_at))} by ${escapeHtml(pkg.created_by || 'system')}
                 </span>
             `;
@@ -1564,7 +1861,7 @@
 
             const sizeStat = document.createElement('div');
             sizeStat.className = 'deployment-stat';
-            sizeStat.innerHTML = `<div class="value" style="color: #22d3ee;">${sizeMB} MB</div><div class="label">Size</div>`;
+            sizeStat.innerHTML = `<div class="value" style="color: #ef4444;">${sizeMB} MB</div><div class="label">Size</div>`;
             statsDiv.appendChild(sizeStat);
 
             const dlStat = document.createElement('div');
@@ -1595,40 +1892,65 @@
     }
 
     async function createDeploymentPackage() {
-        const version = document.getElementById('packageVersion').value || 'v5.33.0';
+        const version = document.getElementById('packageVersion').value.trim() || '';
         const platform = document.getElementById('packagePlatform').value;
-        const description = document.getElementById('packageDescription').value || 'Deployment package';
-
-        if (!confirm(`Create deployment package (${version}) for ${platform}? This may take a few minutes.`)) return;
-
-        showToast('Creating deployment package... This may take a minute.', 'info');
-
+        const desc = document.getElementById('packageDescription').value.trim() || 'Deployment package';
+        const btn = document.querySelector('[onclick="createDeploymentPackage()"]');
+        btn.disabled = true;
+        btn.textContent = 'Queuing...';
         try {
-            const response = await fetch('/tools/backup-manager/api/create-deployment-package', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    version_tag: version,
-                    target_platform: platform,
-                    description: description
-                })
+            const resp = await fetch('/tools/backup-manager/api/create-deployment-package', {
+                method: 'POST', credentials: 'same-origin',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({version_tag: version, target_platform: platform, description: desc})
             });
-
-            const data = await response.json();
-
-            if (data.success) {
-                showToast(`Package created: ${data.package.name} (${data.package.size_mb} MB)`, 'success');
-                loadDeploymentPackages();
-                // Clear inputs
-                document.getElementById('packageVersion').value = '';
-                document.getElementById('packageDescription').value = '';
-            } else {
-                showToast('Error: ' + data.error, 'error');
+            const data = await resp.json();
+            if (!data.success) {
+                showToast('Failed: ' + escapeHtml(data.error || ''), 'error');
+                btn.disabled = false; btn.textContent = 'Create Package';
+                return;
             }
-        } catch (error) {
-            showToast('Error: ' + error.message, 'error');
+            btn.textContent = 'Building… 0%';
+            _pollPackageJob(data.job_id, btn);
+        } catch (e) {
+            showToast('Network error', 'error');
+            btn.disabled = false; btn.textContent = 'Create Package';
         }
+    }
+
+    function _pollPackageJob(jobId, btn) {
+        let polls = 0;
+        const iv = setInterval(async () => {
+            polls++;
+            if (polls > 200) {
+                clearInterval(iv);
+                btn.disabled = false; btn.textContent = 'Create Package';
+                showToast('Package creation timed out — check server logs', 'error');
+                return;
+            }
+            try {
+                const resp = await fetch(
+                    '/tools/backup-manager/api/deployment-package-status/' + jobId,
+                    {credentials: 'same-origin'}
+                );
+                const data = await resp.json();
+                if (data.status === 'building' || data.status === 'queued') {
+                    btn.textContent = 'Building… ' + (data.progress_pct || 0) + '%';
+                } else if (data.status === 'ready') {
+                    clearInterval(iv);
+                    btn.disabled = false; btn.textContent = 'Create Package';
+                    showToast('Package ready: ' + escapeHtml(data.package_name || ''), 'success');
+                    loadDeploymentPackages();
+                } else if (data.status === 'failed') {
+                    clearInterval(iv);
+                    btn.disabled = false; btn.textContent = 'Create Package';
+                    showToast('Package failed: ' + escapeHtml(data.error || 'unknown'), 'error');
+                }
+            } catch (e) {
+                clearInterval(iv);
+                btn.disabled = false; btn.textContent = 'Create Package';
+            }
+        }, 3000);
     }
 
     function downloadDeploymentPackage(packageName) {
@@ -1689,6 +2011,126 @@
     }
 
     // =====================================================================
+    // STANDALONE SYSTEMS TAB
+    // =====================================================================
+
+    async function loadStandaloneSystems() {
+        try {
+            const resp = await fetch('/tools/backup-manager/api/standalones/list',
+                                     {credentials: 'same-origin'});
+            const data = await resp.json();
+            if (!data.success) return;
+            renderStandaloneGrid(data.standalones);
+            _updateWardenStandaloneStrip(data.standalones);
+        } catch (e) {
+            const g = document.getElementById('standaloneGrid');
+            if (g) { g.textContent = ''; const d = document.createElement('div'); d.className = 'empty-state'; d.textContent = 'Error loading standalones'; g.appendChild(d); }
+        }
+    }
+
+    function renderStandaloneGrid(standalones) {
+        const grid = document.getElementById('standaloneGrid');
+        grid.textContent = '';
+        standalones.forEach(s => {
+            const row = document.createElement('div');
+            row.className = 'module-row';
+            row.dataset.name = s.name;
+            row.onclick = function() { this.classList.toggle('selected'); _updateStandaloneCount(); };
+
+            const check = document.createElement('div');
+            check.className = 'check'; check.textContent = '✓';
+            row.appendChild(check);
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'name';
+            nameSpan.textContent = s.display_name + (s.backup_type === 'config_only' ? ' (configs)' : '');
+            row.appendChild(nameSpan);
+
+            const metaSpan = document.createElement('span');
+            metaSpan.className = 'meta';
+            metaSpan.textContent = s.db_schema + ' schema · ' + (s.code_path_exists ? '✓ code' : '✗ missing');
+            row.appendChild(metaSpan);
+
+            const ageSpan = document.createElement('span');
+            ageSpan.className = 'backup-age';
+            if (s.last_backup_at) {
+                const days = Math.floor((Date.now() - new Date(s.last_backup_at).getTime()) / 86400000);
+                ageSpan.textContent = days === 0 ? 'today' : days + 'd ago';
+                ageSpan.classList.add(days < 7 ? 'recent' : 'stale');
+            } else {
+                ageSpan.textContent = 'never';
+                ageSpan.classList.add('none');
+            }
+            row.appendChild(ageSpan);
+            grid.appendChild(row);
+        });
+    }
+
+    function _updateStandaloneCount() {
+        const n = document.querySelectorAll('#standaloneGrid .module-row.selected').length;
+        const el = document.getElementById('selectedStandaloneCount');
+        if (el) el.textContent = String(n);
+    }
+
+    function selectAllStandalones() {
+        document.querySelectorAll('#standaloneGrid .module-row').forEach(r => r.classList.add('selected'));
+        _updateStandaloneCount();
+    }
+
+    function deselectAllStandalones() {
+        document.querySelectorAll('#standaloneGrid .module-row').forEach(r => r.classList.remove('selected'));
+        _updateStandaloneCount();
+    }
+
+    async function backupSelectedStandalones() {
+        const names = Array.from(document.querySelectorAll('#standaloneGrid .module-row.selected'))
+                           .map(r => r.dataset.name);
+        if (!names.length) { showToast('Select at least one standalone', 'error'); return; }
+        if (!confirm('Backup ' + names.length + ' standalone(s)? This may take several minutes.')) return;
+        showToast('Starting backup of ' + names.length + ' standalone(s)…', 'info');
+        try {
+            const resp = await fetch('/tools/backup-manager/api/standalones/backup', {
+                method: 'POST', credentials: 'same-origin',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({standalone_names: names})
+            });
+            const data = await resp.json();
+            if (data.success) showToast('Backup running in background. Refresh in a few minutes.', 'success');
+            else showToast('Failed: ' + escapeHtml(data.error || ''), 'error');
+        } catch (e) { showToast('Network error', 'error'); }
+    }
+
+    function _updateWardenStandaloneStrip(standalones) {
+        const el = document.getElementById('wardenStandaloneStatus');
+        if (!el) return;
+        const never = standalones.filter(s => !s.last_backup_at).length;
+        const stale = standalones.filter(s => s.last_backup_at &&
+            (Date.now() - new Date(s.last_backup_at).getTime()) > 7 * 86400000).length;
+
+        el.textContent = '';
+        const frag = document.createDocumentFragment();
+
+        const agentLabel = document.createElement('span');
+        agentLabel.style.cssText = 'color:#a78bfa;font-family:Antonio,sans-serif;font-size:0.75rem;letter-spacing:1.5px;';
+        agentLabel.textContent = 'W.A.R.D.E.N.';
+        frag.appendChild(agentLabel);
+        frag.appendChild(document.createTextNode('  '));
+
+        const neverSpan = document.createElement('span');
+        neverSpan.style.color = never > 0 ? '#f87171' : '#4ade80';
+        neverSpan.textContent = never + ' never backed up';
+        frag.appendChild(neverSpan);
+        frag.appendChild(document.createTextNode(' · '));
+
+        const staleSpan = document.createElement('span');
+        staleSpan.style.color = stale > 0 ? '#fbbf24' : '#4ade80';
+        staleSpan.textContent = stale + ' stale (>7d)';
+        frag.appendChild(staleSpan);
+        frag.appendChild(document.createTextNode(' · Next auto: Wednesday 02:00 EDT'));
+        el.appendChild(frag);
+    }
+
+    // =====================================================================
     // EXTERNAL STORAGE TAB
     // =====================================================================
 
@@ -1704,7 +2146,7 @@
                 const statusHtml = document.createElement('div');
 
                 const h3 = document.createElement('h3');
-                h3.style.cssText = 'color: #22d3ee; margin-bottom: var(--archie-space-3);';
+                h3.style.cssText = 'color: #ef4444; margin-bottom: var(--archie-space-3);';
                 h3.textContent = 'External Storage: Connected';
                 statusHtml.appendChild(h3);
 
@@ -1833,6 +2275,19 @@
                 header.appendChild(sizeDiv);
 
                 item.appendChild(header);
+
+                // Action buttons row
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'backup-actions';
+                actionsDiv.style.cssText = 'display:flex;gap:8px;padding:8px 0 4px;justify-content:flex-end;';
+                const delBtn = document.createElement('button');
+                delBtn.className = 'btn btn-red';
+                delBtn.textContent = 'DELETE';
+                delBtn.style.fontSize = '0.75rem';
+                delBtn.addEventListener('click', function() { deleteExternalBackup(backup.name); });
+                actionsDiv.appendChild(delBtn);
+                item.appendChild(actionsDiv);
+
                 container.appendChild(item);
             });
         } catch (error) {
@@ -1840,8 +2295,26 @@
         }
     }
 
+    async function deleteExternalBackup(name) {
+        if (!await showBmConfirm('Delete from External Storage', [
+            {text: name, style: 'font-family: var(--archie-font-mono); font-size: 0.8rem; color: var(--archie-text-secondary); word-break: break-all;'},
+            {text: 'Are you sure you want to delete this backup from external storage? This cannot be undone.', style: 'color: var(--archie-text-primary);'}
+        ], 'Delete', true)) return;
+        try {
+            const resp = await fetch('/tools/backup-manager/external/delete/' + encodeURIComponent(name), {
+                method: 'DELETE', credentials: 'same-origin'
+            });
+            const data = await resp.json();
+            if (data.success) { showToast('External backup deleted', 'success'); loadExternalBackups(); loadExternalStatus(); }
+            else showToast('Error: ' + escapeHtml(data.error || ''), 'error');
+        } catch (e) { showToast('Network error', 'error'); }
+    }
+
     async function syncToExternal(backupName) {
-        if (!confirm('Copy backup to external storage?')) return;
+        if (!await showBmConfirm('Sync to External Storage', [
+            {text: backupName, style: 'font-family: var(--archie-font-mono); font-size: 0.8rem; color: var(--archie-text-secondary); word-break: break-all;'},
+            {text: 'Copy this backup to the external USB drive at /mnt/external-backup.', style: 'color: var(--archie-text-primary);'}
+        ], 'Sync', false)) return;
 
         showToast('Syncing to external storage...', 'info');
 
@@ -1999,7 +2472,7 @@
                 info.style.flex = '1';
 
                 const url = document.createElement('div');
-                url.style.cssText = 'color: #f97316; font-family: var(--archie-font-mono); font-size: var(--archie-text-sm);';
+                url.style.cssText = 'color: #ef4444; font-family: var(--archie-font-mono); font-size: var(--archie-text-sm);';
                 url.textContent = webhook.url;
                 info.appendChild(url);
 
@@ -2146,18 +2619,18 @@
                 <!-- Size Summary -->
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--archie-space-3); margin-bottom: var(--archie-space-4);">
                     <div style="background: var(--archie-bg-card); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); padding: var(--archie-space-3); text-align: center;">
-                        <div style="color: #f97316; font-size: 1.5rem; font-weight: bold;">${totalBackupMB} MB</div>
+                        <div style="color: #ef4444; font-size: 1.5rem; font-weight: bold;">${totalBackupMB} MB</div>
                         <div style="color: var(--archie-text-tertiary); font-size: var(--archie-text-sm);">Total Backup Size</div>
                     </div>
                     <div style="background: var(--archie-bg-card); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); padding: var(--archie-space-3); text-align: center;">
-                        <div style="color: #22c55e; font-size: 1.5rem; font-weight: bold;">${restorableMB} MB</div>
+                        <div style="color: #fca5a5; font-size: 1.5rem; font-weight: bold;">${restorableMB} MB</div>
                         <div style="color: var(--archie-text-tertiary); font-size: var(--archie-text-sm);">Restorable Components</div>
                     </div>
                 </div>
 
                 <!-- Restorable Components -->
                 <div style="background: var(--archie-bg-deep); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); padding: var(--archie-space-4); margin-bottom: var(--archie-space-4);">
-                    <h4 style="color: #22c55e; margin-bottom: var(--archie-space-3);">Restorable Components</h4>
+                    <h4 style="color: #fca5a5; margin-bottom: var(--archie-space-3);">Restorable Components</h4>
                     <div style="display: flex; flex-direction: column; gap: var(--archie-space-2);">
             `;
 
@@ -2208,8 +2681,8 @@
             // Summary stats
             html += `
                 <div style="display: flex; gap: var(--archie-space-6); color: var(--archie-text-secondary);">
-                    <div><strong style="color: #f97316;">${data.database_tables}</strong> database tables</div>
-                    <div><strong style="color: #f97316;">${data.files_to_restore}</strong> files to restore</div>
+                    <div><strong style="color: #ef4444;">${data.database_tables}</strong> database tables</div>
+                    <div><strong style="color: #ef4444;">${data.files_to_restore}</strong> files to restore</div>
                 </div>
             `;
 
@@ -2230,7 +2703,7 @@
                 closeRestorePreviewModal();
                 showSelectiveRestoreDialog(backupName, data.components);
             };
-            document.getElementById('restore-preview-modal').style.display = 'flex';
+            document.getElementById('restore-preview-modal').classList.add('active');
 
         } catch (error) {
             showToast('Error: ' + error.message, 'error');
@@ -2238,7 +2711,7 @@
     }
 
     function closeRestorePreviewModal() {
-        document.getElementById('restore-preview-modal').style.display = 'none';
+        document.getElementById('restore-preview-modal').classList.remove('active');
     }
 
     function showSelectiveRestoreDialog(backupName, components) {
@@ -2271,11 +2744,11 @@
             closeSelectiveRestoreModal();
             showConfirmRestoreDialog(backupName, selected);
         };
-        document.getElementById('selective-restore-modal').style.display = 'flex';
+        document.getElementById('selective-restore-modal').classList.add('active');
     }
 
     function closeSelectiveRestoreModal() {
-        document.getElementById('selective-restore-modal').style.display = 'none';
+        document.getElementById('selective-restore-modal').classList.remove('active');
     }
 
     function toggleAllComponents(checked) {
@@ -2304,11 +2777,11 @@
             closeConfirmRestoreModal();
             executeRestore(backupName, components);
         };
-        document.getElementById('confirm-restore-modal').style.display = 'flex';
+        document.getElementById('confirm-restore-modal').classList.add('active');
     }
 
     function closeConfirmRestoreModal() {
-        document.getElementById('confirm-restore-modal').style.display = 'none';
+        document.getElementById('confirm-restore-modal').classList.remove('active');
     }
 
     async function executeRestore(backupName, components) {

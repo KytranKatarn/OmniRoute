@@ -26,10 +26,12 @@ from database import _get_db_password
 
 # Pull every shared helper / constant / programmatic function into module scope
 from ._shared import (
+    BACKUP_DIR,
     HOOKS_DIR,
     POST_HOOKS_DIR,
     PRE_HOOKS_DIR,
     admin_required,
+    get_backup_db_cursor,
 )
 
 
@@ -166,3 +168,33 @@ def register_admin_routes(bp, admin_required):
                     row["created_at"] = row["created_at"].isoformat()
                 rows.append(row)
         return jsonify({"snapshots": rows, "total": len(rows)})
+
+    @bp.route("/api/cleanup-orphan-log-entries", methods=["POST"])
+    @admin_required
+    def cleanup_orphan_log_entries():
+        """Remove backup_log rows whose file_path directory no longer exists on disk."""
+        try:
+            with get_backup_db_cursor(commit=False, cursor_factory=RealDictCursor) as (conn, cur):
+                cur.execute(
+                    "SELECT id, file_path FROM backup_log "
+                    "WHERE backup_type NOT IN ('standalone', 'module') AND file_path IS NOT NULL"
+                )
+                rows = cur.fetchall()
+
+            removed = []
+            for row in rows:
+                fp = row["file_path"]
+                fp = os.path.normpath(fp)
+                if fp and not os.path.exists(fp):
+                    removed.append(row["id"])
+
+            if removed:
+                with get_backup_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "DELETE FROM backup_log WHERE id = ANY(%s)",
+                        (removed,),
+                    )
+
+            return jsonify({"success": True, "removed_count": len(removed), "removed_ids": removed})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500

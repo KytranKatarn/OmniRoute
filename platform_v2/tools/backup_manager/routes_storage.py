@@ -48,6 +48,268 @@ from ._shared import (
 )
 
 
+def enqueue_deployment_package_job(version_tag, description="W.A.R.D.E.N. auto-package"):
+    """Insert a deployment_package_jobs row and launch the background build thread.
+    Importable from agent_jobs.py for scheduler-context calls (no HTTP needed)."""
+    import threading
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_version = version_tag.replace(".", "_").replace(" ", "_")
+    package_name = f"archie-deployment-{safe_version}-{timestamp}"
+
+    with get_backup_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "INSERT INTO deployment_package_jobs (package_name, status, progress_pct) "
+            "VALUES (%s, 'queued', 0) RETURNING id",
+            (package_name,),
+        )
+        job_id = cur.fetchone()[0]
+
+    t = threading.Thread(
+        target=_build_deployment_package_bg,
+        args=(job_id, package_name, description, version_tag, None, "linux"),
+        daemon=True,
+    )
+    t.start()
+    return job_id
+
+
+def _update_pkg_job(job_id, status, progress_pct, error=None):
+    """Update deployment_package_jobs row. Called from background thread."""
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "UPDATE deployment_package_jobs SET status=%s, progress_pct=%s, error=%s, "
+                "completed_at = CASE WHEN %s IN ('ready','failed') THEN NOW() ELSE NULL END "
+                "WHERE id=%s",
+                (status, progress_pct, error, status, job_id),
+            )
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).warning("Failed to update pkg job %s: %s", job_id, e)
+
+
+def _build_deployment_package_bg(job_id, package_name, description, version_tag, from_backup, target_platform):
+    """Background thread: run deployment package creation with progress updates."""
+    import hashlib
+    import logging
+
+    logger = logging.getLogger(__name__)
+    package_dir = os.path.join("/tmp", package_name)
+
+    try:
+        _update_pkg_job(job_id, "building", 10)
+
+        os.makedirs(package_dir, exist_ok=True)
+        logger.info("Creating deployment package: %s", package_name)
+        components_included = []
+
+        if from_backup:
+            backup_path = os.path.join(BACKUP_DIR, from_backup)
+            if not os.path.exists(backup_path):
+                _update_pkg_job(job_id, "failed", 0, error=f"Backup {from_backup} not found")
+                return
+            for item in os.listdir(backup_path):
+                src = os.path.join(backup_path, item)
+                dst = os.path.join(package_dir, item)
+                if os.path.isdir(src):
+                    shutil.copytree(src, dst, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(src, dst)
+            components_included.append("backup_contents")
+        else:
+            # 1. Database dump
+            logger.info("  Dumping database...")
+            db_file = os.path.join(package_dir, "database.sql")
+            backup_database_python(db_file)
+            components_included.append("database")
+            _update_pkg_job(job_id, "building", 30)
+
+            # 2. Platform code
+            logger.info("  Copying platform code...")
+            platform_dst = os.path.join(package_dir, "platform_v2")
+            platform_dirs = ["tools", "templates", "static", "consciousness", "migrations"]
+            for dir_name in platform_dirs:
+                src = os.path.join(PLATFORM_DIR, dir_name)
+                if os.path.exists(src):
+                    dst = os.path.join(platform_dst, dir_name)
+                    shutil.copytree(src, dst, dirs_exist_ok=True)
+            important_files = ["app.py", "requirements.txt", "config.py", "module_registry.py", "rbac.py"]
+            for file_name in important_files:
+                src = os.path.join(PLATFORM_DIR, file_name)
+                if os.path.exists(src):
+                    shutil.copy2(src, os.path.join(platform_dst, file_name))
+            components_included.append("platform_v2")
+            _update_pkg_job(job_id, "building", 60)
+
+            # 3. AI Bridge
+            ai_bridge_src = "/mnt/archie_brain/ai_bridge"
+            if os.path.exists(ai_bridge_src):
+                shutil.copytree(ai_bridge_src, os.path.join(package_dir, "ai_bridge"), dirs_exist_ok=True)
+                components_included.append("ai_bridge")
+
+            # 4. Documentation
+            docs_src = "/mnt/archie_brain/docs"
+            if os.path.exists(docs_src):
+                shutil.copytree(docs_src, os.path.join(package_dir, "docs"), dirs_exist_ok=True)
+                components_included.append("docs")
+
+            # 5. Database migrations
+            migrations_src = "/mnt/archie_brain/database/migrations"
+            if os.path.exists(migrations_src):
+                migrations_dst = os.path.join(package_dir, "database/migrations")
+                os.makedirs(os.path.dirname(migrations_dst), exist_ok=True)
+                shutil.copytree(migrations_src, migrations_dst, dirs_exist_ok=True)
+                components_included.append("migrations")
+
+            # 6. Scripts
+            scripts_src = "/mnt/archie_brain/scripts"
+            if os.path.exists(scripts_src):
+                shutil.copytree(scripts_src, os.path.join(package_dir, "scripts"), dirs_exist_ok=True)
+                components_included.append("scripts")
+
+            # 7. Nginx config
+            nginx_src = "/mnt/archie_brain/nginx"
+            if os.path.exists(nginx_src):
+                shutil.copytree(nginx_src, os.path.join(package_dir, "nginx"), dirs_exist_ok=True)
+                components_included.append("nginx")
+
+            # 8. Node client
+            node_client_src = "/mnt/archie_brain/node_client"
+            if os.path.exists(node_client_src):
+                shutil.copytree(node_client_src, os.path.join(package_dir, "node_client"), dirs_exist_ok=True)
+                components_included.append("node_client")
+
+            # 9. Docker compose
+            compose_src = "/mnt/archie_brain/docker-compose.yml"
+            if os.path.exists(compose_src):
+                shutil.copy2(compose_src, os.path.join(package_dir, "docker-compose.yml"))
+                components_included.append("docker-compose")
+
+        # Generate deploy.sh
+        deploy_script = generate_deploy_script(package_name, components_included)
+        deploy_script_path = os.path.join(package_dir, "deploy.sh")
+        with open(deploy_script_path, "w") as f:
+            f.write(deploy_script)
+        os.chmod(deploy_script_path, 0o755)
+
+        # Create README
+        readme_content = f"""# A.R.C.H.I.E. Deployment Package
+
+**Package**: {package_name}
+**Version**: {version_tag}
+**Created**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+## Components Included
+{chr(10).join('- ' + c for c in components_included)}
+
+## Quick Start
+
+1. Extract the package:
+   ```bash
+   tar -xzf {package_name}.tar.gz
+   cd {package_name}
+   ```
+
+2. Run the deployment script:
+   ```bash
+   sudo ./deploy.sh [target_directory] [db_password]
+   ```
+
+   Example:
+   ```bash
+   sudo ./deploy.sh /mnt/archie_brain
+   ```
+
+3. Access A.R.C.H.I.E. at `http://your-server:3000`
+
+## Requirements
+
+- Ubuntu 22.04/24.04 or Debian 11+
+- Docker and Docker Compose
+- At least 4GB RAM
+- At least 10GB free disk space
+- Root/sudo access
+
+## Manual Installation
+
+If the automated script fails, you can:
+
+1. Copy files to target directory
+2. Create `.env` file with database credentials
+3. Run `docker-compose up -d`
+4. Restore database with `docker exec -i archie_database psql -U archie -d archie < database.sql`
+
+## Support
+
+- Documentation: /docs folder
+- Issues: https://github.com/KytranKatarn/archie-platform/issues
+"""
+        with open(os.path.join(package_dir, "README.md"), "w") as f:
+            f.write(readme_content)
+
+        # Create checksums file
+        _update_pkg_job(job_id, "building", 90)
+        checksums = []
+        for root, dirs, files in os.walk(package_dir):
+            for file in files:
+                filepath = os.path.join(root, file)
+                relpath = os.path.relpath(filepath, package_dir)
+                with open(filepath, "rb") as f:
+                    file_hash_val = hashlib.sha256(f.read()).hexdigest()
+                checksums.append(f"{file_hash_val}  {relpath}")
+        with open(os.path.join(package_dir, "checksums.sha256"), "w") as f:
+            f.write("\n".join(checksums))
+
+        # Create tar.gz archive
+        archive_path = os.path.join(BACKUP_DIR, f"{package_name}.tar.gz")
+        logger.info("  Creating archive: %s", archive_path)
+        with tarfile.open(archive_path, "w:gz") as tar:
+            tar.add(package_dir, arcname=package_name)
+
+        # Get archive size and checksum
+        archive_size = os.path.getsize(archive_path)
+        with open(archive_path, "rb") as f:
+            archive_checksum = hashlib.sha256(f.read()).hexdigest()
+
+        # Clean up temp directory
+        shutil.rmtree(package_dir)
+
+        # Save to deployment_packages table
+        with get_backup_db_cursor(cursor_factory=RealDictCursor) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO deployment_packages
+                (package_name, version_tag, description, backup_source, file_path,
+                 file_size, checksum, components, target_platform)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    package_name,
+                    version_tag,
+                    description,
+                    from_backup,
+                    archive_path,
+                    archive_size,
+                    archive_checksum,
+                    json.dumps(components_included),
+                    target_platform,
+                ),
+            )
+
+        logger.info("Deployment package created: %s (%.1f MB)", package_name, archive_size / 1024 / 1024)
+        _update_pkg_job(job_id, "ready", 100)
+
+    except Exception as e:
+        logger.error("Deployment package build failed for job %s: %s", job_id, e)
+        if os.path.exists(package_dir):
+            shutil.rmtree(package_dir)
+        _update_pkg_job(job_id, "failed", 0, error=str(e)[:500])
+
+
 def register_storage_routes(bp, admin_required):
     """Register cloud / external USB / deployment packages / module storage routes onto the supplied blueprint."""
 
@@ -407,292 +669,58 @@ def register_storage_routes(bp, admin_required):
     @bp.route("/api/create-deployment-package", methods=["POST"])
     @admin_required
     def create_deployment_package():
-        """
-        Create a self-contained deployment package
+        """Create a deployment package asynchronously. Returns job_id immediately."""
+        import threading
 
-        Request body:
-            {
-                'description': 'Production release v5.33',
-                'version_tag': 'v5.33.0',
-                'from_backup': 'backup_name' (optional - create from existing backup),
-                'target_platform': 'linux' | 'docker' | 'all'
-            }
-        """
-        from psycopg2.extras import RealDictCursor
-        import hashlib
+        data = request.get_json() or {}
+        description = data.get("description", "Deployment package")
+        version_tag = data.get("version_tag", get_platform_version())
+        from_backup = data.get("from_backup")
+        target_platform = data.get("target_platform", "linux")
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_version = version_tag.replace(".", "_").replace(" ", "_")
+        package_name = f"archie-deployment-{safe_version}-{timestamp}"
 
         try:
-            data = request.get_json() or {}
-            description = data.get("description", "Deployment package")
-            version_tag = data.get("version_tag", get_platform_version())
-            from_backup = data.get("from_backup")
-            target_platform = data.get("target_platform", "linux")
-
-            # Generate package name
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            safe_version = version_tag.replace(".", "_").replace(" ", "_")
-            package_name = f"archie-deployment-{safe_version}-{timestamp}"
-
-            # Create package directory
-            package_dir = os.path.join("/tmp", package_name)
-            os.makedirs(package_dir, exist_ok=True)
-
-            current_app.logger.info(f"Creating deployment package: {package_name}")
-
-            components_included = []
-
-            # If creating from backup, use that as source
-            if from_backup:
-                backup_path = os.path.join(BACKUP_DIR, from_backup)
-                if not os.path.exists(backup_path):
-                    return (
-                        jsonify({"success": False, "error": f"Backup {from_backup} not found"}),
-                        404,
-                    )
-
-                # Copy backup contents
-                for item in os.listdir(backup_path):
-                    src = os.path.join(backup_path, item)
-                    dst = os.path.join(package_dir, item)
-                    if os.path.isdir(src):
-                        shutil.copytree(src, dst, dirs_exist_ok=True)
-                    else:
-                        shutil.copy2(src, dst)
-                components_included.append("backup_contents")
-
-            else:
-                # Create fresh from current system
-
-                # 1. Database dump
-                current_app.logger.info("  Dumping database...")
-                db_file = os.path.join(package_dir, "database.sql")
-                backup_database_python(db_file)
-                components_included.append("database")
-
-                # 2. Platform code
-                current_app.logger.info("  Copying platform code...")
-                platform_dst = os.path.join(package_dir, "platform_v2")
-                platform_dirs = [
-                    "tools",
-                    "templates",
-                    "static",
-                    "consciousness",
-                    "migrations",
-                ]
-                for dir_name in platform_dirs:
-                    src = os.path.join(PLATFORM_DIR, dir_name)
-                    if os.path.exists(src):
-                        dst = os.path.join(platform_dst, dir_name)
-                        shutil.copytree(src, dst, dirs_exist_ok=True)
-
-                # Copy important platform files
-                important_files = [
-                    "app.py",
-                    "requirements.txt",
-                    "config.py",
-                    "module_registry.py",
-                    "rbac.py",
-                ]
-                for file_name in important_files:
-                    src = os.path.join(PLATFORM_DIR, file_name)
-                    if os.path.exists(src):
-                        shutil.copy2(src, os.path.join(platform_dst, file_name))
-                components_included.append("platform_v2")
-
-                # 3. AI Bridge
-                ai_bridge_src = "/mnt/archie_brain/ai_bridge"
-                if os.path.exists(ai_bridge_src):
-                    shutil.copytree(
-                        ai_bridge_src,
-                        os.path.join(package_dir, "ai_bridge"),
-                        dirs_exist_ok=True,
-                    )
-                    components_included.append("ai_bridge")
-
-                # 4. Documentation
-                docs_src = "/mnt/archie_brain/docs"
-                if os.path.exists(docs_src):
-                    shutil.copytree(docs_src, os.path.join(package_dir, "docs"), dirs_exist_ok=True)
-                    components_included.append("docs")
-
-                # 5. Database migrations
-                migrations_src = "/mnt/archie_brain/database/migrations"
-                if os.path.exists(migrations_src):
-                    migrations_dst = os.path.join(package_dir, "database/migrations")
-                    os.makedirs(os.path.dirname(migrations_dst), exist_ok=True)
-                    shutil.copytree(migrations_src, migrations_dst, dirs_exist_ok=True)
-                    components_included.append("migrations")
-
-                # 6. Scripts
-                scripts_src = "/mnt/archie_brain/scripts"
-                if os.path.exists(scripts_src):
-                    shutil.copytree(
-                        scripts_src,
-                        os.path.join(package_dir, "scripts"),
-                        dirs_exist_ok=True,
-                    )
-                    components_included.append("scripts")
-
-                # 7. Nginx config
-                nginx_src = "/mnt/archie_brain/nginx"
-                if os.path.exists(nginx_src):
-                    shutil.copytree(nginx_src, os.path.join(package_dir, "nginx"), dirs_exist_ok=True)
-                    components_included.append("nginx")
-
-                # 8. Node client
-                node_client_src = "/mnt/archie_brain/node_client"
-                if os.path.exists(node_client_src):
-                    shutil.copytree(
-                        node_client_src,
-                        os.path.join(package_dir, "node_client"),
-                        dirs_exist_ok=True,
-                    )
-                    components_included.append("node_client")
-
-                # 9. Docker compose
-                compose_src = "/mnt/archie_brain/docker-compose.yml"
-                if os.path.exists(compose_src):
-                    shutil.copy2(compose_src, os.path.join(package_dir, "docker-compose.yml"))
-                    components_included.append("docker-compose")
-
-            # Generate deploy.sh
-            deploy_script = generate_deploy_script(package_name, components_included)
-            deploy_script_path = os.path.join(package_dir, "deploy.sh")
-            with open(deploy_script_path, "w") as f:
-                f.write(deploy_script)
-            os.chmod(deploy_script_path, 0o755)
-
-            # Create README
-            readme_content = f"""# A.R.C.H.I.E. Deployment Package
-
-    **Package**: {package_name}
-    **Version**: {version_tag}
-    **Created**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-    ## Components Included
-    {chr(10).join('- ' + c for c in components_included)}
-
-    ## Quick Start
-
-    1. Extract the package:
-       ```bash
-       tar -xzf {package_name}.tar.gz
-       cd {package_name}
-       ```
-
-    2. Run the deployment script:
-       ```bash
-       sudo ./deploy.sh [target_directory] [db_password]
-       ```
-
-       Example:
-       ```bash
-       sudo ./deploy.sh /mnt/archie_brain
-       ```
-
-    3. Access A.R.C.H.I.E. at `http://your-server:3000`
-
-    ## Requirements
-
-    - Ubuntu 22.04/24.04 or Debian 11+
-    - Docker and Docker Compose
-    - At least 4GB RAM
-    - At least 10GB free disk space
-    - Root/sudo access
-
-    ## Manual Installation
-
-    If the automated script fails, you can:
-
-    1. Copy files to target directory
-    2. Create `.env` file with database credentials
-    3. Run `docker-compose up -d`
-    4. Restore database with `docker exec -i archie_database psql -U archie -d archie < database.sql`
-
-    ## Support
-
-    - Documentation: /docs folder
-    - Issues: https://github.com/KytranKatarn/archie-platform/issues
-    """
-            with open(os.path.join(package_dir, "README.md"), "w") as f:
-                f.write(readme_content)
-
-            # Create checksums file
-            checksums = []
-            for root, dirs, files in os.walk(package_dir):
-                for file in files:
-                    filepath = os.path.join(root, file)
-                    relpath = os.path.relpath(filepath, package_dir)
-                    with open(filepath, "rb") as f:
-                        file_hash = hashlib.sha256(f.read()).hexdigest()
-                    checksums.append(f"{file_hash}  {relpath}")
-
-            with open(os.path.join(package_dir, "checksums.sha256"), "w") as f:
-                f.write("\n".join(checksums))
-
-            # Create tar.gz archive
-            archive_path = os.path.join(BACKUP_DIR, f"{package_name}.tar.gz")
-            current_app.logger.info(f"  Creating archive: {archive_path}")
-
-            with tarfile.open(archive_path, "w:gz") as tar:
-                tar.add(package_dir, arcname=package_name)
-
-            # Get archive size and checksum
-            archive_size = os.path.getsize(archive_path)
-            with open(archive_path, "rb") as f:
-                archive_checksum = hashlib.sha256(f.read()).hexdigest()
-
-            # Clean up temp directory
-            shutil.rmtree(package_dir)
-
-            # Save to database
-            with get_backup_db_cursor(cursor_factory=RealDictCursor) as (conn, cur):
+            with get_backup_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
-                    """
-                    INSERT INTO deployment_packages
-                    (package_name, version_tag, description, backup_source, file_path,
-                     file_size, checksum, components, target_platform, created_by)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id, package_name, version_tag, file_size, created_at
-                """,
-                    (
-                        package_name,
-                        version_tag,
-                        description,
-                        from_backup,
-                        archive_path,
-                        archive_size,
-                        archive_checksum,
-                        json.dumps(components_included),
-                        target_platform,
-                        current_user.id if current_user.is_authenticated else None,
-                    ),
+                    "INSERT INTO deployment_package_jobs (package_name, status, progress_pct) "
+                    "VALUES (%s, 'queued', 0) RETURNING id",
+                    (package_name,),
                 )
-                package = cur.fetchone()
-
-            current_app.logger.info(f"Deployment package created: {package_name} ({archive_size / 1024 / 1024:.1f} MB)")
-
-            return jsonify(
-                {
-                    "success": True,
-                    "message": "Deployment package created successfully",
-                    "package": {
-                        "name": package_name,
-                        "version": version_tag,
-                        "size_mb": round(archive_size / 1024 / 1024, 2),
-                        "checksum": archive_checksum,
-                        "components": components_included,
-                        "download_url": f"/tools/backup-manager/api/download-deployment/{package_name}",
-                    },
-                }
-            )
-
+                job_id = cur.fetchone()[0]
         except Exception as e:
-            current_app.logger.error(f"Deployment package creation failed: {str(e)}")
-            # Cleanup on failure
-            if "package_dir" in locals() and os.path.exists(package_dir):
-                shutil.rmtree(package_dir)
+            current_app.logger.error("Failed to create deployment_package_jobs row: %s", e)
             return jsonify({"success": False, "error": str(e)}), 500
+
+        def _build():
+            _build_deployment_package_bg(job_id, package_name, description, version_tag, from_backup, target_platform)
+
+        t = threading.Thread(target=_build, daemon=True)
+        t.start()
+
+        return jsonify({"success": True, "job_id": job_id, "package_name": package_name, "status": "queued"})
+
+    @bp.route("/api/deployment-package-status/<int:job_id>")
+    @admin_required
+    def get_deployment_package_status(job_id):
+        """Poll the build status of an async deployment package job."""
+        with get_backup_db_cursor(commit=False, cursor_factory=RealDictCursor) as (conn, cur):
+            cur.execute(
+                "SELECT id, package_name, status, progress_pct, error, created_at, completed_at "
+                "FROM deployment_package_jobs WHERE id = %s",
+                (job_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return jsonify({"success": False, "error": "Job not found"}), 404
+        return jsonify(
+            {
+                "success": True,
+                **{k: (v.isoformat() if hasattr(v, "isoformat") else v) for k, v in dict(row).items()},
+            }
+        )
 
     @bp.route("/api/download-deployment/<package_name>")
     @admin_required
@@ -849,6 +877,26 @@ def register_storage_routes(bp, admin_required):
             result = copy_to_external_storage(backup_name, backup_path)
             return jsonify(result)
 
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/external/delete/<backup_name>", methods=["DELETE"])
+    @admin_required
+    def delete_external_backup(backup_name):
+        """Delete a backup from external storage."""
+        try:
+            safe_name = os.path.basename(backup_name)
+            backup_path = os.path.join(EXTERNAL_BACKUP_DIR, safe_name)
+            if not os.path.exists(backup_path):
+                return jsonify({"success": False, "error": "Backup not found on external storage"}), 404
+            if os.path.isdir(backup_path):
+                import shutil as _shutil
+
+                _shutil.rmtree(backup_path)
+            else:
+                os.remove(backup_path)
+            current_app.logger.info("Deleted external backup: %s", safe_name)
+            return jsonify({"success": True, "deleted": safe_name})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
 

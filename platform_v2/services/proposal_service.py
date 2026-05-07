@@ -957,12 +957,6 @@ def deploy_to_production(proposal_id):
 
     Inlined from ImprovementManager.deploy_proposal (Phase 5 cleanup).
     """
-    import hashlib
-    import tarfile
-    from pathlib import Path
-
-    base_path = Path("/mnt/archie_brain")
-
     conn = None
     cur = None
     try:
@@ -977,34 +971,35 @@ def deploy_to_production(proposal_id):
         if proposal["status"] != "approved":
             return {"success": False, "error": "Proposal not approved"}
 
-        # --- Create backup ---
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_dir = base_path / "backups" / f"proposal_{proposal_id}"
-        backup_dir.mkdir(parents=True, exist_ok=True)
+        # --- Create pre-deploy backup via Backup Manager ---
+        from tools.backup_manager._shared import create_backup_programmatic
+        from database import get_db_cursor as _get_db_cursor
 
-        metadata = {
-            "proposal_id": proposal_id,
-            "title": proposal["title"],
-            "category": proposal.get("category", ""),
-            "created_at": timestamp,
-            "code_changes": proposal.get("code_changes", ""),
-        }
-        with open(backup_dir / f"metadata_{timestamp}.json", "w") as f:
-            json.dump(metadata, f, indent=2)
+        backup_result = create_backup_programmatic(
+            description=f"Pre-deploy snapshot for proposal #{proposal_id}: {proposal['title'][:60]}",
+            created_by_username="system",
+            proposal_id=proposal_id,
+        )
+        backup_name = backup_result.get("backup_name", "") if backup_result.get("success") else ""
 
-        backup_files = []
-        for dirname in ("ai_bridge", "platform_v2"):
-            source = base_path / dirname
-            if source.exists():
-                archive = backup_dir / f"{dirname}_backup_{timestamp}.tar.gz"
-                with tarfile.open(archive, "w:gz") as tar:
-                    tar.add(source, arcname=dirname)
-                backup_files.append(dirname)
+        # Record in improvement_deployments so Deployment Backups tab shows it
+        if backup_name:
+            try:
+                with _get_db_cursor(commit=True) as (dconn, dcur):
+                    dcur.execute(
+                        """INSERT INTO improvement_deployments
+                           (proposal_id, backup_name, deployment_type, status)
+                           VALUES (%s, %s, 'manual', 'deploying')""",
+                        (proposal_id, backup_name),
+                    )
+            except Exception as be:
+                logger.warning("Failed to record pre-deploy backup in improvement_deployments: %s", be)
 
         # --- Deployment log ---
         code_changes = proposal.get("code_changes", "")
+        backup_dir = backup_result.get("backup_path", "") if backup_result.get("success") else ""
         deployment_log = [
-            f"Backup created at: {backup_dir}",
+            f"Backup created: {backup_name}" if backup_name else "Backup skipped (backup manager unavailable)",
             f"Code changes ready to apply: {len(code_changes)} characters",
             "Manual deployment required - automatic code application disabled for safety",
         ]
@@ -1021,9 +1016,8 @@ def deploy_to_production(proposal_id):
                 json.dumps(
                     {
                         "backup": {
+                            "backup_name": backup_name,
                             "backup_dir": str(backup_dir),
-                            "timestamp": timestamp,
-                            "files_backed_up": backup_files,
                         },
                         "deployment_log": deployment_log,
                         "deployed_timestamp": datetime.now().isoformat(),
@@ -1051,7 +1045,7 @@ def deploy_to_production(proposal_id):
         return {
             "success": True,
             "message": "Proposal deployed with backup",
-            "backup": {"backup_dir": str(backup_dir), "timestamp": timestamp, "files_backed_up": backup_files},
+            "backup": {"backup_name": backup_name, "backup_dir": str(backup_dir)},
             "deployment_log": deployment_log,
         }
     except Exception as e:

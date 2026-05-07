@@ -120,20 +120,20 @@
                                 <div class="quick-backup">
                                     <h3><span data-i18n="backup_manager.quick_backup">Quick Backup</span></h3>
                                     <div class="backup-buttons">
-                                        <button class="backup-type-btn btn-full" onclick="createQuickBackup('full')">
-                                            <div class="icon">&#x1F535;</div>
-                                            <span data-i18n="backup_manager.full_backup">FULL BACKUP</span>
-                                            <div class="size"><span data-i18n="backup_manager.all_components_100_200_mb">All components (~100-200 MB)</span></div>
+                                        <button class="backup-type-btn btn-full" onclick="createQuickBackup('full')" title="Complete Archive — everything including n8n, nginx, scripts. Use before major infrastructure changes or server migration.">
+                                            <div class="icon">&#x1F4E6;</div>
+                                            <span>COMPLETE ARCHIVE</span>
+                                            <div class="size">Full server snapshot (~100-200 MB)</div>
                                         </button>
-                                        <button class="backup-type-btn btn-critical" onclick="createQuickBackup('critical')">
-                                            <div class="icon">&#x1F7E2;</div>
-                                            <span data-i18n="backup_manager.critical_only">CRITICAL ONLY</span>
-                                            <div class="size"><span data-i18n="backup_manager.essential_only_30_50_mb">Essential only (~30-50 MB)</span></div>
+                                        <button class="backup-type-btn btn-critical" onclick="createQuickBackup('critical')" title="Full Restore Backup — DB + platform code + .env secrets. Everything needed to restore on a new server. Use for DRP.">
+                                            <div class="icon">&#x1F6E1;</div>
+                                            <span>FULL RESTORE</span>
+                                            <div class="size">DB + code + secrets (~30-50 MB)</div>
                                         </button>
-                                        <button class="backup-type-btn btn-database" onclick="createQuickBackup('database')">
-                                            <div class="icon">&#x1F7E1;</div>
-                                            <span data-i18n="backup_manager.database_only">DATABASE ONLY</span>
-                                            <div class="size"><span data-i18n="backup_manager.database_dump_5_20_mb">Database dump (~5-20 MB)</span></div>
+                                        <button class="backup-type-btn btn-database" onclick="createQuickBackup('database')" title="Brain Backup — A.R.C.H.I.E.'s consciousness: all KB entries, agents, tasks, decisions. Fastest. Schedule daily.">
+                                            <div class="icon">&#x1F9E0;</div>
+                                            <span>BRAIN BACKUP</span>
+                                            <div class="size">Consciousness only (~450 MB)</div>
                                         </button>
                                     </div>
                                     <div class="input-row">
@@ -649,6 +649,7 @@
         loadBackups();
         loadDeploymentBackups();
         checkLockStatus();
+        setInterval(checkLockStatus, 10000);
     });
 
     // Tab switching
@@ -679,13 +680,33 @@
             const data = await response.json();
 
             const warning = document.getElementById('lockWarning');
+            const backupBtns = document.querySelectorAll('.backup-type-btn');
             if (data.locked && data.lock_info) {
                 const info = data.lock_info;
+                const _agentNames = {
+                    probe: 'P.R.O.B.E.', warden: 'W.A.R.D.E.N.', archie: 'A.R.C.H.I.E.',
+                    forge: 'F.O.R.G.E.', codex: 'C.O.D.E.X.', vigil: 'V.I.G.I.L.',
+                    base: 'B.A.S.E.', darwin: 'D.A.R.W.I.N.', muse: 'M.U.S.E.',
+                    signal: 'S.I.G.N.A.L.', spectra: 'S.P.E.C.T.R.A.',
+                };
+                const displayName = _agentNames[info.created_by?.toLowerCase()] || info.created_by;
                 document.getElementById('lockDetails').textContent =
-                    `"${info.backup_name}" by ${info.created_by} (${info.age_seconds}s ago)`;
+                    `"${info.backup_name}" by ${displayName} (${info.age_seconds}s ago)`;
                 warning.style.display = 'block';
+                backupBtns.forEach(btn => {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.35';
+                    btn.style.cursor = 'not-allowed';
+                    btn.title = `Backup in progress by ${displayName}: ${info.backup_name}`;
+                });
             } else {
                 warning.style.display = 'none';
+                backupBtns.forEach(btn => {
+                    btn.disabled = false;
+                    btn.style.opacity = '';
+                    btn.style.cursor = '';
+                    btn.title = '';
+                });
             }
         } catch (error) {
             console.error('Error checking lock status:', error);
@@ -749,7 +770,10 @@
 
             const buildSpan = document.createElement('span');
             buildSpan.className = 'build';
-            buildSpan.textContent = 'Build #' + buildNum;
+            // Full version: v5.33.0.59 when platform_version available, else Build #59
+            buildSpan.textContent = backup.platform_version && buildNum !== '-'
+                ? 'v' + backup.platform_version + '.' + buildNum
+                : 'Build #' + buildNum;
             titleDiv.appendChild(buildSpan);
 
             // Type badge
@@ -808,14 +832,42 @@
             const metaDiv = document.createElement('div');
             metaDiv.className = 'backup-meta';
             metaDiv.textContent = 'Created by ';
+            const _bkAgentNames = {
+                manual: 'Kytran', system: 'Scheduler', schedule: 'Scheduler',
+                warden: 'W.A.R.D.E.N.', probe: 'P.R.O.B.E.', archie: 'A.R.C.H.I.E.',
+                forge: 'F.O.R.G.E.', codex: 'C.O.D.E.X.', vigil: 'V.I.G.I.L.',
+                base: 'B.A.S.E.', repair_bay: 'Repair Bay', automation: 'Automation',
+            };
+            const _rawAuthor = (backup.triggered_by || backup.created_by || 'system').toLowerCase();
+            const _displayAuthor = _bkAgentNames[_rawAuthor] || (backup.triggered_by || backup.created_by || 'system');
             const authorSpan = document.createElement('span');
             authorSpan.className = 'author';
-            authorSpan.textContent = backup.created_by || 'system';
+            authorSpan.textContent = _displayAuthor;
             metaDiv.appendChild(authorSpan);
             var backupTime = backup.created_at || backup.name;
             if (typeof ArchieTime !== 'undefined' && backupTime) backupTime = ArchieTime.format(backupTime, 'datetime');
             metaDiv.appendChild(document.createTextNode(' on ' + backupTime));
             infoDiv.appendChild(metaDiv);
+
+            // Version identity line — unified professional version string
+            const _hasVersionData = backup.git_commit || backup.git_branch || backup.platform_version;
+            if (_hasVersionData) {
+                const versionDiv = document.createElement('div');
+                versionDiv.style.cssText = 'display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:4px;';
+                const _chip = (text, color) => {
+                    const s = document.createElement('span');
+                    s.style.cssText = `font-size:10px; font-family:monospace; padding:1px 6px; border-radius:3px; background:${color}22; color:${color}; border:1px solid ${color}44;`;
+                    s.textContent = text;
+                    return s;
+                };
+                if (backup.git_branch)       versionDiv.appendChild(_chip('⎇ ' + backup.git_branch, '#38bdf8'));
+                if (backup.git_commit)       versionDiv.appendChild(_chip(backup.git_commit.substring(0,8), '#6ee7b7'));
+                const _domain = document.createElement('span');
+                _domain.style.cssText = 'font-size:10px; color:#555; margin-left:2px;';
+                _domain.textContent = '· platform.kytranempowerment.com';
+                versionDiv.appendChild(_domain);
+                infoDiv.appendChild(versionDiv);
+            }
 
             header.appendChild(infoDiv);
 
@@ -845,7 +897,7 @@
                 const setCurrentBtn = document.createElement('button');
                 setCurrentBtn.className = 'btn';
                 setCurrentBtn.textContent = 'Set Current';
-                setCurrentBtn.onclick = function() { setCurrentBuild(backup.build_number); };
+                setCurrentBtn.onclick = function() { setCurrentBuild(backup.build_number, backup.platform_version); };
                 actionsDiv.appendChild(setCurrentBtn);
             }
 
@@ -900,7 +952,12 @@
         }
 
         if (currentBuild) {
-            document.getElementById('stat-build').textContent = '#' + currentBuild;
+            // Find the matching backup to get platform_version for full version string
+            const currentBackup = backups.find(b => b.build_number === currentBuild);
+            const pv = currentBackup && currentBackup.platform_version;
+            document.getElementById('stat-build').textContent = pv
+                ? 'v' + pv + '.' + currentBuild
+                : '#' + currentBuild;
             document.getElementById('stat-build-status').textContent = 'DEPLOYED';
         }
     }
@@ -934,8 +991,9 @@
         }
     }
 
-    async function setCurrentBuild(buildNumber) {
-        if (!confirm('Set build #' + buildNumber + ' as current?')) return;
+    async function setCurrentBuild(buildNumber, platformVersion) {
+        const _versionLabel = platformVersion ? 'v' + platformVersion + '.' + buildNumber : '#' + buildNumber;
+        if (!confirm('Set ' + _versionLabel + ' as current build?')) return;
 
         try {
             const response = await fetch('/tools/backup-manager/set-current/' + buildNumber, {
@@ -944,7 +1002,7 @@
             const data = await response.json();
 
             if (data.success) {
-                showToast('Build #' + buildNumber + ' set as current', 'success');
+                showToast(_versionLabel + ' set as current', 'success');
                 loadBackups();
             } else {
                 showToast('Error: ' + data.error, 'error');

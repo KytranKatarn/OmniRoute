@@ -1914,22 +1914,32 @@ def backup_database_python(output_file, compress=True):
 
 
 def get_platform_version():
-    """Get current platform version from CHANGELOG or default"""
+    """Get current platform version — system_config is the single source of truth."""
     try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute("SELECT value FROM system_config WHERE key='platform_version'")
+            row = cur.fetchone()
+            if row and row["value"]:
+                return row["value"]
+    except Exception:
+        pass
+    # Fallback: CHANGELOG.md
+    try:
+        import re
+
         changelog_path = "/mnt/archie_brain/docs/CHANGELOG.md"
         if os.path.exists(changelog_path):
             with open(changelog_path, "r") as f:
                 for line in f:
                     if line.startswith("## [") or line.startswith("## v"):
-                        # Extract version from line like "## [5.33.0]" or "## v5.33.0"
-                        import re
-
                         match = re.search(r"[\d]+\.[\d]+\.[\d]+", line)
                         if match:
                             return match.group()
-        return "5.0.0"
     except Exception:
-        return "5.0.0"
+        pass
+    return "5.33.0"
 
 
 def generate_deploy_script(package_name, components):

@@ -73,7 +73,8 @@ def register_operations_routes(bp, admin_required):
                            status, created_by, created_at, completed_at,
                            error_message, component, tier, duration_ms,
                            verification_status, notes,
-                           git_commit, git_branch, triggered_by, proposal_id, pr_number
+                           git_commit, git_branch, triggered_by, proposal_id, pr_number,
+                           build_number, platform_version
                     FROM backup_log
                     ORDER BY created_at DESC
                     LIMIT 200
@@ -120,8 +121,9 @@ def register_operations_routes(bp, admin_required):
                         "error_message": row.get("error_message"),
                         # Path (for restore / download lookups)
                         "path": raw_path,
-                        # Legacy fields expected by UI (safe defaults)
-                        "build_number": None,
+                        # Build number + version from backup_log (migrations 373/375)
+                        "build_number": row.get("build_number"),
+                        "platform_version": row.get("platform_version"),
                         "compression": None,
                         "external_copy": False,
                         # Version tracking (migration 373)
@@ -344,7 +346,10 @@ def register_operations_routes(bp, admin_required):
                 try:
                     return (
                         subprocess.run(
-                            ["git", "-C", "/app"] + cmd, capture_output=True, text=True, timeout=5
+                            ["git", "-C", "/mnt/archie_brain", "-c", "safe.directory=/mnt/archie_brain"] + cmd,
+                            capture_output=True,
+                            text=True,
+                            timeout=5,
                         ).stdout.strip()
                         or None
                     )
@@ -430,9 +435,9 @@ def register_operations_routes(bp, admin_required):
                 current_app.logger.info(f"Database backup complete ({db_file_name})")
 
             # 2. Backup platform files (configs, tools, templates)
+            platform_backup = os.path.join(backup_path, "platform_v2")  # default path even if not backed up
             if "platform" in components_to_backup:
                 current_app.logger.info("Backing up platform files...")
-                platform_backup = os.path.join(backup_path, "platform_v2")
                 platform_dirs = [
                     "tools",
                     "templates",
@@ -665,12 +670,14 @@ def register_operations_routes(bp, admin_required):
                 from database import get_db_cursor
 
                 with get_db_cursor(commit=True) as (_c, _cur):
+                    _platform_version = get_platform_version()
                     _cur.execute(
                         """INSERT INTO backup_log
                                (backup_type, file_path, size_bytes, status, tier,
                                 component, notes, git_commit, git_branch,
-                                triggered_by, proposal_id, pr_number, created_at)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())""",
+                                triggered_by, proposal_id, pr_number, build_number,
+                                platform_version, created_at)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())""",
                         (
                             backup_type,
                             backup_path,
@@ -688,6 +695,8 @@ def register_operations_routes(bp, admin_required):
                             _triggered_by,
                             _proposal_id,
                             _pr_number,
+                            new_build_number,
+                            _platform_version,
                         ),
                     )
             except Exception as _log_err:

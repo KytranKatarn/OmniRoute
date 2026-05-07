@@ -512,12 +512,23 @@ def register_operations_routes(bp, admin_required):
                 backed_up["n8n_persistence"] = True
                 current_app.logger.info("n8n persistence backup complete")
 
-            # 8. Backup deployment scripts
+            # 8. Backup deployment scripts — skip large binaries, caches, logs
             scripts_src = "/mnt/archie_brain/scripts"
             if "scripts" in components_to_backup and os.path.exists(scripts_src):
                 current_app.logger.info("Backing up deployment scripts...")
                 scripts_dst = os.path.join(backup_path, "scripts")
-                shutil.copytree(scripts_src, scripts_dst, dirs_exist_ok=True)
+
+                def _scripts_ignore(directory, contents):
+                    skip = set()
+                    for name in contents:
+                        full = os.path.join(directory, name)
+                        if name in ("__pycache__",) or name.endswith((".log", ".pyc")):
+                            skip.add(name)
+                        elif os.path.isfile(full) and os.path.getsize(full) > 10 * 1024 * 1024:
+                            skip.add(name)  # skip binaries/large files >10 MB
+                    return skip
+
+                shutil.copytree(scripts_src, scripts_dst, dirs_exist_ok=True, ignore=_scripts_ignore)
                 backed_up["scripts"] = True
                 current_app.logger.info(f"Scripts backup complete - {len(os.listdir(scripts_dst))} files")
 

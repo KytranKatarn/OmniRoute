@@ -321,10 +321,26 @@ def create_backup_programmatic(
             os.makedirs(os.path.dirname(n8n_persistence_dst), exist_ok=True)
             shutil.copytree(n8n_persistence_src, n8n_persistence_dst, dirs_exist_ok=True)
 
-        # 8. Backup scripts
+        # 8. Backup scripts — skip large binaries, caches, logs
         scripts_src = "/mnt/archie_brain/scripts"
         if os.path.exists(scripts_src):
-            shutil.copytree(scripts_src, os.path.join(backup_path, "scripts"), dirs_exist_ok=True)
+
+            def _scripts_ignore(directory, contents):
+                skip = set()
+                for name in contents:
+                    full = os.path.join(directory, name)
+                    if name in ("__pycache__",) or name.endswith((".log", ".pyc")):
+                        skip.add(name)
+                    elif os.path.isfile(full) and os.path.getsize(full) > 10 * 1024 * 1024:
+                        skip.add(name)  # skip binaries/large files >10 MB
+                return skip
+
+            shutil.copytree(
+                scripts_src,
+                os.path.join(backup_path, "scripts"),
+                dirs_exist_ok=True,
+                ignore=_scripts_ignore,
+            )
 
         # 9. Backup nginx configuration
         nginx_src = "/mnt/archie_brain/nginx"

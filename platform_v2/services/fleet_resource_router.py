@@ -94,6 +94,8 @@ def score_node_for_model(node: dict[str, Any], model: str) -> Optional[float]:
             except ValueError:
                 last_hb = None
         if last_hb is not None:
+            if last_hb.tzinfo is None:
+                last_hb = last_hb.replace(tzinfo=timezone.utc)
             age = (datetime.now(timezone.utc) - last_hb).total_seconds()
             if age > STALE_HEARTBEAT_SECONDS:
                 score -= STALE_HEARTBEAT_PENALTY
@@ -122,6 +124,8 @@ def is_stale(node: dict[str, Any], seconds: int = STALE_HEARTBEAT_SECONDS) -> bo
             last_hb = datetime.fromisoformat(last_hb)
         except ValueError:
             return True
+    if last_hb.tzinfo is None:
+        last_hb = last_hb.replace(tzinfo=timezone.utc)
     return (datetime.now(timezone.utc) - last_hb) > timedelta(seconds=seconds)
 
 

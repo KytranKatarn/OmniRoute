@@ -262,7 +262,10 @@ def track_agent_hr():
 
             # Calculate utilization
             hours_elapsed = max(
-                (datetime.now(timezone.utc) - datetime.combine(today, datetime.min.time())).total_seconds() / 3600,
+                (
+                    datetime.now(timezone.utc) - datetime.combine(today, datetime.min.time(), timezone.utc)
+                ).total_seconds()
+                / 3600,
                 0.1,
             )
             work_hours = stat["total_duration"] / 3_600_000  # ms -> hours

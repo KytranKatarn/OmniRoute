@@ -102,7 +102,7 @@ def execute_spec(spec, session=None, suite_id=None, run_id=None, skip_auth=False
     spec = _resolve_env_vars(spec)
     suite = spec.get("suite", {})
     tests = spec.get("tests", [])
-    base_url = suite.get("base_url", "http://localhost:3000").rstrip("/")
+    base_url = suite.get("base_url", os.environ.get("PLATFORM_URL", "http://localhost:3000")).rstrip("/")
     auth = suite.get("auth", {})
 
     if session is None:

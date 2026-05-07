@@ -181,6 +181,24 @@
       "agent_type": null
     },
     {
+      "id": 363,
+      "display_name": "Warden",
+      "code_name": "W.A.R.D.E.N.",
+      "title": null,
+      "department": "Operations & Infrastructure",
+      "floor": "OPERATIONS",
+      "acronym": null,
+      "acronym_expansion": null,
+      "bio": null,
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-05-06/35adad45-01a.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/35adad45-01a.jpg",
+      "is_director": false,
+      "worker_type": "ai",
+      "shift_state": "active",
+      "pronouns": "they/them",
+      "agent_type": null
+    },
+    {
       "id": 136,
       "display_name": "F.O.R.G.E.",
       "code_name": "F.O.R.G.E.",
@@ -1040,7 +1058,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/971c38df-a9e.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "barracked",
       "pronouns": "he/him",
       "agent_type": null
     },
@@ -1076,7 +1094,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/c78a58f0-ee5.jpg",
       "is_director": true,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "barracked",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -1112,7 +1130,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/70bc27b1-ede.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "barracked",
       "pronouns": "he/him",
       "agent_type": null
     },
@@ -1130,7 +1148,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/9e1efa5f-5a7.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "barracked",
       "pronouns": "she/her",
       "agent_type": null
     },
@@ -1166,7 +1184,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/maven.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "barracked",
       "pronouns": "she/her",
       "agent_type": null
     },
@@ -1184,7 +1202,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/e7149ec2-f73.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "barracked",
       "pronouns": "she/her",
       "agent_type": null
     },
@@ -1207,5 +1225,5 @@
       "agent_type": null
     }
   ],
-  "generated_at": "2026-05-02T13:53:31.345329+00:00"
+  "generated_at": "2026-05-07T01:05:37.394670+00:00"
 }

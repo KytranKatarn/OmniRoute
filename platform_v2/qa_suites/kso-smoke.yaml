@@ -1,0 +1,203 @@
+suite:
+  name: "kso-smoke"
+  description: "Kytran System Operations — availability, auth gate, core API, compliance, docker, network"
+  base_url: "http://192.168.1.200:8085"
+
+tests:
+  # ── Auth surface (app-level routes, no prefix) ────────────────────────────────
+  - name: "health endpoint"
+    type: api
+    method: GET
+    path: /health
+    skip_auth: true
+    expect:
+      status: [200]
+
+  - name: "home loads or redirects"
+    type: api
+    method: GET
+    path: /
+    skip_auth: true
+    expect:
+      status: [200, 302]
+
+  - name: "login page loads"
+    type: api
+    method: GET
+    path: /login
+    skip_auth: true
+    expect:
+      status: [200, 302]
+
+  - name: "SSO status endpoint"
+    type: api
+    method: GET
+    path: /auth/sso/status
+    skip_auth: true
+    expect:
+      status: [200, 401, 403]
+
+  # ── Core system APIs (blueprint prefix /dashboard) ────────────────────────────
+  - name: "overview API gated"
+    type: api
+    method: GET
+    path: /dashboard/api/overview
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "CPU API gated"
+    type: api
+    method: GET
+    path: /dashboard/api/cpu
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "memory API gated"
+    type: api
+    method: GET
+    path: /dashboard/api/memory
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "disks API gated"
+    type: api
+    method: GET
+    path: /dashboard/api/disks
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "node health API gated"
+    type: api
+    method: GET
+    path: /dashboard/api/node-health
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "host data API gated"
+    type: api
+    method: GET
+    path: /dashboard/api/host-data
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "audit log API gated"
+    type: api
+    method: GET
+    path: /dashboard/api/audit-log
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  # ── Compliance APIs ───────────────────────────────────────────────────────────
+  - name: "compliance packs list gated"
+    type: api
+    method: GET
+    path: /dashboard/api/compliance/packs
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "compliance latest gated"
+    type: api
+    method: GET
+    path: /dashboard/api/compliance/latest
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "compliance scores gated"
+    type: api
+    method: GET
+    path: /dashboard/api/compliance/scores
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "compliance scan history gated"
+    type: api
+    method: GET
+    path: /dashboard/api/compliance/scans
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "compliance evidence list gated"
+    type: api
+    method: GET
+    path: /dashboard/api/compliance/evidence
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  # ── Network APIs ──────────────────────────────────────────────────────────────
+  - name: "network stats gated"
+    type: api
+    method: GET
+    path: /dashboard/api/network
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "network port map gated"
+    type: api
+    method: GET
+    path: /dashboard/api/network/port-map
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  # ── Docker / Process APIs ─────────────────────────────────────────────────────
+  - name: "docker containers gated"
+    type: api
+    method: GET
+    path: /dashboard/api/docker
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "docker health gated"
+    type: api
+    method: GET
+    path: /dashboard/api/docker/health
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "processes list gated"
+    type: api
+    method: GET
+    path: /dashboard/api/processes
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "services list gated"
+    type: api
+    method: GET
+    path: /dashboard/api/services
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  # ── Stack / Compose APIs ──────────────────────────────────────────────────────
+  - name: "stacks list gated"
+    type: api
+    method: GET
+    path: /dashboard/api/stacks
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "stacks status gated"
+    type: api
+    method: GET
+    path: /dashboard/api/stacks/status
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]

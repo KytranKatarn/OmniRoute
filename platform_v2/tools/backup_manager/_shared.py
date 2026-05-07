@@ -717,14 +717,14 @@ STANDALONE_PRODUCTS = [
         "name": "kbs",
         "display_name": "Kytran Business Suite",
         "code_path": "/mnt/archie_brain/kytran-business-suite",
-        "db_schema": "kbs",
+        "db_schema": None,  # own Postgres DB (kbs_app container)
         "backup_type": "full",
     },
     {
         "name": "media_hub",
         "display_name": "Media Hub",
         "code_path": "/mnt/archie_brain/standalone/media_hub",
-        "db_schema": "media_hub",
+        "db_schema": None,  # own Postgres DB (mediahub_app container)
         "backup_type": "config_only",
         "exclude_paths": ["/mnt/Plex", "/mnt/data2", "media/", "data/"],
         "exclude_extensions": [".mkv", ".mp4", ".avi", ".mov", ".m4v", ".iso"],
@@ -733,49 +733,49 @@ STANDALONE_PRODUCTS = [
         "name": "creed",
         "display_name": "C.R.E.E.D. Governance",
         "code_path": "/mnt/archie_brain/kytran-creed",
-        "db_schema": "creed",
+        "db_schema": None,  # own SQLite DB
         "backup_type": "full",
     },
     {
         "name": "kso",
         "display_name": "Kytran System Operations",
         "code_path": "/mnt/archie_brain/kytran-server-manager",
-        "db_schema": "kso",
+        "db_schema": None,  # own DB
         "backup_type": "full",
     },
     {
         "name": "gov_watch",
         "display_name": "Gov Watch",
         "code_path": "/mnt/standalone/kytran-gov-watch",
-        "db_schema": "gov_watch",
+        "db_schema": "gov_watch",  # schema in hub archie DB
         "backup_type": "full",
     },
     {
         "name": "civic_watch",
         "display_name": "Civic Watch",
         "code_path": "/mnt/standalone/kytran-civic-watch",
-        "db_schema": "civic_watch",
+        "db_schema": "civic_transparency",  # actual schema name in hub archie DB
         "backup_type": "full",
     },
     {
         "name": "legal_watch",
         "display_name": "Legal Watch",
         "code_path": "/mnt/standalone/kytran-legal-watch",
-        "db_schema": "legal_watch",
+        "db_schema": None,  # own DB on VPS
         "backup_type": "full",
     },
     {
         "name": "market_watch",
         "display_name": "Market Watch",
         "code_path": "/mnt/standalone/kytran-market-watch",
-        "db_schema": "market_watch",
+        "db_schema": None,  # own DB on VPS
         "backup_type": "full",
     },
     {
         "name": "wtf",
         "display_name": "What The Fact",
         "code_path": "/mnt/archie_brain/what-the-fact",
-        "db_schema": "wtf",
+        "db_schema": "wtf",  # schema in hub archie DB
         "backup_type": "full",
     },
 ]
@@ -803,35 +803,51 @@ def backup_standalone(standalone_name):
     os.makedirs(backup_path)
 
     errors = []
+    warnings = []
 
-    # 1. pg_dump of schema
+    # 1. pg_dump of schema (only for products with a hub archie DB schema)
     db_dump_path = os.path.join(backup_path, f"{standalone_name}_schema.sql")
-    pg_env = os.environ.copy()
-    if os.getenv("DB_PASSWORD"):
-        pg_env["PGPASSWORD"] = os.getenv("DB_PASSWORD", "")
-    try:
-        result = subprocess.run(
-            [
-                "pg_dump",
-                "-h",
-                os.getenv("DB_HOST", "192.168.1.200"),
-                "-U",
-                os.getenv("DB_USER", "archie"),
-                "-d",
-                os.getenv("DB_NAME", "archie"),
-                "-n",
-                product["db_schema"],
-                "-f",
-                db_dump_path,
-            ],
-            env=pg_env,
-            capture_output=True,
-            timeout=120,
-        )
-        if result.returncode != 0:
-            errors.append(f"pg_dump: {result.stderr.decode()[:200]}")
-    except Exception as e:
-        errors.append(f"pg_dump error: {e}")
+    db_size = 0
+    if product["db_schema"]:
+        pg_env = os.environ.copy()
+        db_password = os.getenv("DB_PASSWORD") or ""
+        if not db_password:
+            secret_file = os.getenv("DB_PASSWORD_FILE", "")
+            if secret_file and os.path.exists(secret_file):
+                try:
+                    with open(secret_file) as _sf:
+                        db_password = _sf.read().strip()
+                except Exception:
+                    pass
+        if db_password:
+            pg_env["PGPASSWORD"] = db_password
+        try:
+            result = subprocess.run(
+                [
+                    "pg_dump",
+                    "-h",
+                    os.getenv("DB_HOST", "192.168.1.200"),
+                    "-U",
+                    os.getenv("DB_USER", "archie"),
+                    "-d",
+                    os.getenv("DB_NAME", "archie"),
+                    "-n",
+                    product["db_schema"],
+                    "-f",
+                    db_dump_path,
+                ],
+                env=pg_env,
+                capture_output=True,
+                timeout=120,
+            )
+            if result.returncode != 0:
+                errors.append(f"pg_dump: {result.stderr.decode()[:200]}")
+            else:
+                db_size = os.path.getsize(db_dump_path) if os.path.exists(db_dump_path) else 0
+        except Exception as e:
+            errors.append(f"pg_dump error: {e}")
+    else:
+        warnings.append(f"no hub DB schema for {standalone_name} — code-only backup")
 
     # 2. Code tar.gz
     code_archive = os.path.join(backup_path, f"{standalone_name}_code.tar.gz")
@@ -857,11 +873,16 @@ def backup_standalone(standalone_name):
         except Exception as e:
             errors.append(f"tar error: {e}")
     else:
-        errors.append(f"code_path not found: {code_path}")
+        warnings.append(f"code_path not mounted: {code_path} (schema-only backup)")
 
     db_size = os.path.getsize(db_dump_path) if os.path.exists(db_dump_path) else 0
     total_size = code_size + db_size
-    status = "success" if not errors else "failed"
+    if errors:
+        status = "failed"
+    elif warnings:
+        status = "partial"
+    else:
+        status = "success"
 
     try:
         with get_backup_db_cursor(commit=True) as (conn, cur):
@@ -874,7 +895,13 @@ def backup_standalone(standalone_name):
     except Exception as e:
         errors.append(f"DB log error: {e}")
 
-    return {"success": not errors, "backup_name": backup_name, "backup_path": backup_path, "errors": errors}
+    return {
+        "success": not errors,
+        "backup_name": backup_name,
+        "backup_path": backup_path,
+        "errors": errors,
+        "warnings": warnings,
+    }
 
 
 # Ensure hook directories exist

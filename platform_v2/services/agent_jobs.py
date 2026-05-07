@@ -3369,6 +3369,18 @@ def poll_outpost_heartbeat():
         logger.error("poll_outpost_heartbeat error: %s", exc)
 
 
+def _run_warden_download_cleanup():
+    """W.A.R.D.E.N. — clean up expired backup download archives nightly."""
+    try:
+        from services.backup_download_service import cleanup_expired
+
+        count = cleanup_expired()
+        if count > 0:
+            logger.info("W.A.R.D.E.N.: cleaned %d expired download archives", count)
+    except Exception as e:
+        logger.warning("W.A.R.D.E.N. download cleanup failed (non-fatal): %s", e)
+
+
 def register_agent_welfare_jobs(scheduler, flask_app):
     """Register all agent welfare/HR background jobs with the scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
@@ -3601,6 +3613,17 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         trigger=CronTrigger(day_of_week="sun", hour=4, minute=0, timezone="America/Toronto"),
         id="backup_retention_prune",
         name="Backup Manager: GFS Retention Prune",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # W.A.R.D.E.N. — nightly download archive cleanup 04:00, removes expired tar.gz files
+    scheduler.add_job(
+        _run_warden_download_cleanup,
+        trigger=CronTrigger(hour=4, minute=0, timezone="America/Toronto"),
+        id="warden_download_cleanup",
+        name="W.A.R.D.E.N.: Nightly Download Archive Cleanup",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

@@ -898,12 +898,62 @@
             previewBtn.onclick = function() { previewRestore(backup.name); };
             actionsDiv.appendChild(previewBtn);
 
-            // Download button
+            // Download button — async state machine
             const downloadBtn = document.createElement('button');
-            downloadBtn.className = 'btn btn-cyan';
-            downloadBtn.textContent = 'Download';
-            downloadBtn.title = 'Download as tar.gz for off-site DRP';
-            downloadBtn.onclick = function() { downloadBackup(backup.name); };
+            downloadBtn.dataset.backupName = backup.name;
+            downloadBtn.dataset.downloadState = 'idle';
+            downloadBtn.dataset.jobId = '';
+            const _setDlState = (btn, state, jobId) => {
+                btn.dataset.downloadState = state;
+                btn.dataset.jobId = jobId || '';
+                if (state === 'idle') {
+                    btn.className = 'btn btn-cyan';
+                    btn.textContent = 'Download';
+                    btn.disabled = false;
+                    btn.style.cssText = '';
+                } else if (state === 'preparing') {
+                    btn.className = 'btn';
+                    btn.textContent = 'Preparing…';
+                    btn.disabled = true;
+                    btn.style.cssText = 'background:#333;color:#888;border-color:#555;';
+                } else if (state === 'ready') {
+                    btn.className = 'btn';
+                    btn.textContent = 'Download Ready';
+                    btn.disabled = false;
+                    btn.style.cssText = 'background:#1a4a1a;color:#4ade80;border:1px solid #4ade80;';
+                }
+            };
+            downloadBtn.onclick = async function() {
+                const state = this.dataset.downloadState;
+                const bname = this.dataset.backupName;
+                const jid = this.dataset.jobId;
+                if (state === 'ready' && jid) {
+                    window.location.href = '/tools/backup-manager/api/download/retrieve/' + jid;
+                    const btn = this;
+                    setTimeout(() => _setDlState(btn, 'idle', ''), 3000);
+                    return;
+                }
+                if (state === 'preparing') return;
+                if (!confirm('Prepare "' + bname + '" for download?\n\nThis compresses the backup in the background (~30–90s). You can navigate away — the button will show "Download Ready" when complete.')) return;
+                _setDlState(this, 'preparing', '');
+                const btn = this;
+                try {
+                    const r = await fetch('/tools/backup-manager/api/download/prepare/' + encodeURIComponent(bname), {method:'POST',credentials:'same-origin'});
+                    const d = await r.json();
+                    if (!d.success) { showToast('Download prep failed: ' + d.error, 'error'); _setDlState(btn, 'idle', ''); return; }
+                    const jobId = d.job_id;
+                    if (d.status === 'ready') { _setDlState(btn, 'ready', jobId); return; }
+                    const poll = setInterval(async () => {
+                        try {
+                            const r2 = await fetch('/tools/backup-manager/api/download/status/' + jobId, {credentials:'same-origin'});
+                            const s = await r2.json();
+                            if (s.status === 'ready') { clearInterval(poll); _setDlState(btn, 'ready', jobId); showToast('Download ready!', 'success'); }
+                            else if (s.status === 'failed') { clearInterval(poll); showToast('Prep failed: ' + (s.error||'unknown'), 'error'); _setDlState(btn, 'idle', ''); }
+                        } catch(e) { /* network hiccup, keep polling */ }
+                    }, 5000);
+                } catch(e) { showToast('Error: ' + e.message, 'error'); _setDlState(btn, 'idle', ''); }
+            };
+            _setDlState(downloadBtn, 'idle', '');
             actionsDiv.appendChild(downloadBtn);
 
             // Set Current button (only for non-current builds with a build number)
@@ -1019,6 +1069,8 @@
         }
     }
 
+    // DEPRECATED: downloadBackup() replaced by async state machine above (Task 4 async-backup-download).
+    // Kept in place to avoid breaking any stale references. No longer called by the Download button.
     function downloadBackup(name) {
         window.location.href = '/tools/backup-manager/download/' + encodeURIComponent(name);
     }

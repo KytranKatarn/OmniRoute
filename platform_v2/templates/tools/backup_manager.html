@@ -2054,8 +2054,17 @@
             const ageSpan = document.createElement('span');
             ageSpan.className = 'backup-age';
             if (s.last_backup_at) {
-                const days = Math.floor((Date.now() - new Date(s.last_backup_at).getTime()) / 86400000);
-                ageSpan.textContent = days === 0 ? 'today' : days + 'd ago';
+                const ts = s.last_backup_at.endsWith('Z') ? s.last_backup_at : s.last_backup_at + 'Z';
+                const ageMs = Date.now() - new Date(ts).getTime();
+                const mins = Math.floor(ageMs / 60000);
+                const hours = Math.floor(ageMs / 3600000);
+                const days = Math.floor(ageMs / 86400000);
+                let ageText;
+                if (mins < 2) ageText = 'just now';
+                else if (mins < 60) ageText = mins + 'm ago';
+                else if (hours < 24) ageText = hours + 'h ago';
+                else ageText = days + 'd ago';
+                ageSpan.textContent = ageText;
                 ageSpan.classList.add(days < 7 ? 'recent' : 'stale');
             } else {
                 ageSpan.textContent = 'never';
@@ -2105,7 +2114,7 @@
         if (!el) return;
         const never = standalones.filter(s => !s.last_backup_at).length;
         const stale = standalones.filter(s => s.last_backup_at &&
-            (Date.now() - new Date(s.last_backup_at).getTime()) > 7 * 86400000).length;
+            (Date.now() - new Date(s.last_backup_at.endsWith('Z') ? s.last_backup_at : s.last_backup_at + 'Z').getTime()) > 7 * 86400000).length;
 
         el.textContent = '';
         const frag = document.createDocumentFragment();

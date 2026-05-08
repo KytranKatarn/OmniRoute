@@ -9,7 +9,7 @@
         agentTarget: 'R.E.S.O.L.V.E.',
         label: 'R.E.S.O.L.V.E.',
         icon: '🤝',
-        accentColor: '#7c3aed',
+        accentColor: '#ef4444',
         moduleKey: 'account_center',
         expandUrl: '/tools/department-hq',
         portraitUrl: null,

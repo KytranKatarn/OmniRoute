@@ -44,16 +44,16 @@
     <div class="account-center-content">
             <!-- OVERVIEW Tab -->
             <div class="tab-content active" id="tab-overview">
-                <div style="--frame-color: var(--archie-cyan); --frame-rgb: 239,68,68; margin-bottom: 20px;">
+                <div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
                     <div class="lcars-frame" style="display:flex !important; align-items:stretch !important;">
                         <div class="lcars-sidebar" style="display:flex !important; flex-direction:column !important; flex-shrink:0 !important; width:56px !important; gap:4px !important;">
-                            <div style="height:52px !important; background:var(--archie-cyan) !important; border-radius:20px 0 0 0 !important; flex-shrink:0 !important;"></div>
-                            <div style="height:28px !important; border-radius:0 8px 8px 0 !important; background:var(--archie-cyan) !important; flex-shrink:0 !important;"></div>
+                            <div style="height:52px !important; background:#ef4444 !important; border-radius:20px 0 0 0 !important; flex-shrink:0 !important;"></div>
+                            <div style="height:28px !important; border-radius:0 8px 8px 0 !important; background:#ef4444 !important; flex-shrink:0 !important;"></div>
                             <div style="flex:1 !important; background:rgba(0,255,255,0.1) !important; border-radius:0 8px 8px 0 !important; min-height:20px !important;"></div>
-                            <div style="height:36px !important; background:var(--archie-cyan) !important; border-radius:0 0 0 20px !important; flex-shrink:0 !important;"></div>
+                            <div style="height:36px !important; background:#ef4444 !important; border-radius:0 0 0 20px !important; flex-shrink:0 !important;"></div>
                         </div>
                         <div style="flex:1 !important; display:flex !important; flex-direction:column !important; margin-left:8px !important; min-width:0 !important;">
-                            <div style="height:44px !important; background:var(--archie-cyan) !important; border-radius:0 20px 20px 0 !important; display:flex !important; align-items:center !important; padding:0 16px !important; flex-shrink:0 !important;">
+                            <div style="height:44px !important; background:#ef4444 !important; border-radius:0 20px 20px 0 !important; display:flex !important; align-items:center !important; padding:0 16px !important; flex-shrink:0 !important;">
                                 <span style="font-family:'Antonio',sans-serif !important; font-size:0.85rem !important; font-weight:500 !important; letter-spacing:2px !important; text-transform:uppercase !important; color:var(--archie-bg-primary) !important;">PLATFORM ACCESS OVERVIEW</span>
                             </div>
                             <div style="flex:1 !important; padding:20px !important;">
@@ -61,7 +61,7 @@
                                 <!-- Quick Stats -->
                                 <div id="overview-stats-row" style="display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:20px;">
                                     <div style="background:var(--archie-bg-secondary); border:1px solid rgba(239,68,68,0.2); border-radius:10px; padding:16px; text-align:center;">
-                                        <div style="font-family:Antonio,sans-serif; font-size:2rem; color:var(--archie-cyan);" id="ov-active">—</div>
+                                        <div style="font-family:Antonio,sans-serif; font-size:2rem; color:#ef4444;" id="ov-active">—</div>
                                         <div style="font-size:0.75rem; color:var(--archie-text-secondary); text-transform:uppercase; letter-spacing:1px;">Active Accounts</div>
                                     </div>
                                     <div style="background:var(--archie-bg-secondary); border:1px solid rgba(239,68,68,0.2); border-radius:10px; padding:16px; text-align:center;">
@@ -108,7 +108,7 @@
                                 </div>
 
                             </div>
-                            <div style="height:6px !important; background:var(--archie-cyan) !important; border-radius:0 0 20px 0 !important; flex-shrink:0 !important;"></div>
+                            <div style="height:6px !important; background:#ef4444 !important; border-radius:0 0 20px 0 !important; flex-shrink:0 !important;"></div>
                         </div>
                     </div>
                 </div>
@@ -156,8 +156,8 @@
                         <input type="text" id="search-users" class="form-input" placeholder="Search users..." style="flex: 1; min-width: 120px;">
                     </div>
                     <button class="btn btn-primary btn-sm" data-action="showAddUserModal" style="white-space: nowrap;">+ ADD USER</button>
-                    <button class="btn btn-sm" onclick="document.getElementById('inviteModal').classList.add('active')" style="white-space: nowrap; background: #7c3aed; color: #fff; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer;">✉ INVITE</button>
-                    <button class="btn btn-sm" onclick="acLoadInvites()" style="white-space: nowrap; background: rgba(124,58,237,0.15); color: #ef4444; border: 1px solid #7c3aed; padding: 6px 14px; border-radius: 4px; cursor: pointer;">PENDING INVITES</button>
+                    <button class="btn btn-sm" onclick="document.getElementById('inviteModal').classList.add('active')" style="white-space: nowrap; background: #ef4444; color: #fff; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer;">✉ INVITE</button>
+                    <button class="btn btn-sm" onclick="acLoadInvites()" style="white-space: nowrap; background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid #ef4444; padding: 6px 14px; border-radius: 4px; cursor: pointer;">PENDING INVITES</button>
                 </div>
 
                 <!-- Pending Invites Table (hidden by default) -->

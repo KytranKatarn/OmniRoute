@@ -176,6 +176,75 @@ def _inject_warden_action(user_msg: str, agent_resp: str) -> str:
     return agent_resp
 
 
+def _inject_resolve_action(user_msg: str, agent_resp: str) -> str:
+    """Post-process R.E.S.O.L.V.E. response: inject [ACTION] block for Account Center actions."""
+    import json as _json
+
+    resp_lower = agent_resp.lower()
+    user_lower = user_msg.lower()
+
+    if "[action]" in resp_lower or "⟦action⟧" in resp_lower:
+        return agent_resp
+
+    if user_msg.strip().startswith("[Action confirmed:"):
+        return agent_resp
+
+    action_signal = any(
+        kw in resp_lower
+        for kw in ["will", "can", "invite", "send", "lock", "unlock", "revoke", "reset", "proceed", "create", "action"]
+    )
+    if not action_signal:
+        return agent_resp
+
+    action = None
+    if any(kw in user_lower for kw in ["invite user", "send invite", "add user", "invite someone", "new invite"]):
+        action = {
+            "type": "invite_user",
+            "label": "Send User Invite",
+            "confirm": "Open the invite dialog to add a new user to the platform",
+            "route": "POST /tools/account-center/api/invites/send",
+            "payload": {},
+        }
+    elif any(
+        kw in user_lower for kw in ["lock account", "lock user", "disable user", "suspend user", "disable account"]
+    ):
+        action = {
+            "type": "lock_account",
+            "label": "Lock Account",
+            "confirm": "Lock this user account — they will not be able to log in",
+            "route": "POST /tools/account-center/api/users/lock",
+            "payload": {},
+        }
+    elif any(kw in user_lower for kw in ["unlock account", "unlock user", "re-enable", "reenable", "restore access"]):
+        action = {
+            "type": "unlock_account",
+            "label": "Unlock Account",
+            "confirm": "Unlock this user account and restore login access",
+            "route": "POST /tools/account-center/api/users/unlock",
+            "payload": {},
+        }
+    elif any(kw in user_lower for kw in ["revoke api key", "revoke key", "delete api key", "disable key"]):
+        action = {
+            "type": "revoke_api_key",
+            "label": "Revoke API Key",
+            "confirm": "Revoke this API key — it will stop working immediately",
+            "route": "DELETE /tools/account-center/api/keys/revoke",
+            "payload": {},
+        }
+    elif any(kw in user_lower for kw in ["revoke session", "end session", "kick user", "log out user", "force logout"]):
+        action = {
+            "type": "revoke_session",
+            "label": "Revoke Session",
+            "confirm": "Force logout this user session immediately",
+            "route": "DELETE /tools/account-center/api/sessions/revoke",
+            "payload": {},
+        }
+
+    if action:
+        return agent_resp + f"\n\n[ACTION]{_json.dumps(action)}[/ACTION]"
+    return agent_resp
+
+
 def _serialize_datetime(obj):
     """Convert datetime fields in a dict to ISO-8601 strings."""
     if obj is None:
@@ -294,7 +363,7 @@ def register_routes(bp, admin_required):
             title_prefix = f"[This conversation is about: {conv['title']}]\n\n"
         contextual_message = f"{title_prefix}{conv_context}{message}" if (title_prefix or conv_context) else message
 
-        # Inject live briefing for every W.A.R.D.E.N. message so he always knows the dept state
+        # Inject live briefing so agents always know their module's current state
         if effective_target == "W.A.R.D.E.N.":
             try:
                 from tools.archie_chat.warden_briefing import _build_warden_briefing
@@ -302,8 +371,15 @@ def register_routes(bp, admin_required):
                 contextual_message = _build_warden_briefing() + contextual_message
             except Exception as _be:
                 log.warning("W.A.R.D.E.N. briefing failed (non-fatal): %s", _be)
-            # Hard language enforcement at end of context — smaller models attend to recent tokens most
             contextual_message += "\n\n[MANDATORY: Your response MUST be written in English only. Do not use German, Portuguese, French, or any other language. English only.]"
+        elif effective_target == "R.E.S.O.L.V.E.":
+            try:
+                from tools.archie_chat.account_center_briefing import _build_account_center_briefing
+
+                contextual_message = _build_account_center_briefing() + contextual_message
+            except Exception as _be:
+                log.warning("R.E.S.O.L.V.E. briefing failed (non-fatal): %s", _be)
+            contextual_message += "\n\n[MANDATORY: Respond in English only. You are R.E.S.O.L.V.E., the Account Center support agent. Be helpful, clear, and suggest relevant actions when appropriate.]"
 
         # Call orchestration engine
         try:
@@ -345,11 +421,13 @@ def register_routes(bp, admin_required):
 
         duration_ms = int((time.time() - start) * 1000)
 
-        # Post-process W.A.R.D.E.N. responses: inject action block when model describes an action
-        # but doesn't produce structured output (qwen2.5:7b limitation)
+        # Post-process agent responses: inject action block when model describes an action
+        # but doesn't produce structured output (small model limitation)
         assistant_response = result.response
         if effective_target == "W.A.R.D.E.N." and result.success:
             assistant_response = _inject_warden_action(message, assistant_response)
+        elif effective_target == "R.E.S.O.L.V.E." and result.success:
+            assistant_response = _inject_resolve_action(message, assistant_response)
 
         # Save assistant message
         governance_dicts = (

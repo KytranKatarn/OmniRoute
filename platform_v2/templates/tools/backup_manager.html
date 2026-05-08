@@ -1027,6 +1027,7 @@
             else if (backupType === 'critical') { typeBadgeSpan.classList.add('badge-critical'); typeBadgeSpan.textContent = '🛡️'; typeBadgeSpan.title = 'CRITICAL'; }
             else if (backupType === 'database') { typeBadgeSpan.classList.add('badge-database'); typeBadgeSpan.textContent = '🧠'; typeBadgeSpan.title = 'DATABASE'; }
             else if (backupType === 'custom') { typeBadgeSpan.classList.add('badge-custom'); typeBadgeSpan.textContent = 'CUSTOM'; }
+            else if (backupType === 'backup') { typeBadgeSpan.style.cssText += 'background:rgba(107,114,128,0.2);color:#9ca3af;border:1px solid #6b7280;'; typeBadgeSpan.textContent = '🔄 AUTO'; typeBadgeSpan.title = 'AUTOMATED'; }
             else { typeBadgeSpan.classList.add('badge-legacy'); typeBadgeSpan.textContent = 'LEGACY'; }
             titleDiv.appendChild(typeBadgeSpan);
 
@@ -3570,7 +3571,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 agentTarget: 'W.A.R.D.E.N.',
                 label: 'W.A.R.D.E.N.',
                 icon: '🛡',
-                portraitUrl: portraitUrl || null
+                portraitUrl: portraitUrl || null,
+                accentColor: '#ef4444',
+                moduleKey: 'backup_manager',
+                expandUrl: '/tools/department-hq'
             });
         }
         doApply();

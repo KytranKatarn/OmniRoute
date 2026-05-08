@@ -1113,6 +1113,40 @@ class OrchestrationEngine:
         agent = None
         source = "default"
 
+        # Check for direct agent override from agent_target — honour it before any routing
+        for step in steps:
+            if step.data and "agent_override" in step.data:
+                override_name = step.data["agent_override"]
+                try:
+                    _conn = get_db()
+                    _cur = _conn.cursor(cursor_factory=RealDictCursor)
+                    _cur.execute(
+                        """
+                        SELECT a.id as agent_id, a.name, a.department,
+                               a.worker_type, a.model, a.tier
+                        FROM agents a
+                        WHERE a.name = %s AND a.status = 'active'
+                        LIMIT 1
+                        """,
+                        (override_name,),
+                    )
+                    _row = _cur.fetchone()
+                    _cur.close()
+                    _conn.close()
+                    if _row:
+                        steps.append(
+                            ThinkingStep(
+                                step_type=StepType.AGENT_SELECT.value,
+                                label="Agent Override Applied",
+                                data={"agent": _row["name"], "source": "agent_target"},
+                                duration_ms=int((time.time() - t0) * 1000),
+                            )
+                        )
+                        return dict(_row)
+                except Exception:
+                    pass
+                break  # only one override expected
+
         intent_type = intent.get("type", "conversation")
 
         # Map intent to department names
@@ -1410,6 +1444,7 @@ class OrchestrationEngine:
                 user_id=user_id,
                 timeout=120,
                 project_id=project_id,
+                prefer_agent=agent.get("name") if agent else None,
             )
             if result.success and result.response:
                 response_text = result.response

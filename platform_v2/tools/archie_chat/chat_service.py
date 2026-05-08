@@ -20,66 +20,55 @@ from datetime import datetime, timezone
 
 from database import get_db_cursor
 
+
 # Tiers that grant chat access
-ALLOWED_TIERS = {"kytran", "enterprise", "pro"}
-
-
 def check_chat_access(user_id):
-    """Check if user's subscription tier allows chat access.
+    """Check if user has admin access to chat.
 
-    Admin users always get access. Otherwise checks subscription tier.
+    Only admin users are allowed. Non-admins are denied regardless of tier.
 
     Returns:
         dict: {"allowed": bool, "tier": str or None, "reason": str}
     """
     with get_db_cursor(commit=False) as (conn, cur):
-        # Check if user is admin (always allowed)
         cur.execute("SELECT is_admin FROM users WHERE id = %s", (user_id,))
         user_row = cur.fetchone()
         if user_row and user_row["is_admin"]:
-            return {"allowed": True, "tier": "kytran", "reason": "Admin access"}
+            return {"allowed": True, "tier": "admin", "reason": "Admin access"}
 
-        # Check subscription tier (status column, not is_active)
-        cur.execute(
-            """
-            SELECT st.name as tier_name
-            FROM users u
-            JOIN user_subscriptions us ON us.user_id = u.id AND us.status = 'active'
-            JOIN subscription_tiers st ON st.id = us.tier_id
-            WHERE u.id = %s
-            ORDER BY us.created_at DESC LIMIT 1
-            """,
-            (user_id,),
-        )
-        row = cur.fetchone()
-
-    if not row:
-        return {
-            "allowed": False,
-            "tier": None,
-            "reason": "No active subscription found",
-        }
-
-    tier = row["tier_name"].lower()
-    if tier in ALLOWED_TIERS:
-        return {"allowed": True, "tier": tier, "reason": "OK"}
-
-    return {
-        "allowed": False,
-        "tier": tier,
-        "reason": f"Tier '{tier}' does not include chat access",
-    }
+    return {"allowed": False, "tier": None, "reason": "Admin access required"}
 
 
 def get_user_team_id(user_id):
-    """Returns team_id=1 for Kytran tier users, None for SaaS users.
-
-    Kytran tier users share conversations via team_id=1.
-    """
+    """Returns team_id=1 for admin users (shared conversation space), None otherwise."""
     access = check_chat_access(user_id)
-    if access["allowed"] and access["tier"] == "kytran":
+    if access["allowed"]:
         return 1
     return None
+
+
+def find_team_channel(team_id, agent_target, module_key):
+    """Return the oldest non-archived team conversation for a module channel.
+
+    Returns the first-created conversation so all admins always land in the same
+    thread regardless of who created it.
+    """
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            """
+            SELECT id, conversation_uuid, title, agent_target, created_at, updated_at
+            FROM unified_conversations
+            WHERE team_id = %s
+              AND agent_target = %s
+              AND is_archived = FALSE
+              AND title ILIKE %s
+            ORDER BY created_at ASC
+            LIMIT 1
+            """,
+            (team_id, agent_target, f"%{module_key}%"),
+        )
+        row = cur.fetchone()
+    return dict(row) if row else None
 
 
 def create_conversation(user_id, team_id=None, title=None, agent_target=None):
@@ -215,6 +204,7 @@ def save_message(
     governance_events=None,
     duration_ms=None,
     token_count=None,
+    extra_metadata=None,
 ):
     """Save a chat message and update the conversation timestamp.
 
@@ -257,6 +247,8 @@ def save_message(
         metadata["thinking_steps"] = thinking_steps
     if governance_events is not None:
         metadata["governance_events"] = governance_events
+    if extra_metadata:
+        metadata.update(extra_metadata)
 
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(

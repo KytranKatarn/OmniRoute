@@ -77,10 +77,25 @@ def register_operations_routes(bp, admin_required):
                            build_number, platform_version
                     FROM backup_log
                     ORDER BY created_at DESC
-                    LIMIT 200
+                    LIMIT 500
                     """,
                 )
                 rows = cur.fetchall()
+
+            def _is_top_level(file_path, backup_type=None):
+                # Standalone entries always show (they live at /backups/standalones/<product>/<name>)
+                if backup_type == "standalone":
+                    return True
+                if not file_path:
+                    return True
+                p = file_path.rstrip("/")
+                for root in ("/backups/", "/mnt/data2/backups/", "/mnt/archie_brain/backups/"):
+                    if p.startswith(root):
+                        # Sub-components have an additional slash after the backup dir name
+                        return "/" not in p[len(root) :]
+                return True
+
+            rows = [r for r in rows if _is_top_level(r.get("file_path") or "", r.get("backup_type"))]
 
             for row in rows:
                 # Derive a human-readable name from file_path (last path component)
@@ -103,7 +118,7 @@ def register_operations_routes(bp, admin_required):
                         "name": name,
                         "timestamp": timestamp,
                         # Type & status
-                        "backup_type": row.get("backup_type") or row.get("component") or "backup",
+                        "backup_type": row.get("backup_type") or "backup",
                         "component": row.get("component"),
                         "tier": row.get("tier"),
                         "status": row.get("status"),

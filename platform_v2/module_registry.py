@@ -419,7 +419,6 @@ MODULES: List[ModuleDefinition] = [
         minimum_tier="staff",
         enabled=True,
         health_check=archie_chat_health_check,
-        external_url="https://archie.kytranempowerment.com",
         priority=1,
         tags=["ai", "assistant", "chat", "voice", "vision", "ai-command"],
     ),

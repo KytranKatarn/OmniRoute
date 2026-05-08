@@ -19,6 +19,7 @@ from .auth_middleware import (
 )
 from .chat_service import (
     check_chat_access,
+    find_team_channel,
     get_user_team_id,
     create_conversation,
     get_conversations,
@@ -97,9 +98,78 @@ STATIONS = [
 ]
 
 
+# Display name + portrait for known agent service accounts.
+# Portraits are canonical_image_path from agent_portraits table.
+_AGENT_ACCOUNTS = {
+    "probe": {
+        "display_name": "P.R.O.B.E.",
+        "portrait": "/static/media/images/2026-04-20/0f7137d2-895.png",
+    },
+    "archie": {
+        "display_name": "A.R.C.H.I.E.",
+        "portrait": "/static/media/images/2026-04-30/2f24902c-66b.png",
+    },
+    "claude": {
+        "display_name": "Claude",
+        "portrait": None,  # Upload Claude logo to profile_picture on claude@ user
+    },
+    "kytran": {"display_name": "Kytran", "portrait": None},
+}
+
+
 def _error(code, message, status=400):
     """Return a standardised error JSON response."""
     return jsonify({"success": False, "error": {"code": code, "message": message}}), status
+
+
+def _inject_warden_action(user_msg: str, agent_resp: str) -> str:
+    """Post-process W.A.R.D.E.N. response: inject [ACTION] block when model describes an action."""
+    import json as _json
+
+    resp_lower = agent_resp.lower()
+    user_lower = user_msg.lower()
+
+    # Already has a structured action block — leave it alone
+    if "[action]" in resp_lower or "⟦action⟧" in resp_lower:
+        return agent_resp
+
+    # Only inject when response signals action intent
+    action_signal = any(
+        kw in resp_lower for kw in ["will", "run", "now", "prune", "cleanup", "proceed", "execute", "action"]
+    )
+    if not action_signal:
+        return agent_resp
+
+    # Match user request to a known action type
+    action = None
+    if any(kw in user_lower for kw in ["cleanup", "prune", "retention", "old backup"]):
+        action = {
+            "type": "run_cleanup",
+            "label": "Run Retention Cleanup",
+            "confirm": "Prune backups older than 90 days to reclaim disk space",
+            "route": "POST /tools/backup-manager/cleanup",
+            "payload": {},
+        }
+    elif any(kw in user_lower for kw in ["run backup", "start backup", "create backup", "full backup", "new backup"]):
+        action = {
+            "type": "run_backup",
+            "label": "Run Full Backup",
+            "confirm": "Start a full system backup now",
+            "route": "POST /tools/backup-manager/create",
+            "payload": {"backup_type": "full"},
+        }
+    elif any(kw in user_lower for kw in ["standalone backup", "backup standalone", "backup all standalone"]):
+        action = {
+            "type": "run_standalones",
+            "label": "Backup All Standalones",
+            "confirm": "Run backup for all standalone products",
+            "route": "POST /tools/backup-manager/api/standalones/backup",
+            "payload": {"run_all": True},
+        }
+
+    if action:
+        return agent_resp + f"\n\n[ACTION]{_json.dumps(action)}[/ACTION]"
+    return agent_resp
 
 
 def _serialize_datetime(obj):
@@ -159,8 +229,38 @@ def register_routes(bp, admin_required):
         else:
             conv = create_conversation(user_id, team_id=team_id, agent_target=agent_target)
 
-        # Save user message
-        user_msg = save_message(conv["id"], "user", message)
+        # Resolve sender display info for message identity
+        sender_username = user.get("username", "")
+        _acct = _AGENT_ACCOUNTS.get(sender_username, {})
+        sender_display_name = _acct.get("display_name") or sender_username
+        sender_portrait = _acct.get("portrait")
+        if not sender_portrait:
+            # Fall back to user profile picture
+            try:
+                from database import get_db_cursor as _gdc
+
+                with _gdc(commit=False) as (_c, _cur):
+                    _cur.execute(
+                        "SELECT profile_picture, oauth_picture FROM users WHERE id = %s",
+                        (user_id,),
+                    )
+                    _ur = _cur.fetchone()
+                    if _ur:
+                        sender_portrait = _ur.get("profile_picture") or _ur.get("oauth_picture")
+            except Exception:
+                pass
+
+        # Save user message — store display_name + portrait in metadata for history rendering
+        user_msg = save_message(
+            conv["id"],
+            "user",
+            message,
+            extra_metadata={
+                "sender_username": sender_username,
+                "sender_display_name": sender_display_name,
+                "sender_portrait": sender_portrait,
+            },
+        )
 
         # Auto-title from first message (only when conversation was just created)
         if not conversation_id_param:
@@ -184,6 +284,17 @@ def register_routes(bp, admin_required):
         if conv.get("title") and conversation_id_param:
             title_prefix = f"[This conversation is about: {conv['title']}]\n\n"
         contextual_message = f"{title_prefix}{conv_context}{message}" if (title_prefix or conv_context) else message
+
+        # Inject live briefing for every W.A.R.D.E.N. message so he always knows the dept state
+        if effective_target == "W.A.R.D.E.N.":
+            try:
+                from tools.archie_chat.warden_briefing import _build_warden_briefing
+
+                contextual_message = _build_warden_briefing() + contextual_message
+            except Exception as _be:
+                log.warning("W.A.R.D.E.N. briefing failed (non-fatal): %s", _be)
+            # Hard language enforcement at end of context — smaller models attend to recent tokens most
+            contextual_message += "\n\n[MANDATORY: Your response MUST be written in English only. Do not use German, Portuguese, French, or any other language. English only.]"
 
         # Call orchestration engine
         try:
@@ -225,6 +336,12 @@ def register_routes(bp, admin_required):
 
         duration_ms = int((time.time() - start) * 1000)
 
+        # Post-process W.A.R.D.E.N. responses: inject action block when model describes an action
+        # but doesn't produce structured output (qwen2.5:7b limitation)
+        assistant_response = result.response
+        if effective_target == "W.A.R.D.E.N." and result.success:
+            assistant_response = _inject_warden_action(message, assistant_response)
+
         # Save assistant message
         governance_dicts = (
             [
@@ -246,7 +363,7 @@ def register_routes(bp, admin_required):
         assistant_msg = save_message(
             conv["id"],
             "assistant",
-            result.response,
+            assistant_response,
             thinking_steps=thinking_dicts,
             agent_used=result.agent_used,
             model_used=result.model_used,
@@ -275,7 +392,7 @@ def register_routes(bp, admin_required):
             "success": True,
             "conversation_id": str(conv["conversation_uuid"]),
             "message_id": assistant_msg["id"],
-            "response": result.response,
+            "response": assistant_response,
             "agent": {
                 "name": result.agent_used,
                 "display_name": agent_display_name,
@@ -283,6 +400,11 @@ def register_routes(bp, admin_required):
             },
             "model_used": result.model_used,
             "duration_ms": duration_ms,
+            "sender": {
+                "username": sender_username,
+                "display_name": sender_display_name,
+                "portrait": sender_portrait,
+            },
         }
 
         if include_thinking and thinking_dicts:
@@ -405,7 +527,47 @@ def register_routes(bp, admin_required):
         )
 
     # ------------------------------------------------------------------
-    # 4. GET /api/v1/chat/conversations/<uuid>/messages — Get history
+    # 4. GET /api/v1/chat/channel — Find or create shared module channel
+    # ------------------------------------------------------------------
+    @bp.route("/api/v1/chat/channel", methods=["GET"])
+    @chat_auth_required
+    @require_scope("chat")
+    def get_or_create_channel():
+        """Return the shared admin conversation for a module+agent combination.
+
+        All admins who open the same module land in the same thread.
+        Creates the channel on first access.
+        """
+        user = get_chat_user()
+        user_id = user["id"]
+        module_key = (request.args.get("module") or "").strip()
+        agent_target = (request.args.get("agent") or "W.A.R.D.E.N.").strip()
+
+        if not module_key:
+            return _error("VALIDATION_ERROR", "module parameter required", 400)
+
+        team_id = get_user_team_id(user_id)
+        if team_id is None:
+            return _error("FORBIDDEN", "Shared channels require admin access", 403)
+
+        conv = find_team_channel(team_id, agent_target, module_key)
+        if not conv:
+            title = f"{agent_target} — {module_key.replace('_', ' ').title()} Channel"
+            conv = create_conversation(user_id, team_id=team_id, title=title, agent_target=agent_target)
+
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "conversation_uuid": str(conv["conversation_uuid"]),
+                    "title": conv.get("title", ""),
+                }
+            ),
+            200,
+        )
+
+    # ------------------------------------------------------------------
+    # 5. GET /api/v1/chat/conversations/<uuid>/messages — Get history
     # ------------------------------------------------------------------
     @bp.route("/api/v1/chat/conversations/<string:conv_uuid>/messages", methods=["GET"])
     @chat_auth_required

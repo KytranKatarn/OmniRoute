@@ -9,6 +9,9 @@ class ArchieOverlay {
         this.isExpanded = false;
         this.messages = [];
         this.isLoading = false;
+        this.agentTarget = null;  // override to route to a specific agent
+        this.agentLabel = 'A.R.C.H.I.E.';
+        this.agentIcon = '\u{1F4AC}';
     }
 
     init() {
@@ -21,8 +24,8 @@ class ArchieOverlay {
         // Floating bubble
         this.bubble = document.createElement('button');
         this.bubble.className = 'ac-overlay-bubble';
-        this.bubble.textContent = '\u{1F4AC}';
-        this.bubble.title = 'Chat with A.R.C.H.I.E.';
+        this.bubble.textContent = this.agentIcon;
+        this.bubble.title = 'Chat with ' + this.agentLabel;
         document.body.appendChild(this.bubble);
 
         // Chat window
@@ -36,12 +39,19 @@ class ArchieOverlay {
         const headerLeft = document.createElement('div');
         headerLeft.style.cssText = 'display:flex;align-items:center;gap:8px;';
 
+        // Portrait thumbnail (hidden until configure() sets portraitUrl)
+        this.portraitEl = document.createElement('img');
+        this.portraitEl.style.cssText = 'width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid #00e5ff44;display:none;';
+        headerLeft.appendChild(this.portraitEl);
+
         const statusDot = document.createElement('span');
         statusDot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#00e5ff;display:inline-block;';
+        this._statusDot = statusDot;
 
         const label = document.createElement('span');
         label.style.cssText = "font-family:'Orbitron',sans-serif;font-size:0.85rem;color:#00e5ff;font-weight:700;letter-spacing:1px;";
-        label.textContent = 'A.R.C.H.I.E.';
+        label.textContent = this.agentLabel;
+        this._headerLabel = label;
 
         headerLeft.appendChild(statusDot);
         headerLeft.appendChild(label);
@@ -109,6 +119,34 @@ class ArchieOverlay {
         });
     }
 
+    configure({ agentTarget, label, icon, portraitUrl } = {}) {
+        if (agentTarget) this.agentTarget = agentTarget;
+        if (label) {
+            this.agentLabel = label;
+            if (this._headerLabel) this._headerLabel.textContent = label;
+            if (this.bubble) this.bubble.title = 'Chat with ' + label;
+            if (this.inputEl) this.inputEl.placeholder = 'Message ' + label + ' ...';
+        }
+        if (icon) {
+            this.agentIcon = icon;
+            if (this.bubble && !portraitUrl) this.bubble.textContent = icon;
+        }
+        if (portraitUrl && this.portraitEl) {
+            this.portraitEl.src = portraitUrl;
+            this.portraitEl.style.display = 'block';
+            if (this._statusDot) this._statusDot.style.display = 'none';
+            if (this.bubble) {
+                this.bubble.textContent = '';
+                const img = document.createElement('img');
+                img.src = portraitUrl;
+                img.style.cssText = 'width:28px;height:28px;border-radius:50%;object-fit:cover;';
+                this.bubble.appendChild(img);
+            }
+        }
+        // Reset conversation when reconfiguring agent
+        this.conversationId = null;
+    }
+
     _restoreState() {
         const state = localStorage.getItem('archie-overlay-state');
         if (state === 'expanded') {
@@ -167,6 +205,9 @@ class ArchieOverlay {
             const body = { message: text, include_thinking: false };
             if (this.conversationId) {
                 body.conversation_id = this.conversationId;
+            }
+            if (this.agentTarget) {
+                body.agent_target = this.agentTarget;
             }
 
             const resp = await fetch('/tools/archie-chat/api/v1/chat/message', {

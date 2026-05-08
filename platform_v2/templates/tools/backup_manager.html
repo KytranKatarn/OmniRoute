@@ -176,11 +176,6 @@
                                 </div>
                             </div>
                             <div style="flex: 1 !important; padding: 16px !important;">
-                                <div style="margin-bottom: var(--archie-space-5);">
-                                    <h3 class="section-header" style="color: #fca5a5;"><span data-i18n="backup_manager.google_drive_cloud_backup">Google Drive Cloud Backup</span></h3>
-                                    <p class="section-description"><span data-i18n="backup_manager.encrypted_cloud_backup_storage_using_google_drive">Encrypted cloud backup storage using Google Drive with AES-256-GCM encryption.</span></p>
-                                </div>
-
                                 <!-- Cloud Setup / Status Panel -->
                                 <div class="cloud-setup-panel" id="cloudSetupPanel">
                                     <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.checking_cloud_status">Checking cloud status...</span></p></div>
@@ -300,7 +295,11 @@
                                 <div class="hooks-grid">
                                     <!-- Pre Hooks -->
                                     <div class="retention-info" style="border-color: #fca5a5;">
-                                        <h4 style="color: #fca5a5; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.pre_backup_hooks">Pre-Backup Hooks</span></h4>
+                                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--archie-space-3);">
+                                            <h4 style="color: #fca5a5;"><span data-i18n="backup_manager.pre_backup_hooks">Pre-Backup Hooks</span></h4>
+                                            <button class="btn" style="font-size:0.75rem;" onclick="document.getElementById('pre-hook-upload').click()">UPLOAD SCRIPT</button>
+                                            <input type="file" id="pre-hook-upload" accept=".sh,.py,.bash" style="display:none" onchange="uploadHook('pre', this)">
+                                        </div>
                                         <p style="font-size: var(--archie-text-sm); color: var(--archie-text-secondary); margin-bottom: var(--archie-space-3);">
                                             <span data-i18n="backup_manager.pre_hooks_description">Run before backup starts. If any hook fails, the backup is aborted.</span>
                                         </p>
@@ -311,7 +310,11 @@
 
                                     <!-- Post Hooks -->
                                     <div class="retention-info" style="border-color: #dc2626;">
-                                        <h4 style="color: #dc2626; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.post_backup_hooks">Post-Backup Hooks</span></h4>
+                                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--archie-space-3);">
+                                            <h4 style="color: #dc2626;"><span data-i18n="backup_manager.post_backup_hooks">Post-Backup Hooks</span></h4>
+                                            <button class="btn" style="font-size:0.75rem;" onclick="document.getElementById('post-hook-upload').click()">UPLOAD SCRIPT</button>
+                                            <input type="file" id="post-hook-upload" accept=".sh,.py,.bash" style="display:none" onchange="uploadHook('post', this)">
+                                        </div>
                                         <p style="font-size: var(--archie-text-sm); color: var(--archie-text-secondary); margin-bottom: var(--archie-space-3);">
                                             <span data-i18n="backup_manager.post_hooks_description">Run after backup completes. Failures are logged but don't fail the backup.</span>
                                         </p>
@@ -421,6 +424,9 @@
                                         <button class="btn btn-purple" onclick="deselectAllModules()"><span data-i18n="backup_manager.none">None</span></button>
                                         <span class="stat"><strong id="selectedModuleCount">0</strong><span data-i18n="backup_manager.selected"> selected</span></span>
                                         <span class="stat"><span class="size-val" id="moduleEstimatedSize"><span data-i18n="backup_manager.0_kb">0 KB</span></span></span>
+                                        <input type="text" id="moduleSearchInput" placeholder="Filter modules…"
+                                               oninput="filterModules(this.value)"
+                                               style="padding:4px 8px;font-size:0.78rem;background:var(--archie-bg-deep);border:1px solid rgba(239,68,68,0.3);border-radius:4px;color:var(--archie-text-primary);width:140px;">
                                     </div>
                                     <div class="toolbar-right">
                                         <button class="btn btn-purple" onclick="createModuleBackup()"><span data-i18n="backup_manager.backup_selected">Backup Selected</span></button>
@@ -759,6 +765,75 @@
             <div class="bm-footer">
                 <button type="button" class="btn btn-ghost" onclick="_bmConfirmResolve && _bmConfirmResolve(false)">Cancel</button>
                 <button type="button" id="bm-confirm-ok" class="btn btn-danger" onclick="_bmConfirmResolve && _bmConfirmResolve(true)">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="bm-overlay" id="bm-passphrase-modal">
+    <div class="bm-shell" style="--bm-accent: #3b82f6; --bm-accent-rgb: 59,130,246; max-width: 400px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
+        </div>
+        <div class="bm-content">
+            <div class="bm-header">
+                <h3>CLOUD PASSPHRASE</h3>
+                <button class="bm-close" onclick="_passphraseResolve && _passphraseResolve(null)">×</button>
+            </div>
+            <div class="bm-body">
+                <p style="color:var(--archie-text-secondary);font-size:0.85rem;margin-bottom:12px;">Required for Google Drive encryption. AES-256-GCM.</p>
+                <input type="password" id="bm-passphrase-input" placeholder="Enter encryption passphrase"
+                       autocomplete="off"
+                       style="width:100%;padding:8px 12px;background:var(--archie-bg-deep);border:1px solid rgba(59,130,246,0.4);border-radius:6px;color:var(--archie-text-primary);font-size:0.9rem;"
+                       onkeydown="if(event.key==='Enter') _passphraseResolve && _passphraseResolve(this.value.trim())">
+            </div>
+            <div class="bm-footer">
+                <button type="button" class="btn btn-ghost" onclick="_passphraseResolve && _passphraseResolve(null)">Cancel</button>
+                <button type="button" class="btn" style="border-color:#3b82f6;color:#3b82f6;" onclick="_passphraseResolve && _passphraseResolve(document.getElementById('bm-passphrase-input').value.trim())">UNLOCK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="bm-overlay" id="bm-add-webhook-modal">
+    <div class="bm-shell" style="--bm-accent: #ef4444; --bm-accent-rgb: 239,68,68; max-width: 460px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
+        </div>
+        <div class="bm-content">
+            <div class="bm-header">
+                <h3>ADD WEBHOOK</h3>
+                <button class="bm-close" onclick="document.getElementById('bm-add-webhook-modal').classList.remove('active')">×</button>
+            </div>
+            <div class="bm-body" style="display:flex;flex-direction:column;gap:14px;">
+                <div>
+                    <label style="font-size:0.75rem;letter-spacing:1px;color:var(--archie-text-secondary);text-transform:uppercase;">Webhook URL</label>
+                    <input type="url" id="bm-webhook-url" placeholder="https://example.com/webhook"
+                           style="width:100%;margin-top:6px;padding:8px 12px;background:var(--archie-bg-deep);border:1px solid rgba(239,68,68,0.4);border-radius:6px;color:var(--archie-text-primary);font-size:0.9rem;">
+                </div>
+                <div>
+                    <label style="font-size:0.75rem;letter-spacing:1px;color:var(--archie-text-secondary);text-transform:uppercase;">Events</label>
+                    <div style="display:flex;gap:16px;margin-top:8px;">
+                        <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer;">
+                            <input type="checkbox" id="bm-wh-backup-complete" checked> backup_complete
+                        </label>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer;">
+                            <input type="checkbox" id="bm-wh-backup-failed" checked> backup_failed
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="bm-footer">
+                <button type="button" class="btn btn-ghost" onclick="document.getElementById('bm-add-webhook-modal').classList.remove('active')">Cancel</button>
+                <button type="button" class="btn btn-red" onclick="_saveWebhook()">SAVE WEBHOOK</button>
             </div>
         </div>
     </div>
@@ -1220,7 +1295,8 @@
     async function createQuickBackup(backupType) {
         const description = document.getElementById('backupDescription').value || `Quick ${backupType} backup`;
 
-        if (!confirm(`Create ${backupType.toUpperCase()} backup?`)) return;
+        const ok = await showBmConfirm('CREATE BACKUP', [{ text: 'Create a ' + backupType.toUpperCase() + ' backup now?' }], 'CREATE', false);
+        if (!ok) return;
 
         showToast('Creating backup...', 'info');
 
@@ -1248,7 +1324,8 @@
 
     async function setCurrentBuild(buildNumber, platformVersion) {
         const _versionLabel = platformVersion ? 'v' + platformVersion + '.' + buildNumber : '#' + buildNumber;
-        if (!confirm('Set ' + _versionLabel + ' as current build?')) return;
+        const ok = await showBmConfirm('SET CURRENT BUILD', [{ text: 'Set ' + _versionLabel + ' as the active build? This will update the displayed current version.' }], 'SET', false);
+        if (!ok) return;
 
         try {
             const response = await fetch('/tools/backup-manager/set-current/' + buildNumber, {
@@ -1483,8 +1560,11 @@
             if (backup) {
                 const ago = timeAgo(backup.timestamp);
                 ageSpan.textContent = ago || 'backed up';
-                const parsedTs = backup.timestamp.replace(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$/, '$1-$2-$3T$4:$5:$6');
+                const parsedTs = backup.timestamp.replace(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$/, '$1-$2-$3T$4:$5:$6Z');
                 const d = Date.now() - new Date(parsedTs).getTime();
+                if (d < 86400000) { ageSpan.style.color = '#4ade80'; }          // <1d green
+                else if (d < 7 * 86400000) { ageSpan.style.color = '#f59e0b'; } // 1-7d amber
+                else { ageSpan.style.color = '#f87171'; }                        // >7d red
                 ageSpan.classList.add(d < 7 * 86400000 ? 'recent' : 'stale');
             } else {
                 ageSpan.textContent = 'never';
@@ -1507,6 +1587,13 @@
             }
 
             list.appendChild(row);
+        });
+    }
+
+    function filterModules(query) {
+        const q = query.toLowerCase();
+        document.querySelectorAll('#moduleGrid .module-row').forEach(row => {
+            row.style.display = row.dataset.module.includes(q) ? '' : 'none';
         });
     }
 
@@ -1734,7 +1821,7 @@
             // Build status text safely using DOM methods (no innerHTML with user data)
             el.textContent = '';
             const parts = [
-                ['Last prune: ', String(data.last_run || 'Never')],
+                ['Last prune: ', String(data.last_run || 'Never (first run pending)')],
                 ['Deleted: ', String(data.last_deleted_count || '0')],
                 ['Next: ', 'Sunday 04:00 EDT'],
             ];
@@ -1752,7 +1839,15 @@
 
     async function cleanupBackups(dryRun) {
         const action = dryRun ? 'preview' : 'run';
-        if (!dryRun && !confirm('This will permanently delete old backups. Continue?')) return;
+        if (!dryRun) {
+            const ok = await showBmConfirm(
+                'RUN CLEANUP',
+                [{ text: 'This will permanently delete old backups that fall outside the retention policy. This cannot be undone.' }],
+                'DELETE BACKUPS',
+                true
+            );
+            if (!ok) return;
+        }
 
         try {
             const response = await fetch('/tools/backup-manager/cleanup', {
@@ -1958,7 +2053,14 @@
     }
 
     async function deleteDeploymentPackage(packageName) {
-        if (!confirm(`Delete deployment package: ${packageName}?`)) return;
+        const ok = await showBmConfirm(
+            'DELETE PACKAGE',
+            [{ text: packageName, style: 'font-family:monospace;color:var(--archie-accent);' },
+             { text: 'Permanently delete this deployment package. This cannot be undone.' }],
+            'DELETE',
+            true
+        );
+        if (!ok) return;
 
         try {
             const response = await fetch('/tools/backup-manager/api/delete-deployment/' + encodeURIComponent(packageName), {
@@ -2048,7 +2150,7 @@
 
             const metaSpan = document.createElement('span');
             metaSpan.className = 'meta';
-            metaSpan.textContent = s.db_schema + ' schema · ' + (s.code_path_exists ? '✓ code' : '✗ missing');
+            metaSpan.textContent = (s.db_schema ? s.db_schema + ' schema' : 'own DB') + ' · ' + (s.code_path_exists ? '✓ code' : '✗ not mounted');
             row.appendChild(metaSpan);
 
             const ageSpan = document.createElement('span');
@@ -2064,6 +2166,11 @@
                 else if (mins < 60) ageText = mins + 'm ago';
                 else if (hours < 24) ageText = hours + 'h ago';
                 else ageText = days + 'd ago';
+                // partial = schema only (amber), success = full (green)
+                if (s.last_backup_status === 'partial') {
+                    ageText += ' ⚠';
+                    ageSpan.style.color = '#f59e0b';
+                }
                 ageSpan.textContent = ageText;
                 ageSpan.classList.add(days < 7 ? 'recent' : 'stale');
             } else {
@@ -2095,7 +2202,14 @@
         const names = Array.from(document.querySelectorAll('#standaloneGrid .module-row.selected'))
                            .map(r => r.dataset.name);
         if (!names.length) { showToast('Select at least one standalone', 'error'); return; }
-        if (!confirm('Backup ' + names.length + ' standalone(s)? This may take several minutes.')) return;
+        const ok = await showBmConfirm(
+            'BACKUP STANDALONES',
+            [{ text: names.length + ' standalone(s): ' + names.join(', '), style: 'font-family:monospace;color:var(--archie-accent);' },
+             { text: 'This runs in the background and may take several minutes.' }],
+            'BACKUP',
+            false
+        );
+        if (!ok) return;
         showToast('Starting backup of ' + names.length + ' standalone(s)…', 'info');
         try {
             const resp = await fetch('/tools/backup-manager/api/standalones/backup', {
@@ -2350,6 +2464,28 @@
     // HOOKS TAB
     // =====================================================================
 
+    async function uploadHook(hookType, input) {
+        const file = input.files[0];
+        if (!file) return;
+        input.value = '';
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const resp = await fetch('/tools/backup-manager/api/hooks/' + hookType, {
+                method: 'POST', credentials: 'same-origin', body: formData
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast(file.name + ' uploaded to ' + hookType + ' hooks', 'success');
+                loadHooks();
+            } else {
+                showToast('Upload failed: ' + data.error, 'error');
+            }
+        } catch (e) {
+            showToast('Error: ' + e.message, 'error');
+        }
+    }
+
     async function loadHooks() {
         try {
             const response = await fetch('/tools/backup-manager/api/hooks', { credentials: 'same-origin' });
@@ -2430,10 +2566,17 @@
     }
 
     async function deleteHook(hookType, hookName) {
-        const warning = hookType === 'pre'
-            ? 'WARNING: This is a pre-backup hook. Removing it may allow backups to proceed without safety checks.\n\nAre you sure you want to delete "' + hookName + '"?'
-            : 'Are you sure you want to delete the post-backup hook "' + hookName + '"?\n\nThis action cannot be undone.';
-        if (!confirm(warning)) return;
+        const msgs = hookType === 'pre'
+            ? [
+                { text: hookName, style: 'font-family:monospace;color:var(--archie-accent);' },
+                { text: 'WARNING: Removing a pre-backup hook may allow backups to proceed without safety checks.' }
+              ]
+            : [
+                { text: hookName, style: 'font-family:monospace;color:var(--archie-accent);' },
+                { text: 'This action cannot be undone.' }
+              ];
+        const ok = await showBmConfirm('REMOVE HOOK', msgs, 'REMOVE', true);
+        if (!ok) return;
 
         try {
             const response = await fetch('/tools/backup-manager/api/hooks/' + hookType + '/' + encodeURIComponent(hookName), {
@@ -2538,7 +2681,13 @@
     }
 
     async function deleteWebhook(webhookId) {
-        if (!confirm('Delete this webhook?')) return;
+        const ok = await showBmConfirm(
+            'DELETE WEBHOOK',
+            [{ text: 'Remove this webhook? It will no longer receive backup event notifications.' }],
+            'DELETE',
+            true
+        );
+        if (!ok) return;
 
         try {
             const response = await fetch('/tools/backup-manager/api/webhooks/' + webhookId, {
@@ -2559,19 +2708,31 @@
     }
 
     function showAddWebhookModal() {
-        const url = prompt('Enter webhook URL:');
-        if (!url) return;
-
-        addWebhook(url);
+        const modal = document.getElementById('bm-add-webhook-modal');
+        document.getElementById('bm-webhook-url').value = '';
+        document.getElementById('bm-wh-backup-complete').checked = true;
+        document.getElementById('bm-wh-backup-failed').checked = true;
+        modal.classList.add('active');
+        setTimeout(() => document.getElementById('bm-webhook-url').focus(), 100);
     }
 
-    async function addWebhook(url) {
+    async function _saveWebhook() {
+        const url = document.getElementById('bm-webhook-url').value.trim();
+        if (!url) { showToast('Please enter a webhook URL', 'error'); return; }
+        const events = [];
+        if (document.getElementById('bm-wh-backup-complete').checked) events.push('backup_complete');
+        if (document.getElementById('bm-wh-backup-failed').checked) events.push('backup_failed');
+        document.getElementById('bm-add-webhook-modal').classList.remove('active');
+        await addWebhook(url, events);
+    }
+
+    async function addWebhook(url, eventTypes) {
         try {
             const response = await fetch('/tools/backup-manager/api/webhooks', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: url })
+                body: JSON.stringify({ url: url, event_types: eventTypes || ['backup_complete', 'backup_failed'] })
             });
             const data = await response.json();
 
@@ -2994,11 +3155,12 @@
             const msg = (data.error || '').toLowerCase();
             if (msg.includes('invalid_grant') || msg.includes('storage quota') || msg.includes('no google drive credentials')) {
                 showToast('Reconnect your Google account in Work Suite…', 'info');
-                const go = confirm(
-                    "Google Drive credentials need to be refreshed.\n\n" +
-                    "Click OK to go to the Work Suite page where you reconnect " +
-                    "your Google account. After you sign in there, come back " +
-                    "here and the backup tier will start working automatically."
+                const go = await showBmConfirm(
+                    'GOOGLE DRIVE RECONNECT',
+                    [{ text: 'Google Drive credentials need to be refreshed.' },
+                     { text: 'Click OK to open Google Work Suite where you can reconnect your account. Come back here after signing in.' }],
+                    'OPEN WORK SUITE',
+                    false
                 );
                 if (go) window.open('/tools/google-work-suite', '_blank');
             } else {
@@ -3176,15 +3338,24 @@
         }
     }
 
-    function ensurePassphrase() {
+    let _passphraseResolve = null;
+    async function ensurePassphrase() {
         if (_cloudPassphraseCache) return _cloudPassphraseCache;
-        const pp = prompt('Enter your encryption passphrase:');
-        if (pp) _cloudPassphraseCache = pp.trim();
-        return _cloudPassphraseCache;
+        return new Promise(resolve => {
+            _passphraseResolve = (val) => {
+                _passphraseResolve = null;
+                document.getElementById('bm-passphrase-modal').classList.remove('active');
+                if (val) _cloudPassphraseCache = val;
+                resolve(val || null);
+            };
+            document.getElementById('bm-passphrase-input').value = '';
+            document.getElementById('bm-passphrase-modal').classList.add('active');
+            setTimeout(() => document.getElementById('bm-passphrase-input').focus(), 100);
+        });
     }
 
     async function uploadToCloud(backupName) {
-        const passphrase = ensurePassphrase();
+        const passphrase = await ensurePassphrase();
         if (!passphrase) { showToast('Passphrase required for cloud upload', 'error'); return; }
 
         showCloudProgress('Compressing...', 0);
@@ -3251,7 +3422,14 @@
     }
 
     async function deleteFromCloud(fileId, displayName) {
-        if (!confirm('Delete cloud backup "' + displayName + '"? This cannot be undone.')) return;
+        const ok = await showBmConfirm(
+            'DELETE CLOUD BACKUP',
+            [{ text: displayName, style: 'font-family:monospace;color:var(--archie-accent);' },
+             { text: 'Permanently delete this backup from Google Drive. This cannot be undone.' }],
+            'DELETE',
+            true
+        );
+        if (!ok) return;
 
         try {
             const response = await fetch('/tools/backup-manager/cloud/delete/' + encodeURIComponent(fileId), {
@@ -3379,5 +3557,33 @@
             }
         } catch(e) { /* silent */ }
     })();
+</script>
+
+<script>
+// Configure the chat overlay to use W.A.R.D.E.N. (agent #363) for this module
+document.addEventListener('DOMContentLoaded', function() {
+    function applyWardenChat(portraitUrl) {
+        function doApply() {
+            const o = window.archieOverlay;
+            if (!o) { setTimeout(doApply, 100); return; }
+            o.configure({
+                agentTarget: 'W.A.R.D.E.N.',
+                label: 'W.A.R.D.E.N.',
+                icon: '🛡',
+                portraitUrl: portraitUrl || null
+            });
+        }
+        doApply();
+    }
+
+    // Fetch W.A.R.D.E.N.'s approved portrait from media studio
+    fetch('/tools/media-studio/api/portraits/363', { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(d => {
+            const portrait = d.canonical_image_path || d.avatar_url || null;
+            applyWardenChat(portrait);
+        })
+        .catch(() => applyWardenChat(null));
+});
 </script>
 {% endblock %}

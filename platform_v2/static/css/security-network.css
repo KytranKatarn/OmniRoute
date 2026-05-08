@@ -2,6 +2,9 @@
 .security-container {
     font-family: var(--archie-font-body);
 }
+.security-network-content {
+    margin-top: 8px;
+}
 
 /* Security Operations command buttons — horizontal grid */
 .cs-ops-commands {

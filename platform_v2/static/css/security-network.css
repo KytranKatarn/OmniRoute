@@ -1,6 +1,5 @@
 /* Security & Network Module — LCARS Design System */
 .security-container {
-    padding: 20px;
     font-family: var(--archie-font-body);
 }
 
@@ -715,7 +714,7 @@
     .form-row { flex-direction: column; }
 }
 @media (max-width: 374px) {
-    .security-container { padding: 10px; }
+    .security-container { padding: 0; }
     .stats-grid { grid-template-columns: 1fr; }
     .module-grid { grid-template-columns: 1fr; }
     .camera-grid { grid-template-columns: 1fr; }

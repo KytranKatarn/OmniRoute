@@ -4,11 +4,11 @@
  * Config baked in — no configure() call needed in the template.
  */
 (function () {
-    const AGENT_ID = 363;
+    const AGENT_ID = 142;
     const CONFIG = {
-        agentTarget: 'W.A.R.D.E.N.',
-        label: 'W.A.R.D.E.N.',
-        icon: '🛡',
+        agentTarget: 'R.E.S.O.L.V.E.',
+        label: 'R.E.S.O.L.V.E.',
+        icon: '🤝',
         accentColor: '#7c3aed',
         moduleKey: 'account_center',
         expandUrl: '/tools/department-hq',

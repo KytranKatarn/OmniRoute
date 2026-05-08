@@ -245,6 +245,87 @@ def _inject_resolve_action(user_msg: str, agent_resp: str) -> str:
     return agent_resp
 
 
+def _inject_vigil_action(user_msg: str, agent_resp: str) -> str:
+    """Post-process V.I.G.I.L. response: inject [ACTION] block for Security & Network actions."""
+    import json as _json
+
+    resp_lower = agent_resp.lower()
+    user_lower = user_msg.lower()
+
+    if "[action]" in resp_lower or "⟦action⟧" in resp_lower:
+        return agent_resp
+
+    if user_msg.strip().startswith("[Action confirmed:"):
+        return agent_resp
+
+    action_signal = any(
+        kw in resp_lower
+        for kw in [
+            "will",
+            "can",
+            "run",
+            "scan",
+            "block",
+            "revoke",
+            "restart",
+            "remediate",
+            "proceed",
+            "action",
+            "execute",
+        ]
+    )
+    if not action_signal:
+        return agent_resp
+
+    action = None
+    if any(
+        kw in user_lower for kw in ["run compliance", "compliance scan", "run scan", "scan now", "check compliance"]
+    ):
+        action = {
+            "type": "run_compliance_scan",
+            "label": "Run Compliance Scan",
+            "confirm": "Trigger a full compliance scan across all active rule packs",
+            "route": "POST /tools/security-network/api/compliance/scan",
+            "payload": {},
+        }
+    elif any(kw in user_lower for kw in ["run recon", "port scan", "nmap", "recon scan", "network scan"]):
+        action = {
+            "type": "run_recon_scan",
+            "label": "Run Recon Scan",
+            "confirm": "Launch a network recon scan to discover open ports and services",
+            "route": "POST /tools/security-network/api/recon/launch",
+            "payload": {},
+        }
+    elif any(kw in user_lower for kw in ["block device", "block ip", "ban device", "isolate device"]):
+        action = {
+            "type": "block_device",
+            "label": "Block Device",
+            "confirm": "Add an AdGuard block rule to isolate this device from the network",
+            "route": "POST /tools/security-network/api/devices/block",
+            "payload": {},
+        }
+    elif any(kw in user_lower for kw in ["restart service", "restart proxy", "restart npm", "reload nginx"]):
+        action = {
+            "type": "restart_service",
+            "label": "Restart Service",
+            "confirm": "Restart the selected network service",
+            "route": "POST /tools/security-network/api/services/restart",
+            "payload": {},
+        }
+    elif any(kw in user_lower for kw in ["refresh devices", "rediscover", "discover devices", "arp scan"]):
+        action = {
+            "type": "discover_devices",
+            "label": "Discover Devices",
+            "confirm": "Trigger a fresh ARP + AdGuard device discovery scan",
+            "route": "POST /tools/security-network/api/devices/discover",
+            "payload": {},
+        }
+
+    if action:
+        return agent_resp + f"\n\n[ACTION]{_json.dumps(action)}[/ACTION]"
+    return agent_resp
+
+
 def _serialize_datetime(obj):
     """Convert datetime fields in a dict to ISO-8601 strings."""
     if obj is None:
@@ -380,6 +461,14 @@ def register_routes(bp, admin_required):
             except Exception as _be:
                 log.warning("R.E.S.O.L.V.E. briefing failed (non-fatal): %s", _be)
             contextual_message += "\n\n[MANDATORY: Respond in English only. You are R.E.S.O.L.V.E., the Account Center support agent. Be helpful, clear, and suggest relevant actions when appropriate.]"
+        elif effective_target == "V.I.G.I.L.":
+            try:
+                from tools.archie_chat.security_network_briefing import _build_security_network_briefing
+
+                contextual_message = _build_security_network_briefing() + contextual_message
+            except Exception as _be:
+                log.warning("V.I.G.I.L. briefing failed (non-fatal): %s", _be)
+            contextual_message += "\n\n[MANDATORY: Respond in English only. You are V.I.G.I.L., the Security & Network guardian. Be precise, security-focused, and suggest remediation actions when appropriate.]"
 
         # Call orchestration engine
         try:
@@ -428,6 +517,8 @@ def register_routes(bp, admin_required):
             assistant_response = _inject_warden_action(message, assistant_response)
         elif effective_target == "R.E.S.O.L.V.E." and result.success:
             assistant_response = _inject_resolve_action(message, assistant_response)
+        elif effective_target == "V.I.G.I.L." and result.success:
+            assistant_response = _inject_vigil_action(message, assistant_response)
 
         # Save assistant message
         governance_dicts = (

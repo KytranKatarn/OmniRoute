@@ -18,6 +18,7 @@
 <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
 <script src="{{ url_for('static', filename='js/security-network-app.js') }}"></script>
 <script src="{{ url_for('static', filename='js/security-network-features.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/security-network-chat.js') }}" defer></script>
 {% endblock %}
 
 {% block content %}
@@ -51,17 +52,17 @@
 
     <div class="security-network-content">
                 <!-- Service Badges -->
-                <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+                <div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
                     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
                         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-                            <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
-                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-                            <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                            <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+                            <div style="flex: 1 !important; background: rgba(239,68,68,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
                         </div>
                         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                            <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SERVICE STATUS</span>
                                 <div style="flex:1"></div>
                                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -83,7 +84,7 @@
                                     <span class="svc-badge" id="svc-agent"><span class="dot"></span> Agent</span>
                                 </div>
                             </div>
-                            <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+                            <div style="height: 6px !important; background: #ef4444 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
                         </div>
                     </div>
                 </div>
@@ -91,17 +92,17 @@
 
     <!-- ==================== TAB: OVERVIEW (NOC) ==================== -->
     <div id="tab-overview" class="tab-content active">
-<div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
+<div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-            <div style="height: 52px !important; background: #3b82f6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #2563eb !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
             <div style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-            <div style="height: 36px !important; background: #3b82f6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
         </div>
         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-            <div style="height: 44px !important; background: #3b82f6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SECURITY OVERVIEW</span>
                 <div style="flex:1"></div>
                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -253,17 +254,17 @@
 
     <!-- ==================== TAB: TRAFFIC ==================== -->
     <div id="tab-traffic" class="tab-content">
-<div style="--frame-color: #22c55e; --frame-rgb: 34,197,94; margin-bottom: 20px;">
+<div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-            <div style="height: 52px !important; background: #22c55e !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22c55e !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #16a34a !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
             <div style="flex: 1 !important; background: rgba(34,197,94,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-            <div style="height: 36px !important; background: #22c55e !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
         </div>
         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-            <div style="height: 44px !important; background: #22c55e !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">NETWORK TRAFFIC</span>
                 <div style="flex:1"></div>
                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -377,17 +378,17 @@
 
     <!-- ==================== TAB: DNS MANAGEMENT ==================== -->
     <div id="tab-dns" class="tab-content">
-<div style="--frame-color: #14b8a6; --frame-rgb: 20,184,166; margin-bottom: 20px;">
+<div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-            <div style="height: 52px !important; background: #14b8a6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #14b8a6 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #0d9488 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
             <div style="flex: 1 !important; background: rgba(20,184,166,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-            <div style="height: 36px !important; background: #14b8a6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
         </div>
         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-            <div style="height: 44px !important; background: #14b8a6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">DNS MANAGEMENT</span>
                 <div style="flex:1"></div>
                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -897,17 +898,17 @@
 
     <!-- ==================== TAB: DEVICES ==================== -->
     <div id="tab-devices" class="tab-content">
-<div style="--frame-color: #f59e0b; --frame-rgb: 245,158,11; margin-bottom: 20px;">
+<div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-            <div style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
             <div style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-            <div style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
         </div>
         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-            <div style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">DEVICE REGISTRY</span>
                 <div style="flex:1"></div>
                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -999,17 +1000,17 @@
 
     <!-- ==================== TAB: DEFENSE ==================== -->
     <div id="tab-defense" class="tab-content">
-<div style="--frame-color: #ec4899; --frame-rgb: 236,72,153; margin-bottom: 20px;">
+<div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-            <div style="height: 52px !important; background: #ec4899 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ec4899 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #db2777 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
             <div style="flex: 1 !important; background: rgba(236,72,153,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-            <div style="height: 36px !important; background: #ec4899 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
         </div>
         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-            <div style="height: 44px !important; background: #ec4899 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">DEFENSE SYSTEMS</span>
                 <div style="flex:1"></div>
                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -1168,17 +1169,17 @@
 
     <!-- ==================== TAB: SCANNERS ==================== -->
     <div id="tab-scanners" class="tab-content">
-<div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+<div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-            <div style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
             <div style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-            <div style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
         </div>
         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-            <div style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SECURITY SCANNERS</span>
                 <div style="flex:1"></div>
                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -1249,7 +1250,7 @@
     </div>
 
     <!-- ==================== CAMERA ENLARGE MODAL ==================== -->
-    <div class="bm-overlay" id="camera-modal" style="--bm-accent:#22c55e;--bm-accent-rgb:34,197,94;">
+    <div class="bm-overlay" id="camera-modal" style="--bm-accent:#ef4444;--bm-accent-rgb:239,68,68;">
         <div class="bm-shell" style="max-width:720px;">
             <div class="bm-frame">
                 <div class="bm-frame-elbow-top"></div>
@@ -1257,7 +1258,7 @@
                 <div class="bm-frame-seg dim"></div>
                 <div class="bm-frame-light on"></div>
                 <div class="bm-frame-light amber"></div>
-                <div class="bm-frame-seg purple"></div>
+                <div class="bm-frame-seg"></div>
                 <div class="bm-frame-fill"></div>
                 <div class="bm-frame-elbow-bottom"></div>
             </div>
@@ -1349,7 +1350,7 @@
         </div>
 
         <!-- ==================== SCAN LAUNCH LCARS MODAL ==================== -->
-        <div class="bm-overlay" id="scan-launch-modal" style="--bm-accent:#00ffff;--bm-accent-rgb:0,255,255;">
+        <div class="bm-overlay" id="scan-launch-modal" style="--bm-accent:#ef4444;--bm-accent-rgb:239,68,68;">
             <div class="bm-shell" style="max-width:520px;">
                 <div class="bm-frame">
                     <div class="bm-frame-elbow-top"></div>
@@ -1357,7 +1358,7 @@
                     <div class="bm-frame-seg dim"></div>
                     <div class="bm-frame-light on"></div>
                     <div class="bm-frame-light amber"></div>
-                    <div class="bm-frame-seg purple"></div>
+                    <div class="bm-frame-seg"></div>
                     <div class="bm-frame-fill"></div>
                     <div class="bm-frame-elbow-bottom"></div>
                 </div>
@@ -1453,7 +1454,7 @@
         <select id="recon-module" style="display:none"></select>
 
         <!-- ==================== RECON LAUNCH LCARS MODAL ==================== -->
-        <div class="bm-overlay" id="recon-launch-modal" style="--bm-accent:#8b5cf6;--bm-accent-rgb:139,92,246;">
+        <div class="bm-overlay" id="recon-launch-modal" style="--bm-accent:#ef4444;--bm-accent-rgb:239,68,68;">
             <div class="bm-shell" style="max-width:520px;">
                 <div class="bm-frame">
                     <div class="bm-frame-elbow-top"></div>
@@ -1461,7 +1462,7 @@
                     <div class="bm-frame-seg dim"></div>
                     <div class="bm-frame-light on"></div>
                     <div class="bm-frame-light amber"></div>
-                    <div class="bm-frame-seg cyan"></div>
+                    <div class="bm-frame-seg"></div>
                     <div class="bm-frame-fill"></div>
                     <div class="bm-frame-elbow-bottom"></div>
                 </div>
@@ -1611,14 +1612,14 @@
 <div style="--frame-color: #f97316; --frame-rgb: 249,115,22; margin-bottom: 20px;">
     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-            <div style="height: 52px !important; background: #f97316 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f97316 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ea580c !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
             <div style="flex: 1 !important; background: rgba(249,115,22,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-            <div style="height: 36px !important; background: #f97316 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
         </div>
         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-            <div style="height: 44px !important; background: #f97316 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">COMPLIANCE AUDIT</span>
                 <div style="flex:1"></div>
                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -1755,17 +1756,17 @@
 
     <!-- ==================== TAB: REPORTS ==================== -->
     <div id="tab-reports" class="tab-content">
-<div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
+<div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-            <div style="height: 52px !important; background: #3b82f6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #2563eb !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
             <div style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-            <div style="height: 36px !important; background: #3b82f6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
         </div>
         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-            <div style="height: 44px !important; background: #3b82f6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SECURITY REPORTS</span>
                 <div style="flex:1"></div>
                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -1905,7 +1906,7 @@
                 <div class="bm-frame-seg dim"></div>
                 <div class="bm-frame-light on"></div>
                 <div class="bm-frame-light amber"></div>
-                <div class="bm-frame-seg purple"></div>
+                <div class="bm-frame-seg"></div>
                 <div class="bm-frame-fill"></div>
                 <div class="bm-frame-elbow-bottom"></div>
             </div>
@@ -1949,7 +1950,7 @@
                 <div class="bm-frame-seg dim"></div>
                 <div class="bm-frame-light on"></div>
                 <div class="bm-frame-light amber"></div>
-                <div class="bm-frame-seg purple"></div>
+                <div class="bm-frame-seg"></div>
                 <div class="bm-frame-fill"></div>
                 <div class="bm-frame-elbow-bottom"></div>
             </div>
@@ -2005,7 +2006,7 @@
                 <div class="bm-frame-seg dim"></div>
                 <div class="bm-frame-light on"></div>
                 <div class="bm-frame-light amber"></div>
-                <div class="bm-frame-seg purple"></div>
+                <div class="bm-frame-seg"></div>
                 <div class="bm-frame-fill"></div>
                 <div class="bm-frame-elbow-bottom"></div>
             </div>
@@ -2046,7 +2047,7 @@
     </div>
 
     <!-- ==================== DEVICE EDIT MODAL ==================== -->
-    <div class="bm-overlay" id="device-edit-modal" style="--bm-accent:#22c55e;--bm-accent-rgb:34,197,94;">
+    <div class="bm-overlay" id="device-edit-modal" style="--bm-accent:#ef4444;--bm-accent-rgb:239,68,68;">
         <div class="bm-shell" style="max-width:480px;">
             <div class="bm-frame">
                 <div class="bm-frame-elbow-top"></div>
@@ -2054,7 +2055,7 @@
                 <div class="bm-frame-seg dim"></div>
                 <div class="bm-frame-light on"></div>
                 <div class="bm-frame-light amber"></div>
-                <div class="bm-frame-seg purple"></div>
+                <div class="bm-frame-seg"></div>
                 <div class="bm-frame-fill"></div>
                 <div class="bm-frame-elbow-bottom"></div>
             </div>
@@ -2138,7 +2139,7 @@
                 <div class="bm-frame-seg dim"></div>
                 <div class="bm-frame-light on"></div>
                 <div class="bm-frame-light amber"></div>
-                <div class="bm-frame-seg purple"></div>
+                <div class="bm-frame-seg"></div>
                 <div class="bm-frame-fill"></div>
                 <div class="bm-frame-elbow-bottom"></div>
             </div>
@@ -2175,7 +2176,7 @@
                 <div class="bm-frame-seg dim"></div>
                 <div class="bm-frame-light on"></div>
                 <div class="bm-frame-light amber"></div>
-                <div class="bm-frame-seg purple"></div>
+                <div class="bm-frame-seg"></div>
                 <div class="bm-frame-fill"></div>
                 <div class="bm-frame-elbow-bottom"></div>
             </div>
@@ -2208,17 +2209,17 @@
 
     <!-- ==================== TAB: TOPOLOGY ==================== -->
     <div id="tab-topology" class="tab-content">
-<div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+<div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-            <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-            <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-            <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="flex: 1 !important; background: rgba(239,68,68,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
         </div>
         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-            <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">NETWORK TOPOLOGY</span>
                 <div style="flex:1"></div>
                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -2253,17 +2254,17 @@
 
     <!-- ==================== TAB: SUPERVISION ==================== -->
     <div id="tab-supervision" class="tab-content">
-<div style="--frame-color: #f59e0b; --frame-rgb: 245,158,11; margin-bottom: 20px;">
+<div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-            <div style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #d97706 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
             <div style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-            <div style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
         </div>
         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-            <div style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SUPERVISION</span>
                 <div style="flex:1"></div>
                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -2332,17 +2333,17 @@
 
     <!-- ==================== TAB: INTEL ==================== -->
     <div id="tab-intel" class="tab-content">
-<div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+<div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-            <div style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
-            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 52px !important; background: #ef4444 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ef4444 !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #dc2626 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
             <div style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-            <div style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+            <div style="height: 36px !important; background: #ef4444 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
         </div>
         <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-            <div style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+            <div style="height: 44px !important; background: #ef4444 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
                 <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">THREAT INTELLIGENCE</span>
                 <div style="flex:1"></div>
                 <div style="display: flex !important; align-items: center !important; gap: 4px !important;">

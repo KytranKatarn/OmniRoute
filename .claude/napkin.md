@@ -48,6 +48,19 @@
 5. **[2026-04-15] Module perms need BOTH files**
    Do instead: Add to `rbac.py` AND `module_registry.py` when creating/modifying modules.
 
+## Module-Agent Chat Pattern
+1. **[2026-05-08] _step_execute ignores selected agent without prefer_agent**
+   Do instead: Pass `prefer_agent=agent.get("name")` to `dispatcher.request_work()` — otherwise capability routing overrides agent_target.
+
+2. **[2026-05-08] Service account language preference poisons LLM responses**
+   Do instead: After creating probe/claude/archie accounts, set `language='en', auto_detect=false` in `user_language_preferences` immediately.
+
+3. **[2026-05-08] [Action confirmed:] messages re-trigger action injection loop**
+   Do instead: In `_inject_warden_action`, skip when `user_msg.startswith("[Action confirmed:")`.
+
+4. **[2026-05-08] Per-module chat = dedicated JS file, not inline configure()**
+   Do instead: Create `static/js/{module}-chat.js` with config baked in. No inline configure() in template.
+
 ## User Directives
 1. **[2026-04-15] Dev HQ workflow after every commit+push**
    Do instead: `create_task` / `complete_task` / `log_decision` / `update_project_understanding`.

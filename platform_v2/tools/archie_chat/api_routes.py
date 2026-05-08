@@ -129,8 +129,12 @@ def _inject_warden_action(user_msg: str, agent_resp: str) -> str:
     resp_lower = agent_resp.lower()
     user_lower = user_msg.lower()
 
-    # Already has a structured action block — leave it alone
+    # Model already produced a structured action block — leave it alone
     if "[action]" in resp_lower or "⟦action⟧" in resp_lower:
+        return agent_resp
+
+    # Auto-generated confirmation messages should not re-trigger injection
+    if user_msg.strip().startswith("[Action confirmed:"):
         return agent_resp
 
     # Only inject when response signals action intent
@@ -271,6 +275,11 @@ def register_routes(bp, admin_required):
 
         # Build conversation context for multi-turn memory (up to 20 msgs / 4000 chars)
         conv_context = get_conversation_context(conv["id"], max_messages=20, max_chars=4000)
+        # Strip action blocks from context so the model doesn't echo raw [ACTION] syntax
+        import re as _re
+
+        conv_context = _re.sub(r"\[ACTION\][\s\S]*?\[/ACTION\]", "", conv_context)
+        conv_context = _re.sub(r"⟦ACTION⟧[\s\S]*?⟦/ACTION⟧", "", conv_context)
 
         # Build structured history list for orchestration engine (newest excluded — already in prompt)
         recent_messages = get_conversation_messages(conv["id"], include_thinking=False, limit=20)

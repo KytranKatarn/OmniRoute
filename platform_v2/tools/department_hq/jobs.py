@@ -725,4 +725,25 @@ def _register_own_jobs(scheduler, flask_app):
         coalesce=True,
     )
 
-    logger.info("[DeptHQ] Registered 7 code health/audit jobs")
+    # Job #60 — Daily Backup Retention Cleanup (7:00 AM — after 06:00 shell cron backup)
+    def _run_backup_retention_cleanup():
+        try:
+            from tools.backup_manager._shared import cleanup_old_backups
+
+            result = cleanup_old_backups(dry_run=False)
+            deleted = (result or {}).get("deleted_count", 0)
+            logger.info("[BackupRetention] Auto-cleanup: %d backup(s) pruned", deleted)
+        except Exception as e:
+            logger.error("[BackupRetention] Auto-cleanup failed: %s", e)
+
+    scheduler.add_job(
+        with_ctx(_run_backup_retention_cleanup),
+        trigger=CronTrigger(hour=7, minute=0, timezone="America/Toronto"),
+        id="agent_backup_retention_cleanup",
+        name="Agent Loop: Daily Backup Retention Cleanup",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    logger.info("[DeptHQ] Registered 8 code health/audit jobs")

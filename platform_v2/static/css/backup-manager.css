@@ -717,7 +717,7 @@ body.light-mode .deployment-item,
 body.light-mode .module-row,
 body.light-mode .module-list,
 body.light-mode .retention-info {
-    background: var(--archie-bg-surface);
+    background: var(--archie-bg-secondary);
 }
 
 body.light-mode .stat-card .value,

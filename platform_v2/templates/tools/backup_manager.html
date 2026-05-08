@@ -1028,6 +1028,9 @@
             else if (backupType === 'database') { typeBadgeSpan.classList.add('badge-database'); typeBadgeSpan.textContent = '🧠'; typeBadgeSpan.title = 'DATABASE'; }
             else if (backupType === 'custom') { typeBadgeSpan.classList.add('badge-custom'); typeBadgeSpan.textContent = 'CUSTOM'; }
             else if (backupType === 'backup') { typeBadgeSpan.style.cssText += 'background:rgba(107,114,128,0.2);color:#9ca3af;border:1px solid #6b7280;'; typeBadgeSpan.textContent = '🔄 AUTO'; typeBadgeSpan.title = 'AUTOMATED'; }
+            else if (backupType === 'daily') { typeBadgeSpan.style.cssText += 'background:rgba(59,130,246,0.2);color:#93c5fd;border:1px solid #3b82f6;'; typeBadgeSpan.textContent = '📅 DAILY'; typeBadgeSpan.title = 'DAILY'; }
+            else if (backupType === 'weekly') { typeBadgeSpan.style.cssText += 'background:rgba(168,85,247,0.2);color:#d8b4fe;border:1px solid #a855f7;'; typeBadgeSpan.textContent = '📅 WEEKLY'; typeBadgeSpan.title = 'WEEKLY'; }
+            else if (backupType === 'monthly') { typeBadgeSpan.style.cssText += 'background:rgba(234,179,8,0.2);color:#fde047;border:1px solid #eab308;'; typeBadgeSpan.textContent = '📅 MONTHLY'; typeBadgeSpan.title = 'MONTHLY'; }
             else { typeBadgeSpan.classList.add('badge-legacy'); typeBadgeSpan.textContent = 'LEGACY'; }
             titleDiv.appendChild(typeBadgeSpan);
 
@@ -3562,32 +3565,6 @@
 
 <script>
 // Configure the chat overlay to use W.A.R.D.E.N. (agent #363) for this module
-document.addEventListener('DOMContentLoaded', function() {
-    function applyWardenChat(portraitUrl) {
-        function doApply() {
-            const o = window.archieOverlay;
-            if (!o) { setTimeout(doApply, 100); return; }
-            o.configure({
-                agentTarget: 'W.A.R.D.E.N.',
-                label: 'W.A.R.D.E.N.',
-                icon: '🛡',
-                portraitUrl: portraitUrl || null,
-                accentColor: '#ef4444',
-                moduleKey: 'backup_manager',
-                expandUrl: '/tools/department-hq'
-            });
-        }
-        doApply();
-    }
-
-    // Fetch W.A.R.D.E.N.'s approved portrait from media studio
-    fetch('/tools/media-studio/api/portraits/363', { credentials: 'same-origin' })
-        .then(r => r.json())
-        .then(d => {
-            const portrait = d.canonical_image_path || d.avatar_url || null;
-            applyWardenChat(portrait);
-        })
-        .catch(() => applyWardenChat(null));
-});
 </script>
+<script src="{{ url_for('static', filename='js/backup-manager-chat.js') }}"></script>
 {% endblock %}

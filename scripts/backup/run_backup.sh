@@ -112,16 +112,28 @@ for sib in os.listdir(parent_dir):
                 max_build = max(max_build, bn)
         except Exception:
             pass
+# Read current platform version from system_config
+import subprocess as _sp
+try:
+    _r = _sp.run(
+        ["docker", "exec", "archie_database", "psql", "-U", "archie", "-At", "-c",
+         "SELECT value FROM system_config WHERE key='platform_version' LIMIT 1"],
+        capture_output=True, text=True, timeout=5
+    )
+    platform_ver = _r.stdout.strip() or "unknown"
+except Exception:
+    platform_ver = "unknown"
+
 meta = {
     "name": os.path.basename(run_dir), "timestamp": ts, "description": mode,
     "created_by": "scripts/backup/run_backup.sh",
     "created_at": datetime.utcnow().isoformat() + "Z",
-    "platform_version": "phase-1-6", "build_number": max_build + 1,
-    "backup_type": "full", "run_mode": mode, "proposal_id": None,
+    "platform_version": platform_ver, "build_number": max_build + 1,
+    "backup_type": mode, "run_mode": mode, "proposal_id": None,
     "compression": "pg_dump-Fc", "database_file": db_file,
     "total_size_bytes": size, "total_size_mb": round(size / (1024 * 1024), 2),
     "external_copy": False, "external_path": None,
-    "pipeline": "phase-1-6", "components": components,
+    "pipeline": platform_ver, "components": components,
     "duration_ms": int(dur_ms),
     "hook_results": {"pre": [], "post": []},
 }

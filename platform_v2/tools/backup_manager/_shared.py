@@ -1081,9 +1081,16 @@ def cleanup_old_backups(dry_run=True):
                 backup_size = 0
 
             # DB delete FIRST — so a crash leaves orphan directory (recoverable) not orphan log entry
+            # Match both container path (/backups/...) and host path (/mnt/data2/backups/...)
+            # plus sub-component entries (file_path LIKE backup_path/%) for each variant.
+            host_path = backup_path.replace(BACKUP_DIR, "/mnt/data2/backups")
             try:
                 with get_backup_db_cursor(commit=True) as (conn, cur):
-                    cur.execute("DELETE FROM backup_log WHERE file_path = %s", (backup_path,))
+                    cur.execute(
+                        "DELETE FROM backup_log WHERE file_path = %s OR file_path LIKE %s"
+                        " OR file_path = %s OR file_path LIKE %s",
+                        (backup_path, backup_path + "/%", host_path, host_path + "/%"),
+                    )
             except Exception as db_err:
                 logger.warning("cleanup_old_backups: failed to delete backup_log row for %s: %s", backup_name, db_err)
                 # Skip rmtree if DB delete failed — don't create filesystem-DB drift

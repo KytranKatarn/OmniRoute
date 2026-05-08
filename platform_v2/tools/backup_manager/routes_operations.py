@@ -83,9 +83,9 @@ def register_operations_routes(bp, admin_required):
                 rows = cur.fetchall()
 
             def _is_top_level(file_path, backup_type=None):
-                # Standalone entries always show (they live at /backups/standalones/<product>/<name>)
+                # Standalones have their own tab — exclude from the main backup list
                 if backup_type == "standalone":
-                    return True
+                    return False
                 if not file_path:
                     return True
                 p = file_path.rstrip("/")

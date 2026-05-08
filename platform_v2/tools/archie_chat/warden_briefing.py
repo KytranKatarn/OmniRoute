@@ -93,8 +93,25 @@ def _build_warden_briefing() -> str:
     except Exception:
         lines.append("Retention: unavailable")
 
+    # Path health advisory — flag DB entries using non-canonical host paths
+    try:
+        with get_backup_db_cursor(commit=False, cursor_factory=RealDictCursor) as (_, cur):
+            cur.execute(
+                "SELECT COUNT(*) AS cnt FROM backup_log WHERE file_path NOT LIKE '/backups/%'"
+                " AND file_path NOT LIKE '/mnt/external-backup/%'"
+                " AND file_path IS NOT NULL AND file_path != ''"
+            )
+            non_canonical = (cur.fetchone() or {}).get("cnt", 0)
+            if non_canonical > 10:
+                lines.append(
+                    f"⚠️ Path advisory: {non_canonical} DB entries use non-standard paths "
+                    f"(host-path vs container-path mismatch). Suggest running cleanup to normalise."
+                )
+    except Exception:
+        pass
+
     lines.append(
         "[End briefing — use this data to answer status questions. "
-        "Propose actions using the ⟦ACTION⟧ format when the user asks you to do something.]\n"
+        "Propose actions using the [ACTION]{...}[/ACTION] format when the user asks you to do something.]\n"
     )
     return "\n".join(lines)

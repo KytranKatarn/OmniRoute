@@ -327,9 +327,10 @@ class ArchieOverlay {
         if (!match) return { cleanText: text, action: null };
         let action = null;
         try { action = JSON.parse(match[1].trim()); } catch (e) { /* malformed — ignore */ }
+        // Strip ALL action blocks (model may produce its own alongside server-injected one)
         const cleanText = text
-            .replace(/\[ACTION\][\s\S]*?\[\/ACTION\]/, '')
-            .replace(/⟦ACTION⟧[\s\S]*?⟦\/ACTION⟧/, '')
+            .replace(/\[ACTION\][\s\S]*?\[\/ACTION\]/g, '')
+            .replace(/⟦ACTION⟧[\s\S]*?⟦\/ACTION⟧/g, '')
             .trim();
         return { cleanText, action };
     }

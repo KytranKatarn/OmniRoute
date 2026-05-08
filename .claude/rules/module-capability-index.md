@@ -24,10 +24,12 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 - **Capability**: 10 tabs — Backups (Brain/Full/Archive), Cloud (GDrive AES-256-GCM), External (USB), Deployment (pre-deploy snapshots), Modules (36 modules, search, age colors, restore), Standalones (9 products, partial/full status), Hooks (upload scripts + webhooks LCARS), Retention (GFS configurable 10d/5w/6m), Packages. 9,527 LOC. W.A.R.D.E.N. (#363) chat button with portrait. Zero browser confirm()/prompt().
 - **Tables**: `backups`, `backup_locks`, `webhook_subscriptions`, `backup_log` (+ `standalone_name`), `deployment_package_jobs`. All routes `@admin_required`.
 - **Standalone schema map**: gov_watch→`gov_watch`, civic_watch→`civic_transparency`, wtf→`wtf` (hub archie DB); kbs/media_hub/creed/kso/legal_watch/market_watch → own DBs (partial = code-only).
-- **Chat overlay**: `archie-chat-overlay.js` `configure({agentTarget, label, portraitUrl})` enables per-page agent routing. Backup Manager → W.A.R.D.E.N. #363.
+- **Chat overlay**: `backup-manager-chat.js` → **W.A.R.D.E.N.** #363, red `#ef4444`. Reference implementation for module-agent pattern. Server-side `_inject_warden_action()` for cleanup/backup/standalones. All 3 actions verified 2026-05-08. KB #264461.
+- **Retention**: GFS 7 daily / 4 weekly / 3 monthly (max 14). **Job #60** auto-cleanup at 07:00 AM in `department_hq/jobs.py`. Path normalization: cleanup matches both `/backups/` and `/mnt/data2/backups/` variants + sub-component LIKE. W.A.R.D.E.N. briefing flags path anomalies proactively.
+- **Badges**: daily (blue), weekly (purple), monthly (amber) — added 2026-05-08. Standalones excluded from main backup list (own tab). Cron script: `platform_version` dynamic from DB, `backup_type` = mode (daily/weekly/monthly).
 - **Code health**: ✅ snapshot #209 (2026-05-07), 14 files, 9,527 LOC. **QA**: Suite #19 23/23 passed.
-- **Gaps**: Delete button path mismatch for new backups; Preview modal fails DB-only backups; Sync USB JS not wired; pg_dump is custom Python (not real pg_dump).
-- **KB Docs**: #264022 (audit 2026-05-07) · #264057 (user ref) · #264058 (chat overlay coder ref) · **Rules**: `admin-ops.md`
+- **Gaps**: Preview modal fails DB-only backups; Sync USB JS not wired; pg_dump is custom Python (not real pg_dump).
+- **KB Docs**: #264022 (audit 2026-05-07) · #264057 (user ref) · #264058 (chat overlay coder ref) · #264461 (W.A.R.D.E.N. chat 2026-05-08) · **Rules**: `admin-ops.md`
 
 ### Security & Network — `security_network` · `/tools/security-network` · ✅ · 🟢
 - **Capability**: SSL/TLS cert watch, Hostinger DNS CRUD, NPM proxy host lifecycle, 5 compliance rule packs (Ubuntu STIG/Docker STIG/HIPAA/Network STIG/CIS Ubuntu), device discovery (AdGuard+ARP 5min), Home Assistant cameras, recon scans, supervision schedules (AdGuard per-device blocking), 23 agent loop jobs.
@@ -39,7 +41,8 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 - **Capability**: 10 tabs — Overview, Users, Permissions, Subscriptions, Security, Sessions, API Keys, Bulk Ops, Activity, Orgs. User CRUD, role hierarchy (GUEST 5→SUPER_ADMIN 100), invite system (user_invites table, Stalwart SMTP), API key scopes (chat/read/admin), login lockout (5→15min), IP rate limit (20/15min), HMAC access control API, internal notify endpoint.
 - **Key security**: `auth_service.py` 23 functions; `SESSION_COOKIE_SECURE` env-driven; IP rate limit exempts 172.x for internal QA.
 - **Code health**: ✅ completed (0 red issues, 2026-05-06). **QA**: Suite #16 35/35 passed.
-- **KB Docs**: #263991 (full user + developer guide, 2026-05-06) · **Rules**: `admin-ops.md`, `app-core.md`
+- **Chat overlay**: `account-center-chat.js` → **R.E.S.O.L.V.E.** (id 142, Customer Success & Support), purple `#7c3aed`. Persistent shared team channel. Verified 2026-05-08. KB #264465.
+- **KB Docs**: #263991 (full user + developer guide, 2026-05-06) · #264465 (chat overlay, 2026-05-08) · **Rules**: `admin-ops.md`, `app-core.md`
 - **Security gaps** (tasks #2060–2065): No PKCE, HS256 static key, no password reset, SDK duplication across 6 products.
 
 ### System Operations — `system_operations` · `/tools/system-operations` · ⛔

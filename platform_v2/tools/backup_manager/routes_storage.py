@@ -366,37 +366,80 @@ def register_storage_routes(bp, admin_required):
     def delete_backup(backup_name):
         """Delete a backup"""
         try:
-            backup_path = os.path.join(BACKUP_DIR, backup_name)
+            # Look up actual path from backup_log — automated backups may be stored
+            # at a host path (e.g. /mnt/data2/backups/) that differs from BACKUP_DIR.
+            actual_path = None
+            log_ids = []
+            try:
+                from database import get_db_cursor as _gdc
 
-            if not os.path.exists(backup_path):
+                with _gdc(commit=False) as (_c, _cur):
+                    _cur.execute(
+                        "SELECT id, file_path FROM backup_log WHERE file_path LIKE %s",
+                        (f"%/{backup_name}",),
+                    )
+                    for _row in _cur.fetchall():
+                        log_ids.append(_row["id"])
+                        if actual_path is None and _row["file_path"]:
+                            actual_path = _row["file_path"]
+            except Exception as _e:
+                current_app.logger.warning("backup_log lookup: %s", _e)
+
+            # Resolve filesystem path: prefer DB-recorded path if accessible,
+            # fall back to BACKUP_DIR + name for backups created via the web UI.
+            fallback_path = os.path.join(BACKUP_DIR, backup_name)
+            if actual_path and os.path.exists(actual_path):
+                backup_path = actual_path
+            elif os.path.exists(fallback_path):
+                backup_path = fallback_path
+            elif log_ids:
+                # Backup exists in DB but its path is on host storage not mounted
+                # in this container — remove the log record so the UI is cleaned up.
+                backup_path = None
+            else:
                 return jsonify({"success": False, "error": "Backup not found"}), 404
 
-            # Safety check: don't delete if it's the only/newest backup
-            all_backups = [d for d in os.listdir(BACKUP_DIR) if os.path.isdir(os.path.join(BACKUP_DIR, d))]
+            files_deleted = False
+            if backup_path:
+                parent_dir = os.path.dirname(backup_path)
+                all_backups = [d for d in os.listdir(parent_dir) if os.path.isdir(os.path.join(parent_dir, d))]
+                if len(all_backups) == 1:
+                    return (
+                        jsonify({"success": False, "error": "Cannot delete the only backup"}),
+                        400,
+                    )
 
-            if len(all_backups) == 1:
-                return (
-                    jsonify({"success": False, "error": "Cannot delete the only backup"}),
-                    400,
-                )
+                if os.path.isdir(backup_path):
+                    shutil.rmtree(backup_path)
+                else:
+                    os.remove(backup_path)
+                files_deleted = True
 
-            # Delete backup directory
-            shutil.rmtree(backup_path)
-
-            # Clean up backup_log records for this backup
+            # Clean up backup_log records
             try:
                 from database import get_db_cursor
 
-                container_path = "/backups/" + backup_name
                 with get_db_cursor(commit=True) as (_c, _cur):
-                    _cur.execute(
-                        "DELETE FROM backup_log WHERE file_path = %s OR file_path = %s",
-                        (backup_path, container_path),
-                    )
+                    if log_ids:
+                        _cur.execute(
+                            "DELETE FROM backup_log WHERE id = ANY(%s)",
+                            (log_ids,),
+                        )
+                    else:
+                        container_path = "/backups/" + backup_name
+                        _cur.execute(
+                            "DELETE FROM backup_log WHERE file_path = %s OR file_path = %s",
+                            (fallback_path, container_path),
+                        )
             except Exception as _db_err:
                 current_app.logger.warning("backup_log cleanup failed (non-fatal): %s", _db_err)
 
-            return jsonify({"success": True, "message": "Backup deleted successfully"})
+            msg = (
+                "Backup deleted successfully"
+                if files_deleted
+                else "Backup record removed (files on host storage were not deleted)"
+            )
+            return jsonify({"success": True, "message": msg})
 
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500

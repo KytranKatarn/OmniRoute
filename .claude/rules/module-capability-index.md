@@ -21,11 +21,13 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 **W.A.R.D.E.N. agent #363** (Operations & Infrastructure, qwen2.5:7b, Lv4) is the autonomous guardian for this category. Dispatch: `user_audit`, `backup_verify`, `compliance_check`, `account_management`, `access_review`. Skills file: `.claude/skills/warden-agent.md`. KB #263995. Decision #575.
 
 ### Backup Manager — `backup_manager` · `/tools/backup-manager` · ✅ · 🟢
-- **Capability**: DB dumps + file snapshots + config exports, restore w/ component granularity, checksum verify, retention policies, external USB sync, pre/post hooks, webhook triggers. 5,030 LOC + gdrive crypto module.
-- **Tables**: `backups`, `backup_locks`, `webhook_subscriptions`. All routes `@admin_required`.
-- **Code health**: ✅ completed (0 red issues, 2026-05-06). **QA**: Suite #19 23/23 passed.
-- **Gaps**: GDrive upload/sync UI unexposed; 2h lock hardcoded; no incremental backups. backup_manager_routes.py needs split (Task #2699).
-- **KB Docs**: #263993 (full user + developer guide, 2026-05-06) · **Rules**: `admin-ops.md`
+- **Capability**: 10 tabs — Backups (Brain/Full/Archive), Cloud (GDrive AES-256-GCM), External (USB), Deployment (pre-deploy snapshots), Modules (36 modules, search, age colors, restore), Standalones (9 products, partial/full status), Hooks (upload scripts + webhooks LCARS), Retention (GFS configurable 10d/5w/6m), Packages. 9,527 LOC. W.A.R.D.E.N. (#363) chat button with portrait. Zero browser confirm()/prompt().
+- **Tables**: `backups`, `backup_locks`, `webhook_subscriptions`, `backup_log` (+ `standalone_name`), `deployment_package_jobs`. All routes `@admin_required`.
+- **Standalone schema map**: gov_watch→`gov_watch`, civic_watch→`civic_transparency`, wtf→`wtf` (hub archie DB); kbs/media_hub/creed/kso/legal_watch/market_watch → own DBs (partial = code-only).
+- **Chat overlay**: `archie-chat-overlay.js` `configure({agentTarget, label, portraitUrl})` enables per-page agent routing. Backup Manager → W.A.R.D.E.N. #363.
+- **Code health**: ✅ snapshot #209 (2026-05-07), 14 files, 9,527 LOC. **QA**: Suite #19 23/23 passed.
+- **Gaps**: Delete button path mismatch for new backups; Preview modal fails DB-only backups; Sync USB JS not wired; pg_dump is custom Python (not real pg_dump).
+- **KB Docs**: #264022 (audit 2026-05-07) · #264057 (user ref) · #264058 (chat overlay coder ref) · **Rules**: `admin-ops.md`
 
 ### Security & Network — `security_network` · `/tools/security-network` · ✅ · 🟢
 - **Capability**: SSL/TLS cert watch, Hostinger DNS CRUD, NPM proxy host lifecycle, 5 compliance rule packs (Ubuntu STIG/Docker STIG/HIPAA/Network STIG/CIS Ubuntu), device discovery (AdGuard+ARP 5min), Home Assistant cameras, recon scans, supervision schedules (AdGuard per-device blocking), 23 agent loop jobs.

@@ -6197,7 +6197,10 @@ class AgentLoop:
                 spec_data = specs_by_id.get(suite["id"], {}) or {}
                 spec_resolved = _resolve_env_vars(spec_data)
                 suite_meta = spec_resolved.get("suite", {}) if isinstance(spec_resolved, dict) else {}
-                base_url = (suite_meta.get("base_url") or "http://localhost:3000").rstrip("/")
+                base_url = (
+                    suite_meta.get("base_url")
+                    or os.environ.get("PLATFORM_URL", "http://localhost:3000")
+                ).rstrip("/")
                 auth = suite_meta.get("auth") or {}
                 has_auth = bool(auth.get("username") and auth.get("password"))
 

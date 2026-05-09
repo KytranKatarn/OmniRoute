@@ -133,6 +133,7 @@ _DEFAULT_RULES = [
     ("critical", None, None, "escalate", "Critical severity always escalates"),
     ("high", "security", None, "escalate", "High-severity security event"),
     ("high", None, None, "escalate", "High severity requires Kytran attention"),
+    ("warning", None, None, "escalate", "Warning severity requires Kytran attention"),
     ("medium", "operations", "B.A.S.E.", "consolidate", "B.A.S.E. ops reports consolidated"),
     ("medium", None, None, "suppress", "Medium severity suppressed by default"),
     ("low", None, None, "suppress", "Low severity auto-suppressed"),

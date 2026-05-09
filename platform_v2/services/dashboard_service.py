@@ -162,7 +162,7 @@ def get_recent_activity():
             # 3. Governance events
             cur.execute(
                 """SELECT g.event_type, g.event_category, g.action, g.reason,
-                          g.timestamp, u.username
+                          g.details, g.timestamp, u.username
                    FROM governance_audit_log g
                    LEFT JOIN users u ON g.user_id = u.id
                    WHERE g.timestamp >= NOW() - INTERVAL '7 days'
@@ -171,11 +171,19 @@ def get_recent_activity():
             for g in cur.fetchall():
                 reason = g["reason"] or ""
                 who = g["username"] or ""
-                if g["event_type"] == "dev_commit":
+                details_json = g["details"] or {}
+                # For telegram_send entries, reason is always empty — use
+                # the title from details JSON and the agent as actor instead.
+                if g["event_category"] == "telegram_send":
+                    title = details_json.get("title", "") if isinstance(details_json, dict) else ""
+                    actor = g["action"] or "System"
+                    action_text = f"{actor}: {title}" if title else f"{actor}: Sent notification"
+                elif g["event_type"] == "dev_commit":
                     action_text = f"Committed: {reason}" if reason else "New commit"
                 else:
-                    action_text = f"{g['event_type'].replace('_', ' ').title()}: {reason}"
-                if who:
+                    display_reason = reason or (details_json.get("title", "") if isinstance(details_json, dict) else "")
+                    action_text = f"{g['event_type'].replace('_', ' ').title()}: {display_reason}"
+                if who and not action_text.startswith(who):
                     action_text = f"{who}: {action_text}"
                 combined.append(
                     {

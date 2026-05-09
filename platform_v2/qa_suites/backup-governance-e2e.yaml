@@ -25,7 +25,7 @@ tests:
   - name: "backup health endpoint available"
     type: api
     method: GET
-    path: /tools/backup-manager/api/health
+    path: /tools/backup-manager/health
     expect:
       status: [200, 404]
 

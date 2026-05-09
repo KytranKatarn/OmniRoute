@@ -27,8 +27,8 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 - **Chat overlay**: `backup-manager-chat.js` → **W.A.R.D.E.N.** #363, red `#ef4444`. Reference implementation for module-agent pattern. Server-side `_inject_warden_action()` for cleanup/backup/standalones. All 3 actions verified 2026-05-08. KB #264461.
 - **Retention**: GFS 7 daily / 4 weekly / 3 monthly (max 14). **Job #60** auto-cleanup at 07:00 AM in `department_hq/jobs.py`. Path normalization: cleanup matches both `/backups/` and `/mnt/data2/backups/` variants + sub-component LIKE. W.A.R.D.E.N. briefing flags path anomalies proactively.
 - **Badges**: daily (blue), weekly (purple), monthly (amber) — added 2026-05-08. Standalones excluded from main backup list (own tab). Cron script: `platform_version` dynamic from DB, `backup_type` = mode (daily/weekly/monthly).
-- **Code health**: ✅ CLEAN, 14 files, 9,527 LOC. **QA**: Suite #19 23/23 passed (run_id 2086, 2026-05-09).
-- **Gaps**: Preview modal fails DB-only backups; Sync USB JS not wired; pg_dump is custom Python (not real pg_dump).
+- **Code health**: ✅ CLEAN, 14 files, 9,527 LOC. **QA**: Suite #19 23/23 passed (run_id 2113, 2026-05-09).
+- **Gaps**: ~~Preview modal fails DB-only backups~~ → **Fixed (PR #581)** — DB-ONLY badge shown instead of "0 files". USB sync already wired. pg_dump is custom Python by design (architectural choice, not a bug). Zero open gaps.
 - **KB Docs**: #264022 (audit 2026-05-07) · #264057 (user ref) · #264058 (chat overlay coder ref) · #264461 (W.A.R.D.E.N. chat 2026-05-08) · **#264472** (full audit 2026-05-09) · **Rules**: `admin-ops.md`
 
 ### Security & Network — `security_network` · `/tools/security-network` · ✅ · 🟢
@@ -42,11 +42,11 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 ### Account Center — `account_center` · `/tools/account-center` · ✅ · 🟢
 - **Capability**: 10 tabs — Overview, Users, Permissions, Subscriptions, Security, Sessions, API Keys, Bulk Ops, Activity, Orgs. User CRUD, role hierarchy (GUEST 5→SUPER_ADMIN 100), invite system (user_invites table, Stalwart SMTP), API key scopes (chat/read/admin), login lockout (5→15min), IP rate limit (20/15min), HMAC access control API, internal notify endpoint.
 - **Key security**: `auth_service.py` 23 functions; `SESSION_COOKIE_SECURE` env-driven; IP rate limit exempts 172.x for internal QA.
-- **Code health**: ✅ CLEAN, 8 files, 11,238 LOC. **QA**: Suite #16 35/35 passed (run_id 2087, 2026-05-09).
+- **Code health**: ✅ CLEAN, 8 files, 11,238 LOC. **QA**: Suite #16 35/35 passed (run_id 2114, 2026-05-09).
 - **Chat overlay**: `account-center-chat.js` → **R.E.S.O.L.V.E.** (id 142, Customer Success & Support), red `#ef4444`. Persistent shared team channel. Verified 2026-05-09. KB #264465.
 - **LCARS fix (2026-05-09)**: `cat_accent` must be `'#ef4444'` (literal hex) NOT `'var(--archie-palette-red-500)'` — CSS var refs don't resolve as Jinja2 inline style values.
 - **KB Docs**: #263991 (full user + developer guide, 2026-05-06) · #264465 (chat overlay, 2026-05-08) · **#264474** (full audit 2026-05-09) · **Rules**: `admin-ops.md`, `app-core.md`
-- **Security gaps** (tasks #2060–2065): No PKCE, HS256 static key, no password reset, SDK duplication across 6 products.
+- **Security status (audited 2026-05-09)**: ✅ PKCE fully implemented (S256, all SDKs). ✅ Password reset fully implemented (`initiate_password_reset()`, `complete_password_reset()`, `forgot_password.html`, login link). SECRET_KEY in `.env` (correct practice — no rotation UI yet, deferred). SDK duplication: 7×`kytran_auth.py` copies across products — deferred (2-3 day extraction effort, task #2065).
 
 ### System Operations — `system_operations` · `/tools/system-operations` · ⛔
 - **Status**: Disabled in registry — replaced by Kytran System Operations (`kytran_system_ops` at `/external/kso`)

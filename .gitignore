@@ -168,3 +168,5 @@ scripts/debug/
 # before each deploy. Staging output is runtime state, not source.
 platform_v2/static/media/thumbs/
 scripts/opencode
+OPERATIONAL_RUNBOOK.md
+account-center-snap.md

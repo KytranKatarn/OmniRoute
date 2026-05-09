@@ -519,6 +519,18 @@ class DepartmentCoordinator:
             except Exception:
                 pass
 
+        # Capability-name model affinity: +1.0 when the agent's model name
+        # contains the capability string. Ensures purpose-built models (e.g.,
+        # qwen25-classify for "classify") beat general-purpose directors.
+        # Guard: capability must be ≥4 chars to avoid spurious matches.
+        # Use token-split equality check to avoid substring false positives
+        # (e.g., "code" in "qwen3_coder_cpu").
+        if capability and len(capability) >= 4:
+            _cap_slug = capability.lower().replace("-", "_")
+            _model_tokens = agent_info.get("model", "").lower().replace("-", "_").replace(":", "_").split("_")
+            if _cap_slug in _model_tokens:
+                score += 1.0
+
         return (max(score, 0.01), None)
 
     def resolve_department(self, capability: str) -> str:

@@ -170,7 +170,8 @@ def _llm_classify_sentiment(text: str) -> Optional[Dict[str, any]]:
 
         dispatcher = get_dispatcher()
         dispatch_result = dispatcher.request_work(
-            "classify", prompt, "emotional_intelligence", json_mode=True, timeout=10
+            "classify", prompt, "emotional_intelligence", json_mode=True, timeout=10,
+            prefer_agent="I.R.I.S.",
         )
 
         if not dispatch_result.success:

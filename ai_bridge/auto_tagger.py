@@ -333,7 +333,8 @@ def _llm_enrich_tags(text: str, regex_tags: List[str]) -> List[str]:
 
         dispatcher = get_dispatcher()
         result = dispatcher.request_work(
-            "classify", prompt, "auto_tagger", json_mode=True, timeout=10
+            "classify", prompt, "auto_tagger", json_mode=True, timeout=10,
+            prefer_agent="I.R.I.S.",
         )
 
         if result.success:

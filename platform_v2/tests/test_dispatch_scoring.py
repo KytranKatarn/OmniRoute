@@ -228,6 +228,46 @@ class TestCompetencyScoring:
         assert score_with == pytest.approx(score_without, abs=0.001)
 
 
+def test_iris_beats_spectra_for_classify_via_model_affinity():
+    """I.R.I.S. (qwen25-classify) should outscore S.P.E.C.T.R.A. (mistral:7b)
+    for classify capability due to model-name affinity bonus."""
+    from services.department_coordinator import DepartmentCoordinator
+
+    coord = DepartmentCoordinator.__new__(DepartmentCoordinator)
+    coord._welfare_cache = {}
+    coord._cache_time = float("inf")  # prevent _refresh_caches from hitting DB
+    coord._agent_cache = {}
+
+    iris_info = {
+        "id": 8,
+        "status": "active",
+        "shift_state": "active",
+        "model": "qwen25-classify",
+        "department": "Analytics & Intelligence",
+        "is_department_ai": False,
+        "skills": {"classify": 5},
+        "competency_scores": {},
+    }
+    spectra_info = {
+        "id": 137,
+        "status": "active",
+        "shift_state": "active",
+        "model": "mistral:7b",
+        "department": "Analytics & Intelligence",
+        "is_department_ai": True,
+        "skills": {"classify": 5},
+        "competency_scores": {},
+    }
+
+    iris_score, _ = coord.score_agent("I.R.I.S.", iris_info, "classify", "Analytics & Intelligence")
+    spectra_score, _ = coord.score_agent("S.P.E.C.T.R.A.", spectra_info, "classify", "Analytics & Intelligence")
+
+    assert iris_score > spectra_score, (
+        f"I.R.I.S. ({iris_score:.2f}) should beat S.P.E.C.T.R.A. ({spectra_score:.2f}) "
+        f"for classify — model affinity bonus missing"
+    )
+
+
 class TestLegacySymbolsRemoved:
     """Regression guard — prevents accidental reintroduction of removed legacy symbols.
 

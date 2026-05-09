@@ -2853,10 +2853,13 @@
             }
 
             // Summary stats
+            const filesLine = data.files_to_restore > 0
+                ? `<div><strong style="color: #ef4444;">${data.files_to_restore}</strong> files to restore</div>`
+                : `<div style="background: rgba(239,68,68,0.12); border: 1px solid #ef4444; border-radius: 4px; padding: 2px 8px; font-size: 0.75rem; font-weight: 700; color: #ef4444; letter-spacing: 0.05em;">DB-ONLY — database restore, no files</div>`;
             html += `
-                <div style="display: flex; gap: var(--archie-space-6); color: var(--archie-text-secondary);">
+                <div style="display: flex; gap: var(--archie-space-6); color: var(--archie-text-secondary); align-items: center; flex-wrap: wrap;">
                     <div><strong style="color: #ef4444;">${data.database_tables}</strong> database tables</div>
-                    <div><strong style="color: #ef4444;">${data.files_to_restore}</strong> files to restore</div>
+                    ${filesLine}
                 </div>
             `;
 

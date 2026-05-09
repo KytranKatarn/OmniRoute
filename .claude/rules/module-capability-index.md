@@ -27,22 +27,25 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 - **Chat overlay**: `backup-manager-chat.js` → **W.A.R.D.E.N.** #363, red `#ef4444`. Reference implementation for module-agent pattern. Server-side `_inject_warden_action()` for cleanup/backup/standalones. All 3 actions verified 2026-05-08. KB #264461.
 - **Retention**: GFS 7 daily / 4 weekly / 3 monthly (max 14). **Job #60** auto-cleanup at 07:00 AM in `department_hq/jobs.py`. Path normalization: cleanup matches both `/backups/` and `/mnt/data2/backups/` variants + sub-component LIKE. W.A.R.D.E.N. briefing flags path anomalies proactively.
 - **Badges**: daily (blue), weekly (purple), monthly (amber) — added 2026-05-08. Standalones excluded from main backup list (own tab). Cron script: `platform_version` dynamic from DB, `backup_type` = mode (daily/weekly/monthly).
-- **Code health**: ✅ snapshot #209 (2026-05-07), 14 files, 9,527 LOC. **QA**: Suite #19 23/23 passed.
+- **Code health**: ✅ CLEAN, 14 files, 9,527 LOC. **QA**: Suite #19 23/23 passed (run_id 2086, 2026-05-09).
 - **Gaps**: Preview modal fails DB-only backups; Sync USB JS not wired; pg_dump is custom Python (not real pg_dump).
-- **KB Docs**: #264022 (audit 2026-05-07) · #264057 (user ref) · #264058 (chat overlay coder ref) · #264461 (W.A.R.D.E.N. chat 2026-05-08) · **Rules**: `admin-ops.md`
+- **KB Docs**: #264022 (audit 2026-05-07) · #264057 (user ref) · #264058 (chat overlay coder ref) · #264461 (W.A.R.D.E.N. chat 2026-05-08) · **#264472** (full audit 2026-05-09) · **Rules**: `admin-ops.md`
 
 ### Security & Network — `security_network` · `/tools/security-network` · ✅ · 🟢
 - **Capability**: SSL/TLS cert watch, Hostinger DNS CRUD, NPM proxy host lifecycle, 5 compliance rule packs (Ubuntu STIG/Docker STIG/HIPAA/Network STIG/CIS Ubuntu), device discovery (AdGuard+ARP 5min), Home Assistant cameras, recon scans, supervision schedules (AdGuard per-device blocking), 23 agent loop jobs.
 - **Distinguishing**: JSON rule pack abstraction, host_command queue bridge, full DNS audit trail. Supervision blocks social/gaming/streaming/adult categories per device per time window.
-- **Code health**: ✅ completed (0 red issues, 2026-05-06). **QA**: Suites #5/#6/#8 21/21 passed. All f-string SQL removed (PR #551).
-- **KB Docs**: #263992 (full user + developer guide, 2026-05-06) · **Rules**: `admin-ops.md`, `compliance-standards.md`
+- **Chat overlay**: `security-network-chat.js` → **V.I.G.I.L.** #3 (Security & Compliance director), red `#ef4444`. Live briefing from DB (scan results, device count, compliance score). 5 action types: run_compliance_scan, check_ssl_certs, check_security_alerts, run_network_scan, check_firewall_rules. Briefing: `tools/archie_chat/security_network_briefing.py`. Action injection: `_inject_vigil_action()` in `archie_chat/api_routes.py`. KB #264473.
+- **LCARS note**: Template uses BOTH `--frame-color` CSS vars AND direct `background: #HEX !important` inline — two-pass replacement required for future color changes (64+ replacements total, done 2026-05-09).
+- **Code health**: ✅ CLEAN, 71 files, 38,964 LOC. **QA**: Suites #5/#6/#8 21/21 passed (run_ids 2088/2093/2097, 2026-05-09). All f-string SQL removed (PR #551).
+- **KB Docs**: #263992 (full user + developer guide, 2026-05-06) · **#264473** (full audit 2026-05-09) · **Rules**: `admin-ops.md`, `compliance-standards.md`
 
 ### Account Center — `account_center` · `/tools/account-center` · ✅ · 🟢
 - **Capability**: 10 tabs — Overview, Users, Permissions, Subscriptions, Security, Sessions, API Keys, Bulk Ops, Activity, Orgs. User CRUD, role hierarchy (GUEST 5→SUPER_ADMIN 100), invite system (user_invites table, Stalwart SMTP), API key scopes (chat/read/admin), login lockout (5→15min), IP rate limit (20/15min), HMAC access control API, internal notify endpoint.
 - **Key security**: `auth_service.py` 23 functions; `SESSION_COOKIE_SECURE` env-driven; IP rate limit exempts 172.x for internal QA.
-- **Code health**: ✅ completed (0 red issues, 2026-05-06). **QA**: Suite #16 35/35 passed.
-- **Chat overlay**: `account-center-chat.js` → **R.E.S.O.L.V.E.** (id 142, Customer Success & Support), purple `#7c3aed`. Persistent shared team channel. Verified 2026-05-08. KB #264465.
-- **KB Docs**: #263991 (full user + developer guide, 2026-05-06) · #264465 (chat overlay, 2026-05-08) · **Rules**: `admin-ops.md`, `app-core.md`
+- **Code health**: ✅ CLEAN, 8 files, 11,238 LOC. **QA**: Suite #16 35/35 passed (run_id 2087, 2026-05-09).
+- **Chat overlay**: `account-center-chat.js` → **R.E.S.O.L.V.E.** (id 142, Customer Success & Support), red `#ef4444`. Persistent shared team channel. Verified 2026-05-09. KB #264465.
+- **LCARS fix (2026-05-09)**: `cat_accent` must be `'#ef4444'` (literal hex) NOT `'var(--archie-palette-red-500)'` — CSS var refs don't resolve as Jinja2 inline style values.
+- **KB Docs**: #263991 (full user + developer guide, 2026-05-06) · #264465 (chat overlay, 2026-05-08) · **#264474** (full audit 2026-05-09) · **Rules**: `admin-ops.md`, `app-core.md`
 - **Security gaps** (tasks #2060–2065): No PKCE, HS256 static key, no password reset, SDK duplication across 6 products.
 
 ### System Operations — `system_operations` · `/tools/system-operations` · ⛔
@@ -251,9 +254,16 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 These are standalone products surfaced as modules with `/external/` routes. All run on VPS (76.13.107.109) except KSO/Business Suite on hub.
 
 ### Kytran System Operations — `kytran_system_ops` · `/external/kso` · ✅
-- **Deployment**: Hub, port 8085, server.kytranempowerment.com
-- **Capability**: Compliance engine (STIG/HIPAA/CIS), host_monitor.py bridge, 1-click remediation. 100% Network STIG (per KB 255611).
-- **Rules**: `standalone-extraction.md`
+- **Deployment**: Hub, port 8085, server.kytranempowerment.com | Container: kytran-system-operations
+- **Source**: `/mnt/archie_brain/kytran-server-manager/` (gitignored from archie_brain, no separate git repo)
+- **Capability**: Compliance engine (STIG/HIPAA/CIS), host_monitor.py bridge, 1-click remediation. 9 tabs: Dashboard | Storage | Hardware | Memory | Processes | Docker | Network | Firewall | Compliance
+- **LCARS**: Red (#ef4444) — full treatment applied 2026-05-09. Dark-only (Kytran theme, no separate light mode).
+- **Chat overlay**: `kso-chat.js` → **B.A.S.E.** #139 (Operations & Infrastructure director), red `#ef4444`. Live briefing from `/data/host_monitor_data.json` (CPU/RAM/disk/services/uptime + compliance score). 5 action types: run_compliance_scan, check_services, check_docker, refresh_system_data, check_health_alerts.
+- **Chat proxy**: `routes/chat_proxy_routes.py` — proxies `/tools/archie-chat/api/` → hub (http://192.168.1.200:3000). Portrait via `/api/public/directory`. Env: `KSO_CHAT_API_KEY`, `KSO_ARCHIE_HUB_URL`.
+- **Code Health**: IN REPAIR (13 repairs) | 100 files | 45,483 LOC | scanned 2026-05-09
+- **Pip-install architecture**: Source loads from site-packages NOT /app/ — hot-patches need BOTH `/app/kytran_system_operations/` AND `/usr/local/lib/python3.12/site-packages/kytran_system_operations/`. Rebuild with `docker compose build + up -d --no-deps`.
+- **Back arrow**: → https://platform.kytranempowerment.com
+- **KB Docs**: #264475 (full audit 2026-05-09) · **Rules**: `standalone-extraction.md`
 
 ### Kytran Gov Watch — `kytran_gov_watch` · `/external/gov` · ✅
 - **Deployment**: VPS, port 8102, gov.kytranempowerment.com

@@ -53,16 +53,16 @@ def _check_bearer_token():
             # Update last_used_at
             cur.execute(
                 "UPDATE chat_api_keys SET last_used_at = NOW() WHERE id = %s",
-                (row[0],),
+                (row["id"],),
             )
 
             return {
-                "id": row[1],
-                "username": row[4],
-                "is_admin": bool(row[5]),
+                "id": row["user_id"],
+                "username": row["username"],
+                "is_admin": bool(row["is_admin"]),
                 "auth_method": "api_key",
-                "scopes": row[2] if row[2] else ["chat"],
-                "rate_limit": row[3] or 30,
+                "scopes": row["scopes"] if row["scopes"] else ["chat"],
+                "rate_limit": row["rate_limit"] or 30,
             }
     except Exception:
         return None

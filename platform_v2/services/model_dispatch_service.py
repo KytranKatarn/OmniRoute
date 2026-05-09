@@ -533,7 +533,12 @@ def model_dispatch_worker() -> None:
     for model_name, node_id in all_warm.items():
         if total_executed >= MAX_TASKS_PER_CYCLE:
             break
-        remaining = min(MAX_TASKS_PER_MODEL, MAX_TASKS_PER_CYCLE - total_executed)
+        # CPU-only models block the worker thread for the full inference duration
+        # (10-15 min for a 9B model). Cap at 1 per cycle so one slow task can't
+        # starve GPU tasks on the next iteration. Fix A in the dispatcher ensures
+        # most CPU dispatches pre-queue, so this is the serialisation gate.
+        _per_model_limit = 1 if "-cpu" in model_name.lower() else MAX_TASKS_PER_MODEL
+        remaining = min(_per_model_limit, MAX_TASKS_PER_CYCLE - total_executed)
         tasks = _claim_tasks(model_name, limit=remaining)
         for task in tasks:
             _execute_task(task, node_id=node_id)

@@ -5225,6 +5225,73 @@ class DepartmentDispatcher:
             except Exception as rag_err:
                 logger.debug(f"[BridgeDispatcher] RAG injection skipped: {rag_err}")
 
+        # Fix A (2026-05-09): CPU-only models (-cpu suffix) are too slow for
+        # inline synchronous execution — a 9B model on CPU takes 10-15 min per
+        # call, so concurrent dispatches cascade into 600s timeouts (KB mistake).
+        # Route proactively to dispatch_pending_queue; model_dispatch_worker
+        # serialises them one at a time when the model is warm.
+        _is_cpu_model = bool(model and "-cpu" in model.lower())
+        if _is_cpu_model and priority != "critical" and not images:
+            _cpu_model_str = str(model).strip().lower() if model else ""
+            if _cpu_model_str and _cpu_model_str not in ("none", "null", "comfyui"):
+                try:
+                    from database import get_db_cursor as _get_db_cursor
+
+                    _cpu_priority_int = self._PRIORITY_INT.get(priority, 5)
+                    with _get_db_cursor(commit=True) as (_qconn2, _qcur2):
+                        _qcur2.execute(
+                            """
+                            INSERT INTO dispatch_pending_queue
+                                (capability, model_needed, model_type, prompt,
+                                 system_prompt, json_mode, agent_name, agent_id,
+                                 module_id, source_product, requested_by,
+                                 user_id, priority)
+                            VALUES (%s,%s,'llama',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                            RETURNING id
+                            """,
+                            (
+                                capability,
+                                model,
+                                prompt,
+                                system_prompt,
+                                json_mode,
+                                agent.get("name") if agent else None,
+                                agent.get("id") if agent else None,
+                                module_id,
+                                source_product or "archie_platform",
+                                agent.get("name") if agent else "dispatcher",
+                                user_id,
+                                _cpu_priority_int,
+                            ),
+                        )
+                        _cpu_row = _qcur2.fetchone()
+                        _cpu_queue_id = _cpu_row["id"] if _cpu_row else None
+                    logger.info(
+                        "[BridgeDispatcher] CPU-model pre-queue: task #%s → %s "
+                        "(cap=%s) — avoids inline 600s timeout",
+                        _cpu_queue_id,
+                        model,
+                        capability,
+                    )
+                    return DispatchResult(
+                        success=False,
+                        queued=True,
+                        response="",
+                        agent_name=agent.get("name", "?") if agent else "?",
+                        agent_id=agent.get("id") if agent else None,
+                        model_used=model or "",
+                        department=dispatch_department,
+                        capability=capability,
+                        duration_ms=int((time.time() - start) * 1000),
+                        error=f"Queued (id={_cpu_queue_id}) — CPU model {model} serialised via queue",
+                    )
+                except Exception as _cpu_q_err:
+                    logger.warning(
+                        "[BridgeDispatcher] CPU-model pre-queue failed (%s) — "
+                        "falling through to inline (may timeout)",
+                        _cpu_q_err,
+                    )
+
         llm_result = self._execute_llm(
             model=model,
             prompt=prompt,
@@ -5243,7 +5310,19 @@ class DepartmentDispatcher:
 
         # 4b. Escalation on failure
         if not llm_result.get("success", False):
-            model_not_ready = llm_result.get("model_not_ready", False)
+            # Fix B (2026-05-09): CPU-model timeouts should also queue, not just
+            # cold-boot failures. This is the safety net for when Fix A's INSERT
+            # fails and the call falls through to inline execution.
+            _err_str = (llm_result.get("error") or "").lower()
+            _is_cpu_timeout = _is_cpu_model and ("timed out" in _err_str or "read timeout" in _err_str)
+            model_not_ready = llm_result.get("model_not_ready", False) or _is_cpu_timeout
+            if _is_cpu_timeout:
+                logger.warning(
+                    "[BridgeDispatcher] CPU model %s timed out for cap=%s — "
+                    "treating as model_not_ready to trigger queue",
+                    model,
+                    capability,
+                )
 
             # Background tasks (not critical) with cold models → queue for later.
             # The model_dispatch_worker will execute them when the model is warm.

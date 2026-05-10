@@ -41,6 +41,8 @@ HUB_IP = "192.168.1.200"
 # Subnets always exempt from anomaly detection (internal infrastructure)
 TRUSTED_SUBNETS = [
     ipaddress.ip_network("192.168.48.0/24"),  # Docker internal — containers generate false positives
+    ipaddress.ip_network("192.168.16.0/24"),  # Docker — kytran-server-manager network (KSO + postgres)
+    ipaddress.ip_network("172.16.0.0/12"),  # Docker default bridge ranges
 ]
 
 # Known legitimate domains with long names or many subdomains — NOT tunneling
@@ -68,6 +70,8 @@ DNS_TUNNEL_WHITELIST = {
     "mzstatic.com",  # Apple services
     "xbox.com",
     "xboxlive.com",  # Gaming
+    "ts.net",  # Tailscale/Headscale mesh — high-frequency keepalive, not tunneling
+    "docker.internal",  # Docker DNS resolver — internal only, never leaves host
     "twitch.tv",
     "steampowered.com",
     "snapchat.com",

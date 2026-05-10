@@ -83,6 +83,9 @@ def discover_network_devices():
         svc = DeviceRegistryService()
         new_devices = svc.discover_devices()
 
+        # Sync Docker containers by container_name (stable key, MAC-independent)
+        svc.sync_docker_containers()
+
         # Save each to DB (dashboard tracking) but skip individual Telegram
         digest_lines = []
         for device in new_devices:

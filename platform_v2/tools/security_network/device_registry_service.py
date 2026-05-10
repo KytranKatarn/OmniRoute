@@ -5,6 +5,7 @@ Network device discovery, registration, and AdGuard DNS sync.
 Owns the network_devices table as source of truth.
 """
 
+import json
 import os
 import logging
 import subprocess
@@ -600,6 +601,93 @@ class DeviceRegistryService:
             DeviceRegistryService._discovery_running = False
 
         return new_devices
+
+    def sync_docker_containers(self) -> List[Dict]:
+        """Sync running Docker containers into network_devices.
+
+        Keyed on metadata->>'container_name' (stable across container recreation).
+        Updates IP + MAC on every call so stale values from a previous run are
+        corrected even when the container was recreated with a new random MAC.
+
+        Returns list of updated device dicts.
+        """
+        updated = []
+        try:
+            result = subprocess.run(
+                ["docker", "ps", "-q"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            ids = result.stdout.strip().split()
+            if not ids:
+                return updated
+
+            inspect = subprocess.run(
+                ["docker", "inspect"] + ids,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            containers = json.loads(inspect.stdout)
+        except Exception as e:
+            logger.warning("sync_docker_containers: docker inspect failed: %s", e)
+            return updated
+
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                for c in containers:
+                    name = c.get("Name", "").lstrip("/")
+                    if not name:
+                        continue
+                    for net_cfg in c.get("NetworkSettings", {}).get("Networks", {}).values():
+                        ip = net_cfg.get("IPAddress", "")
+                        mac = (net_cfg.get("MacAddress", "") or "").upper()
+                        if not ip or ip.startswith("127."):
+                            continue
+
+                        # 1. Try match by container_name stored in metadata (stable key)
+                        cur.execute(
+                            """UPDATE network_devices SET
+                                 ip_address   = %s,
+                                 mac_address  = CASE WHEN %s != '' THEN %s
+                                                     ELSE mac_address END,
+                                 last_seen_at = NOW(),
+                                 updated_at   = NOW()
+                               WHERE metadata->>'container_name' = %s
+                               RETURNING id, ip_address, mac_address, friendly_name""",
+                            (ip, mac, mac, name),
+                        )
+                        row = cur.fetchone()
+                        if row:
+                            updated.append(dict(row))
+                            continue
+
+                        # 2. No metadata match — stamp container_name onto any
+                        #    unregistered entry that owns this IP so future
+                        #    syncs use the stable key.
+                        cur.execute(
+                            """UPDATE network_devices SET
+                                 mac_address  = CASE WHEN %s != '' THEN %s
+                                                     ELSE mac_address END,
+                                 metadata     = metadata || jsonb_build_object(
+                                                  'container_name', %s,
+                                                  'device_class', 'docker_container'),
+                                 last_seen_at = NOW(),
+                                 updated_at   = NOW()
+                               WHERE ip_address = %s AND is_registered = false
+                               RETURNING id, ip_address, mac_address, friendly_name""",
+                            (mac, mac, name, ip),
+                        )
+                        row = cur.fetchone()
+                        if row:
+                            updated.append(dict(row))
+
+            logger.info("sync_docker_containers: updated %d container entries", len(updated))
+        except Exception as e:
+            logger.error("sync_docker_containers failed: %s", e)
+
+        return updated
 
     def _parse_arp_table(self) -> List[Dict]:
         """Get ARP table from the HOST via host_command_client.

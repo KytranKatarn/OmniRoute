@@ -772,13 +772,25 @@ def volunteer_idle_agents():
                     f"Volunteering {volunteer['name']} from {volunteer['home_department']} "
                     f"to help {job['department']} ({job['recent_failures']} recent failures)"
                 )
-                _create_notification(
-                    cur,
-                    conn,
-                    f"Fleet: {volunteer['name']} volunteering at {job['department']}",
-                    "info",
-                    {"agent": volunteer["name"], "department": job["department"]},
+                # Only notify on state change — skip if same assignment was
+                # already notified within the last 30 minutes to prevent
+                # notification spam from the 5-min job cycle.
+                notif_title = f"Fleet: {volunteer['name']} volunteering at {job['department']}"
+                cur.execute(
+                    """SELECT 1 FROM system_notifications
+                       WHERE title = %s
+                         AND created_at > NOW() - INTERVAL '30 minutes'
+                       LIMIT 1""",
+                    (notif_title,),
                 )
+                if not cur.fetchone():
+                    _create_notification(
+                        cur,
+                        conn,
+                        notif_title,
+                        "info",
+                        {"agent": volunteer["name"], "department": job["department"]},
+                    )
                 volunteered += 1
                 idle_agents.remove(volunteer)
 

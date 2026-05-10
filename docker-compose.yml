@@ -136,6 +136,8 @@ services:
       - ./backups:/backups
       # Mount external USB backup storage
       - /mnt/external-backup:/mnt/external-backup:rw
+      # Mount data2 drive (media/backup storage — required by Backup Manager)
+      - /mnt/data2:/mnt/data2:rw
       # Mount conversation logs for Claude Code hook capture
       - ./conversation_logs:/mnt/archie_brain/conversation_logs:rw
       # Mount Docker socket for sandbox management
@@ -328,6 +330,7 @@ services:
       - ./platform_v2:/app:rw
       - ./backups:/backups
       - /mnt/external-backup:/mnt/external-backup:rw
+      - /mnt/data2:/mnt/data2:rw
       - ./conversation_logs:/mnt/archie_brain/conversation_logs:rw
       - /var/run/docker.sock:/var/run/docker.sock
       - ./docker-compose.sandbox.yml:/mnt/archie_brain/docker-compose.sandbox.yml:ro

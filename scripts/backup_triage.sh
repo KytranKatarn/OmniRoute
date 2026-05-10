@@ -90,11 +90,13 @@ log "  config tar OK ($SZ bytes)"
 
 # ----- Copy to USB via docker exec (USB is root-owned) -----
 log "Copying to USB via docker exec archie_platform..."
+USB_STATUS=success
 if tar -C "$(dirname "$RUN")" -cf - "$(basename "$RUN")" | \
    docker exec -i archie_platform tar -C /mnt/external-backup -xf - 2>>"$LOG"; then
     log "  USB copy OK"
 else
     log "  USB copy FAILED (primary copy still OK)"
+    USB_STATUS=failed
 fi
 
 # ----- Retention: keep 14 most-recent triage dailies on primary, 7 on USB -----
@@ -112,6 +114,9 @@ BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='backup_log' AND column_name='component') THEN
         INSERT INTO backup_log (component, tier, status, file_path, size_bytes, notes, created_at)
         VALUES ('daily_triage', 'primary', '${STATUS}', '${RUN}', ${SZ_TOTAL}, 'backup_triage.sh', NOW());
+        -- USB tier: lets backup_service.get_health_summary() track USB staleness
+        INSERT INTO backup_log (component, tier, status, file_path, size_bytes, notes, created_at)
+        VALUES ('daily_triage', 'usb', '${USB_STATUS}', '/mnt/external-backup/$(basename "${RUN}")', ${SZ_TOTAL}, 'backup_triage.sh USB copy', NOW());
     ELSE
         INSERT INTO backup_log (backup_type, file_path, file_size_bytes, status, error_message, completed_at, created_at)
         VALUES ('daily_triage', '${RUN}', ${SZ_TOTAL}, '${STATUS}', NULLIF('${FAIL_REASON}', ''), NOW(), NOW());

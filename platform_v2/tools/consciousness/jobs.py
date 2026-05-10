@@ -46,6 +46,7 @@ def _log_cycle(
     duration_ms: int,
     details: dict = None,
     error_message: str = None,
+    department: str = None,
 ):
     """Log an agent loop execution cycle to autonomy_loop_log."""
     status = "error" if items_failed > 0 and items_processed == 0 else "partial" if items_failed > 0 else "success"
@@ -68,7 +69,7 @@ def _log_cycle(
                 duration_ms,
                 json.dumps(details or {}),
                 error_message,
-                _CONSCIOUSNESS_DEPARTMENT,
+                department or _CONSCIOUSNESS_DEPARTMENT,
             ),
         )
         conn.commit()
@@ -220,27 +221,37 @@ def index_claude_sessions():
 
 
 def consciousness_analysis_batch():
-    """Job #49: Trigger consciousness analysis batch every 6 hours.
+    """Job #49: Trigger consciousness analysis batch every 6 hours via DHQ.
 
-    Only runs if the analysis server loop is enabled in system_config.
-    Uses _trigger_loop_op() from processing_routes which handles
-    item selection, job creation, and background threading.
+    APScheduler is the sole gate — server_loops.analysis flag controls HTTP
+    endpoint triggers only (UI buttons). This job always runs on schedule.
+    Dispatches to Analytics & Intelligence (W.A.T.C.H.) via knowledge_analyzer.
     """
+    import time as _time
+
+    start = _time.time()
     try:
-        from tools.consciousness.processing_routes import (
-            get_server_loops,
-            _trigger_loop_op,
-        )
+        from tools.consciousness.processing_routes import _trigger_loop_op
 
-        loops = get_server_loops()
-        if not loops.get("analysis"):
-            logger.debug("[Consciousness Batch] Analysis loop disabled — skipping")
-            return
-
-        logger.info("[Consciousness Batch] Triggering scheduled analysis batch")
+        logger.info("[ConsciousnessAnalysis] Triggering scheduled analysis batch")
         _trigger_loop_op("analysis")
+        _log_cycle(
+            "consciousness_analysis",
+            1,
+            0,
+            int((_time.time() - start) * 1000),
+            department="Analytics & Intelligence",
+        )
     except Exception as e:
-        logger.warning(f"[Consciousness Batch] Analysis batch failed: {e}")
+        logger.warning(f"[ConsciousnessAnalysis] Analysis batch failed: {e}")
+        _log_cycle(
+            "consciousness_analysis",
+            0,
+            1,
+            int((_time.time() - start) * 1000),
+            error_message=str(e),
+            department="Analytics & Intelligence",
+        )
 
 
 def consciousness_embedding_batch():
@@ -263,9 +274,9 @@ def consciousness_embedding_batch():
 
         logger.info("[Consciousness Batch] Triggering scheduled embedding batch")
         _trigger_loop_op("embedding")
-        _log_cycle("consciousness_embedding", 1, 0, 0)
+        _log_cycle("consciousness_embedding", 1, 0, 0, department="Documentation & Knowledge")
     except Exception as e:
-        _log_cycle("consciousness_embedding", 0, 1, 0, error_message=str(e))
+        _log_cycle("consciousness_embedding", 0, 1, 0, error_message=str(e), department="Documentation & Knowledge")
         logger.warning(f"[Consciousness Batch] Embedding batch failed: {e}")
 
 
@@ -317,7 +328,7 @@ def sync_learned_skills():
 
             if not skill_files:
                 logger.info("[SkillSync] No skill files found in KB")
-                _log_cycle("skill_sync", 1, 0, int((time.time() - start) * 1000))
+                _log_cycle("skill_sync", 1, 0, int((time.time() - start) * 1000), department="Engineering & Technology")
                 return
 
             # Group by repo
@@ -537,11 +548,18 @@ def sync_learned_skills():
         except Exception as tg_err:
             logger.warning(f"[SkillSync] Telegram notification failed: {tg_err}")
 
-        _log_cycle("skill_sync", 1, 0, int((time.time() - start) * 1000))
+        _log_cycle("skill_sync", 1, 0, int((time.time() - start) * 1000), department="Engineering & Technology")
 
     except Exception as e:
         logger.warning(f"[SkillSync] Skill sync failed: {e}")
-        _log_cycle("skill_sync", 0, 1, int((time.time() - start) * 1000), error_message=str(e))
+        _log_cycle(
+            "skill_sync",
+            0,
+            1,
+            int((time.time() - start) * 1000),
+            error_message=str(e),
+            department="Engineering & Technology",
+        )
 
 
 def github_auto_pull():
@@ -574,7 +592,9 @@ def github_auto_pull():
 
         if not repos:
             logger.info("[GitPull] No tracked repos to pull")
-            _log_cycle("github_auto_pull", 1, 0, int((time.time() - start) * 1000))
+            _log_cycle(
+                "github_auto_pull", 1, 0, int((time.time() - start) * 1000), department="Engineering & Technology"
+            )
             return
 
         for repo_row in repos:
@@ -722,6 +742,7 @@ def github_auto_pull():
             1,
             0,
             int((time.time() - start) * 1000),
+            department="Engineering & Technology",
         )
 
     except Exception as e:
@@ -732,6 +753,7 @@ def github_auto_pull():
             1,
             int((time.time() - start) * 1000),
             error_message=str(e),
+            department="Engineering & Technology",
         )
 
 
@@ -790,7 +812,7 @@ def analyze_discovered_skills():
 
         if not skills:
             logger.info("[SkillAnalyzer] No discovered skills to analyze")
-            _log_cycle("skill_analyzer", 1, 0, int((time.time() - start) * 1000))
+            _log_cycle("skill_analyzer", 1, 0, int((time.time() - start) * 1000), department="Engineering & Technology")
             return
 
         logger.info(f"[SkillAnalyzer] Analyzing {len(skills)} skills")
@@ -1012,7 +1034,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                 logger.warning(f"[SkillAnalyzer] Telegram notification failed: {tg_err}")
 
         logger.info(f"[SkillAnalyzer] Done: {analyzed} analyzed, {errors_count} errors")
-        _log_cycle("skill_analyzer", 1, 0, int((time.time() - start) * 1000))
+        _log_cycle("skill_analyzer", 1, 0, int((time.time() - start) * 1000), department="Engineering & Technology")
 
     except Exception as e:
         logger.warning(f"[SkillAnalyzer] Job failed: {e}")
@@ -1022,6 +1044,7 @@ Respond with ONLY a JSON object (no markdown, no explanation):
             1,
             int((time.time() - start) * 1000),
             error_message=str(e),
+            department="Engineering & Technology",
         )
 
 
@@ -1037,10 +1060,17 @@ def conversation_consolidation():
         result = hourly_conversation_consolidation()
         duration_ms = int((time.time() - start) * 1000)
         processed = result.get("messages_processed", 0) if isinstance(result, dict) else 0
-        _log_cycle("conversation_consolidation", processed, 0, duration_ms)
+        _log_cycle("conversation_consolidation", processed, 0, duration_ms, department="Documentation & Knowledge")
     except Exception as e:
         duration_ms = int((time.time() - start) * 1000)
-        _log_cycle("conversation_consolidation", 0, 1, duration_ms, error_message=str(e))
+        _log_cycle(
+            "conversation_consolidation",
+            0,
+            1,
+            duration_ms,
+            error_message=str(e),
+            department="Documentation & Knowledge",
+        )
 
 
 def improvement_detection():
@@ -1055,10 +1085,12 @@ def improvement_detection():
         result = _improvement_detection()
         duration_ms = int((time.time() - start) * 1000)
         found = result.get("improvements_found", 0) if isinstance(result, dict) else 0
-        _log_cycle("improvement_detection", found, 0, duration_ms)
+        _log_cycle("improvement_detection", found, 0, duration_ms, department="Engineering & Technology")
     except Exception as e:
         duration_ms = int((time.time() - start) * 1000)
-        _log_cycle("improvement_detection", 0, 1, duration_ms, error_message=str(e))
+        _log_cycle(
+            "improvement_detection", 0, 1, duration_ms, error_message=str(e), department="Engineering & Technology"
+        )
 
 
 def daily_self_reflection():
@@ -1072,10 +1104,10 @@ def daily_self_reflection():
 
         result = _daily_self_reflection()
         duration_ms = int((time.time() - start) * 1000)
-        _log_cycle("daily_self_reflection", 1, 0, duration_ms)
+        _log_cycle("daily_self_reflection", 1, 0, duration_ms, department="Executive Office")
     except Exception as e:
         duration_ms = int((time.time() - start) * 1000)
-        _log_cycle("daily_self_reflection", 0, 1, duration_ms, error_message=str(e))
+        _log_cycle("daily_self_reflection", 0, 1, duration_ms, error_message=str(e), department="Executive Office")
 
 
 def weekly_memory_consolidation():
@@ -1090,10 +1122,12 @@ def weekly_memory_consolidation():
         result = _weekly_memory_consolidation()
         duration_ms = int((time.time() - start) * 1000)
         decayed = result.get("memories_decayed", 0) if isinstance(result, dict) else 0
-        _log_cycle("weekly_memory_consolidation", decayed, 0, duration_ms)
+        _log_cycle("weekly_memory_consolidation", decayed, 0, duration_ms, department="Executive Office")
     except Exception as e:
         duration_ms = int((time.time() - start) * 1000)
-        _log_cycle("weekly_memory_consolidation", 0, 1, duration_ms, error_message=str(e))
+        _log_cycle(
+            "weekly_memory_consolidation", 0, 1, duration_ms, error_message=str(e), department="Executive Office"
+        )
 
 
 def analyze_repo_relevance():
@@ -1126,7 +1160,9 @@ def analyze_repo_relevance():
 
         if not repos:
             logger.info("[RepoRelevance] No repos pending review")
-            _log_cycle("github_repo_analysis", 0, 0, int((time.time() - start) * 1000))
+            _log_cycle(
+                "github_repo_analysis", 0, 0, int((time.time() - start) * 1000), department="Engineering & Technology"
+            )
             return
 
         logger.info(f"[RepoRelevance] Analyzing {len(repos)} repos for relevance")
@@ -1293,6 +1329,7 @@ Respond with ONLY valid JSON:
             errors_count,
             int((time.time() - start) * 1000),
             details={"repos_checked": len(repos), "analyzed": analyzed, "errors": errors_count},
+            department="Engineering & Technology",
         )
 
     except Exception as e:
@@ -1303,6 +1340,7 @@ Respond with ONLY valid JSON:
             1,
             int((time.time() - start) * 1000),
             error_message=str(e),
+            department="Engineering & Technology",
         )
 
 
@@ -1341,7 +1379,9 @@ def auto_adapt_skills():
 
         if not skills:
             logger.info("[SkillAdapt] No registered skills ready for adaptation")
-            _log_cycle("skill_adaptation", 0, 0, int((time.time() - start) * 1000))
+            _log_cycle(
+                "skill_adaptation", 0, 0, int((time.time() - start) * 1000), department="Engineering & Technology"
+            )
             return
 
         logger.info(f"[SkillAdapt] Adapting {len(skills)} skills for A.R.C.H.I.E.")
@@ -1502,11 +1542,19 @@ capabilities: [<list>]
             errors_count,
             int((time.time() - start) * 1000),
             details={"skills_checked": len(skills), "adapted": adapted, "errors": errors_count},
+            department="Engineering & Technology",
         )
 
     except Exception as e:
         logger.warning(f"[SkillAdapt] Job failed: {e}")
-        _log_cycle("skill_adaptation", 0, 1, int((time.time() - start) * 1000), error_message=str(e))
+        _log_cycle(
+            "skill_adaptation",
+            0,
+            1,
+            int((time.time() - start) * 1000),
+            error_message=str(e),
+            department="Engineering & Technology",
+        )
 
 
 def install_skills_to_claude():
@@ -1545,7 +1593,9 @@ def install_skills_to_claude():
 
         if not skills:
             logger.info("[SkillInstaller] No registered skills to install")
-            _log_cycle("skill_installer", 0, 0, int((time.time() - start) * 1000))
+            _log_cycle(
+                "skill_installer", 0, 0, int((time.time() - start) * 1000), department="Engineering & Technology"
+            )
             return
 
         logger.info(f"[SkillInstaller] Installing {len(skills)} skills to Claude Code")
@@ -1636,6 +1686,7 @@ def install_skills_to_claude():
             errors_count,
             int((time.time() - start) * 1000),
             details={"installed": installed, "skipped": skipped, "errors": errors_count},
+            department="Engineering & Technology",
         )
 
     except Exception as e:
@@ -1646,6 +1697,7 @@ def install_skills_to_claude():
             1,
             int((time.time() - start) * 1000),
             error_message=str(e),
+            department="Engineering & Technology",
         )
 
 
@@ -1808,7 +1860,7 @@ def test_installed_skills():
 
         if not installations:
             logger.info("[SkillTester] No untested installations")
-            _log_cycle("skill_tester", 0, 0, int((time.time() - start) * 1000))
+            _log_cycle("skill_tester", 0, 0, int((time.time() - start) * 1000), department="Engineering & Technology")
             return
 
         logger.info(f"[SkillTester] Testing {len(installations)} installed skills")
@@ -1908,6 +1960,7 @@ def test_installed_skills():
             errors_count,
             int((time.time() - start) * 1000),
             details={"tested": tested, "errors": errors_count},
+            department="Engineering & Technology",
         )
 
     except Exception as e:
@@ -1918,6 +1971,7 @@ def test_installed_skills():
             1,
             int((time.time() - start) * 1000),
             error_message=str(e),
+            department="Engineering & Technology",
         )
 
 
@@ -1953,6 +2007,7 @@ def push_skills_to_fleet():
                 0,
                 0,
                 int((time.time() - start) * 1000),
+                department="Engineering & Technology",
             )
             return
 
@@ -1975,6 +2030,7 @@ def push_skills_to_fleet():
                 0,
                 0,
                 int((time.time() - start) * 1000),
+                department="Engineering & Technology",
             )
             return
 
@@ -2077,6 +2133,7 @@ def push_skills_to_fleet():
                 "pushed": pushed_total,
                 "errors": errors_total,
             },
+            department="Engineering & Technology",
         )
 
     except Exception as e:
@@ -2087,6 +2144,7 @@ def push_skills_to_fleet():
             1,
             int((time.time() - start) * 1000),
             error_message=str(e),
+            department="Engineering & Technology",
         )
 
 
@@ -2166,7 +2224,9 @@ def auto_generate_project_docs():
         candidates = get_doc_candidates()
         if not candidates:
             logger.debug("[AutoDoc Job] No candidates for doc generation")
-            _log_cycle("auto_generate_docs", 0, 0, int((time.time() - start) * 1000))
+            _log_cycle(
+                "auto_generate_docs", 0, 0, int((time.time() - start) * 1000), department="Documentation & Knowledge"
+            )
             return
 
         logger.info("[AutoDoc Job] Generating docs for %d projects", len(candidates))
@@ -2196,10 +2256,11 @@ def auto_generate_project_docs():
                 "succeeded": succeeded,
                 "failed": failed,
             },
+            department="Documentation & Knowledge",
         )
     except Exception as e:
         duration = int((time.time() - start) * 1000)
-        _log_cycle("auto_generate_docs", 0, 1, duration, error_message=str(e))
+        _log_cycle("auto_generate_docs", 0, 1, duration, error_message=str(e), department="Documentation & Knowledge")
         logger.warning(f"[AutoDoc Job] Batch failed: {e}")
 
 
@@ -2232,6 +2293,7 @@ def auto_link_knowledge_batch():
                 "bj_skipped": bj_stats.get("skipped", 0),
                 "projects_embedded": kb_stats.get("projects_embedded", 0),
             },
+            department="Documentation & Knowledge",
         )
         if total_linked > 0:
             logger.info(
@@ -2239,7 +2301,7 @@ def auto_link_knowledge_batch():
             )
     except Exception as e:
         duration = int((time.time() - start) * 1000)
-        _log_cycle("knowledge_auto_link", 0, 1, duration, error_message=str(e))
+        _log_cycle("knowledge_auto_link", 0, 1, duration, error_message=str(e), department="Documentation & Knowledge")
         logger.warning(f"[Knowledge Auto-Link] Batch failed: {e}")
 
 
@@ -2256,7 +2318,13 @@ def generate_weekly_reports():
         candidates = get_report_candidates()
         if not candidates:
             logger.debug("[WeeklyReport Job] No candidates for weekly reports")
-            _log_cycle("weekly_knowledge_report", 0, 0, int((time.time() - start) * 1000))
+            _log_cycle(
+                "weekly_knowledge_report",
+                0,
+                0,
+                int((time.time() - start) * 1000),
+                department="Documentation & Knowledge",
+            )
             return
 
         logger.info("[WeeklyReport Job] Generating reports for %d projects", len(candidates))
@@ -2288,10 +2356,13 @@ def generate_weekly_reports():
                 "succeeded": succeeded,
                 "failed": failed,
             },
+            department="Documentation & Knowledge",
         )
     except Exception as e:
         duration = int((time.time() - start) * 1000)
-        _log_cycle("weekly_knowledge_report", 0, 1, duration, error_message=str(e))
+        _log_cycle(
+            "weekly_knowledge_report", 0, 1, duration, error_message=str(e), department="Documentation & Knowledge"
+        )
         logger.warning(f"[WeeklyReport Job] Batch failed: {e}")
 
 

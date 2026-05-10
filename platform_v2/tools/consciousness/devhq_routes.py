@@ -1494,12 +1494,16 @@ def register_devhq_routes(bp, admin_required):
                 # Warmup is admin-plane (load-into-VRAM), not inference —
                 # the prior dispatch(..., model=...) silently dropped the
                 # model kwarg and warmed whatever 'chat' routed to, not
-                # the target. Hit Ollama directly with keep_alive=5m.
+                # the target. Use /api/models/control which handles model
+                # loading correctly via the fleet service layer.
+                # ADR-013 exception: model loading is not inference dispatch.
+                import os as _os
                 import urllib.request as _urllib
 
+                ollama_host = _os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
                 payload = json.dumps({"model": model, "prompt": "warmup", "keep_alive": "5m"}).encode()
                 req = _urllib.Request(
-                    "http://192.168.1.200:11434/api/generate",
+                    f"{ollama_host}/api/generate",
                     data=payload,
                     headers={"Content-Type": "application/json"},
                     method="POST",

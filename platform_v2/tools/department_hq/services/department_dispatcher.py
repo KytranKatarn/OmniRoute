@@ -4583,6 +4583,11 @@ class DepartmentDispatcher:
 
             router = get_router()
             task_type, detected_capability = router.classify_task(prompt, return_capability=True)
+            # When caller provides an explicit capability, honour it — don't let
+            # content classification override the routing intent. The comment at
+            # the top of this block says "HINT, not a command"; this enforces it.
+            if capability:
+                detected_capability = capability
             routing_rec = router.suggest_model(task_type, complexity=5)
             recommended_tier = routing_rec.tier
             smart_route_info = {

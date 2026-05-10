@@ -1312,8 +1312,6 @@ window.timeAgo = function timeAgo(isoString) {
             var items = (categories[cat] || []).filter(function(a) {
                 return !a.is_read;
             });
-            if (items.length === 0) return;
-
             var header = document.createElement('div');
             header.style.cssText = [
                 'font-family:Antonio,sans-serif',
@@ -1328,10 +1326,17 @@ window.timeAgo = function timeAgo(isoString) {
             header.textContent = cat;
             container.appendChild(header);
 
-            items.forEach(function(a) {
-                var sev = (a.severity === 'critical' || a.priority === 'critical') ? 'alert-critical' : 'alert-warning';
-                container.appendChild(_buildBriefingAlertItem(a, sev));
-            });
+            if (items.length === 0) {
+                var none = document.createElement('div');
+                none.style.cssText = 'color:var(--archie-text-muted,#666);font-size:0.75rem;padding:2px 0 2px 4px;font-style:italic;';
+                none.textContent = '— none —';
+                container.appendChild(none);
+            } else {
+                items.forEach(function(a) {
+                    var sev = (a.severity === 'critical' || a.priority === 'critical') ? 'alert-critical' : 'alert-warning';
+                    container.appendChild(_buildBriefingAlertItem(a, sev));
+                });
+            }
         });
 
         if (typeof lucide !== 'undefined') lucide.createIcons();

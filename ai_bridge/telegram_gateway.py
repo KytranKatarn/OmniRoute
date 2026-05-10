@@ -1045,7 +1045,7 @@ class TelegramGateway:
             await query.edit_message_text("Invalid callback data.")
             return
 
-        kbs_url = os.getenv("KBS_APP_URL", "http://kbs_app:8090")
+        kbs_url = os.getenv("KBS_APP_URL", "http://kbs_app:8091")
         token = os.getenv("ARCHIE_COMMS_SERVICE_TOKEN", "")
         endpoint = f"{kbs_url}/api/social/telegram-callback"
         payload = _json.dumps({

@@ -703,3 +703,26 @@ def register_social_routes(bp, admin_required):
             return jsonify({"error": "failed to build calendar view"}), 500
 
         return jsonify(view), 200
+
+    # ── SIGNAL Themes ─────────────────────────────────────────────
+
+    @bp.route("/api/signal/themes")
+    @admin_required
+    def api_signal_themes():
+        """Content themes / lanes for S.I.G.N.A.L. calendar planning."""
+        from database import get_db_cursor
+
+        try:
+            with get_db_cursor() as (_conn, cur):
+                cur.execute(
+                    """SELECT id, name, description, accent_color, curator_name,
+                              scene_count, music_mood, is_active
+                       FROM signal_themes
+                       WHERE is_active = TRUE
+                       ORDER BY id ASC"""
+                )
+                themes = [dict(r) for r in cur.fetchall()]
+            return jsonify({"themes": themes})
+        except Exception:
+            # Table may not exist yet — return empty list so JS renders gracefully
+            return jsonify({"themes": []})

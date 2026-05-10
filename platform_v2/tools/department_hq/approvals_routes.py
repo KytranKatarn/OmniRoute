@@ -227,6 +227,12 @@ def register_approvals_routes(bp, admin_required_decorator):
                         category, display = "cloud_escalation", "Cloud Model Escalation"
                     elif at == "create_agent":
                         category, display = "agent_creation", "Create New Agent"
+                    elif at == "linkedin_post":
+                        category, display = "linkedin_post", "LinkedIn Post Approval"
+                    elif at == "contractor_dispatch":
+                        category, display = "contractor_dispatch", "Contractor Dispatch"
+                    elif at == "restart_container":
+                        category, display = "restart_container", "Container Restart"
                     else:
                         category, display = "other", at
                     approvals.append(

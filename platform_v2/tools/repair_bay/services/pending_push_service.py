@@ -1,19 +1,20 @@
 """
 Pending Push Service — scans local git for branches with unpushed commits.
 
-Used by Repair Bay's "Pushes" tab to show what's queued for push-freeze release
-(see feedback_github-actions-minutes.md — NO pushes until 2026-05-01).
-
 No DB writes. Reads git refs on-demand via `subprocess.run(git)`. Repo lives
 at /mnt/archie_brain inside the container (mounted from host).
 """
 
 import subprocess
-from datetime import datetime, date, timezone
+from datetime import datetime, timezone
 
 
 REPO_PATH = "/mnt/archie_brain"
-FREEZE_LIFT_DATE = date(2026, 5, 1)
+
+
+def is_freeze_active(today=None):
+    """Push freeze has been lifted. Always returns False."""
+    return False
 
 
 def _git(*args, check=False):
@@ -122,8 +123,7 @@ def summarize():
     rows = scan_pending_pushes()
     pending = [r for r in rows if r["commits_ahead"] > 0]
     return {
-        "freeze_active": is_freeze_active(),
-        "freeze_lift_date": FREEZE_LIFT_DATE.isoformat(),
+        "freeze_active": False,
         "scanned_at": datetime.now(timezone.utc).isoformat() + "Z",
         "pending_branches": len(pending),
         "total_branches": len(rows),

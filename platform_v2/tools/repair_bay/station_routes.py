@@ -34,7 +34,7 @@ def register_station_routes(bp, admin_required):
         try:
             import requests as req
 
-            resp = req.get("http://localhost:3000/tools/department-hq/api/stations", timeout=5)
+            resp = req.get("http://192.168.1.200:3000/tools/department-hq/api/stations", timeout=5)
             if resp.status_code != 200:
                 return jsonify({"success": False, "error": "Starbase unavailable"}), 502
 
@@ -84,7 +84,7 @@ def register_station_routes(bp, admin_required):
 
             status_filter = request.args.get("status", "running")
             resp = req.get(
-                f"http://localhost:3000/tools/department-hq/api/bridge/jobs?status={status_filter}",
+                f"http://192.168.1.200:3000/tools/department-hq/api/bridge/jobs?status={status_filter}",
                 timeout=5,
             )
             if resp.status_code != 200:
@@ -118,7 +118,7 @@ def register_station_routes(bp, admin_required):
             import requests as req
 
             resp = req.get(
-                f"http://localhost:3000/tools/department-hq/api/bridge/jobs/{job_id}",
+                f"http://192.168.1.200:3000/tools/department-hq/api/bridge/jobs/{job_id}",
                 timeout=5,
             )
             if resp.status_code != 200:

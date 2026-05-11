@@ -117,13 +117,14 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 ## saas_services (8)
 
 ### Email Manager — `email_manager` · `/tools/email-manager` · ✅ · 🟢
-- **Capability**: 5-tab oversight dashboard — Overview (unread stats + 30s live feed), Inbox (per-mailbox IMAP browser + **✉ Compose button**), Sent, Agents (Stalwart provisioning), Settings (connection test). 48 mailboxes live: 38 AI agents + 10 business. IMAP sync job every 5 min.
-- **Backend**: `stalwart_service.py` (provision/delete/rotate), `sync_jobs.py` (IMAP sync 5 min), `mailbox_routes.py`, `overview_routes.py`, `inbox_routes.py`, `sent_routes.py`, **`compose_routes.py`** (Phase 3 send).
-- **Tables**: `email_mailboxes` (address, mailbox_type, owner_agent_id, provisioned, imap_password), `email_activity_log` (direction, from/to/subject/message_id, read_at).
-- **Compose/Send**: `POST /api/email/compose/send` `{from_address, to_address, subject, body}` — sends via Stalwart :587 STARTTLS → outpost Postfix relay → internet. `GET /api/email/compose/mailboxes` — provisioned From addresses.
-- **Key endpoints**: `POST /api/email/mailboxes/<id>/provision`, `POST /api/email/mailboxes/provision-all-agents`, `POST /api/email/mailboxes/rotate-all-passwords`.
-- **Stalwart PATCH gotcha**: body must be bare array `[{"action":"set","field":"secrets","value":[pw]}]` — NOT `{"changes":[...]}`.
-- **PRs**: #297 (Phase 1), #299 (Phase 2 IMAP), #321 (Phase 3 Compose/Send). KB: 260092–260095, 260190. 2026-04-25.
+- **Capability** (PR #597, 2026-05-11): **Three-panel command center** — Sidebar (220px, folder nav + unread badges), Message List (280px, paginated + search), Read Pane (flex, DOMPurify HTML render, thread toggle, Draft Reply). 49 mailboxes (38 AI + 10 business + 1 owner). IMAP sync 5 min, AI triage on ingest, rules engine first-match-wins.
+- **Features**: Phase 5 agent auto-reply drafts (R.E.S.O.L.V.E., capability=support), Phase 6 rules engine (5 ops: set_priority/archive/star/skip_triage/mark_read), Phase 7 threading (In-Reply-To+References), Phase 8 R.E.S.O.L.V.E. chat overlay (red #ef4444, live briefing).
+- **Tables**: `email_mailboxes`, `email_messages` (use `imap_uid` NOT `uid`, has `attachment_count`, `ai_priority`, `thread_id`, `in_reply_to`, `references_header`), `email_threads`, `email_rules` (mailbox_id, condition_op, action_type), `email_activity_log`.
+- **Service files**: `email_parser.py`, `sync_jobs.py`, `triage_service.py`, `rules_service.py`, `thread_service.py`, `email_hq_briefing.py`, `messages_routes.py` (14 endpoints), `rules_routes.py`.
+- **CRITICAL — Stalwart**: Use `http://stalwart_mail:8080` (plain HTTP, Docker internal). `stalwart_mail` must be in `archie_network`. Never `https://192.168.1.200:8443` — hairpin NAT blocks TLS from containers.
+- **Owner mailbox**: `POST /api/email/mailboxes/provision-owner` → `kytran@kytranempowerment.com` 10GB (409 = update password fallback).
+- **Chat overlay**: `static/js/email-manager-chat.js`, module_key=`email_manager` routes to `email_hq_briefing.py` in `api_routes.py`.
+- **KB Docs**: #265260 (user-doc) · #265261 (coder-doc) · Migrations 375–378 · PRs: #297/#299/#321 (phases 1–3) + **#597** (phases 4–8, full redesign).
 
 ### Scheduler — `scheduler` · `/tools/scheduler` · ⛔
 - **Status**: Disabled.

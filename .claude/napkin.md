@@ -62,11 +62,17 @@
    Do instead: Create `static/js/{module}-chat.js` with config baked in. No inline configure() in template.
 
 ## User Directives
-1. **[2026-04-15] Dev HQ workflow after every commit+push**
+1. **[2026-05-11] PR review → Repair Bay F.O.R.G.E., not Claude tokens**
+   Do instead: After `gh pr create`, trigger Repair Bay review (Decision #587). Read summary before merging. Claude does NOT do inline code review — F.O.R.G.E. does it for free on Ollama.
+
+2. **[2026-05-11] /archie-save and /archie-end: vault_notes are MANDATORY, not optional**
+   Do instead: For every substantive PR, write 2 vault_notes (user-doc + coder-doc) before marking session done. If skipped, /archie-end is incomplete. No exceptions at any context level.
+
+3. **[2026-04-15] Dev HQ workflow after every commit+push**
    Do instead: `create_task` / `complete_task` / `log_decision` / `update_project_understanding`.
 
-2. **[2026-04-15] Update session-handoff.md at session end**
+4. **[2026-04-15] Update session-handoff.md at session end**
    Do instead: Write what was done, what to do next, critical context for next session.
 
-3. **[2026-04-15] Use MCP tools, not raw DB queries**
+5. **[2026-04-15] Use MCP tools, not raw DB queries**
    Do instead: Use platform MCP tools for tracking, knowledge, projects — not ad-hoc SQL.

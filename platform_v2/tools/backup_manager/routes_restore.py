@@ -676,6 +676,36 @@ def register_restore_routes(bp, admin_required):
         )
         return jsonify(result), 200 if result["success"] else 400
 
+    @bp.route("/api/restore/sandbox-by-name", methods=["POST"])
+    @admin_required
+    def initiate_restore_sandbox_by_name():
+        """Start a sandbox restore test using backup directory name. Looks up backup_log.id automatically."""
+        from services.backup_restore_service import initiate_sandbox_restore
+
+        data = request.get_json() or {}
+        backup_name = data.get("backup_name")
+        if not backup_name:
+            return jsonify({"success": False, "error": "backup_name required"}), 400
+
+        with get_backup_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                "SELECT id FROM backup_log WHERE file_path LIKE %s ORDER BY created_at DESC LIMIT 1",
+                (f"%{backup_name}",),
+            )
+            row = cur.fetchone()
+
+        if not row:
+            return jsonify({"success": False, "error": f"No backup_log entry found for '{backup_name}'"}), 404
+
+        backup_id = row[0]
+        result = initiate_sandbox_restore(
+            backup_id=backup_id,
+            triggered_by=getattr(current_user, "username", "unknown"),
+        )
+        if result["success"]:
+            result["backup_id"] = backup_id
+        return jsonify(result), 200 if result["success"] else 400
+
     @bp.route("/api/restore/status/<int:backup_id>", methods=["GET"])
     @admin_required
     def get_restore_status_endpoint(backup_id):

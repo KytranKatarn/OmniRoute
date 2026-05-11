@@ -97,6 +97,12 @@
 
             <!-- BACKUPS TAB -->
             <div class="tab-content active" id="tab-backups">
+                <!-- Restore activity banner — hidden when idle -->
+                <div id="bm-restore-banner" style="display:none; align-items:center; gap:10px; padding:10px 16px; margin-bottom:12px; background:rgba(245,158,11,0.15); border:1px solid #f59e0b; border-radius:8px; color:#f59e0b; font-size:0.85rem;">
+                    <span id="bm-restore-dot" style="width:10px;height:10px;border-radius:50%;background:#f59e0b;flex-shrink:0;animation:pulse 1.4s infinite;"></span>
+                    <span id="bm-restore-msg">Restore in progress…</span>
+                    <span style="margin-left:auto;font-size:0.75rem;opacity:0.7;">Restore buttons disabled to prevent overlap</span>
+                </div>
                 <div style="--frame-color: #ef4444; --frame-rgb: 239,68,68; margin-bottom: 20px;">
                     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
                         <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
@@ -670,6 +676,7 @@
             </div>
             <div class="bm-footer">
                 <button type="button" class="btn btn-ghost" onclick="closeRestorePreviewModal()"><span data-i18n="backup_manager.cancel">Cancel</span></button>
+                <button type="button" class="btn btn-warning" id="restore-sandbox-btn" style="background:#f59e0b;color:#000;border-color:#f59e0b;" title="Restore to an isolated shadow DB first — W.A.R.D.E.N. verifies before touching production">🧪 Test in Sandbox</button>
                 <button type="button" class="btn btn-primary" id="restore-preview-proceed"><span data-i18n="backup_manager.proceed_to_restore">Proceed to Restore</span></button>
             </div>
         </div>
@@ -1136,9 +1143,10 @@
             // Inspect button (formerly Preview)
             const previewBtn = document.createElement('button');
             previewBtn.className = 'btn btn-purple';
+            previewBtn.setAttribute('data-restore-btn', '1');
             previewBtn.textContent = 'Inspect';
             previewBtn.title = 'View backup contents and component details';
-            previewBtn.onclick = function() { previewRestore(backup.name); };
+            previewBtn.onclick = function() { if (_bmRestoreActive) { showToast('A restore is in progress — please wait.', 'error'); return; } previewRestore(backup.name); };
             actionsDiv.appendChild(previewBtn);
 
             // Download button — async state machine
@@ -1452,10 +1460,11 @@
                 actDiv.style.cssText = 'display:flex;justify-content:flex-end;padding:8px 0 4px;';
                 const restBtn = document.createElement('button');
                 restBtn.className = 'btn btn-orange';
+                restBtn.setAttribute('data-restore-btn', '1');
                 restBtn.textContent = 'Restore Pre-Deploy Snapshot';
                 restBtn.title = 'Restore the backup taken before this proposal was deployed';
                 const bname = d.backup_name;
-                restBtn.addEventListener('click', function() { previewRestore(bname); });
+                restBtn.addEventListener('click', function() { if (_bmRestoreActive) { showToast('A restore is in progress — please wait.', 'error'); return; } previewRestore(bname); });
                 actDiv.appendChild(restBtn);
                 item.appendChild(actDiv);
             }
@@ -2949,6 +2958,9 @@
                 closeRestorePreviewModal();
                 showSelectiveRestoreDialog(backupName, data.components);
             };
+            document.getElementById('restore-sandbox-btn').onclick = function() {
+                restoreToSandbox(backupName);
+            };
             document.getElementById('restore-preview-modal').classList.add('active');
 
         } catch (error) {
@@ -2958,6 +2970,96 @@
 
     function closeRestorePreviewModal() {
         document.getElementById('restore-preview-modal').classList.remove('active');
+    }
+
+    async function restoreToSandbox(backupName) {
+        if (_bmRestoreActive) { showToast('A restore is already in progress — please wait.', 'error'); return; }
+        _bmRestoreLock('🧪 Sandbox restore queued — W.A.R.D.E.N. verifying ' + backupName.substring(0, 25) + '…');
+        const btn = document.getElementById('restore-sandbox-btn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Starting sandbox…';
+        try {
+            const resp = await fetch('/tools/backup-manager/api/restore/sandbox-by-name', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ backup_name: backupName })
+            });
+            const data = await resp.json();
+            if (!data.success) {
+                showToast('Sandbox restore failed: ' + (data.error || 'unknown'), 'error');
+                _bmRestoreUnlock();
+                btn.textContent = '🧪 Test in Sandbox';
+                return;
+            }
+            closeRestorePreviewModal();
+            showToast('Sandbox restore queued — W.A.R.D.E.N. is verifying (session #' + data.session_id + ')', 'success');
+            pollSandboxRestore(data.backup_id, data.session_id);
+        } catch (e) {
+            showToast('Error: ' + e.message, 'error');
+            _bmRestoreUnlock();
+            btn.textContent = '🧪 Test in Sandbox';
+        }
+    }
+
+    // ── Restore lock UI ──────────────────────────────────────────────────────
+    let _bmRestoreActive = false;
+
+    function _bmRestoreLock(msg) {
+        _bmRestoreActive = true;
+        const banner = document.getElementById('bm-restore-banner');
+        document.getElementById('bm-restore-msg').textContent = msg || 'Restore in progress…';
+        banner.style.display = 'flex';
+        // Grey out all preview restore buttons on backup cards
+        document.querySelectorAll('.preview-restore-btn, [data-restore-btn]').forEach(btn => {
+            btn.disabled = true;
+            btn.style.opacity = '0.4';
+            btn.title = 'Another restore is in progress — please wait';
+        });
+        // Disable modal buttons too
+        ['restore-preview-proceed', 'restore-sandbox-btn', 'confirm-restore-btn'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.disabled = true; el.style.opacity = '0.4'; }
+        });
+    }
+
+    function _bmRestoreUnlock() {
+        _bmRestoreActive = false;
+        const banner = document.getElementById('bm-restore-banner');
+        banner.style.display = 'none';
+        document.querySelectorAll('.preview-restore-btn, [data-restore-btn]').forEach(btn => {
+            btn.disabled = false;
+            btn.style.opacity = '';
+            btn.title = '';
+        });
+        ['restore-preview-proceed', 'restore-sandbox-btn', 'confirm-restore-btn'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.disabled = false; el.style.opacity = ''; }
+        });
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    async function pollSandboxRestore(backupId, sessionId) {
+        const maxAttempts = 24; // 2 min
+        for (let i = 0; i < maxAttempts; i++) {
+            await new Promise(r => setTimeout(r, 5000));
+            try {
+                const resp = await fetch('/tools/backup-manager/api/restore/status/' + backupId, { credentials: 'same-origin' });
+                const data = await resp.json();
+                const status = (data.session || {}).status || data.status;
+                if (status === 'qa_passed') {
+                    showToast('✅ Sandbox restore verified — W.A.R.D.E.N. approved. Safe to promote to production.', 'success');
+                    _bmRestoreUnlock();
+                    return;
+                } else if (status === 'failed') {
+                    showToast('❌ Sandbox restore failed — check W.A.R.D.E.N. logs before restoring production.', 'error');
+                    _bmRestoreUnlock();
+                    return;
+                }
+            } catch (_) {}
+        }
+        showToast('Sandbox restore is running in background (session #' + sessionId + ') — check Backup Manager later.', 'info');
+        _bmRestoreUnlock();
     }
 
     function showSelectiveRestoreDialog(backupName, components) {
@@ -3031,6 +3133,8 @@
     }
 
     async function executeRestore(backupName, components) {
+        if (_bmRestoreActive) { showToast('A restore is already in progress — please wait.', 'error'); return; }
+        _bmRestoreLock('⏳ Restoring ' + backupName.substring(0, 30) + '… — do not navigate away');
         showToast('Restoring backup...', 'info');
 
         try {
@@ -3052,6 +3156,8 @@
             }
         } catch (error) {
             showToast('Error: ' + error.message, 'error');
+        } finally {
+            _bmRestoreUnlock();
         }
     }
 

@@ -895,6 +895,13 @@ async function loadDiagnose() {
             text: 'Failed to load scan stats: ' + e.message
         }));
     }
+
+    // Trigger file list load (setScanMode handles all three modes)
+    if (typeof setScanMode === 'function') {
+        var prefs;
+        try { prefs = JSON.parse(localStorage.getItem('dp_scan_prefs') || '{}'); } catch(_) { prefs = {}; }
+        setScanMode(prefs.mode || 'browse', true);
+    }
 }
 
 /* ── Test Bay tab — sandbox stats banner + auto-load ─────────────

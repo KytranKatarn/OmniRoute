@@ -197,6 +197,9 @@
                 </div>
             </div>
 
+            <!-- Scan job status banner — always visible when a scan is running -->
+            <div id="rb-scan-status" style="display:none; padding:10px 14px; margin-bottom:8px; border-radius:4px; font-size:0.82rem; font-family:'IBM Plex Mono',monospace; border-left:3px solid #00d4ff; background:rgba(0,212,255,0.06); color:#e2e8f0;"></div>
+
             <!-- Progress bar -->
             <div class="dp-progress-bar" id="scanProgress">
                 <div class="dp-progress-fill" id="scanProgressFill"></div>
@@ -711,6 +714,16 @@
 </div>
 
 <script>
+// Patch: auto-add credentials:include for all same-origin fetch calls on this page
+(function() {
+  var _fetch = window.fetch;
+  window.fetch = function(url, opts) {
+    if (typeof url === 'string' && !url.startsWith('http') && !url.startsWith('//')) {
+      opts = Object.assign({}, opts || {}, { credentials: opts && opts.credentials ? opts.credentials : 'include' });
+    }
+    return _fetch.call(window, url, opts);
+  };
+})();
 (function() {
   // Tiny DOM helper: h(tag, attrs, children) — safe by construction (text nodes only).
   function h(tag, attrs, children) {
@@ -1507,28 +1520,106 @@ function _flashStationMsg(msg) {
 
 
 var _scanJobId = null;
+var _scanRunning = false;
 
-function runBatchScan(files) {
-    if (_completedTimer) { clearTimeout(_completedTimer); _completedTimer = null; }
+function _rbScanBanner(msg, color, pct) {
+    var el = document.getElementById('rb-scan-status');
+    if (!el) return;
+    el.style.display = 'block';
+    el.style.borderLeftColor = color || '#00d4ff';
+    el.style.background = 'rgba(' + (color === '#22c55e' ? '34,197,94' : color === '#ef4444' ? '239,68,68' : '0,212,255') + ',0.06)';
+    el.textContent = msg;
+    var fill = document.getElementById('scanProgressFill');
+    if (fill && pct != null) fill.style.width = Math.min(100, pct) + '%';
+}
 
-    // Submit batch to backend — creates a real Bridge job
-    fetch(API + '/scan/batch', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({file_paths: files})
-    }).then(function(r) { return r.json(); }).then(function(d) {
-        if (d.success && d.job_id) {
-            _scanJobId = d.job_id;
-            // Speed up station polling during scan (every 3s instead of 15s)
-            _startFastPolling();
-            // Immediately check for the new job
-            checkStationJobs();
-        } else {
-            _flashStationMsg(d.error || 'Failed to start scan');
+function _rbScanBannerClear() {
+    var el = document.getElementById('rb-scan-status');
+    if (el) el.style.display = 'none';
+    var fill = document.getElementById('scanProgressFill');
+    if (fill) fill.style.width = '0%';
+}
+
+async function _pollScanJob(jobId, timeoutMs, statusCb) {
+    var start = Date.now();
+    var modelLoadingShown = false;
+    while (Date.now() - start < timeoutMs) {
+        await new Promise(function(r) { setTimeout(r, 3000); });
+        var elapsed = Date.now() - start;
+        // After 30s with no completion, model is likely cold-loading
+        if (!modelLoadingShown && elapsed > 30000 && statusCb) {
+            statusCb('model_loading');
+            modelLoadingShown = true;
         }
-    }).catch(function() {
-        _flashStationMsg('Error starting scan');
-    });
+        try {
+            var r = await fetch('/tools/department-hq/api/bridge/jobs/' + jobId);
+            var d = await r.json();
+            if (d.success && d.job) {
+                var j = d.job;
+                if (j.status === 'completed') return { success: true, completed: j.completed_steps || 0, failed: j.failed_steps || 0 };
+                if (j.status === 'failed') return { success: false, completed: j.completed_steps || 0, failed: j.failed_steps || 0 };
+            }
+        } catch(e) {}
+    }
+    return { success: false, error: 'timeout' };
+}
+
+async function runBatchScan(files) {
+    if (_scanRunning) { _rbScanBanner('⟳ Scan already running — please wait', '#fbbf24'); return; }
+    if (_completedTimer) { clearTimeout(_completedTimer); _completedTimer = null; }
+    _scanRunning = true;
+    var CHUNK = 50;
+    var chunks = [];
+    for (var i = 0; i < files.length; i += CHUNK) chunks.push(files.slice(i, i + CHUNK));
+    var totalFiles = files.length;
+    var doneFiles = 0, failedBatches = 0;
+
+    _rbScanBanner('⟳ Starting scan — ' + totalFiles + ' files in ' + chunks.length + ' batch' + (chunks.length > 1 ? 'es' : '') + '...', '#00d4ff', 0);
+
+    for (var ci = 0; ci < chunks.length; ci++) {
+        var chunk = chunks[ci];
+        var batchMsg = '⟳ Scanning batch ' + (ci + 1) + '/' + chunks.length + ' — ' + doneFiles + '/' + totalFiles + ' files done';
+        _rbScanBanner(batchMsg, '#00d4ff', Math.round(doneFiles / totalFiles * 100));
+        try {
+            var resp = await fetch(API + '/scan/batch', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({file_paths: chunk})
+            });
+            var d = await resp.json();
+            if (d.success && d.job_id) {
+                _scanJobId = d.job_id;
+                checkStationJobs();
+                var batchBase = '⟳ Scanning batch ' + (ci + 1) + '/' + chunks.length;
+                var result = await _pollScanJob(d.job_id, 300000, function(signal) {
+                    if (signal === 'model_loading') {
+                        _rbScanBanner(batchBase + ' — model loading, please wait…', '#fbbf24', Math.round(doneFiles / totalFiles * 100));
+                    }
+                });
+                doneFiles += result.success ? (result.completed || chunk.length) : 0;
+                if (!result.success) failedBatches++;
+            } else {
+                failedBatches++;
+            }
+        } catch(e) {
+            failedBatches++;
+        }
+    }
+
+    _scanRunning = false;
+    _scanJobId = null;
+    _startNormalPolling();
+    loadScanFiles();
+    if (typeof loadStats === 'function') loadStats();
+
+    if (failedBatches === 0) {
+        _rbScanBanner('✓ Scan complete — ' + doneFiles + '/' + totalFiles + ' files scanned. Check Issues tab for results.', '#22c55e', 100);
+    } else if (failedBatches < chunks.length) {
+        _rbScanBanner('⚠ Scan partial — ' + doneFiles + '/' + totalFiles + ' files done, ' + failedBatches + ' batch(es) failed.', '#fbbf24', Math.round(doneFiles / totalFiles * 100));
+    } else {
+        _rbScanBanner('✗ Scan failed — all batches failed. Is Bridge Routing active?', '#ef4444', 0);
+    }
+    setTimeout(_rbScanBannerClear, 12000);
 }
 
 function _startFastPolling() {

@@ -327,6 +327,29 @@ class SafeDeploymentProtocol:
             cur.close()
             conn.close()
 
+            # Notify A.R.C.H.I.E. via Unified Voice inbox — "Repair shipped"
+            try:
+                from services.director_report_service import submit_via_inbox
+
+                _title = proposal.get("title", f"Proposal #{proposal_id}")
+                _category = proposal.get("category", "unknown")
+                _platform_url = "http://192.168.1.200:3000/tools/repair-bay"
+                submit_via_inbox(
+                    category="repair_shipped",
+                    title=f"⚙️ Repair shipped: {_title[:80]}",
+                    message=(
+                        f"Issue: {_title}\n"
+                        f"Category: {_category}\n"
+                        f"Health check: {'✅ passed' if health_check_passed else '⚠️ skipped'}\n"
+                        f"View: {_platform_url}"
+                    ),
+                    source_agent="F.O.R.G.E.",
+                    severity="info",
+                    department="Engineering & Technology",
+                )
+            except Exception as _notify_err:
+                logger.warning("[Deploy] Telegram notify failed (non-fatal): %s", _notify_err)
+
             return {
                 "success": True,
                 "deployment_id": deployment_id,

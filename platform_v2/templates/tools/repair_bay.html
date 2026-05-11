@@ -704,7 +704,7 @@
         ]));
         return;
       }
-      var headers = ['Branch', 'Ahead', 'Behind', 'Tip', 'Last commit', 'Subject'];
+      var headers = ['Branch', 'Ahead', 'Behind', 'Tip', 'Last commit', 'Subject', 'Actions'];
       var thead = h('thead', null, [
         h('tr', { style: 'border-bottom:1px solid rgba(255,255,255,0.12);text-align:left;' },
           headers.map(function(txt, i) {
@@ -717,18 +717,37 @@
         var pending = b.commits_ahead > 0;
         var dot = h('span', { style: pending ? 'color:#ff6b6b;' : 'color:#00ff41;opacity:.5;' },
           [pending ? '● ' : '○ ']);
+        var branch = b.branch || '';
+        var ghUrl = 'https://github.com/KytranKatarn/archie-platform/compare/' + encodeURIComponent(branch) + '?expand=1';
+        var createPrBtn = h('a', {
+          href: ghUrl,
+          target: '_blank',
+          style: 'display:inline-block;padding:3px 8px;border-radius:4px;border:1px solid #8b5cf6;color:#8b5cf6;font-size:0.75rem;font-family:IBM Plex Mono,monospace;text-decoration:none;cursor:pointer;white-space:nowrap;'
+        }, ['Create PR ↗']);
         tbody.appendChild(h('tr', {
           style: 'border-bottom:1px solid rgba(255,255,255,0.05);' + (pending ? 'background:rgba(255,107,107,0.04);' : '')
         }, [
-          h('td', { style: 'padding:8px;font-family:IBM Plex Mono,monospace;' }, [dot, b.branch || '']),
+          h('td', { style: 'padding:8px;font-family:IBM Plex Mono,monospace;' }, [dot, branch]),
           h('td', { style: 'padding:8px;text-align:right;' + (pending ? 'color:#ff6b6b;font-weight:bold;' : 'color:#94a3b8;') }, [String(b.commits_ahead)]),
           h('td', { style: 'padding:8px;text-align:right;color:#94a3b8;' }, [String(b.commits_behind)]),
           h('td', { style: 'padding:8px;font-family:IBM Plex Mono,monospace;color:#8b5cf6;' }, [b.local_sha || '—']),
           h('td', { style: 'padding:8px;color:#94a3b8;' }, [(b.last_touched || '').slice(0, 16).replace('T', ' ')]),
           h('td', { style: 'padding:8px;color:#e5e7eb;' }, [b.last_commit_subject || '']),
+          h('td', { style: 'padding:8px;' }, [pending ? createPrBtn : '']),
         ]));
       });
       table.appendChild(h('table', { style: 'width:100%;border-collapse:collapse;font-size:0.85rem;' }, [thead, tbody]));
+
+      // F.O.R.G.E. review trigger panel
+      var reviewPanel = h('div', { style: 'margin-top:16px;padding:12px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:6px;' }, [
+        h('div', { style: 'font-family:Antonio,sans-serif;font-size:0.75rem;letter-spacing:2px;color:#8b5cf6;margin-bottom:8px;' }, ['TRIGGER F.O.R.G.E. REVIEW']),
+        h('div', { style: 'display:flex;gap:8px;align-items:center;' }, [
+          h('input', { id: 'forgeReviewPrNum', type: 'number', placeholder: 'PR #', style: 'width:90px;padding:4px 8px;background:rgba(0,0,0,0.3);border:1px solid rgba(139,92,246,0.4);border-radius:4px;color:#e5e7eb;font-family:IBM Plex Mono,monospace;font-size:0.85rem;' }),
+          h('button', { onclick: 'triggerForgeReview()', style: 'padding:4px 12px;background:rgba(139,92,246,0.15);border:1px solid #8b5cf6;color:#8b5cf6;border-radius:4px;font-size:0.8rem;cursor:pointer;' }, ['▶ Analyze']),
+          h('span', { id: 'forgeReviewStatus', style: 'color:#94a3b8;font-size:0.8rem;' }, ['']),
+        ]),
+      ]);
+      table.appendChild(reviewPanel);
     } catch (err) {
       clear(table);
       table.appendChild(h('div', { className: 'dp-empty', style: 'padding:40px;color:#ff6b6b;' }, [
@@ -736,7 +755,25 @@
       ]));
     }
   }
+  async function triggerForgeReview() {
+    var prNum = document.getElementById('forgeReviewPrNum').value;
+    var status = document.getElementById('forgeReviewStatus');
+    if (!prNum) { status.textContent = 'Enter a PR number.'; status.style.color = '#ff6b6b'; return; }
+    status.textContent = 'Triggering…'; status.style.color = '#94a3b8';
+    try {
+      var res = await fetch('/tools/repair-bay/api/forge/pr-reviews/' + prNum + '/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      var data = await res.json();
+      if (data.success) {
+        status.textContent = '✅ F.O.R.G.E. review queued — check PR Review tab.'; status.style.color = '#00ff41';
+      } else {
+        status.textContent = '⚠ ' + (data.error || 'Failed'); status.style.color = '#ff6b6b';
+      }
+    } catch (err) {
+      status.textContent = 'Error: ' + err.message; status.style.color = '#ff6b6b';
+    }
+  }
   window.loadPendingPushes = loadPendingPushes;
+  window.triggerForgeReview = triggerForgeReview;
   document.addEventListener('click', function(e) {
     var btn = e.target.closest && e.target.closest('[data-tab="pushes"]');
     if (btn) setTimeout(loadPendingPushes, 50);

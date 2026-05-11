@@ -1455,9 +1455,16 @@ capabilities: [<list>]
                     system_prompt=system_prompt,
                     prefer_agent="W.A.T.C.H.",
                 )
-                result = dispatch_result.response if dispatch_result and dispatch_result.success else None
+                if dispatch_result and dispatch_result.queued:
+                    logger.info(
+                        "[SkillAdapt] Deferred to queue for %s — model cold, will retry automatically",
+                        skill["skill_name"],
+                    )
+                    result = None
+                else:
+                    result = dispatch_result.response if dispatch_result and dispatch_result.success else None
 
-                if not result:
+                if not result and not (dispatch_result and dispatch_result.queued):
                     logger.warning(
                         f"[SkillAdapt] Dispatch returned no result for {skill['skill_name']} — "
                         f"success={getattr(dispatch_result, 'success', '?')}, "
@@ -1914,6 +1921,9 @@ def test_installed_skills():
                     system_prompt=system_prompt,
                 )
 
+                if dispatch_result and dispatch_result.queued:
+                    logger.info("[SkillTester] Deferred to queue — model cold, skipping dry-run for this cycle")
+                    continue
                 response = ""
                 if dispatch_result and dispatch_result.success:
                     response = dispatch_result.response or ""

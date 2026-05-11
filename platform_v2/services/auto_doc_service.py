@@ -176,6 +176,12 @@ def generate_project_docs(project_id: int, gap_data: Optional[Dict] = None) -> D
             timeout=600,
         )
 
+        if result and result.queued:
+            logger.info(
+                "[AutoDoc] Deferred to queue for project %s — D.A.R.W.I.N. model cold, will retry automatically",
+                project_id,
+            )
+            return {"success": True, "kb_id": None, "queued": True}
         if not result or not result.success:
             error_msg = getattr(result, "error", "Dispatch failed") if result else "No result"
             return {"success": False, "kb_id": None, "error": str(error_msg)}

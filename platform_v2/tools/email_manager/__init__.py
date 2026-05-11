@@ -36,3 +36,13 @@ register_compose_routes(email_manager_bp, admin_required)
 from .hq_routes import register_hq_routes  # noqa: F401, E402
 
 register_hq_routes(email_manager_bp, admin_required)
+
+# Email messages API (three-panel layout — sidebar, list, body, actions)
+from .messages_routes import register_email_messages_routes  # noqa: F401, E402
+
+register_email_messages_routes(email_manager_bp, admin_required)
+
+# Email rules engine (Phase 6)
+from .rules_routes import register_email_rules_routes  # noqa: F401, E402
+
+register_email_rules_routes(email_manager_bp, admin_required)

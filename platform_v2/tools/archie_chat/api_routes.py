@@ -454,13 +454,19 @@ def register_routes(bp, admin_required):
                 log.warning("W.A.R.D.E.N. briefing failed (non-fatal): %s", _be)
             contextual_message += "\n\n[MANDATORY: Your response MUST be written in English only. Do not use German, Portuguese, French, or any other language. English only.]"
         elif effective_target == "R.E.S.O.L.V.E.":
+            _module_key = body.get("module_key") or ""
             try:
-                from tools.archie_chat.account_center_briefing import _build_account_center_briefing
+                if _module_key == "email_manager":
+                    from tools.archie_chat.email_hq_briefing import _build_email_hq_briefing
 
-                contextual_message = _build_account_center_briefing() + contextual_message
+                    contextual_message = _build_email_hq_briefing() + contextual_message
+                else:
+                    from tools.archie_chat.account_center_briefing import _build_account_center_briefing
+
+                    contextual_message = _build_account_center_briefing() + contextual_message
             except Exception as _be:
                 log.warning("R.E.S.O.L.V.E. briefing failed (non-fatal): %s", _be)
-            contextual_message += "\n\n[MANDATORY: Respond in English only. You are R.E.S.O.L.V.E., the Account Center support agent. Be helpful, clear, and suggest relevant actions when appropriate.]"
+            contextual_message += "\n\n[MANDATORY: Respond in English only. You are R.E.S.O.L.V.E., Customer Success & Support director. Be helpful, clear, and suggest relevant actions when appropriate.]"
         elif effective_target == "V.I.G.I.L.":
             try:
                 from tools.archie_chat.security_network_briefing import _build_security_network_briefing

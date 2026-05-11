@@ -5,6 +5,8 @@
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/email-manager.css') }}">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js" crossorigin="anonymous"></script>
+<script src="{{ url_for('static', filename='js/email-manager-chat.js') }}"></script>
 {% endblock %}
 
 {% block content %}
@@ -20,710 +22,224 @@
     ("Repair Bay", "wrench", "/tools/repair-bay"),
     ("Email HQ", "mail", "/tools/email-manager")
 ] %}
-{% set header_tabs = [
-    ("overview", "Overview", "activity"),
-    ("inbox", "Inbox", "inbox"),
-    ("sent", "Sent", "send"),
-    ("agents", "Agents", "users"),
-    ("settings", "Settings", "settings"),
-    ("hq", "📬 HQ", "mail")
-] %}
 {% include 'includes/lcars-header.html' %}
 
-<div class="dp-container">
-    <div class="dp-header">
-        <div>
-            <div class="dp-title">Email HQ</div>
-            <div class="dp-subtitle">Stalwart Mail Integration &bull; Agent Mailboxes &bull; Provisioning &bull; Activity Feed</div>
-        </div>
+<div class="em-workspace">
+
+  <!-- ════════════════════════════════════════════════════════════════
+       LEFT PANEL — SIDEBAR
+       ════════════════════════════════════════════════════════════════ -->
+  <aside class="em-sidebar" id="em-sidebar">
+
+    <div class="em-sidebar-header">
+      <span class="em-sidebar-title">MAILBOXES</span>
+      <button class="em-icon-btn" id="em-compose-open" title="Compose new message">
+        <i data-lucide="edit-3" style="width:14px;height:14px;"></i>
+      </button>
     </div>
 
-    <!-- ── OVERVIEW TAB ────────────────────────────────────────── -->
-    <div id="tab-overview" class="tab-content" style="display:block;">
-        <div class="em-stats-row" id="em-stats-row">
-            <div class="em-stat-card unread">
-                <div class="em-stat-value" id="em-stat-unread">—</div>
-                <div class="em-stat-label">Unread</div>
-            </div>
-            <div class="em-stat-card sent">
-                <div class="em-stat-value" id="em-stat-sent">—</div>
-                <div class="em-stat-label">Sent Today</div>
-            </div>
-            <div class="em-stat-card provisioned">
-                <div class="em-stat-value" id="em-stat-provisioned">—</div>
-                <div class="em-stat-label">Provisioned</div>
-            </div>
-            <div class="em-stat-card pending">
-                <div class="em-stat-value" id="em-stat-pending">—</div>
-                <div class="em-stat-label">Not Provisioned</div>
-            </div>
-        </div>
+    <!-- smart views -->
+    <nav class="em-nav-section" aria-label="Smart views">
+      <div class="em-nav-item em-nav-active" data-view="all" id="nav-all" role="button" tabindex="0">
+        <i data-lucide="inbox" class="em-nav-icon"></i>
+        <span>All Mail</span>
+        <span class="em-badge" id="badge-all"></span>
+      </div>
+      <div class="em-nav-item" data-view="unread" id="nav-unread" role="button" tabindex="0">
+        <i data-lucide="circle-dot" class="em-nav-icon"></i>
+        <span>Unread</span>
+        <span class="em-badge em-badge--cyan" id="badge-unread"></span>
+      </div>
+      <div class="em-nav-item" data-view="action" id="nav-action" role="button" tabindex="0">
+        <i data-lucide="zap" class="em-nav-icon"></i>
+        <span>Action Items</span>
+        <span class="em-badge em-badge--red" id="badge-action"></span>
+      </div>
+      <div class="em-nav-item" data-view="starred" id="nav-starred" role="button" tabindex="0">
+        <i data-lucide="star" class="em-nav-icon"></i>
+        <span>Starred</span>
+      </div>
+      <div class="em-nav-item" data-view="manage" id="nav-manage" role="button" tabindex="0">
+        <i data-lucide="settings" class="em-nav-icon"></i>
+        <span>Manage</span>
+      </div>
+    </nav>
 
-        <div class="em-feed" id="em-feed">
-            <div class="em-feed-header">Recent Email Activity</div>
-            <div id="em-feed-body">
-                <div class="em-empty">Loading…</div>
-            </div>
-        </div>
+    <div class="em-sidebar-sep"></div>
+
+    <!-- per-mailbox groups — populated by JS -->
+    <div id="em-mailbox-groups" class="em-mailbox-groups">
+      <div class="em-placeholder">Loading mailboxes…</div>
     </div>
 
-    <!-- ── INBOX TAB ───────────────────────────────────────────── -->
-    <div id="tab-inbox" class="tab-content" style="display:none;">
-        <div style="margin-bottom:10px;display:flex;justify-content:flex-end;">
-            <button class="em-bulk-btn" onclick="openComposeModal()">✉ Compose</button>
-        </div>
-        <div class="em-split">
-            <div class="em-sidebar" id="em-inbox-sidebar"></div>
-            <div class="em-main" id="em-inbox-main"><div class="em-empty">Select a mailbox</div></div>
-        </div>
+    <div class="em-sidebar-footer">
+      <button class="em-sidebar-action" id="em-provision-owner-btn">
+        <i data-lucide="user-plus" style="width:13px;height:13px;"></i>
+        Provision kytran@ inbox
+      </button>
+    </div>
+  </aside>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       MIDDLE PANEL — MESSAGE LIST
+       ════════════════════════════════════════════════════════════════ -->
+  <div class="em-list-panel" id="em-list-panel">
+
+    <div class="em-list-toolbar">
+      <input class="em-search" id="em-search" type="search"
+             placeholder="Search messages…" autocomplete="off">
+      <select class="em-view-select" id="em-view-select">
+        <option value="inbox">Inbox</option>
+        <option value="unread">Unread</option>
+        <option value="action">Action</option>
+        <option value="review">Review</option>
+        <option value="starred">Starred</option>
+      </select>
     </div>
 
-    <!-- ── SENT TAB ────────────────────────────────────────────── -->
-    <div id="tab-sent" class="tab-content" style="display:none;">
-        <div class="em-split">
-            <div class="em-sidebar" id="em-sent-sidebar"></div>
-            <div class="em-main" id="em-sent-main"><div class="em-empty">Select a mailbox</div></div>
-        </div>
+    <div class="em-list-subbar">
+      <span class="em-list-context" id="em-list-context">All Mail</span>
+      <div class="em-list-subactions">
+        <button class="em-text-btn" id="em-mark-all-btn" title="Mark all read">
+          <i data-lucide="check-check" style="width:11px;height:11px;"></i>
+        </button>
+        <button class="em-text-btn" id="em-sync-btn" title="Sync mailbox">
+          <i data-lucide="refresh-cw" style="width:11px;height:11px;"></i>
+        </button>
+      </div>
     </div>
 
-    <!-- ── AGENTS TAB ──────────────────────────────────────────── -->
-    <div id="tab-agents" class="tab-content" style="display:none;">
-        <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;color:var(--archie-muted)">All mailboxes — AI agents, business, and human</span>
-            <button class="em-bulk-btn" onclick="provisionAllAgents()">Provision All AI Agents</button>
-        </div>
-        <table class="em-agents-table">
-            <thead><tr>
-                <th>Address</th><th>Name</th><th>Type</th><th>Status</th><th>Action</th>
-            </tr></thead>
-            <tbody id="em-agents-table-body"></tbody>
-        </table>
+    <div id="em-message-list" class="em-message-list" role="list">
+      <div class="em-list-empty">Select a mailbox to view messages</div>
     </div>
 
-    <!-- ── SETTINGS TAB ────────────────────────────────────────── -->
-    <div id="tab-settings" class="tab-content" style="display:none;">
-        <div class="em-empty" style="height:200px;">Stalwart settings — coming in Task 6</div>
+    <div class="em-pagination" id="em-pagination" style="display:none;">
+      <button class="em-text-btn" id="em-prev-btn">← Prev</button>
+      <span class="em-page-label" id="em-page-label">1</span>
+      <button class="em-text-btn" id="em-next-btn">Next →</button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       RIGHT PANEL — READ PANE
+       ════════════════════════════════════════════════════════════════ -->
+  <div class="em-read-pane" id="em-read-pane">
+
+    <div class="em-read-empty" id="em-read-empty">
+      <i data-lucide="mail-open" style="width:52px;height:52px;opacity:.2;"></i>
+      <p>Select a message to read</p>
     </div>
 
-    <!-- ── HQ TAB ────────────────────────────────────────────────── -->
-    <div id="tab-hq" class="tab-content" style="display:none;">
+    <div class="em-read-content" id="em-read-content" style="display:none;">
 
-      <!-- Stats row -->
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
-        <div style="border:1px solid #222;border-radius:6px;padding:12px;text-align:center;background:#050509">
-          <div id="hqStat24h" style="font-size:22px;font-weight:700;color:#7c3aed">—</div>
-          <div style="font-size:11px;color:#888;margin-top:2px">Emails (24h)</div>
+      <div class="em-read-header">
+        <div class="em-read-subject" id="em-read-subject"></div>
+        <div class="em-read-meta">
+          <span class="em-read-from" id="em-read-from"></span>
+          <span class="em-meta-sep">·</span>
+          <span class="em-read-date" id="em-read-date"></span>
+          <span class="em-meta-sep">·</span>
+          <span class="em-read-mailbox-label" id="em-read-mailbox"></span>
         </div>
-        <div style="border:1px solid #222;border-radius:6px;padding:12px;text-align:center;background:#050509">
-          <div id="hqStatUnread" style="font-size:22px;font-weight:700;color:#f59e0b">—</div>
-          <div style="font-size:11px;color:#888;margin-top:2px">Unread</div>
-        </div>
-        <div style="border:1px solid #222;border-radius:6px;padding:12px;text-align:center;background:#050509">
-          <div id="hqStatMailboxes" style="font-size:22px;font-weight:700;color:#22c55e">—</div>
-          <div style="font-size:11px;color:#888;margin-top:2px">Active Mailboxes</div>
-        </div>
-        <div style="border:1px solid #222;border-radius:6px;padding:12px;text-align:center;background:#050509">
-          <div id="hqStatFlagged" style="font-size:22px;font-weight:700;color:#ef4444">—</div>
-          <div style="font-size:11px;color:#888;margin-top:2px">Flagged &gt;24h</div>
-        </div>
+        <div class="em-read-to-line" id="em-read-to-line"></div>
       </div>
 
-      <!-- Unified inbox header -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <h3 style="font-size:13px;color:#888;text-transform:uppercase;letter-spacing:1px;margin:0">Unified Inbox</h3>
-        <select id="hqMailboxFilter" style="background:#0a0a14;color:#aaa;border:1px solid #333;border-radius:4px;padding:4px 8px;font-size:12px">
-          <option value="">All mailboxes</option>
-        </select>
+      <!-- Thread banner — hidden until message is part of a thread -->
+      <div class="em-ai-banner" id="em-thread-banner" style="display:none;background:#05050f;border-color:#1a2d3e;">
+        <i data-lucide="message-square" style="width:13px;height:13px;color:#7eb8f7;"></i>
+        <span class="em-ai-suggestion" id="em-thread-count" style="color:#7eb8f7;"></span>
+        <button class="em-text-btn" id="em-thread-toggle" style="color:#7eb8f7;margin-left:auto;">
+          <span id="em-thread-toggle-label">View thread</span>
+        </button>
       </div>
-      <div id="hqEmailList" style="display:flex;flex-direction:column;gap:6px"></div>
-    </div>
-</div>
+      <!-- Thread messages — collapsed by default -->
+      <div id="em-thread-body" style="display:none;padding:0 18px;background:#03030a;border-bottom:1px solid #1a1a2e;max-height:300px;overflow-y:auto;"></div>
 
-<!-- ── COMPOSE MODAL ──────────────────────────────────────────── -->
-<div id="compose-modal" class="bm-overlay" style="display:none;">
-    <div class="bm-shell">
-        <div class="bm-frame"></div>
-        <div class="bm-content" style="--bm-accent:#00d4ff;min-width:480px;max-width:600px;width:90vw;">
-            <div class="bm-header" style="display:flex;justify-content:space-between;align-items:center;">
-                <span>Compose Email</span>
-                <button onclick="closeComposeModal()" style="background:none;border:none;color:var(--archie-muted);cursor:pointer;font-size:18px;line-height:1;">✕</button>
-            </div>
-            <div class="bm-body" style="padding:16px 20px;">
-                <div style="margin-bottom:12px;">
-                    <label style="font-size:11px;color:var(--archie-muted);display:block;margin-bottom:4px;letter-spacing:.08em;">FROM</label>
-                    <select id="compose-from" style="width:100%;background:var(--archie-surface);color:var(--archie-text);border:1px solid var(--archie-border);padding:8px;border-radius:4px;font-size:13px;"></select>
-                </div>
-                <div style="margin-bottom:12px;">
-                    <label style="font-size:11px;color:var(--archie-muted);display:block;margin-bottom:4px;letter-spacing:.08em;">TO</label>
-                    <input id="compose-to" type="email" placeholder="recipient@example.com"
-                           style="width:100%;background:var(--archie-surface);color:var(--archie-text);border:1px solid var(--archie-border);padding:8px;border-radius:4px;font-size:13px;box-sizing:border-box;">
-                </div>
-                <div style="margin-bottom:12px;">
-                    <label style="font-size:11px;color:var(--archie-muted);display:block;margin-bottom:4px;letter-spacing:.08em;">SUBJECT</label>
-                    <input id="compose-subject" type="text" placeholder="Subject"
-                           style="width:100%;background:var(--archie-surface);color:var(--archie-text);border:1px solid var(--archie-border);padding:8px;border-radius:4px;font-size:13px;box-sizing:border-box;">
-                </div>
-                <div style="margin-bottom:12px;">
-                    <label style="font-size:11px;color:var(--archie-muted);display:block;margin-bottom:4px;letter-spacing:.08em;">MESSAGE</label>
-                    <textarea id="compose-body" rows="8" placeholder="Write your message…"
-                              style="width:100%;background:var(--archie-surface);color:var(--archie-text);border:1px solid var(--archie-border);padding:8px;border-radius:4px;font-size:13px;font-family:inherit;box-sizing:border-box;resize:vertical;"></textarea>
-                </div>
-                <div id="compose-status" style="font-size:12px;margin-bottom:4px;display:none;"></div>
-            </div>
-            <div class="bm-footer" style="display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;">
-                <button onclick="closeComposeModal()"
-                        style="background:var(--archie-surface);color:var(--archie-muted);border:1px solid var(--archie-border);padding:8px 16px;border-radius:4px;cursor:pointer;font-size:13px;">Cancel</button>
-                <button id="compose-send-btn" onclick="sendCompose()"
-                        style="background:#00d4ff;color:#000;border:none;padding:8px 20px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600;">Send</button>
-            </div>
+      <!-- AI triage banner — hidden until triaged -->
+      <div class="em-ai-banner" id="em-ai-banner" style="display:none;">
+        <i data-lucide="sparkles" style="width:13px;height:13px;"></i>
+        <span class="em-ai-priority-chip" id="em-ai-priority-label"></span>
+        <span class="em-ai-suggestion" id="em-ai-suggestion"></span>
+        <button class="em-text-btn em-triage-btn" id="em-triage-btn">Re-triage</button>
+      </div>
+
+      <!--
+        Email body — HTML content is ALWAYS sanitized with DOMPurify
+        before being set via innerHTML. See email-manager.js renderBody().
+      -->
+      <div class="em-read-body" id="em-read-body"></div>
+
+      <div class="em-read-actions">
+        <button class="em-action-btn" id="em-reply-btn">
+          <i data-lucide="reply" style="width:13px;height:13px;"></i> Reply
+        </button>
+        <button class="em-action-btn" id="em-forward-btn">
+          <i data-lucide="forward" style="width:13px;height:13px;"></i> Forward
+        </button>
+        <button class="em-action-btn" id="em-draft-reply-btn"
+                style="background:#0d2b1a;border-color:#22c55e;color:#22c55e;display:none;">
+          <i data-lucide="sparkles" style="width:13px;height:13px;"></i>
+          <span id="em-draft-reply-label">Draft Reply</span>
+        </button>
+        <button class="em-action-btn em-action-muted" id="em-star-btn">
+          <i data-lucide="star" style="width:13px;height:13px;"></i>
+          <span id="em-star-label">Star</span>
+        </button>
+        <button class="em-action-btn em-action-muted" id="em-archive-btn">
+          <i data-lucide="archive" style="width:13px;height:13px;"></i> Archive
+        </button>
+        <button class="em-action-btn em-action-danger" id="em-delete-btn">
+          <i data-lucide="trash-2" style="width:13px;height:13px;"></i>
+        </button>
+      </div>
+
+    </div><!-- /em-read-content -->
+  </div><!-- /em-read-pane -->
+
+</div><!-- /em-workspace -->
+
+<!-- ════════════════════════════════════════════════════════════════
+     COMPOSE MODAL
+     ════════════════════════════════════════════════════════════════ -->
+<div class="bm-overlay" id="em-compose-modal">
+  <div class="bm-shell" style="--bm-accent:#00d4ff; max-width:640px; width:96vw;">
+    <div class="bm-frame"></div>
+    <div class="bm-content">
+      <div class="bm-header">
+        <span class="bm-title">New Message</span>
+        <button class="bm-close" id="em-compose-close">✕</button>
+      </div>
+      <div class="bm-body" style="padding:1.25rem 1.5rem;">
+        <div class="em-compose-field">
+          <label class="em-compose-label">From</label>
+          <select id="em-compose-from" class="em-input"></select>
         </div>
+        <div class="em-compose-field">
+          <label class="em-compose-label">To</label>
+          <input type="email" id="em-compose-to" class="em-input"
+                 placeholder="recipient@domain.com">
+        </div>
+        <div class="em-compose-field">
+          <label class="em-compose-label">Subject</label>
+          <input type="text" id="em-compose-subject" class="em-input"
+                 placeholder="Subject">
+        </div>
+        <div class="em-compose-field">
+          <label class="em-compose-label">Message</label>
+          <textarea id="em-compose-body" class="em-input em-compose-textarea"
+                    rows="10" placeholder="Write your message…"></textarea>
+        </div>
+        <div id="em-compose-status" style="display:none;font-size:12px;margin-top:6px;"></div>
+      </div>
+      <div class="bm-footer">
+        <button class="em-btn-cancel" id="em-compose-cancel">Cancel</button>
+        <button class="em-btn-send" id="em-compose-send">
+          <i data-lucide="send" style="width:13px;height:13px;"></i> Send
+        </button>
+      </div>
     </div>
+  </div>
 </div>
 
-<script>
-(function () {
-    // ── helpers ───────────────────────────────────────────────────
-    function clearEl(el) {
-        while (el.firstChild) el.removeChild(el.firstChild);
-    }
-
-    function emptyMsg(text) {
-        var d = document.createElement('div');
-        d.className = 'em-empty';
-        d.textContent = text;
-        return d;
-    }
-
-    // ── Tab switching ─────────────────────────────────────────────
-    function switchTab(tabId) {
-        document.querySelectorAll('.tab-content').forEach(function(el) {
-            el.style.display = 'none';
-        });
-        var target = document.getElementById('tab-' + tabId);
-        if (target) target.style.display = 'block';
-
-        document.querySelectorAll('[data-tab]').forEach(function(btn) {
-            btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId);
-        });
-
-        if (tabId === 'overview') loadEmailOverview();
-        if (tabId === 'agents') loadEmailAgents();
-        if (tabId === 'inbox') loadEmailInboxSidebar();
-        if (tabId === 'sent') loadEmailSentSidebar();
-    }
-
-    window.switchEmailTab = switchTab;
-
-    document.addEventListener('DOMContentLoaded', function () {
-        document.querySelectorAll('[data-tab]').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                switchTab(btn.getAttribute('data-tab'));
-            });
-        });
-        loadEmailOverview();
-        setInterval(loadEmailOverview, 30000);
-    });
-
-    // ── Overview: stats ──────────────────────────────────────────
-    function loadEmailOverview() {
-        fetch('/tools/email-manager/api/email/overview/stats')
-            .then(function(r) { return r.json(); })
-            .then(function(d) {
-                var map = {
-                    'em-stat-unread': d.unread,
-                    'em-stat-sent': d.sent_today,
-                    'em-stat-provisioned': d.provisioned,
-                    'em-stat-pending': d.not_provisioned
-                };
-                Object.keys(map).forEach(function(id) {
-                    var el = document.getElementById(id);
-                    if (el) el.textContent = map[id] !== undefined ? map[id] : '0';
-                });
-            })
-            .catch(function() {
-                ['em-stat-unread','em-stat-sent','em-stat-provisioned','em-stat-pending'].forEach(function(id) {
-                    var el = document.getElementById(id);
-                    if (el) el.textContent = '0';
-                });
-            });
-
-        fetch('/tools/email-manager/api/email/overview/feed')
-            .then(function(r) { return r.json(); })
-            .then(function(d) {
-                var feed = document.getElementById('em-feed-body');
-                if (!feed) return;
-                clearEl(feed);
-
-                if (!d.events || !d.events.length) {
-                    feed.appendChild(emptyMsg('No email activity yet'));
-                    return;
-                }
-
-                d.events.forEach(function(ev) {
-                    var row = document.createElement('div');
-                    row.className = 'em-feed-row';
-
-                    var agent = document.createElement('span');
-                    agent.className = 'em-feed-agent';
-                    agent.textContent = ev.mailbox_display || ev.mailbox_address || '';
-
-                    var dir = document.createElement('span');
-                    dir.className = 'em-feed-dir ' + (ev.direction || '');
-                    dir.textContent = ev.direction === 'sent' ? '↗ SENT' : '↙ RECV';
-
-                    var subj = document.createElement('span');
-                    subj.className = 'em-feed-subject';
-                    subj.textContent = ev.subject || '(no subject)';
-
-                    var time = document.createElement('span');
-                    time.className = 'em-feed-time';
-                    time.textContent = ev.logged_at ? new Date(ev.logged_at).toLocaleTimeString() : '';
-
-                    row.appendChild(agent);
-                    row.appendChild(dir);
-                    row.appendChild(subj);
-                    row.appendChild(time);
-                    feed.appendChild(row);
-                });
-            })
-            .catch(function() {
-                var feed = document.getElementById('em-feed-body');
-                if (feed) {
-                    clearEl(feed);
-                    feed.appendChild(emptyMsg('No email activity yet'));
-                }
-            });
-    }
-
-    // ── Agents tab ────────────────────────────────────────────────
-    function loadEmailAgents() {
-        fetch('/tools/email-manager/api/email/mailboxes')
-            .then(function(r) { return r.json(); })
-            .then(function(d) {
-                var el = document.getElementById('em-agents-table-body');
-                if (!el) return;
-                clearEl(el);
-                var groups = {ai_agent: [], business: [], human_agent: []};
-                (d.mailboxes || []).forEach(function(m) {
-                    if (groups[m.mailbox_type]) groups[m.mailbox_type].push(m);
-                });
-                var hasAny = false;
-                ['ai_agent', 'business', 'human_agent'].forEach(function(type) {
-                    groups[type].forEach(function(m) {
-                        hasAny = true;
-                        var tr = document.createElement('tr');
-                        var tdAddr = document.createElement('td');
-                        tdAddr.textContent = m.address;
-                        var tdName = document.createElement('td');
-                        tdName.textContent = m.display_name || m.agent_name || '';
-                        var tdType = document.createElement('td');
-                        tdType.textContent = type.replace(/_/g, ' ');
-                        var tdStatus = document.createElement('td');
-                        var badge = document.createElement('span');
-                        badge.className = 'em-status-badge ' + (m.provisioned ? 'active' : 'pending');
-                        badge.textContent = m.provisioned ? '✅ Active' : '⏳ Pending';
-                        tdStatus.appendChild(badge);
-                        var tdAction = document.createElement('td');
-                        if (!m.provisioned) {
-                            var btn = document.createElement('button');
-                            btn.className = 'em-provision-btn';
-                            btn.textContent = 'Provision';
-                            btn.onclick = (function(id, addr) {
-                                return function() { provisionMailbox(id, addr); };
-                            }(m.id, m.address));
-                            tdAction.appendChild(btn);
-                        }
-                        tr.appendChild(tdAddr); tr.appendChild(tdName); tr.appendChild(tdType);
-                        tr.appendChild(tdStatus); tr.appendChild(tdAction);
-                        el.appendChild(tr);
-                    });
-                });
-                if (!hasAny) {
-                    var tr = document.createElement('tr');
-                    var td = document.createElement('td');
-                    td.colSpan = 5;
-                    td.textContent = 'No mailboxes found';
-                    td.style.textAlign = 'center';
-                    td.style.padding = '20px';
-                    tr.appendChild(td);
-                    el.appendChild(tr);
-                }
-            })
-            .catch(function() {
-                var el = document.getElementById('em-agents-table-body');
-                if (!el) return;
-                clearEl(el);
-                var tr = document.createElement('tr');
-                var td = document.createElement('td');
-                td.colSpan = 5;
-                td.textContent = 'Failed to load mailboxes';
-                td.style.textAlign = 'center';
-                td.style.padding = '20px';
-                tr.appendChild(td);
-                el.appendChild(tr);
-            });
-    }
-
-    function provisionMailbox(id, address) {
-        if (!confirm('Provision ' + address + '?')) return;
-        fetch('/tools/email-manager/api/email/mailboxes/' + id + '/provision', {method: 'POST'})
-            .then(function(r) { return r.json(); })
-            .then(function(d) {
-                if (d.success) { loadEmailAgents(); }
-                else { alert('Failed: ' + (d.error || 'unknown')); }
-            });
-    }
-
-    window.provisionAllAgents = function() {
-        if (!confirm('Provision all pending AI agent mailboxes?')) return;
-        fetch('/tools/email-manager/api/email/mailboxes/provision-all-agents', {method: 'POST'})
-            .then(function(r) { return r.json(); })
-            .then(function(d) {
-                alert('Provisioned: ' + d.provisioned + ' | Failed: ' + d.failed);
-                loadEmailAgents();
-            });
-    };
-
-    // ── Inbox tab ─────────────────────────────────────────────────
-    function loadEmailInbox(address) {
-        var url = '/tools/email-manager/api/email/inbox/messages' +
-                  (address ? '?address=' + encodeURIComponent(address) : '');
-        fetch(url)
-            .then(function(r) { return r.json(); })
-            .then(function(d) {
-                var main = document.getElementById('em-inbox-main');
-                if (!main) return;
-                clearEl(main);
-                if (!d.messages || !d.messages.length) {
-                    main.appendChild(emptyMsg('No messages'));
-                    return;
-                }
-                d.messages.forEach(function(m) {
-                    var row = document.createElement('div');
-                    row.className = 'em-msg-row';
-                    var from = document.createElement('div');
-                    from.className = 'em-msg-from';
-                    from.textContent = m.from_address || '(unknown)';
-                    var subj = document.createElement('div');
-                    subj.className = 'em-msg-subject';
-                    subj.textContent = m.subject || '(no subject)';
-                    var time = document.createElement('span');
-                    time.className = 'em-msg-time';
-                    time.textContent = m.logged_at ? new Date(m.logged_at).toLocaleString() : '';
-                    row.appendChild(from);
-                    row.appendChild(subj);
-                    row.appendChild(time);
-                    main.appendChild(row);
-                });
-            })
-            .catch(function() {
-                var main = document.getElementById('em-inbox-main');
-                if (main) { clearEl(main); main.appendChild(emptyMsg('Failed to load messages')); }
-            });
-    }
-
-    function loadEmailInboxSidebar() {
-        fetch('/tools/email-manager/api/email/mailboxes')
-            .then(function(r) { return r.json(); })
-            .then(function(d) {
-                var sb = document.getElementById('em-inbox-sidebar');
-                if (!sb) return;
-                clearEl(sb);
-                var all = document.createElement('div');
-                all.className = 'em-sidebar-item active';
-                var n = document.createElement('span');
-                n.className = 'em-sidebar-name';
-                n.textContent = '📥 All Inboxes';
-                all.appendChild(n);
-                all.onclick = function() {
-                    sb.querySelectorAll('.em-sidebar-item').forEach(function(el) { el.classList.remove('active'); });
-                    all.classList.add('active');
-                    loadEmailInbox('');
-                };
-                sb.appendChild(all);
-                (d.mailboxes || []).filter(function(m) { return m.provisioned; }).forEach(function(m) {
-                    var item = document.createElement('div');
-                    item.className = 'em-sidebar-item';
-                    var name = document.createElement('span');
-                    name.className = 'em-sidebar-name';
-                    name.textContent = m.display_name || m.address;
-                    item.appendChild(name);
-                    item.onclick = (function(addr, el) {
-                        return function() {
-                            sb.querySelectorAll('.em-sidebar-item').forEach(function(i) { i.classList.remove('active'); });
-                            el.classList.add('active');
-                            loadEmailInbox(addr);
-                        };
-                    }(m.address, item));
-                    sb.appendChild(item);
-                });
-                loadEmailInbox('');
-            });
-    }
-
-    // ── Sent tab ──────────────────────────────────────────────────
-    function loadEmailSent(address) {
-        var url = '/tools/email-manager/api/email/sent/messages' +
-                  (address ? '?address=' + encodeURIComponent(address) : '');
-        fetch(url)
-            .then(function(r) { return r.json(); })
-            .then(function(d) {
-                var main = document.getElementById('em-sent-main');
-                if (!main) return;
-                clearEl(main);
-                if (!d.messages || !d.messages.length) {
-                    main.appendChild(emptyMsg('No sent messages'));
-                    return;
-                }
-                d.messages.forEach(function(m) {
-                    var row = document.createElement('div');
-                    row.className = 'em-msg-row';
-                    var to = document.createElement('div');
-                    to.className = 'em-msg-from';
-                    to.textContent = 'To: ' + (m.to_address || '(unknown)');
-                    var subj = document.createElement('div');
-                    subj.className = 'em-msg-subject';
-                    subj.textContent = m.subject || '(no subject)';
-                    var time = document.createElement('span');
-                    time.className = 'em-msg-time';
-                    time.textContent = m.logged_at ? new Date(m.logged_at).toLocaleString() : '';
-                    row.appendChild(to);
-                    row.appendChild(subj);
-                    row.appendChild(time);
-                    main.appendChild(row);
-                });
-            })
-            .catch(function() {
-                var main = document.getElementById('em-sent-main');
-                if (main) { clearEl(main); main.appendChild(emptyMsg('Failed to load messages')); }
-            });
-    }
-
-    function loadEmailSentSidebar() {
-        fetch('/tools/email-manager/api/email/mailboxes')
-            .then(function(r) { return r.json(); })
-            .then(function(d) {
-                var sb = document.getElementById('em-sent-sidebar');
-                if (!sb) return;
-                clearEl(sb);
-                var all = document.createElement('div');
-                all.className = 'em-sidebar-item active';
-                var n = document.createElement('span');
-                n.className = 'em-sidebar-name';
-                n.textContent = '📤 All Sent';
-                all.appendChild(n);
-                all.onclick = function() {
-                    sb.querySelectorAll('.em-sidebar-item').forEach(function(el) { el.classList.remove('active'); });
-                    all.classList.add('active');
-                    loadEmailSent('');
-                };
-                sb.appendChild(all);
-                (d.mailboxes || []).filter(function(m) { return m.provisioned; }).forEach(function(m) {
-                    var item = document.createElement('div');
-                    item.className = 'em-sidebar-item';
-                    var name = document.createElement('span');
-                    name.className = 'em-sidebar-name';
-                    name.textContent = m.display_name || m.address;
-                    item.appendChild(name);
-                    item.onclick = (function(addr, el) {
-                        return function() {
-                            sb.querySelectorAll('.em-sidebar-item').forEach(function(i) { i.classList.remove('active'); });
-                            el.classList.add('active');
-                            loadEmailSent(addr);
-                        };
-                    }(m.address, item));
-                    sb.appendChild(item);
-                });
-                loadEmailSent('');
-            });
-    }
-
-    // ── Compose modal ─────────────────────────────────────────────
-    window.openComposeModal = function() {
-        fetch('/tools/email-manager/api/email/compose/mailboxes')
-            .then(function(r) { return r.json(); })
-            .then(function(d) {
-                var sel = document.getElementById('compose-from');
-                clearEl(sel);
-                (d.mailboxes || []).forEach(function(m) {
-                    var opt = document.createElement('option');
-                    opt.value = m.address;
-                    opt.textContent = m.display_name ? m.display_name + ' <' + m.address + '>' : m.address;
-                    sel.appendChild(opt);
-                });
-            });
-        ['compose-to', 'compose-subject', 'compose-body'].forEach(function(id) {
-            var el = document.getElementById(id);
-            if (el) el.value = '';
-        });
-        var status = document.getElementById('compose-status');
-        if (status) { status.style.display = 'none'; status.textContent = ''; }
-        var btn = document.getElementById('compose-send-btn');
-        if (btn) { btn.disabled = false; btn.textContent = 'Send'; }
-        document.getElementById('compose-modal').style.display = 'flex';
-    };
-
-    window.closeComposeModal = function() {
-        document.getElementById('compose-modal').style.display = 'none';
-    };
-
-    window.sendCompose = function() {
-        var fromEl = document.getElementById('compose-from');
-        var from_address = fromEl ? fromEl.value : '';
-        var to_address = (document.getElementById('compose-to').value || '').trim();
-        var subject = (document.getElementById('compose-subject').value || '').trim();
-        var body = (document.getElementById('compose-body').value || '').trim();
-        var status = document.getElementById('compose-status');
-        var btn = document.getElementById('compose-send-btn');
-
-        if (!to_address || !subject) {
-            status.style.display = 'block';
-            status.style.color = '#ff6b6b';
-            status.textContent = 'To and Subject are required.';
-            return;
-        }
-
-        btn.disabled = true;
-        btn.textContent = 'Sending…';
-        status.style.display = 'block';
-        status.style.color = 'var(--archie-muted)';
-        status.textContent = 'Sending…';
-
-        fetch('/tools/email-manager/api/email/compose/send', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({from_address: from_address, to_address: to_address, subject: subject, body: body})
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
-            if (d.success) {
-                status.style.color = '#4ade80';
-                status.textContent = '✓ Sent successfully.';
-                setTimeout(function() { closeComposeModal(); loadEmailSentSidebar(); }, 1200);
-            } else {
-                status.style.color = '#ff6b6b';
-                status.textContent = d.error || 'Send failed.';
-                btn.disabled = false;
-                btn.textContent = 'Send';
-            }
-        })
-        .catch(function() {
-            status.style.color = '#ff6b6b';
-            status.textContent = 'Network error — please try again.';
-            btn.disabled = false;
-            btn.textContent = 'Send';
-        });
-    };
-
-}());
-</script>
-
-<script>
-(function () {
-  'use strict';
-
-  function loadHQStats() {
-    fetch('/tools/email-manager/api/hq/stats')
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        var e = function(id) { return document.getElementById(id); };
-        if (e('hqStat24h'))      e('hqStat24h').textContent      = d.last_24h          || 0;
-        if (e('hqStatUnread'))   e('hqStatUnread').textContent   = d.unread_24h         || 0;
-        if (e('hqStatMailboxes'))e('hqStatMailboxes').textContent = d.active_mailboxes  || 0;
-        if (e('hqStatFlagged'))  e('hqStatFlagged').textContent  = d.flagged_unanswered || 0;
-      })
-      .catch(function () {});
-  }
-
-  function loadUnifiedInbox(mailboxId) {
-    var url = '/tools/email-manager/api/hq/unified-inbox?limit=50';
-    if (mailboxId) url += '&mailbox_id=' + encodeURIComponent(mailboxId);
-    fetch(url)
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        var list = document.getElementById('hqEmailList');
-        if (!list) return;
-        while (list.firstChild) list.removeChild(list.firstChild);
-
-        (data.emails || []).forEach(function (e) {
-          var row = document.createElement('div');
-          row.style.cssText = 'border:1px solid #1a1a2e;border-radius:6px;padding:10px 14px;background:#050509;display:flex;justify-content:space-between;align-items:center;gap:10px';
-
-          var left = document.createElement('div');
-          left.style.cssText = 'flex:1;min-width:0';
-
-          var subj = document.createElement('div');
-          subj.textContent = e.subject;
-          subj.style.cssText = 'font-size:13px;font-weight:' + (e.is_read ? '400' : '600') + ';color:' + (e.is_read ? '#888' : '#fff') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
-
-          var meta = document.createElement('div');
-          meta.style.cssText = 'font-size:11px;color:#555;margin-top:3px';
-          meta.textContent = (e.from_address || '—') + ' → ' + (e.mailbox_address || '—');
-
-          left.appendChild(subj);
-          left.appendChild(meta);
-
-          var right = document.createElement('div');
-          right.style.cssText = 'display:flex;align-items:center;gap:8px;flex-shrink:0';
-
-          if (e.assigned_agent) {
-            var badge = document.createElement('span');
-            badge.textContent = e.assigned_agent;
-            badge.style.cssText = 'background:#0f0a1e;color:#7c3aed;border:1px solid #7c3aed33;border-radius:10px;padding:2px 8px;font-size:10px';
-            right.appendChild(badge);
-          }
-
-          var btn = document.createElement('button');
-          btn.textContent = 'Assign';
-          btn.style.cssText = 'background:transparent;color:#888;border:1px solid #333;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px';
-          (function(emailId) {
-            btn.addEventListener('click', function () {
-              var agent = window.prompt('Assign to agent (e.g. R.E.S.O.L.V.E.):');
-              if (!agent || !agent.trim()) return;
-              fetch('/tools/email-manager/api/hq/assign', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({email_id: emailId, agent_name: agent.trim()}),
-              }).then(function () {
-                var f = document.getElementById('hqMailboxFilter');
-                loadUnifiedInbox(f ? f.value : '');
-              });
-            });
-          })(e.id);
-          right.appendChild(btn);
-
-          row.appendChild(left);
-          row.appendChild(right);
-          list.appendChild(row);
-        });
-
-        if (!data.emails || data.emails.length === 0) {
-          var empty = document.createElement('div');
-          empty.style.cssText = 'text-align:center;color:#555;padding:24px;font-size:13px';
-          empty.textContent = 'No emails in unified inbox.';
-          list.appendChild(empty);
-        }
-      })
-      .catch(function () {});
-  }
-
-  // Hook into existing tab switch function
-  var _orig = window.switchEmailTab;
-  window.switchEmailTab = function (tab) {
-    if (_orig) _orig(tab);
-    if (tab === 'hq') {
-      loadHQStats();
-      var f = document.getElementById('hqMailboxFilter');
-      loadUnifiedInbox(f ? f.value : '');
-    }
-  };
-
-  document.addEventListener('DOMContentLoaded', function () {
-    var filter = document.getElementById('hqMailboxFilter');
-    if (filter) {
-      filter.addEventListener('change', function () { loadUnifiedInbox(filter.value); });
-    }
-  });
-}());
-</script>
+<script src="{{ url_for('static', filename='js/email-manager.js') }}"></script>
 {% endblock %}

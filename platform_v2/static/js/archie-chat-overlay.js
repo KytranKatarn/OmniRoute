@@ -283,6 +283,9 @@ class ArchieOverlay {
             if (this.agentTarget) {
                 body.agent_target = this.agentTarget;
             }
+            if (this.moduleKey) {
+                body.module_key = this.moduleKey;
+            }
 
             const resp = await fetch('/tools/archie-chat/api/v1/chat/message', {
                 method: 'POST',

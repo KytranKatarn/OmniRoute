@@ -727,14 +727,38 @@ def _register_own_jobs(scheduler, flask_app):
 
     # Job #60 — Daily Backup Retention Cleanup (7:00 AM — after 06:00 shell cron backup)
     def _run_backup_retention_cleanup():
+        # Reference pattern for job governance: audit_log + Telegram notification
+        from database import get_db_cursor
+        from services.telegram_service import send_info
+
+        job_name = "backup_retention_cleanup"
+
+        def _audit(event_type: str, details: str):
+            try:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        """INSERT INTO governance_audit_log
+                           (event_category, event_type, action, details, timestamp)
+                           VALUES ('job_governance', %s, 'scheduler', %s, NOW())""",
+                        (event_type, details),
+                    )
+            except Exception as ae:
+                logger.warning("[BackupRetention] audit_log write failed: %s", ae)
+
+        _audit(f"{job_name}.started", "Daily backup retention cleanup initiated")
         try:
             from tools.backup_manager._shared import cleanup_old_backups
 
             result = cleanup_old_backups(dry_run=False)
             deleted = (result or {}).get("deleted_count", 0)
-            logger.info("[BackupRetention] Auto-cleanup: %d backup(s) pruned", deleted)
+            detail = f"Auto-cleanup: {deleted} backup(s) pruned"
+            logger.info("[BackupRetention] %s", detail)
+            _audit(f"{job_name}.completed", detail)
+            if deleted > 0:
+                send_info(f"🗑️ Backup retention: {deleted} old backup(s) removed by GFS policy.")
         except Exception as e:
             logger.error("[BackupRetention] Auto-cleanup failed: %s", e)
+            _audit(f"{job_name}.failed", str(e)[:500])
 
     scheduler.add_job(
         with_ctx(_run_backup_retention_cleanup),

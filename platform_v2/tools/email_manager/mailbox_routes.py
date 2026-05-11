@@ -59,7 +59,7 @@ def register_mailbox_routes(bp, admin_required):
                     (result.get("password"), mailbox_id),
                 )
             return jsonify({"success": True, "address": row["address"]})
-        return jsonify({"success": False, "error": result.get("error")}), 500
+        return jsonify({"success": False, "error": result.get("error")})
 
     @bp.route("/api/email/mailboxes/provision-all-agents", methods=["POST"])
     @login_required
@@ -91,6 +91,45 @@ def register_mailbox_routes(bp, admin_required):
                 logger.error("Failed to provision %s: %s", row["address"], result.get("error"))
 
         return jsonify({"provisioned": provisioned, "failed": failed, "skipped": len(pending) - provisioned - failed})
+
+    @bp.route("/api/email/mailboxes/provision-owner", methods=["POST"])
+    @login_required
+    @admin_required
+    def email_provision_owner():
+        """Provision kytran@kytranempowerment.com as the owner inbox (10 GB quota)."""
+        from .stalwart_service import create_mailbox
+
+        address = "kytran@kytranempowerment.com"
+        display_name = "Kytran Katarn"
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO email_mailboxes (address, mailbox_type, display_name)
+                   VALUES (%s, 'owner', %s)
+                   ON CONFLICT (address) DO UPDATE SET mailbox_type='owner', active=TRUE
+                   RETURNING id""",
+                (address, display_name),
+            )
+            row = cur.fetchone()
+            mailbox_id = row["id"]
+
+        result = create_mailbox(address, display_name, quota_gb=10)
+        # If Stalwart returns 409 (already exists), rotate the password instead
+        if not result["ok"] and "409" in str(result.get("error", "")):
+            from .stalwart_service import update_password
+
+            result = update_password(address)
+
+        if result["ok"]:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE email_mailboxes SET provisioned=TRUE, provisioned_at=NOW(), "
+                    "imap_password=%s, updated_at=NOW() WHERE id=%s",
+                    (result["password"], mailbox_id),
+                )
+            logger.info("Owner mailbox provisioned: %s", address)
+            return jsonify({"success": True, "address": address})
+        return jsonify({"success": False, "error": result.get("error")})
 
     @bp.route("/api/email/mailboxes/<int:mailbox_id>/rotate-password", methods=["POST"])
     @login_required

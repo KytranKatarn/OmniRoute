@@ -29,6 +29,16 @@ services:
     mem_limit: 512m
     cpus: 1.0
     restart: unless-stopped
+    networks:
+      - stalwart_default
+      - archie_network
 
 volumes:
   stalwart-data:
+
+networks:
+  stalwart_default:
+    driver: bridge
+  archie_network:
+    external: true
+    name: archie_network

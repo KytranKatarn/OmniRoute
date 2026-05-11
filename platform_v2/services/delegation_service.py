@@ -156,6 +156,25 @@ def execute_delegated_task(task: Dict[str, Any]) -> Dict[str, Any]:
             }
 
         if capability in KNOWN_TOOL_CAPABILITIES:
+            # Dedup rapid-fire deploy requests: if a *newer* pending deploy
+            # for the same domain exists, this task is superseded — skip it.
+            if capability in ("deploy_static", "deploy_vps"):
+                domain = payload.get("domain")
+                task_id = task.get("id")
+                if domain and task_id:
+                    superseded = _is_deploy_superseded(task_id, capability, domain)
+                    if superseded:
+                        logger.info(
+                            "deploy_dedup: task #%s (%s %s) superseded by newer pending task — skipping",
+                            task_id,
+                            capability,
+                            domain,
+                        )
+                        return {
+                            "success": True,
+                            "summary": (f"{capability} {domain}: skipped — superseded by newer pending deploy"),
+                            "result": {"domain": domain, "skipped": True, "reason": "superseded"},
+                        }
             return _execute_known_tool(capability, payload, reason)
 
         return _execute_via_dispatcher(capability, payload, reason, origin=delegation_source)
@@ -166,6 +185,34 @@ def execute_delegated_task(task: Dict[str, Any]) -> Dict[str, Any]:
             "summary": f"Executor raised: {type(exc).__name__}: {exc}",
             "error": str(exc),
         }
+
+
+def _is_deploy_superseded(task_id: int, capability: str, domain: str) -> bool:
+    """Return True if a newer pending deploy task for the same domain exists.
+
+    Prevents duplicate Hostinger full-site deploys when B.A.S.E. queues
+    several rapid-fire requests for the same domain (e.g. portrait batch
+    approved → 3 tasks created in 30s). Only the newest pending task runs;
+    older ones skip silently.
+    """
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM unified_tasks
+                WHERE id > %s
+                  AND completed = FALSE
+                  AND delegation_args->>'capability' = %s
+                  AND delegation_args->'args'->>'domain' = %s
+                """,
+                (task_id, capability, domain),
+            )
+            row = cur.fetchone()
+            return (row["cnt"] if isinstance(row, dict) else row[0]) > 0
+    except Exception:
+        logger.exception("_is_deploy_superseded query failed — not suppressing deploy")
+        return False
 
 
 def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -> Dict[str, Any]:

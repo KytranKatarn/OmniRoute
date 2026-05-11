@@ -3,15 +3,13 @@
 Provisions and manages mailboxes on the Stalwart mail server.
 
 Stalwart runs in its own Docker compose stack at /mnt/archie_brain/stalwart-mail/.
-It is NOT on the archie_internal network, so we reach it via the host IP.
+stalwart_mail is now on archie_network so archie_platform reaches it directly.
 
-External admin URL: https://192.168.1.200:8443  (host port 8443 -> container port 443)
-Container HTTP (internal, plain): http://stalwart_mail:8080  (NOT reachable from archie_platform)
+Admin URL: http://stalwart_mail:8080  (plain HTTP on shared Docker network — no TLS)
+IMAP: stalwart_mail:993 (IMAP4_SSL — direct container-to-container, no hairpin NAT)
 
 The admin API uses HTTP Basic auth. The fallback-admin user is "admin" and the
 password comes from STALWART_ADMIN_PASSWORD env var (default: KytranMail2026!).
-
-Self-signed TLS is used on port 8443, so verify=False is intentional.
 """
 
 from __future__ import annotations
@@ -21,14 +19,11 @@ import os
 import secrets
 
 import requests
-from requests.packages.urllib3.exceptions import InsecureRequestWarning  # type: ignore
-
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
-# Stalwart admin API — HTTPS on host port 8443 (container :443)
-_BASE = os.getenv("STALWART_ADMIN_URL", "https://192.168.1.200:8443")
+# Stalwart admin API — plain HTTP via shared Docker network
+_BASE = os.getenv("STALWART_ADMIN_URL", "http://stalwart_mail:8080")
 _USER = os.getenv("STALWART_ADMIN_USER", "admin")
 _PASS = os.getenv("STALWART_ADMIN_PASSWORD") or ""
 
@@ -45,7 +40,6 @@ def _get(path: str, params: dict = None, timeout: int = 10) -> requests.Response
             auth=_auth(),
             params=params,
             timeout=timeout,
-            verify=False,
         )
     except requests.exceptions.ConnectionError as exc:
         logger.warning("Stalwart unreachable (GET %s): %s", path, exc)
@@ -65,7 +59,6 @@ def test_connection() -> dict:
             auth=_auth(),
             params={"limit": "1"},
             timeout=5,
-            verify=False,
         )
         return {"ok": resp.status_code == 200, "status": resp.status_code}
     except Exception as exc:
@@ -87,7 +80,7 @@ def list_accounts() -> list:
     return []
 
 
-def create_mailbox(address: str, display_name: str = "", password: str = None) -> dict:
+def create_mailbox(address: str, display_name: str = "", password: str = None, quota_gb: int = 1) -> dict:
     """Provision a new mailbox in Stalwart.
 
     Returns {ok: bool, password: str, error: str}.
@@ -106,10 +99,9 @@ def create_mailbox(address: str, display_name: str = "", password: str = None) -
                 "description": display_name or local_part,
                 "secrets": [_password],
                 "emails": [address],
-                "quota": 1073741824,  # 1 GB
+                "quota": quota_gb * 1024 * 1024 * 1024,
             },
             timeout=10,
-            verify=False,
         )
         if resp.status_code in (200, 201):
             logger.info("Stalwart: provisioned mailbox %s", address)
@@ -131,7 +123,6 @@ def delete_mailbox(address: str) -> dict:
             f"{_BASE}/api/principal/{local_part}",
             auth=_auth(),
             timeout=10,
-            verify=False,
         )
         if resp.status_code in (200, 204):
             logger.info("Stalwart: deleted mailbox %s", address)
@@ -156,7 +147,6 @@ def update_password(address: str, password: str = None) -> dict:
             auth=_auth(),
             json=[{"action": "set", "field": "secrets", "value": [_password]}],
             timeout=10,
-            verify=False,
         )
         if resp.status_code in (200, 204):
             logger.info("Stalwart: rotated password for %s", address)

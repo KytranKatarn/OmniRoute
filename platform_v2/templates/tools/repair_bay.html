@@ -145,6 +145,7 @@
             <button class="dp-subtab active" data-subtab="scanner" onclick="switchSubTab('scan', 'scanner')">Scanner</button>
             <button class="dp-subtab" data-subtab="issues" onclick="switchSubTab('scan', 'issues')">Issues <span class="dp-badge" id="issuesBadge" style="display:none;">0</span></button>
             <button class="dp-subtab" data-subtab="history" onclick="switchSubTab('scan', 'history')">History</button>
+            <button class="dp-subtab" data-subtab="multi-agent" onclick="switchSubTab('scan', 'multi-agent')">Multi-Agent</button>
         </div>
 
         <!-- Scanner sub-tab -->
@@ -228,6 +229,37 @@
             <div id="scanHistory" class="dp-history-list">
                 <div class="dp-empty" style="padding:30px;"><div class="dp-empty-desc">Loading scan history...</div></div>
             </div>
+        </div>
+
+        <!-- Multi-Agent Review form (P3-3) -->
+        <div id="scan-subtab-multi-agent" class="dp-subtab-content">
+          <div style="max-width:600px;">
+            <p style="color:#94a3b8;font-size:0.85rem;margin-bottom:16px;">Dispatch multiple F.O.R.G.E. agents to review a file or directory in parallel. Results are aggregated into a consensus report.</p>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+              <div style="display:flex;gap:8px;align-items:center;">
+                <label style="color:#94a3b8;font-size:0.8rem;width:90px;flex-shrink:0;">File / Path</label>
+                <input id="maReviewPath" type="text" placeholder="platform_v2/tools/repair_bay/deploy_routes.py" style="flex:1;padding:6px 10px;background:rgba(0,0,0,0.3);border:1px solid rgba(139,92,246,0.4);border-radius:4px;color:#e5e7eb;font-family:IBM Plex Mono,monospace;font-size:0.82rem;">
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <label style="color:#94a3b8;font-size:0.8rem;width:90px;flex-shrink:0;">Specialty</label>
+                <select id="maReviewSpecialty" style="flex:1;padding:6px 10px;background:rgba(0,0,0,0.3);border:1px solid rgba(139,92,246,0.4);border-radius:4px;color:#e5e7eb;font-size:0.82rem;">
+                  <option value="">Any available agent</option>
+                  <option value="security">Security (V.I.G.I.L.)</option>
+                  <option value="code_review">Code Review (F.O.R.G.E.)</option>
+                  <option value="documentation">Documentation (C.O.D.E.X.)</option>
+                  <option value="research">Research (D.A.R.W.I.N.)</option>
+                </select>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;">
+              <button onclick="startMultiAgentReview()" style="padding:6px 16px;background:rgba(139,92,246,0.15);border:1px solid #8b5cf6;color:#8b5cf6;border-radius:4px;cursor:pointer;font-size:0.85rem;">▶ Start Review</button>
+              <span id="maReviewStatus" style="color:#94a3b8;font-size:0.8rem;"></span>
+            </div>
+            <div id="maReviewResults" style="display:none;">
+              <h4 style="color:#8b5cf6;margin-bottom:8px;">Review Results</h4>
+              <div id="maReviewResultsBody"></div>
+            </div>
+          </div>
         </div>
     </div>
 
@@ -320,6 +352,24 @@
 
         <!-- Proposal list -->
         <div id="proposalList" class="dp-proposal-list">
+        </div>
+
+        <!-- Repair Queue — Dependabot + security scan items (P3-2) -->
+        <div style="margin-top:20px;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <h3 style="color:#f59e0b;margin:0;font-size:0.95rem;">Repair Queue</h3>
+            <div style="display:flex;gap:6px;">
+              <button class="dp-filter active" id="rqBtn-open" onclick="loadRepairQueue('open')">Open</button>
+              <button class="dp-filter" id="rqBtn-triaged" onclick="loadRepairQueue('triaged')">Triaged</button>
+              <button class="dp-filter" id="rqBtn-resolved" onclick="loadRepairQueue('resolved')">Resolved</button>
+            </div>
+            <button class="dp-filter" onclick="fetch('/tools/repair-bay/api/repair/poll',{method:'POST'}).then(function(){loadRepairQueue('open')})" style="margin-left:auto;border-color:#f59e0b;color:#f59e0b;">Poll Alerts</button>
+          </div>
+          <div id="repairQueuePanel" style="overflow-x:auto;"></div>
+        </div>
+
+        <!-- hidden placeholder removed: was </div> -->
+        <div style="display:none" id="proposalListEnd">
             <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading proposals...</div></div>
         </div>
 
@@ -595,6 +645,19 @@
             </div>
         </div>
 
+        <!-- Perf Regressions (P3-1) -->
+        <div style="margin:20px 0 8px;display:flex;align-items:center;gap:10px;">
+          <h3 style="color:#ff6b6b;margin:0;font-size:0.95rem;">Perf Regressions</h3>
+          <div style="display:flex;gap:6px;">
+            <button class="dp-filter active" id="regBtn-pending" onclick="loadQaRegressions('pending')">Pending</button>
+            <button class="dp-filter" id="regBtn-cleared" onclick="loadQaRegressions('cleared')">Cleared</button>
+            <button class="dp-filter" id="regBtn-accepted" onclick="loadQaRegressions('accepted')">Accepted</button>
+          </div>
+          <button class="dp-filter" onclick="loadQaBaselines()" style="margin-left:auto;border-color:#8b5cf6;color:#8b5cf6;">Baselines ▾</button>
+        </div>
+        <div id="qaRegressionsPanel" style="overflow-x:auto;margin-bottom:8px;"></div>
+        <div id="qaBaselinesPanel" style="overflow-x:auto;margin-bottom:16px;display:none;"></div>
+
         <h3 style="color:#00d4ff; margin-bottom:10px;">Run History</h3>
         <table class="dp-table" id="qaHistoryTable">
             <thead>
@@ -779,6 +842,137 @@
     if (btn) setTimeout(loadPendingPushes, 50);
   });
   if (location.hash === '#pushes') setTimeout(loadPendingPushes, 300);
+})();
+</script>
+
+<script>
+/* Phase 3 — Surface Hidden UI: QA Regressions, Repair Queue, Multi-Agent Review */
+(function() {
+  function el(tag, attrs, children) {
+    var node = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function(k) {
+      if (k === 'style') node.style.cssText = attrs[k];
+      else if (k === 'className') node.className = attrs[k];
+      else if (k === 'onclick') node.onclick = attrs[k];
+      else if (attrs[k] != null) node.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function(c) {
+      if (c == null) return;
+      node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+    });
+    return node;
+  }
+  function empty(node, msg) { while(node.firstChild) node.removeChild(node.firstChild); if(msg) node.appendChild(el('div',{style:'color:#94a3b8;font-size:0.82rem;padding:6px;'},[msg])); }
+
+  function makeTable(headers, rows) {
+    var thead = el('thead',null,[el('tr',{style:'border-bottom:1px solid rgba(255,255,255,0.1);'},
+      headers.map(function(h){return el('th',{style:'padding:5px 8px;text-align:left;color:#94a3b8;'},[h]);}))]);
+    var tbody = el('tbody'); rows.forEach(function(r){tbody.appendChild(r);}); return el('table',{style:'width:100%;border-collapse:collapse;font-size:0.82rem;'},[thead,tbody]);
+  }
+  function makeRow(cells) { return el('tr',{style:'border-bottom:1px solid rgba(255,255,255,0.05);'},cells.map(function(c){return el('td',{style:'padding:5px 8px;'},[c]);})); }
+  function chip(txt, color) { return el('span',{style:'color:'+color+';font-size:0.73rem;font-weight:bold;text-transform:uppercase;'},[txt]); }
+  function miniBtn(txt, color, cb) { var b=el('button',{style:'padding:1px 7px;border:1px solid '+color+';color:'+color+';background:transparent;border-radius:3px;cursor:pointer;font-size:0.73rem;'},[txt]); b.onclick=cb; return b; }
+
+  /* --- P3-1: QA Regressions + Baselines --- */
+  var _regStatus = 'pending';
+  async function loadQaRegressions(status) {
+    _regStatus = status || 'pending';
+    ['pending','cleared','accepted'].forEach(function(s){var b=document.getElementById('regBtn-'+s);if(b)b.classList.toggle('active',s===_regStatus);});
+    var panel = document.getElementById('qaRegressionsPanel'); if(!panel) return;
+    empty(panel,'Loading…');
+    try {
+      var data = await (await fetch('/tools/repair-bay/api/qa/regressions?status='+_regStatus)).json();
+      var rows = data.regressions||[];
+      empty(panel); if(!rows.length){empty(panel,'No regressions.');return;}
+      panel.appendChild(makeTable(['Suite','Test','Measured','Baseline','Trip %',''],rows.map(function(r){
+        var acts=[]; if(_regStatus==='pending'){acts.push(miniBtn('Clear','#00ff41',function(){qaRegAction(r.id,'clear');}));acts.push(miniBtn('Accept','#8b5cf6',function(){qaRegAction(r.id,'accept');}));}
+        var actCell=el('td',{style:'padding:5px 8px;display:flex;gap:4px;'},acts);
+        return el('tr',{style:'border-bottom:1px solid rgba(255,255,255,0.05);'},[
+          el('td',{style:'padding:5px 8px;'},[String(r.suite_id||'—')]),
+          el('td',{style:'padding:5px 8px;font-family:monospace;font-size:0.78rem;'},[String(r.test_name||'—')]),
+          el('td',{style:'padding:5px 8px;color:#ff6b6b;'},[String(r.measured_ms||'—')+'ms']),
+          el('td',{style:'padding:5px 8px;color:#94a3b8;'},[String(r.baseline_ms||'—')+'ms']),
+          el('td',{style:'padding:5px 8px;color:#ff6b6b;font-weight:bold;'},[r.pct_change?r.pct_change.toFixed(0)+'%':'—']),
+          actCell]);
+      })));
+    } catch(e){empty(panel,'Error: '+e.message);}
+  }
+  async function qaRegAction(id,action){await fetch('/tools/repair-bay/api/qa/regressions/'+id+'/'+action,{method:'POST'});loadQaRegressions(_regStatus);}
+  var _basVis=false;
+  async function loadQaBaselines(){
+    var panel=document.getElementById('qaBaselinesPanel');if(!panel)return;
+    _basVis=!_basVis;panel.style.display=_basVis?'block':'none';if(!_basVis)return;
+    empty(panel,'Loading…');
+    try{
+      var data=await(await fetch('/tools/repair-bay/api/qa/baselines')).json();var rows=data.baselines||[];
+      empty(panel);if(!rows.length){empty(panel,'No baselines yet.');return;}
+      panel.appendChild(makeTable(['Suite','Test','p95ms','Samples','Updated'],rows.map(function(r){
+        return makeRow([String(r.suite_id||'—'),String(r.test_name||'—'),String(r.p95_ms||'—'),String(r.sample_count||'—'),(r.updated_at||'—').slice(0,16).replace('T',' ')]);
+      })));
+    }catch(e){empty(panel,'Error: '+e.message);}
+  }
+
+  /* --- P3-2: Repair Queue --- */
+  var _rqStatus='open';
+  var _sevColor={critical:'#ff4444',high:'#ff6b6b',medium:'#f59e0b',low:'#94a3b8'};
+  async function loadRepairQueue(status){
+    _rqStatus=status||'open';
+    ['open','triaged','resolved'].forEach(function(s){var b=document.getElementById('rqBtn-'+s);if(b)b.classList.toggle('active',s===_rqStatus);});
+    var panel=document.getElementById('repairQueuePanel');if(!panel)return;
+    empty(panel,'Loading…');
+    try{
+      var data=await(await fetch('/tools/repair-bay/api/repair/queue?status='+_rqStatus)).json();
+      var rows=data.items||[];empty(panel);if(!rows.length){empty(panel,'Queue empty.');return;}
+      panel.appendChild(makeTable(['Sev','Source','Package','Summary',''],rows.map(function(r){
+        var sv=(r.severity||'low').toLowerCase();
+        var act=r.triage_result?el('span',{style:'color:#00ff41;font-size:0.73rem;'},['✓']):miniBtn('Triage','#f59e0b',function(){rqTriage(r.id);});
+        var pkg=el('td',{style:'padding:5px 8px;font-family:monospace;font-size:0.78rem;'},[String(r.package_name||'—')]);
+        var summ=el('td',{style:'padding:5px 8px;color:#e5e7eb;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'},[String(r.summary||r.title||'—')]);
+        return el('tr',{style:'border-bottom:1px solid rgba(255,255,255,0.05);'},[
+          el('td',{style:'padding:5px 8px;'},[chip(sv,_sevColor[sv]||'#94a3b8')]),
+          el('td',{style:'padding:5px 8px;color:#94a3b8;font-size:0.78rem;'},[String(r.source||'—')]),
+          pkg,summ,el('td',{style:'padding:5px 8px;'},[act])]);
+      })));
+    }catch(e){empty(panel,'Error: '+e.message);}
+  }
+  async function rqTriage(id){await fetch('/tools/repair-bay/api/repair/queue/'+id+'/triage',{method:'POST'});loadRepairQueue(_rqStatus);}
+
+  /* --- P3-3: Multi-Agent Review --- */
+  var _maId=null,_maPoll=null;
+  async function startMultiAgentReview(){
+    var pathEl=document.getElementById('maReviewPath'),specEl=document.getElementById('maReviewSpecialty');
+    var st=document.getElementById('maReviewStatus'),resEl=document.getElementById('maReviewResults');
+    var path=(pathEl&&pathEl.value||'').trim();
+    if(!path){if(st){st.textContent='Enter a path.';st.style.color='#ff6b6b';}return;}
+    if(st){st.textContent='Starting…';st.style.color='#94a3b8';} if(resEl)resEl.style.display='none';
+    try{
+      var body={file_paths:[path]};var spec=specEl&&specEl.value;if(spec)body.specialty=spec;
+      var d=await(await fetch('/tools/repair-bay/api/scan/multi-agent/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+      var rid=d.review_id||d.id;if(!rid)throw new Error(d.error||'No review ID');
+      _maId=rid;if(st){st.textContent='Review #'+rid+' running…';st.style.color='#8b5cf6';}
+      if(_maPoll)clearInterval(_maPoll);_maPoll=setInterval(pollMA,3000);
+    }catch(e){if(st){st.textContent='Error: '+e.message;st.style.color='#ff6b6b';}}
+  }
+  async function pollMA(){
+    if(!_maId)return;
+    try{
+      var d=await(await fetch('/tools/repair-bay/api/scan/multi-agent/review/'+_maId)).json();
+      var st=document.getElementById('maReviewStatus'),resEl=document.getElementById('maReviewResults'),bodyEl=document.getElementById('maReviewResultsBody');
+      if(d.status==='complete'||d.status==='completed'||d.complete){
+        clearInterval(_maPoll);_maPoll=null;
+        if(st){st.textContent='Complete ✓';st.style.color='#00ff41';}
+        if(resEl)resEl.style.display='block';
+        if(bodyEl){empty(bodyEl);var pre=el('pre',{style:'background:rgba(0,0,0,0.3);padding:10px;border-radius:4px;font-size:0.75rem;white-space:pre-wrap;color:#e5e7eb;'},[JSON.stringify(d.results||d,null,2)]);bodyEl.appendChild(pre);}
+      }else{if(st)st.textContent='Running… ('+(d.status||'in progress')+')';}
+    }catch(e){}
+  }
+
+  document.addEventListener('click',function(e){
+    if(e.target.closest&&e.target.closest('[data-tab="qa"]'))setTimeout(function(){loadQaRegressions('pending');},100);
+    if(e.target.closest&&e.target.closest('[data-tab="proposals"]'))setTimeout(function(){loadRepairQueue('open');},100);
+  });
+  window.loadQaRegressions=loadQaRegressions;window.loadQaBaselines=loadQaBaselines;window.qaRegAction=qaRegAction;
+  window.loadRepairQueue=loadRepairQueue;window.rqTriage=rqTriage;window.startMultiAgentReview=startMultiAgentReview;
 })();
 </script>
 

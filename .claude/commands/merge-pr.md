@@ -1,33 +1,98 @@
 ---
-allowed-tools: Bash(gh pr merge:*), Bash(gh pr view:*)
-description: Check F.O.R.G.E. review then merge a PR. Always run this instead of gh pr merge directly.
+allowed-tools: Bash(docker exec:*), Bash(gh pr merge:*), Bash(gh pr view:*), Bash(git fetch:*), Bash(git reset:*)
+description: Check F.O.R.G.E. review via Repair Bay then merge a PR. Always run this instead of gh pr merge directly.
 ---
 
 ## Your task
 
-Merge PR #$ARGUMENTS safely by checking F.O.R.G.E. review first.
+Merge PR #$ARGUMENTS safely through the Repair Bay pipeline.
+All operations route through `docker exec archie_platform python3` — Claude's admin identity is implicit inside the container.
 
-**Step 1: Get the PR number**
-- If $ARGUMENTS is set, use it as the PR number.
-- If not set, run `gh pr view --json number,title,state` to get the current branch's PR.
+**BASE = docker exec archie_platform python3 -c "import sys; sys.path.insert(0,'/app'); ...**
 
-**Step 2: Check F.O.R.G.E. review status**
-Call `mcp__archie__forge_list_prs` to get all tracked PRs. Find the entry matching the PR number. Look at:
-- `review_status`: pending / in_progress / reviewed / skipped
-- `ai_summary`: F.O.R.G.E.'s review text
-- `review_flags`: any blocking issues flagged
+---
 
-**Step 3: Evaluate and decide**
+### Step 1: Resolve PR number
 
-| review_status | Action |
-|--------------|--------|
-| `reviewed` | Show summary, proceed to merge if no critical flags |
-| `pending` or `in_progress` | Report "F.O.R.G.E. review not yet complete (~60s). Trigger with Repair Bay → PR Review → Analyze." Ask user if they want to wait or merge anyway. |
-| `skipped` | Note it, proceed to merge |
-| Not found in list | Note "PR not yet tracked by F.O.R.G.E. poller." Proceed with merge but note it. |
+If $ARGUMENTS is set, use it as PR_NUMBER. Otherwise:
+```bash
+gh pr view --json number,title,state
+```
 
-**Step 4: Show the summary**
-Output this block before merging:
+---
+
+### Step 2: Check Repair Bay review status
+
+```bash
+docker exec archie_platform python3 -c "
+import sys; sys.path.insert(0, '/app')
+from tools.repair_bay.services.pr_review_service import get_review, poll_open_prs
+r = get_review(PR_NUMBER)
+if not r:
+    print('NOT_TRACKED — polling now...')
+    result = poll_open_prs()
+    print('Poll:', result)
+    r = get_review(PR_NUMBER)
+if r:
+    print('STATUS:', r.get('review_status'))
+    print('SUMMARY:', (r.get('ai_summary') or 'none')[:400])
+else:
+    print('STILL_NOT_FOUND')
+"
+```
+
+---
+
+### Step 3: Trigger analysis if pending
+
+If status is `pending` or `not_tracked`, trigger F.O.R.G.E. analysis:
+```bash
+docker exec archie_platform python3 -c "
+import sys; sys.path.insert(0, '/app')
+from tools.repair_bay.services.pr_review_service import get_review, mark_review_started, mark_review_done, mark_review_skipped
+from tools.department_hq.services.department_dispatcher import dispatch
+r = get_review(PR_NUMBER)
+if not r:
+    print('PR not found'); exit(1)
+mark_review_started(PR_NUMBER)
+result = dispatch(
+    capability='code_review',
+    prompt=f'Review PR #{r[\"pr_number\"]}: {r[\"title\"]}. Diff: {r.get(\"diff_url\",\"\")}. VERDICT (APPROVED/NEEDS REVIEW/REJECT), SUMMARY, ISSUES.',
+    context={'pr_number': r['pr_number'], 'repo': r['repo'], 'title': r['title']}
+)
+if result.success:
+    mark_review_done(PR_NUMBER, result.response)
+    print('REVIEWED:', result.response[:300])
+else:
+    mark_review_skipped(PR_NUMBER)
+    print('DISPATCH_FAILED — skipped:', result.error)
+"
+```
+
+---
+
+### Step 4: Poll until reviewed (max 90s)
+
+```bash
+docker exec archie_platform python3 -c "
+import sys, time; sys.path.insert(0, '/app')
+from tools.repair_bay.services.pr_review_service import get_review
+for i in range(18):
+    r = get_review(PR_NUMBER)
+    st = (r or {}).get('review_status', 'not_found')
+    print(f'[{i*5}s] {st}')
+    if st in ('reviewed', 'skipped'): break
+    time.sleep(5)
+if r:
+    print('FINAL STATUS:', r.get('review_status'))
+    print('SUMMARY:', (r.get('ai_summary') or 'none')[:400])
+"
+```
+
+---
+
+### Step 5: Show the review block
+
 ```
 ## F.O.R.G.E. Review — PR #<n>
 Status: <review_status>
@@ -35,14 +100,42 @@ Summary: <ai_summary or "Not reviewed yet">
 Verdict: <APPROVED / FLAGGED / PENDING>
 ```
 
-**Step 5: Merge (if proceeding)**
-```
-gh pr merge <pr_number> --squash --delete-branch
+**Do NOT proceed if** summary contains: "critical issue", "security vulnerability", "data loss", "breaking change" — ask user first.
+
+---
+
+### Step 6: Merge via Repair Bay service layer
+
+```bash
+docker exec archie_platform python3 -c "
+import sys, os, requests; sys.path.insert(0, '/app')
+from tools.repair_bay.services.pr_review_service import get_review
+r = get_review(PR_NUMBER)
+repo = (r or {}).get('repo', 'KytranKatarn/archie-platform')
+title = (r or {}).get('title', 'PR #PR_NUMBER')
+token = os.getenv('GITHUB_TOKEN', '')
+resp = requests.put(
+    f'https://api.github.com/repos/{repo}/pulls/PR_NUMBER/merge',
+    headers={'Authorization': f'token {token}', 'Accept': 'application/vnd.github.v3+json'},
+    json={'commit_title': f'Merge PR #PR_NUMBER: {title}', 'merge_method': 'squash'},
+    timeout=15
+)
+print('MERGE:', resp.status_code, resp.json().get('message',''))
+"
 ```
 
-**Step 6: Sync local main**
-```
+---
+
+### Step 7: Sync local main
+
+```bash
 git fetch origin && git reset --hard origin/main
 ```
 
-Do NOT merge if review_status is `reviewed` AND ai_summary contains phrases like "critical issue", "security vulnerability", "data loss", "breaking change" without explicit user confirmation first.
+---
+
+### Notes
+
+- **Claude (CLI)**: runs as implicit `claude` admin — tracked in Repair Bay by the `pr_review_service` layer
+- **A.R.C.H.I.E. Chat**: when F.O.R.G.E. overlay calls analyze/merge, it authenticates as `archie` (admin) via session auth — same pipeline, different principal
+- After merge, Repair Bay `sync_closed_prs()` will mark the PR closed on the next poll cycle (every 4h) or immediately via F.O.R.G.E. chat action

@@ -70,6 +70,12 @@
       }
     ]
   },
+  "permissions": {
+    "allow": [
+      "Bash(docker exec archie_platform:*)",
+      "Bash(docker exec archie_database:*)"
+    ]
+  },
   "enabledPlugins": {
     "security-guidance@claude-code-plugins": true,
     "code-review@claude-plugins-official": true,

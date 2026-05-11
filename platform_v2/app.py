@@ -51,6 +51,13 @@ app = Flask(__name__)
 app.config.from_object(Config)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB upload limit
 app.config["PREFERRED_URL_SCHEME"] = "https"  # Behind NPM SSL proxy
+app.config["SANDBOX_MODE"] = os.getenv("SANDBOX_MODE", "false").lower() == "true"
+if app.config["SANDBOX_MODE"]:
+    import logging as _logging
+
+    _logging.getLogger("archie_platform").warning(
+        "⚠️  SANDBOX MODE ACTIVE — Telegram disabled, Stripe test mode, no real emails"
+    )
 
 # Tell Flask it's behind a reverse proxy (NPM) so url_for generates https://
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -2827,6 +2834,14 @@ _startup_mcp_sync_and_health()
 
 
 @app.before_request
+def _inject_sandbox_flag():
+    """Expose g.sandbox_mode to all templates and request handlers."""
+    from flask import g
+
+    g.sandbox_mode = app.config.get("SANDBOX_MODE", False)
+
+
+@app.before_request
 def redirect_old_archie_domain():
     """Redirect archie.kytranempowerment.com to platform.kytranempowerment.com.
     Safety net for bookmarks and hardcoded links during domain transition.
@@ -3995,7 +4010,7 @@ if (os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug) and _run_sch
         # poller. Defaults to "1" so single-container deploys are unchanged.
         _run_telegram_here = os.getenv("ARCHIE_RUN_TELEGRAM", "1") == "1"
         _tg_token = os.getenv("TELEGRAM_BOT_TOKEN") if _run_telegram_here else None
-        if _tg_token:
+        if _tg_token and not app.config.get("SANDBOX_MODE"):
             import fcntl
 
             _tg_lock_path = "/tmp/archie_telegram_gateway.lock"
@@ -4046,7 +4061,7 @@ if (os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug) and _run_sch
 # single-container deploys.
 _run_telegram_here_top = os.getenv("ARCHIE_RUN_TELEGRAM", "1") == "1"
 _tg_token_top = os.getenv("TELEGRAM_BOT_TOKEN") if _run_telegram_here_top else None
-if _tg_token_top and not app.config.get("TELEGRAM_GATEWAY"):
+if _tg_token_top and not app.config.get("TELEGRAM_GATEWAY") and not app.config.get("SANDBOX_MODE"):
     import fcntl as _fcntl_top
 
     _tg_lock_path_top = "/tmp/archie_telegram_gateway.lock"

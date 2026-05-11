@@ -1588,6 +1588,17 @@
                     restoreModuleBackup(backup.name);
                 };
                 row.appendChild(restBtn);
+
+                const sandboxModBtn = document.createElement('button');
+                sandboxModBtn.className = 'btn btn-orange';
+                sandboxModBtn.textContent = '🧪 Sandbox';
+                sandboxModBtn.style.cssText = 'font-size:0.7rem;padding:2px 8px;margin-left:4px;';
+                sandboxModBtn.title = 'Deploy this module backup to the sandbox worktree and restart archie_staging';
+                sandboxModBtn.onclick = function(e) {
+                    e.stopPropagation();
+                    deployModuleToSandbox(mod.id, sandboxModBtn);
+                };
+                row.appendChild(sandboxModBtn);
             }
 
             list.appendChild(row);
@@ -1983,6 +1994,15 @@
             delBtn.onclick = function() { deleteDeploymentPackage(pkg.package_name); };
             btnGroup.appendChild(delBtn);
 
+            if (pkg.id) {
+                const sbPkgBtn = document.createElement('button');
+                sbPkgBtn.className = 'btn btn-orange';
+                sbPkgBtn.textContent = '🧪 Test in Sandbox';
+                sbPkgBtn.title = 'Initiate a sandbox restore using this package\'s DB snapshot';
+                sbPkgBtn.onclick = function() { testPackageInSandbox(pkg.id, sbPkgBtn); };
+                btnGroup.appendChild(sbPkgBtn);
+            }
+
             statsDiv.appendChild(btnGroup);
             item.appendChild(statsDiv);
 
@@ -2081,6 +2101,55 @@
             }
         } catch (error) {
             showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    // =====================================================================
+    // SANDBOX HELPERS (Task 9A + 9B)
+
+    async function deployModuleToSandbox(moduleName, btn) {
+        if (_bmRestoreActive) { showToast('A restore is in progress — please wait.', 'error'); return; }
+        _bmRestoreLock('🧪 Deploying module ' + moduleName + ' to sandbox…');
+        if (btn) { btn.disabled = true; btn.textContent = '⏳ Deploying…'; }
+        try {
+            const response = await fetch(
+                '/tools/backup-manager/api/modules/' + encodeURIComponent(moduleName) + '/deploy-to-sandbox',
+                { method: 'POST', credentials: 'same-origin' }
+            );
+            const data = await response.json();
+            if (data.success) {
+                showToast('🧪 ' + moduleName + ' deployed to sandbox. ' + (data.log || []).slice(-1)[0], 'success');
+            } else {
+                showToast('Sandbox error: ' + (data.error || 'unknown'), 'error');
+            }
+        } catch (err) {
+            showToast('Sandbox error: ' + err.message, 'error');
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = '🧪 Sandbox'; }
+            _bmRestoreUnlock();
+        }
+    }
+
+    async function testPackageInSandbox(packageId, btn) {
+        if (_bmRestoreActive) { showToast('A restore is in progress — please wait.', 'error'); return; }
+        _bmRestoreLock('🧪 Testing package ' + packageId + ' in sandbox…');
+        if (btn) { btn.disabled = true; btn.textContent = '⏳ Starting…'; }
+        try {
+            const response = await fetch(
+                '/tools/backup-manager/api/packages/' + packageId + '/test-in-sandbox',
+                { method: 'POST', credentials: 'same-origin' }
+            );
+            const data = await response.json();
+            if (data.success) {
+                showToast('🧪 Sandbox restore started for ' + (data.package_name || 'package') + ' (session ' + data.session_id + ')', 'success');
+            } else {
+                showToast('Sandbox error: ' + (data.error || 'unknown'), 'error');
+            }
+        } catch (err) {
+            showToast('Sandbox error: ' + err.message, 'error');
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = '🧪 Test in Sandbox'; }
+            _bmRestoreUnlock();
         }
     }
 

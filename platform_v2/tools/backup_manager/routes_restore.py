@@ -588,6 +588,78 @@ def register_restore_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
 
+    @bp.route("/api/modules/<module_name>/deploy-to-sandbox", methods=["POST"])
+    @admin_required
+    def deploy_module_to_sandbox(module_name):
+        """Copy a module backup into the sandbox worktree and restart archie_staging."""
+        SANDBOX_TOOLS = "/mnt/archie_sandbox/platform_v2/tools"
+        SANDBOX_TEMPLATES = "/mnt/archie_sandbox/platform_v2/templates/tools"
+
+        module_backup_path = os.path.join(BACKUP_DIR, "modules")
+        candidates = (
+            sorted([d for d in os.listdir(module_backup_path) if module_name in d], reverse=True)
+            if os.path.exists(module_backup_path)
+            else []
+        )
+
+        if not candidates:
+            return jsonify({"success": False, "error": f"No module backup found for '{module_name}'"}), 404
+
+        latest = os.path.join(module_backup_path, candidates[0])
+        log = []
+
+        src_tools = os.path.join(latest, "tools", module_name)
+        dst_tools = os.path.join(SANDBOX_TOOLS, module_name)
+        if os.path.exists(src_tools):
+            if os.path.exists(dst_tools):
+                shutil.rmtree(dst_tools)
+            shutil.copytree(src_tools, dst_tools)
+            log.append(f"✓ tools/{module_name}/ deployed to sandbox")
+
+        src_tpl = os.path.join(latest, "templates", "tools")
+        dst_tpl = SANDBOX_TEMPLATES
+        if os.path.exists(src_tpl):
+            for f in os.listdir(src_tpl):
+                shutil.copy2(os.path.join(src_tpl, f), os.path.join(dst_tpl, f))
+            log.append(f"✓ templates/tools/ deployed to sandbox")
+
+        result = subprocess.run(["docker", "restart", "archie_staging"], capture_output=True, text=True, timeout=30)
+        if result.returncode == 0:
+            log.append("✓ archie_staging restarted")
+        else:
+            log.append(f"⚠ restart warning: {result.stderr[:100]}")
+
+        return jsonify({"success": True, "module": module_name, "backup": candidates[0], "log": log})
+
+    @bp.route("/api/packages/<int:package_id>/test-in-sandbox", methods=["POST"])
+    @admin_required
+    def test_package_in_sandbox(package_id):
+        """Start a sandbox restore for the DB state captured in a deployment package."""
+        from services.backup_restore_service import initiate_sandbox_restore
+
+        with get_backup_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                "SELECT id, package_name, backup_id FROM deployment_packages WHERE id = %s",
+                (package_id,),
+            )
+            pkg = cur.fetchone()
+
+        if not pkg:
+            return jsonify({"success": False, "error": f"Package #{package_id} not found"}), 404
+
+        backup_id = pkg[2]
+        if not backup_id:
+            return jsonify({"success": False, "error": "Package has no associated DB backup"}), 400
+
+        result = initiate_sandbox_restore(
+            backup_id=int(backup_id),
+            triggered_by=getattr(current_user, "username", "unknown"),
+        )
+        if result["success"]:
+            result["package_name"] = pkg[1]
+            result["backup_id"] = backup_id
+        return jsonify(result), 200 if result["success"] else 400
+
     @bp.route("/api/restore/sandbox", methods=["POST"])
     @admin_required
     def initiate_restore_sandbox():

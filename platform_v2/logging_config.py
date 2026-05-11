@@ -41,8 +41,14 @@ except ImportError:
 # LOGGING DIRECTORIES
 # ============================================================================
 
-LOG_DIR = Path("/mnt/archie_brain/logs")
-LOG_DIR.mkdir(exist_ok=True, parents=True)
+_default_log_dir = Path(os.getenv("ARCHIE_LOG_DIR", "/mnt/archie_brain/logs"))
+try:
+    _default_log_dir.mkdir(exist_ok=True, parents=True)
+    LOG_DIR = _default_log_dir
+except OSError:
+    # Fallback for read-only environments (e.g. sandbox container)
+    LOG_DIR = Path("/tmp/archie_logs")
+    LOG_DIR.mkdir(exist_ok=True, parents=True)
 
 # Separate log files by level
 LOG_FILES = {

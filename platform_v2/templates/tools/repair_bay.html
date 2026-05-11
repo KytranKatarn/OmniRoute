@@ -2079,7 +2079,7 @@ function showProposalDetail(id) {
 }
 
 function proposalAction(id, action) {
-    fetch(API + '/proposals/' + id + '/' + action, { method: 'POST' })
+    fetch(API + '/proposals/' + id + '/' + action, { method: 'POST', credentials: 'include' })
         .then(function(r) { return r.json(); })
         .then(function(d) {
             if (d.success || d.executed) {

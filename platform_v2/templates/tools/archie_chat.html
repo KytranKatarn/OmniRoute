@@ -172,6 +172,12 @@
         <div class="p10-threads">
             <div class="p10-threads-header">Conversations</div>
             <button class="p10-new-conv-btn" onclick="p10NewConversation()">+ New Conversation</button>
+            <!-- Team conversation scope filter (#2260) -->
+            <div style="display:flex;gap:4px;margin:6px 0 4px;font-size:0.7rem;">
+              <button id="p10ScopeAll" onclick="p10SetScope('all')" style="padding:1px 7px;border-radius:3px;border:1px solid rgba(139,92,246,0.5);background:rgba(139,92,246,0.2);color:#8b5cf6;cursor:pointer;font-size:0.7rem;">All</button>
+              <button id="p10ScopePersonal" onclick="p10SetScope('personal')" style="padding:1px 7px;border-radius:3px;border:1px solid rgba(100,116,139,0.4);color:#94a3b8;cursor:pointer;font-size:0.7rem;">Personal</button>
+              <button id="p10ScopeTeam" onclick="p10SetScope('team')" style="padding:1px 7px;border-radius:3px;border:1px solid rgba(139,92,246,0.4);color:#8b5cf6;cursor:pointer;font-size:0.7rem;display:none;">Team</button>
+            </div>
             <div id="p10-thread-list"></div>
         </div>
     </aside>
@@ -1077,20 +1083,44 @@ function addCopyButtons(container) {
     });
 }
 
-// Phase 10: Thread sidebar
+// Phase 10: Thread sidebar — team conversation scoping (#2260)
+var _p10Scope = 'all';
+function p10SetScope(scope) {
+    _p10Scope = scope;
+    ['all','personal','team'].forEach(function(s) {
+        var btn = document.getElementById('p10Scope' + s.charAt(0).toUpperCase() + s.slice(1));
+        if (!btn) return;
+        var active = s === scope;
+        btn.style.background = active ? 'rgba(139,92,246,0.2)' : 'transparent';
+        btn.style.borderColor = active ? 'rgba(139,92,246,0.5)' : 'rgba(100,116,139,0.4)';
+        btn.style.color = active ? '#8b5cf6' : '#94a3b8';
+    });
+    p10LoadThreads();
+}
+
 function p10LoadThreads() {
-    fetch('/tools/archie-chat/api/conversations/threads')
+    fetch('/tools/archie-chat/api/conversations/threads?scope=' + (_p10Scope || 'all'))
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var list = document.getElementById('p10-thread-list');
             if (!list) return;
+            // Show Team tab only if user has a team
+            var teamBtn = document.getElementById('p10ScopeTeam');
+            if (teamBtn && data.has_team) teamBtn.style.display = '';
             list.textContent = '';
             (data.threads || []).forEach(function(t) {
                 var item = document.createElement('div');
                 item.className = 'p10-thread-item';
                 if (conversationId === t.conversation_id) item.classList.add('active');
-                item.title = t.title || 'Untitled';
-                item.textContent = t.title || 'Untitled';
+                item.title = (t.scope === 'team' ? '[Team] ' : '') + (t.title || 'Untitled');
+                // Team badge
+                if (t.scope === 'team') {
+                    var badge = document.createElement('span');
+                    badge.style.cssText = 'font-size:0.6rem;padding:0 4px;border-radius:2px;background:rgba(139,92,246,0.2);color:#8b5cf6;margin-right:4px;font-weight:bold;vertical-align:middle;';
+                    badge.textContent = 'TEAM';
+                    item.appendChild(badge);
+                }
+                item.appendChild(document.createTextNode(t.title || 'Untitled'));
                 item.onclick = function() { p10LoadConversation(t.conversation_id); };
                 list.appendChild(item);
             });

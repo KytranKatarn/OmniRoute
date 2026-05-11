@@ -680,6 +680,66 @@ def register_routes(bp, admin_required):
         )
 
     # ------------------------------------------------------------------
+    # 2b. GET /api/conversations/threads — Thread sidebar (team scoping)
+    # ------------------------------------------------------------------
+    @bp.route("/api/conversations/threads", methods=["GET"])
+    @login_required
+    def list_conversation_threads():
+        """Return conversations for the thread sidebar with team/personal scope labels.
+
+        Query params:
+            scope: all | team | personal (default: all)
+            limit: max results (default: 30)
+        """
+        from flask_login import current_user
+
+        user_id = current_user.id
+        scope = request.args.get("scope", "all")
+        limit = min(request.args.get("limit", 30, type=int), 100)
+
+        team_id = get_user_team_id(user_id)
+
+        threads = []
+        if scope in ("all", "personal"):
+            personal = get_conversations(user_id, team_id=None, page=1, limit=limit)
+            for c in personal["conversations"]:
+                threads.append(
+                    {
+                        "conversation_id": c.get("conversation_uuid") or str(c.get("id")),
+                        "title": c.get("title") or "Untitled",
+                        "scope": "personal",
+                        "team_id": None,
+                        "agent_target": c.get("agent_target"),
+                        "updated_at": (
+                            c.get("updated_at").isoformat()
+                            if hasattr(c.get("updated_at"), "isoformat")
+                            else str(c.get("updated_at", ""))
+                        ),
+                    }
+                )
+
+        if scope in ("all", "team") and team_id is not None:
+            team = get_conversations(user_id, team_id=team_id, page=1, limit=limit)
+            for c in team["conversations"]:
+                threads.append(
+                    {
+                        "conversation_id": c.get("conversation_uuid") or str(c.get("id")),
+                        "title": c.get("title") or "Untitled",
+                        "scope": "team",
+                        "team_id": team_id,
+                        "agent_target": c.get("agent_target"),
+                        "updated_at": (
+                            c.get("updated_at").isoformat()
+                            if hasattr(c.get("updated_at"), "isoformat")
+                            else str(c.get("updated_at", ""))
+                        ),
+                    }
+                )
+
+        threads.sort(key=lambda x: x["updated_at"], reverse=True)
+        return jsonify({"success": True, "threads": threads[:limit], "has_team": team_id is not None})
+
+    # ------------------------------------------------------------------
     # 3. POST /api/v1/chat/conversations — Create new conversation
     # ------------------------------------------------------------------
     @bp.route("/api/v1/chat/conversations", methods=["POST"])

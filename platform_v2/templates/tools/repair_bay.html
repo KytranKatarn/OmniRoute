@@ -444,7 +444,13 @@
         <!-- Test Runs sub-tab -->
         <div id="sandbox-subtab-runs" class="dp-subtab-content">
             <div class="dp-scan-actions" style="margin-bottom:12px;">
-                <button class="dp-btn dp-btn-accent" onclick="runNewTest()">Run Tests</button>
+                <button class="dp-btn dp-btn-accent" onclick="runNewTest()">▶ Run Tests</button>
+                <span id="liveRunStatus" style="color:#94a3b8;font-size:0.8rem;margin-left:10px;"></span>
+            </div>
+            <!-- Live SSE output panel (#2786) -->
+            <div id="liveRunOutput" style="display:none;margin-bottom:14px;border:1px solid rgba(139,92,246,0.3);border-radius:6px;padding:10px;background:rgba(0,0,0,0.3);">
+              <div style="font-family:Antonio,sans-serif;font-size:0.72rem;letter-spacing:2px;color:#8b5cf6;margin-bottom:6px;">LIVE OUTPUT</div>
+              <div id="liveRunLog" style="font-family:IBM Plex Mono,monospace;font-size:0.77rem;max-height:200px;overflow-y:auto;"></div>
             </div>
             <div id="testRunsList" class="dp-history-list">
                 <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading test history...</div></div>
@@ -2257,10 +2263,50 @@ function loadTestSuites() {
 }
 
 function runNewTest() {
+    var livePanel = document.getElementById('liveRunOutput');
+    var liveLog = document.getElementById('liveRunLog');
+    var liveSt = document.getElementById('liveRunStatus');
+    if (livePanel) livePanel.style.display = 'block';
+    if (liveLog) { while(liveLog.firstChild) liveLog.removeChild(liveLog.firstChild); }
+    if (liveSt) { liveSt.textContent = 'Starting…'; liveSt.style.color = '#8b5cf6'; }
     fetch(API + '/sandbox/run', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' })
         .then(function(r) { return r.json(); })
-        .then(function(d) { loadTestRuns(); })
-        .catch(function() {});
+        .then(function(d) {
+            if (d.run_id && typeof EventSource !== 'undefined') {
+                if (liveSt) { liveSt.textContent = 'Run #' + d.run_id; }
+                if (liveLog) { var sl = document.createElement('div'); sl.style.color='#8b5cf6'; sl.textContent = '▸ Run #' + d.run_id + ' started'; liveLog.appendChild(sl); }
+                var es = new EventSource(API + '/sandbox/run/' + d.run_id + '/stream');
+                es.onmessage = function(e) {
+                    try {
+                        var evt = JSON.parse(e.data);
+                        if (!liveLog || !liveLog.parentNode) { es.close(); return; }
+                        var line = document.createElement('div');
+                        line.style.cssText = 'padding:1px 0;font-size:0.77rem;font-family:IBM Plex Mono,monospace;';
+                        if (evt.type === 'status') {
+                            line.textContent = '▸ ' + evt.status; line.style.color = '#8b5cf6';
+                            if (liveSt) liveSt.textContent = evt.status;
+                        } else if (evt.type === 'result') {
+                            var r = evt.result; var ok = r.status === 'passed';
+                            line.textContent = (ok ? '✓ ' : '✗ ') + (r.test_name || r.name || '—') + ' (' + (r.duration_ms || '?') + 'ms)';
+                            line.style.color = ok ? '#00ff41' : '#ff6b6b';
+                        } else if (evt.type === 'done') {
+                            line.textContent = '■ ' + evt.status; line.style.color = '#00ff41';
+                            if (liveSt) { liveSt.textContent = evt.status; liveSt.style.color = '#00ff41'; }
+                            es.close(); loadTestRuns();
+                        } else if (evt.type === 'error') {
+                            line.textContent = '! ' + evt.message; line.style.color = '#ff6b6b';
+                            es.close(); loadTestRuns();
+                        }
+                        liveLog.appendChild(line);
+                        liveLog.scrollTop = liveLog.scrollHeight;
+                    } catch(_) {}
+                };
+                es.onerror = function() { es.close(); loadTestRuns(); };
+            } else {
+                loadTestRuns();
+            }
+        })
+        .catch(function() { if (liveSt) { liveSt.textContent = 'Failed'; liveSt.style.color = '#ff6b6b'; } loadTestRuns(); });
 }
 
 // ---- Deploy Tab ----

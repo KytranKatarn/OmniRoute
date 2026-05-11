@@ -1238,6 +1238,44 @@ window._prRenderDetail = function(pr) {
     link.textContent = 'View Diff on GitHub ↗';
     el.appendChild(link);
   }
+
+  // CodeRabbit / forge_reviews unified view (P3-#2787)
+  if (pr.pr_number) {
+    var cbLabel = document.createElement('div');
+    cbLabel.className = 'dp-pr-section-label';
+    cbLabel.style.cssText = 'margin-top:12px;';
+    cbLabel.textContent = 'CodeRabbit Reviews';
+    el.appendChild(cbLabel);
+    var cbEl = document.createElement('div');
+    cbEl.style.cssText = 'color:#94a3b8;font-size:0.78rem;padding:4px 0;';
+    cbEl.textContent = 'Loading…';
+    el.appendChild(cbEl);
+    fetch('/tools/repair-bay/api/forge/prs/' + pr.pr_number)
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var reviews = d.reviews || d.forge_reviews || [];
+        if (!cbEl.parentNode) return;
+        if (!reviews.length) { cbEl.textContent = 'No CodeRabbit events yet.'; return; }
+        cbEl.textContent = '';
+        reviews.forEach(function(rv) {
+          var row = document.createElement('div');
+          row.style.cssText = 'padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;gap:8px;align-items:center;';
+          var stColors = { approved: '#00ff41', changes_requested: '#ff6b6b', commented: '#f59e0b' };
+          var st = document.createElement('span');
+          st.style.cssText = 'color:' + (stColors[rv.review_status] || '#94a3b8') + ';font-size:0.73rem;font-weight:bold;text-transform:uppercase;min-width:90px;';
+          st.textContent = rv.review_status || '—';
+          var src = document.createElement('span');
+          src.style.cssText = 'color:#94a3b8;font-size:0.75rem;';
+          src.textContent = rv.review_source || 'coderabbit';
+          var ts = document.createElement('span');
+          ts.style.cssText = 'color:#64748b;font-size:0.72rem;margin-left:auto;font-family:IBM Plex Mono,monospace;';
+          ts.textContent = (rv.created_at || '').slice(0, 16).replace('T', ' ');
+          row.appendChild(st); row.appendChild(src); row.appendChild(ts);
+          cbEl.appendChild(row);
+        });
+      })
+      .catch(function() { if (cbEl.parentNode) cbEl.textContent = 'Could not load CodeRabbit data.'; });
+  }
 };
 
 window.prMerge = function(prNumber, repo) {

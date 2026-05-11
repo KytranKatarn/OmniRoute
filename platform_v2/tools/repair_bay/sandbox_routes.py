@@ -192,6 +192,49 @@ def register_sandbox_routes(bp, admin_required):
             return jsonify(result), 404
         return jsonify(result)
 
+    @bp.route("/api/sandbox/run/<run_id>/stream")
+    @login_required
+    @admin_required
+    def sandbox_run_stream(run_id):
+        """SSE endpoint — polls run status/results and streams changes to the browser."""
+        import json
+        import time
+
+        from flask import Response, stream_with_context
+
+        def generate():
+            last_result_count = 0
+            last_status = None
+            terminal = {"completed", "failed", "cancelled", "error"}
+            for _ in range(180):  # max 3 minutes
+                try:
+                    data = sandbox_service.get_run_status(run_id)
+                    status = data.get("status", "unknown")
+                    results = data.get("results", [])
+
+                    if status != last_status:
+                        yield f"data: {json.dumps({'type': 'status', 'status': status})}\n\n"
+                        last_status = status
+
+                    for r in results[last_result_count:]:
+                        yield f"data: {json.dumps({'type': 'result', 'result': r})}\n\n"
+                    last_result_count = len(results)
+
+                    if status in terminal:
+                        yield f"data: {json.dumps({'type': 'done', 'status': status, 'summary': data.get('summary', {})})}\n\n"
+                        return
+
+                    time.sleep(1)
+                except Exception as exc:
+                    yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+                    return
+
+        return Response(
+            stream_with_context(generate()),
+            mimetype="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
     @bp.route("/api/sandbox/run/<run_id>/cancel", methods=["POST"])
     @login_required
     @admin_required

@@ -9,7 +9,7 @@
         agentTarget: 'F.O.R.G.E.',
         label: 'F.O.R.G.E.',
         icon: '⚙️',
-        accentColor: '#fbbf24',
+        accentColor: '#00e5ff',
         moduleKey: 'repair_bay',
         expandUrl: '/tools/department-hq',
         portraitUrl: null,

@@ -62,6 +62,7 @@ def poll_open_prs(repo: str = None) -> dict:
                     ON CONFLICT (pr_number, repo) DO UPDATE SET
                         title          = EXCLUDED.title,
                         state          = EXCLUDED.state,
+                        diff_url       = EXCLUDED.diff_url,
                         additions      = EXCLUDED.additions,
                         deletions      = EXCLUDED.deletions,
                         changed_files  = EXCLUDED.changed_files,

@@ -122,6 +122,8 @@ function _stopReviewsPoll() {
 }
 
 /* ── Reviews tab — GitHub PR list ─────────────────────────────── */
+var _REVIEWS_CACHE_KEY = 'rb_reviews_cache_v1';
+
 function loadReviews(silent) {
     _reviewsLoaded = true;
     var container = document.getElementById('reviewsList');
@@ -129,10 +131,14 @@ function loadReviews(silent) {
     var state = (document.getElementById('reviewsStateFilter') || {}).value || 'open';
     if (!container) return;
 
-    // Silent refresh (used by auto-poll): keep current cards visible
-    // while the new fetch is in flight so the DOM doesn't flash empty.
-    if (!silent) {
-        _rbEmpty(container, 'Loading PRs from GitHub…');
+    // Render cached data instantly so the user sees content on arrival.
+    // The live fetch below will silently update it.
+    var cached = null;
+    try { cached = JSON.parse(sessionStorage.getItem(_REVIEWS_CACHE_KEY + '_' + state)); } catch(e) {}
+    if (cached && cached.prs && cached.prs.length && !silent) {
+        _renderReviewCards(container, countEl, cached.prs, true /* from cache */);
+    } else if (!silent && !cached) {
+        _rbEmpty(container, 'Loading PRs…');
     }
 
     // Start the poll timer on first load (not on silent refreshes to
@@ -143,58 +149,77 @@ function loadReviews(silent) {
 
     _rbFetchJson(RB_API + '/forge/prs?state=' + encodeURIComponent(state))
         .then(function(data) {
+            // If API returned an error, keep whatever is already showing (cache or blank)
+            if (!data.success && data.error) return;
             var prs = data.prs || data.pull_requests || [];
             if (!prs.length) {
-                if (countEl) countEl.textContent = '0 PRs';
-                _rbEmpty(container, 'No ' + state + ' PRs found.');
+                // Only show empty state if nothing is currently cached/displayed
+                var hasCards = container && container.querySelector('.dp-proposal-card');
+                if (!hasCards) {
+                    if (countEl) countEl.textContent = '0 PRs';
+                    _rbEmpty(container, 'No ' + state + ' PRs found.');
+                }
                 return;
             }
-
-            // Sort + rank: mergeable PRs get a merge-order rank (1..N) sorted
-            // oldest-ready-first so the most senior ready-to-merge work
-            // appears at the top. Conflicting/unknown sink to the bottom.
-            var mergeable = [];
-            var others = [];
-            prs.forEach(function(pr) {
-                if (pr.mergeable === 'MERGEABLE') mergeable.push(pr);
-                else others.push(pr);
-            });
-            mergeable.sort(function(a, b) {
-                var ta = a.updated_at || a.created_at || '';
-                var tb = b.updated_at || b.created_at || '';
-                return ta < tb ? -1 : ta > tb ? 1 : 0;
-            });
-            mergeable.forEach(function(pr, i) { pr._mergeRank = i + 1; });
-            var ordered = mergeable.concat(others);
-
-            _reviewsLastLoadedAt = new Date();
-            if (countEl) {
-                var ts = _reviewsLastLoadedAt.toLocaleTimeString([], {
-                    hour: '2-digit', minute: '2-digit', second: '2-digit'
-                });
-                countEl.textContent =
-                    prs.length + ' PR' + (prs.length !== 1 ? 's' : '') +
-                    ' · ' + mergeable.length + ' ready to merge' +
-                    ' · auto-refresh ' + (REVIEWS_POLL_INTERVAL_MS / 1000) + 's · last ' + ts;
-            }
-
-            _rbClear(container);
-            ordered.forEach(function(pr) {
-                container.appendChild(_buildReviewCard(pr));
-            });
-            if (typeof lucide !== 'undefined' && lucide.createIcons) {
-                try { lucide.createIcons(); } catch (e) { /* ok */ }
-            }
+            // Save to session cache so next arrival renders instantly
+            try {
+                var cacheKey = _REVIEWS_CACHE_KEY + '_' + state;
+                sessionStorage.setItem(cacheKey, JSON.stringify({prs: prs}));
+            } catch(e) {}
+            _renderReviewCards(container, countEl, prs, false);
         })
         .catch(function(e) {
-            _rbEmpty(container, 'Failed to load PRs: ' + e.message, '#ef4444');
+            // Don't clear the container if cards are already showing from cache
+            var hasCards = container && container.querySelector('.dp-proposal-card');
+            if (!hasCards) {
+                _rbEmpty(container, 'Failed to load PRs: ' + e.message, '#ef4444');
+            }
         });
+}
+
+function _renderReviewCards(container, countEl, prs, fromCache) {
+    if (!prs || !prs.length) {
+        _rbEmpty(container, 'No PRs found.');
+        return;
+    }
+    var mergeable = [];
+    var others = [];
+    prs.forEach(function(pr) {
+        if (pr.mergeable === 'MERGEABLE') mergeable.push(pr);
+        else others.push(pr);
+    });
+    mergeable.sort(function(a, b) {
+        var ta = a.updated_at || a.created_at || '';
+        var tb = b.updated_at || b.created_at || '';
+        return ta < tb ? -1 : ta > tb ? 1 : 0;
+    });
+    mergeable.forEach(function(pr, i) { pr._mergeRank = i + 1; });
+    var ordered = mergeable.concat(others);
+
+    _reviewsLastLoadedAt = fromCache ? _reviewsLastLoadedAt : new Date();
+    if (countEl) {
+        var ts = fromCache ? 'cached' : (_reviewsLastLoadedAt || new Date()).toLocaleTimeString([], {
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+        countEl.textContent =
+            prs.length + ' PR' + (prs.length !== 1 ? 's' : '') +
+            ' · ' + mergeable.length + ' ready to merge' +
+            ' · auto-refresh ' + (REVIEWS_POLL_INTERVAL_MS / 1000) + 's · last ' + ts;
+    }
+
+    _rbClear(container);
+    ordered.forEach(function(pr) {
+        container.appendChild(_buildReviewCard(pr));
+    });
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+        try { lucide.createIcons(); } catch (e) { /* ok */ }
+    }
 }
 
 function _buildReviewCard(pr) {
     var card = _rbMakeEl('div', {
         cls: 'dp-proposal-card',
-        style: 'padding:14px 16px; margin-bottom:10px; border-left:3px solid #00d4ff; background:rgba(0,212,255,0.04); border-radius:4px;'
+        style: 'padding:14px 16px; margin-bottom:10px; border-left:3px solid #00d4ff; background:rgba(0,212,255,0.04); border-radius:4px; overflow:hidden; flex-direction:column; align-items:stretch;'
     });
 
     /* Header row: [rank] + number + title + external link */
@@ -224,17 +249,18 @@ function _buildReviewCard(pr) {
 
     var titleWrap = _rbMakeEl('div', {style: 'flex:1 1 auto; min-width:0;'});
     var title = _rbMakeEl('div', {
-        style: 'color:#e2e8f0; font-weight:600; font-size:0.9rem; overflow:hidden; text-overflow:ellipsis;',
+        style: 'color:#e2e8f0; font-weight:600; font-size:0.9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;',
         text: pr.title || '(untitled)'
     });
     titleWrap.appendChild(title);
 
     var parts = [];
     if (pr.user) parts.push('by ' + pr.user);
-    if (pr.head_ref || pr.head) parts.push(pr.head_ref || pr.head);
+    var ref = pr.head_ref || pr.head || '';
+    if (ref) parts.push(ref.length > 32 ? ref.slice(0, 32) + '…' : ref);
     if (pr.updated_at) parts.push('updated ' + _rbFmtDate(pr.updated_at));
     var sub = _rbMakeEl('div', {
-        style: 'color:#94a3b8; font-size:0.72rem; margin-top:2px;',
+        style: 'color:#94a3b8; font-size:0.72rem; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;',
         text: parts.join(' · ')
     });
     titleWrap.appendChild(sub);
@@ -288,15 +314,15 @@ function _buildReviewCard(pr) {
     }
 
     /* Action row */
-    var actions = _rbMakeEl('div', {style: 'display:flex; gap:8px; margin-top:10px; justify-content:flex-end;'});
+    var actions = _rbMakeEl('div', {style: 'display:flex; gap:8px; margin-top:10px; justify-content:flex-end; flex-wrap:wrap; align-items:center;'});
 
     var viewBtn = _rbMakeEl('a', {
         href: pr.html_url || '#',
         target: '_blank',
         rel: 'noopener',
         cls: 'dp-btn',
-        style: 'padding:6px 12px; font-size:0.78rem; background:rgba(0,212,255,0.15); border:1px solid #00d4ff; color:#00d4ff; text-decoration:none; border-radius:3px;',
-        text: 'Review on GitHub'
+        style: 'padding:6px 12px; font-size:0.78rem; background:rgba(0,212,255,0.15); border:1px solid #00d4ff; color:#00d4ff; text-decoration:none; border-radius:3px; white-space:nowrap;',
+        text: 'Review ↗'
     });
     actions.appendChild(viewBtn);
 
@@ -306,8 +332,8 @@ function _buildReviewCard(pr) {
     if (pr.mergeable === 'MERGEABLE' && pr.review_decision !== 'CHANGES_REQUESTED') {
         var mergeBtn = _rbMakeEl('button', {
             cls: 'dp-btn',
-            style: 'padding:6px 14px; font-size:0.8rem; background:#22c55e; color:#0a0e1a; border:none; border-radius:3px; cursor:pointer; font-weight:700;',
-            text: 'Approve & Merge ✓',
+            style: 'padding:6px 14px; font-size:0.8rem; background:#22c55e; color:#0a0e1a; border:none; border-radius:3px; cursor:pointer; font-weight:700; white-space:nowrap;',
+            text: 'Merge ✓',
             onclick: function() { _mergePr(pr.number, mergeBtn); }
         });
         actions.appendChild(mergeBtn);
@@ -329,6 +355,7 @@ function _statusPill(label, value, colorMap) {
         style:
             'display:inline-flex; align-items:center; gap:4px; padding:2px 8px; ' +
             'border-radius:10px; font-size:0.68rem; font-family:"IBM Plex Mono",monospace; ' +
+            'white-space:nowrap; ' +
             'background:' + mapped[0] + '22; color:' + mapped[0] + '; border:1px solid ' + mapped[0] + '55;',
         text: label + ': ' + mapped[1]
     });
@@ -344,6 +371,7 @@ function _checkPill(label, status) {
         style:
             'display:inline-flex; align-items:center; gap:4px; padding:2px 8px; ' +
             'border-radius:10px; font-size:0.68rem; font-family:"IBM Plex Mono",monospace; ' +
+            'white-space:nowrap; ' +
             'background:' + color + '22; color:' + color + '; border:1px solid ' + color + '55;',
         text: label + ': ' + txt
     });
@@ -1258,8 +1286,11 @@ window._prRenderDetail = function(pr) {
         if (!reviews.length) { cbEl.textContent = 'No CodeRabbit events yet.'; return; }
         cbEl.textContent = '';
         reviews.forEach(function(rv) {
+          var wrap = document.createElement('div');
+          wrap.style.cssText = 'margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.05);padding-bottom:6px;';
+
           var row = document.createElement('div');
-          row.style.cssText = 'padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;gap:8px;align-items:center;';
+          row.style.cssText = 'padding:3px 0;display:flex;gap:8px;align-items:center;';
           var stColors = { approved: '#00ff41', changes_requested: '#ff6b6b', commented: '#f59e0b' };
           var st = document.createElement('span');
           st.style.cssText = 'color:' + (stColors[rv.review_status] || '#94a3b8') + ';font-size:0.73rem;font-weight:bold;text-transform:uppercase;min-width:90px;';
@@ -1271,7 +1302,29 @@ window._prRenderDetail = function(pr) {
           ts.style.cssText = 'color:#64748b;font-size:0.72rem;margin-left:auto;font-family:IBM Plex Mono,monospace;';
           ts.textContent = (rv.created_at || '').slice(0, 16).replace('T', ' ');
           row.appendChild(st); row.appendChild(src); row.appendChild(ts);
-          cbEl.appendChild(row);
+          wrap.appendChild(row);
+
+          // Show comment body — skip config header, extract actual review content
+          if (rv.body) {
+            var raw = rv.body;
+            // Skip CodeRabbit auto-header (everything up to the walkthrough/summary section)
+            var walkthroughIdx = raw.search(/walkthrough|summary|changes|review summary|file|findings/i);
+            if (walkthroughIdx > 200) raw = raw.slice(walkthroughIdx);
+            var cleaned = raw
+              .replace(/<!--[\s\S]*?-->/g, '')   // strip HTML comments
+              .replace(/<[^>]+>/g, ' ')           // strip HTML tags, keep content
+              .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .slice(0, 600);
+            if (cleaned.length > 0) {
+              var bodyEl = document.createElement('div');
+              bodyEl.style.cssText = 'color:#94a3b8;font-size:0.75rem;line-height:1.6;margin-top:4px;white-space:pre-wrap;word-break:break-word;';
+              bodyEl.textContent = cleaned + (raw.length > 600 ? '…' : '');
+              wrap.appendChild(bodyEl);
+            }
+          }
+          cbEl.appendChild(wrap);
         });
       })
       .catch(function() { if (cbEl.parentNode) cbEl.textContent = 'Could not load CodeRabbit data.'; });

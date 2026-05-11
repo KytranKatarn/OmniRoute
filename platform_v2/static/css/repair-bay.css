@@ -1,6 +1,6 @@
 /* Repair Bay Module Styles */
 .dp-container {
-    padding: 20px;
+    padding: 0;
     max-width: 100%;
     overflow-x: hidden;
 }
@@ -31,36 +31,60 @@
     text-transform: uppercase;
 }
 
-/* Stats cards */
+/* Stats cards — single compact row, never wraps */
 .dp-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 12px;
-    margin-bottom: 20px;
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+    margin-bottom: 10px;
+    overflow: hidden;
 }
 
 .dp-stat-card {
+    flex: 1;
+    min-width: 0;
     background: var(--archie-bg-secondary);
     border: 1px solid var(--archie-border-default);
-    border-radius: 2px 12px 12px 2px;
+    border-radius: 2px 8px 8px 2px;
     border-left: 3px solid var(--card-accent, var(--archie-cyan, #00d4ff));
-    padding: 14px 16px;
+    padding: 6px 10px;
+    text-align: center;
 }
 
 .dp-stat-label {
     font-family: 'Antonio', sans-serif;
-    font-size: 0.7rem;
+    font-size: 0.6rem;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
     color: var(--archie-text-muted);
-    margin-bottom: 4px;
+    margin-bottom: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .dp-stat-value {
     font-family: 'Orbitron', monospace;
-    font-size: 1.4rem;
+    font-size: 1rem;
     font-weight: 700;
     color: var(--card-accent, var(--archie-cyan, #00d4ff));
+}
+
+.dp-stat-card:hover {
+    border-color: var(--card-accent, var(--archie-cyan, #00d4ff));
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.2);
+    transition: all 0.15s ease;
+}
+
+/* Engineering Station command buttons — horizontal row */
+.cs-ops-commands {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.06);
 }
 
 /* Tab content */
@@ -861,6 +885,7 @@
 .dp-pr-split {
   display: flex;
   height: 520px;
+  width: 100%;
   border: 1px solid var(--archie-border, #1e293b);
   border-radius: 6px;
   overflow: hidden;

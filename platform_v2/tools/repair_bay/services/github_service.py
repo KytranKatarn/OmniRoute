@@ -281,20 +281,42 @@ def get_pr_status(pr_number: int) -> Dict:
     ok3, comments = _api_get(f"/repos/{REPO_FULL}/pulls/{pr_number}/comments")
     comment_list = comments if ok3 and isinstance(comments, list) else []
 
+    # Get issue comments (general PR comments — CodeRabbit posts walkthroughs here)
+    ok4, issue_comments = _api_get(f"/repos/{REPO_FULL}/issues/{pr_number}/comments")
+    issue_comment_list = issue_comments if ok4 and isinstance(issue_comments, list) else []
+
+    # Build forge_reviews: formal reviews + CodeRabbit issue comments
+    forge_reviews = [
+        {
+            "review_status": (r.get("state") or "commented").lower(),
+            "review_source": (r.get("user") or {}).get("login", "reviewer"),
+            "created_at": r.get("submitted_at") or r.get("created_at"),
+            "body": (r.get("body") or "")[:300],
+        }
+        for r in review_list
+        if (r.get("user") or {}).get("login")
+    ]
+    # Add CodeRabbit walkthrough comments
+    for c in issue_comment_list:
+        login = (c.get("user") or {}).get("login", "")
+        if "coderabbit" in login.lower() or "coderabbit" in (c.get("body") or "").lower()[:100]:
+            forge_reviews.append(
+                {
+                    "review_status": "commented",
+                    "review_source": login or "coderabbit-ai[bot]",
+                    "created_at": c.get("created_at"),
+                    "body": (c.get("body") or "")[:3000],
+                }
+            )
+
     return {
         "success": True,
         "state": data.get("state"),
         "mergeable": data.get("mergeable"),
         "title": data.get("title"),
         "labels": [l.get("name") for l in data.get("labels", [])],
-        "reviews": [
-            {
-                "user": r.get("user", {}).get("login"),
-                "state": r.get("state"),
-                "body": r.get("body", "")[:500],
-            }
-            for r in review_list
-        ],
+        "reviews": forge_reviews,
+        "forge_reviews": forge_reviews,
         "review_comments": len(comment_list),
         "created_at": data.get("created_at"),
         "updated_at": data.get("updated_at"),
@@ -403,6 +425,7 @@ def list_all_prs_enriched(state: str = "open") -> Dict:
             "created_at": pr.get("created_at"),
             "updated_at": pr.get("updated_at"),
             "html_url": pr.get("html_url"),
+            "diff_url": f"https://api.github.com/repos/{REPO_FULL}/pulls/{pr.get('number')}",
             "draft": pr.get("draft", False),
             "mergeable": "UNKNOWN",
             "review_decision": "NONE",

@@ -402,6 +402,25 @@ def _inject_forge_action(user_msg: str, agent_resp: str) -> str:
             "route": "GET /tools/repair-bay/api/deploys/status",
             "payload": {},
         }
+    elif any(
+        kw in user_lower
+        for kw in [
+            "analyze all",
+            "review all",
+            "review all prs",
+            "analyze pending",
+            "queue all",
+            "bulk analyze",
+            "review pending",
+        ]
+    ):
+        action = {
+            "type": "analyze_all_prs",
+            "label": "Analyze All Pending PRs",
+            "confirm": "Dispatch F.O.R.G.E. reviews for all pending PRs in the queue",
+            "route": "POST /tools/repair-bay/api/forge/pr-reviews/analyze-all",
+            "payload": {},
+        }
 
     if action:
         return agent_resp + f"\n\n[ACTION]{_json.dumps(action)}[/ACTION]"

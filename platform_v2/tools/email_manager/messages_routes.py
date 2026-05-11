@@ -144,17 +144,14 @@ def register_email_messages_routes(bp, admin_required):
         where = " AND ".join(conditions)
 
         with get_db_cursor() as (conn, cur):
-            cur.execute(f"SELECT COUNT(*) AS total FROM email_messages WHERE {where}", params)
+            cur.execute("SELECT COUNT(*) AS total FROM email_messages WHERE " + where, params)
             total = cur.fetchone()["total"]
 
             cur.execute(
-                f"""SELECT id, mailbox_id, from_address, to_address, subject,
-                           body_preview, received_at, is_read, is_starred,
-                           is_archived, has_attachments, ai_priority, ai_suggestion, size_bytes
-                    FROM email_messages
-                    WHERE {where}
-                    ORDER BY received_at DESC
-                    LIMIT %s OFFSET %s""",
+                "SELECT id, mailbox_id, from_address, to_address, subject,"
+                " body_preview, received_at, is_read, is_starred,"
+                " is_archived, has_attachments, ai_priority, ai_suggestion, size_bytes"
+                " FROM email_messages WHERE " + where + " ORDER BY received_at DESC LIMIT %s OFFSET %s",
                 params + [_PAGE_SIZE, offset],
             )
             messages = [_msg_row(dict(r)) for r in cur.fetchall()]

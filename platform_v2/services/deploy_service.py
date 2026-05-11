@@ -14,12 +14,14 @@ Pipeline per deploy:
 
 from __future__ import annotations
 
+import datetime
 import logging
 import os
 import subprocess
 import time
 import zipfile
 from dataclasses import dataclass, field
+from datetime import timezone
 from pathlib import Path
 from typing import Optional
 
@@ -163,22 +165,27 @@ def _deploy_vps(container_name: str, changed_files: list[str], source_dir: str) 
     service = info["service"]
     ssh_opts = ["-i", VPS_KEY, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes"]
 
-    # 1. Rsync each changed file to its target location on VPS
+    # 1. SCP each changed file to its target location on VPS (rsync not in container)
     for rel_path in changed_files:
         src_file = os.path.join(source_dir, rel_path)
         target_subdir = os.path.dirname(os.path.join(target_dir, rel_path))
-        rsync_cmd = [
-            "rsync",
-            "-az",
-            "-e",
-            f"ssh -i {VPS_KEY} -o StrictHostKeyChecking=no -o BatchMode=yes",
-            "--mkpath",
+        # Ensure target directory exists on VPS
+        mkdir_cmd = ["ssh"] + ssh_opts + [VPS_HOST, f"mkdir -p {target_subdir}"]
+        subprocess.run(mkdir_cmd, capture_output=True, timeout=30)
+        scp_cmd = [
+            "scp",
+            "-i",
+            VPS_KEY,
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "BatchMode=yes",
             src_file,
             f"{VPS_HOST}:{target_subdir}/",
         ]
-        result = subprocess.run(rsync_cmd, capture_output=True, timeout=60)
+        result = subprocess.run(scp_cmd, capture_output=True, timeout=60)
         if result.returncode != 0:
-            logger.error("[DeployVPS] rsync failed for %s: %s", rel_path, result.stderr.decode())
+            logger.error("[DeployVPS] scp failed for %s: %s", rel_path, result.stderr.decode())
             return False
 
     # 2. Docker compose rebuild on VPS via SSH

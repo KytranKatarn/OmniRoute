@@ -551,10 +551,25 @@
 
 /* Detail panel */
 .dp-detail-panel {
-    margin-top: 16px;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9100;
+    width: min(860px, 92vw);
+    max-height: 85vh;
+    overflow-y: auto;
+    background: var(--archie-bg-primary, #0a0e1a);
     border: 1px solid var(--archie-border-default);
     border-radius: 8px;
-    overflow: hidden;
+    box-shadow: 0 0 60px rgba(0,0,0,0.85);
+}
+
+.dp-detail-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9099;
+    background: rgba(0,0,0,0.65);
 }
 
 .dp-detail-header {

@@ -1956,6 +1956,11 @@ function showProposalDetail(id) {
     fetch(API + '/proposals/' + id).then(function(r) { return r.json(); }).then(function(d) {
         var p = d.proposal || d;
         var panel = document.getElementById('proposalDetail');
+        var bd = document.getElementById('dp-detail-bd') || document.createElement('div');
+        bd.id = 'dp-detail-bd';
+        bd.className = 'dp-detail-backdrop';
+        bd.onclick = function() { closeDetail(); };
+        document.body.appendChild(bd);
         panel.style.display = 'block';
         document.getElementById('detailTitle').textContent = (p.title || 'Proposal #' + id);
 
@@ -2087,6 +2092,8 @@ function proposalAction(id, action) {
 
 function closeDetail() {
     document.getElementById('proposalDetail').style.display = 'none';
+    var bd = document.getElementById('dp-detail-bd');
+    if (bd) bd.remove();
 }
 
 function toggleDiffView() {

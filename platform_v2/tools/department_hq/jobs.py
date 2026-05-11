@@ -770,4 +770,87 @@ def _register_own_jobs(scheduler, flask_app):
         coalesce=True,
     )
 
-    logger.info("[DeptHQ] Registered 8 code health/audit jobs")
+    # Job #61 — F.O.R.G.E. PR Poll (every 4h) — sync open PRs from GitHub into pr_reviews
+    def _run_forge_pr_poll():
+        from database import get_db_cursor
+        from tools.repair_bay.services.pr_review_service import (
+            get_tracked_repos,
+            poll_open_prs,
+        )
+
+        def _audit(event_type: str, details: str):
+            try:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        """INSERT INTO governance_audit_log
+                           (event_category, event_type, action, details, timestamp)
+                           VALUES ('job_governance', %s, 'scheduler', %s, NOW())""",
+                        (event_type, details),
+                    )
+            except Exception as ae:
+                logger.warning("[ForgePRPoll] audit_log write failed: %s", ae)
+
+        _audit("forge_pr_poll.started", "F.O.R.G.E. PR poll initiated")
+        repos = get_tracked_repos()
+        total_inserted = total_updated = total_errors = 0
+        for repo in repos:
+            result = poll_open_prs(repo=repo)
+            total_inserted += result.get("inserted", 0)
+            total_updated += result.get("updated", 0)
+            total_errors += result.get("errors", 0)
+        detail = f"repos={len(repos)} inserted={total_inserted} updated={total_updated} errors={total_errors}"
+        logger.info("[ForgePRPoll] %s", detail)
+        _audit("forge_pr_poll.completed", detail)
+
+    scheduler.add_job(
+        with_ctx(_run_forge_pr_poll),
+        trigger=IntervalTrigger(hours=4),
+        id="agent_forge_pr_poll",
+        name="Agent Loop: F.O.R.G.E. PR Poll",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # Job #62 — F.O.R.G.E. PR Analyze (every 4h at +20min offset) — AI review pending PRs
+    def _run_forge_pr_analyze():
+        from database import get_db_cursor
+        from services.telegram_service import send_info
+        from tools.repair_bay.services.pr_diff_analyzer import analyze_pending_prs
+
+        def _audit(event_type: str, details: str):
+            try:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        """INSERT INTO governance_audit_log
+                           (event_category, event_type, action, details, timestamp)
+                           VALUES ('job_governance', %s, 'scheduler', %s, NOW())""",
+                        (event_type, details),
+                    )
+            except Exception as ae:
+                logger.warning("[ForgePRAnalyze] audit_log write failed: %s", ae)
+
+        _audit("forge_pr_analyze.started", "F.O.R.G.E. PR analysis cycle initiated")
+        result = analyze_pending_prs(max_prs=5)
+        processed = result.get("processed", 0)
+        failed = result.get("failed", 0)
+        skipped = result.get("skipped", 0)
+        detail = f"processed={processed} failed={failed} skipped={skipped}"
+        logger.info("[ForgePRAnalyze] %s", detail)
+        _audit("forge_pr_analyze.completed", detail)
+        if processed > 0:
+            send_info(f"⚙️ F.O.R.G.E. reviewed {processed} PR(s). " f"Check Repair Bay → PR Review for summaries.")
+        if failed > 0:
+            logger.warning("[ForgePRAnalyze] %d PR(s) failed analysis", failed)
+
+    scheduler.add_job(
+        with_ctx(_run_forge_pr_analyze),
+        trigger=CronTrigger(hour="1,5,9,13,17,21", minute=20, timezone="America/Toronto"),
+        id="agent_forge_pr_analyze",
+        name="Agent Loop: F.O.R.G.E. PR Analyze",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    logger.info("[DeptHQ] Registered 10 code health/audit jobs")

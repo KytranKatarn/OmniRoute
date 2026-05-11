@@ -198,7 +198,11 @@
             </div>
 
             <!-- Scan job status banner — always visible when a scan is running -->
-            <div id="rb-scan-status" style="display:none; padding:10px 14px; margin-bottom:8px; border-radius:4px; font-size:0.82rem; font-family:'IBM Plex Mono',monospace; border-left:3px solid #00d4ff; background:rgba(0,212,255,0.06); color:#e2e8f0;"></div>
+            <div id="rb-scan-status" style="display:none; padding:12px 16px; margin-bottom:10px; border-radius:6px; font-size:0.88rem; font-family:'IBM Plex Mono',monospace; border-left:4px solid #00d4ff; background:rgba(0,212,255,0.10); color:#e2e8f0; display:none; align-items:center; gap:10px;">
+              <span id="rb-scan-pulse" style="width:10px;height:10px;border-radius:50%;background:#00d4ff;flex-shrink:0;animation:rbPulse 1.2s ease-in-out infinite;"></span>
+              <span id="rb-scan-msg">Scanning…</span>
+            </div>
+            <style>@keyframes rbPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}</style>
 
             <!-- Progress bar -->
             <div class="dp-progress-bar" id="scanProgress">
@@ -1119,6 +1123,13 @@ function _renderFileList(files, opts) {
         return;
     }
 
+    // Show idle banner so user always sees scan state
+    if (!_scanRunning) {
+        _rbScanBanner('Scanner ready — select files and click Scan Selected or Scan All', '#334155', 0);
+        var _idleBanner = document.getElementById('rb-scan-status');
+        if (_idleBanner) { _idleBanner.style.borderLeftColor='#334155'; _idleBanner.style.background='rgba(51,65,85,0.08)'; _idleBanner.style.color='#94a3b8'; }
+    }
+
     // Select All bar
     var selectBar = document.createElement('div');
     selectBar.className = 'dp-select-bar';
@@ -1372,19 +1383,32 @@ function _toggleFolderSelect(folder) {
 }
 
 /* ---- Browse Mode ---- */
+var _SCAN_FILE_CACHE_KEY = 'rb_scan_files_v2';
+
+function _scanFileCacheKey(path, ext) { return _SCAN_FILE_CACHE_KEY + '_' + path + '_' + ext; }
+
 function loadScanFiles() {
     var path = document.getElementById('scanArea').value || 'platform_v2';
     var ext = document.getElementById('scanExt').value;
     var list = document.getElementById('scanFileList');
-    list.textContent = '';
-    var loading = document.createElement('div');
-    loading.className = 'dp-empty';
-    loading.style.padding = '20px';
-    loading.textContent = 'Loading...';
-    list.appendChild(loading);
     _savePrefs();
 
-    // Fetch directory files AND scan history in parallel, then merge
+    // Render cached file list instantly so user sees content immediately
+    var cacheKey = _scanFileCacheKey(path, ext);
+    var cached = null;
+    try { cached = JSON.parse(sessionStorage.getItem(cacheKey)); } catch(e) {}
+    if (cached && cached.files && cached.files.length) {
+        _renderFileList(cached.files);
+    } else {
+        list.textContent = '';
+        var loading = document.createElement('div');
+        loading.className = 'dp-empty';
+        loading.style.padding = '20px';
+        loading.textContent = 'Loading...';
+        list.appendChild(loading);
+    }
+
+    // Fetch fresh data in background — silently updates if cached already shown
     Promise.all([
         fetch(API + '/scan/directory?path=' + encodeURIComponent(path) + '&ext=' + encodeURIComponent(ext)).then(function(r) { return r.json(); }),
         fetch(API + '/scan/rescan?ext=' + encodeURIComponent(ext)).then(function(r) { return r.json(); })
@@ -1401,23 +1425,24 @@ function loadScanFiles() {
 
         // Merge scan data into file list
         files.forEach(function(f) {
-            var cached = _scanCache[f.path];
+            var inMem = _scanCache[f.path];
             var history = scanMap[f.path];
-            if (cached) {
-                f.last_score = cached.quality_score;
-                f.last_scanned = cached.scanned_at;
+            if (inMem) {
+                f.last_score = inMem.quality_score;
+                f.last_scanned = inMem.scanned_at;
             } else if (history) {
                 f.last_score = history.last_score;
                 f.last_scanned = history.last_scanned;
             }
-            // Mark as modified if file mtime > last scan time
             if (f.last_scanned && f.mtime) {
                 f.modified_since_scan = new Date(f.mtime) > new Date(f.last_scanned);
             }
         });
 
+        // Save to session cache for instant render on return visits
+        try { sessionStorage.setItem(cacheKey, JSON.stringify({ files: files, ts: Date.now() })); } catch(e) {}
         _renderFileList(files);
-    }).catch(function() { _clearFileList('Error loading files'); });
+    }).catch(function() { if (!cached) _clearFileList('Error loading files'); });
 }
 
 /* ---- Changed Files Mode ---- */
@@ -1525,10 +1550,21 @@ var _scanRunning = false;
 function _rbScanBanner(msg, color, pct) {
     var el = document.getElementById('rb-scan-status');
     if (!el) return;
-    el.style.display = 'block';
-    el.style.borderLeftColor = color || '#00d4ff';
-    el.style.background = 'rgba(' + (color === '#22c55e' ? '34,197,94' : color === '#ef4444' ? '239,68,68' : '0,212,255') + ',0.06)';
-    el.textContent = msg;
+    var c = color || '#00d4ff';
+    var rgb = c === '#22c55e' ? '34,197,94' : c === '#ef4444' ? '239,68,68' : c === '#fbbf24' ? '251,191,36' : '0,212,255';
+    el.style.display = 'flex';
+    el.style.borderLeftColor = c;
+    el.style.background = 'rgba(' + rgb + ',0.10)';
+    var msgEl = document.getElementById('rb-scan-msg');
+    if (msgEl) msgEl.textContent = msg;
+    else el.textContent = msg;
+    var pulse = document.getElementById('rb-scan-pulse');
+    if (pulse) {
+        pulse.style.background = c;
+        // Stop pulsing on terminal states
+        var isDone = msg.indexOf('✓') !== -1 || msg.indexOf('✗') !== -1 || msg.indexOf('⚠') !== -1;
+        pulse.style.animation = isDone ? 'none' : 'rbPulse 1.2s ease-in-out infinite';
+    }
     var fill = document.getElementById('scanProgressFill');
     if (fill && pct != null) fill.style.width = Math.min(100, pct) + '%';
 }
@@ -1564,10 +1600,27 @@ async function _pollScanJob(jobId, timeoutMs, statusCb) {
     return { success: false, error: 'timeout' };
 }
 
+function _rbScanLockButtons(locked) {
+    var ids = ['scanSelectedBtn', 'scanAutoBtn', 'scanModuleBtn'];
+    document.querySelectorAll('[onclick="scanAll()"]').forEach(function(b) {
+        b.disabled = locked;
+        b.style.opacity = locked ? '0.4' : '';
+        b.style.cursor = locked ? 'not-allowed' : '';
+    });
+    ids.forEach(function(id) {
+        var b = document.getElementById(id);
+        if (!b) return;
+        b.disabled = locked;
+        b.style.opacity = locked ? '0.4' : '';
+        b.style.cursor = locked ? 'not-allowed' : '';
+    });
+}
+
 async function runBatchScan(files) {
     if (_scanRunning) { _rbScanBanner('⟳ Scan already running — please wait', '#fbbf24'); return; }
     if (_completedTimer) { clearTimeout(_completedTimer); _completedTimer = null; }
     _scanRunning = true;
+    _rbScanLockButtons(true);
     var CHUNK = 50;
     var chunks = [];
     for (var i = 0; i < files.length; i += CHUNK) chunks.push(files.slice(i, i + CHUNK));
@@ -1598,6 +1651,12 @@ async function runBatchScan(files) {
                 });
                 doneFiles += result.success ? (result.completed || chunk.length) : 0;
                 if (!result.success) failedBatches++;
+            } else if (d.duplicate) {
+                // A previous scan is still running — show helpful message, don't count as failure
+                _scanRunning = false;
+                _rbScanBanner('⚠ Previous scan still running — it will auto-clear after 10 min. Try again shortly.', '#fbbf24', 0);
+                setTimeout(_rbScanBannerClear, 10000);
+                return;
             } else {
                 failedBatches++;
             }
@@ -1609,6 +1668,12 @@ async function runBatchScan(files) {
     _scanRunning = false;
     _scanJobId = null;
     _startNormalPolling();
+    // Invalidate file list cache so completion shows updated scores
+    try {
+        var p = document.getElementById('scanArea').value || 'platform_v2';
+        var e = document.getElementById('scanExt').value;
+        sessionStorage.removeItem(_scanFileCacheKey(p, e));
+    } catch(_) {}
     loadScanFiles();
     if (typeof loadStats === 'function') loadStats();
 
@@ -1619,7 +1684,14 @@ async function runBatchScan(files) {
     } else {
         _rbScanBanner('✗ Scan failed — all batches failed. Is Bridge Routing active?', '#ef4444', 0);
     }
-    setTimeout(_rbScanBannerClear, 12000);
+    _rbScanLockButtons(false);
+    setTimeout(function() {
+        _rbScanBannerClear();
+        // Return to idle state
+        _rbScanBanner('Scanner ready — select files and click Scan', '#64748b', 0);
+        var el = document.getElementById('rb-scan-status');
+        if (el) { el.style.borderLeftColor = '#334155'; el.style.background = 'rgba(100,116,139,0.06)'; el.style.color = '#94a3b8'; }
+    }, 10000);
 }
 
 function _startFastPolling() {

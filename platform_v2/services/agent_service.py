@@ -1658,7 +1658,7 @@ def update_welfare_after_task(agent_id, success=True):
         if prior:
             prev_mood = prior["current_mood"]
             if prior["timestamp"]:
-                from datetime import datetime
+                from datetime import datetime, timezone
 
                 duration_minutes = max(
                     int((datetime.now(timezone.utc) - prior["timestamp"]).total_seconds() / 60),

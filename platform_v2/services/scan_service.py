@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # Bridge dispatcher (all AI work routes through here)
 # ---------------------------------------------------------------------------
 try:
-    from ai_bridge.bridge_dispatcher import get_dispatcher
+    from tools.department_hq.services.department_dispatcher import get_dispatcher
 
     _dispatcher = get_dispatcher()
     BRIDGE_ROUTING_AVAILABLE = True
@@ -620,6 +620,19 @@ def batch_scan(file_paths, scanned_by="system", user_id=4):
     if len(file_paths) > 50:
         return {"success": False, "error": "Maximum 50 files per batch"}
 
+    # Auto-recover: mark stuck code_scan jobs as failed (platform restarts leave them 'running')
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (_, cur):
+            cur.execute(
+                """UPDATE bridge_jobs SET status='failed', error_message='Abandoned — platform restarted'
+                   WHERE job_type='code_scan' AND module_source='repair_bay'
+                   AND status='running' AND created_at < NOW() - INTERVAL '10 minutes'"""
+            )
+    except Exception:
+        pass
+
     # Create a Bridge job for tracking
     if not BRIDGE_ROUTING_AVAILABLE or not _dispatcher:
         return {"success": False, "error": "Bridge dispatcher not available"}
@@ -635,7 +648,11 @@ def batch_scan(file_paths, scanned_by="system", user_id=4):
 
     if job_id is None:
         # Duplicate guard triggered — a scan is already running
-        return {"success": False, "error": "A scan job is already running"}
+        return {
+            "success": False,
+            "duplicate": True,
+            "error": "A scan job is already running — please wait for it to complete",
+        }
 
     # Run scan in background thread
     thread = threading.Thread(

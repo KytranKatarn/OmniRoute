@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Revenue Standup{% endblock %}
+{% block content %}
+<style>
+.rs-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin:24px 0; }
+.rs-card { background:rgba(0,0,0,0.3);border:1px solid rgba(0,255,178,0.2);border-radius:8px;padding:16px;text-align:center; }
+.rs-card-label { font-family:'Antonio',sans-serif;font-size:0.7rem;letter-spacing:2px;color:#94a3b8;text-transform:uppercase;margin-bottom:8px; }
+.rs-card-value { font-family:'Orbitron',sans-serif;font-size:2.5rem;color:#00ffb2;font-weight:900;line-height:1; }
+.rs-card-btns { display:flex;gap:8px;justify-content:center;margin-top:10px; }
+.rs-btn { width:32px;height:32px;border-radius:50%;border:1px solid rgba(0,255,178,0.4);background:transparent;color:#00ffb2;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s; }
+.rs-btn:hover { background:rgba(0,255,178,0.15); }
+.rs-history { margin-top:32px; }
+.rs-history table { width:100%;border-collapse:collapse;font-size:0.83rem; }
+.rs-history th { padding:8px 10px;text-align:left;color:#94a3b8;border-bottom:1px solid rgba(255,255,255,0.1);font-family:'Antonio',sans-serif;letter-spacing:1px;font-size:0.72rem; }
+.rs-history td { padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.05);color:#e5e7eb; }
+.rs-history tr.today td { color:#00ffb2; }
+.rs-notes { width:100%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#e5e7eb;padding:10px;font-size:0.85rem;resize:vertical;min-height:60px;margin-top:12px; }
+.rs-save-btn { margin-top:8px;padding:8px 20px;background:rgba(0,255,178,0.15);border:1px solid #00ffb2;color:#00ffb2;border-radius:4px;cursor:pointer;font-size:0.85rem; }
+.rs-goal { margin-top:24px;background:rgba(0,0,0,0.3);border:1px solid rgba(0,255,178,0.2);border-radius:8px;padding:16px; }
+.rs-goal-label { font-family:'Antonio',sans-serif;font-size:0.72rem;letter-spacing:2px;color:#94a3b8;margin-bottom:8px; }
+.rs-bar-track { background:rgba(255,255,255,0.1);border-radius:4px;height:12px;overflow:hidden; }
+.rs-bar-fill { background:linear-gradient(90deg,#00ffb2,#00d4ff);height:100%;border-radius:4px;transition:width 0.4s; }
+</style>
+
+<div class="module-header" style="margin-bottom:24px;">
+  <h1 style="font-family:'Orbitron',sans-serif;font-size:1.2rem;color:#00ffb2;margin:0;">Revenue Standup</h1>
+  <p style="color:#94a3b8;font-size:0.85rem;margin:6px 0 0;">May 2026 Sprint — Track leads → demos → contracts daily.</p>
+</div>
+
+<div class="rs-grid" id="rsGrid">
+  <div class="rs-card">
+    <div class="rs-card-label">Leads Contacted</div>
+    <div class="rs-card-value" id="val-leads">{{ today.leads or 0 }}</div>
+    <div class="rs-card-btns">
+      <button class="rs-btn" onclick="adjust('leads',-1)">−</button>
+      <button class="rs-btn" onclick="adjust('leads',1)">+</button>
+    </div>
+  </div>
+  <div class="rs-card">
+    <div class="rs-card-label">Demos Scheduled</div>
+    <div class="rs-card-value" id="val-demos_sched">{{ today.demos_sched or 0 }}</div>
+    <div class="rs-card-btns">
+      <button class="rs-btn" onclick="adjust('demos_sched',-1)">−</button>
+      <button class="rs-btn" onclick="adjust('demos_sched',1)">+</button>
+    </div>
+  </div>
+  <div class="rs-card">
+    <div class="rs-card-label">Demos Done</div>
+    <div class="rs-card-value" id="val-demos_done">{{ today.demos_done or 0 }}</div>
+    <div class="rs-card-btns">
+      <button class="rs-btn" onclick="adjust('demos_done',-1)">−</button>
+      <button class="rs-btn" onclick="adjust('demos_done',1)">+</button>
+    </div>
+  </div>
+  <div class="rs-card" style="border-color:rgba(0,212,255,0.3);">
+    <div class="rs-card-label" style="color:#00d4ff;">Contracts Signed</div>
+    <div class="rs-card-value" id="val-contracts" style="color:#00d4ff;">{{ today.contracts or 0 }}</div>
+    <div class="rs-card-btns">
+      <button class="rs-btn" style="border-color:rgba(0,212,255,0.4);color:#00d4ff;" onclick="adjust('contracts',-1)">−</button>
+      <button class="rs-btn" style="border-color:rgba(0,212,255,0.4);color:#00d4ff;" onclick="adjust('contracts',1)">+</button>
+    </div>
+  </div>
+</div>
+
+<div>
+  <div style="font-family:'Antonio',sans-serif;font-size:0.72rem;letter-spacing:2px;color:#94a3b8;margin-bottom:4px;">TODAY'S NOTES</div>
+  <textarea class="rs-notes" id="rsNotes" placeholder="What happened today? Key objections, wins, follow-ups needed...">{{ today.notes or '' }}</textarea>
+  <button class="rs-save-btn" onclick="saveNotes()">Save Notes</button>
+  <span id="saveStatus" style="margin-left:10px;font-size:0.8rem;color:#94a3b8;"></span>
+</div>
+
+<div class="rs-history">
+  <div style="font-family:'Antonio',sans-serif;font-size:0.72rem;letter-spacing:2px;color:#94a3b8;margin-bottom:10px;">7-DAY HISTORY</div>
+  <table>
+    <thead><tr><th>Date</th><th>Leads</th><th>Demos Sched</th><th>Demos Done</th><th>Contracts</th></tr></thead>
+    <tbody>
+      {% for row in history %}
+      <tr{% if row.is_today %} class="today"{% endif %}>
+        <td>{{ row.date }}{% if row.is_today %} ★{% endif %}</td>
+        <td>{{ row.leads or 0 }}</td>
+        <td>{{ row.demos_sched or 0 }}</td>
+        <td>{{ row.demos_done or 0 }}</td>
+        <td>{{ row.contracts or 0 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+var _state = {
+  leads: {{ today.leads or 0 }},
+  demos_sched: {{ today.demos_sched or 0 }},
+  demos_done: {{ today.demos_done or 0 }},
+  contracts: {{ today.contracts or 0 }}
+};
+
+function adjust(field, delta) {
+  _state[field] = Math.max(0, (_state[field] || 0) + delta);
+  document.getElementById('val-' + field).textContent = _state[field];
+  _save();
+}
+
+function _save() {
+  var body = Object.assign({}, _state);
+  body.notes = document.getElementById('rsNotes').value;
+  fetch('/tools/revenue-standup/api/standup', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  }).catch(function() {});
+}
+
+function saveNotes() {
+  var st = document.getElementById('saveStatus');
+  _save();
+  st.textContent = 'Saved ✓';
+  st.style.color = '#00ffb2';
+  setTimeout(function() { st.textContent = ''; }, 2000);
+}
+</script>
+{% endblock %}

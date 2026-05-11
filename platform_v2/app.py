@@ -2382,6 +2382,10 @@ from tools.department_hq.browser_routes import browser_bp  # noqa: E402
 
 app.register_blueprint(browser_bp)
 
+from tools.revenue_standup import revenue_standup_bp  # noqa: E402
+
+app.register_blueprint(revenue_standup_bp)
+
 # NOTE: fleet_proxy (B.E.A.C.O.N. dashboard routing via *.fleet.kytranempowerment.com)
 # was removed 2026-04-18 — project #173 cancelled, DNS cleaned up 2026-04-13,
 # see task #2144 for the full fleet observability triad context.

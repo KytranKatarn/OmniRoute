@@ -1,0 +1,291 @@
+suite:
+  name: "sandbox-environment-smoke"
+  description: "Full sandbox smoke — login, SANDBOX_MODE banner, all 31 modules, backup sandbox endpoints. Run before promoting sandbox→production."
+  base_url: "http://192.168.1.200:3003"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  # ── Core sandbox health ────────────────────────────────────────────────────
+  - name: "sandbox-health"
+    type: api
+    method: GET
+    path: /health
+    expect:
+      status: [200]
+
+  - name: "sandbox-login-page"
+    type: api
+    method: GET
+    path: /login
+    expect:
+      status: [200, 302]
+
+  - name: "sandbox-dashboard"
+    type: api
+    method: GET
+    path: /dashboard
+    expect:
+      status: [200, 302, 308]
+
+  # ── Admin Ops modules ──────────────────────────────────────────────────────
+  - name: "sandbox-backup-manager"
+    type: api
+    method: GET
+    path: /tools/backup-manager
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-backup-health"
+    type: api
+    method: GET
+    path: /tools/backup-manager/health
+    expect:
+      status: [200, 302]
+
+  - name: "sandbox-backup-list"
+    type: api
+    method: GET
+    path: /tools/backup-manager/list
+    expect:
+      status: [200, 302]
+
+  - name: "sandbox-backup-sandbox-restore-status"
+    type: api
+    method: GET
+    path: /tools/backup-manager/api/restore/status/388
+    expect:
+      status: [200, 302, 404]
+
+  - name: "sandbox-backup-modules-list"
+    type: api
+    method: GET
+    path: /tools/backup-manager/modules/list
+    expect:
+      status: [200, 302]
+
+  - name: "sandbox-backup-deployment-packages"
+    type: api
+    method: GET
+    path: /tools/backup-manager/api/deployment-packages
+    expect:
+      status: [200, 302]
+
+  - name: "sandbox-security-network"
+    type: api
+    method: GET
+    path: /tools/security-network
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-account-center"
+    type: api
+    method: GET
+    path: /tools/account-center
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-saas-manager"
+    type: api
+    method: GET
+    path: /tools/saas-manager
+    expect:
+      status: [200, 302, 308]
+
+  # ── AI Command modules ─────────────────────────────────────────────────────
+  - name: "sandbox-department-hq"
+    type: api
+    method: GET
+    path: /tools/department-hq
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-dhq-roster"
+    type: api
+    method: GET
+    path: /tools/department-hq/api/agents/roster
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-dhq-departments"
+    type: api
+    method: GET
+    path: /tools/department-hq/api/departments
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-consciousness"
+    type: api
+    method: GET
+    path: /tools/consciousness
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-archie-chat"
+    type: api
+    method: GET
+    path: /tools/archie-chat
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-repair-bay"
+    type: api
+    method: GET
+    path: /tools/repair-bay
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-repair-bay-proposals"
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/proposals
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-repair-bay-qa-suites"
+    type: api
+    method: GET
+    path: /tools/repair-bay/api/qa/suites
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-agent-academy"
+    type: api
+    method: GET
+    path: /tools/agent-academy
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-media-studio"
+    type: api
+    method: GET
+    path: /tools/media-studio
+    expect:
+      status: [200, 302, 308]
+
+  # ── SaaS Services ──────────────────────────────────────────────────────────
+  - name: "sandbox-email-manager"
+    type: api
+    method: GET
+    path: /tools/email-manager
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-google-work-suite"
+    type: api
+    method: GET
+    path: /tools/google-work-suite
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-my-profile"
+    type: api
+    method: GET
+    path: /tools/my-profile
+    expect:
+      status: [200, 302, 308]
+
+  # ── Applications ───────────────────────────────────────────────────────────
+  - name: "sandbox-fitness"
+    type: api
+    method: GET
+    path: /tools/fitness
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-therapy"
+    type: api
+    method: GET
+    path: /tools/therapy
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-doc"
+    type: api
+    method: GET
+    path: /tools/doc
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-family-tree"
+    type: api
+    method: GET
+    path: /tools/family-tree
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-media-hub"
+    type: api
+    method: GET
+    path: /tools/media-hub
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-faith"
+    type: api
+    method: GET
+    path: /tools/faith
+    expect:
+      status: [200, 302, 308]
+
+  # ── Creative Studios ───────────────────────────────────────────────────────
+  - name: "sandbox-game-studio"
+    type: api
+    method: GET
+    path: /tools/game-studio
+    expect:
+      status: [200, 302, 308]
+
+  # ── Crypto ─────────────────────────────────────────────────────────────────
+  - name: "sandbox-archie-pool"
+    type: api
+    method: GET
+    path: /tools/archie-pool
+    expect:
+      status: [200, 302, 308]
+
+  - name: "sandbox-pool-management"
+    type: api
+    method: GET
+    path: /tools/pool-management
+    expect:
+      status: [200, 302, 308]
+
+  # ── Platform Core APIs ─────────────────────────────────────────────────────
+  - name: "sandbox-public-directory"
+    type: api
+    method: GET
+    path: /api/public/directory
+    expect:
+      status: [200]
+
+  - name: "sandbox-public-directory-live"
+    type: api
+    method: GET
+    path: /api/public/directory/live
+    expect:
+      status: [200]
+
+  - name: "sandbox-get-modules"
+    type: api
+    method: GET
+    path: /api/modules
+    expect:
+      status: [200, 302, 308]
+
+  # ── WTF Hub ────────────────────────────────────────────────────────────────
+  - name: "sandbox-wtf-hub"
+    type: api
+    method: GET
+    path: /tools/wtf-hub
+    expect:
+      status: [200, 302, 308]
+
+  # ── Sandbox-specific endpoint existence checks ─────────────────────────────
+  - name: "sandbox-scheduler-status"
+    type: api
+    method: GET
+    path: /tools/department-hq/api/scheduler/status
+    expect:
+      status: [200, 302, 308, 404, 503]

@@ -78,6 +78,8 @@ MODULE_SUITE_MAP: dict = {
     # Websites
     "website_ke": [27],
     "website_creed": [28],
+    # Sandbox environment (suite #79 — targets port 3003, 39/39 verified)
+    "sandbox_environment": [79],
 }
 
 

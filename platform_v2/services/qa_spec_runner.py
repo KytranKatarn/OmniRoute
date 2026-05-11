@@ -759,6 +759,17 @@ def _run_page_load_test(test, base_url, session):
                     result.get("error_message") or ""
                 ) + f" Title '{page_title}' does not match pattern '{title_contains}'."
 
+        # Check body_contains (substring search in full response body)
+        body_contains = expect.get("body_contains")
+        if body_contains:
+            body_ok = body_contains in resp.text
+            result["assertions"]["body_contains"] = "pass" if body_ok else "fail"
+            if not body_ok:
+                result["status"] = "fail"
+                result["error_message"] = (
+                    result.get("error_message") or ""
+                ) + f" Body does not contain '{body_contains}'."
+
         # Check max_load_ms
         max_ms = expect.get("max_load_ms")
         if max_ms is not None:

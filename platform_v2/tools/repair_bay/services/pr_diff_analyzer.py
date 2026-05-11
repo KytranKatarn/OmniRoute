@@ -140,6 +140,9 @@ def _run_forge_review(prompt: str) -> str | None:
             prompt=prompt,
             module_id="repair_bay",
         )
+        if getattr(result, "queued", False):
+            logger.info("[PR Review] F.O.R.G.E. dispatch queued — model cold-loading, will retry")
+            return None
         if result.success and result.response:
             return result.response.strip()
         logger.warning("[PR Review] F.O.R.G.E. dispatch returned no response: success=%s", result.success)

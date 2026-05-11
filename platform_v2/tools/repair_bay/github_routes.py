@@ -632,7 +632,23 @@ def register_github_routes(bp, admin_required):
             return jsonify({"error": f"PR #{pr_number} not found in pr_reviews"}), 404
 
         if review.get("review_status") == "in_progress":
-            return jsonify({"status": "in_progress", "message": "Review already running — check back in 30s"}), 200
+            # Allow re-trigger if stuck > 5 minutes (thread likely died silently)
+            from datetime import datetime, timezone
+
+            updated = review.get("updated_at")
+            stuck = False
+            if updated:
+                try:
+                    age = (datetime.now(timezone.utc) - updated).total_seconds()
+                    stuck = age > 300
+                except Exception:
+                    stuck = False
+            if not stuck:
+                return jsonify({"status": "in_progress", "message": "Review already running — check back in 30s"}), 200
+            # Fall through to re-trigger — reset to pending first
+            from .services.pr_review_service import mark_review_pending as _reset
+
+            _reset(pr_number, review.get("repo", _DEFAULT_REPO))
 
         diff_url = review.get("diff_url")
         if not diff_url:

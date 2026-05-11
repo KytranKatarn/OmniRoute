@@ -327,6 +327,87 @@ def _inject_vigil_action(user_msg: str, agent_resp: str) -> str:
     return agent_resp
 
 
+def _inject_forge_action(user_msg: str, agent_resp: str) -> str:
+    """Post-process F.O.R.G.E. response: inject [ACTION] block for Repair Bay actions."""
+    import json as _json
+
+    resp_lower = agent_resp.lower()
+    user_lower = user_msg.lower()
+
+    if "[action]" in resp_lower or "⟦action⟧" in resp_lower:
+        return agent_resp
+
+    if user_msg.strip().startswith("[Action confirmed:"):
+        return agent_resp
+
+    action_signal = any(
+        kw in resp_lower
+        for kw in [
+            "will",
+            "can",
+            "run",
+            "scan",
+            "analyze",
+            "review",
+            "deploy",
+            "proceed",
+            "action",
+            "execute",
+            "trigger",
+        ]
+    )
+    if not action_signal:
+        return agent_resp
+
+    action = None
+    if any(kw in user_lower for kw in ["run scan", "scan now", "scan code", "proactive scan", "code scan"]):
+        action = {
+            "type": "run_scan",
+            "label": "Run Code Scan",
+            "confirm": "Trigger a proactive code quality + security scan across the platform",
+            "route": "POST /tools/repair-bay/api/scan/proactive",
+            "payload": {},
+        }
+    elif any(
+        kw in user_lower for kw in ["analyze pr", "review pr", "check prs", "review pull request", "analyze pull"]
+    ):
+        action = {
+            "type": "analyze_prs",
+            "label": "Analyze Open PRs",
+            "confirm": "Run F.O.R.G.E. analysis on all open pull requests",
+            "route": "POST /tools/repair-bay/api/prs/analyze",
+            "payload": {},
+        }
+    elif any(kw in user_lower for kw in ["run qa", "run tests", "qa suite", "test suite", "run test"]):
+        action = {
+            "type": "run_qa",
+            "label": "Run QA Suite",
+            "confirm": "Execute the full QA test suite and report results",
+            "route": "POST /tools/repair-bay/api/qa/run",
+            "payload": {},
+        }
+    elif any(kw in user_lower for kw in ["deploy proposal", "deploy fix", "apply fix", "deploy repair", "ship fix"]):
+        action = {
+            "type": "deploy_proposal",
+            "label": "Deploy Proposal",
+            "confirm": "Deploy the selected repair proposal to the platform",
+            "route": "POST /tools/repair-bay/api/proposals/deploy",
+            "payload": {},
+        }
+    elif any(kw in user_lower for kw in ["check deploy", "deploy status", "last deploy", "deployment status"]):
+        action = {
+            "type": "check_deploy_status",
+            "label": "Check Deploy Status",
+            "confirm": "Show the status of recent Repair Bay deployments",
+            "route": "GET /tools/repair-bay/api/deploys/status",
+            "payload": {},
+        }
+
+    if action:
+        return agent_resp + f"\n\n[ACTION]{_json.dumps(action)}[/ACTION]"
+    return agent_resp
+
+
 def _serialize_datetime(obj):
     """Convert datetime fields in a dict to ISO-8601 strings."""
     if obj is None:
@@ -476,6 +557,14 @@ def register_routes(bp, admin_required):
             except Exception as _be:
                 log.warning("V.I.G.I.L. briefing failed (non-fatal): %s", _be)
             contextual_message += "\n\n[MANDATORY: Respond in English only. You are V.I.G.I.L., the Security & Network guardian. Be precise, security-focused, and suggest remediation actions when appropriate.]"
+        elif effective_target == "F.O.R.G.E.":
+            try:
+                from tools.archie_chat.repair_bay_briefing import _build_repair_bay_briefing
+
+                contextual_message = _build_repair_bay_briefing() + contextual_message
+            except Exception as _be:
+                log.warning("F.O.R.G.E. briefing failed (non-fatal): %s", _be)
+            contextual_message += "\n\n[MANDATORY: Respond in English only. You are F.O.R.G.E., the Repair Bay owner. Be direct, technical, and suggest concrete repair actions when appropriate.]"
 
         # Call orchestration engine
         try:
@@ -526,6 +615,8 @@ def register_routes(bp, admin_required):
             assistant_response = _inject_resolve_action(message, assistant_response)
         elif effective_target == "V.I.G.I.L." and result.success:
             assistant_response = _inject_vigil_action(message, assistant_response)
+        elif effective_target == "F.O.R.G.E." and result.success:
+            assistant_response = _inject_forge_action(message, assistant_response)
 
         # Save assistant message
         governance_dicts = (

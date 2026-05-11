@@ -1,15 +1,15 @@
 /**
  * repair-bay-chat.js
- * S.M.I.T.H. chat overlay for the Repair Bay module.
- * S.M.I.T.H. (id 364) — Engineering & Technology, Self-healing pipeline.
+ * F.O.R.G.E. chat overlay for the Repair Bay module.
+ * F.O.R.G.E. (id 136) — Engineering & Technology, self-healing pipeline owner.
  */
 (function () {
-    var AGENT_ID = 364;
+    var AGENT_ID = 136;
     var CONFIG = {
-        agentTarget: 'S.M.I.T.H.',
-        label: 'S.M.I.T.H.',
-        icon: '🔧',
-        accentColor: '#00e5ff',
+        agentTarget: 'F.O.R.G.E.',
+        label: 'F.O.R.G.E.',
+        icon: '⚙️',
+        accentColor: '#fbbf24',
         moduleKey: 'repair_bay',
         expandUrl: '/tools/department-hq',
         portraitUrl: null,

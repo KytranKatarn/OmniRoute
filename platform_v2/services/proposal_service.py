@@ -968,8 +968,9 @@ def deploy_to_production(proposal_id):
         proposal = cur.fetchone()
         if not proposal:
             return {"success": False, "error": "Proposal not found"}
-        if proposal["status"] != "approved":
-            return {"success": False, "error": "Proposal not approved"}
+        # Accept both 'approved' (human-only) and 'tested' (sandbox-validated)
+        if proposal["status"] not in ("approved", "tested"):
+            return {"success": False, "error": f"Proposal cannot be deployed (status: {proposal['status']})"}
 
         # --- Create pre-deploy backup via Backup Manager ---
         from tools.backup_manager._shared import create_backup_programmatic

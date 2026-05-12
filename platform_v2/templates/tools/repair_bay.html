@@ -594,9 +594,9 @@
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
                 <div>
                     <div style="font-family:Orbitron,sans-serif;font-size:1rem;color:#00e5ff;letter-spacing:2px;">WEBSITE DEPLOY</div>
-                    <div style="font-size:0.7rem;color:rgba(255,255,255,0.4);margin-top:2px;">Full-site deploy to Hostinger — scheduled daily 03:00 or trigger manually</div>
+                    <div style="font-size:0.7rem;color:rgba(255,255,255,0.4);margin-top:2px;">Full-site deploy to Hostinger via background worker — scheduled daily 03:00 · manual trigger queues immediately</div>
                 </div>
-                <button id="wdDeployAllBtn" onclick="triggerWebsiteDeploy()" style="background:#8b5cf6;color:#fff;border:none;border-radius:4px;padding:8px 18px;font-size:0.8rem;font-family:Orbitron,sans-serif;letter-spacing:1px;cursor:pointer;">DEPLOY ALL NOW</button>
+                <button id="wdDeployAllBtn" onclick="triggerWebsiteDeploy()" style="background:#8b5cf6;color:#fff;border:none;border-radius:4px;padding:8px 18px;font-size:0.8rem;font-family:Orbitron,sans-serif;letter-spacing:1px;cursor:pointer;">QUEUE DEPLOY</button>
             </div>
             <div id="wdSiteList" style="display:flex;flex-direction:column;gap:12px;">
                 <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading website deploy status...</div></div>
@@ -2838,7 +2838,7 @@ function triggerWebsiteDeploy(domain) {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body)
     }).then(function(r){return r.json();}).then(function(data){
-        if (btn) { btn.disabled = false; btn.textContent = 'DEPLOY ALL NOW'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'QUEUE DEPLOY'; }
         if (data.success) {
             var sites = (data.queued || []).join(', ');
             alert('Deploy queued for: ' + sites + '\n\nRuns in background. Refresh status in a few minutes.');
@@ -2847,7 +2847,7 @@ function triggerWebsiteDeploy(domain) {
             alert('Deploy failed: ' + (data.error || 'Unknown error'));
         }
     }).catch(function(e){
-        if (btn) { btn.disabled = false; btn.textContent = 'DEPLOY ALL NOW'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'QUEUE DEPLOY'; }
         alert('Request failed: ' + e.message);
     });
 }

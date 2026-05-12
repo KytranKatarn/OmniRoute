@@ -5,23 +5,38 @@
 {% block module_name %}fitness{% endblock %}
 
 {% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/fitness.css') }}">
 {% endblock %}
 
 {% block content %}
-{% set cat_accent = '#EF4444' %}
-{% set cat_accent_rgb = '239,68,68' %}
-{% set cat_accent_light = '#dc2626' %}
+{% set cat_accent = '#10b981' %}
+{% set cat_accent_rgb = '16,185,129' %}
+{% set cat_accent_light = '#059669' %}
 {% set cat_label = 'APPS' %}
 {% set module_title = 'FITNESS' %}
 {% set module_back_url = '/dashboard' %}
+{% set header_tabs = [
+    ("chat",     "Chat",     "message-circle"),
+    ("workouts", "Workouts", "dumbbell"),
+    ("progress", "Progress", "trending-up"),
+    ("schedule", "Schedule", "calendar"),
+] %}
 {% include 'includes/lcars-header.html' %}
 
 <!-- Scanline Overlay -->
 <div class="scanline-overlay"></div>
 
 <!-- Main Container -->
-<div class="fitness-container">
+<div class="fitness-container" style="--frame-color:{{ cat_accent }};--frame-rgb:{{ cat_accent_rgb }};display:flex;align-items:stretch;gap:0;">
+<aside class="lcars-sidebar" style="flex-shrink:0;margin-right:12px;position:sticky;top:60px;align-self:flex-start;">
+    <div class="lcars-elbow-top"></div>
+    <div class="lcars-seg"></div>
+    <div class="lcars-seg" style="--seg-color:{{ cat_accent_light }};opacity:0.7;"></div>
+    <div class="lcars-seg-fill" style="min-height:70vh;"></div>
+    <div class="lcars-elbow-bottom"></div>
+</aside>
+<div style="flex:1;min-width:0;padding:8px 8px 0 0;">
     <!-- Page Header -->
     <header class="fitness-header">
         <div class="fitness-title-section">
@@ -85,26 +100,6 @@
             </div>
         </div>
     </section>
-
-    <!-- Tab Navigation -->
-    <nav class="fitness-tabs">
-        <button class="fitness-tab active" data-tab="chat" onclick="switchTab('chat')">
-            <i data-lucide="message-circle"></i>
-            Chat
-        </button>
-        <button class="fitness-tab" data-tab="workouts" onclick="switchTab('workouts')">
-            <i data-lucide="dumbbell"></i>
-            Workouts
-        </button>
-        <button class="fitness-tab" data-tab="progress" onclick="switchTab('progress')">
-            <i data-lucide="trending-up"></i>
-            Progress
-        </button>
-        <button class="fitness-tab" data-tab="schedule" onclick="switchTab('schedule')">
-            <i data-lucide="calendar"></i>
-            Schedule
-        </button>
-    </nav>
 
     <!-- Tab Content -->
     <div class="fitness-tab-content">
@@ -595,7 +590,8 @@
             </div>
         </div>
     </div>
-</div>
+</div><!-- /fitness-module-content -->
+</div><!-- /fitness-container -->
 
 <!-- PR Edit Modal -->
 <div class="fitness-modal" id="prModal" style="display: none;">
@@ -645,6 +641,8 @@ function switchTab(tabId) {
         lucide.createIcons();
     }
 }
+// Bridge LCARS header tabs → module switchTab
+window.onLcarsTabSwitch = function(tabId) { switchTab(tabId); };
 
 // Load stats from localStorage
 function loadStats() {

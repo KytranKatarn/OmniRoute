@@ -1,23 +1,31 @@
-/* Family Tree — H.E.R.I.T.A.G.E. chat overlay */
+/**
+ * family-tree-chat.js — H.E.R.I.T.A.G.E. chat overlay for Family Tree module.
+ */
 (function () {
-  var MAX_RETRIES = 20;
-  var retries = 0;
-  function init() {
-    if (window.archieOverlay) {
-      window.archieOverlay.init({
-        agentId: 331,
-        agentName: "H.E.R.I.T.A.G.E.",
-        accentColor: "#f59e0b",
-        moduleKey: "family_tree",
-        greeting: "H.E.R.I.T.A.G.E. online. I can help trace lineage, analyze relationships, or research your family history.",
-      });
-    } else if (retries++ < MAX_RETRIES) {
-      setTimeout(init, 300);
+    const AGENT_ID = 331;
+    const CONFIG = {
+        agentTarget: 'H.E.R.I.T.A.G.E.',
+        label: 'H.E.R.I.T.A.G.E.',
+        icon: '🌳',
+        accentColor: '#f59e0b',
+        moduleKey: 'family_tree',
+        expandUrl: '/tools/department-hq',
+        portraitUrl: null,
+    };
+
+    function applyConfig(portraitUrl) {
+        function attempt() {
+            const overlay = window.archieOverlay;
+            if (!overlay) { setTimeout(attempt, 100); return; }
+            overlay.configure(Object.assign({}, CONFIG, { portraitUrl: portraitUrl || null }));
+        }
+        attempt();
     }
-  }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        fetch('/tools/media-studio/api/portraits/' + AGENT_ID, { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) { applyConfig(d.canonical_image_path || d.avatar_url || null); })
+            .catch(function () { applyConfig(null); });
+    });
 })();

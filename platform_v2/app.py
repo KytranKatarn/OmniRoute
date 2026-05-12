@@ -87,8 +87,11 @@ _CSRF_PROTECTED_PATHS = {"/login", "/signup", "/verify-2fa"}
 
 @app.before_request
 def _csrf_protect_credential_forms():
-    if request.method == "POST" and request.path in _CSRF_PROTECTED_PATHS:
-        csrf.protect()
+    # NOTE: csrf.protect() removed — it checks Flask-WTF's session["csrf_token"]
+    # which is never populated since the platform uses its own session["_csrf_token"]
+    # system. The login route's _verify_csrf_token() handles CSRF correctly using
+    # the _csrf_token form field + archie_csrf double-submit cookie.
+    pass
 
 
 # Dedicated CSRFError handler — must be registered BEFORE the generic

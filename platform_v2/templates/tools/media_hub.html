@@ -54,13 +54,11 @@
 {% block content %}
 <div class="media-hub-container" data-module="media-hub">
     {# LCARS Header — Media & Home #}
-    {% set cat_accent = '#0ea5e9' %}
-    {% set cat_accent_rgb = '14,165,233' %}
-    {% set cat_accent_dark = '#0284c7' %}
+    {% set cat_accent = '#10b981' %}
+    {% set cat_accent_rgb = '16,185,129' %}
+    {% set cat_accent_dark = '#059669' %}
     {% set cat_label = 'APPLICATIONS & CONCEPTS' %}
     {% set module_title = 'MEDIA HUB' %}
-    {% set cat_accent = '#00ffff' %}
-    {% set cat_accent_rgb = '0,255,255' %}
     {% if standalone %}{% set module_back_url = 'https://platform.kytranempowerment.com' %}{% else %}{% set module_back_url = '/dashboard' %}{% endif %}
     {% if standalone %}
         {# Standalone: Discover + Chat in strip, admin tools in Settings tab #}
@@ -892,4 +890,5 @@ window.onLcarsTabSwitch = function(tabId) { if (window.switchTab) switchTab(tabI
     setInterval(updateServiceBadges, 60000);
 })();
 </script>
+<script src="{{ url_for('static', filename='js/media-hub-chat.js') }}" defer></script>
 {% endblock %}

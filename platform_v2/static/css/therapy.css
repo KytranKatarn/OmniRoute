@@ -88,8 +88,8 @@
     align-items: center;
     gap: 12px;
     padding: 14px 20px;
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(239, 68, 68, 0.1));
-    border: 1px solid rgba(139, 92, 246, 0.3);
+    background: linear-gradient(135deg, rgba(var(--frame-rgb, 16,185,129), 0.1), rgba(var(--frame-rgb, 16,185,129), 0.05));
+    border: 1px solid rgba(var(--frame-rgb, 16,185,129), 0.3);
     border-radius: 10px;
     margin-bottom: 24px;
     font-family: 'JetBrains Mono', monospace;
@@ -249,7 +249,7 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: var(--archie-red);
+    background: var(--frame-color, #10b981);
     transform: scaleX(0);
     transition: transform 0.25s ease;
 }
@@ -259,7 +259,7 @@
 }
 
 .therapy-tab.active {
-    color: var(--archie-red);
+    color: var(--frame-color, #10b981);
 }
 
 .therapy-tab.active::after {
@@ -1775,4 +1775,29 @@ body.light-mode .mood-calendar-day {
     .therapy-milestones-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* ─── Fold 5 unfolded (717px) — tabs fill full frame width ─── */
+@media (max-width: 717px) {
+    .therapy-container {
+        padding: 12px 12px 24px;
+        padding-top: 80px;
+    }
+    .therapy-tabs {
+        overflow-x: visible;
+        gap: 2px;
+        width: 100%;
+    }
+    .therapy-tab {
+        flex: 1;
+        justify-content: center;
+        padding: 10px 6px;
+        font-size: 0.75rem;
+        white-space: normal;
+        text-align: center;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .therapy-tab i { width: 14px; height: 14px; }
+    .therapy-tab-content { width: 100%; }
 }

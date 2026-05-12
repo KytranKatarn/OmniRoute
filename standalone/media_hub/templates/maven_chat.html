@@ -132,7 +132,8 @@
     const form = document.getElementById("chat-form");
     const input = document.getElementById("chat-input");
     const send  = document.getElementById("chat-send");
-    const STORAGE_KEY = "maven_chat_history";
+    const USER_NAME = {{ user_name | default('') | tojson }};
+    const STORAGE_KEY = "maven_chat_history_" + (USER_NAME || "guest");
     const USER_INITIAL = {{ user_initial | default('U') | tojson }};
     const MAVEN_PORTRAIT = {{ maven_portrait_url | default('') | tojson }};
 

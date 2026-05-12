@@ -1,23 +1,31 @@
-/* DOC — V.I.T.A.L. chat overlay */
+/**
+ * doc-chat.js — V.I.T.A.L. chat overlay for DOC module.
+ */
 (function () {
-  var MAX_RETRIES = 20;
-  var retries = 0;
-  function init() {
-    if (window.archieOverlay) {
-      window.archieOverlay.init({
-        agentId: 148,
-        agentName: "V.I.T.A.L.",
-        accentColor: "#3b82f6",
-        moduleKey: "doc",
-        greeting: "V.I.T.A.L. here. I can help review symptoms, track medications, or prepare for appointments.",
-      });
-    } else if (retries++ < MAX_RETRIES) {
-      setTimeout(init, 300);
+    const AGENT_ID = 148;
+    const CONFIG = {
+        agentTarget: 'V.I.T.A.L.',
+        label: 'V.I.T.A.L.',
+        icon: '🩺',
+        accentColor: '#10b981',
+        moduleKey: 'doc',
+        expandUrl: '/tools/department-hq',
+        portraitUrl: null,
+    };
+
+    function applyConfig(portraitUrl) {
+        function attempt() {
+            const overlay = window.archieOverlay;
+            if (!overlay) { setTimeout(attempt, 100); return; }
+            overlay.configure(Object.assign({}, CONFIG, { portraitUrl: portraitUrl || null }));
+        }
+        attempt();
     }
-  }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        fetch('/tools/media-studio/api/portraits/' + AGENT_ID, { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) { applyConfig(d.canonical_image_path || d.avatar_url || null); })
+            .catch(function () { applyConfig(null); });
+    });
 })();

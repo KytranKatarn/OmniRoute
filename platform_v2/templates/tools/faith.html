@@ -1,16 +1,30 @@
 {% extends "base.html" %}
 {% block title %}Faith — A.R.C.H.I.E.{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
+{% endblock %}
 {% block content %}
-<div class="module-container">
-  <div class="module-header">
-    <h1 class="module-title">FAITH</h1>
-    <p class="module-subtitle">F.A.I.T.H. — Faithful AI for Inspired Theological Heritage</p>
-    <div class="module-nav" id="faithNav">
-      <button class="module-tab active" onclick="switchFaithTab('chat', this)">Chat</button>
-      <button class="module-tab" onclick="switchFaithTab('practices', this)">Practices</button>
-      <button class="module-tab" onclick="switchFaithTab('journal', this)">Journal</button>
-    </div>
-  </div>
+{% set cat_accent = '#10b981' %}
+{% set cat_accent_rgb = '16,185,129' %}
+{% set cat_accent_light = '#059669' %}
+{% set cat_label = 'APPS' %}
+{% set module_title = 'FAITH' %}
+{% set module_back_url = '/dashboard' %}
+{% set header_tabs = [
+    ("chat",      "Chat",      "message-circle"),
+    ("practices", "Practices", "book-open"),
+    ("journal",   "Journal",   "pen-line"),
+] %}
+{% include 'includes/lcars-header.html' %}
+<div class="module-container" style="--frame-color:{{ cat_accent }};--frame-rgb:{{ cat_accent_rgb }};display:flex;align-items:stretch;gap:0;">
+<aside class="lcars-sidebar" style="flex-shrink:0;margin-right:12px;position:sticky;top:60px;align-self:flex-start;">
+    <div class="lcars-elbow-top"></div>
+    <div class="lcars-seg"></div>
+    <div class="lcars-seg" style="--seg-color:{{ cat_accent_light }};opacity:0.7;"></div>
+    <div class="lcars-seg-fill" style="min-height:70vh;"></div>
+    <div class="lcars-elbow-bottom"></div>
+</aside>
+<div style="flex:1;min-width:0;padding:8px 8px 0 0;">
 
   <!-- TAB: Chat -->
   <div id="faith-tab-chat" class="module-tab-panel">
@@ -90,7 +104,8 @@
       </div>
     </div>
   </div>
-</div>
+</div><!-- /faith-module-content -->
+</div><!-- /module-container -->
 
 <script>
 const FAITH_BASE = "/tools/faith/api/faith";
@@ -102,6 +117,8 @@ function switchFaithTab(tab, btn) {
   if (btn) btn.classList.add("active");
   if (tab === "journal") loadJournal();
 }
+// Bridge LCARS header tabs → faith tab switch
+window.onLcarsTabSwitch = function(tabId) { switchFaithTab(tabId, null); };
 
 async function faithSendChat() {
   var input = document.getElementById("faithInput");
@@ -270,5 +287,18 @@ async function sendEmmanuel() {
   }
 }
 </script>
+<style>
+/* Faith module — frame-color + Fold 5 responsive */
+.module-nav .module-tab.active {
+    color: var(--frame-color, #10b981);
+    border-bottom-color: var(--frame-color, #10b981);
+}
+@media (max-width: 717px) {
+    .module-container { padding: 0 4px; }
+    .module-nav { gap: 2px; width: 100%; display: flex; }
+    .module-nav .module-tab { flex: 1; text-align: center; padding: 10px 6px; font-size: 0.8rem; }
+    .module-tab-panel { width: 100%; }
+}
+</style>
 <script src="{{ url_for('static', filename='js/faith-chat.js') }}" defer></script>
 {% endblock %}

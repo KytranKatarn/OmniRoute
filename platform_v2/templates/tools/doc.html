@@ -4,20 +4,38 @@
 
 {% block module_name %}doc{% endblock %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
+{% endblock %}
+
 {% block content %}
-{% set cat_accent = '#EF4444' %}
-{% set cat_accent_rgb = '239,68,68' %}
-{% set cat_accent_light = '#dc2626' %}
+{% set cat_accent = '#10b981' %}
+{% set cat_accent_rgb = '16,185,129' %}
+{% set cat_accent_light = '#059669' %}
 {% set cat_label = 'APPS' %}
 {% set module_title = 'DOC' %}
 {% set module_back_url = '/dashboard' %}
+{% set header_tabs = [
+    ("chat",     "Consult",       "message-circle"),
+    ("symptoms", "Symptoms",      "thermometer"),
+    ("records",  "Health Records","folder-heart"),
+    ("reports",  "Reports",       "file-bar-chart"),
+] %}
 {% include 'includes/lcars-header.html' %}
 
 <!-- Scanline Overlay -->
 <div class="scanline-overlay"></div>
 
 <!-- Main Container -->
-<div class="doc-container">
+<div class="doc-container" style="--frame-color:{{ cat_accent }};--frame-rgb:{{ cat_accent_rgb }};display:flex;align-items:stretch;gap:0;">
+<aside class="lcars-sidebar" style="flex-shrink:0;margin-right:12px;position:sticky;top:60px;align-self:flex-start;">
+    <div class="lcars-elbow-top"></div>
+    <div class="lcars-seg"></div>
+    <div class="lcars-seg" style="--seg-color:{{ cat_accent_light }};opacity:0.7;"></div>
+    <div class="lcars-seg-fill" style="min-height:70vh;"></div>
+    <div class="lcars-elbow-bottom"></div>
+</aside>
+<div style="flex:1;min-width:0;padding:8px 8px 0 0;">
     <!-- Page Header -->
     <header class="doc-header">
         <div class="doc-title-section">
@@ -80,25 +98,6 @@
     </section>
 
     <!-- Tab Navigation -->
-    <nav class="doc-tabs">
-        <button class="doc-tab active" data-tab="chat" onclick="switchTab('chat')">
-            <i data-lucide="message-circle"></i>
-            Consult
-        </button>
-        <button class="doc-tab" data-tab="symptoms" onclick="switchTab('symptoms')">
-            <i data-lucide="thermometer"></i>
-            Symptom Checker
-        </button>
-        <button class="doc-tab" data-tab="records" onclick="switchTab('records')">
-            <i data-lucide="folder-heart"></i>
-            Health Records
-        </button>
-        <button class="doc-tab" data-tab="reports" onclick="switchTab('reports')">
-            <i data-lucide="file-bar-chart"></i>
-            Reports
-        </button>
-    </nav>
-
     <!-- Tab Content -->
     <div class="doc-tab-content">
         <!-- Chat/Consult Tab -->
@@ -300,7 +299,8 @@
             </div>
         </div>
     </div>
-</div>
+</div><!-- /doc-module-content -->
+</div><!-- /doc-container -->
 
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -520,7 +520,7 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: var(--archie-red);
+    background: var(--frame-color, #10b981);
     transform: scaleX(0);
     transition: transform 0.25s ease;
 }
@@ -530,7 +530,7 @@
 }
 
 .doc-tab.active {
-    color: var(--archie-red);
+    color: var(--frame-color, #10b981);
 }
 
 .doc-tab.active::after {
@@ -1165,6 +1165,19 @@ body.light-mode .doc-btn-primary:hover {
         width: 100%;
     }
 }
+
+/* ─── Fold 5 unfolded (717px) — tabs fill full frame width ─── */
+@media (max-width: 717px) {
+    .doc-container { padding: 12px 12px 24px; padding-top: 80px; }
+    .doc-tabs { overflow-x: visible; gap: 2px; width: 100%; }
+    .doc-tab {
+        flex: 1; justify-content: center; padding: 10px 6px;
+        font-size: 0.75rem; white-space: normal;
+        text-align: center; flex-direction: column; gap: 4px;
+    }
+    .doc-tab i { width: 14px; height: 14px; }
+    .doc-tab-content { width: 100%; }
+}
 </style>
 
 <script>
@@ -1196,6 +1209,7 @@ function switchTab(tabId) {
         lucide.createIcons();
     }
 }
+window.onLcarsTabSwitch = function(tabId) { switchTab(tabId); };
 
 // Load stats from localStorage
 function loadStats() {

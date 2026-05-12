@@ -88,8 +88,8 @@
     align-items: center;
     gap: 12px;
     padding: 12px 20px;
-    background: linear-gradient(90deg, rgba(239, 68, 68, 0.1), rgba(249, 115, 22, 0.1));
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: linear-gradient(90deg, rgba(var(--frame-rgb, 16,185,129), 0.1), rgba(var(--frame-rgb, 16,185,129), 0.05));
+    border: 1px solid rgba(var(--frame-rgb, 16,185,129), 0.3);
     border-radius: 8px;
     margin-bottom: 24px;
     font-family: 'JetBrains Mono', monospace;
@@ -240,7 +240,7 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: var(--archie-red);
+    background: var(--frame-color, #10b981);
     transform: scaleX(0);
     transition: transform 0.25s ease;
 }
@@ -250,7 +250,7 @@
 }
 
 .fitness-tab.active {
-    color: var(--archie-red);
+    color: var(--frame-color, #10b981);
 }
 
 .fitness-tab.active::after {
@@ -1228,4 +1228,29 @@ body.light-mode .fitness-modal-header h3 {
     .fitness-plan-grid {
         grid-template-columns: repeat(2, 1fr);
     }
+}
+
+/* ─── Fold 5 unfolded (717px) — tabs fill full frame width ─── */
+@media (max-width: 717px) {
+    .fitness-container {
+        padding: 12px 12px 24px;
+        padding-top: 80px;
+    }
+    .fitness-tabs {
+        overflow-x: visible;
+        gap: 2px;
+        width: 100%;
+    }
+    .fitness-tab {
+        flex: 1;
+        justify-content: center;
+        padding: 10px 6px;
+        font-size: 0.75rem;
+        white-space: normal;
+        text-align: center;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .fitness-tab i { width: 14px; height: 14px; }
+    .fitness-tab-content { width: 100%; }
 }

@@ -5,23 +5,38 @@
 {% block module_name %}therapy{% endblock %}
 
 {% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/therapy.css') }}">
 {% endblock %}
 
 {% block content %}
-{% set cat_accent = '#EF4444' %}
-{% set cat_accent_rgb = '239,68,68' %}
-{% set cat_accent_light = '#dc2626' %}
+{% set cat_accent = '#10b981' %}
+{% set cat_accent_rgb = '16,185,129' %}
+{% set cat_accent_light = '#059669' %}
 {% set cat_label = 'APPS' %}
 {% set module_title = 'THERAPY' %}
 {% set module_back_url = '/dashboard' %}
+{% set header_tabs = [
+    ("chat",     "Chat",    "message-circle-heart"),
+    ("journal",  "Journal", "book-open"),
+    ("mood",     "Mood",    "heart-pulse"),
+    ("progress", "Progress","trending-up"),
+] %}
 {% include 'includes/lcars-header.html' %}
 
 <!-- Scanline Overlay -->
 <div class="scanline-overlay"></div>
 
 <!-- Main Container -->
-<div class="therapy-container">
+<div class="therapy-container" style="--frame-color:{{ cat_accent }};--frame-rgb:{{ cat_accent_rgb }};display:flex;align-items:stretch;gap:0;">
+<aside class="lcars-sidebar" style="flex-shrink:0;margin-right:12px;position:sticky;top:60px;align-self:flex-start;">
+    <div class="lcars-elbow-top"></div>
+    <div class="lcars-seg"></div>
+    <div class="lcars-seg" style="--seg-color:{{ cat_accent_light }};opacity:0.7;"></div>
+    <div class="lcars-seg-fill" style="min-height:70vh;"></div>
+    <div class="lcars-elbow-bottom"></div>
+</aside>
+<div style="flex:1;min-width:0;padding:8px 8px 0 0;">
     <!-- Page Header -->
     <header class="therapy-header">
         <div class="therapy-title-section">
@@ -90,25 +105,6 @@
     </section>
 
     <!-- Tab Navigation -->
-    <nav class="therapy-tabs">
-        <button class="therapy-tab active" data-tab="chat" onclick="switchTab('chat')">
-            <i data-lucide="message-circle-heart"></i>
-            Chat
-        </button>
-        <button class="therapy-tab" data-tab="journal" onclick="switchTab('journal')">
-            <i data-lucide="book-open"></i>
-            Journal
-        </button>
-        <button class="therapy-tab" data-tab="mood" onclick="switchTab('mood')">
-            <i data-lucide="heart-pulse"></i>
-            Mood Tracker
-        </button>
-        <button class="therapy-tab" data-tab="progress" onclick="switchTab('progress')">
-            <i data-lucide="trending-up"></i>
-            Progress
-        </button>
-    </nav>
-
     <!-- Tab Content -->
     <div class="therapy-tab-content">
         <!-- Chat Tab -->
@@ -510,7 +506,8 @@
             </div>
         </div>
     </div>
-</div>
+</div><!-- /therapy-module-content -->
+</div><!-- /therapy-container -->
 
 <!-- Breathing Exercise Modal -->
 <div class="therapy-modal" id="breathingModal">
@@ -646,6 +643,7 @@ function switchTab(tabId) {
         lucide.createIcons();
     }
 }
+window.onLcarsTabSwitch = function(tabId) { switchTab(tabId); };
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STATS

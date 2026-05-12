@@ -2,19 +2,38 @@
 {% block title %}Family Tree — AI Genealogy{% endblock %}
 {% block module_name %}family_tree{% endblock %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
+<link rel="stylesheet" href="{{ url_for('family_tree.static', filename='css/family-tree.css') }}">
+{% endblock %}
+
 {% set cat_accent = '#10b981' %}
 {% set cat_accent_rgb = '16,185,129' %}
 {% set cat_accent_light = '#059669' %}
 {% set cat_label = 'APPS' %}
 {% set module_title = 'FAMILY TREE' %}
 {% set module_back_url = '/dashboard' %}
-{% include 'includes/lcars-header.html' %}
+{% set header_tabs = [
+    ("tree",      "Tree",      "git-branch"),
+    ("research",  "Research",  "search"),
+    ("documents", "Documents", "file-text"),
+    ("photos",    "Photos",    "image"),
+    ("timeline",  "Timeline",  "clock"),
+] %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('family_tree.static', filename='css/family-tree.css') }}">
+{% include 'includes/lcars-header.html' %}
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 
-<div class="ft-container">
+<div class="ft-container" style="--frame-color:{{ cat_accent }};--frame-rgb:{{ cat_accent_rgb }};display:flex;align-items:stretch;gap:0;">
+<aside class="lcars-sidebar" style="flex-shrink:0;margin-right:12px;position:sticky;top:60px;align-self:flex-start;">
+    <div class="lcars-elbow-top"></div>
+    <div class="lcars-seg"></div>
+    <div class="lcars-seg" style="--seg-color:{{ cat_accent_light }};opacity:0.7;"></div>
+    <div class="lcars-seg-fill" style="min-height:70vh;"></div>
+    <div class="lcars-elbow-bottom"></div>
+</aside>
+<div style="flex:1;min-width:0;padding:8px 8px 0 0;">
 
   <!-- Header -->
   <div class="ft-header">
@@ -39,23 +58,6 @@
   </div>
 
   <!-- Tab Navigation -->
-  <div class="ft-tabs">
-    <button class="ft-tab ft-tab-active" data-tab="tree" onclick="FamilyTree.switchTab('tree')">
-      <i data-lucide="git-branch"></i> Tree
-    </button>
-    <button class="ft-tab" data-tab="research" onclick="FamilyTree.switchTab('research')">
-      <i data-lucide="search"></i> Research
-    </button>
-    <button class="ft-tab" data-tab="documents" onclick="FamilyTree.switchTab('documents')">
-      <i data-lucide="file-text"></i> Documents
-    </button>
-    <button class="ft-tab" data-tab="photos" onclick="FamilyTree.switchTab('photos')">
-      <i data-lucide="image"></i> Photos
-    </button>
-    <button class="ft-tab" data-tab="timeline" onclick="FamilyTree.switchTab('timeline')">
-      <i data-lucide="clock"></i> Timeline
-    </button>
-  </div>
 
   <!-- TREE TAB -->
   <section id="ft-tab-tree" class="ft-panel">
@@ -226,7 +228,8 @@
     </div>
   </section>
 
-</div>
+</div><!-- /ft-module-content -->
+</div><!-- /ft-container -->
 
 <!-- LCARS Modal Macro -->
 {% from 'includes/lcars_modal.html' import lcars_modal %}
@@ -259,5 +262,6 @@
 {% endcall %}
 
 <script src="{{ url_for('family_tree.static', filename='js/family-tree.js') }}"></script>
+<script>window.onLcarsTabSwitch = function(tabId) { if(window.FamilyTree) FamilyTree.switchTab(tabId); };</script>
 <script src="{{ url_for('static', filename='js/family-tree-chat.js') }}" defer></script>
 {% endblock %}

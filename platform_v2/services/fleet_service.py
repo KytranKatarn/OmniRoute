@@ -31,7 +31,7 @@ PROVIDER_LOCATIONS = {
     "cloudflare": {"city": "San Francisco, CA", "lat": 37.7849, "lon": -122.3994},
 }
 
-HUB_LOCATION = {"city": "Kitchener, ON", "lat": 43.4516, "lon": -80.4925}
+HUB_LOCATION = {"city": "Montreal, QC", "lat": 45.5017, "lon": -73.5673}
 
 
 # ---------------------------------------------------------------------------

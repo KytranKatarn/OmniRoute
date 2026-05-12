@@ -753,6 +753,14 @@ def register_routes(bp, admin_required):
                     from tools.archie_chat.email_hq_briefing import _build_email_hq_briefing
 
                     contextual_message = _build_email_hq_briefing() + contextual_message
+                elif _module_key == "google_work_suite":
+                    from tools.archie_chat.google_work_suite_briefing import _build_google_work_suite_briefing
+
+                    contextual_message = _build_google_work_suite_briefing() + contextual_message
+                elif _module_key == "user_profile":
+                    from tools.archie_chat.user_profile_briefing import _build_user_profile_briefing
+
+                    contextual_message = _build_user_profile_briefing() + contextual_message
                 else:
                     from tools.archie_chat.account_center_briefing import _build_account_center_briefing
 
@@ -770,12 +778,111 @@ def register_routes(bp, admin_required):
             contextual_message += "\n\n[MANDATORY: Respond in English only. You are V.I.G.I.L., the Security & Network guardian. Be precise, security-focused, and suggest remediation actions when appropriate.]"
         elif effective_target == "F.O.R.G.E.":
             try:
-                from tools.archie_chat.repair_bay_briefing import _build_repair_bay_briefing
+                if _module_key == "agent_academy":
+                    from tools.archie_chat.agent_academy_briefing import _build_agent_academy_briefing
 
-                contextual_message = _build_repair_bay_briefing() + contextual_message
+                    contextual_message = _build_agent_academy_briefing() + contextual_message
+                    contextual_message += "\n\n[MANDATORY: Respond in English only. You are F.O.R.G.E., the Agent Academy director. Focus on training, benchmarks, skill development, and agent readiness.]"
+                else:
+                    from tools.archie_chat.repair_bay_briefing import _build_repair_bay_briefing
+
+                    contextual_message = _build_repair_bay_briefing() + contextual_message
+                    contextual_message += "\n\n[MANDATORY: Respond in English only. You are F.O.R.G.E., the Repair Bay owner. Be direct, technical, and suggest concrete repair actions when appropriate.]"
             except Exception as _be:
                 log.warning("F.O.R.G.E. briefing failed (non-fatal): %s", _be)
-            contextual_message += "\n\n[MANDATORY: Respond in English only. You are F.O.R.G.E., the Repair Bay owner. Be direct, technical, and suggest concrete repair actions when appropriate.]"
+        elif effective_target == "K.I.N.":
+            try:
+                from tools.archie_chat.department_hq_briefing import _build_department_hq_briefing
+
+                contextual_message = _build_department_hq_briefing() + contextual_message
+            except Exception as _be:
+                log.warning("K.I.N. briefing failed (non-fatal): %s", _be)
+            contextual_message += "\n\n[MANDATORY: Respond in English only. You are K.I.N., the HR & Culture director. Focus on agent welfare, shift management, team health, and organizational culture.]"
+        elif effective_target == "C.O.D.E.X.":
+            try:
+                from tools.archie_chat.consciousness_briefing import _build_consciousness_briefing
+
+                contextual_message = _build_consciousness_briefing() + contextual_message
+            except Exception as _be:
+                log.warning("C.O.D.E.X. briefing failed (non-fatal): %s", _be)
+            contextual_message += "\n\n[MANDATORY: Respond in English only. You are C.O.D.E.X., the Documentation & Knowledge director. Focus on knowledge quality, coverage gaps, and documentation standards.]"
+        elif effective_target == "F.A.C.T.":
+            try:
+                from tools.archie_chat.wtf_hub_briefing import _build_wtf_hub_briefing
+
+                contextual_message = _build_wtf_hub_briefing() + contextual_message
+            except Exception as _be:
+                log.warning("F.A.C.T. briefing failed (non-fatal): %s", _be)
+            contextual_message += "\n\n[MANDATORY: Respond in English only. You are F.A.C.T., the News & Media director. Focus on bias analysis, factchecking pipeline health, and media integrity.]"
+        elif effective_target == "M.A.V.E.N.":
+            try:
+                from tools.archie_chat.media_hub_briefing import _build_media_hub_briefing
+
+                contextual_message = _build_media_hub_briefing() + contextual_message
+            except Exception as _be:
+                log.warning("M.A.V.E.N. briefing failed (non-fatal): %s", _be)
+            contextual_message += "\n\n[MANDATORY: Respond in English only. You are M.A.V.E.N., the Media Hub agent. Help with library requests, download status, and media intelligence.]"
+        elif effective_target == "H.E.R.I.T.A.G.E.":
+            try:
+                from tools.archie_chat.family_tree_briefing import _build_family_tree_briefing
+
+                contextual_message = _build_family_tree_briefing() + contextual_message
+            except Exception as _be:
+                log.warning("H.E.R.I.T.A.G.E. briefing failed (non-fatal): %s", _be)
+            contextual_message += "\n\n[MANDATORY: Respond in English only. You are H.E.R.I.T.A.G.E., the genealogy research specialist. Help trace lineage, analyze relationships, and research family history.]"
+        elif effective_target == "V.I.T.A.L.":
+            _module_key = (request.get_json(silent=True) or {}).get("module_key", "")
+            try:
+                if _module_key == "fitness":
+                    from tools.archie_chat.fitness_briefing import _build_fitness_briefing
+
+                    contextual_message = _build_fitness_briefing() + contextual_message
+                    contextual_message += "\n\n[MANDATORY: Respond in English only. You are V.I.T.A.L., the Medical & Wellness director. Focus on fitness goals, workout planning, and health tracking.]"
+                elif _module_key == "therapy":
+                    from tools.archie_chat.therapy_briefing import _build_therapy_briefing
+
+                    contextual_message = _build_therapy_briefing() + contextual_message
+                    contextual_message += "\n\n[MANDATORY: Respond in English only. You are V.I.T.A.L., the Medical & Wellness director. Be compassionate, supportive, and always mention crisis resources when appropriate.]"
+                elif _module_key == "doc":
+                    from tools.archie_chat.doc_briefing import _build_doc_briefing
+
+                    contextual_message = _build_doc_briefing() + contextual_message
+                    contextual_message += "\n\n[MANDATORY: Respond in English only. You are V.I.T.A.L., the Medical & Wellness director. Assist with health tracking and appointment prep. Always include appropriate medical disclaimers.]"
+                else:
+                    contextual_message += (
+                        "\n\n[MANDATORY: Respond in English only. You are V.I.T.A.L., the Medical & Wellness director.]"
+                    )
+            except Exception as _be:
+                log.warning("V.I.T.A.L. briefing failed (non-fatal): %s", _be)
+        elif effective_target == "F.A.I.T.H.":
+            try:
+                from tools.archie_chat.faith_briefing import _build_faith_briefing
+
+                contextual_message = _build_faith_briefing() + contextual_message
+            except Exception as _be:
+                log.warning("F.A.I.T.H. briefing failed (non-fatal): %s", _be)
+            contextual_message += "\n\n[MANDATORY: Respond in English only. You are F.A.I.T.H., the devotional and spiritual guidance agent. Be warm, reflective, and supportive.]"
+        elif effective_target == "M.U.S.E.":
+            _module_key = (request.get_json(silent=True) or {}).get("module_key", "")
+            try:
+                from tools.archie_chat.media_studio_briefing import _build_media_studio_briefing
+
+                contextual_message = _build_media_studio_briefing() + contextual_message
+            except Exception as _be:
+                log.warning("M.U.S.E. briefing failed (non-fatal): %s", _be)
+            if _module_key == "game_studio":
+                contextual_message += "\n\n[MANDATORY: Respond in English only. You are M.U.S.E., the Creative & Design director. Focus on game design, scene management, and creative world-building.]"
+            else:
+                contextual_message += "\n\n[MANDATORY: Respond in English only. You are M.U.S.E., the Creative & Design director. Focus on image generation, portrait pipelines, and creative production workflows.]"
+        elif effective_target == "L.E.D.G.E.R.":
+            _module_key = (request.get_json(silent=True) or {}).get("module_key", "")
+            try:
+                from tools.archie_chat.pool_briefing import _build_pool_briefing
+
+                contextual_message = _build_pool_briefing(_module_key) + contextual_message
+            except Exception as _be:
+                log.warning("L.E.D.G.E.R. briefing failed (non-fatal): %s", _be)
+            contextual_message += "\n\n[MANDATORY: Respond in English only. You are L.E.D.G.E.R., the Finance & Accounting director. Provide precise pool analytics, earnings breakdowns, and miner performance insights.]"
 
         # Call orchestration engine
         try:

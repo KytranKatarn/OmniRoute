@@ -1739,7 +1739,9 @@ def log_audit(
     trigger_reason="scheduled",
     dispatched_via=None,
 ):
-    """Record an audit entry."""
+    """Record an audit entry and bridge issues into Repair Bay improvement_proposals."""
+    import json as _json
+
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             """INSERT INTO code_audit_log
@@ -1763,7 +1765,62 @@ def log_audit(
                 dispatched_via,
             ),
         )
-        return cur.fetchone()["id"]
+        audit_id = cur.fetchone()["id"]
+
+        # Bridge: create/update an improvement_proposal when issues are found
+        if issues_found > 0:
+            cur.execute(
+                """SELECT id FROM improvement_proposals
+                   WHERE module_name = %s
+                     AND proposal_source = 'code_health_scan'
+                     AND status NOT IN ('implemented', 'rejected', 'deployed')
+                   ORDER BY proposed_at DESC LIMIT 1""",
+                (module_name,),
+            )
+            existing = cur.fetchone()
+            priority = "high" if issues_found >= 10 else "medium"
+            meta = _json.dumps(
+                {
+                    "audit_id": audit_id,
+                    "files_reviewed": files_reviewed,
+                    "lines_before": lines_before,
+                    "lines_after": lines_after,
+                    "audit_profile": audit_profile,
+                    "trigger_reason": trigger_reason,
+                    "issues_fixed": issues_fixed,
+                }
+            )
+            if existing:
+                cur.execute(
+                    """UPDATE improvement_proposals
+                       SET title = %s, description = %s, priority = %s,
+                           metadata = %s::jsonb, proposed_at = NOW()
+                       WHERE id = %s""",
+                    (
+                        f"Code Health: {issues_found} issue(s) in {module_name}",
+                        notes or f"{issues_found} issue(s) detected by code health scan",
+                        priority,
+                        meta,
+                        existing["id"],
+                    ),
+                )
+            else:
+                cur.execute(
+                    """INSERT INTO improvement_proposals
+                           (title, description, category, priority, status,
+                            module_name, proposal_source, metadata)
+                       VALUES (%s, %s, 'code_quality', %s, 'proposed',
+                               %s, 'code_health_scan', %s::jsonb)""",
+                    (
+                        f"Code Health: {issues_found} issue(s) in {module_name}",
+                        notes or f"{issues_found} issue(s) detected by code health scan",
+                        priority,
+                        module_name,
+                        meta,
+                    ),
+                )
+
+        return audit_id
 
 
 def detect_changes_since_last_snapshot(repo_path="/mnt/archie_brain"):

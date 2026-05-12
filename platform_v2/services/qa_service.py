@@ -39,7 +39,6 @@ MODULE_SUITE_MAP: dict = {
     "account_center": [16, 31],
     "backup_manager": [19, 35],
     "security_network": [5, 6, 8, 59],
-    "saas_manager": [57],
     # AI Command
     "department_hq": [11, 43],
     "consciousness": [12, 39],
@@ -51,10 +50,12 @@ MODULE_SUITE_MAP: dict = {
     "email_manager": [45],
     "google_work_suite": [49],
     "user_profile": [63],
+    "saas_manager": [57],
     # Applications
     "fitness": [30],
     "therapy": [61],
     "doc": [44],
+    "faith": [83],
     "family_tree": [47],
     "media_hub": [22],
     # Creative Studios
@@ -62,6 +63,8 @@ MODULE_SUITE_MAP: dict = {
     # Crypto
     "archie_pool": [34],
     "pool_management": [54],
+    # Standalone products (tested via hub-internal URL)
+    "kytran_system_ops": [81],
     # Platform core
     "app": [2],
     "public_api": [55],
@@ -74,7 +77,7 @@ MODULE_SUITE_MAP: dict = {
     # Analytics (P.R.O.C.U.R.E.)
     "gov_watch": [21],
     # VPS / External
-    "wtf_hub": [64],
+    "wtf_hub": [64, 82],
     # Websites
     "website_ke": [27],
     "website_creed": [28],

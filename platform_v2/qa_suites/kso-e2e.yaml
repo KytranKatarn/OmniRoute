@@ -1,0 +1,155 @@
+suite:
+  name: "KSO — Kytran System Operations E2E"
+  description: "Smoke + critical-path tests for the KSO standalone at port 8085. Covers public pages, health, core API tabs, chat proxy, and the B.A.S.E. overlay wiring."
+  base_url: "http://192.168.1.200:8085"
+  auth:
+    # KSO uses SSO auth — direct email/password login requires a local KSO account.
+    # To enable authenticated tests: create a local KSO account in /data/data.db
+    # or set TIER_OVERRIDE=staff in kytran-system-operations env.
+    username: "${KSO_TEST_USERNAME}"
+    password: "${KSO_TEST_PASSWORD}"
+
+tests:
+  # ── Public / unauthenticated ─────────────────────────────────────────────
+
+  - name: "kso-landing-loads"
+    type: page_load
+    path: /
+    expect:
+      status: [200]
+      contains: "System Operations"
+
+  - name: "kso-login-page-loads"
+    type: page_load
+    path: /login
+    expect:
+      status: [200]
+      contains: "Sign In"
+
+  - name: "kso-health"
+    type: api
+    method: GET
+    path: /health
+    expect:
+      status: [200]
+
+  # ── Static assets ────────────────────────────────────────────────────────
+
+  - name: "kso-lcars-css-loads"
+    type: api
+    method: GET
+    path: /static/css/lcars-frames.css
+    expect:
+      status: [200]
+
+  - name: "kso-chat-overlay-js-loads"
+    type: api
+    method: GET
+    path: /static/js/archie-chat-overlay.js
+    expect:
+      status: [200]
+
+  - name: "kso-chat-js-loads"
+    type: api
+    method: GET
+    path: /static/js/kso-chat.js
+    expect:
+      status: [200]
+
+  # ── Authenticated — core tabs ────────────────────────────────────────────
+
+  - name: "kso-dashboard-loads"
+    type: page_load
+    path: /dashboard/
+    expect:
+      status: [200, 302]
+      contains: "SYSTEM DASHBOARD"
+
+  - name: "kso-api-overview"
+    type: api
+    method: GET
+    path: /api/overview
+    expect:
+      status: [200]
+
+  - name: "kso-api-cpu"
+    type: api
+    method: GET
+    path: /api/cpu
+    expect:
+      status: [200]
+
+  - name: "kso-api-memory"
+    type: api
+    method: GET
+    path: /api/memory
+    expect:
+      status: [200]
+
+  - name: "kso-api-disks"
+    type: api
+    method: GET
+    path: /api/disks
+    expect:
+      status: [200]
+
+  - name: "kso-api-hardware"
+    type: api
+    method: GET
+    path: /api/hardware
+    expect:
+      status: [200]
+
+  - name: "kso-api-history"
+    type: api
+    method: GET
+    path: /api/history
+    expect:
+      status: [200]
+
+  - name: "kso-api-host-data"
+    type: api
+    method: GET
+    path: /api/host-data
+    expect:
+      status: [200]
+
+  # ── Compliance tab ───────────────────────────────────────────────────────
+
+  - name: "kso-compliance-page"
+    type: page_load
+    path: /compliance
+    expect:
+      status: [200, 302]
+
+  - name: "kso-audit-log"
+    type: api
+    method: GET
+    path: /api/audit-log
+    expect:
+      status: [200]
+
+  # ── B.A.S.E. chat proxy ──────────────────────────────────────────────────
+
+  - name: "kso-chat-conversations"
+    type: api
+    method: GET
+    path: /tools/archie-chat/api/conversations
+    expect:
+      status: [200, 401]
+
+  - name: "kso-portrait-proxy"
+    type: api
+    method: GET
+    path: /tools/media-studio/api/portraits/139
+    expect:
+      status: [200, 404]
+
+  # ── Settings page ────────────────────────────────────────────────────────
+
+  - name: "kso-settings-loads"
+    type: page_load
+    path: /settings
+    expect:
+      status: [200, 302]
+      contains: "Theme"

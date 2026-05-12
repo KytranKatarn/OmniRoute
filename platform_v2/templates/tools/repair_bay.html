@@ -31,7 +31,8 @@
     ("sandbox", "Test Bay", "test-tube-2"),
     ("deploy", "Ship", "rocket"),
     ("qa", "QA", "check-circle"),
-    ("pushes", "Pushes", "git-branch")
+    ("pushes", "Pushes", "git-branch"),
+    ("module-review", "Module Review", "layout-grid")
 ] %}
 {% include 'includes/lcars-header.html' %}
 
@@ -794,7 +795,195 @@
         </div>
       </div>
     </div>
+
+    <!-- Module Review Tab -->
+    <div id="tab-module-review" class="tab-content">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+          <div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+          <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+          <div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+          <div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+        </div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+            <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">MODULE REVIEW</span>
+            <div style="flex:1"></div>
+            <button onclick="loadModuleReview(mrActiveCat)" class="dp-filter" style="background:rgba(0,212,255,0.15);border-color:#00d4ff;color:#00d4ff;">
+              <i data-lucide="refresh-cw" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Refresh
+            </button>
+          </div>
+          <div style="flex:1 !important;padding:16px !important;">
+            <div id="mrCatNav" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
+              <button class="mr-cat-btn active" data-cat="admin_operations" onclick="switchMrCat('admin_operations',this)">Admin Ops</button>
+              <button class="mr-cat-btn" data-cat="ai_command" onclick="switchMrCat('ai_command',this)">AI Command</button>
+              <button class="mr-cat-btn" data-cat="saas_services" onclick="switchMrCat('saas_services',this)">SaaS Services</button>
+              <button class="mr-cat-btn" data-cat="applications_concepts" onclick="switchMrCat('applications_concepts',this)">Applications</button>
+              <button class="mr-cat-btn" data-cat="creative_studios" onclick="switchMrCat('creative_studios',this)">Creative</button>
+              <button class="mr-cat-btn" data-cat="crypto" onclick="switchMrCat('crypto',this)">Crypto</button>
+            </div>
+            <div id="mrModuleGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;"></div>
+          </div>
+          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
+    </div>
 </div>
+
+<style>
+.mr-cat-btn{background:rgba(0,255,255,0.08);border:1px solid rgba(0,255,255,0.25);color:rgba(0,255,255,0.7);padding:5px 12px;border-radius:4px;cursor:pointer;font-family:'Antonio',sans-serif;font-size:0.75rem;letter-spacing:1px;text-transform:uppercase;transition:all 0.15s;}
+.mr-cat-btn:hover,.mr-cat-btn.active{background:rgba(0,255,255,0.2);border-color:#00ffff;color:#00ffff;}
+.mr-module-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px;}
+.mr-dimension{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.78rem;}
+.mr-dimension:last-child{border-bottom:none;}
+.mr-dim-label{color:rgba(255,255,255,0.45);}
+.mr-badge{padding:2px 8px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;font-weight:600;}
+.mr-badge-green{background:rgba(0,255,65,0.15);color:#00ff41;border:1px solid rgba(0,255,65,0.3);}
+.mr-badge-yellow{background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);}
+.mr-badge-red{background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);}
+.mr-badge-grey{background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.3);border:1px solid rgba(255,255,255,0.1);}
+.mr-bundle-btn{margin-top:10px;width:100%;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#8b5cf6;padding:5px 8px;border-radius:4px;cursor:pointer;font-size:0.72rem;font-family:'IBM Plex Mono',monospace;transition:all 0.15s;}
+.mr-bundle-btn:hover{background:rgba(139,92,246,0.25);}
+</style>
+
+<script>
+(function(){
+  var mrActiveCat='admin_operations';
+
+  function mrEsc(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function switchMrCat(cat,btn){
+    mrActiveCat=cat;
+    document.querySelectorAll('.mr-cat-btn').forEach(function(b){b.classList.remove('active');});
+    if(btn)btn.classList.add('active');
+    loadModuleReview(cat);
+  }
+  window.switchMrCat=switchMrCat;
+
+  async function loadModuleReview(cat){
+    var grid=document.getElementById('mrModuleGrid');
+    if(!grid)return;
+    var loading=document.createElement('div');
+    loading.style.cssText='color:rgba(255,255,255,0.35);font-size:0.85rem;padding:20px;';
+    loading.textContent='Loading…';
+    grid.replaceChildren(loading);
+    try{
+      var res=await fetch('/tools/repair-bay/api/module-review/data?category='+encodeURIComponent(cat||'admin_operations'));
+      var data=await res.json();
+      if(!data.success){
+        var err=document.createElement('div');
+        err.style.cssText='color:#ef4444;padding:20px;font-size:0.85rem;';
+        err.textContent='Error: '+(data.error||'unknown');
+        grid.replaceChildren(err);
+        return;
+      }
+      var cats=data.categories||[];
+      var modules=cats.length?cats[0].modules:[];
+      grid.replaceChildren();
+      if(!modules.length){
+        var empty=document.createElement('div');
+        empty.style.cssText='color:rgba(255,255,255,0.3);padding:20px;font-size:0.85rem;';
+        empty.textContent='No modules in this category.';
+        grid.appendChild(empty);
+        return;
+      }
+      modules.forEach(function(m){grid.appendChild(buildMrCard(m));});
+      if(window.lucide)lucide.createIcons();
+    }catch(e){
+      var errEl=document.createElement('div');
+      errEl.style.cssText='color:#ef4444;padding:20px;font-size:0.85rem;';
+      errEl.textContent='Failed to load: '+e.message;
+      grid.replaceChildren(errEl);
+    }
+  }
+  window.loadModuleReview=loadModuleReview;
+
+  function buildMrCard(m){
+    var qa=m.qa,ov=m.overlay,kb=m.kb,ch=m.code_health;
+    var card=document.createElement('div');
+    card.className='mr-module-card';
+
+    var title=document.createElement('h4');
+    title.style.cssText='font-family:\'Antonio\',sans-serif;font-size:0.8rem;letter-spacing:1.5px;text-transform:uppercase;color:#00ffff;margin:0 0 10px 0;';
+    title.textContent=m.key.replace(/_/g,' ');
+    card.appendChild(title);
+
+    function dim(label,badgeEl){
+      var row=document.createElement('div');
+      row.className='mr-dimension';
+      var lbl=document.createElement('span');
+      lbl.className='mr-dim-label';
+      lbl.textContent=label;
+      row.appendChild(lbl);
+      row.appendChild(badgeEl);
+      return row;
+    }
+    function badge(cls,text,extraStyle){
+      var b=document.createElement('span');
+      b.className='mr-badge mr-badge-'+cls;
+      if(extraStyle)b.style.cssText=extraStyle;
+      b.textContent=text;
+      return b;
+    }
+
+    // QA
+    var qaBadge;
+    if(!qa.total){qaBadge=badge('grey','NO SUITE');}
+    else{var pct=qa.pass_pct;qaBadge=badge(pct>=90?'green':pct>=70?'yellow':'red',pct+'%');}
+    card.appendChild(dim('QA Suite',qaBadge));
+
+    // Overlay
+    var ovBadge;
+    if(ov.assigned){
+      ovBadge=badge('green',ov.agent_name,'background:rgba(0,0,0,0.2);border-color:'+mrEsc(ov.color)+';color:'+mrEsc(ov.color)+';');
+    } else {ovBadge=badge('grey','NONE');}
+    card.appendChild(dim('Chat Overlay',ovBadge));
+
+    // KB
+    var kbBadge=kb.note_count>0?badge('green',kb.note_count+' note'+(kb.note_count>1?'s':'')):badge('grey','UNDOCUMENTED');
+    card.appendChild(dim('KB Docs',kbBadge));
+
+    // Code Health
+    var chBadge;
+    if(!ch.files){chBadge=badge('grey','NOT SCANNED');}
+    else{var oCls=ch.open_proposals>0?(ch.open_proposals>=5?'red':'yellow'):'green';chBadge=badge(oCls,ch.files+'f / '+(ch.open_proposals>0?ch.open_proposals+' open':'clean'));}
+    card.appendChild(dim('Code Health',chBadge));
+
+    // Bundle button
+    if(ch.open_proposals>1){
+      var btn=document.createElement('button');
+      btn.className='mr-bundle-btn';
+      btn.textContent='Bundle '+ch.open_proposals+' fixes → PR';
+      var mk=m.key;
+      btn.addEventListener('click',function(){bundleModuleFixes(mk);});
+      card.appendChild(btn);
+    }
+    return card;
+  }
+
+  async function bundleModuleFixes(moduleKey){
+    if(!confirm('Bundle all open proposals for "'+moduleKey+'" into one consolidated fix?'))return;
+    try{
+      var res=await fetch('/tools/repair-bay/api/module-review/bundle',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({module_key:moduleKey})
+      });
+      var data=await res.json();
+      if(data.success){alert('Bundled into proposal #'+data.proposal_id+'. View in Repairs tab.');loadModuleReview(mrActiveCat);}
+      else{alert('Bundle failed: '+(data.error||'unknown'));}
+    }catch(e){alert('Error: '+e.message);}
+  }
+
+  document.addEventListener('click',function(e){
+    if(e.target.closest&&e.target.closest('[data-tab="module-review"]'))
+      setTimeout(function(){loadModuleReview(mrActiveCat);},100);
+  });
+})();
+</script>
 
 <script>
 // Patch: auto-add credentials:include for all same-origin fetch calls on this page

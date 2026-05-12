@@ -306,6 +306,7 @@
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script src="{{ url_for('agent_academy.static', filename='js/agent-academy.js') }}"></script>
+<script src="{{ url_for('static', filename='js/agent-academy-chat.js') }}" defer></script>
 <script>
   window.onLcarsTabSwitch = function(tabId) { switchTab(tabId); };
 </script>

@@ -1,0 +1,76 @@
+suite:
+  name: "WTF Hub — Smoke + API"
+  description: "Smoke tests for WTF Hub dispatch module. Covers page load, LCARS frame, pipeline agent dispatch endpoint, rate limit config, and B.I.A.S./V.E.R.I.F.Y./L.O.C.A.L. capability routing."
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  # ── Page load ────────────────────────────────────────────────────────────
+
+  - name: "wtf-hub-loads"
+    type: page_load
+    path: /tools/wtf-hub/
+    expect:
+      status: 200
+      contains: "WTF HUB"
+      max_load_ms: 5000
+
+  # ── Core API ─────────────────────────────────────────────────────────────
+
+  - name: "wtf-hub-health"
+    type: api
+    method: GET
+    path: /tools/wtf-hub/health
+    expect:
+      status: [200, 302, 404]
+
+  - name: "wtf-hub-analyze-endpoint-exists"
+    type: api
+    method: POST
+    path: /tools/wtf-hub/api/analyze
+    body:
+      task_type: "bias"
+      content: "test"
+      article_id: 0
+    expect:
+      status: [200, 302, 400, 401, 422]
+
+  - name: "wtf-hub-status"
+    type: api
+    method: GET
+    path: /tools/wtf-hub/api/status
+    expect:
+      status: [200, 302, 404]
+
+  - name: "wtf-hub-rate-limit"
+    type: api
+    method: GET
+    path: /tools/wtf-hub/api/rate-limit
+    expect:
+      status: [200, 302, 404]
+
+  # ── Dispatch verification ─────────────────────────────────────────────
+
+  - name: "wtf-hub-dispatch-bias"
+    type: api
+    method: POST
+    path: /tools/wtf-hub/api/analyze
+    body:
+      task_type: "bias"
+      content: "The government today announced new policy changes."
+      article_id: 1
+    expect:
+      status: [200, 202, 400, 401]
+
+  - name: "wtf-hub-dispatch-factcheck"
+    type: api
+    method: POST
+    path: /tools/wtf-hub/api/analyze
+    body:
+      task_type: "factcheck"
+      content: "Scientists claim the moon is made of cheese."
+      article_id: 2
+    expect:
+      status: [200, 202, 400, 401]

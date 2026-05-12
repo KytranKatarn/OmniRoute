@@ -80,6 +80,10 @@ def create_app() -> Flask:
                 "KYTRAN_REDIRECT_URI_LAN",
                 "http://192.168.1.200:8105/auth/kytran/callback",
             )
+            # LAN: use hub internal address — CDN/openresty blocks public OAuth
+            kytran_auth.auth_url = os.getenv(
+                "KYTRAN_AUTH_URL_LAN", "http://192.168.1.200:3000"
+            )
         else:
             kytran_auth.client_id = os.getenv(
                 "KYTRAN_CLIENT_ID", "media-hub-viewer"
@@ -90,6 +94,9 @@ def create_app() -> Flask:
             kytran_auth.redirect_uri = os.getenv(
                 "KYTRAN_REDIRECT_URI",
                 "https://media.kytranempowerment.com/auth/kytran/callback",
+            )
+            kytran_auth.auth_url = os.getenv(
+                "KYTRAN_AUTH_URL", "https://platform.kytranempowerment.com"
             )
 
     @kytran_auth.on_login

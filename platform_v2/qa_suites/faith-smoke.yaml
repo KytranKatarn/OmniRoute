@@ -1,0 +1,41 @@
+name: Faith Module — Smoke Suite
+description: Smoke tests for the Faith module (page load + public API endpoints)
+module_key: faith
+tests:
+  - name: Faith page loads
+    type: page_load
+    path: /tools/faith/
+    expected_status: 200
+
+  - name: Faith status API
+    type: api
+    method: GET
+    path: /api/faith/status
+    expected_status: 200
+
+  - name: Daily devotional API
+    type: api
+    method: GET
+    path: /api/faith/devotional
+    expected_status:
+      - 200
+      - 302
+      - 401
+
+  - name: Check-in history API
+    type: api
+    method: GET
+    path: /api/faith/checkin/history
+    expected_status:
+      - 200
+      - 302
+      - 401
+
+  - name: Journal list API
+    type: api
+    method: GET
+    path: /api/faith/journal
+    expected_status:
+      - 200
+      - 302
+      - 401

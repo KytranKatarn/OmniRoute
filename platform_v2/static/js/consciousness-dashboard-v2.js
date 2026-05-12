@@ -27,7 +27,7 @@
 
     // Must render after DOM insertion, so use setTimeout
     setTimeout(function () {
-      if (!el.parentElement) return;
+      if (!el.parentElement || el.offsetHeight === 0) return;
       var chart = new ApexCharts(el, {
         chart: {
           type: "radialBar",
@@ -145,7 +145,7 @@
     var seriesData = phases.map(function (p) { return p.pct; });
 
     setTimeout(function () {
-      if (!wrap.parentElement) return;
+      if (!wrap.parentElement || wrap.offsetHeight === 0) return;
       var chart = new ApexCharts(wrap, {
         chart: {
           type: "bar",

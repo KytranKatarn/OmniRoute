@@ -49,18 +49,32 @@ async def run_qa_suite_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     if no suite_id provided). Returns pass/fail summary with run_id for
     detailed follow-up.
     """
-    import sys
-
-    sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+    import json
+    import subprocess
 
     suite_id = arguments.get("suite_id")
     triggered_by = arguments.get("triggered_by", "mcp")
 
-    try:
-        from services.qa_service import run_suite, get_suites
+    def _run_in_container(sid, tby):
+        """Run run_suite() inside archie_platform container where auth works."""
+        script = (
+            "import sys, json; sys.path.insert(0, '/app'); "
+            f"from services.qa_service import run_suite; "
+            f"print(json.dumps(run_suite({sid}, triggered_by='{tby}')))"
+        )
+        proc = subprocess.run(
+            ["docker", "exec", "archie_platform", "python3", "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"docker exec failed: {proc.stderr[:300]}")
+        return json.loads(proc.stdout.strip())
 
+    try:
         if suite_id:
-            result = run_suite(suite_id, triggered_by=triggered_by)
+            result = _run_in_container(suite_id, triggered_by)
             return {
                 "success": result.get("success", False),
                 "run_id": result.get("run_id"),
@@ -73,7 +87,18 @@ async def run_qa_suite_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             }
         else:
             # Run all active internal suites
-            suites = get_suites()
+            get_script = (
+                "import sys, json; sys.path.insert(0, '/app'); "
+                "from services.qa_service import get_suites; "
+                "print(json.dumps(get_suites()))"
+            )
+            proc = subprocess.run(
+                ["docker", "exec", "archie_platform", "python3", "-c", get_script],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            suites = json.loads(proc.stdout.strip()) if proc.returncode == 0 else []
             internal = [s for s in suites if s.get("suite_type") == "internal"]
             if not internal:
                 return {"success": False, "error": "No active internal suites found"}
@@ -84,7 +109,7 @@ async def run_qa_suite_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             total_errors = 0
 
             for suite in internal:
-                result = run_suite(suite["id"], triggered_by=triggered_by)
+                result = _run_in_container(suite["id"], triggered_by)
                 total_passed += result.get("passed", 0)
                 total_failed += result.get("failed", 0)
                 total_errors += result.get("errors", 0)

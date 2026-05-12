@@ -67,8 +67,12 @@
             <div class="dp-stat-value" id="statSandboxes">0</div>
         </div>
         <div class="dp-stat-card" style="--card-accent: #00ff41;">
-            <div class="dp-stat-label">Shipped</div>
+            <div class="dp-stat-label">Shipped (24h)</div>
             <div class="dp-stat-value" id="statDeployed">0</div>
+        </div>
+        <div class="dp-stat-card" style="--card-accent: #22d3ee;">
+            <div class="dp-stat-label">Completed (Total)</div>
+            <div class="dp-stat-value" id="statCompleted">0</div>
         </div>
     </div>
     </div>
@@ -314,9 +318,16 @@
                 <div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div>
               </div>
               <div style="flex:1 !important;padding:12px 16px !important;">
+                <div class="dp-filter-row" style="margin-bottom:10px;display:flex;gap:6px;align-items:center;">
+                  <button class="dp-filter active" id="prFilter-open" onclick="window.setPRFilter('open')">Open</button>
+                  <button class="dp-filter" id="prFilter-merged" onclick="window.setPRFilter('merged')">Merged</button>
+                  <button class="dp-filter" id="prFilter-closed" onclick="window.setPRFilter('closed')">Closed</button>
+                  <button class="dp-filter" id="prFilter-all" onclick="window.setPRFilter('all')">All</button>
+                  <span id="prReviewCount" style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(255,255,255,0.4);"></span>
+                </div>
                 <div class="dp-pr-split" style="width:100%;max-width:none;">
                   <div class="dp-pr-list" id="prReviewList">
-                    <div class="dp-pr-empty-state">No open PRs tracked yet. Click Poll GitHub to sync.</div>
+                    <div class="dp-pr-empty-state">No PRs tracked yet. Click Poll GitHub to sync.</div>
                   </div>
                   <div class="dp-pr-detail dp-pr-detail--empty" id="prReviewDetail">
                     Select a PR to view the review
@@ -1992,10 +2003,21 @@ function loadStats() {
         var arr = d.sandboxes || d || [];
         if (Array.isArray(arr)) document.getElementById('statSandboxes').textContent = arr.length;
     }).catch(function() {});
-    fetch(API + '/deploy/history').then(function(r) { return r.json(); }).then(function(d) {
-        var stats = d.stats || {};
-        document.getElementById('statDeployed').textContent = stats.total_deployed || 0;
+    fetch(API + '/proposals?status=deployed').then(function(r) { return r.json(); }).then(function(d) {
+        var all = d.proposals || d || [];
+        if (!Array.isArray(all)) all = [];
+        var cutoff = Date.now() - 86400000;
+        var today = all.filter(function(p) {
+            var ts = p.implemented_at || p.proposed_at;
+            return ts && new Date(ts).getTime() > cutoff;
+        });
+        document.getElementById('statDeployed').textContent = today.length;
+        document.getElementById('statCompleted').textContent = all.length;
     }).catch(function() {});
+}
+
+if (!window._statRefreshTimer) {
+    window._statRefreshTimer = setInterval(loadStats, 60000);
 }
 
 // ---- Proposals Tab ----
@@ -2985,6 +3007,174 @@ function loadForgeStats() {
         });
     }).catch(function() {});
 }
+
+// ---- PR Review Tab ----
+var _prStateFilter = 'open';
+var _prReviewPollTimer = null;
+
+function _prEsc(s) {
+    var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML;
+}
+
+window.setPRFilter = function(state) {
+    _prStateFilter = state;
+    ['open','merged','closed','all'].forEach(function(s) {
+        var btn = document.getElementById('prFilter-' + s);
+        if (btn) btn.classList.toggle('active', s === state);
+    });
+    window.loadPRReviews(state);
+};
+
+window.loadPRReviews = function(state) {
+    if (state === undefined) state = _prStateFilter;
+    var list = document.getElementById('prReviewList');
+    if (!list) return;
+    var url = API + '/forge/pr-reviews?limit=200';
+    if (state && state !== 'all') url += '&state=' + encodeURIComponent(state);
+    list.textContent = '';
+    var loading = document.createElement('div');
+    loading.className = 'dp-pr-empty-state';
+    loading.style.opacity = '0.5';
+    loading.textContent = 'Loading...';
+    list.appendChild(loading);
+    fetch(url).then(function(r) { return r.json(); }).then(function(d) {
+        var reviews = d.reviews || [];
+        var countEl = document.getElementById('prReviewCount');
+        if (countEl) countEl.textContent = reviews.length + ' PR' + (reviews.length !== 1 ? 's' : '');
+        list.textContent = '';
+        if (!reviews.length) {
+            var empty = document.createElement('div');
+            empty.className = 'dp-pr-empty-state';
+            empty.textContent = 'No ' + (state !== 'all' ? state + ' ' : '') + 'PRs tracked. Click Poll GitHub to sync.';
+            list.appendChild(empty);
+            return;
+        }
+        reviews.forEach(function(pr) {
+            var card = document.createElement('div');
+            card.style.cssText = 'padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;transition:background 0.15s;';
+            card.onmouseenter = function(){ this.style.background='rgba(255,255,255,0.04)'; };
+            card.onmouseleave = function(){ this.style.background=''; };
+
+            var statusColor = {'pending':'#fbbf24','in_progress':'#22d3ee','reviewed':'#22c55e','skipped':'#6b7280'}[pr.review_status] || '#6b7280';
+            var header = document.createElement('div');
+            header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
+
+            var num = document.createElement('span');
+            num.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;color:rgba(255,255,255,0.4);';
+            num.textContent = '#' + pr.pr_number;
+
+            var title = document.createElement('span');
+            title.style.cssText = 'flex:1;font-size:0.78rem;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+            title.textContent = pr.title || 'Untitled';
+
+            var badge = document.createElement('span');
+            badge.style.cssText = 'font-size:0.6rem;padding:2px 6px;border-radius:4px;border:1px solid ' + statusColor + ';color:' + statusColor + ';flex-shrink:0;';
+            badge.textContent = pr.review_status || 'pending';
+
+            header.appendChild(num); header.appendChild(title); header.appendChild(badge);
+
+            var actions = document.createElement('div');
+            actions.style.cssText = 'display:flex;gap:6px;';
+
+            var analyzeBtn = document.createElement('button');
+            analyzeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;border-radius:4px;cursor:pointer;';
+            analyzeBtn.textContent = 'Analyze';
+            analyzeBtn.onclick = function(e){ e.stopPropagation(); triggerPRAnalysis(pr.pr_number); };
+
+            actions.appendChild(analyzeBtn);
+
+            if (pr.state === 'open') {
+                var mergeBtn = document.createElement('button');
+                mergeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#4ade80;border-radius:4px;cursor:pointer;';
+                mergeBtn.textContent = 'Merge';
+                mergeBtn.onclick = function(e){ e.stopPropagation(); confirmMergePR(pr.pr_number); };
+                actions.appendChild(mergeBtn);
+            }
+
+            card.appendChild(header);
+            card.appendChild(actions);
+            card.onclick = function() { showPRDetail(pr); };
+            list.appendChild(card);
+        });
+    }).catch(function(e) {
+        list.textContent = '';
+        var err = document.createElement('div');
+        err.className = 'dp-pr-empty-state';
+        err.style.color = '#ef4444';
+        err.textContent = 'Failed to load reviews.';
+        list.appendChild(err);
+    });
+};
+
+function showPRDetail(pr) {
+    var detail = document.getElementById('prReviewDetail');
+    if (!detail) return;
+    detail.classList.remove('dp-pr-detail--empty');
+    detail.textContent = '';
+
+    var wrap = document.createElement('div');
+    wrap.style.padding = '16px';
+
+    var heading = document.createElement('div');
+    heading.style.cssText = 'font-family:\'Antonio\',sans-serif;font-size:1rem;letter-spacing:1px;margin-bottom:8px;color:#e2e8f0;';
+    heading.textContent = 'PR #' + pr.pr_number;
+
+    var subtitle = document.createElement('div');
+    subtitle.style.cssText = 'font-size:0.82rem;color:#94a3b8;margin-bottom:12px;';
+    subtitle.textContent = pr.title || '';
+
+    wrap.appendChild(heading);
+    wrap.appendChild(subtitle);
+
+    if (pr.review_body) {
+        var body = pr.review_body;
+        var vMatch = body.match(/VERDICT[:\s]*(APPROVED|NEEDS_CHANGES|REJECTED)/i);
+        if (vMatch) {
+            var verdict = vMatch[1];
+            var vColor = {'APPROVED':'#22c55e','NEEDS_CHANGES':'#fbbf24','REJECTED':'#ef4444'}[verdict] || '#94a3b8';
+            var vBadge = document.createElement('div');
+            vBadge.style.cssText = 'margin-bottom:12px;padding:6px 12px;border-radius:4px;border:1px solid ' + vColor + ';color:' + vColor + ';font-size:0.75rem;font-family:\'IBM Plex Mono\',monospace;';
+            vBadge.textContent = 'VERDICT: ' + verdict;
+            wrap.appendChild(vBadge);
+        }
+        var bodyEl = document.createElement('div');
+        bodyEl.style.cssText = 'font-size:0.78rem;line-height:1.6;color:#cbd5e1;white-space:pre-wrap;max-height:400px;overflow-y:auto;';
+        bodyEl.textContent = body;
+        wrap.appendChild(bodyEl);
+    } else {
+        var noReview = document.createElement('div');
+        noReview.style.cssText = 'font-size:0.78rem;color:rgba(255,255,255,0.3);';
+        noReview.textContent = 'No review yet. Click Analyze to request F.O.R.G.E. review.';
+        wrap.appendChild(noReview);
+    }
+
+    detail.appendChild(wrap);
+}
+
+function triggerPRAnalysis(prNumber) {
+    fetch(API + '/forge/pr-reviews/' + prNumber + '/analyze', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
+        .then(function(r){ return r.json(); }).then(function(d) {
+            if (d.error) { alert('Analyze failed: ' + d.error); return; }
+            setTimeout(function(){ window.loadPRReviews(_prStateFilter); }, 3000);
+        }).catch(function(e){ alert('Analyze request failed.'); });
+}
+
+function confirmMergePR(prNumber) {
+    if (!confirm('Merge PR #' + prNumber + ' into main?')) return;
+    fetch('/tools/repair-bay/api/forge/deploy/' + prNumber, {method:'POST', headers:{'Content-Type':'application/json'}})
+        .then(function(r){ return r.json(); }).then(function(d) {
+            if (d.success) { window.loadPRReviews(_prStateFilter); }
+            else { alert('Merge failed: ' + (d.error || 'Unknown')); }
+        }).catch(function(){ alert('Merge request failed.'); });
+}
+
+window._startPRReviewPoll = function() {
+    window.loadPRReviews(_prStateFilter);
+    if (_prReviewPollTimer) clearInterval(_prReviewPollTimer);
+    _prReviewPollTimer = setInterval(function() {
+        window.loadPRReviews(_prStateFilter);
+    }, 30000);
+};
 
 function forgeDeployPR(prNumber) {
     if (!confirm('Merge F.O.R.G.E. PR #' + prNumber + '? This will deploy to main.')) return;

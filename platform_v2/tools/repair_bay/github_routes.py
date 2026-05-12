@@ -8,6 +8,7 @@ import hmac
 import json
 import logging
 import os
+import time
 from database import _get_db_password
 import re
 
@@ -567,6 +568,9 @@ def register_github_routes(bp, admin_required):
 
     # ── PR Review Service (Project #247 Phase 1, Task #1799) ─────────────────
 
+    _pr_reviews_cache: dict = {}
+    _PR_REVIEWS_CACHE_TTL = 30
+
     @bp.route("/api/forge/pr-reviews", methods=["GET"])
     @login_required
     @admin_required
@@ -576,8 +580,19 @@ def register_github_routes(bp, admin_required):
 
         state = request.args.get("state")
         review_status = request.args.get("review_status")
-        limit = request.args.get("limit", 50, type=int)
-        return jsonify({"reviews": list_reviews(state=state, review_status=review_status, limit=limit)})
+        limit = request.args.get("limit", 200, type=int)
+        bust = request.args.get("bust")
+
+        cache_key = f"{state}:{review_status}:{limit}"
+        now = time.time()
+        if not bust and cache_key in _pr_reviews_cache:
+            ts, data = _pr_reviews_cache[cache_key]
+            if now - ts < _PR_REVIEWS_CACHE_TTL:
+                return jsonify({"reviews": data, "cached": True})
+
+        result = list_reviews(state=state, review_status=review_status, limit=limit)
+        _pr_reviews_cache[cache_key] = (now, result)
+        return jsonify({"reviews": result})
 
     @bp.route("/api/forge/pr-reviews/<int:pr_number>", methods=["GET"])
     @login_required

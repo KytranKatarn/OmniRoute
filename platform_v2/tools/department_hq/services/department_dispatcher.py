@@ -4503,6 +4503,7 @@ class DepartmentDispatcher:
         prefer_gpu: bool = True,
         job_id: Optional[int] = None,
         prefer_agent: Optional[str] = None,
+        prefer_model: Optional[str] = None,
         local_only: bool = False,
         project_id: Optional[int] = None,
         images: Optional[List[str]] = None,
@@ -4524,6 +4525,14 @@ class DepartmentDispatcher:
             prefer_gpu: Whether to prefer GPU-capable models
             prefer_agent: Lock dispatch to this agent (for batch consistency).
                           The agent stays assigned for all items in a batch job.
+            prefer_model: Lock dispatch to any agent using this Ollama model
+                          (e.g., 'qwen2.5-coder:7b'). Resolved to the first
+                          matching agent in the roster; if no agent uses the
+                          model, routing falls back to capability-based
+                          selection. Added for callers that need per-call
+                          model pinning (benchmarks, warmup loops, targeted
+                          code analysis) without binding to a specific agent
+                          name. Task #2129.
             local_only: Force local-only routing (no cloud/external models).
                         Used by batch/loop jobs to avoid cloud escalation.
 
@@ -4573,6 +4582,36 @@ class DepartmentDispatcher:
             bconn.close()
         except Exception as busy_err:
             logger.debug(f"[BridgeDispatcher] Busy agents refresh failed: {busy_err}")
+
+        # Auto-resolve prefer_agent from prefer_model (Task #2129). Callers
+        # that need per-call model pinning (benchmarks, warmup loops, code
+        # analysis on a specific model) can now pass prefer_model='...' and
+        # get routed to the first roster agent using that model. Falls back
+        # to capability routing if nothing matches — silent, no error.
+        if prefer_model and not prefer_agent:
+            try:
+                for name, info in (self._agent_cache or {}).items():
+                    agent_model = info.get("model") if isinstance(info, dict) else getattr(info, "model", None)
+                    if agent_model and agent_model.lower() == prefer_model.lower():
+                        prefer_agent = name
+                        self._busy_agents.discard(prefer_agent)
+                        logger.debug(
+                            "[BridgeDispatcher] prefer_model=%s resolved to prefer_agent=%s",
+                            prefer_model,
+                            prefer_agent,
+                        )
+                        break
+                if not prefer_agent:
+                    logger.debug(
+                        "[BridgeDispatcher] prefer_model=%s had no roster match — "
+                        "falling back to capability routing",
+                        prefer_model,
+                    )
+            except Exception as pm_err:
+                logger.debug(
+                    "[BridgeDispatcher] prefer_model resolution failed: %s",
+                    pm_err,
+                )
 
         # 0. SmartRouter advisory — classify task and recommend model tier
         #    This is a HINT, not a command. Existing systems (warm boot, RAM

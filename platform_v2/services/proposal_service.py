@@ -1029,6 +1029,17 @@ def deploy_to_production(proposal_id):
         )
         conn.commit()
 
+        # Mark linked code_issues as fixed so the scanner "fixed" count updates
+        try:
+            cur.execute(
+                "UPDATE code_issues SET status='fixed', fixed_by='system', fixed_at=NOW() "
+                "WHERE proposal_id=%s AND status NOT IN ('fixed','resolved')",
+                (proposal_id,),
+            )
+            conn.commit()
+        except Exception as _fix_err:
+            logger.debug("mark code_issues fixed: %s", _fix_err)
+
         # ── C.O.D.E.X. auto-documents the deploy (non-blocking, fire-and-forget) ─
         try:
             from services.codex_gate_service import document_deploy

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}WTF Hub{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
+<style>
+  .wtf-container { padding: 0; }
+  .wtf-card { background: #0d1117; border: 1px solid #1a2a3a; border-radius: 6px; padding: 16px; margin-bottom: 12px; }
+  .wtf-label { color: #555; font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+  .wtf-value { color: #60a5fa; font-size: 0.8rem; }
+  .wtf-agent { display: inline-block; background: rgba(0,255,255,0.08); border: 1px solid rgba(0,255,255,0.3); color: #00ffff; padding: 3px 8px; border-radius: 3px; font-size: 0.65rem; margin: 2px; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set cat_accent = '#00ffff' %}
+{% set cat_accent_rgb = '0,255,255' %}
+{% set cat_accent_dark = '#00cccc' %}
+{% set cat_label = 'AI COMMAND' %}
+{% set module_title = 'WTF HUB' %}
+{% set header_shortcuts = [
+    ("A.R.C.H.I.E.", "bot", "/tools/archie-chat"),
+    ("Consciousness", "brain", "/tools/consciousness"),
+    ("Dept HQ", "building", "/tools/department-hq"),
+    ("Academy", "graduation-cap", "/tools/agent-academy"),
+    ("Repair Bay", "wrench", "/tools/repair-bay"),
+    ("Email HQ", "mail", "/tools/email-manager"),
+    ("WTF Hub", "newspaper", "/tools/wtf-hub")
+] %}
+{% include 'includes/lcars-header.html' %}
+
+<div class="wtf-container">
+  <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+    <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;"><div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div><div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div><div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div></div>
+    <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+      <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+        <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">WTF HUB</span>
+        <div style="flex:1"></div>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">WHAT THE FACT</span>
+      </div>
+      <div style="flex:1 !important;padding:16px !important;">
+        <div class="wtf-card">
+          <div class="wtf-label">Pipeline Agents</div>
+          <span class="wtf-agent">B.I.A.S. — Bias Analysis</span>
+          <span class="wtf-agent">V.E.R.I.F.Y. — Fact Checking</span>
+          <span class="wtf-agent">L.O.C.A.L. — Geo Extraction</span>
+        </div>
+        <div class="wtf-card">
+          <div class="wtf-label">Dispatch Endpoint</div>
+          <div class="wtf-value">POST /tools/wtf-hub/api/analyze</div>
+          <div style="color:#555;font-size:0.62rem;margin-top:4px;">Called by wtf-ingest container on VPS (76.13.107.109) · Auth: WTF_HUB_TOKEN</div>
+        </div>
+        <div class="wtf-card">
+          <div class="wtf-label">Task Types</div>
+          <div style="font-size:0.65rem;color:#888;line-height:1.8;">
+            <b style="color:#ccc;">bias</b> — Article bias score (-1 to 1) via B.I.A.S.<br>
+            <b style="color:#ccc;">factcheck</b> — Claim verification via V.E.R.I.F.Y.<br>
+            <b style="color:#ccc;">geo</b> — Canadian location extraction via L.O.C.A.L.
+          </div>
+        </div>
+        <div class="wtf-card">
+          <div class="wtf-label">Rate Limit</div>
+          <div class="wtf-value">{{ interval }}s between dispatches per task type</div>
+          <div style="color:#555;font-size:0.62rem;margin-top:4px;">Set WTF_ANALYZE_INTERVAL=0 to disable · Prevents VPS bursts from exhausting workers</div>
+        </div>
+        <div style="margin-top:12px;">
+          <a href="https://what-the-fact.com" target="_blank" style="color:rgba(0,255,255,0.6);font-size:0.65rem;text-decoration:none;">what-the-fact.com ↗</a>
+          &nbsp;·&nbsp;
+          <a href="https://what-the-fact.tech" target="_blank" style="color:rgba(0,255,255,0.6);font-size:0.65rem;text-decoration:none;">what-the-fact.tech ↗</a>
+        </div>
+      </div>
+      <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

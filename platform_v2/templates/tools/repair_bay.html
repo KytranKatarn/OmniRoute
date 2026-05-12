@@ -89,26 +89,35 @@
         </div>
         <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
           <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
-            <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">CODE REVIEWS</span>
+            <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">PR REVIEWS</span>
             <div style="flex:1"></div>
-            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">PR STATUS</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">SUMMARY</span>
             <div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div>
           </div>
-          <div style="flex:1 !important;padding:16px !important;">
-        <div style="display:flex; gap:8px; align-items:center; margin-bottom:16px; flex-wrap:wrap;">
-            <select id="reviewsStateFilter" class="dp-module-select" onchange="loadReviews()" style="min-width:110px;">
-                <option value="open" selected>Open</option>
-                <option value="all">All</option>
-                <option value="closed">Closed</option>
-            </select>
-            <button class="dp-filter" onclick="loadReviews()" style="background:rgba(139,92,246,0.15); border-color:#8b5cf6; color:#8b5cf6;">
-                <i data-lucide="refresh-cw" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Refresh
-            </button>
-            <span id="reviewsCount" style="margin-left:auto; color:#94a3b8; font-size:0.8rem;"></span>
-        </div>
-        <div id="reviewsList" class="dp-proposal-list">
-            <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading PR reviews...</div></div>
-        </div>
+          <div style="padding:16px !important;display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+            <div style="display:flex;gap:16px;flex-wrap:wrap;">
+              <div style="text-align:center;">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:1.6rem;font-weight:700;color:#22d3ee;" id="dashPROpen">--</div>
+                <div style="font-size:0.65rem;color:rgba(255,255,255,0.4);letter-spacing:1px;text-transform:uppercase;">Open</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:1.6rem;font-weight:700;color:#22c55e;" id="dashPRReviewed">--</div>
+                <div style="font-size:0.65rem;color:rgba(255,255,255,0.4);letter-spacing:1px;text-transform:uppercase;">Reviewed</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:1.6rem;font-weight:700;color:#a78bfa;" id="dashPRPending">--</div>
+                <div style="font-size:0.65rem;color:rgba(255,255,255,0.4);letter-spacing:1px;text-transform:uppercase;">Pending</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:1.6rem;font-weight:700;color:#f59e0b;" id="dashPRTotal">--</div>
+                <div style="font-size:0.65rem;color:rgba(255,255,255,0.4);letter-spacing:1px;text-transform:uppercase;">All Time</div>
+              </div>
+            </div>
+            <div style="margin-left:auto;">
+              <button onclick="switchTab('pr-review')" style="padding:8px 18px;background:rgba(34,211,238,0.15);border:1px solid rgba(34,211,238,0.4);color:#22d3ee;border-radius:6px;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:0.75rem;letter-spacing:1px;">
+                PR REVIEW TAB →
+              </button>
+            </div>
           </div>
           <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
         </div>
@@ -2014,6 +2023,16 @@ function loadStats() {
         document.getElementById('statDeployed').textContent = today.length;
         document.getElementById('statCompleted').textContent = all.length;
     }).catch(function() {});
+    fetch(API + '/forge/pr-reviews?limit=700').then(function(r) { return r.json(); }).then(function(d) {
+        var reviews = d.reviews || [];
+        var open = reviews.filter(function(r) { return r.state === 'open'; }).length;
+        var reviewed = reviews.filter(function(r) { return r.review_status === 'reviewed'; }).length;
+        var pending = reviews.filter(function(r) { return r.review_status === 'pending' && r.state === 'open'; }).length;
+        var oEl = document.getElementById('dashPROpen'); if (oEl) oEl.textContent = open;
+        var rvEl = document.getElementById('dashPRReviewed'); if (rvEl) rvEl.textContent = reviewed;
+        var pEl = document.getElementById('dashPRPending'); if (pEl) pEl.textContent = pending;
+        var tEl = document.getElementById('dashPRTotal'); if (tEl) tEl.textContent = reviews.length;
+    }).catch(function() {});
 }
 
 if (!window._statRefreshTimer) {
@@ -3077,9 +3096,19 @@ window.loadPRReviews = function(state) {
             actions.style.cssText = 'display:flex;gap:6px;';
 
             var analyzeBtn = document.createElement('button');
-            analyzeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;border-radius:4px;cursor:pointer;';
-            analyzeBtn.textContent = 'Analyze';
-            analyzeBtn.onclick = function(e){ e.stopPropagation(); triggerPRAnalysis(pr.pr_number); };
+            if (pr.review_status === 'reviewed') {
+                analyzeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#4ade80;border-radius:4px;cursor:pointer;';
+                analyzeBtn.textContent = 'View Review';
+                analyzeBtn.onclick = function(e){ e.stopPropagation(); showPRDetail(pr); };
+            } else if (pr.review_status === 'in_progress') {
+                analyzeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.3);color:#67e8f9;border-radius:4px;cursor:not-allowed;opacity:0.6;';
+                analyzeBtn.textContent = 'Analyzing…';
+                analyzeBtn.disabled = true;
+            } else {
+                analyzeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;border-radius:4px;cursor:pointer;';
+                analyzeBtn.textContent = 'Analyze';
+                analyzeBtn.onclick = function(e){ e.stopPropagation(); triggerPRAnalysis(pr.pr_number); };
+            }
 
             actions.appendChild(analyzeBtn);
 
@@ -3115,36 +3144,70 @@ function showPRDetail(pr) {
     var wrap = document.createElement('div');
     wrap.style.padding = '16px';
 
+    // Header: PR number + GitHub link
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:6px;';
     var heading = document.createElement('div');
-    heading.style.cssText = 'font-family:\'Antonio\',sans-serif;font-size:1rem;letter-spacing:1px;margin-bottom:8px;color:#e2e8f0;';
+    heading.style.cssText = 'font-family:\'Antonio\',sans-serif;font-size:1rem;letter-spacing:1px;color:#e2e8f0;';
     heading.textContent = 'PR #' + pr.pr_number;
+    hdr.appendChild(heading);
+    if (pr.repo && pr.pr_number) {
+        var ghLink = document.createElement('a');
+        ghLink.href = 'https://github.com/' + pr.repo + '/pull/' + pr.pr_number;
+        ghLink.target = '_blank';
+        ghLink.style.cssText = 'font-size:0.65rem;color:#22d3ee;text-decoration:none;border:1px solid rgba(34,211,238,0.3);padding:2px 6px;border-radius:4px;';
+        ghLink.textContent = 'GitHub ↗';
+        hdr.appendChild(ghLink);
+    }
+    wrap.appendChild(hdr);
 
+    // Title
     var subtitle = document.createElement('div');
-    subtitle.style.cssText = 'font-size:0.82rem;color:#94a3b8;margin-bottom:12px;';
+    subtitle.style.cssText = 'font-size:0.82rem;color:#94a3b8;margin-bottom:10px;';
     subtitle.textContent = pr.title || '';
-
-    wrap.appendChild(heading);
     wrap.appendChild(subtitle);
 
-    if (pr.review_body) {
-        var body = pr.review_body;
-        var vMatch = body.match(/VERDICT[:\s]*(APPROVED|NEEDS_CHANGES|REJECTED)/i);
+    // Metadata row: author, branches, stats
+    var meta = document.createElement('div');
+    meta.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;';
+    var metaItems = [];
+    if (pr.author) metaItems.push('by ' + pr.author);
+    if (pr.head_branch) metaItems.push(pr.head_branch + ' → ' + (pr.base_branch || 'main'));
+    if (pr.additions || pr.deletions) metaItems.push('+' + (pr.additions||0) + ' −' + (pr.deletions||0));
+    metaItems.forEach(function(text) {
+        var chip = document.createElement('span');
+        chip.style.cssText = 'font-size:0.65rem;font-family:\'IBM Plex Mono\',monospace;color:rgba(255,255,255,0.35);background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;';
+        chip.textContent = text;
+        meta.appendChild(chip);
+    });
+    if (meta.children.length) wrap.appendChild(meta);
+
+    // F.O.R.G.E. review body — field is ai_summary in the DB
+    var reviewText = pr.ai_summary || pr.review_body || '';
+    if (reviewText) {
+        var vMatch = reviewText.match(/VERDICT[:\s]*(APPROVED|NEEDS_CHANGES|REJECTED)/i);
         if (vMatch) {
             var verdict = vMatch[1];
             var vColor = {'APPROVED':'#22c55e','NEEDS_CHANGES':'#fbbf24','REJECTED':'#ef4444'}[verdict] || '#94a3b8';
             var vBadge = document.createElement('div');
-            vBadge.style.cssText = 'margin-bottom:12px;padding:6px 12px;border-radius:4px;border:1px solid ' + vColor + ';color:' + vColor + ';font-size:0.75rem;font-family:\'IBM Plex Mono\',monospace;';
-            vBadge.textContent = 'VERDICT: ' + verdict;
+            vBadge.style.cssText = 'margin-bottom:10px;padding:6px 12px;border-radius:4px;border:1px solid ' + vColor + ';color:' + vColor + ';font-size:0.75rem;font-family:\'IBM Plex Mono\',monospace;';
+            vBadge.textContent = 'F.O.R.G.E. VERDICT: ' + verdict;
             wrap.appendChild(vBadge);
         }
+        var reviewLabel = document.createElement('div');
+        reviewLabel.style.cssText = 'font-size:0.6rem;color:rgba(255,255,255,0.25);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;';
+        reviewLabel.textContent = 'F.O.R.G.E. Review';
+        wrap.appendChild(reviewLabel);
         var bodyEl = document.createElement('div');
-        bodyEl.style.cssText = 'font-size:0.78rem;line-height:1.6;color:#cbd5e1;white-space:pre-wrap;max-height:400px;overflow-y:auto;';
-        bodyEl.textContent = body;
+        bodyEl.style.cssText = 'font-size:0.78rem;line-height:1.6;color:#cbd5e1;white-space:pre-wrap;max-height:360px;overflow-y:auto;border-top:1px solid rgba(255,255,255,0.06);padding-top:8px;';
+        bodyEl.textContent = reviewText;
         wrap.appendChild(bodyEl);
     } else {
         var noReview = document.createElement('div');
-        noReview.style.cssText = 'font-size:0.78rem;color:rgba(255,255,255,0.3);';
-        noReview.textContent = 'No review yet. Click Analyze to request F.O.R.G.E. review.';
+        noReview.style.cssText = 'font-size:0.78rem;color:rgba(255,255,255,0.3);padding:8px 0;';
+        noReview.textContent = pr.review_status === 'in_progress'
+            ? 'F.O.R.G.E. is reviewing this PR…'
+            : 'No review yet. Click Analyze to request F.O.R.G.E. review.';
         wrap.appendChild(noReview);
     }
 

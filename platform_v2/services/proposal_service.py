@@ -1213,6 +1213,8 @@ _CATEGORY_APPROVER = {
     "refactoring": ("Engineering & Technology", "F.O.R.G.E.", "code_review"),
     "performance": ("Engineering & Technology", "F.O.R.G.E.", "code_review"),
     "bug": ("Engineering & Technology", "F.O.R.G.E.", "code_review"),
+    "large_file": ("Engineering & Technology", "F.O.R.G.E.", "code_review"),
+    "direct_ollama": ("Engineering & Technology", "F.O.R.G.E.", "code_review"),
     "security": ("Security & Compliance", "V.I.G.I.L.", "security"),
     "compliance": ("Security & Compliance", "V.I.G.I.L.", "compliance"),
     "documentation": ("Documentation & Knowledge", "C.O.D.E.X.", "documentation"),
@@ -1221,8 +1223,12 @@ _CATEGORY_APPROVER = {
 }
 _DEFAULT_APPROVER = ("Engineering & Technology", "F.O.R.G.E.", "code_review")
 
-# Risk → dispatch tier: low=Tier1(auto), medium=Tier2(director), high/critical=Tier2(ARCHIE)
-_RISK_TIER = {"low": 1, "medium": 2, "high": 2, "critical": 2}
+# Risk → tier:
+#   low      = Tier 1 — F.O.R.G.E. auto-dispatch (no human needed)
+#   medium   = Tier 1 — Dept director auto-dispatch (LLM review, no Telegram)
+#   high     = Tier 2 — A.R.C.H.I.E. Telegram (Kytran approves as A.R.C.H.I.E.)
+#   critical = Tier 2 — Kytran explicit Telegram (human sign-off mandatory)
+_RISK_TIER = {"low": 1, "medium": 1, "high": 2, "critical": 2}
 
 
 def _get_approver(proposal):
@@ -1231,7 +1237,9 @@ def _get_approver(proposal):
     category = (proposal.get("category") or "code").lower()
     dept, director, cap = _CATEGORY_APPROVER.get(category, _DEFAULT_APPROVER)
     tier = _RISK_TIER.get(risk, 2)
-    if risk in ("high", "critical"):
+    if risk == "critical":
+        telegram_target = "Kytran"
+    elif risk == "high":
         telegram_target = "A.R.C.H.I.E."
     else:
         telegram_target = director

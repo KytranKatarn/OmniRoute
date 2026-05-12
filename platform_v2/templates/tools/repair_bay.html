@@ -2623,11 +2623,12 @@ function runNewTest() {
 // ---- Deploy Tab ----
 
 // Approver badge config keyed by risk_level
+// low/medium = Tier 1 auto-dispatch (no human); high = A.R.C.H.I.E. Telegram; critical = Kytran explicit
 var _APPROVER_BADGE = {
-    low:      { label: '🤖 F.O.R.G.E.',           color: '#00ff41', btn: 'F.O.R.G.E. Review' },
-    medium:   { label: '🔵 DEPT DIRECTOR',          color: '#00d4ff', btn: 'Request Director Approval' },
+    low:      { label: '🤖 F.O.R.G.E. (auto)',    color: '#00ff41', btn: 'F.O.R.G.E. Auto-Review' },
+    medium:   { label: '🤖 DIRECTOR (auto)',        color: '#00d4ff', btn: 'Director Auto-Review' },
     high:     { label: '⚠️ A.R.C.H.I.E.',           color: '#f59e0b', btn: 'Escalate to A.R.C.H.I.E.' },
-    critical: { label: '🚨 A.R.C.H.I.E. → KYTRAN', color: '#ef4444', btn: 'Critical — Kytran Approval' }
+    critical: { label: '🚨 KYTRAN SIGN-OFF',        color: '#ef4444', btn: 'Requires Kytran Approval' }
 };
 
 function _deployWithApproval(proposalId, btn) {

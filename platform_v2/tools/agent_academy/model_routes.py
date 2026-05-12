@@ -5,6 +5,7 @@ Model configuration, A/B testing history, system prompt management.
 """
 
 import json
+import os
 import logging
 import urllib.request
 
@@ -13,7 +14,7 @@ from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_URL = "http://192.168.1.200:11434"
+OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://192.168.1.200:11434")
 
 
 def register_model_routes(bp, admin_required):

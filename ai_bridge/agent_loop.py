@@ -3897,44 +3897,78 @@ class AgentLoop:
                     f"Proactive scan: {scanned}/{len(scan_files)} files scanned "
                     f"({duration_ms}ms)"
                 )
-                # Auto-heal: queue any new low/medium proposals through tiered approval
-                # so fixes flow straight into F.O.R.G.E. review → sandbox → deploy.
+                # Auto-heal: route new proposals through proposal_regen first so an
+                # agent generates a real code fix before F.O.R.G.E. reviews it.
+                # auto_queue_deploy=True in callback_data chains to deploy_approve_gate
+                # once code_changes is populated and status is ready_for_review.
                 try:
+                    import json as _json_ah
                     import sys as _sys
                     _sys.path.insert(0, "/mnt/archie_brain/platform_v2")
-                    from services.proposal_service import request_tiered_deploy_approval
                     from database import get_db_cursor as _gdc
 
                     with _gdc() as (_ac, _acur):
                         _acur.execute(
-                            """SELECT id FROM improvement_proposals
+                            """SELECT id, title, description, category, metadata
+                               FROM improvement_proposals
                                WHERE status = 'pending'
                                AND risk_level IN ('low', 'medium')
                                AND proposed_at > NOW() - INTERVAL '10 minutes'
                                ORDER BY proposed_at DESC LIMIT 20"""
                         )
-                        new_ids = [r["id"] for r in _acur.fetchall()]
+                        new_proposals = _acur.fetchall()
 
                     auto_queued = 0
-                    for pid in new_ids:
+                    for _p in new_proposals:
+                        pid = _p["id"]
                         try:
+                            _meta = _p.get("metadata") or {}
+                            if isinstance(_meta, str):
+                                try:
+                                    _meta = _json_ah.loads(_meta)
+                                except Exception:
+                                    _meta = {}
+                            _regen_prompt = (
+                                f"Generate a code fix for proposal #{pid}: {_p['title']}.\n"
+                                f"Issue: {_p.get('description', '')}\n"
+                                f"File: {_meta.get('file_path', 'unknown')}, "
+                                f"line {_meta.get('line_number', 'N/A')}\n"
+                                f"Fix suggestion: {_meta.get('suggestion', _meta.get('fix_suggestion', ''))}\n"
+                                f"Provide the exact code fix as a unified diff."
+                            )
+                            _cap = "security" if _p.get("category") == "security" else "code"
                             with _gdc(commit=True) as (_bc, _bcur):
                                 _bcur.execute(
-                                    "UPDATE improvement_proposals "
-                                    "SET status='ready_for_review' "
+                                    "UPDATE improvement_proposals SET status='approved' "
                                     "WHERE id=%s AND status='pending'",
                                     (pid,),
                                 )
-                            r = request_tiered_deploy_approval(pid)
-                            if r.get("success") or r.get("pending"):
-                                auto_queued += 1
+                                _bcur.execute(
+                                    """INSERT INTO dispatch_pending_queue
+                                        (capability, model_needed, model_type, prompt,
+                                         agent_name, agent_id, module_id, source_product,
+                                         requested_by, priority, callback_type, callback_data)
+                                       VALUES (%s,'mistral:7b','llama',%s,'F.O.R.G.E.',
+                                               NULL,'repair_bay','archie_platform',
+                                               'proactive_scan',6,'proposal_regen',%s)""",
+                                    (
+                                        _cap,
+                                        _regen_prompt,
+                                        _json_ah.dumps({
+                                            "proposal_id": pid,
+                                            "agent_name": "F.O.R.G.E.",
+                                            "auto_queue_deploy": True,
+                                        }),
+                                    ),
+                                )
+                            auto_queued += 1
                         except Exception as _ae:
-                            logger.debug("auto-heal queue #%s: %s", pid, _ae)
+                            logger.debug("auto-heal regen queue #%s: %s", pid, _ae)
 
                     if auto_queued:
                         logger.info(
-                            "Proactive scan auto-heal: queued %d/%d proposals",
-                            auto_queued, len(new_ids),
+                            "Proactive scan auto-heal: queued %d/%d proposals for regen",
+                            auto_queued, len(new_proposals),
                         )
                 except Exception as _he:
                     logger.warning("Proactive scan auto-heal failed: %s", _he)

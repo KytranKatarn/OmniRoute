@@ -285,6 +285,25 @@ def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
                             proposal_id,
                             agent_name,
                         )
+                        if cb_data.get("auto_queue_deploy"):
+                            try:
+                                import sys as _sys
+
+                                _sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+                                from services.proposal_service import request_tiered_deploy_approval
+
+                                _r = request_tiered_deploy_approval(proposal_id)
+                                log.info(
+                                    "proposal_regen: #%s auto-queued for deploy approval: %s",
+                                    proposal_id,
+                                    _r.get("message", "queued"),
+                                )
+                            except Exception as _de:
+                                log.warning(
+                                    "proposal_regen: #%s auto-deploy-queue failed: %s",
+                                    proposal_id,
+                                    _de,
+                                )
                     else:
                         log.warning("proposal_regen: #%s not updated (wrong status?)", proposal_id)
                 except Exception as _e:

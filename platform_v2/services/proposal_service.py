@@ -1561,10 +1561,7 @@ def auto_run(proposal_id):
     try:
         _update_status(proposal_id, "code_generating")
         try:
-            from ai_bridge.code_generation_engine import CodeGenerationEngine
-
-            engine = CodeGenerationEngine()
-            gen_result = engine.generate_code(proposal_id)
+            gen_result = regenerate_plan(proposal_id)
         except Exception as e:
             logger.error(f"[AutoRun] Code generation failed for #{proposal_id}: {e}")
             _update_status(proposal_id, "fix_requested", error=str(e))

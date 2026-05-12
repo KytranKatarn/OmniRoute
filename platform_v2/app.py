@@ -3177,8 +3177,11 @@ def inject_category_siblings():
             return {"header_shortcuts": []}
 
         shortcuts = nav_service.get_category_siblings(module_id, current_user)
-        g._nav_shortcuts_cached = shortcuts
-        return {"header_shortcuts": shortcuts}
+        # Convert dicts to (label, icon, url) tuples — lcars-header.html and all
+        # manual template overrides use 3-tuple unpacking in {% for %} loops.
+        shortcuts_tuples = [(s["label"], s["icon"], s["url"]) for s in shortcuts]
+        g._nav_shortcuts_cached = shortcuts_tuples
+        return {"header_shortcuts": shortcuts_tuples}
     except Exception as exc:  # noqa: BLE001 — defensive: nav must never crash
         import logging
 

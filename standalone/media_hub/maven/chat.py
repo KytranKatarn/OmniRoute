@@ -403,9 +403,13 @@ def _do_request(title: str, media_type: str) -> Dict:
     base = f"{scheme}://{svc['host']}:{svc['port']}"
     hdrs = {"X-Api-Key": svc["key"], "Content-Type": "application/json"}
 
+    # Strip season/episode qualifiers before searching — Overseerr needs the show title only
+    import re as _re
+    search_query = _re.sub(r'\s+(?:season|series|episode|ep|s)\s*\d+.*$', '', title, flags=_re.IGNORECASE).strip() or title
+
     # Search for the title
     try:
-        r = requests.get(f"{base}/api/v1/search", params={"query": title, "page": 1, "language": "en"},
+        r = requests.get(f"{base}/api/v1/search", params={"query": search_query, "page": 1, "language": "en"},
                          headers=hdrs, timeout=10)
         r.raise_for_status()
         results = r.json().get("results", [])
@@ -630,4 +634,15 @@ def api_action():
 @maven_bp.route("/chat")
 @login_required
 def chat_page():
-    return render_template("maven_chat.html", default_model=DEFAULT_MODEL)
+    import os
+    from flask_login import current_user
+
+    username = getattr(current_user, "username", "") or "User"
+    bridge_url = os.environ.get("BRIDGE_URL", "http://192.168.1.200:3000")
+    return render_template(
+        "maven_chat.html",
+        default_model=DEFAULT_MODEL,
+        user_initial=(username[0].upper() if username else "U"),
+        user_name=username,
+        maven_portrait_url=f"{bridge_url}/static/media/portraits/maven.png",
+    )

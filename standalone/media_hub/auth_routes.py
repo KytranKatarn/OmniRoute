@@ -28,7 +28,7 @@ def _safe_next(default):
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(_safe_next(url_for("media_hub.index")))
+        return redirect(_safe_next("/maven/discover"))
 
     error = None
     if request.method == "POST":
@@ -40,7 +40,7 @@ def login():
             user = authenticate(username, password)
             if user:
                 login_user(user)
-                return redirect(_safe_next(url_for("media_hub.index")))
+                return redirect(_safe_next("/maven/discover"))
             if is_sso_only_account(username):
                 error = "This account uses Kytran sign-in. Use the 'Sign in with Kytran Empowerment' button above."
             else:

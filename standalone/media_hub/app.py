@@ -84,6 +84,8 @@ def create_app() -> Flask:
             kytran_auth.auth_url = os.getenv(
                 "KYTRAN_AUTH_URL_LAN", "http://192.168.1.200:3000"
             )
+            # internal_url = same as auth_url for LAN (already direct)
+            kytran_auth.internal_url = kytran_auth.auth_url
         else:
             kytran_auth.client_id = os.getenv(
                 "KYTRAN_CLIENT_ID", "media-hub-viewer"
@@ -97,6 +99,10 @@ def create_app() -> Flask:
             )
             kytran_auth.auth_url = os.getenv(
                 "KYTRAN_AUTH_URL", "https://platform.kytranempowerment.com"
+            )
+            # internal_url: server-to-server token exchange + userinfo bypass CDN (60s cap)
+            kytran_auth.internal_url = os.getenv(
+                "KYTRAN_AUTH_INTERNAL_URL", "http://192.168.1.200:3000"
             )
 
     @kytran_auth.on_login
@@ -295,10 +301,12 @@ def create_app() -> Flask:
 
     @app.route("/")
     def root():
-        # Anonymous visitors see the public landing. Authenticated users skip
-        # straight to the library — standard PWA home-screen launch behaviour.
+        # Anonymous visitors see the public landing. Authenticated users go to
+        # Discover — a standalone-native route protected by kytran_auth.
+        # Avoids redirect to /tools/media-hub/ which uses platform install_auth
+        # and can fail in standalone context.
         if current_user.is_authenticated:
-            return redirect(url_for("media_hub.index"))
+            return redirect("/maven/discover")
         return render_template("landing.html")
 
     @app.route("/agent")

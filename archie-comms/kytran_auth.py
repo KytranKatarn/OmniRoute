@@ -75,14 +75,14 @@ class KytranAuth:
             # can leave it set without completing Flask-Login. Rely on Flask-Login.
             from flask_login import current_user as _cu
             if "kytran_user" in session and _cu.is_authenticated:
-                next_url = request.args.get("next", "/dashboard")
+                next_url = request.args.get("next", "/maven/discover")
                 return redirect(next_url)
 
             # Clear any stale kytran session left over from a previous partial auth
             session.pop("kytran_user", None)
 
             state = secrets.token_urlsafe(32)
-            next_url = request.args.get("next", "/dashboard")
+            next_url = request.args.get("next", "/maven/discover")
 
             # PKCE — generate code_verifier and S256 code_challenge
             code_verifier = secrets.token_urlsafe(64)
@@ -131,14 +131,14 @@ class KytranAuth:
                 return (
                     "<h2>Session Expired</h2>"
                     "<p>Your login session expired. Please try again.</p>"
-                    f'<p><a href="/auth/kytran/login?next=/dashboard">Sign in with Kytran</a></p>'
+                    f'<p><a href="/auth/kytran/login?next=/maven/discover">Sign in with Kytran</a></p>'
                 ), 400
 
-            next_url = "/dashboard"
+            next_url = "/maven/discover"
             if state_data:
-                next_url = state_data.get("next", "/dashboard")
+                next_url = state_data.get("next", "/maven/discover")
             else:
-                next_url = session.pop("oauth_next", "/dashboard")
+                next_url = session.pop("oauth_next", "/maven/discover")
 
             # Retrieve PKCE verifier (from state store, fall back to session)
             code_verifier = (
@@ -172,14 +172,14 @@ class KytranAuth:
                     return (
                         "<h2>Login Failed</h2>"
                         f"<p>Token exchange error. Please try again.</p>"
-                        f'<p><a href="/auth/kytran/login?next=/dashboard">Try again</a></p>'
+                        f'<p><a href="/auth/kytran/login?next=/maven/discover">Try again</a></p>'
                     ), 400
                 token_data = token_resp.json()
             except Exception as e:
                 return (
                     "<h2>Login Failed</h2>"
                     f"<p>Could not connect to auth server. Please try again.</p>"
-                    f'<p><a href="/auth/kytran/login?next=/dashboard">Try again</a></p>'
+                    f'<p><a href="/auth/kytran/login?next=/maven/discover">Try again</a></p>'
                 ), 500
 
             access_token = token_data.get("access_token")
@@ -197,7 +197,7 @@ class KytranAuth:
                     return (
                         "<h2>Login Failed</h2>"
                         f"<p>Could not retrieve user info. Please try again.</p>"
-                        f'<p><a href="/auth/kytran/login?next=/dashboard">Try again</a></p>'
+                        f'<p><a href="/auth/kytran/login?next=/maven/discover">Try again</a></p>'
                     ), 400
                 userinfo = userinfo_resp.json()
             except Exception as e:

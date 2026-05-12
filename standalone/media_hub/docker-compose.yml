@@ -71,6 +71,9 @@ services:
       KYTRAN_REDIRECT_URI_LAN: ${KYTRAN_REDIRECT_URI_LAN:-http://192.168.1.200:8105/auth/kytran/callback}
       # Family-access: don't block on product entitlement; policy lives in on_login.
       KYTRAN_AUTH_ENFORCE_ENTITLEMENT: "false"
+      # M.A.V.E.N. chat model — qwen2.5:1.5b fits in VRAM alongside platform agents.
+      # qwen2.5:7b (former default) crashes the Quadro M4000 when platform has loaded models.
+      MAVEN_CHAT_MODEL: ${MAVEN_CHAT_MODEL:-qwen2.5:1.5b}
     # Container DNS override — host DNS is Tailscale-owned which SERVFAILs on
     # external hostnames inside Docker (discovered 2026-04-21 via Prowlarr).
     # Use AdGuard first, Cloudflare fallback.

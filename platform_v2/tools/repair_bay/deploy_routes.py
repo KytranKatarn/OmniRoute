@@ -152,6 +152,93 @@ def register_deploy_routes(bp, admin_required):
         health = _run_pre_deploy_health_check(file_paths=file_paths)
         return jsonify({"success": True, **health})
 
+    @bp.route("/api/deploy/run-batch", methods=["POST"])
+    @login_required
+    @admin_required
+    def deploy_run_batch():
+        """Queue all ready_for_review proposals through tiered approval pipeline.
+
+        Optional JSON body:
+          risk_filter (list[str]): only queue proposals with these risk levels.
+                                   Default: ["low", "medium"]
+          limit (int): max proposals to queue per call. Default: 10.
+
+        Returns per-proposal: {id, title, risk_level, approver, queue_id, pending}.
+        """
+        data = request.get_json(force=True, silent=True) or {}
+        risk_filter = set(data.get("risk_filter", ["low", "medium"]))
+        limit = min(int(data.get("limit", 10)), 25)
+
+        ready = proposal_service.get_deploy_ready()
+        proposals = ready.get("proposals", [])
+
+        results = []
+        for p in proposals[:limit]:
+            if p.get("risk_level") not in risk_filter:
+                results.append(
+                    {
+                        "id": p["id"],
+                        "title": p["title"],
+                        "risk_level": p.get("risk_level"),
+                        "skipped": True,
+                        "reason": "risk_level not in filter",
+                    }
+                )
+                continue
+            r = proposal_service.request_tiered_deploy_approval(p["id"])
+            results.append(
+                {
+                    "id": p["id"],
+                    "title": p["title"],
+                    "risk_level": p.get("risk_level"),
+                    "approver": r.get("approver"),
+                    "queue_id": r.get("queue_id"),
+                    "pending": r.get("pending"),
+                    "success": r.get("success"),
+                    "message": r.get("message", "")[:80],
+                }
+            )
+
+        queued = sum(1 for r in results if r.get("pending") and r.get("queue_id"))
+        skipped = sum(1 for r in results if r.get("skipped"))
+        return jsonify(
+            {
+                "success": True,
+                "total": len(proposals),
+                "processed": len(results),
+                "queued": queued,
+                "skipped": skipped,
+                "results": results,
+            }
+        )
+
+    @bp.route("/api/deploy/queue-status")
+    @login_required
+    @admin_required
+    def deploy_queue_status():
+        """Show current dispatch_pending_queue items for deploy_approve_gate callbacks."""
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, capability, agent_name, model_needed, status,
+                       callback_data->>'proposal_id' as proposal_id,
+                       queued_at, completed_at,
+                       LEFT(result_response, 120) as verdict
+                FROM dispatch_pending_queue
+                WHERE callback_type = 'deploy_approve_gate'
+                ORDER BY queued_at DESC LIMIT 20
+            """
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            if r.get("queued_at"):
+                r["queued_at"] = r["queued_at"].isoformat()
+            if r.get("completed_at"):
+                r["completed_at"] = r["completed_at"].isoformat()
+        return jsonify({"success": True, "items": rows, "count": len(rows)})
+
     @bp.route("/api/deploy/request-approval/<int:proposal_id>", methods=["POST"])
     @login_required
     @admin_required

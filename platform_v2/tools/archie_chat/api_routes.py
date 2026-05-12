@@ -422,6 +422,198 @@ def _inject_forge_action(user_msg: str, agent_resp: str) -> str:
             "payload": {},
         }
 
+    # ── Self-healing / batch deploy (Ship tab) ────────────────────────────
+    elif any(
+        kw in user_lower
+        for kw in [
+            "run self-healing",
+            "run self healing",
+            "self heal",
+            "run fixes",
+            "apply repairs",
+            "deploy all safe",
+            "batch deploy",
+            "fix all",
+            "run healing",
+            "auto fix",
+            "heal platform",
+        ]
+    ):
+        action = {
+            "type": "run_self_healing",
+            "label": "Run Self-Healing Pipeline",
+            "confirm": "Queue all low/medium risk proposals for F.O.R.G.E. auto-review → sandbox gate → deploy",
+            "route": "POST /tools/repair-bay/api/deploy/run-batch",
+            "payload": {"risk_filter": ["low", "medium"], "limit": 10},
+        }
+
+    # ── Deploy specific proposal (Ship tab) ───────────────────────────────
+    elif any(
+        kw in user_lower
+        for kw in [
+            "deploy fix",
+            "deploy proposal",
+            "ship fix",
+            "apply fix",
+            "deploy repair",
+            "approve and deploy",
+            "deploy #",
+        ]
+    ):
+        import re as _re
+
+        pid = _re.search(r"#?(\d+)", user_lower)
+        proposal_id = int(pid.group(1)) if pid else 0
+        action = {
+            "type": "deploy_proposal_tiered",
+            "label": f"Deploy Proposal #{proposal_id}" if proposal_id else "Deploy Proposal",
+            "confirm": "Route through org-chart approval → sandbox gate → production deploy",
+            "route": f"POST /tools/repair-bay/api/deploy/request-approval/{proposal_id}" if proposal_id else "",
+            "payload": {},
+        }
+
+    # ── Queue/deploy status (Ship tab) ───────────────────────────────────
+    elif any(
+        kw in user_lower
+        for kw in [
+            "deploy queue",
+            "queue status",
+            "what's queued",
+            "pending deploys",
+            "deploy status",
+            "check deploy",
+            "last deploy",
+            "deployment status",
+        ]
+    ):
+        action = {
+            "type": "deploy_queue_status",
+            "label": "Show Deploy Queue",
+            "confirm": "Show proposals currently in the F.O.R.G.E. approval queue",
+            "route": "GET /tools/repair-bay/api/deploy/queue-status",
+            "payload": {},
+        }
+
+    # ── Sandbox / Test Bay ────────────────────────────────────────────────
+    elif any(
+        kw in user_lower
+        for kw in [
+            "test on sandbox",
+            "sandbox status",
+            "run probe",
+            "run p.r.o.b.e",
+            "sandbox gate",
+            "check sandbox",
+            "test bay status",
+            "sandbox health",
+        ]
+    ):
+        action = {
+            "type": "staging_status",
+            "label": "Check Sandbox Status",
+            "confirm": "Show sandbox.kytranempowerment.com health and last P.R.O.B.E. result",
+            "route": "GET /tools/repair-bay/api/sandbox/staging-status",
+            "payload": {},
+        }
+    elif any(
+        kw in user_lower
+        for kw in [
+            "run suite",
+            "run probe suite",
+            "run qa sandbox",
+            "probe sandbox",
+            "test sandbox",
+            "validate sandbox",
+        ]
+    ):
+        action = {
+            "type": "run_probe_gate",
+            "label": "Run P.R.O.B.E. Suite #79",
+            "confirm": "Run 39-test sandbox smoke suite against sandbox.kytranempowerment.com",
+            "route": "POST /tools/repair-bay/api/sandbox/staging-run-qa",
+            "payload": {},
+        }
+
+    # ── QA tab ────────────────────────────────────────────────────────────
+    elif any(
+        kw in user_lower
+        for kw in [
+            "run all tests",
+            "run full qa",
+            "qa all",
+            "run all suites",
+            "full test run",
+            "run platform tests",
+        ]
+    ):
+        action = {
+            "type": "run_qa_all",
+            "label": "Run Full QA Suite",
+            "confirm": "Execute all mapped QA suites across the platform",
+            "route": "POST /tools/repair-bay/api/qa/run/all",
+            "payload": {},
+        }
+    elif any(
+        kw in user_lower
+        for kw in [
+            "qa results",
+            "show qa",
+            "test results",
+            "qa status",
+            "last qa run",
+        ]
+    ):
+        action = {
+            "type": "qa_results",
+            "label": "Show QA Results",
+            "confirm": "Show recent QA test run results and pass rates",
+            "route": "GET /tools/repair-bay/api/qa/runs",
+            "payload": {},
+        }
+
+    # ── Repair Bay stats / dashboard ──────────────────────────────────────
+    elif any(
+        kw in user_lower
+        for kw in [
+            "repair bay status",
+            "repair status",
+            "what needs fixing",
+            "show repairs",
+            "repair queue",
+            "show proposals",
+            "pending repairs",
+            "how many fixes",
+            "repair bay stats",
+        ]
+    ):
+        action = {
+            "type": "repair_status",
+            "label": "Show Repair Bay Status",
+            "confirm": "Show ready-to-deploy count, queue depth, deployed today",
+            "route": "GET /tools/repair-bay/api/deploy/ready",
+            "payload": {},
+        }
+
+    # ── Diagnose / scan (Diagnose tab) ────────────────────────────────────
+    elif any(
+        kw in user_lower
+        for kw in [
+            "run diagnostics",
+            "diagnose",
+            "full scan",
+            "scan platform",
+            "scan all modules",
+            "proactive scan",
+        ]
+    ):
+        action = {
+            "type": "run_scan",
+            "label": "Run Platform Scan",
+            "confirm": "Trigger a proactive code quality + security scan across the platform",
+            "route": "POST /tools/repair-bay/api/scan/proactive",
+            "payload": {},
+        }
+
     if action:
         return agent_resp + f"\n\n[ACTION]{_json.dumps(action)}[/ACTION]"
     return agent_resp

@@ -110,6 +110,9 @@ class TelegramGateway:
             app.add_handler(CommandHandler("inbox", self._cmd_inbox))
             app.add_handler(CommandHandler("briefing", self._cmd_briefing))
             app.add_handler(CommandHandler("cancel", self._cmd_cancel))
+            app.add_handler(CommandHandler("heal", self._cmd_heal))
+            app.add_handler(CommandHandler("repairs", self._cmd_repairs))
+            app.add_handler(CommandHandler("scan", self._cmd_scan))
             app.add_handler(
                 CallbackQueryHandler(self._email_callback, pattern=r"^email_")
             )
@@ -430,6 +433,131 @@ class TelegramGateway:
     # Message Handlers
     # ------------------------------------------------------------------
 
+    def _detect_heal_intent(self, text: str) -> bool:
+        """Return True if the message is a self-healing / repair command."""
+        t = text.lower().strip()
+        return any(kw in t for kw in [
+            "run self-healing", "run self healing", "self heal", "run fixes",
+            "apply repairs", "deploy all safe", "batch deploy", "fix all issues",
+            "run healing", "auto fix", "/heal", "/repairs", "/scan",
+            "repair bay status", "what needs fixing", "deploy queue",
+        ])
+
+    async def _handle_heal_request(self, update, text: str) -> None:
+        """Run batch self-healing and report results to Telegram."""
+        import threading
+        import json as _json
+        import sys as _sys
+
+        t = text.lower().strip()
+        await update.message.reply_text(
+            "🔧 F.O.R.G.E. self-healing pipeline starting…\n"
+            "Queuing low/medium risk proposals for director auto-review → sandbox gate → deploy."
+        )
+
+        def _run():
+            try:
+                _sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+                from services.proposal_service import get_deploy_ready, request_tiered_deploy_approval
+                ready = get_deploy_ready()
+                proposals = [p for p in ready.get("proposals", [])
+                             if p.get("risk_level") in ("low", "medium")][:10]
+                results = []
+                for p in proposals:
+                    r = request_tiered_deploy_approval(p["id"])
+                    results.append({
+                        "id": p["id"], "title": p["title"][:50],
+                        "approver": r.get("approver"), "queue_id": r.get("queue_id"),
+                    })
+
+                queued = sum(1 for r in results if r.get("queue_id"))
+                total_ready = len(ready.get("proposals", []))
+                lines = [f"✅ F.O.R.G.E. self-healing queued {queued}/{len(proposals)} proposals",
+                         f"📊 Total ready: {total_ready} | Queued: {queued}",
+                         ""]
+                for r in results[:5]:
+                    icon = "🤖" if r.get("queue_id") else "⏭"
+                    lines.append(f"{icon} #{r['id']}: {r['title'][:45]} → {r.get('approver','?')}")
+                if len(results) > 5:
+                    lines.append(f"… and {len(results)-5} more")
+                lines.append("\nmodel_dispatch_worker will execute reviews → sandbox gate → deploy automatically.")
+
+                import asyncio
+                asyncio.run_coroutine_threadsafe(
+                    update.message.reply_text("\n".join(lines)),
+                    self._loop
+                )
+            except Exception as e:
+                import asyncio
+                asyncio.run_coroutine_threadsafe(
+                    update.message.reply_text(f"❌ Self-healing error: {e}"),
+                    self._loop
+                )
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    async def _cmd_heal(self, update, context):
+        """/heal — run self-healing pipeline via Telegram."""
+        await self._handle_heal_request(update, "/heal")
+
+    async def _cmd_repairs(self, update, context):
+        """/repairs — show ready-to-deploy repair proposals."""
+        import sys as _sys
+        _sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+        try:
+            from services.proposal_service import get_deploy_ready
+            ready = get_deploy_ready()
+            proposals = ready.get("proposals", [])
+            if not proposals:
+                await update.message.reply_text("✅ No proposals ready to deploy right now.")
+                return
+            lines = [f"🔧 Repair Bay — {len(proposals)} proposals ready to deploy:\n"]
+            for p in proposals[:8]:
+                risk = p.get("risk_level", "?")
+                icon = "🟢" if risk == "low" else "🔵" if risk == "medium" else "🟡" if risk == "high" else "🔴"
+                lines.append(f"{icon} #{p['id']} [{risk}] {p['title'][:55]}")
+            if len(proposals) > 8:
+                lines.append(f"… and {len(proposals)-8} more. See Repair Bay → Ship tab.")
+            lines.append('\nReply "run self-healing" or use /heal to queue auto-fixes.')
+            await update.message.reply_text("\n".join(lines))
+        except Exception as e:
+            await update.message.reply_text(f"❌ Error: {e}")
+
+    async def _cmd_scan(self, update, context):
+        """/scan [module] — run P.R.O.B.E. scan on a module."""
+        args = context.args
+        module = args[0] if args else ""
+        import sys as _sys, threading as _t
+        _sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+
+        await update.message.reply_text(
+            f"🔍 Running P.R.O.B.E. scan on {'module: ' + module if module else 'full platform'}…"
+        )
+
+        def _run():
+            try:
+                from services.qa_service import run_suite_for_module
+                results = run_suite_for_module(module or "platform", triggered_by="telegram_scan")
+                passed = sum(r.get("passed", 0) for r in results)
+                total = sum(r.get("total", 0) for r in results)
+                icon = "✅" if passed == total else "⚠️"
+                import asyncio
+                asyncio.run_coroutine_threadsafe(
+                    update.message.reply_text(
+                        f"{icon} Scan complete: {passed}/{total} tests passed\n"
+                        f"Suites run: {len(results)}"
+                    ),
+                    self._loop
+                )
+            except Exception as e:
+                import asyncio
+                asyncio.run_coroutine_threadsafe(
+                    update.message.reply_text(f"❌ Scan error: {e}"),
+                    self._loop
+                )
+
+        _t.Thread(target=_run, daemon=True).start()
+
     def _detect_social_intent(self, text: str):
         """Return (topic, platform) if text is a social post request, else None."""
         import re
@@ -542,6 +670,11 @@ class TelegramGateway:
         if social:
             topic, platform = social
             await self._handle_social_request(update, topic, platform)
+            return
+
+        # Intercept self-healing / repair commands
+        if self._detect_heal_intent(text):
+            await self._handle_heal_request(update, text)
             return
 
         response = self._orchestrate_message(

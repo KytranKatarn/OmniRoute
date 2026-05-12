@@ -249,5 +249,191 @@ def register_forge_tools():
         "Registered 6 F.O.R.G.E. tools: forge_health, forge_stats, forge_self_heal, forge_list_prs, forge_deploy, forge_scan_vulns"
     )
 
+    # ── Repair Bay chat/pipeline tools ─────────────────────────────────────
+
+    register_tool(
+        name="repair_bay_status",
+        category="forge",
+        description=(
+            "Get Repair Bay pipeline status — ready-to-deploy count, deployed today, "
+            "pending approvals in dispatch queue, recent fixes. Use to answer 'what needs fixing?' or 'show repair status'."
+        ),
+        input_schema={"type": "object", "properties": {}},
+        handler=repair_bay_status_handler,
+        requires_permission="read",
+    )
+
+    register_tool(
+        name="repair_bay_run",
+        category="forge",
+        description=(
+            "Queue all ready-to-deploy low/medium risk proposals through the F.O.R.G.E. "
+            "tiered approval pipeline (sandbox gate → auto-deploy). "
+            "Optionally filter by risk_level. Use for 'run self-healing', 'fix all safe issues', 'deploy batch'."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "risk_filter": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Risk levels to include: low, medium, high, critical. Default: ['low','medium']",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max proposals to queue (default 10, max 25)",
+                },
+            },
+        },
+        handler=repair_bay_run_handler,
+        requires_permission="write",
+    )
+
+    register_tool(
+        name="repair_bay_scan",
+        category="forge",
+        description=(
+            "Trigger a P.R.O.B.E. diagnostic scan on a specific module or the full platform. "
+            "Files proposals for any issues found. Use for 'scan [module]', 'run diagnostics', 'check [module]'."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "module": {
+                    "type": "string",
+                    "description": "Module name to scan (e.g. repair_bay, media_studio). Omit for full platform scan.",
+                },
+            },
+        },
+        handler=repair_bay_scan_handler,
+        requires_permission="write",
+    )
+
+    logger.info("Registered 3 additional Repair Bay tools: repair_bay_status, repair_bay_run, repair_bay_scan")
+
+
+# ── Repair Bay tool handlers ────────────────────────────────────────────────
+# Defined before register_forge_tools() so they are in scope at registration.
+
+
+async def repair_bay_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Return Repair Bay pipeline summary."""
+    try:
+        from services.proposal_service import get_deploy_ready, get_deploy_history
+        from database import get_db_cursor
+
+        ready = get_deploy_ready()
+        history = get_deploy_history()
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT COUNT(*) as cnt FROM dispatch_pending_queue "
+                "WHERE callback_type='deploy_approve_gate' AND status='queued'"
+            )
+            queued = cur.fetchone()["cnt"]
+            cur.execute(
+                "SELECT COUNT(*) as cnt FROM improvement_proposals WHERE status='deployed' "
+                "AND deployed_at > NOW() - INTERVAL '24 hours'"
+            )
+            deployed_today = cur.fetchone()["cnt"]
+            cur.execute("SELECT COUNT(*) as cnt FROM improvement_proposals WHERE status='ready_for_review'")
+            ready_count = cur.fetchone()["cnt"]
+
+        return {
+            "success": True,
+            "ready_to_deploy": ready_count,
+            "deploy_queue_depth": queued,
+            "deployed_today": deployed_today,
+            "total_deployed": history.get("total_deployed", 0),
+            "proposals": [
+                {
+                    "id": p["id"],
+                    "title": p["title"][:60],
+                    "risk_level": p.get("risk_level"),
+                    "priority": p.get("priority"),
+                }
+                for p in ready.get("proposals", [])[:5]
+            ],
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+async def repair_bay_run_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Queue all ready proposals through tiered approval (batch self-heal)."""
+    try:
+        import json as _json
+
+        risk_filter = arguments.get("risk_filter", ["low", "medium"])
+        limit = arguments.get("limit", 10)
+        from services.proposal_service import get_deploy_ready, request_tiered_deploy_approval
+
+        ready = get_deploy_ready()
+        proposals = [p for p in ready.get("proposals", []) if p.get("risk_level") in risk_filter][:limit]
+        results = []
+        for p in proposals:
+            r = request_tiered_deploy_approval(p["id"])
+            results.append(
+                {
+                    "id": p["id"],
+                    "title": p["title"][:50],
+                    "approver": r.get("approver"),
+                    "queue_id": r.get("queue_id"),
+                    "pending": r.get("pending"),
+                    "tier": r.get("tier"),
+                }
+            )
+        queued = sum(1 for r in results if r.get("queue_id"))
+        return {
+            "success": True,
+            "total_ready": len(ready.get("proposals", [])),
+            "queued": queued,
+            "skipped": len(proposals) - queued,
+            "results": results,
+            "message": (
+                f"Queued {queued} proposals for F.O.R.G.E. review. "
+                f"model_dispatch_worker will execute → sandbox gate → deploy."
+            ),
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+async def repair_bay_scan_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Run P.R.O.B.E. scan on a module or full platform."""
+    try:
+        from services.qa_service import run_suite_for_module, MODULE_SUITE_MAP
+
+        module = arguments.get("module", "")
+        if module:
+            results = run_suite_for_module(module, triggered_by="mcp_repair_bay_scan")
+            passed = sum(r.get("passed", 0) for r in results)
+            total = sum(r.get("total", 0) for r in results)
+            return {
+                "success": True,
+                "module": module,
+                "suites_run": len(results),
+                "passed": passed,
+                "total": total,
+                "all_green": passed == total,
+                "results": [
+                    {
+                        "run_id": r.get("run_id"),
+                        "passed": r.get("passed"),
+                        "total": r.get("total"),
+                        "status": r.get("status"),
+                    }
+                    for r in results
+                ],
+            }
+        else:
+            return {
+                "success": True,
+                "message": "Full platform scan triggered — check Repair Bay Diagnose tab for results.",
+                "available_modules": sorted(MODULE_SUITE_MAP.keys()),
+            }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 
 register_forge_tools()

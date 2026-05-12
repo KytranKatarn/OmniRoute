@@ -47,6 +47,8 @@ CAPABILITY_DEPARTMENT_MAP = {
     "code_review": "Engineering & Technology",
     "debug": "Engineering & Technology",
     "general": "Engineering & Technology",
+    "repair_bay": "Engineering & Technology",
+    "self_healing": "Engineering & Technology",
     "classify": "Analytics & Intelligence",
     "analyze": "Analytics & Intelligence",
     "knowledge_analysis": "Analytics & Intelligence",

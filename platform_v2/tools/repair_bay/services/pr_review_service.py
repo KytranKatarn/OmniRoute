@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 
 from database import get_db_cursor
 
@@ -170,7 +171,7 @@ def mark_review_started(pr_number: int, repo: str = None) -> None:
         )
 
 
-def mark_review_done(pr_number: int, summary: str, repo: str = None) -> None:
+def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge: bool = True) -> None:
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             """
@@ -180,6 +181,33 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None) -> None:
             """,
             (summary, pr_number, repo or _DEFAULT_REPO),
         )
+
+    if not auto_merge:
+        return
+
+    # Auto-merge when F.O.R.G.E. explicitly approves the PR
+    if not re.search(r"VERDICT\s*[:—]\s*APPROVED", summary, re.IGNORECASE):
+        return
+
+    try:
+        from .github_service import merge_pr
+
+        result = merge_pr(pr_number, "squash")
+        if result.get("merged"):
+            logger.info("[F.O.R.G.E.] PR #%s auto-merged after approval", pr_number)
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "INSERT INTO system_notifications (title, message, type, source, visibility) "
+                    "VALUES (%s, %s, 'success', 'forge', 'all')",
+                    (
+                        f"F.O.R.G.E. merged PR #{pr_number}",
+                        f"PR #{pr_number} was approved by F.O.R.G.E. and auto-merged.",
+                    ),
+                )
+        else:
+            logger.warning("[F.O.R.G.E.] Auto-merge failed for PR #%s: %s", pr_number, result)
+    except Exception as e:
+        logger.error("[F.O.R.G.E.] Auto-merge error for PR #%s: %s", pr_number, e)
 
 
 def mark_review_skipped(pr_number: int, repo: str = None) -> None:

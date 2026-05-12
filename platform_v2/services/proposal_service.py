@@ -1487,7 +1487,6 @@ def request_tiered_deploy_approval(proposal_id):
                 f"{risk.upper()} risk deployment: #{proposal_id} {proposal['title'][:60]} — "
                 f"requires {telegram_target} approval before sandbox gate + production deploy"
             ),
-            display_name=f"Deploy #{proposal_id}: {proposal['title'][:50]}",
             requested_by="system",
             tier=2,
             priority=priority,

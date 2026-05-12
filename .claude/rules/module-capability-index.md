@@ -16,7 +16,7 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 
 ---
 
-## admin_operations (5)
+## admin_operations (4)
 
 **W.A.R.D.E.N. agent #363** (Operations & Infrastructure, qwen2.5:7b, Lv4) is the autonomous guardian for this category. Dispatch: `user_audit`, `backup_verify`, `compliance_check`, `account_management`, `access_review`. Skills file: `.claude/skills/warden-agent.md`. KB #263995. Decision #575.
 
@@ -51,13 +51,6 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 ### System Operations — `system_operations` · `/tools/system-operations` · ⛔
 - **Status**: Disabled in registry — replaced by Kytran System Operations (`kytran_system_ops` at `/external/kso`)
 - **Note**: Standalone product at port 8085, server.kytranempowerment.com
-
-### SaaS Manager — `saas_manager` · `/tools/saas-manager` · ✅ · 🟡
-- **Capability**: Organization (tenant) CRUD, per-org module enable/disable, custom domain verify (DNS TXT), port accessibility check, public IP detection, node assignment. 761 LOC routes + domain_service + ip_monitor.
-- **Tables**: `organizations`, `org_users`, `org_modules`, `org_domains`, `org_nodes`
-- **Gaps**: **No subscription_level binding on org_modules — blocks #2018 KBS plugin tier gating**. DNS update not exposed. Node assignment UI minimal.
-- **Audit**: KB 256846 · **Rules**: `admin-ops.md`
-- **Active**: #2018 subscription gating (P10 large)
 
 ---
 
@@ -114,7 +107,7 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 
 ---
 
-## saas_services (8)
+## saas_services (9)
 
 ### Email Manager — `email_manager` · `/tools/email-manager` · ✅ · 🟢
 - **Capability** (PR #597, 2026-05-11): **Three-panel command center** — Sidebar (220px, folder nav + unread badges), Message List (280px, paginated + search), Read Pane (flex, DOMPurify HTML render, thread toggle, Draft Reply). 49 mailboxes (38 AI + 10 business + 1 owner). IMAP sync 5 min, AI triage on ingest, rules engine first-match-wins.
@@ -145,6 +138,14 @@ KB search: `search_knowledge(category="module_capability")` returns all audits.
 - **Tables**: google_accounts (encrypted tokens), oauth_tokens, email_labels, calendar_events, drive_files
 - **Gaps**: **Calendar + Drive wired in services but NOT exposed in routes.py** — big UI gap. Token refresh invisible. No quota/rate-limit awareness.
 - **Audit**: KB 256846 · **Rules**: `saas-services.md`
+
+### SaaS Manager — `saas_manager` · `/tools/saas-manager` · ✅ · 🟡
+- **Capability**: Organization (tenant) CRUD, per-org module enable/disable, custom domain verify (DNS TXT), port accessibility check, public IP detection, node assignment. 761 LOC routes + domain_service + ip_monitor.
+- **Tables**: `organizations`, `org_users`, `org_modules`, `org_domains`, `org_nodes`
+- **Note**: `show_on_dashboard=False` — functionality folded into Account Center ORGS tab. Admin-only (`minimum_role="ADMIN"`). No chat overlay (hidden module).
+- **Gaps**: **No subscription_level binding on org_modules — blocks #2018 KBS plugin tier gating**. DNS update not exposed. Node assignment UI minimal.
+- **Audit**: KB 256846 · **Rules**: `saas-services.md`
+- **Active**: #2018 subscription gating (P10 large)
 
 ### Employee Directory — `directory` · ~~`/tools/directory`~~ · ⛔
 - **Status**: DECOMMISSIONED 2026-04-20 (PR #214, Project #262 tasks #2180-2182 + #2184).

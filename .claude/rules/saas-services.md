@@ -1,10 +1,10 @@
 ---
-globs: ["platform_v2/tools/crm/**", "platform_v2/tools/website_studio/**", "platform_v2/tools/store_builder/**", "platform_v2/tools/call_center/**", "platform_v2/tools/stockbot/**", "platform_v2/tools/invoicing/**", "platform_v2/tools/social_media/**", "platform_v2/tools/content_studio/**", "platform_v2/tools/google_work_suite/**"]
+globs: ["platform_v2/tools/crm/**", "platform_v2/tools/website_studio/**", "platform_v2/tools/store_builder/**", "platform_v2/tools/call_center/**", "platform_v2/tools/stockbot/**", "platform_v2/tools/invoicing/**", "platform_v2/tools/social_media/**", "platform_v2/tools/content_studio/**", "platform_v2/tools/google_work_suite/**", "platform_v2/tools/saas_manager/**"]
 ---
 
 # SaaS Services Rules
 
-## Modules (9 total)
+## Modules (10 total)
 - **CRM** — `/tools/crm`, `crm_bp` (40+ routes, most mature)
 - **Website Designer** — `/tools/website-studio`, `website_studio_bp` (20+ routes)
 - **Store Builder** — `/tools/store-builder`, `store_builder_bp` (Printful integration)
@@ -14,6 +14,7 @@ globs: ["platform_v2/tools/crm/**", "platform_v2/tools/website_studio/**", "plat
 - **Social Media** — `/tools/social-media`, `social_media_bp` (30+ routes, OAuth)
 - **Content Studio** — `/tools/content-studio`, `content_studio_bp`
 - **Google Work Suite** — `/tools/google-work-suite`, `google_work_suite_bp`
+- **SaaS Manager** — `/tools/saas-manager`, `saas_manager_bp` (multi-tenant: orgs, domains, modules; `show_on_dashboard=False` — folded into Account Center ORGS tab)
 
 ## Critical Rule: Per-User Data Isolation
 ALL SaaS module data MUST be scoped by `user_id`. Every table, every query, every feature filtered by `current_user.id`. No shared/global tables for user content.

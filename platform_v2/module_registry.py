@@ -355,7 +355,7 @@ MODULES: List[ModuleDefinition] = [
         name="SaaS Manager",
         description="Multi-tenant platform management<br>Organizations • Domains • Modules",
         icon="building-2",
-        category=ModuleCategory.ADMIN_OPERATIONS,
+        category=ModuleCategory.SAAS_SERVICES,
         route="/tools/saas-manager",
         blueprint_import="tools.saas_manager.saas_manager_routes:saas_manager_bp",
         required_permissions=["admin:saas"],
@@ -364,7 +364,7 @@ MODULES: List[ModuleDefinition] = [
         show_on_dashboard=False,  # Folded into Account Center ORGS tab
         health_check=lambda: default_health_check("saas_manager"),
         priority=0,
-        tags=["saas", "organizations", "domains", "multi-tenant", "admin-operations"],
+        tags=["saas", "organizations", "domains", "multi-tenant"],
         version="1.0",
     ),
     # ============================================

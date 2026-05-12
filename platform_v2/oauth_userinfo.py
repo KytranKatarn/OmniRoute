@@ -17,7 +17,7 @@ def userinfo():
     token = auth_header[7:]
 
     try:
-        secret = current_app.config.get("SECRET_KEY", "fallback-secret")
+        secret = current_app.config["SECRET_KEY"]
         payload = jwt.decode(token, secret, algorithms=["HS256"])
     except jwt.ExpiredSignatureError:
         return jsonify({"error": "Token expired"}), 401

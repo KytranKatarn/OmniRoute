@@ -28,13 +28,23 @@ def _verify_pkce_s256(code_verifier: str, code_challenge: str) -> bool:
 
 oauth_provider_bp = Blueprint("oauth_provider", __name__, url_prefix="/oauth")
 
-JWT_SECRET = "fallback-secret"
+JWT_SECRET: str | None = None
 
 
 def init_oauth_provider(app):
-    """Bind JWT_SECRET to Flask app config and register the blueprint."""
+    """Bind JWT_SECRET to Flask app config and register the blueprint.
+
+    Fails loudly at startup if SECRET_KEY is missing or is the legacy
+    placeholder — signing JWTs with a known value would allow forged tokens.
+    """
     global JWT_SECRET
-    JWT_SECRET = app.config.get("SECRET_KEY", "fallback-secret")
+    secret = app.config.get("SECRET_KEY")
+    if not secret or secret in ("fallback-secret", "dev-secret-key-change-in-production"):
+        raise RuntimeError(
+            "SECRET_KEY must be set to a strong, non-default value before "
+            "initializing oauth_provider (got missing or placeholder)."
+        )
+    JWT_SECRET = secret
     app.register_blueprint(oauth_provider_bp)
 
 

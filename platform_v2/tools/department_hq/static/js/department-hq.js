@@ -3346,6 +3346,33 @@ var PROVIDER_DOMAINS = {
     'perplexity': 'perplexity.ai', 'replicate': 'replicate.com', 'fireworks': 'fireworks.ai',
 };
 
+function jitterClusteredProviders(providers) {
+    var CLUSTER_DEG = 0.18;
+    var JITTER_DEG = 0.22;
+    var used = new Array(providers.length).fill(false);
+    var result = providers.map(function(p) { return Object.assign({}, p); });
+
+    providers.forEach(function(p, i) {
+        if (used[i] || !p.lat || !p.lon) return;
+        var cluster = [i];
+        providers.forEach(function(q, j) {
+            if (j === i || used[j] || !q.lat || !q.lon) return;
+            var d = Math.sqrt(Math.pow(p.lat - q.lat, 2) + Math.pow(p.lon - q.lon, 2));
+            if (d < CLUSTER_DEG) cluster.push(j);
+        });
+        if (cluster.length < 2) return;
+        cluster.forEach(function(idx) { used[idx] = true; });
+        var cLat = cluster.reduce(function(s, idx) { return s + providers[idx].lat; }, 0) / cluster.length;
+        var cLon = cluster.reduce(function(s, idx) { return s + providers[idx].lon; }, 0) / cluster.length;
+        var step = (2 * Math.PI) / cluster.length;
+        cluster.forEach(function(idx, k) {
+            result[idx].lat = cLat + JITTER_DEG * Math.sin(k * step);
+            result[idx].lon = cLon + JITTER_DEG * Math.cos(k * step);
+        });
+    });
+    return result;
+}
+
 function renderFleetPins(data) {
     fleetMarkers.forEach(function(m) { fleetMap.removeLayer(m); });
     fleetMarkers = [];
@@ -3389,7 +3416,7 @@ function renderFleetPins(data) {
         fleetMarkers.push(marker);
     });
 
-    (data.providers || []).forEach(function(prov) {
+    jitterClusteredProviders(data.providers || []).forEach(function(prov) {
         if (!prov.lat || !prov.lon) return;
         var key = (prov.provider_key || '').toLowerCase();
         var style = PROVIDER_STYLES[key] || { color: '#f97316', label: (prov.provider_key || '?').charAt(0).toUpperCase() };

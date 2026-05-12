@@ -18,17 +18,17 @@ logger = logging.getLogger(__name__)
 
 # Known cloud provider headquarters for map pins
 PROVIDER_LOCATIONS = {
-    "ollama": {"city": "Local Hub", "lat": 43.4516, "lon": -80.4925},
-    "openai": {"city": "San Francisco, CA", "lat": 37.7749, "lon": -122.4194},
-    "anthropic": {"city": "San Francisco, CA", "lat": 37.7849, "lon": -122.4094},
+    "ollama": {"city": "Montreal, QC", "lat": 45.5017, "lon": -73.5673},
+    "openai": {"city": "San Francisco, CA", "lat": 37.7627, "lon": -122.4170},
+    "anthropic": {"city": "San Francisco, CA", "lat": 37.7891, "lon": -122.4020},
     "google": {"city": "Mountain View, CA", "lat": 37.3861, "lon": -122.0839},
-    "gemini": {"city": "Mountain View, CA", "lat": 37.3861, "lon": -122.0839},
+    "gemini": {"city": "Mountain View, CA", "lat": 37.4000, "lon": -122.0650},
     "mistral": {"city": "Paris, France", "lat": 48.8566, "lon": 2.3522},
     "cohere": {"city": "Toronto, ON", "lat": 43.6532, "lon": -79.3832},
-    "grok": {"city": "San Francisco, CA", "lat": 37.7749, "lon": -122.4294},
-    "together": {"city": "San Francisco, CA", "lat": 37.7649, "lon": -122.4394},
-    "huggingface": {"city": "New York, NY", "lat": 40.7128, "lon": -74.0060},
-    "cloudflare": {"city": "San Francisco, CA", "lat": 37.7849, "lon": -122.3994},
+    "grok": {"city": "San Francisco, CA", "lat": 37.7750, "lon": -122.4180},
+    "together": {"city": "San Francisco, CA", "lat": 37.7680, "lon": -122.4050},
+    "huggingface": {"city": "New York, NY", "lat": 40.7484, "lon": -73.9967},
+    "cloudflare": {"city": "San Francisco, CA", "lat": 37.7806, "lon": -122.3900},
 }
 
 HUB_LOCATION = {"city": "Montreal, QC", "lat": 45.5017, "lon": -73.5673}

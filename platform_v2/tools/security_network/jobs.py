@@ -1726,10 +1726,12 @@ def enforce_supervision_schedules():
         from tools.security_network.supervision_service import SupervisionService
 
         svc = SupervisionService()
-        enforced = svc.enforce_schedules()
+        result = svc.enforce_schedules()
+        enforced = result.get("enforced", 0)
+        errors = result.get("errors", 0)
 
         dur = int((time.time() - t0) * 1000)
-        _log_cycle("supervision_enforce", enforced, 0, dur)
+        _log_cycle("supervision_enforce", enforced, errors, dur, details=result)
 
     except Exception as e:
         dur = int((time.time() - t0) * 1000)

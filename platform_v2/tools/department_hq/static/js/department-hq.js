@@ -3246,6 +3246,9 @@ function updateOffscreenBlips() {
 
     mapEl.querySelectorAll('.fleet-sonar-ring,.fleet-sonar-ring-outer,.fleet-sonar-sweep,.fleet-sonar-blip').forEach(function(e) { e.remove(); });
 
+    // Hide sonar overlay when zoomed in — blips would overlap real map content
+    if (fleetMap.getZoom() > 6) return;
+
     var W = mapEl.offsetWidth;
     var H = mapEl.offsetHeight;
     var cx = W / 2;

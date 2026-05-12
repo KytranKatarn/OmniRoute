@@ -59,6 +59,7 @@
 
                 <!-- Registration Form -->
                 <form method="POST" action="/signup" class="signup-form" id="signupForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="signup-panels-wrapper">
                         <!-- Step 1: Account -->
                         <div class="signup-step-panel active" data-step="1">

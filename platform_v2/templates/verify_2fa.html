@@ -46,6 +46,7 @@
 
         <!-- 2FA Form -->
         <form method="POST" action="/verify-2fa" class="login-form" id="verifyForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label class="form-label" for="code">Verification Code</label>
                 <input

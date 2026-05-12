@@ -47,6 +47,7 @@
 
                 <!-- Login Form -->
                 <form method="POST" action="/login{% if request.args.get('next') %}?next={{ request.args.get('next') | urlencode }}{% endif %}" class="login-form" id="loginForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     {% if request.args.get('next') %}
                     <input type="hidden" name="next" value="{{ request.args.get('next') }}">
                     {% endif %}

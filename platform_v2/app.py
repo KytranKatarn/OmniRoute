@@ -65,6 +65,47 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 app.json_encoder = DateTimeEncoder
 
+# ============================================================================
+# CSRF PROTECTION (task #2066, phased rollout)
+# ============================================================================
+# Phase 1+2: CSRFProtect initialized in opt-in mode. Routes that want
+# protection add @csrf.protect. Currently enforced on credential-handling
+# forms only: /login, /signup, /verify-2fa. Phase 3 (follow-up): flip
+# WTF_CSRF_CHECK_DEFAULT=True and audit the ~150 session-auth POST routes
+# for explicit @csrf.exempt where Bearer-authed.
+from flask_wtf.csrf import CSRFProtect
+
+app.config.setdefault("WTF_CSRF_CHECK_DEFAULT", False)
+csrf = CSRFProtect(app)
+
+# Opt-in CSRF enforcement for credential-handling POST endpoints.
+# Flask-WTF CSRFProtect has no @protect decorator (only @exempt); the
+# idiomatic opt-in pattern is a before_request hook that calls
+# csrf.protect() for the specific endpoints we want to cover.
+_CSRF_PROTECTED_PATHS = {"/login", "/signup", "/verify-2fa"}
+
+
+@app.before_request
+def _csrf_protect_credential_forms():
+    if request.method == "POST" and request.path in _CSRF_PROTECTED_PATHS:
+        csrf.protect()
+
+
+# Dedicated CSRFError handler — must be registered BEFORE the generic
+# @app.errorhandler(Exception) so CSRFError doesn't get swallowed into
+# the "flash + redirect to /dashboard" fallback (which masks the real
+# failure mode and confuses users + the mistake_detector).
+from flask_wtf.csrf import CSRFError
+
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "csrf_failed", "reason": str(e.description)}), 400
+    flash("Security check failed. Please refresh the page and try again.", "error")
+    return redirect(request.path)
+
+
 # Initialize SocketIO for Game Studio multiplayer
 try:
     from flask_socketio import SocketIO

@@ -431,15 +431,72 @@
             <div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div>
           </div>
           <div style="flex:1 !important;padding:16px !important;">
-        <!-- Sub-tabs: Environments | Test Runs | Suites -->
+        <!-- Sub-tabs: Staging | Environments | Test Runs | Suites -->
         <div class="dp-subtabs">
-            <button class="dp-subtab active" data-subtab="environments" onclick="switchSubTab('sandbox', 'environments')">Environments</button>
+            <button class="dp-subtab active" data-subtab="staging" onclick="switchSubTab('sandbox', 'staging'); loadStagingStatus();">🧪 Staging</button>
+            <button class="dp-subtab" data-subtab="environments" onclick="switchSubTab('sandbox', 'environments')">Environments</button>
             <button class="dp-subtab" data-subtab="runs" onclick="switchSubTab('sandbox', 'runs')">Test Runs</button>
             <button class="dp-subtab" data-subtab="suites" onclick="switchSubTab('sandbox', 'suites')">Suites</button>
         </div>
 
+        <!-- Staging sub-tab (sandbox.kytranempowerment.com) -->
+        <div id="sandbox-subtab-staging" class="dp-subtab-content active">
+            <!-- Environment status card -->
+            <div id="stagingStatusCard" style="background:rgba(0,0,0,0.25);border:1px solid rgba(0,212,255,0.2);border-radius:8px;padding:16px;margin-bottom:16px;">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                    <span style="font-family:Antonio,sans-serif;font-size:0.9rem;letter-spacing:2px;text-transform:uppercase;color:var(--archie-cyan,#00d4ff);">SANDBOX ENVIRONMENT</span>
+                    <span id="stagingHealthBadge" style="font-size:0.7rem;padding:2px 8px;border-radius:10px;font-family:IBM Plex Mono,monospace;letter-spacing:1px;background:#1a1a1a;color:#94a3b8;">CHECKING...</span>
+                    <div style="flex:1"></div>
+                    <a id="stagingOpenLink" href="https://sandbox.kytranempowerment.com" target="_blank" style="font-size:0.78rem;color:var(--archie-cyan,#00d4ff);text-decoration:none;border:1px solid rgba(0,212,255,0.3);padding:4px 10px;border-radius:4px;font-family:IBM Plex Mono,monospace;">↗ Open Sandbox</a>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;">
+                    <div style="background:rgba(0,0,0,0.2);border-radius:6px;padding:10px;">
+                        <div style="font-size:0.65rem;letter-spacing:1px;color:#64748b;font-family:Antonio,sans-serif;margin-bottom:4px;">URL</div>
+                        <div id="stagingUrl" style="font-family:IBM Plex Mono,monospace;font-size:0.75rem;color:#e2e8f0;">sandbox.kytranempowerment.com</div>
+                    </div>
+                    <div style="background:rgba(0,0,0,0.2);border-radius:6px;padding:10px;">
+                        <div style="font-size:0.65rem;letter-spacing:1px;color:#64748b;font-family:Antonio,sans-serif;margin-bottom:4px;">CONTAINER</div>
+                        <div id="stagingContainer" style="font-family:IBM Plex Mono,monospace;font-size:0.75rem;color:#e2e8f0;">archie_staging:3003</div>
+                    </div>
+                    <div style="background:rgba(0,0,0,0.2);border-radius:6px;padding:10px;">
+                        <div style="font-size:0.65rem;letter-spacing:1px;color:#64748b;font-family:Antonio,sans-serif;margin-bottom:4px;">STARTED</div>
+                        <div id="stagingStarted" style="font-family:IBM Plex Mono,monospace;font-size:0.75rem;color:#e2e8f0;">—</div>
+                    </div>
+                    <div style="background:rgba(0,0,0,0.2);border-radius:6px;padding:10px;">
+                        <div style="font-size:0.65rem;letter-spacing:1px;color:#64748b;font-family:Antonio,sans-serif;margin-bottom:4px;">MODE</div>
+                        <div style="font-family:IBM Plex Mono,monospace;font-size:0.75rem;color:#f59e0b;">SANDBOX (no prod writes)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- P.R.O.B.E. Gate -->
+            <div style="background:rgba(0,0,0,0.25);border:1px solid rgba(139,92,246,0.25);border-radius:8px;padding:16px;margin-bottom:16px;">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                    <span style="font-family:Antonio,sans-serif;font-size:0.85rem;letter-spacing:2px;text-transform:uppercase;color:#8b5cf6;">P.R.O.B.E. GATE — Suite #79</span>
+                    <span style="font-size:0.65rem;color:#64748b;font-family:IBM Plex Mono,monospace;">39 tests · smoke + all modules</span>
+                    <div style="flex:1"></div>
+                    <button class="dp-btn dp-btn-accent" id="stagingRunQaBtn" onclick="runStagingQa()" style="background:#8b5cf6;border-color:#8b5cf6;">▶ Run Tests</button>
+                    <button class="dp-btn" onclick="loadStagingStatus()" style="font-size:0.75rem;">↻ Refresh</button>
+                </div>
+                <!-- Last run result -->
+                <div id="stagingLastRun" style="font-family:IBM Plex Mono,monospace;font-size:0.8rem;color:#94a3b8;padding:8px 0;">
+                    No previous run found — run the suite to validate the sandbox.
+                </div>
+                <!-- Live status -->
+                <div id="stagingQaStatus" style="display:none;margin-top:10px;padding:10px;background:rgba(139,92,246,0.1);border-radius:6px;border:1px solid rgba(139,92,246,0.2);">
+                    <span id="stagingQaStatusText" style="font-family:IBM Plex Mono,monospace;font-size:0.8rem;color:#c4b5fd;"></span>
+                </div>
+            </div>
+
+            <!-- Promote notice -->
+            <div style="font-size:0.75rem;color:#64748b;font-family:IBM Plex Mono,monospace;line-height:1.6;padding:8px 0;">
+                Workflow: deploy repair → test on sandbox → P.R.O.B.E. gate passes → promote via Ship tab.<br>
+                Sandbox branch: <span style="color:#00d4ff;">/mnt/archie_sandbox</span> · restarts independent of production.
+            </div>
+        </div>
+
         <!-- Environments sub-tab -->
-        <div id="sandbox-subtab-environments" class="dp-subtab-content active">
+        <div id="sandbox-subtab-environments" class="dp-subtab-content">
             <div class="dp-scan-actions" style="margin-bottom:12px;">
                 <button class="dp-btn dp-btn-primary" onclick="loadSandboxes()">Refresh</button>
             </div>
@@ -1043,6 +1100,7 @@ function switchSubTab(parentTab, subId) {
     if (btn) btn.classList.add('active');
     if (subId === 'issues') loadIssues();
     if (subId === 'history') loadScanHistory();
+    if (subId === 'staging') loadStagingStatus();
     if (subId === 'environments') loadSandboxes();
     if (subId === 'runs') loadTestRuns();
     if (subId === 'suites') loadTestSuites();
@@ -2272,6 +2330,79 @@ function toggleDiffView() {
 }
 
 // ---- Sandbox Tab ----
+
+function _esc(s) { var d=document.createElement('div'); d.textContent=String(s||''); return d.innerHTML; }
+
+function loadStagingStatus() {
+    fetch(API + '/sandbox/staging-status').then(function(r) { return r.json(); }).then(function(d) {
+        var badge = document.getElementById('stagingHealthBadge');
+        var lastRun = document.getElementById('stagingLastRun');
+        var started = document.getElementById('stagingStarted');
+        if (!badge) return;
+        if (d.healthy) {
+            badge.textContent = '● HEALTHY';
+            badge.style.background = 'rgba(0,255,65,0.15)';
+            badge.style.color = '#00ff41';
+            badge.style.border = '1px solid rgba(0,255,65,0.3)';
+        } else {
+            badge.textContent = '● ' + (d.container_status || 'OFFLINE').toUpperCase();
+            badge.style.background = 'rgba(239,68,68,0.15)';
+            badge.style.color = '#ef4444';
+            badge.style.border = '1px solid rgba(239,68,68,0.3)';
+        }
+        if (d.started_at && started) started.textContent = d.started_at + ' UTC';
+        var lr = d.last_qa_run;
+        if (lr && lastRun) {
+            var pct = lr.total > 0 ? Math.round((lr.passed / lr.total) * 100) : 0;
+            var color = pct === 100 ? '#00ff41' : pct >= 80 ? '#f59e0b' : '#ef4444';
+            var icon = pct === 100 ? '✅' : '⚠️';
+            var ts = lr.completed_at ? lr.completed_at.substring(0, 16) : '';
+            lastRun.innerHTML = _esc(icon) + ' Last run: <span style="color:' + _esc(color) + ';font-weight:600;">'
+                + _esc(lr.passed) + '/' + _esc(lr.total) + ' passed (' + _esc(pct) + '%)</span>'
+                + ' &nbsp;·&nbsp; Status: ' + _esc(lr.status)
+                + (ts ? ' &nbsp;·&nbsp; ' + _esc(ts) : '');
+        }
+    }).catch(function() {
+        var badge = document.getElementById('stagingHealthBadge');
+        if (badge) { badge.textContent = '● ERROR'; badge.style.color = '#ef4444'; }
+    });
+}
+
+function runStagingQa() {
+    var btn = document.getElementById('stagingRunQaBtn');
+    var statusEl = document.getElementById('stagingQaStatus');
+    var statusText = document.getElementById('stagingQaStatusText');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = '⏳ Running...';
+    statusEl.style.display = 'block';
+    statusText.textContent = 'Starting P.R.O.B.E. suite #79 against sandbox.kytranempowerment.com...';
+    fetch(API + '/sandbox/staging-run-qa', {method: 'POST', headers: {'Content-Type': 'application/json'}})
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.success) {
+                var r = d.result || {};
+                var passed = r.passed !== undefined ? r.passed : '?';
+                var total = r.total !== undefined ? r.total : '?';
+                var st = _esc(r.status || 'completed');
+                var color = (passed === total && passed !== '?') ? '#00ff41' : '#f59e0b';
+                statusText.innerHTML = '✅ Done — <span style="color:' + _esc(color) + ';">' + _esc(passed) + '/' + _esc(total) + ' passed</span>'
+                    + ' · Status: ' + st + (d.run_id ? ' · Run #' + _esc(d.run_id) : '');
+                statusEl.style.borderColor = color === '#00ff41' ? 'rgba(0,255,65,0.3)' : 'rgba(245,158,11,0.3)';
+            } else {
+                statusText.textContent = '❌ Failed: ' + (d.error || 'unknown error');
+                statusEl.style.borderColor = 'rgba(239,68,68,0.3)';
+            }
+            btn.disabled = false;
+            btn.textContent = '▶ Run Tests';
+            loadStagingStatus();
+        })
+        .catch(function(e) {
+            statusText.textContent = '❌ Request error: ' + e.message;
+            btn.disabled = false;
+            btn.textContent = '▶ Run Tests';
+        });
+}
 
 function loadSandboxes() {
     fetch(API + '/sandbox/list').then(function(r) { return r.json(); }).then(function(d) {

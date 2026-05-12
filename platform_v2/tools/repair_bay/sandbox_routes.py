@@ -326,3 +326,93 @@ def register_sandbox_routes(bp, admin_required):
     @admin_required
     def sandbox_module_status():
         return jsonify(sandbox_service.get_module_status())
+
+    # ---- Persistent Staging Environment (sandbox.kytranempowerment.com) ----
+
+    @bp.route("/api/sandbox/staging-status")
+    @login_required
+    @admin_required
+    def sandbox_staging_status():
+        import subprocess
+        from database import get_db_cursor
+
+        STAGING_CONTAINER = "archie_staging"
+        STAGING_URL = "https://sandbox.kytranempowerment.com"
+        STAGING_PORT = 3003
+        PROBE_SUITE_ID = 79
+
+        # Container health
+        try:
+            out = (
+                subprocess.check_output(
+                    [
+                        "docker",
+                        "inspect",
+                        "--format",
+                        "{{.State.Status}}|{{.State.Health.Status}}|{{.State.StartedAt}}",
+                        STAGING_CONTAINER,
+                    ],
+                    timeout=5,
+                    stderr=subprocess.DEVNULL,
+                )
+                .decode()
+                .strip()
+            )
+            parts = out.split("|")
+            container_status = parts[0] if len(parts) > 0 else "unknown"
+            health_status = parts[1] if len(parts) > 1 else "unknown"
+            started_at = parts[2][:19].replace("T", " ") if len(parts) > 2 else ""
+        except Exception:
+            container_status = "not_found"
+            health_status = "unknown"
+            started_at = ""
+
+        healthy = container_status == "running" and health_status in ("healthy", "")
+
+        # Last QA run for suite #79
+        last_run = None
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT id, passed, failed, total_tests AS total,
+                           status, started_at, completed_at
+                    FROM qa_test_runs
+                    WHERE suite_id = %s
+                    ORDER BY started_at DESC LIMIT 1
+                """,
+                    (PROBE_SUITE_ID,),
+                )
+                row = cur.fetchone()
+                if row:
+                    last_run = dict(row)
+        except Exception:
+            pass
+
+        return jsonify(
+            {
+                "url": STAGING_URL,
+                "port": STAGING_PORT,
+                "container": STAGING_CONTAINER,
+                "container_status": container_status,
+                "health_status": health_status,
+                "healthy": healthy,
+                "started_at": started_at,
+                "probe_suite_id": PROBE_SUITE_ID,
+                "last_qa_run": last_run,
+            }
+        )
+
+    @bp.route("/api/sandbox/staging-run-qa", methods=["POST"])
+    @login_required
+    @admin_required
+    def sandbox_staging_run_qa():
+        from services.qa_service import run_suite
+
+        PROBE_SUITE_ID = 79
+        try:
+            result = run_suite(PROBE_SUITE_ID, triggered_by="staging_test_bay")
+            return jsonify({"success": True, "run_id": result.get("run_id"), "result": result})
+        except Exception as e:
+            logger.exception("staging QA run failed")
+            return jsonify({"success": False, "error": str(e)}), 500

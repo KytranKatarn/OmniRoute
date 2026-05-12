@@ -914,6 +914,9 @@ async function loadDiagnose() {
 async function loadTestBay() {
     _testBayLoaded = true;
 
+    if (typeof loadStagingStatus === 'function') {
+        try { loadStagingStatus(); } catch (e) { console.warn('loadStagingStatus error:', e); }
+    }
     if (typeof loadSandboxes === 'function') {
         try { loadSandboxes(); } catch (e) { console.warn('loadSandboxes error:', e); }
     }

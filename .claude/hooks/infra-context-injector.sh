@@ -31,6 +31,55 @@ if ! echo "$fields" | grep -qiE "$INFRA_RE"; then
     exit 0
 fi
 
+# ─── HARD BLOCK PATTERNS ─────────────────────────────────────────────
+# These are deal-breakers the user has flagged repeatedly. Block the
+# tool call entirely (exit 2 with stderr message) so Claude has to
+# acknowledge before proceeding.
+if echo "$fields" | grep -qiE 'BRIDGE_URL\s*=\s*https?://(platform|api|gov|civic|legal|market|wtf|what-the-fact)\.kytranempowerment\.com'; then
+    cat >&2 <<'BLOCK_MSG'
+🛑 BLOCKED: BRIDGE_URL pointing at a public hostname.
+
+The user has explicitly flagged this pattern multiple times.
+Public hostnames go through Hostinger CDN / openresty (60s timeout)
+and bypass DHQ task_execution_log + dispatch_pending_queue.
+
+Use the mesh path:
+    BRIDGE_URL=http://192.168.1.200:3000
+
+If Tailscale subnet routing is broken, FIX THE MESH first
+(re-auth Tailscale on VPS, hub UFW rule allowing 100.64.0.0/24
+to port 3000). Don't paper over with a public URL.
+
+Reference: feedback_dhq-mesh-routing-mandate.md, KB id 263641.
+BLOCK_MSG
+    exit 2
+fi
+
+# Block direct Ollama curls / requests that bypass DHQ.
+# Tightened: require either port 11434 OR an Ollama endpoint path AND
+# an HTTP verb keyword. Prose mentioning "ollama" or "curl" alone won't
+# trigger — only code-shaped content does.
+if echo "$fields" | grep -qiE '(:11434(/api)?|ollama.*/api/(generate|chat|tags|ps)|/api/(generate|chat|tags|ps).*ollama)' && \
+   echo "$fields" | grep -qiE '(curl |requests\.(post|get)|httpx\.(post|get)|http\.client|urllib)' && \
+   ! echo "$fields" | grep -qiE 'department_dispatcher|dispatch\(|/api/procure/dispatch|model_dispatch_worker|ensure_model_ready'; then
+    cat >&2 <<'BLOCK_MSG'
+🛑 BLOCKED: direct Ollama call detected.
+
+ALL inference goes through Department HQ:
+    from tools.department_hq.services.department_dispatcher import dispatch
+    result = dispatch(capability="...", prompt="...")
+
+Direct Ollama calls bypass:
+  • dispatch_pending_queue (cold-load handling)
+  • model_dispatch_worker (warmboot orchestration)
+  • CAPABILITY_DEPARTMENT_MAP (correct agent selection)
+  • task_execution_log (visibility)
+
+Reference: feedback_never-direct-ollama.md, ADR-013.
+BLOCK_MSG
+    exit 2
+fi
+
 # Inject canonical architecture as JSON additionalContext.
 # Claude Code reads this and folds it into the assistant's context BEFORE
 # the tool actually runs.

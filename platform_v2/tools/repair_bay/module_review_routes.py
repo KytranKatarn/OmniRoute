@@ -35,9 +35,9 @@ MODULE_AGENT_MAP = {
     # Creative Studios
     "media_studio": {"agent_name": "M.U.S.E.", "agent_id": 138, "color": "#f472b6"},
     "game_studio": {"agent_name": "M.U.S.E.", "agent_id": 138, "color": "#f472b6"},
-    # Crypto
-    "archie_pool": {"agent_name": "L.E.D.G.E.R.", "agent_id": 144, "color": "#10b981"},
-    "pool_management": {"agent_name": "L.E.D.G.E.R.", "agent_id": 144, "color": "#10b981"},
+    # Crypto — C.H.A.I.N. #365 owns mining pool analytics (approved 2026-05-12)
+    "archie_pool": {"agent_name": "C.H.A.I.N.", "agent_id": 365, "color": "#f59e0b"},
+    "pool_management": {"agent_name": "C.H.A.I.N.", "agent_id": 365, "color": "#f59e0b"},
     # Applications & Concepts
     "media_hub": {"agent_name": "M.A.V.E.N.", "agent_id": 27, "color": "#8b5cf6"},
     "family_tree": {"agent_name": "H.E.R.I.T.A.G.E.", "agent_id": 331, "color": "#f59e0b"},

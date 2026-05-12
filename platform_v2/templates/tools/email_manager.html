@@ -10,17 +10,19 @@
 {% endblock %}
 
 {% block content %}
-{% set cat_accent = '#00d4ff' %}
-{% set cat_accent_rgb = '0,212,255' %}
-{% set cat_accent_dark = '#0099bb' %}
+{% set cat_accent = '#00ffff' %}
+{% set cat_accent_rgb = '0,255,255' %}
+{% set cat_accent_dark = '#00cccc' %}
 {% set cat_label = 'AI COMMAND' %}
 {% set module_title = 'EMAIL HQ' %}
 {% set header_shortcuts = [
     ("A.R.C.H.I.E.", "bot", "/tools/archie-chat"),
     ("Consciousness", "brain", "/tools/consciousness"),
     ("Dept HQ", "building", "/tools/department-hq"),
+    ("Academy", "graduation-cap", "/tools/agent-academy"),
     ("Repair Bay", "wrench", "/tools/repair-bay"),
-    ("Email HQ", "mail", "/tools/email-manager")
+    ("Email HQ", "mail", "/tools/email-manager"),
+    ("WTF Hub", "newspaper", "/tools/wtf-hub")
 ] %}
 {% include 'includes/lcars-header.html' %}
 
@@ -202,7 +204,7 @@
      COMPOSE MODAL
      ════════════════════════════════════════════════════════════════ -->
 <div class="bm-overlay" id="em-compose-modal">
-  <div class="bm-shell" style="--bm-accent:#00d4ff; max-width:640px; width:96vw;">
+  <div class="bm-shell" style="--bm-accent:#00ffff; max-width:640px; width:96vw;">
     <div class="bm-frame"></div>
     <div class="bm-content">
       <div class="bm-header">

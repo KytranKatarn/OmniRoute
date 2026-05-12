@@ -20,7 +20,7 @@
 .aa-container {
     max-width: 1400px;
     margin: 0 auto;
-    padding: 1rem;
+    padding: 0;
     color: var(--aa-text);
     font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace;
 }
@@ -136,7 +136,7 @@
     background: var(--aa-surface);
     border: 1px solid var(--aa-border);
     border-radius: var(--aa-radius);
-    padding: 1rem;
+    padding: 0;
     margin-bottom: 1rem;
 }
 .aa-panel-title {
@@ -320,7 +320,7 @@
     flex: 1;
     background: var(--aa-surface);
     border: 1px solid var(--aa-border);
-    padding: 1rem;
+    padding: 0;
     border-radius: var(--aa-radius);
 }
 .aa-ab-divider {

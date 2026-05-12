@@ -3211,6 +3211,26 @@ function showPRDetail(pr) {
         wrap.appendChild(noReview);
     }
 
+    // CodeRabbit section — fetched async below the F.O.R.G.E. review
+    var crSection = document.createElement('div');
+    crSection.style.cssText = 'margin-top:14px;border-top:1px solid rgba(255,255,255,0.06);padding-top:10px;';
+    var crLabel = document.createElement('div');
+    crLabel.style.cssText = 'font-size:0.6rem;color:rgba(255,255,255,0.25);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:6px;';
+    crLabel.textContent = 'CodeRabbit';
+    var crBody = document.createElement('div');
+    crBody.style.cssText = 'font-size:0.75rem;line-height:1.55;color:#94a3b8;white-space:pre-wrap;max-height:280px;overflow-y:auto;';
+    crBody.textContent = 'Loading…';
+    crSection.appendChild(crLabel);
+    crSection.appendChild(crBody);
+    wrap.appendChild(crSection);
+
+    fetch(API + '/forge/pr-reviews/' + pr.pr_number + '/coderabbit')
+        .then(function(r){ return r.json(); })
+        .then(function(d) {
+            crBody.textContent = d.coderabbit || '(No CodeRabbit review on this PR)';
+        })
+        .catch(function(){ crBody.textContent = 'Could not load CodeRabbit review.'; });
+
     detail.appendChild(wrap);
 }
 

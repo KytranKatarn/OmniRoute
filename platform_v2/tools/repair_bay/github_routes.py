@@ -606,6 +606,70 @@ def register_github_routes(bp, admin_required):
             return jsonify({"error": "not found"}), 404
         return jsonify({"review": review})
 
+    _coderabbit_cache: dict = {}
+    _CR_CACHE_TTL = 300  # 5 min — GH API is slow
+
+    @bp.route("/api/forge/pr-reviews/<int:pr_number>/coderabbit", methods=["GET"])
+    @login_required
+    @admin_required
+    def forge_pr_coderabbit(pr_number):
+        """Fetch the CodeRabbit walkthrough comment for a PR from GitHub API."""
+        import os
+        import re
+        import urllib.request
+
+        now = time.time()
+        if pr_number in _coderabbit_cache:
+            ts, data = _coderabbit_cache[pr_number]
+            if now - ts < _CR_CACHE_TTL:
+                return jsonify({**data, "cached": True})
+
+        token = os.getenv("GITHUB_TOKEN", "")
+        repo = "KytranKatarn/archie-platform"
+        url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments?per_page=50"
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                import json as _json
+
+                comments = _json.loads(resp.read().decode())
+        except Exception as exc:
+            return jsonify({"error": str(exc), "coderabbit": None}), 502
+
+        # Find best CodeRabbit comment — prefer walkthrough over "skip review"
+        walkthrough = None
+        skip_review = None
+        for c in comments:
+            if c.get("user", {}).get("login") != "coderabbitai[bot]":
+                continue
+            body = c.get("body", "")
+            # Skip "Review triggered" action replies
+            if "Actions performed" in body or "Review triggered" in body:
+                continue
+            clean = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
+            clean = re.sub(r"<[^>]+>", "", clean)
+            clean = re.sub(r"\n{3,}", "\n\n", clean).strip()
+            if "walkthrough" in body.lower() or "Walkthrough" in body:
+                walkthrough = clean
+                break
+            elif "skip review" in body.lower() or "Review skipped" in body:
+                skip_review = clean
+
+        result_text = walkthrough or skip_review or None
+        result = {
+            "coderabbit": result_text,
+            "total_bot_comments": sum(1 for c in comments if c.get("user", {}).get("login") == "coderabbitai[bot]"),
+        }
+        _coderabbit_cache[pr_number] = (now, result)
+        return jsonify(result)
+
     @bp.route("/api/forge/pr-reviews/poll", methods=["POST"])
     @login_required
     @admin_required

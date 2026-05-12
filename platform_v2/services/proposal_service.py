@@ -1380,59 +1380,94 @@ def request_tiered_deploy_approval(proposal_id):
     cap = routing["capability"]
     risk = routing["risk"]
 
-    # ── Tier 1: F.O.R.G.E. / department auto-review via DHQ dispatch ──────────
+    # ── Tier 1: Queue to DHQ dispatch_pending_queue (async, non-blocking) ────────
+    # model_dispatch_worker (15s job) picks this up, runs the LLM review, then
+    # fires the deploy_approve_gate callback which runs _sandbox_gate + deploy.
+    # The HTTP caller gets an immediate response — no synchronous LLM wait.
     if tier == 1:
+        import json as _json
+
+        review_prompt = (
+            f"Review deployment of proposal #{proposal_id}: {proposal['title']}.\n"
+            f"Risk: {risk}. Category: {proposal.get('category', 'code')}.\n"
+            f"Code changes summary: {str(proposal.get('code_changes', ''))[:600]}\n"
+            f"Respond APPROVED or REJECTED and a one-line reason."
+        )
+        # Look up director agent model
         try:
-            from tools.department_hq.services.department_dispatcher import dispatch
+            from database import get_db_cursor as _get_db_cursor
 
-            dr = dispatch(
-                capability=cap,
-                prompt=(
-                    f"Review deployment of proposal #{proposal_id}: {proposal['title']}. "
-                    f"Risk: {risk}. Category: {proposal.get('category', 'code')}. "
-                    f"Code changes: {str(proposal.get('code_changes', ''))[:400]}. "
-                    f"Respond with APPROVED or REJECTED and a brief reason."
-                ),
-                context={"proposal_id": proposal_id, "action": "deploy_review"},
+            with _get_db_cursor() as (_c, _cur):
+                _cur.execute(
+                    "SELECT id, model FROM agents WHERE name = %s AND shift_state != 'decommissioned' LIMIT 1",
+                    (director,),
+                )
+                _a = _cur.fetchone()
+            agent_db_id = _a["id"] if _a else None
+            agent_model = _a["model"] if _a else "mistral:7b"
+        except Exception:
+            agent_db_id = None
+            agent_model = "mistral:7b"
+
+        try:
+            from database import get_db_cursor as _gdc
+
+            with _gdc(commit=True) as (_conn2, _cur2):
+                _cur2.execute(
+                    """
+                    INSERT INTO dispatch_pending_queue
+                        (capability, model_needed, model_type, prompt,
+                         agent_name, agent_id, module_id, source_product,
+                         requested_by, priority, callback_type, callback_data)
+                    VALUES (%s,%s,'llama',%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    RETURNING id
+                    """,
+                    (
+                        cap,
+                        agent_model,
+                        review_prompt,
+                        director,
+                        agent_db_id,
+                        "repair_bay",
+                        "archie_platform",
+                        "repair_bay_deploy",
+                        7,
+                        "deploy_approve_gate",
+                        _json.dumps({"proposal_id": proposal_id}),
+                    ),
+                )
+                _row = _cur2.fetchone()
+                queue_id = _row["id"] if _row else None
+
+            logger.info(
+                "deploy_approval: queued proposal #%s for %s review → queue_id=%s",
+                proposal_id,
+                director,
+                queue_id,
             )
-            verdict = (dr.response or "").upper()
-            if not dr.success or "REJECT" in verdict or "DENIED" in verdict:
-                return {
-                    "success": False,
-                    "deployed": False,
-                    "pending": False,
-                    "approver": director,
-                    "tier": 1,
-                    "error": f"{director} rejected: {dr.response[:200] if dr.response else dr.error}",
-                }
-        except Exception as dispatch_err:
-            logger.warning("Tier-1 dispatch failed, proceeding cautiously: %s", dispatch_err)
-
-        # Sandbox gate before production deploy
-        gate = _sandbox_gate(proposal_id, proposal)
-        if not gate["passed"]:
+            return {
+                "success": True,
+                "deployed": False,
+                "pending": True,
+                "queued": True,
+                "queue_id": queue_id,
+                "approver": director,
+                "tier": 1,
+                "message": (
+                    f"Queued for {director} review via DHQ (queue #{queue_id}). "
+                    f"model_dispatch_worker will execute — sandbox gate + deploy run automatically on approval."
+                ),
+            }
+        except Exception as queue_err:
+            logger.error("Tier-1 DHQ queue failed: %s", queue_err)
             return {
                 "success": False,
                 "deployed": False,
                 "pending": False,
                 "approver": director,
                 "tier": 1,
-                "sandbox": gate,
-                "error": f"Sandbox gate failed: {gate['passed_count']}/{gate['total']} P.R.O.B.E. tests passed",
+                "error": f"Failed to queue for {director} review: {queue_err}",
             }
-
-        # All clear — deploy to production
-        deploy_result = deploy_to_production(proposal_id)
-        return {
-            "success": deploy_result["success"],
-            "deployed": deploy_result["success"],
-            "pending": False,
-            "approver": director,
-            "tier": 1,
-            "sandbox": gate,
-            "message": f"Approved by {director}, sandbox gate passed ({gate['passed_count']}/{gate['total']}), deployed to production",
-            "error": deploy_result.get("error"),
-        }
 
     # ── Tier 2: Telegram approval (director or A.R.C.H.I.E.) ──────────────────
     else:

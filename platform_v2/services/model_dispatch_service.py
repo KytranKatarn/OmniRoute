@@ -177,6 +177,82 @@ def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
                     ),
                     daemon=True,
                 ).start()
+
+        elif cb_type == "deploy_approve_gate":
+            # F.O.R.G.E. / director finished reviewing a deployment proposal.
+            # If APPROVED → run sandbox gate (P.R.O.B.E. #79) → deploy to production.
+            import threading as _t
+
+            proposal_id = cb_data.get("proposal_id")
+            if not proposal_id:
+                log.warning("deploy_approve_gate: no proposal_id in callback_data")
+                return
+
+            verdict = (response or "").upper()
+            approved = "REJECT" not in verdict and "DENIED" not in verdict
+
+            def _run_gate_and_deploy():
+                try:
+                    import sys as _sys
+
+                    _sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+                    from services.proposal_service import _sandbox_gate, deploy_to_production
+                    from database import get_db_cursor as _gdc
+                    import logging as _logging
+
+                    _log = _logging.getLogger(__name__)
+
+                    with _gdc() as (_c, _cur):
+                        _cur.execute("SELECT * FROM improvement_proposals WHERE id = %s", (proposal_id,))
+                        proposal = _cur.fetchone()
+
+                    if not proposal:
+                        _log.error("deploy_approve_gate: proposal #%s not found", proposal_id)
+                        return
+
+                    agent_name = cb_data.get("agent_name", "Director")
+
+                    if not approved:
+                        _log.info("deploy_approve_gate: #%s REJECTED by %s", proposal_id, agent_name)
+                        with _gdc(commit=True) as (_c2, _cur2):
+                            _cur2.execute(
+                                "UPDATE improvement_proposals SET status='fix_requested' WHERE id=%s AND status NOT IN ('deployed','rejected')",
+                                (proposal_id,),
+                            )
+                        return
+
+                    # Run sandbox gate
+                    gate = _sandbox_gate(proposal_id, proposal)
+                    if not gate["passed"]:
+                        _log.warning(
+                            "deploy_approve_gate: sandbox gate FAILED for #%s — %s/%s",
+                            proposal_id,
+                            gate["passed_count"],
+                            gate["total"],
+                        )
+                        return
+
+                    # Gate passed — deploy
+                    result = deploy_to_production(proposal_id)
+                    _log.info(
+                        "deploy_approve_gate: proposal #%s %s after gate %s/%s",
+                        proposal_id,
+                        "DEPLOYED" if result["success"] else "FAILED",
+                        gate["passed_count"],
+                        gate["total"],
+                    )
+                except Exception as _e:
+                    import logging as _ll
+
+                    _ll.getLogger(__name__).error("deploy_approve_gate thread error: %s", _e)
+
+            _t.Thread(target=_run_gate_and_deploy, daemon=True).start()
+            log.info(
+                "deploy_approve_gate: proposal #%s — verdict=%s — sandbox+deploy thread started",
+                proposal_id,
+                "APPROVED" if approved else "REJECTED",
+            )
+
     except Exception as exc:
         log.debug("model_dispatch: callback failed for task %d: %s", task_id, exc)
 

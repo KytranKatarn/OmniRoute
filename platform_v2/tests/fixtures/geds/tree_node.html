@@ -1,0 +1,571 @@
+<!DOCTYPE html><!--[if lt IE 9]><html class="no-js lt-ie9" lang="en"><![endif]--><!--[if gt IE 8]><!-->
+<html lang="en" dir="ltr">
+<!--<![endif]-->
+<head>
+
+
+<!-- Application Version : 3.2.0.20201010 -->
+<!-- Common Core Version : 2.0.21.20201010 -->
+<!-- Core Classes Version : 2.0.26.20170817 -->
+
+<meta charset="utf-8">
+<!--
+Web Experience Toolkit (WET) / Boîte à outils de l'expérience Web (BOEW)	wet-boew.github.io/wet-boew/License-en.html / wet-boew.github.io/wet-boew/Licence-fr.html
+-->
+<title>
+Browse Organization</title>
+
+<!-- Meta data -->
+<meta content="width=device-width,initial-scale=1" name="viewport">
+<meta name="description" content="Search the directory by specific criteria, or browse the listings by department and organization" />
+<meta name="dcterms.creator" content="Government of Canada, Shared Services Canada" />
+<meta name="dcterms.title" content="Browse Organization" />
+<meta name="dcterms.issued" title="W3CDTF" content="2017-10-01" />
+<meta name="dcterms.modified" title="W3CDTF" content="2017-10-01" />
+<meta name="dcterms.subject" title="scheme" content="Directories; Telephone directories" />
+<meta name="dcterms.language" title="ISO639-2" content="eng" />
+
+<!--[if gte IE 9 | !IE ]><!-->
+<link href="/GEDS20/dist/WET-BOEW/gcweb/assets/favicon.ico" rel="icon" type="image/x-icon">
+<link rel="stylesheet" href="/GEDS20/dist/WET-BOEW/gcweb/css/theme.min.css">
+<!--<![endif]-->
+<!--[if lt IE 9]>
+<link href="/GEDS20/dist/WET-BOEW/gcweb/assets/favicon.ico" rel="shortcut icon" />
+
+<link rel="stylesheet" href="/GEDS20/dist/WET-BOEW/gcweb/css/ie8-theme.min.css" />
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+<script src="/GEDS20/dist/WET-BOEW/gcweb/js/ie8-wet-boew.min.js"></script>
+<![endif]-->
+<!--[if lte IE 9]>
+
+
+<![endif]-->
+<noscript><link rel="stylesheet" href="/GEDS20/dist/WET-BOEW/gcweb/css/noscript.min.css" /></noscript>
+<!-- Google Tag Manager DO NOT REMOVE OR MODIFY - NE PAS SUPPRIMER OU MODIFIER -->
+<script>dataLayer1 = [];</script>
+<!-- End Google Tag Manager -->
+
+<!--[if gte IE 9 | !IE ]><!-->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.js"></script>
+<!--<![endif]-->
+
+<script type="text/javascript" src="/GEDS20/includes/app.js"></script>
+
+<!-- CustomCSSStart -->
+<link rel="stylesheet" type="text/css" href="/GEDS20/css2/institution.css"/>
+<link rel="stylesheet" type="text/css" href="/GEDS20/css2/myGeds.css"/>
+<script type="text/javascript" src="/GEDS20/includes/js/jquery.maskedinput.min.js"></script>
+<link rel="stylesheet" type="text/css" href="/GEDS20/css/jquery/jquery-ui-1.10.2.custom.min.css"/>
+<!-- CustomCSSEnd -->
+</head>
+
+
+<body vocab="http://schema.org/" typeof="WebPage">
+<!-- Google Tag Manager DO NOT REMOVE OR MODIFY - NE PAS SUPPRIMER OU MODIFIER -->
+<noscript><iframe title="Google Tag Manager" src="//www.googletagmanager.com/ns.html?id=GTM-TLGQ9K" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer1'?'&l='+l:'';j.async=true;j.src='//www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer1','GTM-TLGQ9K');</script>
+<!-- End Google Tag Manager -->
+<ul id="wb-tphp">
+<li class="wb-slc">
+<a class="wb-sl" href="#wb-cont">Skip to main content</a>
+</li>
+<li class="wb-slc visible-sm visible-md visible-lg">
+<a class="wb-sl" href="#wb-info">Skip to "About this site"</a>
+</li>
+</ul><header role="banner">
+<div id="wb-bnr" class="container">
+<section id="wb-lng" class="visible-md visible-lg text-right">
+<h2 class="wb-inv">Language selection</h2>
+<div class="row">
+<div class="col-md-12">
+<ul class="list-inline margin-bottom-none">
+<li><a lang="fr" href="/fr/SAGE?pgid=014&dn=T1U9Q1NBLUFTQyxPPUdDLEM9Q0E=">Fran&#231;ais</a></li>
+</ul>
+</div>
+</div>
+</section>
+<div class="row">
+<div class="brand col-xs-8 col-sm-9 col-md-6">
+<a href="https://www.canada.ca/en.html"><object type="image/svg+xml" tabindex="-1" data="/GEDS20/dist/WET-BOEW/gcweb/assets/sig-blk-en.svg"></object><span class="wb-inv"> Government of Canada / <span lang="fr">Gouvernement du Canada</span></span></a>
+</div>
+<section class="wb-mb-links col-xs-4 col-sm-3 visible-sm visible-xs" id="wb-glb-mn">
+<h2>Search and menus</h2>
+<ul class="list-inline text-right chvrn">
+<li><a href="#mb-pnl" aria-controls="mb-pnl" class="overlay-lnk" role="button"><span class="glyphicon glyphicon-search"><span class="glyphicon glyphicon-th-list"><span class="wb-inv">Search and menus</span></span></span></a></li>
+</ul>
+<div id="mb-pnl"></div>
+</section>
+<section id="wb-srch" class="col-xs-6 text-right visible-md visible-lg">
+<h2>Search</h2>
+<form action="?pgid=008" method="post" name="cse-search-box" role="search" class="form-inline">
+<div class="form-group">
+<label for="wb-srch-q" class="wb-inv">Search GEDS</label>
+<input id="wb-srch-q" list="wb-srch-q-ac" class="wb-srch-q form-control" name="sv" type="search" value="" size="27" maxlength="150" placeholder="Search GEDS">
+<datalist id="wb-srch-q-ac">
+<!--[if lte IE 9]><select><![endif]-->
+<!--[if lte IE 9]></select><![endif]-->
+</datalist>
+</div>
+<div class="form-group submit">
+<button type="submit" id="wb-srch-sub" class="btn btn-primary btn-small" name="wb-srch-sub"><span class="glyphicon-search glyphicon"></span><span class="wb-inv">Search</span></button>
+</div>
+</form>
+</section>
+</div>
+</div>
+
+
+<nav role="navigation" id="wb-sm" data-ajax-replace="/en/GEDS/?pgid=028&dn=T1U9Q1NBLUFTQyxPPUdDLEM9Q0E=&rpgid=014" data-trgt="mb-pnl" class="wb-menu visible-md visible-lg" typeof="SiteNavigationElement">
+<div class="container nvbar">
+<h2>Topics menu</h2>
+<div class="row">
+<ul class="list-inline menu">
+
+<li><a href="/en/GEDS/?pgid=009">Search/Browse</a></li>
+<li><a href="/en/GEDS/?pgid=INFO_QUICKLINKS_PAGE">Quick Links</a></li>
+<li><a href="/en/GEDS/?pgid=005">Resources</a></li>
+
+</ul>
+</div>
+</div>
+</nav>
+<nav role="navigation" id="wb-bc" property="breadcrumb">
+<h2>You are here:</h2>
+<div class="container">
+<div class="row">
+<ol class="breadcrumb">
+<li id="homeCrumb"><a href="?pgid=002" title="Welcome">Home</a></li>
+<li><a rel="nofollow" href="?pgid=012">Department Listing</a></li>
+<li>Browse Organization</li>
+</ol>
+</div>
+</div>
+</nav>
+
+</header>
+
+<main role="main" property="mainContentOfPage" class="container">
+<h1 property="name" id="wb-cont">Browse Organization</h1>
+
+<script>
+function showPageController(page,totalEntries,filter,searchType,sortType)
+{
+	$.ajax({
+		type : 'POST',
+		url : '?pgid=152',
+		data : {p1: page, p2: totalEntries, p3: filter, p4: searchType, p5: sortType},
+		dataType : 'json',
+
+		success : function(data) {
+			if (searchType == 1)
+			{
+				document.getElementById('personResultsPageControl').innerHTML = data.pageController;
+			}
+			if (searchType == 2)
+			{
+				document.getElementById('roleResultsPageControl').innerHTML = data.pageController;
+			}
+			if (searchType == 3)
+			{
+				document.getElementById('titleResultsPageControl').innerHTML = data.pageController;
+			}
+			if (searchType == 4)
+			{
+				document.getElementById('orgResultsPageControl').innerHTML = data.pageController;
+			}
+		},
+
+		error : function(data) {
+			if (searchType == 1)
+			{
+				document.getElementById('personResultsPageControl').innerHTML = '';
+			}
+			if (searchType == 2)
+			{
+				document.getElementById('roleResultsPageControl').innerHTML = '';
+			}
+			if (searchType == 3)
+			{
+				document.getElementById('titleResultsPageControl').innerHTML = '';
+			}
+			if (searchType == 4)
+			{
+				document.getElementById('orgResultsPageControl').innerHTML = '';
+			}
+		}
+	});
+
+}
+
+function showPageEntries(page,filter,searchType,sortType)
+{
+	$.ajax({
+		type : 'POST',
+		url : '?pgid=153',
+		data : {p1: page, p2: filter, p3: searchType, p4: sortType},
+		dataType : 'json',
+
+		success : function(data) {
+			if (searchType == 1)
+			{
+				document.getElementById('personResults').innerHTML = data.searchResults;
+				document.getElementById('currentPersonPage').focus();
+			}
+			if (searchType == 2)
+			{
+				document.getElementById('roleResults').innerHTML = data.searchResults;
+				document.getElementById('currentRolePage').focus();
+			}
+			if (searchType == 3)
+			{
+				document.getElementById('titleResults').innerHTML = data.searchResults;
+				document.getElementById('currentTitlePage').focus();
+			}
+			if (searchType == 4)
+			{
+				document.getElementById('orgResults').innerHTML = data.searchResults;
+				document.getElementById('currentOrgPage').focus();
+			}
+		},
+
+		error : function(data) {
+			if (searchType == 1)
+			{
+				document.getElementById('personResults').innerHTML = '';
+			}
+			if (searchType == 2)
+			{
+				document.getElementById('roleResults').innerHTML = '';
+			}
+			if (searchType == 3)
+			{
+				document.getElementById('titleResults').innerHTML = '';
+			}
+			if (searchType == 4)
+			{
+				document.getElementById('orgResults').innerHTML = '';
+			}
+		}
+	});
+}
+</script>
+
+<script>
+function validateSearchValue()
+{
+var sval=document.getElementById('sv').value.trim();
+
+	if (sval.length < 2)
+	{
+document.getElementById('errMsg').innerHTML = '<p>Search value is required or must be a least 2 characters in length.</p>';
+document.getElementById('errAlert').style.display = "block";
+		return false;
+	}
+	else
+	{
+		document.GEDS.submit();
+	}
+}
+</script>
+<div id="errAlert" style='display:none'><section class="alert alert-danger">
+<h3>Error</h3>
+<div id="errMsg"></div>
+</section></div>
+<form id="GEDS" name="GEDS" method="get" action=""  enctype="application/xhtml+xml">
+<input type="hidden" id="pgid" name="pgid" value="008" />
+<input type="hidden" id="cdn" name="cdn" value="T1U9Q1NBLUFTQyxPPUdDLEM9Q0E=" />
+
+
+	<section class="panel panel-info form-horizontal">
+		<div class="panel-heading">
+
+			<div class="form-group">
+				<div class="col-sm-12">
+					<div class="col-sm-12"><label>Search in&nbsp;:&nbsp;</label>
+Canadian Space Agency
+					</div>
+				</div>
+
+				<div class="col-sm-12">
+					<label for="sv" class="col-sm-4">Enter value to search for&nbsp;:&nbsp;</label>
+					<div class="col-sm-8">
+						<input type="text" name="sv" id="sv" value="" class="form-control" style='width:100%'>
+					</div>
+				</div>
+
+				<section>
+					<div class='form-group'>&nbsp;</div>
+				</section>
+
+				<div class="col-sm-12">
+					<div class="col-sm-8">
+
+<button type="button" class="btn btn-primary" onClick="validateSearchValue();">Search</button>
+<button type="button" class="btn btn-default" onclick="clearSearch();focusonSearch();">Clear Form</button>
+					</div>
+				</div>
+			</div>
+
+			<div class="col-sm-12">
+				<section class="alert alert-info">
+				<h3>
+Examples				</h3>
+				<p>
+<strong>(1)</strong> Smith <strong> &nbsp;&nbsp;(2)</strong> Smith, John <strong> &nbsp;&nbsp;(3)</strong> John Smith <strong> &nbsp;&nbsp;(4)</strong> 613-999-0101<strong> &nbsp;&nbsp;(5)</strong> "Da Vinci" <strong> &nbsp;&nbsp;(6)</strong> minister				</p>
+				</section>
+			</div>
+
+			<div class="form-group">
+				<div class="col-sm-12">
+					<div class="col-sm-8">
+				<a href="?pgid=004">Click here for more help.</a>
+
+					</div>
+				</div>
+			</div>
+	</div>
+</section>
+</form>
+
+<script>
+	focusonSearch();
+</script>
+
+<section>
+
+<div class="alert alert-info" role="alert">Display in<select id="sortlist" name="sortlist"  onchange="sortSwitch()"> <option value="default" selected>Default Order</option> <option value="alpha">Alphabetical Order</option> </select></div>
+<script>
+function sortSwitch(){
+var selectBox = document.getElementById("sortlist");
+var selectedValue = selectBox.options[selectBox.selectedIndex].value;
+if (selectedValue == "alpha"){
+window.location.href='?pgid=014&dn=T1U9Q1NBLUFTQyxPPUdDLEM9Q0E=&asl=1';
+} else {
+window.location.href='?pgid=014&dn=T1U9Q1NBLUFTQyxPPUdDLEM9Q0E=';
+}
+}
+</script>
+<section class="panel panel-primary">
+<header class="panel-heading">
+<h3 class="panel-title">Organizations</h3>
+</header>
+<div class="panel-body">
+<div class="browse-list-container">
+<div id="orgTree">
+<div class="browseCont">
+<div class="browseFloat"></div>
+<div class="browseFloat">
+<img src="/GEDS20/images/tree/nav-minus-line-last.gif" alt="dash" height="20" width="19" class="browseImg"/>
+</div>
+<div class="browseLink">
+<a rel="nofollow" href="?pgid=012">Canada</a>
+</div>
+</div>
+<div class="browsIndent19">
+<div class="browseFloat"></div>
+<div class="browseFloat">
+<img src="/GEDS20/images/tree/nav-minus-line-last.gif" alt="dash" height="20" width="19" class="browseImg" />
+</div>
+<div class="browseLink">
+<a href="?pgid=027&dn=T1U9Q1NBLUFTQyxPPUdDLEM9Q0E="><strong>Canadian Space Agency</strong></a>
+</div>
+</div>
+<div class="browsIndent38">
+<div class="browseFloat">
+<img src="/GEDS20/images/tree/line-middle.gif" alt="dash" height="20" width="19" class="browseImg"/>
+</div>
+<div class="browseLink">
+<a href="?pgid=014&dn=T1U9UFJFLVBSRSxPVT1DU0EtQVNDLE89R0MsQz1DQQ==">President's Office</a>
+</div>
+</div>
+<div class="browsIndent38">
+<div class="browseFloat">
+<img src="/GEDS20/images/tree/line-middle.gif" alt="dash" height="20" width="19" class="browseImg"/>
+</div>
+<div class="browseLink">
+<a href="?pgid=014&dn=T1U9VklDLVZJQyxPVT1DU0EtQVNDLE89R0MsQz1DQQ==">Vice-Presidency, Space Programs</a>
+</div>
+</div>
+<div class="browsIndent38">
+<div class="browseFloat">
+<img src="/GEDS20/images/tree/line-middle.gif" alt="dash" height="20" width="19" class="browseImg"/>
+</div>
+<div class="browseLink">
+<a href="?pgid=014&dn=T1U9Q1JILUNSSCxPVT1DU0EtQVNDLE89R0MsQz1DQQ==">Vice Presidency, Corporate Strategy and Innovation and Chief Financial Officer</a>
+</div>
+</div>
+<div class="browsIndent38">
+<div class="browseFloat">
+<img src="/GEDS20/images/tree/line-middle.gif" alt="dash" height="20" width="19" class="browseImg"/>
+</div>
+<div class="browseLink">
+<a href="?pgid=014&dn=T1U9VlBTUC1WUFBQLE9VPUNTQS1BU0MsTz1HQyxDPUNB">Vice-Presidency, Policy, Communications and Strategic Planning</a>
+</div>
+</div>
+<div class="browsIndent38">
+<div class="browseFloat">
+<img src="/GEDS20/images/tree/line-middle.gif" alt="dash" height="20" width="19" class="browseImg"/>
+</div>
+<div class="browseLink">
+<a href="?pgid=014&dn=T1U9RFZFLURWRSxPVT1DU0EtQVNDLE89R0MsQz1DQQ==">Audit and Evaluation</a>
+</div>
+</div>
+<div class="browsIndent38">
+<div class="browseFloat">
+<img src="/GEDS20/images/tree/line-last.gif" alt="dash" height="20" width="19" class="browseImg"/>
+</div>
+<div class="browseLink">
+<a href="?pgid=014&dn=T1U9TEVHLVNFUixPVT1DU0EtQVNDLE89R0MsQz1DQQ==">Legal services</a>
+</div>
+</div>
+</div>
+</div>
+</div></section>
+<section class="panel panel-primary">
+<header class="panel-heading">
+<h3 class="panel-title">Canadian Space Agency</h3>
+</header>
+<div class="panel-body">
+<section class="panel panel-default">
+<header class="panel-heading">
+<h3 class="panel-title">Roles<span class="badge pull-right">21</span></h3>
+</header>
+<div class="panel-body"><div id='roleResults'><ol>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLkFJREVDQ00tQ0NNSEVMUC5DU0FAQ0FOQURBLkNBLE9VPUNTQS1BU0MsTz1HQyxDPUNB&rpgid=018">aideccm-ccmhelp;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLkFSVEVNSVNBQ0NPUkRTQ09OU1VMVEFUSU9OUy5DU0FAQ0FOQURBLkNBLE9VPUNTQS1BU0MsTz1HQyxDPUNB&rpgid=018">Artemis Accords Consultations;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLkJDRi5PUFMuQ1NBQENBTkFEQS5DQSxPVT1DU0EtQVNDLE89R0MsQz1DQQ==&rpgid=018">BCF.OPS;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLkJVTExFVElOLU5FV1NMRVRURVIuQ1NBQENBTkFEQS5DQSxPVT1DU0EtQVNDLE89R0MsQz1DQQ==&rpgid=018">bulletin-newsletter;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLkNBTEVOREFSQzNNSVNTSU9OLUNPTU1VTklDQVRJT05TQ0FMRU5EUklFUi5DU0FAQ0FOQURBLkNBLE9VPUNTQS1BU0MsTz1HQyxDPUNB&rpgid=018">Calendar C3 Mission-Communications Calendrier;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLkNPTUlURUNDTVRHQzIwMTctR0NXQ0NDT01NSVRURUUyMDE3LkNTQUBDQU5BREEuQ0EsT1U9Q1NBLUFTQyxPPUdDLEM9Q0E=&rpgid=018">ComitéCCMTGC2017-GCWCCCommittee2017;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLkNPUlJFU1BPTkRBTkNFUFJFU0lERU5UQVNDLUNTQVBSRVNJREVOVENPUlJFU1BPTkRFTkNFLkNTQUBDQU5BREEuQ0EsT1U9Q1NBLUFTQyxPPUdDLEM9Q0E=&rpgid=018">CorrespondancepresidentASC-CSApresidentcorrespondence;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLkNPVklEMTlRVUVTVElPTlMuQ1NBQENBTkFEQS5DQSxPVT1DU0EtQVNDLE89R0MsQz1DQQ==&rpgid=018">COVID19 Questions;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLkRFU0lHTkdSQVBISVFVRUdSQVBISUNERVNJR04uQ1NBQENBTkFEQS5DQSxPVT1DU0EtQVNDLE89R0MsQz1DQQ==&rpgid=018">Design graphique / Graphic Design;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLkRGTC1MREZSRUNFUFRJT04uQ1NBQENBTkFEQS5DQSxPVT1DU0EtQVNDLE89R0MsQz1DQQ==&rpgid=018">DFL-LDF Reception;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLkVOUkVHSVNUUkVNRU5UT0JKRVRTU1BBVElBVVgtU1BBQ0VPQkpFQ1RTUkVHSVNUUkFUSU9OLkNTQUBDQU5BREEuQ0EsT1U9Q1NBLUFTQyxPPUdDLEM9Q0E=&rpgid=018">EnregistrementObjetsSpatiaux-SpaceObjectsRegistration;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLkVYUEVSVElTRUlOU1RBTExBVElPTlMtRVhQRVJUSVNFRkFDSUxJVElFUy5DU0FAQ0FOQURBLkNBLE9VPUNTQS1BU0MsTz1HQyxDPUNB&rpgid=018">expertiseinstallations-expertisefacilities;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLkZURUwtT0xURi5DU0FAQ0FOQURBLkNBLE9VPUNTQS1BU0MsTz1HQyxDPUNB&rpgid=018">FTEL-OLTF;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLkdSRFNPUEVSQVRPUlMtT1BFUkFURVVSR1JEUy5DU0FAQ0FOQURBLkNBLE9VPUNTQS1BU0MsTz1HQyxDPUNB&rpgid=018">GRDS Operators-Opérateur GRDS;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLlBBRUxFWFBMT1JBVElPTi1FWFBMT1JBVElPTkxFQVAuQ1NBQENBTkFEQS5DQSxPVT1DU0EtQVNDLE89R0MsQz1DQQ==&rpgid=018">PAEL Exploration-Exploration LEAP;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLlBEVFMtU1REUC5DU0FAQ0FOQURBLkNBLE9VPUNTQS1BU0MsTz1HQyxDPUNB&rpgid=018">PDTS-STDP;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLlBMQU5JRklDQVRJT05JTlRFR1JBVElPTi1QTEFOTklOR0lOVEVHUkFUSU9OLkNTQUBDQU5BREEuQ0EsT1U9Q1NBLUFTQyxPPUdDLEM9Q0E=&rpgid=018">Planification & Intégration-Planning & Integration;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLlNSU1YtTFNSUy5DU0FAQ0FOQURBLkNBLE9VPUNTQS1BU0MsTz1HQyxDPUNB&rpgid=018">SRSV-LSRS;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLlNTQS1TQVRPUFMtU1NBLkNTQUBDQU5BREEuQ0EsT1U9Q1NBLUFTQyxPPUdDLEM9Q0E=&rpgid=018">ssa-satops-ssa;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLlZJVEVTLkZBU1QuQ1NBQENBTkFEQS5DQSxPVT1DU0EtQVNDLE89R0MsQz1DQQ==&rpgid=018">vites.fast;&nbsp;</a>
+</li>
+<li>
+<a href="?pgid=018&dn=Q049QVNDLldFQk1FU1RSRUlOVFJBTkVULUlOVFJBTkVUV0VCTUFTVEVSLkNTQUBDQU5BREEuQ0EsT1U9Q1NBLUFTQyxPPUdDLEM9Q0E=&rpgid=018">Webmestre Intranet - Intranet Webmaster;&nbsp;</a>
+</li>
+</ol></div>
+<div id='roleResultsPageControl' class="text-center">
+</div>
+</div></section>
+</div></section>
+</section>
+
+<script>
+showPageController(1,21,"eyJ2Y29kZSI6IiQyeSQxMCRmdE9HVy5cL2J1aE54NW9XRGt4aXB1ZWRlZUZERldVaHB0N3JlXC8uUVVCemYyV0tFaEZ1eWJxIiwiZmlsdGVyIjoiIChvcmdfaWQgPSBcIk9VPUNTQS1BU0MsTz1HQyxDPUNBXCIpICJ9",2,"");
+</script>
+<div class="row pagedetails">
+<div class="col-sm-6 col-lg-5 mrgn-tp-sm">
+<a href="https://www.canada.ca/en/report-problem.html" class="btn btn-default btn-block">Report a problem or mistake on this page</a>
+</div>
+<div class="col-sm-3 mrgn-tp-sm pull-right">
+<div class="wb-share" data-wb-share='{"lnkClass": "btn btn-default btn-block"}'></div>
+</div>
+<div class="datemod col-xs-12 mrgn-tp-lg">
+<dl id="wb-dtmd">
+<dt>Date modified:&#32;</dt>
+<dd><time property="dateModified">2026-05-04</time></dd>
+</dl>
+</div>
+</div>
+
+</main>
+
+<footer role="contentinfo" id="wb-info">
+<nav role="navigation" class="container wb-navcurr">
+<h2 class="wb-inv">About government</h2>
+<ul class="list-unstyled colcount-sm-2 colcount-md-3">
+<li><a href="https://www.canada.ca/en/contact.html">Contact us</a></li>
+<li><a href="https://www.canada.ca/en/government/dept.html">Departments and agencies</a></li>
+<li><a href="https://www.canada.ca/en/government/publicservice.html">Public service and military</a></li>
+<li><a href="https://www.canada.ca/en/news.html">News</a></li>
+<li><a href="https://www.canada.ca/en/government/system/laws.html">Treaties, laws and regulations</a></li>
+<li><a href="https://www.canada.ca/en/transparency/reporting.html">Government-wide reporting</a></li>
+<li><a href="http://pm.gc.ca/eng">Prime Minister</a></li>
+<li><a href="https://www.canada.ca/en/government/system.html">How government works</a></li>
+<li><a href="http://open.canada.ca/en/">Open government</a></li>
+</ul> </nav>
+<div class="brand">
+<div class="container">
+<div class="row">
+<nav class="col-md-10 ftr-urlt-lnk">
+<h2 class="wb-inv">About this site</h2>
+<ul>
+<li><a href="https://www.canada.ca/en/social.html">Social media</a></li>
+<li><a href="https://www.canada.ca/en/mobile.html">Mobile applications</a></li>
+<li><a href="https://www1.canada.ca/en/newsite.html">About Canada.ca</a></li>
+<li><a href="https://www.canada.ca/en/transparency/terms.html">Terms and conditions</a></li>
+<li><a href="https://www.canada.ca/en/transparency/privacy.html">Privacy</a></li>
+</ul>
+</nav>
+<div class="col-xs-6 visible-sm visible-xs tofpg">
+<a href="#wb-cont">Top of Page <span class="glyphicon glyphicon-chevron-up"></span></a>
+</div>
+<div class="col-xs-6 col-md-2 text-right">
+<object type="image/svg+xml" tabindex="-1" role="img" data="/GEDS20/dist/WET-BOEW/gcweb/assets/wmms-blk.svg" aria-label="Symbol of the Government of Canada"></object>
+</div>
+</div>
+</div>
+</div>
+</footer>
+<!--[if gte IE 9 | !IE ]><!-->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.js"></script>
+<script src="/GEDS20/dist/WET-BOEW/gcweb/js/wet-boew.min.js"></script>
+<!--<![endif]-->
+<!--[if lt IE 9]>
+		<script src="/GEDS20/dist/WET-BOEW/gcweb/js/ie8-wet-boew2.min.js"></script>
+
+		<![endif]-->
+<script src="/GEDS20/dist/WET-BOEW/gcweb/js/theme.min.js"></script>
+</body>
+</html>

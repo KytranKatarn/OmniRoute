@@ -853,4 +853,22 @@ def _register_own_jobs(scheduler, flask_app):
         coalesce=True,
     )
 
-    logger.info("[DeptHQ] Registered 10 code health/audit jobs")
+    # Job #63 — Civic Transparency GEDS daily refresh (3:31 AM)
+    try:
+        from services.civic_geds_refresh import run_geds_refresh_sync
+
+        scheduler.add_job(
+            run_geds_refresh_sync,
+            trigger=CronTrigger(hour=3, minute=31, timezone="America/Toronto"),
+            id="civic_transparency_geds_refresh",
+            name="Civic Transparency — GEDS daily refresh",
+            misfire_grace_time=3600,
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+        )
+        logger.info("[DeptHQ] Registered civic_transparency_geds_refresh job")
+    except Exception as e:
+        logger.error("[DeptHQ] Failed to register civic_transparency_geds_refresh: %s", e)
+
+    logger.info("[DeptHQ] Registered 11 code health/audit jobs")

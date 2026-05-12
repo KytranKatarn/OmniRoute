@@ -2406,15 +2406,25 @@ function runStagingQa() {
 
 function loadSandboxes() {
     fetch(API + '/sandbox/list').then(function(r) { return r.json(); }).then(function(d) {
-        var sandboxes = d.sandboxes || d || [];
-        if (!Array.isArray(sandboxes)) sandboxes = [];
         var el = document.getElementById('sandboxList');
         el.textContent = '';
+        // Surface SandboxManager errors rather than silently showing empty state
+        if (d && d.success === false && d.error) {
+            var errEl = document.createElement('div');
+            errEl.className = 'dp-empty';
+            errEl.style.padding = '40px';
+            errEl.style.color = '#f59e0b';
+            errEl.textContent = '⚠ ' + d.error;
+            el.appendChild(errEl);
+            return;
+        }
+        var sandboxes = d.sandboxes || d || [];
+        if (!Array.isArray(sandboxes)) sandboxes = [];
         if (!sandboxes.length) {
             var empty = document.createElement('div');
             empty.className = 'dp-empty';
             empty.style.padding = '40px';
-            empty.textContent = 'No sandboxes found';
+            empty.textContent = 'No module sandboxes found';
             el.appendChild(empty);
             return;
         }

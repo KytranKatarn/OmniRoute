@@ -209,8 +209,14 @@ def register_sandbox_routes(bp, admin_required):
             for _ in range(180):  # max 3 minutes
                 try:
                     data = sandbox_service.get_run_status(run_id)
-                    status = data.get("status", "unknown")
-                    results = data.get("results", [])
+                    if not data.get("success"):
+                        yield f"data: {json.dumps({'type': 'error', 'message': data.get('error', 'Run not found')})}\n\n"
+                        return
+                    # get_run_status returns {"success": True, "run": run_dict}
+                    run_data = data["run"]
+                    status = run_data.get("status", "unknown")
+                    # in-memory run dict uses "tests" not "results"
+                    results = run_data.get("tests", [])
 
                     if status != last_status:
                         yield f"data: {json.dumps({'type': 'status', 'status': status})}\n\n"
@@ -221,7 +227,7 @@ def register_sandbox_routes(bp, admin_required):
                     last_result_count = len(results)
 
                     if status in terminal:
-                        yield f"data: {json.dumps({'type': 'done', 'status': status, 'summary': data.get('summary', {})})}\n\n"
+                        yield f"data: {json.dumps({'type': 'done', 'status': status, 'summary': run_data.get('summary', {})})}\n\n"
                         return
 
                     time.sleep(1)

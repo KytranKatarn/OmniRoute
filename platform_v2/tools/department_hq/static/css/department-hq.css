@@ -24,7 +24,7 @@
 .dhq-container {
     max-width: 1400px;
     margin: 0 auto;
-    padding: 1rem;
+    padding: 0;
     font-family: 'IBM Plex Mono', monospace;
     color: var(--dhq-text);
 }
@@ -129,7 +129,7 @@
 
 /* Panels */
 .dhq-panels {
-    margin-top: 4px;
+    margin-top: 0;
 }
 
 .dhq-panel {

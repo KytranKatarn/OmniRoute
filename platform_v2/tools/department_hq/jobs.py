@@ -871,4 +871,173 @@ def _register_own_jobs(scheduler, flask_app):
     except Exception as e:
         logger.error("[DeptHQ] Failed to register civic_transparency_geds_refresh: %s", e)
 
-    logger.info("[DeptHQ] Registered 11 code health/audit jobs")
+    # Job #64 — Model Queue Planner (every 5 min)
+    # Rebalances dispatch_pending_queue priorities to minimise GPU model swaps.
+    # Groups same-model tasks so the dispatcher drains one model completely
+    # before loading the next. Also logs cluster node topology so DHQ shows
+    # which nodes could unlock additional throughput.
+    def _run_model_queue_planner():
+        import json as _json
+        import time as _time
+
+        start = _time.time()
+        job_name = "model_queue_planner"
+
+        try:
+            from database import get_db_cursor as _gdc
+
+            # ── 1. Read pending queue grouped by model ────────────────────
+            with _gdc() as (_c, _cur):
+                _cur.execute(
+                    """
+                    SELECT model_needed,
+                           STRING_AGG(DISTINCT agent_name, ', ') AS agents,
+                           COUNT(*) AS task_count,
+                           SUM(CASE WHEN status='running' THEN 1 ELSE 0 END) AS running
+                    FROM dispatch_pending_queue
+                    WHERE status IN ('queued','running')
+                    GROUP BY model_needed
+                    ORDER BY COUNT(*) DESC
+                    """
+                )
+                model_groups = [dict(r) for r in _cur.fetchall()]
+
+                # ── 2. Read cluster nodes ─────────────────────────────────
+                _cur.execute(
+                    """
+                    SELECT node_id, node_name, hostname, gpu_vram_gb, ram_gb,
+                           ollama_available, deployment_mode,
+                           last_heartbeat,
+                           (last_heartbeat > NOW() - INTERVAL '3 minutes') AS is_live
+                    FROM remote_nodes
+                    WHERE is_active = true
+                    ORDER BY last_heartbeat DESC NULLS LAST
+                    """
+                )
+                nodes = [dict(r) for r in _cur.fetchall()]
+
+            if not model_groups:
+                logger.debug("[ModelQueuePlanner] queue empty — nothing to plan")
+                return
+
+            # ── 3. Classify nodes ─────────────────────────────────────────
+            # hub: archie-starbase (always the anchor)
+            # gpu_fleet: live nodes with GPU and Ollama (e.g. Node .245 when online)
+            # cpu_fleet: live nodes with Ollama but no GPU (VPS when Ollama installed)
+            # potential: live nodes without Ollama — could be unlocked
+            gpu_fleet = [
+                n
+                for n in nodes
+                if n.get("is_live")
+                and n.get("ollama_available")
+                and n.get("gpu_vram_gb")
+                and n["node_id"] != "archie-starbase"
+            ]
+            cpu_fleet = [
+                n
+                for n in nodes
+                if n.get("is_live")
+                and n.get("ollama_available")
+                and not n.get("gpu_vram_gb")
+                and n["node_id"] != "archie-starbase"
+            ]
+            potential = [
+                n
+                for n in nodes
+                if n.get("is_live") and not n.get("ollama_available") and n["node_id"] != "archie-starbase"
+            ]
+
+            # ── 4. Build priority assignments ─────────────────────────────
+            # Largest batch → highest priority (drain first for minimal swaps).
+            # CPU-only models get a +1 bonus: they don't occupy the GPU lane
+            # and can run while a GPU model is loading/running.
+            CPU_SIGNATURES = {"-cpu", "embed", "arctic"}
+            plan_actions = []
+            updates = []
+
+            for rank, group in enumerate(model_groups):
+                model = group["model_needed"]
+                count = group["task_count"]
+                agents = group["agents"]
+                is_cpu = any(sig in model.lower() for sig in CPU_SIGNATURES)
+
+                # Priority: top batch = 9, each rank down -1, floor at 5
+                new_priority = max(5, 9 - rank + (1 if is_cpu else 0))
+
+                # Route hint: can any fleet node handle this model?
+                if is_cpu and cpu_fleet:
+                    route = f"→ CPU fleet ({cpu_fleet[0]['node_name']})"
+                elif not is_cpu and gpu_fleet:
+                    route = f"→ GPU fleet ({gpu_fleet[0]['node_name']})"
+                else:
+                    route = "→ hub"
+
+                updates.append((new_priority, model))
+                plan_actions.append(f"{agents} [{model}] ×{count} tasks → priority {new_priority} {route}")
+
+            # ── 5. Apply priority updates ────────────────────────────────
+            with _gdc(commit=True) as (_c2, _cur2):
+                for new_priority, model in updates:
+                    _cur2.execute(
+                        "UPDATE dispatch_pending_queue SET priority=%s WHERE model_needed=%s AND status='queued'",
+                        (new_priority, model),
+                    )
+
+            # ── 6. Potential unlock report ───────────────────────────────
+            unlock_hints = []
+            for n in potential:
+                ram = n.get("ram_gb") or 0
+                gpu = n.get("gpu_vram_gb") or 0
+                if gpu >= 8:
+                    unlock_hints.append(
+                        f"{n['node_name']} ({n['hostname']}) — RTX/GPU {gpu}GB VRAM: install Ollama → unlock mid-tier GPU agents"
+                    )
+                elif ram >= 6:
+                    unlock_hints.append(
+                        f"{n['node_name']} ({n['hostname']}) — {ram:.0f}GB RAM, no GPU: install Ollama → unlock small CPU agents (qwen2.5:1.5b, llama3.2:3b)"
+                    )
+
+            # ── 7. Log to autonomy_loop_log ──────────────────────────────
+            duration_ms = int((_time.time() - start) * 1000)
+            details = {
+                "plan": plan_actions,
+                "hub_gpu_gb": 8,
+                "gpu_fleet_nodes": [n["node_name"] for n in gpu_fleet],
+                "cpu_fleet_nodes": [n["node_name"] for n in cpu_fleet],
+                "potential_unlocks": unlock_hints,
+            }
+            with _gdc(commit=True) as (_c3, _cur3):
+                _cur3.execute(
+                    """INSERT INTO autonomy_loop_log
+                       (job_name, status, items_processed, items_failed, duration_ms, details, department)
+                       VALUES (%s,'success',%s,0,%s,%s,'Engineering & Technology')""",
+                    (job_name, len(model_groups), duration_ms, _json.dumps(details)),
+                )
+
+            logger.info(
+                "[ModelQueuePlanner] %d model groups rebalanced | gpu_fleet=%d cpu_fleet=%d potential=%d",
+                len(model_groups),
+                len(gpu_fleet),
+                len(cpu_fleet),
+                len(potential),
+            )
+            for line in plan_actions:
+                logger.info("[ModelQueuePlanner]   %s", line)
+            if unlock_hints:
+                logger.info("[ModelQueuePlanner] Potential unlocks: %s", unlock_hints)
+
+        except Exception as exc:
+            logger.error("[ModelQueuePlanner] failed: %s", exc)
+
+    scheduler.add_job(
+        with_ctx(_run_model_queue_planner),
+        trigger=IntervalTrigger(minutes=5),
+        id="model_queue_planner",
+        name="Agent Loop: Model Queue Planner",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    logger.info("[DeptHQ] Registered model_queue_planner job (5-min interval)")
+
+    logger.info("[DeptHQ] Registered 12 code health/audit jobs")

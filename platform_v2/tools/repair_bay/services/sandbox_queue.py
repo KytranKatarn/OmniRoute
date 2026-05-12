@@ -22,6 +22,72 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _fire_post_deploy_hooks(
+    proposal_id: int,
+    title: str,
+    category: str,
+    module_name: str,
+    proposal_source: str,
+) -> None:
+    """Post-deploy feedback loop: docs updater + C.O.D.E.X. + Telegram.
+
+    Fires asynchronously in a daemon thread — never blocks release_sandbox().
+    """
+    import threading
+
+    def _run():
+        # 1. Sandbox docs updater — writes to knowledge_base
+        try:
+            from tools.repair_bay.services.sandbox_docs_updater import SandboxDocsUpdater
+
+            SandboxDocsUpdater().on_deployment_success(
+                proposal_id=proposal_id,
+                module_id=module_name or category or "platform",
+                title=title,
+                description=f"Deployed fix for {module_name or 'platform'}: {title}",
+                category=category or "code_quality",
+            )
+        except Exception as e:
+            logger.warning("sandbox_docs_updater failed (non-fatal): %s", e)
+
+        # 2. C.O.D.E.X. dispatch — update KB docs for the changed module
+        if module_name:
+            try:
+                from tools.department_hq.services.department_dispatcher import dispatch
+
+                dispatch(
+                    capability="documentation",
+                    prompt=(
+                        f"A code fix was deployed for module '{module_name}': \"{title}\". "
+                        f"Update the knowledge base with a brief vault_note documenting what was fixed, "
+                        f"when it was deployed, and which module was affected."
+                    ),
+                    context={
+                        "proposal_id": proposal_id,
+                        "module": module_name,
+                        "source": proposal_source,
+                    },
+                )
+            except Exception as e:
+                logger.warning("C.O.D.E.X. post-deploy dispatch failed (non-fatal): %s", e)
+
+        # 3. Telegram notification via A.R.C.H.I.E.
+        try:
+            from services.telegram_service import send_info
+
+            source_label = f" (from {proposal_source})" if proposal_source != "manual" else ""
+            send_info(
+                f"✅ *Repair Bay deployed*{source_label}\n"
+                f"Proposal #{proposal_id}: _{title}_\n"
+                f"Module: `{module_name or 'platform'}`"
+            )
+        except Exception as e:
+            logger.warning("Telegram post-deploy notify failed (non-fatal): %s", e)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+
 def _is_deploy_paused_for_perf() -> bool:
     """Return True iff system_config.deploy_paused_perf is set to 'true'.
 
@@ -248,9 +314,26 @@ class SandboxQueue:
             (proposal_id,),
         )
 
+        # Fetch proposal details for post-deploy hooks before closing
+        cur.execute(
+            "SELECT title, category, module_name, proposal_source, proposed_by "
+            "FROM improvement_proposals WHERE id = %s",
+            (proposal_id,),
+        )
+        _prop = cur.fetchone() or {}
+
         conn.commit()
         cur.close()
         conn.close()
+
+        # Post-deploy feedback loop — fire-and-forget (never block the release)
+        _fire_post_deploy_hooks(
+            proposal_id=proposal_id,
+            title=_prop.get("title", f"Proposal #{proposal_id}"),
+            category=_prop.get("category", ""),
+            module_name=_prop.get("module_name", ""),
+            proposal_source=_prop.get("proposal_source", "manual"),
+        )
 
         # Get next proposal in queue
         queue = self.get_queue()

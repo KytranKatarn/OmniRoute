@@ -4741,8 +4741,9 @@
                         <div class="lcars-body" style="flex: 1 !important; padding: 12px !important; position: relative !important;">
             <div class="ch-narrative-section" style="margin-bottom:0;">
                 <!-- narrative header removed — link preserved -->
-                <div style="text-align:center;margin-bottom:8px;">
-                    <a href="/tools/repair-bay" class="ch-narrative-action" style="font-size:0.7rem;color:#00e5ff;text-decoration:none;opacity:0.6;">Open Repair Bay &rarr;</a>
+                <div style="text-align:center;margin-bottom:8px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                    <a href="/tools/repair-bay" class="ch-narrative-action" style="font-size:0.7rem;color:#00e5ff;text-decoration:none;opacity:0.7;">Repair Bay &rarr;</a>
+                    <a href="/tools/repair-bay" onclick="setTimeout(function(){var b=document.querySelector('[data-tab=\'module-review\']');if(b)b.click();},300);return true;" class="ch-narrative-action" style="font-size:0.7rem;color:#8b5cf6;text-decoration:none;opacity:0.9;font-weight:600;">Module Review &rarr;</a>
                 </div>
                 <div id="chRepairBayPipeline">
                     <div style="padding:2rem;text-align:center;color:rgba(255,255,255,0.3);font-size:0.85rem;">Loading pipeline data...</div>

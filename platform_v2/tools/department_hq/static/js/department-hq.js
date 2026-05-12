@@ -3355,7 +3355,7 @@ function renderFleetPins(data) {
         var marker = L.marker([hub.lat, hub.lon], {
             icon: L.divIcon({
                 className: 'fleet-marker-hub',
-                html: '<div style="width:40px;height:40px;border-radius:50%;border:2.5px solid #10b981;background:#0a1628;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 8px rgba(16,185,129,0.6);"><img src="https://www.google.com/s2/favicons?sz=64&domain=kytranempowerment.com" style="width:28px;height:28px;object-fit:contain;" onerror="this.outerHTML=\'<span style=font-size:16px>♈</span>\'"></div>',
+                html: '<div style="width:40px;height:40px;border-radius:50%;border:2.5px solid #10b981;background:#0a1628;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 8px rgba(16,185,129,0.6);"><img src="/static/img/aries-logo.png" style="width:28px;height:28px;object-fit:contain;" onerror="this.outerHTML=\'<span style=font-size:16px>♈</span>\'"></div>',
                 iconSize: [40, 40],
                 iconAnchor: [20, 20],
             }),
@@ -3373,7 +3373,7 @@ function renderFleetPins(data) {
         var marker = L.marker([node.lat, node.lon], {
             icon: L.divIcon({
                 className: 'fleet-marker-node ' + (isOnline ? '' : 'offline'),
-                html: '<div style="width:34px;height:34px;border-radius:50%;border:2px solid ' + (isOnline ? '#a3e635' : '#6b7280') + ';background:#0a1628;display:flex;align-items:center;justify-content:center;overflow:hidden;' + (isOnline ? 'box-shadow:0 0 6px rgba(163,230,53,0.5);' : 'opacity:0.5;filter:grayscale(1);') + '"><img src="https://www.google.com/s2/favicons?sz=64&domain=kytranempowerment.com" style="width:24px;height:24px;object-fit:contain;" onerror="this.outerHTML=\'<span style=font-size:13px>♈</span>\'"></div>',
+                html: '<div style="width:34px;height:34px;border-radius:50%;border:2px solid ' + (isOnline ? '#a3e635' : '#6b7280') + ';background:#0a1628;display:flex;align-items:center;justify-content:center;overflow:hidden;' + (isOnline ? 'box-shadow:0 0 6px rgba(163,230,53,0.5);' : 'opacity:0.5;filter:grayscale(1);') + '"><img src="/static/img/aries-logo.png" style="width:24px;height:24px;object-fit:contain;" onerror="this.outerHTML=\'<span style=font-size:13px>♈</span>\'"></div>',
                 iconSize: [34, 34],
                 iconAnchor: [17, 17],
             }),

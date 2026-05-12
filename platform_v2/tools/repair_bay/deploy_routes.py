@@ -152,6 +152,42 @@ def register_deploy_routes(bp, admin_required):
         health = _run_pre_deploy_health_check(file_paths=file_paths)
         return jsonify({"success": True, **health})
 
+    @bp.route("/api/deploy/request-approval/<int:proposal_id>", methods=["POST"])
+    @login_required
+    @admin_required
+    def deploy_request_approval(proposal_id):
+        """Route a proposal deployment through the org-chart approval chain.
+
+        Risk routing:
+          low      → F.O.R.G.E. auto-review → sandbox gate → deploy
+          medium   → Department director Telegram → sandbox gate → deploy
+          high/critical → A.R.C.H.I.E. Telegram → sandbox gate → deploy
+
+        Sandbox gate = P.R.O.B.E. suite #79 must pass before production deploy.
+        """
+        result = proposal_service.request_tiered_deploy_approval(proposal_id)
+        if not result.get("success") and not result.get("pending"):
+            return jsonify(result), 400
+        return jsonify(result)
+
+    @bp.route("/api/deploy/approver-info/<int:proposal_id>")
+    @login_required
+    @admin_required
+    def deploy_approver_info(proposal_id):
+        """Return the approver routing info for a proposal (no side effects)."""
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT id, title, category, risk_level FROM improvement_proposals WHERE id = %s",
+                (proposal_id,),
+            )
+            p = cur.fetchone()
+        if not p:
+            return jsonify({"success": False, "error": "Not found"}), 404
+        routing = proposal_service._get_approver(p)
+        return jsonify({"success": True, "proposal_id": proposal_id, **routing})
+
     @bp.route("/api/deploy/execute", methods=["POST"])
     @login_required
     @admin_required

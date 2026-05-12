@@ -3393,6 +3393,53 @@ class AgentLoop:
                 logger.error(f"Improvement approval execution failed: {imp_err}")
                 return {"executed": False, "error": str(imp_err)}
 
+        elif action_type == "deploy_approve":
+            # Telegram-approved tiered deployment — run sandbox gate then deploy
+            proposal_id = data.get("proposal_id")
+            if not proposal_id:
+                return {"executed": False, "error": "No proposal_id in action_data"}
+            try:
+                import sys
+                sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+                from services.proposal_service import _sandbox_gate, deploy_to_production
+                from database import get_db_cursor
+
+                with get_db_cursor() as (_conn, _cur):
+                    _cur.execute("SELECT * FROM improvement_proposals WHERE id = %s", (proposal_id,))
+                    proposal = _cur.fetchone()
+
+                if not proposal:
+                    return {"executed": False, "error": f"Proposal #{proposal_id} not found"}
+
+                # Sandbox gate first
+                gate = _sandbox_gate(proposal_id, proposal)
+                if not gate["passed"]:
+                    logger.warning(
+                        "deploy_approve: sandbox gate FAILED for proposal #%s — %s/%s passed",
+                        proposal_id, gate["passed_count"], gate["total"]
+                    )
+                    return {
+                        "executed": False,
+                        "error": f"Sandbox gate failed ({gate['passed_count']}/{gate['total']} P.R.O.B.E. tests). Production deploy blocked.",
+                        "sandbox": gate,
+                    }
+
+                # Gate passed — deploy to production
+                result = deploy_to_production(proposal_id)
+                logger.info(
+                    "deploy_approve: proposal #%s deployed after sandbox gate %s/%s passed",
+                    proposal_id, gate["passed_count"], gate["total"]
+                )
+                return {
+                    "executed": result["success"],
+                    "proposal_id": proposal_id,
+                    "sandbox": gate,
+                    "error": result.get("error") if not result["success"] else None,
+                }
+            except Exception as da_err:
+                logger.error("deploy_approve execution failed: %s", da_err)
+                return {"executed": False, "error": str(da_err)}
+
         elif action_type.startswith("compliance_fix_"):
             # Approved compliance fix — resume the apply pipeline from stage 3 (dry-run)
             scan_id = data.get("scan_id")

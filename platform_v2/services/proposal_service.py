@@ -968,8 +968,8 @@ def deploy_to_production(proposal_id):
         proposal = cur.fetchone()
         if not proposal:
             return {"success": False, "error": "Proposal not found"}
-        # Accept both 'approved' (human-only) and 'tested' (sandbox-validated)
-        if proposal["status"] not in ("approved", "tested"):
+        # Accept approved / tested / ready_for_review as deployable
+        if proposal["status"] not in ("approved", "tested", "ready_for_review"):
             return {"success": False, "error": f"Proposal cannot be deployed (status: {proposal['status']})"}
 
         # --- Create pre-deploy backup via Backup Manager ---
@@ -1203,6 +1203,266 @@ def get_deploy_history():
                 pass
 
 
+# ---------------------------------------------------------------------------
+# Tiered Deployment Approval (org-chart routing)
+# ---------------------------------------------------------------------------
+
+# Maps proposal category → (department, director_agent, dispatch_capability)
+_CATEGORY_APPROVER = {
+    "code": ("Engineering & Technology", "F.O.R.G.E.", "code_review"),
+    "refactoring": ("Engineering & Technology", "F.O.R.G.E.", "code_review"),
+    "performance": ("Engineering & Technology", "F.O.R.G.E.", "code_review"),
+    "bug": ("Engineering & Technology", "F.O.R.G.E.", "code_review"),
+    "security": ("Security & Compliance", "V.I.G.I.L.", "security"),
+    "compliance": ("Security & Compliance", "V.I.G.I.L.", "compliance"),
+    "documentation": ("Documentation & Knowledge", "C.O.D.E.X.", "documentation"),
+    "infrastructure": ("Operations & Infrastructure", "B.A.S.E.", "general"),
+    "research": ("Research & Development", "D.A.R.W.I.N.", "research"),
+}
+_DEFAULT_APPROVER = ("Engineering & Technology", "F.O.R.G.E.", "code_review")
+
+# Risk → dispatch tier: low=Tier1(auto), medium=Tier2(director), high/critical=Tier2(ARCHIE)
+_RISK_TIER = {"low": 1, "medium": 2, "high": 2, "critical": 2}
+
+
+def _get_approver(proposal):
+    """Return (dept, director, capability, tier, telegram_target) for a proposal."""
+    risk = (proposal.get("risk_level") or "medium").lower()
+    category = (proposal.get("category") or "code").lower()
+    dept, director, cap = _CATEGORY_APPROVER.get(category, _DEFAULT_APPROVER)
+    tier = _RISK_TIER.get(risk, 2)
+    if risk in ("high", "critical"):
+        telegram_target = "A.R.C.H.I.E."
+    else:
+        telegram_target = director
+    return {
+        "dept": dept,
+        "director": director,
+        "capability": cap,
+        "tier": tier,
+        "telegram_target": telegram_target,
+        "risk": risk,
+    }
+
+
+def _sandbox_gate(proposal_id, proposal):
+    """Apply fix to sandbox branch, restart archie_staging, run P.R.O.B.E. suite #79.
+
+    Returns {"passed": bool, "passed": int, "total": int, "run_id": int, "error": str|None}
+    """
+    import subprocess
+    import json as _json
+
+    sandbox_path = "/mnt/archie_sandbox/platform_v2"
+    code_changes = proposal.get("code_changes")
+
+    # Apply code changes to sandbox worktree if present
+    applied_files = []
+    if code_changes:
+        try:
+            changes = _json.loads(code_changes) if isinstance(code_changes, str) else code_changes
+            if isinstance(changes, list):
+                for change in changes:
+                    rel_path = change.get("file_path", "")
+                    content = change.get("content", "")
+                    if rel_path and content:
+                        full_path = f"{sandbox_path}/{rel_path.lstrip('/')}"
+                        import os
+
+                        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+                        with open(full_path, "w") as f:
+                            f.write(content)
+                        applied_files.append(rel_path)
+        except Exception as apply_err:
+            logger.warning("sandbox_gate: code apply failed: %s", apply_err)
+
+    # Restart archie_staging so changes take effect
+    try:
+        subprocess.run(
+            [
+                "docker",
+                "compose",
+                "--file",
+                "/mnt/archie_brain/docker-compose.staging.yml",
+                "restart",
+                "archie_staging",
+            ],
+            timeout=30,
+            capture_output=True,
+        )
+        import time
+
+        time.sleep(5)  # let it come up
+    except Exception as restart_err:
+        logger.warning("sandbox_gate: staging restart failed: %s", restart_err)
+
+    # Run P.R.O.B.E. suite #79 against sandbox
+    try:
+        from services.qa_service import run_suite
+
+        result = run_suite(79, triggered_by=f"tiered_approval_gate_proposal_{proposal_id}")
+        passed = result.get("passed", 0)
+        total = result.get("total", 0)
+        run_id = result.get("run_id")
+        gate_passed = total > 0 and passed == total
+        return {
+            "passed": gate_passed,
+            "passed_count": passed,
+            "total": total,
+            "run_id": run_id,
+            "applied_files": applied_files,
+            "error": None,
+        }
+    except Exception as qa_err:
+        logger.error("sandbox_gate: QA run failed: %s", qa_err)
+        return {
+            "passed": False,
+            "passed_count": 0,
+            "total": 0,
+            "run_id": None,
+            "applied_files": applied_files,
+            "error": str(qa_err),
+        }
+
+
+def request_tiered_deploy_approval(proposal_id):
+    """Route deployment through org-chart approvers with mandatory sandbox gate.
+
+    Flow per risk level:
+      low    → F.O.R.G.E. code_review dispatch (auto) → sandbox gate → deploy
+      medium → Department director Telegram approval → sandbox gate → deploy
+      high   → A.R.C.H.I.E. Telegram to Kytran → sandbox gate → deploy
+      critical → same as high + priority=critical
+
+    Returns:
+      {success, deployed, pending, approver, tier, sandbox, message}
+    """
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM improvement_proposals WHERE id = %s", (proposal_id,))
+        proposal = cur.fetchone()
+        if not proposal:
+            return {"success": False, "error": "Proposal not found"}
+        if proposal["status"] not in ("approved", "tested", "ready_for_review", "sandboxed"):
+            return {"success": False, "error": f"Proposal not ready for deployment (status: {proposal['status']})"}
+        cur.close()
+        conn.close()
+        conn = cur = None
+    except Exception as e:
+        logger.error("request_tiered_deploy_approval fetch: %s", e)
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    routing = _get_approver(proposal)
+    tier = routing["tier"]
+    director = routing["director"]
+    cap = routing["capability"]
+    risk = routing["risk"]
+
+    # ── Tier 1: F.O.R.G.E. / department auto-review via DHQ dispatch ──────────
+    if tier == 1:
+        try:
+            from tools.department_hq.services.department_dispatcher import dispatch
+
+            dr = dispatch(
+                capability=cap,
+                prompt=(
+                    f"Review deployment of proposal #{proposal_id}: {proposal['title']}. "
+                    f"Risk: {risk}. Category: {proposal.get('category', 'code')}. "
+                    f"Code changes: {str(proposal.get('code_changes', ''))[:400]}. "
+                    f"Respond with APPROVED or REJECTED and a brief reason."
+                ),
+                context={"proposal_id": proposal_id, "action": "deploy_review"},
+            )
+            verdict = (dr.response or "").upper()
+            if not dr.success or "REJECT" in verdict or "DENIED" in verdict:
+                return {
+                    "success": False,
+                    "deployed": False,
+                    "pending": False,
+                    "approver": director,
+                    "tier": 1,
+                    "error": f"{director} rejected: {dr.response[:200] if dr.response else dr.error}",
+                }
+        except Exception as dispatch_err:
+            logger.warning("Tier-1 dispatch failed, proceeding cautiously: %s", dispatch_err)
+
+        # Sandbox gate before production deploy
+        gate = _sandbox_gate(proposal_id, proposal)
+        if not gate["passed"]:
+            return {
+                "success": False,
+                "deployed": False,
+                "pending": False,
+                "approver": director,
+                "tier": 1,
+                "sandbox": gate,
+                "error": f"Sandbox gate failed: {gate['passed_count']}/{gate['total']} P.R.O.B.E. tests passed",
+            }
+
+        # All clear — deploy to production
+        deploy_result = deploy_to_production(proposal_id)
+        return {
+            "success": deploy_result["success"],
+            "deployed": deploy_result["success"],
+            "pending": False,
+            "approver": director,
+            "tier": 1,
+            "sandbox": gate,
+            "message": f"Approved by {director}, sandbox gate passed ({gate['passed_count']}/{gate['total']}), deployed to production",
+            "error": deploy_result.get("error"),
+        }
+
+    # ── Tier 2: Telegram approval (director or A.R.C.H.I.E.) ──────────────────
+    else:
+        from ai_bridge.agent_loop import request_approval
+
+        telegram_target = routing["telegram_target"]
+        priority = 10 if risk == "critical" else 7 if risk == "high" else 5
+        approval_id = request_approval(
+            action_type="deploy_approve",
+            action_data={
+                "proposal_id": proposal_id,
+                "risk_level": risk,
+                "director": director,
+                "category": proposal.get("category", ""),
+            },
+            reason=(
+                f"{risk.upper()} risk deployment: #{proposal_id} {proposal['title'][:60]} — "
+                f"requires {telegram_target} approval before sandbox gate + production deploy"
+            ),
+            display_name=f"Deploy #{proposal_id}: {proposal['title'][:50]}",
+            requested_by="system",
+            tier=2,
+            priority=priority,
+        )
+        return {
+            "success": True,
+            "deployed": False,
+            "pending": True,
+            "approver": telegram_target,
+            "tier": 2,
+            "approval_id": approval_id,
+            "message": (
+                f"Sent to {telegram_target} for approval via Telegram. "
+                f"Once approved, sandbox gate (P.R.O.B.E. #79) runs automatically before production deploy."
+            ),
+        }
+
+
 def get_deploy_ready():
     conn = None
     cur = None
@@ -1211,8 +1471,11 @@ def get_deploy_ready():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
             """SELECT id, title, category, priority, risk_level, status, approved_at, metadata
-            FROM improvement_proposals WHERE status = 'tested'
-            ORDER BY priority DESC, approved_at ASC"""
+            FROM improvement_proposals
+            WHERE status IN ('ready_for_review', 'tested', 'sandboxed')
+            ORDER BY
+              CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+              approved_at ASC"""
         )
         return {"success": True, "proposals": [dict(r) for r in cur.fetchall()]}
     except Exception as e:

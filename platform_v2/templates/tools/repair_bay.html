@@ -2622,6 +2622,45 @@ function runNewTest() {
 
 // ---- Deploy Tab ----
 
+// Approver badge config keyed by risk_level
+var _APPROVER_BADGE = {
+    low:      { label: '🤖 F.O.R.G.E.',           color: '#00ff41', btn: 'F.O.R.G.E. Review' },
+    medium:   { label: '🔵 DEPT DIRECTOR',          color: '#00d4ff', btn: 'Request Director Approval' },
+    high:     { label: '⚠️ A.R.C.H.I.E.',           color: '#f59e0b', btn: 'Escalate to A.R.C.H.I.E.' },
+    critical: { label: '🚨 A.R.C.H.I.E. → KYTRAN', color: '#ef4444', btn: 'Critical — Kytran Approval' }
+};
+
+function _deployWithApproval(proposalId, btn) {
+    btn.disabled = true;
+    var origText = btn.textContent;
+    btn.textContent = '⏳ Routing...';
+    var statusEl = btn.parentNode.querySelector('.deploy-status-msg');
+
+    fetch(API + '/deploy/request-approval/' + proposalId, { method: 'POST',
+        headers: {'Content-Type': 'application/json'} })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            btn.disabled = false;
+            btn.textContent = origText;
+            if (d.deployed) {
+                if (statusEl) statusEl.textContent = '✅ Deployed! Sandbox gate: ' + (d.sandbox ? d.sandbox.passed_count + '/' + d.sandbox.total + ' passed' : 'ok');
+                if (statusEl) statusEl.style.color = '#00ff41';
+                setTimeout(function() { loadDeployReady(); loadDeployHistory(); }, 1500);
+            } else if (d.pending) {
+                if (statusEl) statusEl.textContent = '📨 Sent to ' + (d.approver||'approver') + ' via Telegram. Sandbox gate runs on approval.';
+                if (statusEl) statusEl.style.color = '#00d4ff';
+            } else {
+                if (statusEl) statusEl.textContent = '❌ ' + (d.error || 'failed');
+                if (statusEl) statusEl.style.color = '#ef4444';
+            }
+        })
+        .catch(function(e) {
+            btn.disabled = false;
+            btn.textContent = origText;
+            if (statusEl) { statusEl.textContent = '❌ ' + e.message; statusEl.style.color = '#ef4444'; }
+        });
+}
+
 function loadDeployReady() {
     fetch(API + '/deploy/ready').then(function(r) { return r.json(); }).then(function(d) {
         var proposals = d.proposals || [];
@@ -2632,14 +2671,18 @@ function loadDeployReady() {
             var empty = document.createElement('div');
             empty.className = 'dp-empty';
             empty.style.padding = '40px';
-            empty.textContent = 'No proposals ready for deployment';
+            empty.textContent = 'No proposals ready for deployment (status: ready_for_review / sandboxed)';
             el.appendChild(empty);
             return;
         }
         proposals.forEach(function(p) {
+            var risk = (p.risk_level || 'medium').toLowerCase();
+            var badgeCfg = _APPROVER_BADGE[risk] || _APPROVER_BADGE.medium;
+
             var card = document.createElement('div');
             card.className = 'dp-proposal-card';
-            card.style.setProperty('--prop-accent', '#00ff41');
+            card.style.setProperty('--prop-accent', badgeCfg.color);
+            card.style.borderLeft = '3px solid ' + badgeCfg.color;
 
             var id = document.createElement('span');
             id.className = 'dp-proposal-id';
@@ -2647,6 +2690,7 @@ function loadDeployReady() {
 
             var info = document.createElement('div');
             info.className = 'dp-proposal-info';
+            info.style.flex = '1';
 
             var title = document.createElement('div');
             title.className = 'dp-proposal-title';
@@ -2654,12 +2698,19 @@ function loadDeployReady() {
 
             var meta = document.createElement('div');
             meta.className = 'dp-proposal-meta';
+            meta.style.marginTop = '4px';
+            meta.style.display = 'flex';
+            meta.style.gap = '6px';
+            meta.style.alignItems = 'center';
+            meta.style.flexWrap = 'wrap';
 
-            var badge = document.createElement('span');
-            badge.className = 'dp-severity low';
-            badge.textContent = 'tested';
-            meta.appendChild(badge);
+            // Status badge
+            var statusBadge = document.createElement('span');
+            statusBadge.className = 'dp-severity low';
+            statusBadge.textContent = p.status || 'ready';
+            meta.appendChild(statusBadge);
 
+            // Priority badge
             if (p.priority) {
                 var pri = document.createElement('span');
                 pri.className = 'dp-severity ' + (p.priority === 'critical' ? 'critical' : p.priority === 'high' ? 'high' : 'low');
@@ -2667,23 +2718,30 @@ function loadDeployReady() {
                 meta.appendChild(pri);
             }
 
+            // Approver badge — the key new element
+            var approverEl = document.createElement('span');
+            approverEl.style.cssText = 'font-family:IBM Plex Mono,monospace;font-size:0.65rem;padding:2px 8px;border-radius:10px;background:rgba(0,0,0,0.3);border:1px solid ' + badgeCfg.color + ';color:' + badgeCfg.color + ';letter-spacing:1px;';
+            approverEl.textContent = badgeCfg.label;
+            meta.appendChild(approverEl);
+
+            // Status message line
+            var statusMsg = document.createElement('div');
+            statusMsg.className = 'deploy-status-msg';
+            statusMsg.style.cssText = 'font-family:IBM Plex Mono,monospace;font-size:0.72rem;margin-top:4px;min-height:16px;';
+
+            // Deploy button — routed through org-chart
             var deployBtn = document.createElement('button');
             deployBtn.className = 'dp-btn dp-btn-accent';
-            deployBtn.textContent = 'Deploy';
-            deployBtn.style.marginLeft = 'auto';
-            deployBtn.style.flexShrink = '0';
-            deployBtn.onclick = function(e) {
+            deployBtn.textContent = badgeCfg.btn;
+            deployBtn.style.cssText = 'margin-left:auto;flex-shrink:0;background:' + badgeCfg.color + ';color:#010409;border-color:' + badgeCfg.color + ';font-size:0.75rem;';
+            deployBtn.onclick = (function(pid, b) { return function(e) {
                 e.stopPropagation();
-                if (confirm('Deploy proposal #' + p.id + ' to production?')) {
-                    fetch(API + '/proposals/' + p.id + '/deploy-to-production', { method: 'POST' })
-                        .then(function(r) { return r.json(); })
-                        .then(function() { loadDeployReady(); loadDeployHistory(); })
-                        .catch(function() {});
-                }
-            };
+                _deployWithApproval(pid, b);
+            }; })(p.id, deployBtn);
 
             info.appendChild(title);
             info.appendChild(meta);
+            info.appendChild(statusMsg);
             card.appendChild(id);
             card.appendChild(info);
             card.appendChild(deployBtn);

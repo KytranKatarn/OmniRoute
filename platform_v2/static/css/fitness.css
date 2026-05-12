@@ -8,7 +8,7 @@
     min-height: 100vh;
     background: var(--archie-bg-void);
     padding: 20px 30px 40px;
-    padding-top: 80px;
+    padding-top: 8px;
 }
 
 .scanline-overlay {
@@ -1178,7 +1178,7 @@ body.light-mode .fitness-modal-header h3 {
 @media (max-width: 768px) {
     .fitness-container {
         padding: 20px;
-        padding-top: 80px;
+        padding-top: 8px;
     }
 
     .fitness-stats {
@@ -1234,7 +1234,7 @@ body.light-mode .fitness-modal-header h3 {
 @media (max-width: 717px) {
     .fitness-container {
         padding: 12px 12px 24px;
-        padding-top: 80px;
+        padding-top: 8px;
     }
     .fitness-tabs {
         overflow-x: visible;

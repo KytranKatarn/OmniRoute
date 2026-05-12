@@ -8,7 +8,7 @@
     min-height: 100vh;
     background: var(--archie-bg-primary);
     padding: 20px 30px 40px;
-    padding-top: 80px;
+    padding-top: 8px;
 }
 
 .scanline-overlay {
@@ -1702,7 +1702,7 @@ body.light-mode .mood-calendar-day {
 @media (max-width: 768px) {
     .therapy-container {
         padding: 20px;
-        padding-top: 80px;
+        padding-top: 8px;
     }
 
     .therapy-stats {
@@ -1781,7 +1781,7 @@ body.light-mode .mood-calendar-day {
 @media (max-width: 717px) {
     .therapy-container {
         padding: 12px 12px 24px;
-        padding-top: 80px;
+        padding-top: 8px;
     }
     .therapy-tabs {
         overflow-x: visible;

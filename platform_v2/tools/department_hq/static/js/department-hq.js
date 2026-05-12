@@ -3206,20 +3206,106 @@ function initFleetMap() {
     if (!el) return;
 
     fleetMap = L.map('fleetMap', {
-        center: [35, -40],
-        zoom: 3,
+        center: [42, -95],
+        zoom: 4,
         minZoom: 2,
         maxZoom: 12,
         zoomControl: true,
         attributionControl: false,
     });
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '',
+        subdomains: 'abcd',
     }).addTo(fleetMap);
+
+    _initSonarStyles();
+    fleetMap.on('moveend zoomend', updateOffscreenBlips);
 
     loadFleetData();
     loadCloudProviders();
+}
+
+function _initSonarStyles() {
+    if (document.getElementById('fleet-sonar-styles')) return;
+    var style = document.createElement('style');
+    style.id = 'fleet-sonar-styles';
+    var css = '.fleet-sonar-ring{position:absolute;border-radius:50%;border:1px dashed rgba(0,220,170,0.40);pointer-events:none;top:50%;left:50%;transform:translate(-50%,-50%);z-index:800;}';
+    css += '.fleet-sonar-ring-outer{position:absolute;border-radius:50%;border:1px solid rgba(0,220,170,0.15);pointer-events:none;top:50%;left:50%;transform:translate(-50%,-50%);z-index:799;}';
+    css += '.fleet-sonar-sweep{position:absolute;border-radius:50%;pointer-events:none;top:50%;left:50%;transform:translate(-50%,-50%);animation:sonar-sweep 8s linear infinite;z-index:800;}';
+    css += '@keyframes sonar-sweep{from{transform:translate(-50%,-50%) rotate(0deg);}to{transform:translate(-50%,-50%) rotate(360deg);}}';
+    css += '.fleet-sonar-blip{position:absolute;transform:translate(-50%,-50%);cursor:pointer;z-index:900;pointer-events:all;border-radius:50%;background:rgba(10,16,22,0.92);border:2px solid rgba(0,220,170,0.85);display:flex;align-items:center;justify-content:center;width:26px;height:26px;box-shadow:0 0 8px rgba(0,220,170,0.6);transition:box-shadow 0.2s;}';
+    css += '.fleet-sonar-blip:hover{box-shadow:0 0 16px rgba(0,220,170,1.0);border-color:#00dcaa;}';
+    style.textContent = css;
+    document.head.appendChild(style);
+}
+
+function updateOffscreenBlips() {
+    var mapEl = document.getElementById('fleetMap');
+    if (!mapEl || !fleetMap) return;
+
+    mapEl.querySelectorAll('.fleet-sonar-ring,.fleet-sonar-ring-outer,.fleet-sonar-sweep,.fleet-sonar-blip').forEach(function(e) { e.remove(); });
+
+    var W = mapEl.offsetWidth;
+    var H = mapEl.offsetHeight;
+    var cx = W / 2;
+    var cy = H / 2;
+    var r = Math.min(W, H) * 0.42;
+
+    var ring = document.createElement('div');
+    ring.className = 'fleet-sonar-ring';
+    ring.style.width = (r * 2) + 'px';
+    ring.style.height = (r * 2) + 'px';
+    mapEl.appendChild(ring);
+
+    var ringOuter = document.createElement('div');
+    ringOuter.className = 'fleet-sonar-ring-outer';
+    ringOuter.style.width = (r * 2 + 30) + 'px';
+    ringOuter.style.height = (r * 2 + 30) + 'px';
+    mapEl.appendChild(ringOuter);
+
+    var sweep = document.createElement('div');
+    sweep.className = 'fleet-sonar-sweep';
+    sweep.style.width = (r * 2) + 'px';
+    sweep.style.height = (r * 2) + 'px';
+    sweep.style.background = 'conic-gradient(rgba(0,220,170,0.18) 0deg,transparent 55deg,transparent 360deg)';
+    mapEl.appendChild(sweep);
+
+    var bounds = fleetMap.getBounds();
+    fleetMarkers.forEach(function(marker) {
+        var ll = marker.getLatLng();
+        if (bounds.contains(ll)) return;
+
+        var pt = fleetMap.latLngToContainerPoint(ll);
+        var angle = Math.atan2(pt.y - cy, pt.x - cx);
+        var bx = Math.round(cx + r * Math.cos(angle));
+        var by = Math.round(cy + r * Math.sin(angle));
+
+        var blip = document.createElement('div');
+        blip.className = 'fleet-sonar-blip';
+        blip.style.left = bx + 'px';
+        blip.style.top = by + 'px';
+        blip.title = 'Navigate to marker';
+
+        var markerEl = marker.getElement();
+        var srcImg = markerEl ? markerEl.querySelector('img') : null;
+        if (srcImg) {
+            var blipImg = document.createElement('img');
+            blipImg.src = srcImg.src;
+            blipImg.style.cssText = 'width:14px;height:14px;object-fit:contain;border-radius:2px;';
+            blip.appendChild(blipImg);
+        } else {
+            var dot = document.createElement('span');
+            dot.style.cssText = 'font-size:8px;color:#00dcaa;';
+            dot.textContent = '●';
+            blip.appendChild(dot);
+        }
+
+        blip.addEventListener('click', (function(latlng) {
+            return function() { fleetMap.panTo(latlng); };
+        })(ll));
+        mapEl.appendChild(blip);
+    });
 }
 
 function loadFleetData() {
@@ -3244,12 +3330,20 @@ var PROVIDER_STYLES = {
     'cohere':      { color: '#39594d', bg: 'rgba(57,89,77,0.3)', label: 'Co' },
     'grok':        { color: '#1da1f2', bg: 'rgba(29,161,242,0.3)', label: 'X' },
     'together':    { color: '#6366f1', bg: 'rgba(99,102,241,0.3)', label: 'To' },
-    'huggingface': { color: '#ff9d00', bg: 'rgba(255,157,0,0.3)', label: '\u{1F917}' },
+    'huggingface': { color: '#ff9d00', bg: 'rgba(255,157,0,0.3)', label: 'HF' },
     'cloudflare':  { color: '#f38020', bg: 'rgba(243,128,32,0.3)', label: 'CF' },
-    'ollama':      { color: '#ffffff', bg: 'rgba(255,255,255,0.2)', label: '\u{1F999}' },
+    'ollama':      { color: '#ffffff', bg: 'rgba(255,255,255,0.2)', label: 'Ol' },
     'groq':        { color: '#f55036', bg: 'rgba(245,80,54,0.3)', label: 'Gq' },
     'deepseek':    { color: '#4d6bfe', bg: 'rgba(77,107,254,0.3)', label: 'DS' },
     'cerebras':    { color: '#00d4aa', bg: 'rgba(0,212,170,0.3)', label: 'Ce' },
+};
+var PROVIDER_DOMAINS = {
+    'openai': 'openai.com', 'anthropic': 'anthropic.com', 'google': 'google.com',
+    'gemini': 'deepmind.google', 'mistral': 'mistral.ai', 'cohere': 'cohere.com',
+    'grok': 'x.ai', 'together': 'together.ai', 'huggingface': 'huggingface.co',
+    'cloudflare': 'cloudflare.com', 'ollama': 'ollama.com', 'groq': 'groq.com',
+    'deepseek': 'deepseek.com', 'cerebras': 'cerebras.ai', 'runpod': 'runpod.io',
+    'perplexity': 'perplexity.ai', 'replicate': 'replicate.com', 'fireworks': 'fireworks.ai',
 };
 
 function renderFleetPins(data) {
@@ -3261,9 +3355,9 @@ function renderFleetPins(data) {
         var marker = L.marker([hub.lat, hub.lon], {
             icon: L.divIcon({
                 className: 'fleet-marker-hub',
-                html: '<i data-lucide="radio-tower" style="width:16px;height:16px;"></i>',
-                iconSize: [32, 32],
-                iconAnchor: [16, 16],
+                html: '<div style="width:40px;height:40px;border-radius:50%;border:2.5px solid #10b981;background:#0a1628;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 8px rgba(16,185,129,0.6);"><img src="https://www.google.com/s2/favicons?sz=64&domain=kytranempowerment.com" style="width:28px;height:28px;object-fit:contain;" onerror="this.outerHTML=\'<span style=font-size:16px>♈</span>\'"></div>',
+                iconSize: [40, 40],
+                iconAnchor: [20, 20],
             }),
         }).addTo(fleetMap);
         marker.bindPopup(buildFleetPopup('A.R.M.A.D.A. HUB', [
@@ -3279,9 +3373,9 @@ function renderFleetPins(data) {
         var marker = L.marker([node.lat, node.lon], {
             icon: L.divIcon({
                 className: 'fleet-marker-node ' + (isOnline ? '' : 'offline'),
-                html: '<i data-lucide="ship" style="width:14px;height:14px;"></i>',
-                iconSize: [24, 24],
-                iconAnchor: [12, 12],
+                html: '<div style="width:34px;height:34px;border-radius:50%;border:2px solid ' + (isOnline ? '#a3e635' : '#6b7280') + ';background:#0a1628;display:flex;align-items:center;justify-content:center;overflow:hidden;' + (isOnline ? 'box-shadow:0 0 6px rgba(163,230,53,0.5);' : 'opacity:0.5;filter:grayscale(1);') + '"><img src="https://www.google.com/s2/favicons?sz=64&domain=kytranempowerment.com" style="width:24px;height:24px;object-fit:contain;" onerror="this.outerHTML=\'<span style=font-size:13px>♈</span>\'"></div>',
+                iconSize: [34, 34],
+                iconAnchor: [17, 17],
             }),
         }).addTo(fleetMap);
         marker.bindPopup(buildFleetPopup(node.node_name || node.hostname, [
@@ -3298,13 +3392,15 @@ function renderFleetPins(data) {
     (data.providers || []).forEach(function(prov) {
         if (!prov.lat || !prov.lon) return;
         var key = (prov.provider_key || '').toLowerCase();
-        var style = PROVIDER_STYLES[key] || { color: '#f97316', bg: 'rgba(249,115,22,0.3)', label: (prov.provider_key || '?').charAt(0).toUpperCase() };
+        var style = PROVIDER_STYLES[key] || { color: '#f97316', label: (prov.provider_key || '?').charAt(0).toUpperCase() };
+        var domain = PROVIDER_DOMAINS[key] || (key + '.com');
+        var faviconUrl = 'https://www.google.com/s2/favicons?sz=32&domain=' + domain;
         var marker = L.marker([prov.lat, prov.lon], {
             icon: L.divIcon({
                 className: 'fleet-marker-provider-custom ' + (prov.is_active ? '' : 'inactive'),
-                html: '<span style="background:' + style.bg + ';border-color:' + style.color + ';color:' + style.color + '">' + style.label + '</span>',
-                iconSize: [28, 28],
-                iconAnchor: [14, 14],
+                html: '<div style="width:30px;height:30px;border-radius:6px;border:1.5px solid ' + style.color + ';background:#0d1117;display:flex;align-items:center;justify-content:center;overflow:hidden;' + (prov.is_active ? 'box-shadow:0 0 5px ' + style.color + '55;' : 'opacity:0.4;filter:grayscale(1);') + '"><img src="' + faviconUrl + '" style="width:20px;height:20px;object-fit:contain;" onerror="this.outerHTML=\'<span style=font-size:10px;color:' + style.color + '>' + style.label + '</span>\'"></div>',
+                iconSize: [30, 30],
+                iconAnchor: [15, 15],
             }),
         }).addTo(fleetMap);
 
@@ -3322,6 +3418,7 @@ function renderFleetPins(data) {
     });
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
+    updateOffscreenBlips();
 }
 
 function buildFleetPopup(title, rows) {

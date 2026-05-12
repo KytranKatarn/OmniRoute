@@ -1909,8 +1909,6 @@ function loadIssues() {
                 row.appendChild(line);
                 el.appendChild(row);
             });
-            var badge = document.getElementById('issuesBadge');
-            if (issues.length > 0) { badge.textContent = issues.length; badge.style.display = 'inline'; }
         })
         .catch(function() {
             var el = document.getElementById('issuesList');

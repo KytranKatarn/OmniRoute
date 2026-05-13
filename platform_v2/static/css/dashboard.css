@@ -2885,3 +2885,16 @@ body.light-mode .module-card-accent {
 body.light-mode .module-card-lock-overlay {
     background: rgba(255, 255, 255, 0.5);
 }
+
+/* ── Briefing section: VIEW ALL link ── */
+.briefing-view-all {
+    margin-left: auto;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    color: var(--archie-palette-teal-400, #2dd4bf);
+    opacity: 0.6;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: opacity 0.2s;
+}
+.briefing-view-all:hover { opacity: 1; }

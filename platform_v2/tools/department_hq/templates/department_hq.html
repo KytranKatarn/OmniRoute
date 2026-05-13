@@ -34,6 +34,7 @@
     ("social", "S.I.G.N.A.L.", "heart"),
     ("devices", "Devices", "monitor"),
     ("dispatch", "Dispatch", "send"),
+    ("autonomy", "Autonomy", "cpu"),
     ("fleet", "Fleet", "rocket"),
     ("contractors", "Contractors", "hard-hat"),
     ("coms", "COMs", "message-circle"),
@@ -212,60 +213,39 @@
         <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
           <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;"><span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">DISPATCH CENTER</span><div style="flex:1"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">OPERATIONS</span><div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div></div>
           <div style="flex:1 !important;padding:16px !important;">
-      <!-- Ollama Engine HUD -->
-      <div class="dhq-dispatch-section">
-        <div class="dhq-section-title">OLLAMA ENGINE</div>
-        <div class="dhq-dispatch-pods">
-          <div class="dhq-pod"><div class="dhq-pod-label">MODELS LOADED</div><div class="dhq-pod-val" id="podModelsLoaded">--</div></div>
-          <div class="dhq-pod"><div class="dhq-pod-label">RAM USED</div><div class="dhq-pod-val" id="podRamUsed">--</div></div>
-          <div class="dhq-pod"><div class="dhq-pod-label">PARALLEL SLOTS</div><div class="dhq-pod-val" id="podSlots">--</div></div>
-          <div class="dhq-pod"><div class="dhq-pod-label">AVAILABLE MODELS</div><div class="dhq-pod-val" id="podAvailable">--</div></div>
+      <!-- Dispatch Center (compact Ollama chips) -->
+      <div class="dhq-dispatch-section dhq-ollama-compact">
+        <div class="dhq-section-title">DISPATCH CENTER</div>
+        <div class="dhq-ollama-chips">
+          <span class="dhq-chip">
+            <span class="dhq-chip-dot" id="ollamaStatusDot">&#9679;</span>
+            <span id="podModelsLoaded">--</span> loaded
+          </span>
+          <span class="dhq-chip-sep">&#183;</span>
+          <span class="dhq-chip"><span id="podRamUsed">--</span> RAM</span>
+          <span class="dhq-chip-sep">&#183;</span>
+          <span class="dhq-chip"><span id="podSlots">--</span> slots</span>
+          <span class="dhq-chip-sep">&#183;</span>
+          <span class="dhq-chip"><span id="podAvailable">--</span> available</span>
         </div>
-      </div>
-      <!-- Active Bridge Jobs -->
-      <div class="dhq-dispatch-section">
-        <div class="dhq-section-title">ACTIVE BRIDGE JOBS <span id="dispatchJobCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
-        <div id="dispatchJobsContent" class="dhq-loading">Loading jobs...</div>
-      </div>
-      <!-- Agent Workload -->
-      <div class="dhq-dispatch-section">
-        <div class="dhq-section-title">AGENT WORKLOAD BY DEPARTMENT</div>
-        <div id="dispatchWorkloadContent" class="dhq-loading">Loading workload...</div>
       </div>
       <!-- Dispatch Metrics -->
       <div class="dhq-dispatch-section">
         <div class="dhq-section-title">DISPATCH METRICS (24H)</div>
         <div id="dispatchMetricsContent" class="dhq-loading">Loading metrics...</div>
       </div>
-      <!-- Loop Jobs -->
+      <!-- Agent Workload -->
       <div class="dhq-dispatch-section">
-        <div class="dhq-section-title">AUTONOMY LOOP JOBS <span id="dispatchLoopCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
-        <div id="dispatchLoopContent" class="dhq-loading">Loading loop jobs...</div>
-      </div>
-      <!-- Server Loops -->
-      <div class="dhq-dispatch-section">
-        <div class="dhq-section-title">SERVER LOOPS</div>
-        <div id="dispatchServerLoops" class="dhq-loading">Loading server loops...</div>
-      </div>
-      <!-- Approvals -->
-      <div class="dhq-dispatch-section">
-        <div class="dhq-section-title">APPROVAL QUEUE <span id="dispatchApprovalCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
-        <div id="dispatchApprovalsContent" class="dhq-loading">Loading approvals...</div>
-      </div>
-      <!-- History -->
-      <div class="dhq-dispatch-section">
-        <div class="dhq-section-title" style="display:flex;justify-content:space-between;align-items:center">
-          <span>DISPATCH HISTORY</span>
-          <select id="dispatchHistoryHours" onchange="loadDispatchHistory()" style="background:var(--dhq-surface-2);color:var(--dhq-text);border:1px solid var(--dhq-border);border-radius:4px;padding:4px 8px;font-size:0.7rem">
-            <option value="1">Last 1h</option>
-            <option value="6">Last 6h</option>
-            <option value="24" selected>Last 24h</option>
-            <option value="72">Last 3d</option>
-            <option value="168">Last 7d</option>
-          </select>
+        <div class="dhq-section-title" onclick="toggleWorkload()" style="cursor:pointer;">
+          AGENT WORKLOAD BY DEPARTMENT
+          <span id="workloadToggleIcon" style="opacity:0.5;font-size:0.7rem;margin-left:0.5rem">&#9660; expand</span>
         </div>
-        <div id="dispatchHistoryContent" class="dhq-loading">Loading history...</div>
+        <div id="dispatchWorkloadContent" style="display:none;"></div>
       </div>
+      <!-- Autonomy Loop Jobs, Server Loops, Approval Queue, and old Dispatch History
+           removed 2026-05-13: always empty / duplicated in Approvals tab.
+           Approvals live in the dedicated Approvals tab.
+           Full history replaced by the DISPATCH HISTORY section below. -->
       <!-- Claude Requests (Task #1297) -->
       <div class="dhq-dispatch-section">
         <div class="dhq-section-title" style="display:flex;justify-content:space-between;align-items:center">
@@ -280,31 +260,7 @@
         </div>
         <div id="dispatchClaudeContent" class="dhq-loading">Loading Claude requests...</div>
       </div>
-      <!-- System Components -->
-      <div class="dhq-dispatch-section">
-        <div class="dhq-section-title">SYSTEM COMPONENTS</div>
-        <div id="dispatchComponentsContent" class="dhq-loading">Loading components...</div>
-      </div>
-      <!-- Scheduler Jobs -->
-      <div class="dhq-dispatch-section">
-        <div class="dhq-section-title">SCHEDULER JOBS <span id="dispatchSchedCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
-        <div id="dispatchSchedContent" class="dhq-loading">Loading scheduler...</div>
-      </div>
-      <!-- Configuration -->
-      <div class="dhq-dispatch-section">
-        <div class="dhq-section-title">AUTONOMY CONFIGURATION</div>
-        <div id="dispatchConfigContent" class="dhq-loading">Loading config...</div>
-      </div>
-      <!-- Repair Pipeline -->
-      <div class="dhq-dispatch-section">
-        <div class="dhq-section-title">REPAIR PIPELINE</div>
-        <div id="dispatchRepairContent" class="dhq-loading">Loading pipeline...</div>
-      </div>
-      <!-- Job Monitoring by Department -->
-      <div class="dhq-dispatch-section">
-        <div class="dhq-section-title">JOBS BY DEPARTMENT <span id="jobMonitorCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
-        <div id="jobMonitorContent" class="dhq-loading">Loading job monitoring...</div>
-      </div>
+
       <!-- Dispatch Traffic Panel (Decision #540) -->
       <div class="dhq-dispatch-section" id="trafficPanelSection">
         <div class="dhq-section-title">
@@ -327,11 +283,114 @@
         </div>
         <div id="trafficContent" style="font-size:0.78rem;min-height:30px;">Loading…</div>
       </div>
+
+      <!-- DISPATCH HISTORY -->
+      <div id="dispatch-history" class="dhq-section" style="margin-top:1.5rem;">
+        <div class="lcars-bar" style="background:var(--archie-palette-teal-500,#14b8a6);">DISPATCH HISTORY</div>
+
+        <!-- Stats bar -->
+        <div class="dh-stats-bar">
+          <div class="dh-stat-card" id="dhStatTotal">
+            <div class="dh-stat-value">&#8212;</div>
+            <div class="dh-stat-label">Total Calls</div>
+          </div>
+          <div class="dh-stat-card" id="dhStatSuccess">
+            <div class="dh-stat-value">&#8212;</div>
+            <div class="dh-stat-label">Success Rate</div>
+          </div>
+          <div class="dh-stat-card" id="dhStatDuration">
+            <div class="dh-stat-value">&#8212;</div>
+            <div class="dh-stat-label">Avg Duration</div>
+          </div>
+          <div class="dh-stat-card" id="dhStatTop">
+            <div class="dh-stat-value" id="dhStatTopAgent">&#8212;</div>
+            <div class="dh-stat-sub" id="dhStatTopModule">&#8212;</div>
+            <div class="dh-stat-label">Top Agent / Module</div>
+          </div>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="dh-filters">
+          <select id="dhFilterAgent" class="dh-filter-select" onchange="dhFetch(true)">
+            <option value="">All Agents</option>
+          </select>
+          <select id="dhFilterCapability" class="dh-filter-select" onchange="dhFetch(true)">
+            <option value="">All Capabilities</option>
+          </select>
+          <select id="dhFilterSource" class="dh-filter-select" onchange="dhFetch(true)">
+            <option value="all">All Sources</option>
+            <option value="task">Tasks only</option>
+            <option value="job">Jobs only</option>
+          </select>
+          <input type="date" id="dhFilterFrom" class="dh-filter-input" onchange="dhFetch(true)">
+          <input type="date" id="dhFilterTo"   class="dh-filter-input" onchange="dhFetch(true)">
+          <input type="text" id="dhFilterQ"    class="dh-filter-input"
+                 placeholder="Search&#8230;" oninput="dhDebounce()">
+          <button class="sc-btn sc-btn-sm" onclick="dhReset()">RESET</button>
+        </div>
+
+        <!-- Table -->
+        <div style="overflow-x:auto;">
+          <table class="dhq-table dh-history-table" style="width:100%;font-size:0.75rem;">
+            <thead>
+              <tr>
+                <th>Time</th><th>Src</th><th>Agent</th><th>Capability</th>
+                <th>Module</th><th>Model</th><th>Duration</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="dhHistoryBody">
+              <tr><td colspan="8" style="text-align:center;opacity:0.5;">Loading&#8230;</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="dh-pagination">
+          <button class="sc-btn sc-btn-sm" id="dhPrevBtn" onclick="dhPage(-1)">&#8592; PREV</button>
+          <span id="dhPageInfo">Page 1 of 1</span>
+          <button class="sc-btn sc-btn-sm" id="dhNextBtn" onclick="dhPage(1)">NEXT &#8594;</button>
+          <span style="margin-left:auto;opacity:0.6;">Per page:</span>
+          <select id="dhPerPage" class="dh-filter-select" onchange="dhFetch(true)">
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+      </div>
+      <!-- END DISPATCH HISTORY -->
           </div>
           <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
         </div>
       </div>
     </div>
+
+    <!-- AUTONOMY TAB PANEL -->
+    <div class="dhq-panel" id="panel-autonomy" style="display:none;">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;"><div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div><div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div><div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div></div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;"><span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">AUTONOMY</span><div style="flex:1"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">SCHEDULER</span><div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div></div>
+          <div style="flex:1 !important;padding:16px !important;">
+
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">SCHEDULER JOBS <span id="dispatchSchedCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
+        <div id="dispatchSchedContent" class="dhq-loading">Loading scheduler...</div>
+      </div>
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">AUTONOMY CONFIGURATION</div>
+        <div id="dispatchConfigContent" class="dhq-loading">Loading config...</div>
+      </div>
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">JOBS BY DEPARTMENT <span id="jobMonitorCount" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem"></span></div>
+        <div id="jobMonitorContent" class="dhq-loading">Loading job monitoring...</div>
+      </div>
+
+          </div>
+          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
+    </div>
+    <!-- END AUTONOMY TAB PANEL -->
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <!-- FLEET TAB — Fleet Map + Node Overview                         -->
@@ -405,6 +464,11 @@
         <table style="width:100%;font-size:0.75rem;border-collapse:collapse;">
           <tbody id="fleetBudgetTableBody"></tbody>
         </table>
+      <!-- System Components (moved from Dispatch — infrastructure belongs with Fleet) -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">SYSTEM COMPONENTS</div>
+        <div id="dispatchComponentsContent" class="dhq-loading">Loading components...</div>
+      </div>
       </div>
           </div>
           <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
@@ -1776,6 +1840,7 @@ async function _dhqRejectHire(approvalId, btn) {
 <script src="{{ url_for('static', filename='js/agent_profile_modal.js') }}"></script>
 <script src="{{ url_for('department_hq.static', filename='js/browser_presence.js') }}"></script>
 <script src="{{ url_for('static', filename='js/department-hq-chat.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/dispatch-history.js') }}"></script>
 <script>
   window.onLcarsTabSwitch = function(tabId) { switchTab(tabId); };
   (function() {
@@ -1783,4 +1848,5 @@ async function _dhqRejectHire(approvalId, btn) {
     if (hash) { lcarsHeaderSwitchTab(hash); switchTab(hash); }
   })();
 </script>
+
 {% endblock %}

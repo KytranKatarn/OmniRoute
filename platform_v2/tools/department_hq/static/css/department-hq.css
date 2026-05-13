@@ -2038,3 +2038,60 @@
 .dhq-traffic-btn-active {
   background: rgba(0,255,255,0.1); border-color: var(--dhq-accent); color: var(--dhq-accent);
 }
+
+/* ── Dispatch History ─────────────────────────────────────────────── */
+.dh-stats-bar {
+  display: flex; gap: 0.75rem; padding: 0.75rem 0; flex-wrap: wrap;
+}
+.dh-stat-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(20,184,166,0.2);
+  border-radius: 4px; padding: 0.5rem 0.75rem; min-width: 110px; flex: 1;
+}
+.dh-stat-value { font-size: 1.1rem; font-weight: 700; color: var(--archie-palette-teal-300,#5eead4); }
+.dh-stat-sub   { font-size: 0.7rem; opacity: 0.6; }
+.dh-stat-label { font-size: 0.6rem; letter-spacing: 0.08em; opacity: 0.5; margin-top: 2px; }
+.dh-filters {
+  display: flex; gap: 0.5rem; flex-wrap: wrap; padding: 0.5rem 0; align-items: center;
+}
+.dh-filter-select, .dh-filter-input {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: inherit; border-radius: 3px; padding: 0.25rem 0.4rem; font-size: 0.7rem;
+}
+.dh-filter-input { min-width: 100px; }
+.dh-pagination {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.75rem 0; font-size: 0.75rem;
+}
+.dh-history-table tr.dh-row:hover { background: rgba(20,184,166,0.06); cursor: pointer; }
+.dh-history-table tr.dh-row-expanded { background: rgba(20,184,166,0.04); }
+.dh-expand-details { padding: 0.5rem 0.75rem; font-size: 0.7rem; opacity: 0.85; }
+.dh-dur-ok  { color: var(--archie-palette-green-400,#4ade80); }
+.dh-dur-mid { color: var(--archie-palette-amber-400,#fbbf24); }
+.dh-dur-bad { color: var(--archie-palette-red-400,#f87171); }
+.dh-badge-task { color: var(--archie-palette-teal-300,#5eead4); }
+.dh-badge-job  { color: var(--archie-palette-amber-300,#fcd34d); }
+
+/* Ollama compact chips (Task 6) */
+.dhq-ollama-compact { padding: 0.4rem 0.75rem !important; }
+.dhq-ollama-chips {
+    display: flex; align-items: center; gap: 0.5rem;
+    flex-wrap: wrap; font-size: 0.75rem;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--archie-palette-teal-300, #5eead4);
+    margin-top: 0.2rem;
+}
+.dhq-chip { display: inline-flex; align-items: center; gap: 0.25rem; }
+.dhq-chip-sep { opacity: 0.3; }
+.dhq-chip-dot { font-size: 0.6rem; }
+
+/* Mobile / Fold 5 table overflow fix (PR 1 Task 8) */
+.dhq-dispatch-section,
+.dhq-section {
+    overflow-x: auto;
+}
+.dhq-dispatch-section table,
+.dhq-section table {
+    min-width: 480px;
+}

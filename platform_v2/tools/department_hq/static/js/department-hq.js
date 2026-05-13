@@ -107,6 +107,8 @@ function switchTab(tab) {
     document.querySelectorAll('.dhq-panel').forEach(function(p) {
         p.classList.toggle('active', p.id === 'panel-' + tab);
     });
+    // Persist active tab so refresh restores it
+    try { localStorage.setItem('dhq_active_tab', tab); } catch (_) {}
     var loaders = {
         'overview':     loadOverview,
         'org-chart':    loadOrgChart,
@@ -119,6 +121,7 @@ function switchTab(tab) {
         'dispatch':     loadDispatch,
         'fleet':        loadFleet,
         'contractors':  loadContractors,
+        'autonomy':     loadAutonomy,
         'approvals':    function() { if (typeof loadDhqApprovals === 'function') loadDhqApprovals(); },
     };
     // Approvals should always reload on tab click (not cached) for fresh state
@@ -126,6 +129,10 @@ function switchTab(tab) {
         if (typeof loadDhqApprovals === 'function') loadDhqApprovals();
     } else if (!loaded[tab] && loaders[tab]) {
         loaders[tab]();
+    }
+    // Initialise dispatch history section on first dispatch tab open
+    if (tab === 'dispatch' && typeof dhInit === 'function') {
+        dhInit();
     }
 }
 
@@ -2484,7 +2491,7 @@ async function loadDispatch() {
         renderLoopJobs(data.loop_jobs || []);
     } catch (err) {
         var msg = '<div class="dhq-empty">Error loading dispatch data: ' + esc(err.message) + '</div>';
-        ['dispatchJobsContent','dispatchWorkloadContent',
+        ['dispatchWorkloadContent',
          'dispatchMetricsContent','dispatchLoopContent'].forEach(function(id) {
             var el = document.getElementById(id);
             if (el) setHtml(el, msg);
@@ -2498,9 +2505,25 @@ async function loadDispatch() {
     loadDispatchComponents();
     loadDispatchScheduler();
     loadDispatchConfig();
-    loadDispatchRepairPipeline();
     loadJobMonitoring();
     loadDispatchTraffic();
+}
+
+// ───────────────────────────────────────────────────────────────
+// Autonomy Tab Loader
+// Reuses the same data functions as the old Dispatch autonomy sections.
+// Element IDs (dispatchSchedContent, dispatchConfigContent, jobMonitorContent)
+// now live in panel-autonomy — same JS, different panel location.
+// ───────────────────────────────────────────────────────────────
+async function loadAutonomy() {
+    try {
+        if (typeof loadDispatchScheduler === 'function') await loadDispatchScheduler();
+        if (typeof loadDispatchConfig === 'function') await loadDispatchConfig();
+        if (typeof loadJobMonitoring === 'function') await loadJobMonitoring();
+        loaded['autonomy'] = true;
+    } catch (e) {
+        console.error('[loadAutonomy] error:', e);
+    }
 }
 
 function renderOllamaHud(o) {
@@ -2512,53 +2535,75 @@ function renderOllamaHud(o) {
 }
 
 function renderActiveJobs(jobs) {
-    var el = document.getElementById('dispatchJobsContent');
-    var countEl = document.getElementById('dispatchJobCount');
-    var running = jobs.filter(function(j) { return j.status === 'running' || j.status === 'pending'; });
-    if (countEl) countEl.textContent = '(' + running.length + ' active)';
-    if (!jobs.length) {
-        setHtml(el, '<div class="dhq-empty">No active bridge jobs</div>');
-        return;
-    }
-    var html = '';
-    jobs.forEach(function(j) {
-        var pct = j.progress_pct || 0;
-        var statusCls = 'dhq-status-' + (j.status || 'pending');
-        html += '<div class="dhq-job-row">'
-            + '<div><span class="dhq-status-badge ' + statusCls + '">' + esc(j.status) + '</span> '
-            + esc(j.description || j.job_type) + '</div>'
-            + '<div style="color:var(--dhq-accent)">' + esc(j.agent_name || 'unassigned') + '</div>'
-            + '<div class="dhq-progress-row"><div class="dhq-progress-wrap">'
-            + '<div class="dhq-progress-fill" style="width:' + pct + '%"></div></div>'
-            + '<span style="font-size:0.7rem;color:var(--dhq-text-dim)">' + pct + '%</span></div>'
-            + '<div style="color:var(--dhq-text-dim);font-size:0.7rem">' + esc(j.station_code || '') + '</div>'
-            + '</div>';
-    });
-    setHtml(el, html);
+    // Section removed 2026-05-13 — ACTIVE BRIDGE JOBS div deleted from dispatch panel.
+    // No-op stub kept so callers in loadDispatchOverview don't throw.
+}
+
+function toggleWorkload() {
+    var el = document.getElementById('dispatchWorkloadContent');
+    var icon = document.getElementById('workloadToggleIcon');
+    if (!el) return;
+    var isHidden = el.style.display === 'none' || el.style.display === '';
+    el.style.display = isHidden ? 'block' : 'none';
+    if (icon) icon.textContent = isHidden ? '▲ collapse' : '▼ expand';
 }
 
 function renderWorkloadGrid(rows) {
-    var el = document.getElementById('dispatchWorkloadContent');
-    if (!rows.length) {
-        setHtml(el, '<div class="dhq-empty">No workload data</div>');
+    var container = document.getElementById('dispatchWorkloadContent');
+    if (!container) return;
+    while (container.firstChild) container.removeChild(container.firstChild);
+
+    if (!rows || !rows.length) {
+        var empty = document.createElement('p');
+        empty.textContent = 'No workload data';
+        empty.style.opacity = '0.5';
+        container.appendChild(empty);
         return;
     }
-    var html = '<div class="dhq-workload-grid">';
-    rows.forEach(function(r) {
-        var color = floorColor(r.floor);
-        var busy = r.active + r.deployed;
-        var idle = r.barracked;
-        html += '<div class="dhq-workload-card" style="border-left-color:' + color + '">'
-            + '<div class="dhq-workload-dept" style="color:' + color + '">' + esc(r.department) + '</div>'
-            + '<div class="dhq-workload-counts">'
-            + '<span style="color:#10B981">' + busy + ' busy</span>'
-            + '<span>' + idle + ' idle</span>'
-            + (r.cooldown ? '<span style="color:#FFAA00">' + r.cooldown + ' cooldown</span>' : '')
-            + '<span style="color:var(--dhq-text-dim)">' + r.total + ' total</span>'
-            + '</div></div>';
+
+    var table = document.createElement('table');
+    table.style.cssText = 'width:100%;font-size:0.75rem;border-collapse:collapse;';
+
+    var thead = document.createElement('thead');
+    var hrow = document.createElement('tr');
+    hrow.style.cssText = 'opacity:0.5;font-size:0.65rem;';
+    [['DEPARTMENT', 'left'], ['BUSY', 'right'], ['IDLE', 'right'], ['TOTAL', 'right']].forEach(function(h) {
+        var th = document.createElement('th');
+        th.textContent = h[0];
+        th.style.cssText = 'text-align:' + h[1] + ';padding:3px 8px;';
+        hrow.appendChild(th);
     });
-    html += '</div>';
-    setHtml(el, html);
+    thead.appendChild(hrow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    rows.forEach(function(r) {
+        var busy = (r.active || 0) + (r.deployed || 0);
+        var idle = r.barracked || 0;
+        var tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid rgba(255,255,255,0.06)';
+
+        var td1 = document.createElement('td');
+        td1.textContent = r.department || '';
+        td1.style.padding = '3px 8px';
+
+        var td2 = document.createElement('td');
+        td2.textContent = String(busy);
+        td2.style.cssText = 'padding:3px 8px;text-align:right;color:#10B981;';
+
+        var td3 = document.createElement('td');
+        td3.textContent = String(idle);
+        td3.style.cssText = 'padding:3px 8px;text-align:right;';
+
+        var td4 = document.createElement('td');
+        td4.textContent = String(r.total || 0);
+        td4.style.cssText = 'padding:3px 8px;text-align:right;color:var(--archie-palette-teal-300,#5eead4);';
+
+        tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
+        tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    container.appendChild(table);
 }
 
 function renderDispatchMetrics(m) {
@@ -2907,21 +2952,6 @@ async function saveDispatchConfig(key) {
         input.style.borderColor = '#10B981';
         setTimeout(function() { input.style.borderColor = ''; }, 2000);
     } catch(e) { input.style.borderColor = '#ef4444'; }
-}
-
-// ── Repair Pipeline ──
-
-async function loadDispatchRepairPipeline() {
-    var el = document.getElementById('dispatchRepairContent');
-    try {
-        var data = await api('/api/dispatch/repair-pipeline');
-        var html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem">';
-        [{l:'OPEN PROPOSALS',v:data.open_proposals||0},{l:'ACTIVE SESSIONS',v:data.active_sessions||0},{l:'CREED EVENTS 24H',v:data.creed_events||0},{l:'AUDIT FINDINGS 24H',v:data.audit_findings||0}].forEach(function(item) {
-            html += '<div class="dhq-metric-cell"><div class="dhq-metric-label">' + item.l + '</div><div class="dhq-metric-val">' + item.v + '</div></div>';
-        });
-        html += '</div>';
-        setHtml(el, html);
-    } catch(e) { setHtml(el, '<div class="dhq-empty">Pipeline unavailable</div>'); }
 }
 
 // ───────────────────────────────────────────────────────────────
@@ -4366,6 +4396,28 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(function() {
                 try { openAgentDetail(agentId); } catch (_) {}
             }, 500);
+        }
+        // Deep-link: ?tab=<name>#anchor — switch tab then scroll to anchor.
+        // Used by dashboard "VIEW ALL →" link (?tab=dispatch#dispatch-history).
+        var tabParam = params.get('tab');
+        if (tabParam && typeof switchTab === 'function') {
+            switchTab(tabParam);
+            var anchor = window.location.hash ? window.location.hash.substring(1) : '';
+            if (anchor) {
+                setTimeout(function() {
+                    var el = document.getElementById(anchor);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 400);
+            }
+        } else {
+            // No URL param — restore last active tab from localStorage on refresh.
+            // URL param always takes priority over saved tab.
+            try {
+                var savedTab = localStorage.getItem('dhq_active_tab');
+                if (savedTab && savedTab !== 'overview' && typeof switchTab === 'function') {
+                    switchTab(savedTab);
+                }
+            } catch (_) {}
         }
     } catch (_) {}
 });

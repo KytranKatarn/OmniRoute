@@ -14,7 +14,10 @@ import requests as _req
 from flask import current_app, jsonify, request
 from flask_login import login_required
 
+from datetime import timedelta
+
 from database import get_db_cursor
+from services.time_utils import now_utc
 
 logger = logging.getLogger(__name__)
 
@@ -374,47 +377,195 @@ def register_dispatch_routes(bp, admin_required_decorator):
     @bp.route("/api/dispatch/history", methods=["GET"])
     @admin_required_decorator
     def dispatch_history():
-        """Unified dispatch + loop history."""
-        hours = min(int(request.args.get("hours", 24)), 168)
-        limit = min(int(request.args.get("limit", 50)), 200)
+        """Paginated unified dispatch log (task_execution_log + bridge_jobs)."""
+        agent = request.args.get("agent", "").strip()
+        capability = request.args.get("capability", "").strip()
+        source = request.args.get("source", "all")  # all | task | job
+        q = request.args.get("q", "").strip()
+        try:
+            per_page = min(int(request.args.get("per_page", 25)), 100)
+            page = max(int(request.args.get("page", 1)), 1)
+        except (ValueError, TypeError):
+            per_page, page = 25, 1
+        offset = (page - 1) * per_page
+
+        now = now_utc()
+        default_from = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+        default_to = now.strftime("%Y-%m-%d")
+        from_dt = request.args.get("from", default_from) + " 00:00:00"
+        to_dt = request.args.get("to", default_to) + " 23:59:59"
+
         try:
             with get_db_cursor() as (conn, cur):
-                cur.execute(
-                    """(SELECT 'dispatch' AS source, id, agent_name AS actor,
-                              task_type AS action, module_source AS module,
-                              CASE WHEN success THEN 'success' ELSE 'failed' END AS status,
-                              duration_ms, created_at
-                        FROM task_execution_log
-                        WHERE created_at > NOW() - INTERVAL '%s hours'
-                        ORDER BY created_at DESC LIMIT %s)
-                       UNION ALL
-                       (SELECT 'loop' AS source, id, job_name AS actor,
-                               status AS action, '' AS module,
-                               status, duration_ms, created_at
-                        FROM autonomy_loop_log
-                        WHERE created_at > NOW() - INTERVAL '%s hours'
-                        ORDER BY created_at DESC LIMIT %s)
-                       ORDER BY created_at DESC LIMIT %s""",
-                    (hours, limit, hours, limit, limit),
-                )
-                entries = []
-                for row in cur.fetchall():
-                    r = dict(row)
-                    entries.append(
-                        {
-                            "source": r["source"],
-                            "actor": r.get("actor", ""),
-                            "action": r.get("action", ""),
-                            "module": r.get("module", ""),
-                            "status": r.get("status", ""),
-                            "duration_ms": r.get("duration_ms"),
-                            "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
-                        }
+                # task_execution_log CTE
+                # SAFETY: all items in task_filters/job_filters must use %(param)s placeholders.
+                # Never interpolate user input directly — it flows through `params` dict only.
+                task_filters = ["tel.created_at BETWEEN %(from_dt)s AND %(to_dt)s"]
+                if agent:
+                    task_filters.append("tel.agent_name = %(agent)s")
+                if capability:
+                    task_filters.append("tel.capability = %(capability)s")
+                if q:
+                    task_filters.append(
+                        "(tel.agent_name ILIKE %(q_like)s OR tel.capability ILIKE %(q_like)s"
+                        " OR tel.module_source ILIKE %(q_like)s"
+                        " OR COALESCE(tel.error_message,'') ILIKE %(q_like)s)"
                     )
-            return jsonify({"success": True, "history": entries, "hours": hours})
-        except Exception as e:
-            logger.error("[Dispatch] History failed: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+                task_cte = """
+                    SELECT 'task'::text AS source,
+                           tel.agent_name, tel.capability,
+                           tel.module_source AS module,
+                           tel.model_used,
+                           tel.duration_ms,
+                           tel.success,
+                           tel.error_message,
+                           tel.created_at,
+                           tel.tokens_used,
+                           COALESCE(tel.cost, 0)::float AS cost
+                    FROM task_execution_log tel
+                    WHERE {task_where}
+                """.format(
+                    task_where=" AND ".join(task_filters)
+                )
+
+                # bridge_jobs CTE — no duration_ms, job_type not capability
+                job_filters = ["bj.created_at BETWEEN %(from_dt)s AND %(to_dt)s"]
+                if agent:
+                    job_filters.append("bj.agent_name = %(agent)s")
+                if capability:
+                    job_filters.append("bj.job_type = %(capability)s")
+                if q:
+                    job_filters.append(
+                        "(bj.agent_name ILIKE %(q_like)s OR bj.job_type ILIKE %(q_like)s"
+                        " OR COALESCE(bj.module_source,'') ILIKE %(q_like)s"
+                        " OR COALESCE(bj.error_message,'') ILIKE %(q_like)s)"
+                    )
+                job_cte = """
+                    SELECT 'job'::text AS source,
+                           bj.agent_name,
+                           bj.job_type AS capability,
+                           bj.module_source AS module,
+                           NULL::text AS model_used,
+                           NULL::int AS duration_ms,
+                           (bj.status = 'completed') AS success,
+                           bj.error_message,
+                           bj.created_at,
+                           NULL::int AS tokens_used,
+                           0::float AS cost
+                    FROM bridge_jobs bj
+                    WHERE {job_where}
+                """.format(
+                    job_where=" AND ".join(job_filters)
+                )
+
+                if source == "task":
+                    union_sql = task_cte
+                elif source == "job":
+                    union_sql = job_cte
+                else:
+                    union_sql = "({task}) UNION ALL ({job})".format(task=task_cte, job=job_cte)
+
+                params = {
+                    "from_dt": from_dt,
+                    "to_dt": to_dt,
+                    "agent": agent or None,
+                    "capability": capability or None,
+                    "q_like": "%" + q + "%" if q else None,
+                }
+
+                # Stats query
+                cur.execute(
+                    """
+                    WITH combined AS ({union})
+                    SELECT
+                        COUNT(*)::int AS total_calls,
+                        ROUND(
+                            100.0 * SUM(CASE WHEN success THEN 1 ELSE 0 END)
+                            / NULLIF(COUNT(*), 0), 1
+                        ) AS success_rate,
+                        ROUND(
+                            AVG(CASE WHEN success AND duration_ms IS NOT NULL
+                                THEN duration_ms END) / 1000.0, 1
+                        ) AS avg_duration_s,
+                        MODE() WITHIN GROUP (ORDER BY agent_name) AS top_agent,
+                        MODE() WITHIN GROUP (ORDER BY module) AS top_module
+                    FROM combined
+                    """.format(
+                        union=union_sql
+                    ),
+                    params,
+                )
+                sr = cur.fetchone()
+                stats = {
+                    "total_calls": int(sr["total_calls"] or 0),
+                    "success_rate": float(sr["success_rate"] or 0),
+                    "avg_duration_s": float(sr["avg_duration_s"] or 0),
+                    "top_agent": sr["top_agent"] or "—",
+                    "top_module": sr["top_module"] or "—",
+                }
+
+                # Rows query
+                cur.execute(
+                    """
+                    WITH combined AS ({union})
+                    SELECT * FROM combined
+                    ORDER BY created_at DESC
+                    LIMIT %(per_page)s OFFSET %(offset)s
+                    """.format(
+                        union=union_sql
+                    ),
+                    {**params, "per_page": per_page, "offset": offset},
+                )
+                rows = [
+                    {
+                        "source": r["source"],
+                        "agent_name": r["agent_name"],
+                        "capability": r["capability"],
+                        "module": r["module"],
+                        "model_used": r["model_used"],
+                        "duration_ms": r["duration_ms"],
+                        "success": r["success"],
+                        "error_message": r["error_message"],
+                        "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                        "tokens_used": r["tokens_used"],
+                        "cost": r["cost"],
+                    }
+                    for r in cur.fetchall()
+                ]
+
+            total = stats["total_calls"]
+            pages = max(1, (total + per_page - 1) // per_page)
+            return jsonify(
+                {
+                    "stats": stats,
+                    "rows": rows,
+                    "total": total,
+                    "page": page,
+                    "pages": pages,
+                }
+            )
+
+        except Exception:
+            logger.exception("[Dispatch] dispatch_history failed")
+            return (
+                jsonify(
+                    {
+                        "error": "internal error",
+                        "stats": {
+                            "total_calls": 0,
+                            "success_rate": 0,
+                            "avg_duration_s": 0,
+                            "top_agent": "—",
+                            "top_module": "—",
+                        },
+                        "rows": [],
+                        "total": 0,
+                        "page": 1,
+                        "pages": 1,
+                    }
+                ),
+                500,
+            )
 
     # ── System Components ──
 
@@ -1011,3 +1162,45 @@ def register_dispatch_routes(bp, admin_required_decorator):
         except Exception as e:
             logger.error("[Dispatch] Claude feed failed: %s", e)
             return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/dispatch/history/agents", methods=["GET"])
+    @admin_required_decorator
+    def dispatch_history_agents():
+        """Distinct agent names for the history filter dropdown (last 90 days)."""
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT DISTINCT agent_name
+                    FROM task_execution_log
+                    WHERE agent_name IS NOT NULL
+                      AND created_at > NOW() - INTERVAL '90 days'
+                    ORDER BY agent_name
+                    """
+                )
+                agents = [r["agent_name"] for r in cur.fetchall()]
+            return jsonify(agents)
+        except Exception:
+            logger.exception("dispatch_history_agents failed")
+            return jsonify([]), 500
+
+    @bp.route("/api/dispatch/history/capabilities", methods=["GET"])
+    @admin_required_decorator
+    def dispatch_history_capabilities():
+        """Distinct capabilities for the history filter dropdown (last 90 days)."""
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT DISTINCT capability
+                    FROM task_execution_log
+                    WHERE capability IS NOT NULL
+                      AND created_at > NOW() - INTERVAL '90 days'
+                    ORDER BY capability
+                    """
+                )
+                caps = [r["capability"] for r in cur.fetchall()]
+            return jsonify(caps)
+        except Exception:
+            logger.exception("dispatch_history_capabilities failed")
+            return jsonify([]), 500

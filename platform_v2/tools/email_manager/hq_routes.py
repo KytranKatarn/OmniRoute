@@ -139,7 +139,7 @@ def register_hq_routes(bp, admin_required):
             where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
             params.append(limit)
             cur.execute(
-                f"""
+                """
                 SELECT al.id, m.id AS mailbox_id, al.direction, al.from_address,
                        al.to_address, al.subject, al.logged_at AS received_at, al.read_at,
                        m.address AS mailbox_address, m.mailbox_type,
@@ -148,7 +148,9 @@ def register_hq_routes(bp, admin_required):
                 JOIN email_mailboxes m ON m.address = al.mailbox_address
                 LEFT JOIN email_assignments ea ON ea.email_id = al.id
                   AND ea.status = 'open'
-                {where_sql}
+                """
+                + where_sql
+                + """
                 ORDER BY al.logged_at DESC NULLS LAST
                 LIMIT %s
                 """,

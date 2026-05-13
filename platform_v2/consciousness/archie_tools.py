@@ -27,8 +27,8 @@ ALLOWED_PATHS = [
 
 def is_safe_path(path):
     """Ensure path is within allowed directories"""
-    abs_path = os.path.abspath(path)
-    return any(abs_path == allowed or abs_path.startswith(allowed + os.sep) for allowed in ALLOWED_PATHS)
+    real_path = os.path.realpath(path)  # realpath resolves symlinks; abspath does not
+    return any(real_path == allowed or real_path.startswith(allowed + os.sep) for allowed in ALLOWED_PATHS)
 
 
 def is_safe_operation(path, operation="read"):

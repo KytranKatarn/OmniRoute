@@ -105,7 +105,9 @@ function switchTab(tab) {
         b.classList.toggle('active', b.dataset.tab === tab);
     });
     document.querySelectorAll('.dhq-panel').forEach(function(p) {
-        p.classList.toggle('active', p.id === 'panel-' + tab);
+        var isActive = p.id === 'panel-' + tab;
+        p.classList.toggle('active', isActive);
+        p.style.display = isActive ? 'block' : '';
     });
     // Persist active tab so refresh restores it
     try { localStorage.setItem('dhq_active_tab', tab); } catch (_) {}
@@ -128,6 +130,7 @@ function switchTab(tab) {
     if (tab === 'approvals') {
         if (typeof loadDhqApprovals === 'function') loadDhqApprovals();
     } else if (!loaded[tab] && loaders[tab]) {
+        loaded[tab] = true;
         loaders[tab]();
     }
     // Initialise dispatch history section on first dispatch tab open
@@ -2652,6 +2655,7 @@ function _metricCell(label, val, cls) {
 
 function renderLoopJobs(jobs) {
     var el = document.getElementById('dispatchLoopContent');
+    if (!el) return;
     var countEl = document.getElementById('dispatchLoopCount');
     if (countEl) countEl.textContent = '(' + jobs.length + ' jobs)';
     if (!jobs.length) {
@@ -2713,6 +2717,7 @@ async function dispatchJobRun(name) {
 
 async function loadServerLoops() {
     var el = document.getElementById('dispatchServerLoops');
+    if (!el) return;
     try {
         var data = await api('/api/dispatch/loops');
         var loops = data.loops || {};
@@ -2745,6 +2750,7 @@ async function toggleServerLoop(name) {
 
 async function loadDispatchApprovals() {
     var el = document.getElementById('dispatchApprovalsContent');
+    if (!el) return;
     var countEl = document.getElementById('dispatchApprovalCount');
     try {
         var data = await api('/api/dispatch/approvals?status=pending');
@@ -2776,6 +2782,7 @@ async function approvalAction(id, action) {
 
 async function loadDispatchHistory() {
     var el = document.getElementById('dispatchHistoryContent');
+    if (!el) return;
     var hoursEl = document.getElementById('dispatchHistoryHours');
     var hours = hoursEl ? hoursEl.value : 24;
     try {

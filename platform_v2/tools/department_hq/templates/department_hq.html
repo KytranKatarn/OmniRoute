@@ -1314,7 +1314,7 @@ async function _dhqRejectHire(approvalId, btn) {
 
     async function loadComsFeed() {
         try {
-            var resp = await fetch('/api/department-hq/api/coms/messages?limit=30');
+            var resp = await fetch('/tools/department-hq/api/coms/messages?limit=30');
             if (!resp.ok) return;
             var data = await resp.json();
             var feed = document.getElementById('coms-feed');
@@ -1373,7 +1373,7 @@ async function _dhqRejectHire(approvalId, btn) {
 
     async function loadComsReports() {
         try {
-            var resp = await fetch('/api/department-hq/api/coms/director-reports?hours=24&limit=20');
+            var resp = await fetch('/tools/department-hq/api/coms/director-reports?hours=24&limit=20');
             if (!resp.ok) {
                 // Fallback — try direct DB query via a simpler endpoint
                 var el = document.getElementById('coms-reports');
@@ -1449,8 +1449,8 @@ async function _dhqRejectHire(approvalId, btn) {
         var showAll = document.getElementById('coms-show-all') &&
                       document.getElementById('coms-show-all').checked;
         var url = showAll
-            ? '/api/department-hq/api/coms/director-reports'
-            : '/api/department-hq/api/coms/director-reports/pending';
+            ? '/tools/department-hq/api/coms/director-reports'
+            : '/tools/department-hq/api/coms/director-reports/pending';
 
         fetch(url)
             .then(function(r) { return r.json(); })
@@ -1587,7 +1587,7 @@ async function _dhqRejectHire(approvalId, btn) {
     };
 
     window.comsAck = function(id, action) {
-        fetch('/api/department-hq/api/coms/director-reports/' + id + '/ack', {
+        fetch('/tools/department-hq/api/coms/director-reports/' + id + '/ack', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({action: action, reason: 'Manual ' + action + ' from platform inbox'}),
@@ -1607,7 +1607,7 @@ async function _dhqRejectHire(approvalId, btn) {
 
     window.comsMarkAllResolved = function() {
         if (!confirm('Mark all pending reports as resolved?')) return;
-        fetch('/api/department-hq/api/coms/director-reports/pending')
+        fetch('/tools/department-hq/api/coms/director-reports/pending')
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 var reports = data.reports || data || [];
@@ -1615,7 +1615,7 @@ async function _dhqRejectHire(approvalId, btn) {
                     return r.triage_status === 'pending' || !r.triage_status;
                 });
                 return Promise.all(pending.map(function(r) {
-                    return fetch('/api/department-hq/api/coms/director-reports/' + r.id + '/ack', {
+                    return fetch('/tools/department-hq/api/coms/director-reports/' + r.id + '/ack', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({action: 'resolve', reason: 'Bulk resolve from platform inbox'}),
@@ -1643,7 +1643,7 @@ async function _dhqRejectHire(approvalId, btn) {
         if (!box) return;
         box.textContent = '';
         try {
-            var resp = await fetch('/api/department-hq/api/coms/triage-policies');
+            var resp = await fetch('/tools/department-hq/api/coms/triage-policies');
             if (!resp.ok) { _comsMsg(box, 'Policies unavailable.'); return; }
             var data = await resp.json();
             var policies = data.policies || [];
@@ -1697,7 +1697,7 @@ async function _dhqRejectHire(approvalId, btn) {
             priority: parseInt((document.getElementById('cp-priority') || {}).value || '50', 10),
         };
         try {
-            var resp = await fetch('/api/department-hq/api/coms/triage-policies', {
+            var resp = await fetch('/tools/department-hq/api/coms/triage-policies', {
                 method: 'POST', headers: {'Content-Type':'application/json'},
                 body: JSON.stringify(body),
             });
@@ -1716,7 +1716,7 @@ async function _dhqRejectHire(approvalId, btn) {
     async function _comsDeletePolicy(id) {
         if (!confirm('Delete this triage policy?')) return;
         try {
-            var resp = await fetch('/api/department-hq/api/coms/triage-policies/' + id, { method: 'DELETE' });
+            var resp = await fetch('/tools/department-hq/api/coms/triage-policies/' + id, { method: 'DELETE' });
             if (!resp.ok) { alert('Failed to delete policy.'); return; }
             window.loadComsPolicies();
         } catch(e) { alert('Error deleting policy.'); }

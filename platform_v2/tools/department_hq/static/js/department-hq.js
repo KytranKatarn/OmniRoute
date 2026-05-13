@@ -2452,9 +2452,9 @@ async function loadDevices() {
 
             if (d.status === 'pending') {
                 html += '<button class="dhq-btn dhq-btn-approve" onclick="approveDevice(' + d.id + ')">Approve</button>'
-                    + '<button class="dhq-btn dhq-btn-deny" onclick="denyDevice(' + d.id + ')">Deny</button>';
+                    + '<button class="dhq-btn dhq-btn-deny" onclick="denyDevice(' + d.id + ', \'' + d.device_name.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')">Deny</button>';
             } else if (d.status === 'approved') {
-                html += '<button class="dhq-btn dhq-btn-revoke" onclick="revokeDevice(' + d.id + ')">Revoke</button>';
+                html += '<button class="dhq-btn dhq-btn-revoke" onclick="revokeDevice(' + d.id + ', \'' + d.device_name.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')">Revoke</button>';
             }
 
             html += '</div></div>';
@@ -2470,34 +2470,61 @@ async function approveDevice(deviceId) {
     try {
         var resp = await fetch(DHQ_BASE + '/api/auth/approve/' + deviceId, {method: 'POST'});
         var data = await resp.json();
+        if (!resp.ok) {
+            console.error('Approve failed:', data.error || resp.status);
+            return;
+        }
         if (data.api_key) {
-            // Show in a prompt so user can copy — alert may truncate
-            prompt('API Key (copy this — shown once only):', data.api_key);
+            document.getElementById('deviceKeyValue').textContent = data.api_key;
+            var copyBtn = document.getElementById('deviceKeyCopyBtn');
+            if (copyBtn) copyBtn.textContent = 'COPY KEY';
+            document.getElementById('deviceKeyModal').style.display = 'flex';
         }
         loadDevices();
     } catch (err) {
-        alert('Error approving device: ' + err.message);
+        console.error('Error approving device:', err);
     }
 }
 
-async function denyDevice(deviceId) {
-    if (!confirm('Deny this device registration?')) return;
-    try {
-        await fetch(DHQ_BASE + '/api/auth/deny/' + deviceId, {method: 'POST'});
-        loadDevices();
-    } catch (err) {
-        alert('Error denying device: ' + err.message);
-    }
+function denyDevice(deviceId, deviceName) {
+    window._dhqPendingDenyId = deviceId;
+    document.getElementById('deviceDenyName').textContent = deviceName;
+    document.getElementById('deviceDenyModal').style.display = 'flex';
 }
 
-async function revokeDevice(deviceId) {
-    if (!confirm('Revoke this device? It will lose all access immediately.')) return;
-    try {
-        await fetch(DHQ_BASE + '/api/auth/revoke/' + deviceId, {method: 'POST'});
-        loadDevices();
-    } catch (err) {
-        alert('Error revoking device: ' + err.message);
-    }
+function confirmDenyDevice() {
+    var id = window._dhqPendingDenyId;
+    window._dhqPendingDenyId = null;
+    document.getElementById('deviceDenyModal').style.display = 'none';
+    fetch(DHQ_BASE + '/api/auth/deny/' + id, {method: 'POST'})
+        .then(function(resp) { if (resp.ok) loadDevices(); else console.error('Deny failed:', resp.status); })
+        .catch(function(err) { console.error('Error denying device:', err); });
+}
+
+function revokeDevice(deviceId, deviceName) {
+    window._dhqPendingRevokeId = deviceId;
+    document.getElementById('deviceRevokeName').textContent = deviceName;
+    document.getElementById('deviceRevokeModal').style.display = 'flex';
+}
+
+function confirmRevokeDevice() {
+    var id = window._dhqPendingRevokeId;
+    window._dhqPendingRevokeId = null;
+    document.getElementById('deviceRevokeModal').style.display = 'none';
+    fetch(DHQ_BASE + '/api/auth/revoke/' + id, {method: 'POST'})
+        .then(function(resp) { if (resp.ok) loadDevices(); else console.error('Revoke failed:', resp.status); })
+        .catch(function(err) { console.error('Error revoking device:', err); });
+}
+
+function copyDeviceKey() {
+    var key = document.getElementById('deviceKeyValue').textContent;
+    navigator.clipboard.writeText(key).then(function() {
+        var btn = document.getElementById('deviceKeyCopyBtn');
+        if (btn) {
+            btn.textContent = 'COPIED ✓';
+            setTimeout(function() { btn.textContent = 'COPY KEY'; }, 3000);
+        }
+    }).catch(function(err) { console.error('Clipboard write failed:', err); });
 }
 
 // ───────────────────────────────────────────────────────────────

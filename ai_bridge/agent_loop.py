@@ -1478,8 +1478,16 @@ class AgentLoop:
         )
         logger.info("Registered job: C.R.E.E.D. Governance Reporter (every 5m)")
 
+        self.scheduler.add_job(
+            with_app_context(self._run_login_anomaly_check),
+            trigger=IntervalTrigger(minutes=30),
+            id="login_anomaly_check",
+            name="Agent Loop: Login Anomaly Check",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 73 jobs")
+        logger.info("Agent loop started with 74 jobs")
 
     def _update_stock_prices(self):
         """Job #27: DISABLED — StockBot migrated to Kytran Market Watch (standalone).
@@ -8346,6 +8354,122 @@ class AgentLoop:
             run_quality_review()
         except Exception as e:
             logger.error("Quality review job failed: %s", e)
+
+    def _run_login_anomaly_check(self):
+        """Alert on accounts with excessive successful logins in 24h."""
+        import time as _time
+        _start = _time.time()
+        processed = 0
+        try:
+            from database import get_db_cursor
+            from services.time_utils import now_utc
+            from services.telegram_service import send_security
+
+            # Configurable threshold (default: 10 logins / 24h)
+            threshold = 10
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT value FROM system_config WHERE key = 'login_anomaly_threshold'"
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    try:
+                        threshold = int(row[0])
+                    except (ValueError, TypeError):
+                        pass
+
+            # Find users exceeding threshold in last 24h
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT a.user_id, u.username, u.email,
+                           COUNT(*) AS login_count,
+                           array_agg(DISTINCT a.ip_address) AS ips,
+                           MIN(a.created_at) AS first_login,
+                           MAX(a.created_at) AS last_login
+                    FROM audit_log a
+                    JOIN users u ON a.user_id = u.id
+                    WHERE a.action = 'login_success'
+                      AND a.created_at >= NOW() - INTERVAL '24 hours'
+                    GROUP BY a.user_id, u.username, u.email
+                    HAVING COUNT(*) >= %s
+                    """,
+                    [threshold],
+                )
+                rows = cur.fetchall() or []
+
+            processed = len(rows)
+            now = now_utc()
+
+            for row in rows:
+                user_id, username, email, login_count, ips, first_login, last_login = row
+                try:
+                    # Rate-limit: one alert per user per 24h
+                    alert_key = f"anomaly_alert_{user_id}"
+                    with get_db_cursor() as (conn, cur):
+                        cur.execute(
+                            "SELECT value FROM system_config WHERE key = %s", [alert_key]
+                        )
+                        existing = cur.fetchone()
+                    if existing and existing[0]:
+                        try:
+                            import datetime as _dt
+                            last_alert = _dt.datetime.fromisoformat(existing[0])
+                            if last_alert.tzinfo is None:
+                                last_alert = last_alert.replace(tzinfo=_dt.timezone.utc)
+                            if (now - last_alert).total_seconds() < 86400:
+                                continue
+                        except (ValueError, TypeError):
+                            pass
+
+                    # Send Telegram security alert
+                    ip_list = ", ".join(
+                        str(ip) for ip in (ips or []) if ip
+                    ) or "unknown"
+                    fmt = "%H:%M"
+                    window = (
+                        f"{first_login.strftime(fmt) if first_login else '?'}"
+                        f" → {last_login.strftime(fmt) if last_login else '?'}"
+                    )
+                    send_security(
+                        title="Login Anomaly Detected",
+                        message=(
+                            f"User: {username} ({email})\n"
+                            f"Logins in 24h: {login_count}\n"
+                            f"IPs: {ip_list}\n"
+                            f"Window: {window}"
+                        ),
+                    )
+
+                    # Mark alerted (suppress for 24h)
+                    with get_db_cursor(commit=True) as (conn, cur):
+                        cur.execute(
+                            """INSERT INTO system_config (key, value)
+                               VALUES (%s, %s)
+                               ON CONFLICT (key) DO UPDATE
+                               SET value = EXCLUDED.value, updated_at = NOW()""",
+                            [alert_key, now.isoformat()],
+                        )
+                    logger.info(
+                        "login_anomaly_check: alert sent for user_id=%s (%d logins)",
+                        user_id,
+                        login_count,
+                    )
+                except Exception as _user_err:
+                    logger.error(
+                        "login_anomaly_check: failed for user_id=%s: %s",
+                        user_id,
+                        _user_err,
+                    )
+
+            duration_ms = int((_time.time() - _start) * 1000)
+            self._log_cycle("login_anomaly_check", processed, 0, duration_ms)
+        except Exception as e:
+            duration_ms = int((_time.time() - _start) * 1000)
+            self._log_cycle(
+                "login_anomaly_check", 0, 1, duration_ms, error_message=str(e)
+            )
+            logger.error("login_anomaly_check failed: %s", e)
 
     def _creed_governance_reporter(self):
         """Job: Forward governance_audit_log events to standalone C.R.E.E.D. instance.

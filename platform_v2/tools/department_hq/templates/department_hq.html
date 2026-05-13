@@ -69,7 +69,7 @@
         <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
           <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;"><span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">ORG CHART</span><div style="flex:1"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">STRUCTURE</span><div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div></div>
           <div style="flex:1 !important;padding:16px !important;">
-      <div id="orgChartContent" class="dhq-loading">Loading org chart...</div>
+      <div id="orgChartContent-legacy"></div>
           </div>
           <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
         </div>
@@ -108,6 +108,14 @@
         </div>
         <span class="dhq-roster-count" id="rosterCount"></span>
       </div>
+    <!-- Roster / Org Chart view toggle (PR 2) -->
+    <div class="dhq-roster-view-bar">
+      <button class="dhq-roster-view-bar-btn active" data-rosterview="list" onclick="toggleRosterView('list')">LIST VIEW</button>
+      <button class="dhq-roster-view-bar-btn" data-rosterview="org-chart" onclick="toggleRosterView('org-chart')">ORG CHART</button>
+    </div>
+    <div id="rosterOrgChartProxy" style="display:none;">
+      <div id="orgChartContent" class="dhq-loading">Loading org chart...</div>
+    </div>
       <div id="rosterContent" class="dhq-loading">Loading roster...</div>
           </div>
           <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>

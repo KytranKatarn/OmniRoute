@@ -111,7 +111,6 @@ function switchTab(tab) {
     try { localStorage.setItem('dhq_active_tab', tab); } catch (_) {}
     var loaders = {
         'overview':     loadOverview,
-        'org-chart':    loadOrgChart,
         'roster':       loadRoster,
         'work':         loadWorkSessions,
         'performance':  loadPerformance,
@@ -133,6 +132,9 @@ function switchTab(tab) {
     // Initialise dispatch history section on first dispatch tab open
     if (tab === 'dispatch' && typeof dhInit === 'function') {
         dhInit();
+    }
+    if (tab === 'roster') {
+        if (typeof toggleRosterView === 'function') toggleRosterView('list');
     }
 }
 
@@ -330,6 +332,18 @@ function setRosterView(view) {
     if (lastRosterData) {
         renderRoster(lastRosterData);
     }
+}
+
+function toggleRosterView(view) {
+    var listEl  = document.getElementById('rosterContent');
+    var chartEl = document.getElementById('rosterOrgChartProxy');
+    var isChart = (view === 'org-chart');
+    if (listEl)  listEl.style.display  = isChart ? 'none' : '';
+    if (chartEl) chartEl.style.display = isChart ? ''     : 'none';
+    document.querySelectorAll('.dhq-roster-view-bar-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.rosterview === view);
+    });
+    if (isChart && !loaded['org-chart']) { loadOrgChart(); }
 }
 
 async function loadRoster() {

@@ -2095,3 +2095,10 @@
 .dhq-section table {
     min-width: 480px;
 }
+
+/* PR 2: Org Chart merged into Roster */
+.lcars-header-tab[data-tab="org-chart"] { display: none !important; }
+#panel-org-chart { display: none !important; }
+.dhq-roster-view-bar { display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:6px 10px;background:var(--dhq-surface-2,#141b24);border:1px solid var(--dhq-border,#1e293b);border-radius:8px; }
+.dhq-roster-view-bar-btn { font-family:'Antonio',sans-serif;font-size:0.75rem;letter-spacing:1.5px;text-transform:uppercase;padding:4px 14px;border-radius:6px;border:1px solid var(--dhq-border,#1e293b);background:transparent;color:var(--dhq-text-dim,#94a3b8);cursor:pointer;transition:all 0.15s ease; }
+.dhq-roster-view-bar-btn.active,.dhq-roster-view-bar-btn:hover { background:var(--dhq-accent,#00e5ff);color:#010409;border-color:var(--dhq-accent,#00e5ff); }

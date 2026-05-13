@@ -1302,6 +1302,15 @@ async function _dhqRejectHire(approvalId, btn) {
             window._stopComsInboxPoll();
         }
     };
+    window._comsLoad = function() {
+        if (!comsLoaded) {
+            loadComsFeed();
+            loadComsReports();
+            if (typeof window.loadComsPolicies === 'function') window.loadComsPolicies();
+            comsLoaded = true;
+        }
+        if (typeof window._startComsInboxPoll === 'function') window._startComsInboxPoll();
+    };
 
     async function loadComsFeed() {
         try {
@@ -1806,7 +1815,8 @@ async function _dhqRejectHire(approvalId, btn) {
 <script src="{{ url_for('static', filename='js/department-hq-chat.js') }}" defer></script>
 <script src="{{ url_for('static', filename='js/dispatch-history.js') }}"></script>
 <script>
-  window.onLcarsTabSwitch = function(tabId) { switchTab(tabId); };
+  var _comsHook = window.onLcarsTabSwitch || function(){};
+  window.onLcarsTabSwitch = function(tabId) { switchTab(tabId); _comsHook(tabId); };
   (function() {
     var hash = window.location.hash.replace('#', '');
     if (hash) { lcarsHeaderSwitchTab(hash); switchTab(hash); }

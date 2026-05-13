@@ -122,6 +122,7 @@ function switchTab(tab) {
         'contractors':  loadContractors,
         'autonomy':     loadAutonomy,
         'approvals':    function() { if (typeof loadDhqApprovals === 'function') loadDhqApprovals(); },
+        'coms':         function() { if (typeof window._comsLoad === 'function') window._comsLoad(); },
     };
     // Approvals should always reload on tab click (not cached) for fresh state
     if (tab === 'approvals') {
@@ -661,12 +662,18 @@ async function loadPerformance() {
         var html = '<div class="dhq-perf-grid">';
         for (var i = 0; i < data.departments.length; i++) {
             var m = data.departments[i];
+            var jobs = m.live_jobs_7d || m.jobs_completed || 0;
+            var completed = m.live_completed_7d || m.jobs_completed || 0;
+            var failed = m.live_failed_7d || m.jobs_failed || 0;
+            var rate = jobs > 0 ? completed / jobs : 1;
+            var rateClass = rate >= 0.8 ? '' : rate >= 0.5 ? ' dhq-perf-val-warn' : ' dhq-perf-val-bad';
+            var failClass = failed > 0 ? ' dhq-perf-val-failed' : '';
             html += '<div class="dhq-perf-card" style="--card-accent:' + floorColor(m.floor || '') + '">'
                 + '<div class="dhq-perf-dept">' + esc(m.department) + '</div>'
                 + '<div class="dhq-perf-metrics">'
-                + '<div class="dhq-perf-metric"><span class="dhq-perf-metric-val">' + (m.live_jobs_7d || m.jobs_completed || 0) + '</span><span class="dhq-perf-metric-label">Jobs (7d)</span></div>'
-                + '<div class="dhq-perf-metric"><span class="dhq-perf-metric-val">' + (m.live_completed_7d || m.jobs_completed || 0) + '</span><span class="dhq-perf-metric-label">Completed</span></div>'
-                + '<div class="dhq-perf-metric"><span class="dhq-perf-metric-val">' + (m.live_failed_7d || m.jobs_failed || 0) + '</span><span class="dhq-perf-metric-label">Failed</span></div>'
+                + '<div class="dhq-perf-metric"><span class="dhq-perf-metric-val">' + jobs + '</span><span class="dhq-perf-metric-label">Jobs (7d)</span></div>'
+                + '<div class="dhq-perf-metric"><span class="dhq-perf-metric-val' + rateClass + '">' + completed + '</span><span class="dhq-perf-metric-label">Completed</span></div>'
+                + '<div class="dhq-perf-metric"><span class="dhq-perf-metric-val' + failClass + '">' + failed + '</span><span class="dhq-perf-metric-label">Failed</span></div>'
                 + '<div class="dhq-perf-metric"><span class="dhq-perf-metric-val">' + (m.live_avg_ms_7d || m.avg_response_ms || '\u2014') + '</span><span class="dhq-perf-metric-label">Avg ms</span></div>'
                 + '<div class="dhq-perf-metric"><span class="dhq-perf-metric-val">' + (m.sessions_completed || 0) + '</span><span class="dhq-perf-metric-label">Sessions</span></div>'
                 + '<div class="dhq-perf-metric"><span class="dhq-perf-metric-val">' + (m.creed_score != null ? m.creed_score : '\u2014') + '</span><span class="dhq-perf-metric-label">C.R.E.E.D.</span></div>'

@@ -198,6 +198,7 @@ def token():
     email = user_row["email"]
     role = user_row["role"]
     subscription_tier = user_row["subscription_tier"] or "free"
+    is_owner = subscription_tier == "kytran" or username == "kytran"
 
     # Generate JWT
     now = datetime.now(timezone.utc)
@@ -207,6 +208,7 @@ def token():
         "email": email,
         "role": role,
         "tier": subscription_tier,
+        "is_owner": is_owner,
         "iat": now,
         "exp": now + timedelta(hours=1),
     }
@@ -223,6 +225,7 @@ def token():
                 "email": email,
                 "role": role,
                 "subscription_tier": subscription_tier,
+                "is_owner": is_owner,
             },
         }
     )

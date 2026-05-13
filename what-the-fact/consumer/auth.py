@@ -14,7 +14,7 @@ auth_bp = Blueprint("auth", __name__)
 _PLATFORM = os.environ.get("WTF_PLATFORM_URL", "https://platform.kytranempowerment.com")
 _CLIENT_ID = os.environ.get("WTF_CLIENT_ID", "wtf-consumer")
 _CLIENT_SECRET = os.environ.get("WTF_CLIENT_SECRET", "")
-_SUBSCRIBED_TIERS = {"starter", "professional", "enterprise", "vip", "pro", "business"}
+_SUBSCRIBED_TIERS = {"starter", "professional", "enterprise", "vip", "pro", "business", "kytran", "owner", "admin"}
 
 
 def is_subscriber() -> bool:

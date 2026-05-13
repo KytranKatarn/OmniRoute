@@ -3,9 +3,12 @@ A.R.C.H.I.E.'s Tool System
 Tools that A.R.C.H.I.E. can use to interact with her own codebase and improve herself
 """
 
+import logging
 import os
 from database import _get_db_password
 import re
+
+logger = logging.getLogger(__name__)
 import json
 import subprocess
 from pathlib import Path
@@ -946,7 +949,8 @@ def search_documentation(search_term, doc_type=None):
                                         "excerpt": content[:200] + "...",
                                     }
                                 )
-                    except Exception:
+                    except Exception as e:
+                        logger.debug("archie_tools search: skipped file %s — %s", file_path, e)
                         continue
 
         return {

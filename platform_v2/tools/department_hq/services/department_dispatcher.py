@@ -322,9 +322,10 @@ CAPABILITY_REQUIRES_SKILL = {
 CAPABILITY_TIMEOUTS = {
     "code_analysis": 600,
     "knowledge_analysis": 600,
-    # code_review runs in a background thread — cap at 2 min so stuck reviews
-    # reset to pending rather than blocking indefinitely (PR review pipeline fix).
-    "code_review": 120,
+    # code_review runs in a background thread. mistral:7b cold-loads in 90-150s
+    # under concurrent Repair Bay bursts; 300s gives the model time to warm and
+    # serve queued requests without timing out (misroute_audit ADR-001 follow-up).
+    "code_review": 300,
     # CPU inference (gemma2-cpu, etc.) blocks Gunicorn threads for 300s+ causing
     # platform-wide hangs. Cap at 90s — GPU agents (qwen2.5:7b) respond in <30s;
     # CPU-only agents will fail fast rather than exhausting the thread pool.
@@ -5360,15 +5361,20 @@ class DepartmentDispatcher:
             # Fix B (2026-05-09): CPU-model timeouts should also queue, not just
             # cold-boot failures. This is the safety net for when Fix A's INSERT
             # fails and the call falls through to inline execution.
+            # Fix C (2026-05-13): Extend to ALL models — GPU models (e.g.
+            # mistral:7b) also cold-load under concurrent Repair Bay bursts and
+            # should retry via queue. The priority != "critical" gate below
+            # protects real-time requests (chat) from queueing.
             _err_str = (llm_result.get("error") or "").lower()
-            _is_cpu_timeout = _is_cpu_model and ("timed out" in _err_str or "read timeout" in _err_str)
-            model_not_ready = llm_result.get("model_not_ready", False) or _is_cpu_timeout
-            if _is_cpu_timeout:
+            _is_model_timeout = "timed out" in _err_str or "read timeout" in _err_str
+            model_not_ready = llm_result.get("model_not_ready", False) or _is_model_timeout
+            if _is_model_timeout:
                 logger.warning(
-                    "[BridgeDispatcher] CPU model %s timed out for cap=%s — "
+                    "[BridgeDispatcher] model %s timed out for cap=%s (cpu=%s) — "
                     "treating as model_not_ready to trigger queue",
                     model,
                     capability,
+                    _is_cpu_model,
                 )
 
             # Background tasks (not critical) with cold models → queue for later.

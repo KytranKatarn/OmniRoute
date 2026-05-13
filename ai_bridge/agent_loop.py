@@ -6290,6 +6290,30 @@ class AgentLoop:
             from services.qa_spec_runner import _authenticate, _resolve_env_vars
             from database import get_db_cursor
 
+            # Health gate — skip the run entirely if the platform is mid-restart.
+            # Restarts take <30s; a 6h window means skipping one cycle on the rare
+            # occasion the scheduler fires during a bounce is the right trade-off
+            # over producing 65 false failure records.
+            _platform_url = os.environ.get("PLATFORM_URL", "http://192.168.1.200:3000")
+            try:
+                _health = http_requests.get(
+                    f"{_platform_url}/api/health", timeout=10, allow_redirects=False
+                )
+                if _health.status_code != 200:
+                    logger.warning(
+                        "QA scheduled run skipped — platform health check returned %s "
+                        "(likely mid-restart). Will retry at next 6h interval.",
+                        _health.status_code,
+                    )
+                    return
+            except Exception as _health_err:
+                logger.warning(
+                    "QA scheduled run skipped — platform unreachable: %s "
+                    "(likely mid-restart). Will retry at next 6h interval.",
+                    _health_err,
+                )
+                return
+
             start = time.time()
             suites = qa_service.get_suites()
             internal_suites = [s for s in suites if s.get("suite_type") == "internal"]

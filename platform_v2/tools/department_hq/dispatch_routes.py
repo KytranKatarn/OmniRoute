@@ -1163,6 +1163,134 @@ def register_dispatch_routes(bp, admin_required_decorator):
             logger.error("[Dispatch] Claude feed failed: %s", e)
             return jsonify({"success": False, "error": str(e)}), 500
 
+    @bp.route("/api/alerts/history", methods=["GET"])
+    @admin_required_decorator
+    def alerts_history():
+        """Paginated system_notifications with filter + stats."""
+        now = now_utc()
+        default_from = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+        default_to = now.strftime("%Y-%m-%d")
+        from_date = request.args.get("from_date", default_from)
+        to_date = request.args.get("to_date", default_to)
+        type_filter = request.args.get("type", "all").strip()
+        priority_filter = request.args.get("priority", "all").strip()
+        status_filter = request.args.get("status", "all").strip()
+        q = request.args.get("q", "").strip()
+        try:
+            limit = min(200, max(1, int(request.args.get("limit", 50))))
+            page = max(1, int(request.args.get("page", 1)))
+        except (ValueError, TypeError):
+            limit, page = 50, 1
+        offset = (page - 1) * limit
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                conditions = [
+                    "is_archived = false",
+                    "created_at >= %(from_date)s::date",
+                    "created_at < %(to_date)s::date + interval '1 day'",
+                ]
+                params = {"from_date": from_date, "to_date": to_date}
+
+                if type_filter != "all":
+                    conditions.append("type = %(type_filter)s")
+                    params["type_filter"] = type_filter
+                if priority_filter != "all":
+                    conditions.append("priority = %(priority_filter)s")
+                    params["priority_filter"] = priority_filter
+                if status_filter == "unread":
+                    conditions.append("is_read = false")
+                elif status_filter == "read":
+                    conditions.append("is_read = true")
+                if q:
+                    conditions.append(
+                        "(title ILIKE %(q_like)s OR message ILIKE %(q_like)s" " OR source ILIKE %(q_like)s)"
+                    )
+                    params["q_like"] = f"%{q}%"
+
+                where = " AND ".join(conditions)
+
+                # Windowed stats (respects active filters)
+                cur.execute(
+                    f"""
+                    SELECT COUNT(*)::int AS total,
+                           SUM(CASE WHEN is_read = false THEN 1 ELSE 0 END)::int AS unread
+                    FROM system_notifications WHERE {where}
+                    """,
+                    params,
+                )
+                stat_row = cur.fetchone()
+                total = int(stat_row["total"] or 0)
+                unread = int(stat_row["unread"] or 0)
+
+                # Fixed 24h error/warning counts (always full 24h, ignores date filter)
+                cutoff_24h = now - timedelta(hours=24)
+                cur.execute(
+                    """
+                    SELECT
+                        SUM(CASE WHEN type = 'error'   THEN 1 ELSE 0 END)::int AS errors_24h,
+                        SUM(CASE WHEN type = 'warning' THEN 1 ELSE 0 END)::int AS warnings_24h
+                    FROM system_notifications
+                    WHERE is_archived = false AND created_at >= %(cutoff)s
+                    """,
+                    {"cutoff": cutoff_24h},
+                )
+                sr = cur.fetchone()
+
+                # Paginated rows
+                cur.execute(
+                    f"""
+                    SELECT id, type, priority, title, message, source, source_icon,
+                           is_read, telegram_forwarded, grouped_count, related_action,
+                           metadata, created_at
+                    FROM system_notifications
+                    WHERE {where}
+                    ORDER BY created_at DESC
+                    LIMIT %(limit)s OFFSET %(offset)s
+                    """,
+                    {**params, "limit": limit, "offset": offset},
+                )
+                cols = [
+                    "id",
+                    "type",
+                    "priority",
+                    "title",
+                    "message",
+                    "source",
+                    "source_icon",
+                    "is_read",
+                    "telegram_forwarded",
+                    "grouped_count",
+                    "related_action",
+                    "metadata",
+                    "created_at",
+                ]
+                rows = []
+                for r in cur.fetchall():
+                    row_dict = dict(zip(cols, r)) if not hasattr(r, "keys") else dict(r)
+                    if row_dict.get("created_at"):
+                        row_dict["created_at"] = row_dict["created_at"].isoformat()
+                    rows.append(row_dict)
+
+                pages = max(1, (total + limit - 1) // limit)
+                return jsonify(
+                    {
+                        "stats": {
+                            "total": total,
+                            "unread": unread,
+                            "errors_24h": int(sr["errors_24h"] or 0),
+                            "warnings_24h": int(sr["warnings_24h"] or 0),
+                        },
+                        "rows": rows,
+                        "page": page,
+                        "pages": pages,
+                        "total": total,
+                    }
+                )
+        except Exception:
+            logger.exception("[Dispatch] alerts_history failed")
+            return jsonify({"error": "internal error"}), 500
+
     @bp.route("/api/dispatch/history/agents", methods=["GET"])
     @admin_required_decorator
     def dispatch_history_agents():

@@ -398,6 +398,57 @@
         </div>
       </div>
     </div>
+      <!-- System Alerts History -->
+      <div class="dhq-dispatch-section" id="alerts-history-section" style="margin-top:1.5rem;">
+        <div class="dhq-section-title">
+          SYSTEM ALERTS HISTORY
+          <span id="ahTotalBadge" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem;margin-left:8px;"></span>
+          <button onclick="ahReset()" style="float:right;background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">&#8634; RESET</button>
+        </div>
+        <div id="ahStats" style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 0;"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">
+          <select id="ahFilterType" onchange="ahFetch(true)" style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.15);color:var(--dhq-text);padding:3px 6px;border-radius:3px;font-size:0.72rem;">
+            <option value="all">All Types</option>
+            <option value="error">Error</option>
+            <option value="warning">Warning</option>
+            <option value="alert">Alert</option>
+            <option value="info">Info</option>
+            <option value="success">Success</option>
+          </select>
+          <select id="ahFilterPriority" onchange="ahFetch(true)" style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.15);color:var(--dhq-text);padding:3px 6px;border-radius:3px;font-size:0.72rem;">
+            <option value="all">All Priority</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="normal">Normal</option>
+          </select>
+          <select id="ahFilterStatus" onchange="ahFetch(true)" style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.15);color:var(--dhq-text);padding:3px 6px;border-radius:3px;font-size:0.72rem;">
+            <option value="all">All Status</option>
+            <option value="unread">Unread</option>
+            <option value="read">Read</option>
+          </select>
+          <input id="ahFilterFrom" type="date" onchange="ahFetch(true)" style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.15);color:var(--dhq-text);padding:3px 6px;border-radius:3px;font-size:0.72rem;">
+          <input id="ahFilterTo" type="date" onchange="ahFetch(true)" style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.15);color:var(--dhq-text);padding:3px 6px;border-radius:3px;font-size:0.72rem;">
+          <input id="ahFilterQ" type="text" placeholder="Search alerts..." oninput="ahDebounce()" style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.15);color:var(--dhq-text);padding:3px 8px;border-radius:3px;font-size:0.72rem;min-width:160px;">
+        </div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;font-size:0.78rem;border-collapse:collapse;">
+            <thead>
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.1);color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:1px;">
+                <th style="padding:4px 8px;text-align:left;font-weight:400;">TIME</th>
+                <th style="padding:4px 8px;text-align:left;font-weight:400;">SOURCE</th>
+                <th style="padding:4px 8px;text-align:left;font-weight:400;">TYPE</th>
+                <th style="padding:4px 8px;text-align:left;font-weight:400;">PRIORITY</th>
+                <th style="padding:4px 8px;text-align:left;font-weight:400;">TITLE</th>
+                <th style="padding:4px 8px;text-align:center;font-weight:400;">TG</th>
+              </tr>
+            </thead>
+            <tbody id="ahTableBody">
+              <tr><td colspan="6" style="padding:16px;text-align:center;color:var(--dhq-text-dim);font-size:0.78rem;">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="ahPagination" style="display:flex;align-items:center;gap:12px;padding:8px 0;font-size:0.75rem;"></div>
+      </div>
     <!-- END AUTONOMY TAB PANEL -->
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
@@ -1820,9 +1871,10 @@ async function _dhqRejectHire(approvalId, btn) {
 <script src="{{ url_for('department_hq.static', filename='js/browser_presence.js') }}"></script>
 <script src="{{ url_for('static', filename='js/department-hq-chat.js') }}" defer></script>
 <script src="{{ url_for('static', filename='js/dispatch-history.js') }}"></script>
+<script src="{{ url_for('static', filename='js/alerts-history.js') }}"></script>
 <script>
   var _comsHook = window.onLcarsTabSwitch || function(){};
-  window.onLcarsTabSwitch = function(tabId) { switchTab(tabId); _comsHook(tabId); };
+  window.onLcarsTabSwitch = function(tabId) { switchTab(tabId); _comsHook(tabId); if (tabId === 'autonomy') { if (typeof ahInit === 'function') ahInit(); } };
   (function() {
     var hash = window.location.hash.replace('#', '');
     if (hash) { lcarsHeaderSwitchTab(hash); switchTab(hash); }

@@ -70,6 +70,46 @@
 
 </head>
 <body class="{% if theme_name is defined %}theme-{{ theme_name }}{% else %}theme-lcars-classic{% endif %}" data-module="{% block module_name %}default{% endblock %}">
+{% if current_user.is_authenticated and current_user.role_value == 5 %}
+<div id="demo-mode-banner" style="
+  position:fixed;top:0;left:0;right:0;z-index:10000;
+  background:#f59e0b;color:#1c1917;
+  padding:8px 16px;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;
+  display:flex;align-items:center;justify-content:space-between;">
+  <span>&#128065; DEMO MODE &mdash; Read-only preview. Changes are not saved.</span>
+  <span style="opacity:0.7;font-size:0.7rem;">
+    Expires: <span id="demo-expires">{{ session.get('demo_expires', '')[:16] }}</span>
+  </span>
+</div>
+<style>body { padding-top: 40px !important; }</style>
+<script>
+(function() {
+  var _origFetch = window.fetch;
+  window.fetch = function() {
+    return _origFetch.apply(this, arguments).then(function(resp) {
+      if (resp.status === 403) {
+        resp.clone().json().then(function(data) {
+          if (data && data.error === 'demo_mode') { _showDemoToast(); }
+        }).catch(function() {});
+      }
+      return resp;
+    });
+  };
+  function _showDemoToast() {
+    var t = document.getElementById('_demo_toast');
+    if (t) { clearTimeout(t._timer); t.parentNode && t.parentNode.removeChild(t); }
+    t = document.createElement('div');
+    t.id = '_demo_toast';
+    t.textContent = 'Demo mode — this action is disabled in preview';
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);' +
+      'background:#1c1917;color:#f59e0b;padding:10px 20px;border-radius:6px;' +
+      'font-family:IBM Plex Mono,monospace;font-size:0.8rem;z-index:99999;pointer-events:none;';
+    document.body.appendChild(t);
+    t._timer = setTimeout(function() { t.parentNode && t.parentNode.removeChild(t); }, 3000);
+  }
+})();
+</script>
+{% endif %}
 {% if g.sandbox_mode %}
 <div id="sandbox-env-banner" style="
   position: sticky;

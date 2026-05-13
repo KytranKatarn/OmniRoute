@@ -14,3 +14,8 @@ from .email_link_routes import register_email_link_routes
 
 register_notify_routes(account_center_bp)
 register_email_link_routes(account_center_bp)
+
+from .routes import admin_required
+from .demo_routes import register_demo_routes
+
+register_demo_routes(account_center_bp, admin_required)

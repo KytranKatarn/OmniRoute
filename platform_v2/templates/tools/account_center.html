@@ -107,6 +107,14 @@
                                     <a href="/tools/my-profile/" class="btn btn-secondary">👤 My Profile</a>
                                 </div>
 
+                                <!-- DEMO LINKS -->
+                                <div class="lcars-section-label" style="margin-top:24px;"><div class="lcars-section-cap"></div><div class="lcars-section-title">DEMO LINKS</div></div>
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                                    <span style="color:var(--archie-text-secondary);font-size:0.8rem;">Magic-link guest sessions for prospects</span>
+                                    <button class="btn btn-primary btn-sm" onclick="demoOpenGenerate()">+ GENERATE LINK</button>
+                                </div>
+                                <div id="demo-links-table-wrap" style="margin-bottom:20px;"></div>
+
                             </div>
                             <div style="height:6px !important; background:#ef4444 !important; border-radius:0 0 20px 0 !important; flex-shrink:0 !important;"></div>
                         </div>
@@ -1808,4 +1816,173 @@
     </div>
 </div>
 <script src="{{ url_for('static', filename='js/account-center-chat.js') }}"></script>
+<script>
+// ---- Demo Links Admin ----
+function demoLoadLinks() {
+  var wrap = document.getElementById('demo-links-table-wrap');
+  if (!wrap) return;
+  fetch('/tools/account-center/api/admin/demo/links')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
+      if (!data.links || !data.links.length) {
+        var msg = document.createElement('div');
+        msg.style.cssText = 'color:var(--archie-text-secondary);padding:12px;';
+        msg.textContent = 'No demo links yet. Generate one above.';
+        wrap.appendChild(msg);
+        return;
+      }
+      var tbl = document.createElement('table');
+      tbl.style.cssText = 'width:100%;border-collapse:collapse;font-size:0.8rem;';
+      var thead = tbl.createTHead();
+      var hrow = thead.insertRow();
+      ['Label', 'Expires', 'Uses', 'Status', ''].forEach(function(h) {
+        var th = document.createElement('th');
+        th.style.cssText = 'padding:6px 12px;text-align:left;color:var(--archie-text-secondary);';
+        th.textContent = h;
+        hrow.appendChild(th);
+      });
+      var tbody = tbl.createTBody();
+      data.links.forEach(function(l) {
+        var tr = tbody.insertRow();
+        tr.style.cssText = 'border-bottom:1px solid rgba(255,255,255,0.05);';
+        // Label
+        var tdLabel = tr.insertCell(); tdLabel.style.padding = '8px 12px';
+        tdLabel.textContent = l.label || '—';
+        // Expires
+        var tdExp = tr.insertCell(); tdExp.style.cssText = 'padding:8px 12px;font-size:0.78rem;';
+        tdExp.textContent = l.expires_at ? l.expires_at.slice(0, 16).replace('T', ' ') : '—';
+        // Uses
+        var tdUses = tr.insertCell(); tdUses.style.padding = '8px 12px';
+        tdUses.textContent = String(l.used_count);
+        // Status badge
+        var tdStatus = tr.insertCell(); tdStatus.style.padding = '8px 12px';
+        var badge = document.createElement('span');
+        badge.style.cssText = 'font-size:0.75rem;color:' + (l.is_active ? '#22c55e' : '#ef4444') + ';';
+        badge.textContent = l.is_active ? 'ACTIVE' : 'REVOKED';
+        tdStatus.appendChild(badge);
+        // Revoke button
+        var tdAct = tr.insertCell(); tdAct.style.padding = '8px 12px';
+        if (l.is_active) {
+          var btn = document.createElement('button');
+          btn.className = 'btn btn-sm';
+          btn.style.cssText = 'background:#ef4444;color:#fff;padding:2px 8px;font-size:0.7rem;';
+          btn.textContent = 'REVOKE';
+          (function(id) { btn.addEventListener('click', function() { demoRevoke(id); }); })(l.id);
+          tdAct.appendChild(btn);
+        }
+        tbody.appendChild(tr);
+      });
+      wrap.appendChild(tbl);
+    })
+    .catch(function() {
+      while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
+      var msg = document.createElement('div');
+      msg.style.cssText = 'color:#ef4444;padding:12px;font-size:0.8rem;';
+      msg.textContent = 'Failed to load demo links.';
+      wrap.appendChild(msg);
+    });
+}
+
+function demoOpenGenerate() {
+  document.getElementById('demo-generate-modal').classList.add('active');
+}
+function demoCloseGenerate() {
+  document.getElementById('demo-generate-modal').classList.remove('active');
+}
+
+function demoGenerate() {
+  var label = document.getElementById('demo-label').value.trim();
+  var hours = parseInt(document.getElementById('demo-hours').value, 10) || 24;
+  fetch('/tools/account-center/api/admin/demo/link', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ label: label, expires_hours: hours })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      demoCloseGenerate();
+      document.getElementById('demo-result-url').value = data.url || '';
+      document.getElementById('demo-result-meta').textContent =
+        'Expires: ' + (data.expires_at || '').slice(0, 16).replace('T', ' ') +
+        (data.label ? ' · ' + data.label : '');
+      document.getElementById('demo-result-modal').classList.add('active');
+      demoLoadLinks();
+    });
+}
+
+function demoCopyUrl() {
+  var inp = document.getElementById('demo-result-url');
+  if (!inp) return;
+  inp.select();
+  navigator.clipboard.writeText(inp.value).catch(function() {});
+}
+
+function demoRevoke(id) {
+  if (!confirm('Revoke this demo link? It will stop working immediately.')) return;
+  fetch('/tools/account-center/api/admin/demo/link/' + id, { method: 'DELETE' })
+    .then(function() { demoLoadLinks(); });
+}
+
+document.addEventListener('DOMContentLoaded', function() { demoLoadLinks(); });
+</script>
+
+<!-- Demo Generate Modal -->
+<div class="bm-overlay" id="demo-generate-modal">
+  <div class="bm-shell" style="--bm-accent:#f59e0b;max-width:480px;">
+    <div class="bm-frame"></div>
+    <div class="bm-content">
+      <div class="bm-header">
+        <span>GENERATE DEMO LINK</span>
+        <button class="bm-close" onclick="demoCloseGenerate()">&#x2715;</button>
+      </div>
+      <div class="bm-body">
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:0.75rem;color:var(--archie-text-secondary);margin-bottom:6px;">Label (e.g. "John Smith demo")</label>
+          <input type="text" id="demo-label" placeholder="Prospect name" maxlength="200"
+            style="width:100%;background:var(--archie-bg-primary);border:1px solid rgba(255,255,255,0.2);
+                   color:var(--archie-text-primary);padding:8px 12px;border-radius:4px;
+                   font-family:'IBM Plex Mono',monospace;font-size:0.85rem;" />
+        </div>
+        <div>
+          <label style="display:block;font-size:0.75rem;color:var(--archie-text-secondary);margin-bottom:6px;">Expires in (hours)</label>
+          <input type="number" id="demo-hours" value="24" min="1" max="720"
+            style="width:120px;background:var(--archie-bg-primary);border:1px solid rgba(255,255,255,0.2);
+                   color:var(--archie-text-primary);padding:8px 12px;border-radius:4px;
+                   font-family:'IBM Plex Mono',monospace;font-size:0.85rem;" />
+        </div>
+      </div>
+      <div class="bm-footer">
+        <button class="btn btn-secondary" onclick="demoCloseGenerate()">CANCEL</button>
+        <button class="btn btn-primary" onclick="demoGenerate()">GENERATE</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Demo Result Modal -->
+<div class="bm-overlay" id="demo-result-modal">
+  <div class="bm-shell" style="--bm-accent:#f59e0b;max-width:560px;">
+    <div class="bm-frame"></div>
+    <div class="bm-content">
+      <div class="bm-header">
+        <span>DEMO LINK CREATED</span>
+        <button class="bm-close"
+          onclick="document.getElementById('demo-result-modal').classList.remove('active')">
+          &#x2715;
+        </button>
+      </div>
+      <div class="bm-body">
+        <p style="color:#94a3b8;font-size:0.8rem;margin-bottom:8px;">Share this link with your prospect:</p>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="demo-result-url" readonly
+            style="flex:1;background:#0a0a0f;border:1px solid #f59e0b;color:#f59e0b;
+                   padding:8px;font-family:'IBM Plex Mono',monospace;font-size:0.75rem;border-radius:4px;" />
+          <button class="btn btn-primary" onclick="demoCopyUrl()">COPY</button>
+        </div>
+        <p id="demo-result-meta" style="color:#64748b;font-size:0.75rem;margin-top:8px;"></p>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

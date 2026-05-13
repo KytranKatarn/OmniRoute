@@ -2925,6 +2925,22 @@ def enforce_2fa_verification():
 
 
 @app.before_request
+def enforce_guest_readonly():
+    """Block all write operations for GUEST role (Level 5 — demo mode)."""
+    if not current_user.is_authenticated:
+        return
+    if getattr(current_user, "role_value", 100) != 5:
+        return
+    if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+        # Allow the demo token entry route itself
+        if request.path.startswith("/tools/account-center/demo"):
+            return
+        if request.is_json:
+            return jsonify({"error": "demo_mode", "message": "Read-only in demo mode"}), 403
+        return "Demo mode: read-only", 403
+
+
+@app.before_request
 def update_session_activity():
     """Update last_activity timestamp for the current user's active session."""
     if current_user.is_authenticated and session.get("_session_token"):

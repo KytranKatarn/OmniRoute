@@ -313,7 +313,6 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
             },
         }
 
-<<<<<<< HEAD
     if capability == "translation_coverage_scan":
         # Orchestrator does per-source isolation + ON CONFLICT upserts on
         # translation_gaps (migration 322), and the worker enforces
@@ -336,8 +335,6 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
             "result": summary,
         }
 
-=======
->>>>>>> 0ea5580c (feat(portraits): agent identity evolution + MCP delegation + chat action cards (#2503/#2504/#2506))
     if capability == "portrait_refinement":
         agent_id = payload.get("agent_id")
         feedback = (payload.get("feedback") or reason or "").strip()

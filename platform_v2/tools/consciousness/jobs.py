@@ -221,17 +221,25 @@ def index_claude_sessions():
 
 
 def consciousness_analysis_batch():
-    """Job #49: Trigger consciousness analysis batch every 6 hours via DHQ.
+    """Job #49: Trigger consciousness analysis batch every 6 hours.
 
-    APScheduler is the sole gate — server_loops.analysis flag controls HTTP
-    endpoint triggers only (UI buttons). This job always runs on schedule.
-    Dispatches to Analytics & Intelligence (W.A.T.C.H.) via knowledge_analyzer.
+    Only runs if the analysis server loop is enabled in system_config.
+    Uses _trigger_loop_op() from processing_routes which handles item
+    selection, job creation, and background threading.
     """
     import time as _time
 
     start = _time.time()
     try:
-        from tools.consciousness.processing_routes import _trigger_loop_op
+        from tools.consciousness.processing_routes import (
+            get_server_loops,
+            _trigger_loop_op,
+        )
+
+        loops = get_server_loops()
+        if not loops.get("analysis"):
+            logger.debug("[ConsciousnessAnalysis] Analysis loop disabled — skipping")
+            return
 
         logger.info("[ConsciousnessAnalysis] Triggering scheduled analysis batch")
         _trigger_loop_op("analysis")

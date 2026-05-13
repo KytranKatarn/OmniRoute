@@ -831,13 +831,17 @@ def register_fleet_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    scheduler.add_job(
-        with_ctx(renew_fleet_ssl),
-        trigger=CronTrigger(hour=3, minute=0, timezone="America/Toronto"),
-        id="fleet_ssl_renewal",
-        name="Agent Loop: Fleet SSL Renewal",
-        replace_existing=True,
-    )
+    # DISABLED 2026-05-13: fleet_ssl_renewal paused — wildcard cert has 44 days remaining,
+    # renewal fails daily due to 6 stale _acme-challenge TXT records causing DNS:4008.
+    # Re-enable after invitation wizard ships and stale DNS records are cleared manually.
+    # See task #2770 for full cleanup checklist.
+    # scheduler.add_job(
+    #     with_ctx(renew_fleet_ssl),
+    #     trigger=CronTrigger(hour=3, minute=0, timezone="America/Toronto"),
+    #     id="fleet_ssl_renewal",
+    #     name="Agent Loop: Fleet SSL Renewal",
+    #     replace_existing=True,
+    # )
 
     scheduler.add_job(
         with_ctx(budget_reconciliation),

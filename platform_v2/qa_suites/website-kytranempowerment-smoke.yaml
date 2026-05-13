@@ -1,7 +1,7 @@
 suite:
   name: "website-kytranempowerment-smoke"
   description: "kytranempowerment.com — main website smoke test for key pages"
-  base_url: "https://www.kytranempowerment.com"
+  base_url: "https://kytranempowerment.com"
 
 tests:
   - name: "home-loads"
@@ -9,6 +9,10 @@ tests:
     method: GET
     path: /
     skip_auth: true
+    headers:
+      User-Agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      Accept-Language: "en-US,en;q=0.5"
     expect:
       status: 200
 
@@ -17,6 +21,10 @@ tests:
     method: GET
     path: /about.html
     skip_auth: true
+    headers:
+      User-Agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      Accept-Language: "en-US,en;q=0.5"
     expect:
       status: 200
 
@@ -25,6 +33,10 @@ tests:
     method: GET
     path: /ai-directors.html
     skip_auth: true
+    headers:
+      User-Agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      Accept-Language: "en-US,en;q=0.5"
     expect:
       status: 200
 
@@ -33,6 +45,10 @@ tests:
     method: GET
     path: /pricing.html
     skip_auth: true
+    headers:
+      User-Agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      Accept-Language: "en-US,en;q=0.5"
     expect:
       status: 200
 
@@ -41,6 +57,10 @@ tests:
     method: GET
     path: /assets/data/directory-fallback.json
     skip_auth: true
+    headers:
+      User-Agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      Accept-Language: "en-US,en;q=0.5"
     expect:
       status: 200
 
@@ -49,5 +69,9 @@ tests:
     method: GET
     path: /archie-code.html
     skip_auth: true
+    headers:
+      User-Agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      Accept-Language: "en-US,en;q=0.5"
     expect:
       status: 200

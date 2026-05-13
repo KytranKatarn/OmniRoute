@@ -248,3 +248,32 @@ tests:
     path: /tools/department-hq/api/dispatch/ops-summary
     expect:
       status: [200, 301, 302, 304, 401]
+
+  # DHQ reorganization coverage — autonomy tab, dispatch history params, coms, api-access tab
+  - name: dhq-autonomy-tab
+    type: page_load
+    url: "http://192.168.1.200:3000/tools/department-hq/?tab=autonomy"
+    auth_required: true
+    expect_status: 200
+    expect_contains: "AUTONOMY"
+
+  - name: dhq-dispatch-history-api
+    type: api
+    url: "http://192.168.1.200:3000/tools/department-hq/api/dispatch/history?hours=24&page=1&per_page=10"
+    auth_required: true
+    expect_status: 200
+    expect_json_key: "history"
+
+  - name: dhq-coms-messages-api
+    type: api
+    url: "http://192.168.1.200:3000/tools/department-hq/api/coms/messages?limit=10"
+    auth_required: true
+    expect_status: 200
+    expect_json_key: "messages"
+
+  - name: dhq-api-access-tab
+    type: page_load
+    url: "http://192.168.1.200:3000/tools/department-hq/?tab=devices"
+    auth_required: true
+    expect_status: 200
+    expect_contains: "API ACCESS"

@@ -94,16 +94,7 @@ def get_category_siblings(module_id: str, user) -> list[dict]:
                 continue
             external_url = getattr(m, "external_url", "") or ""
             url = external_url if external_url else m.route
-            out.append(
-                {
-                    "id": m.id,
-                    "label": m.name,
-                    "icon": m.icon,
-                    "url": url,
-                    "external": bool(external_url),
-                    "active": False,
-                }
-            )
+            out.append((m.name, m.icon, url))
         return out
     except Exception as exc:  # noqa: BLE001 — defensive: nav must never crash
         logger.warning("get_category_siblings failed for %s: %s", module_id, exc)

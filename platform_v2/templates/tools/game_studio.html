@@ -18,7 +18,13 @@
     ("Media Studio", "image", "/tools/media-studio"),
     ("Game Studio", "gamepad-2", "/tools/game-studio")
 ] %}
-{% set header_tabs = [] %}
+{% set header_tabs = [
+    ("projects",  "Projects",  "gamepad-2"),
+    ("builder",   "Builder",   "code-2"),
+    ("assets",    "Assets",    "image"),
+    ("ai-create", "AI Create", "sparkles"),
+    ("scores",    "Scores",    "trophy"),
+] %}
 {% include 'includes/lcars-header.html' %}
 
 <!-- ═══════════════════════════════════════════════════════════
@@ -35,17 +41,17 @@
   </div>
 
   <!-- Your Games -->
-  <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+  <div style="--frame-color: #ec4899; --frame-rgb: 0,255,255; margin-bottom: 20px;">
     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
       <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-        <div style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
-        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00cccc !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-        <div style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-        <div style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 52px !important; background: #ec4899 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ec4899 !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #db2777 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+        <div style="flex: 1 !important; background: rgba(236,72,153,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+        <div style="height: 36px !important; background: #ec4899 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
       </div>
       <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-        <div style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+        <div style="height: 44px !important; background: #ec4899 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
           <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">YOUR GAMES</span>
           <div style="flex:1"></div>
           <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -71,23 +77,23 @@
             </div>
           </section>
         </div>
-        <div style="height: 6px !important; background: #00ffff !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 6px !important; background: #ec4899 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
       </div>
     </div>
   </div>
 
   <!-- Templates -->
-  <div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+  <div style="--frame-color: #ec4899; --frame-rgb: 139,92,246; margin-bottom: 20px;">
     <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
       <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
-        <div style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
-        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
-        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #7c3aed !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
-        <div style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-        <div style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 52px !important; background: #ec4899 !important; border-radius: 20px 0 0 0 !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #ec4899 !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #db2777 !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+        <div style="flex: 1 !important; background: rgba(236,72,153,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+        <div style="height: 36px !important; background: #ec4899 !important; border-radius: 0 0 0 20px !important; flex-shrink: 0 !important;"></div>
       </div>
       <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-        <div style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+        <div style="height: 44px !important; background: #ec4899 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
           <span style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">TEMPLATES</span>
           <div style="flex:1"></div>
           <div style="display: flex !important; align-items: center !important; gap: 4px !important;">
@@ -106,7 +112,7 @@
             </div>
           </section>
         </div>
-        <div style="height: 6px !important; background: #8b5cf6 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
+        <div style="height: 6px !important; background: #ec4899 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
       </div>
     </div>
   </div>
@@ -477,8 +483,97 @@
   </div>
 </div>
 
+<!-- ── PLACEHOLDER TABS ──────────────────────────────────────── -->
+<div id="gs-tab-assets" style="display:none;padding:8px 0;">
+  <div style="--frame-color: #ec4899; --frame-rgb: 236,72,153; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;">
+      <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+        <div style="height:52px !important;background:#ec4899 !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+        <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#ec4899 !important;flex-shrink:0 !important;"></div>
+        <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#db2777 !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+        <div style="flex:1 !important;background:rgba(236,72,153,0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+        <div style="height:36px !important;background:#ec4899 !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+      </div>
+      <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+        <div style="height:44px !important;background:#ec4899 !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+          <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">ASSETS</span>
+        </div>
+        <div style="padding:32px 16px;text-align:center;color:var(--archie-text-muted);">
+          <i data-lucide="image" style="width:48px;height:48px;opacity:0.3;margin-bottom:12px;"></i>
+          <p style="font-family:'Antonio',sans-serif;letter-spacing:2px;font-size:0.85rem;">ASSET LIBRARY</p>
+          <p style="font-size:0.75rem;margin-top:8px;">Sprites, sounds, tilesets and more — coming soon.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="gs-tab-ai-create" style="display:none;padding:8px 0;">
+  <div style="--frame-color: #ec4899; --frame-rgb: 236,72,153; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;">
+      <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+        <div style="height:52px !important;background:#ec4899 !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+        <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#ec4899 !important;flex-shrink:0 !important;"></div>
+        <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#db2777 !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+        <div style="flex:1 !important;background:rgba(236,72,153,0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+        <div style="height:36px !important;background:#ec4899 !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+      </div>
+      <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+        <div style="height:44px !important;background:#ec4899 !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+          <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">AI CREATE</span>
+        </div>
+        <div style="padding:32px 16px;text-align:center;color:var(--archie-text-muted);">
+          <i data-lucide="sparkles" style="width:48px;height:48px;opacity:0.3;margin-bottom:12px;"></i>
+          <p style="font-family:'Antonio',sans-serif;letter-spacing:2px;font-size:0.85rem;">AI GENERATION</p>
+          <p style="font-size:0.75rem;margin-top:8px;">Generate sprites, music, levels and dialogue with A.R.C.H.I.E. AI — coming soon.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="gs-tab-scores" style="display:none;padding:8px 0;">
+  <div style="--frame-color: #ec4899; --frame-rgb: 236,72,153; margin-bottom: 20px;">
+    <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;">
+      <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+        <div style="height:52px !important;background:#ec4899 !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+        <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#ec4899 !important;flex-shrink:0 !important;"></div>
+        <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#db2777 !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+        <div style="flex:1 !important;background:rgba(236,72,153,0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+        <div style="height:36px !important;background:#ec4899 !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+      </div>
+      <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+        <div style="height:44px !important;background:#ec4899 !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+          <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">LEADERBOARD</span>
+        </div>
+        <div style="padding:32px 16px;text-align:center;color:var(--archie-text-muted);">
+          <i data-lucide="trophy" style="width:48px;height:48px;opacity:0.3;margin-bottom:12px;"></i>
+          <p style="font-family:'Antonio',sans-serif;letter-spacing:2px;font-size:0.85rem;">SCORES & RANKINGS</p>
+          <p style="font-size:0.75rem;margin-top:8px;">Global leaderboards and player stats across all games — coming soon.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ── TOAST ─────────────────────────────────────────────────── -->
 <div id="gsToast" class="gs-toast" role="status" aria-live="polite" style="display:none;"></div>
+
+<script>
+window.onLcarsTabSwitch = function(tabId) {
+  var dashboard = document.getElementById('gsDashboard');
+  var builder   = document.getElementById('gsBuilder');
+  var assets    = document.getElementById('gs-tab-assets');
+  var aiCreate  = document.getElementById('gs-tab-ai-create');
+  var scores    = document.getElementById('gs-tab-scores');
+  [dashboard, builder, assets, aiCreate, scores].forEach(function(el) { if (el) el.style.display = 'none'; });
+  if (tabId === 'projects' && dashboard) dashboard.style.display = '';
+  else if (tabId === 'builder' && builder) builder.style.display = '';
+  else if (tabId === 'assets' && assets) assets.style.display = '';
+  else if (tabId === 'ai-create' && aiCreate) aiCreate.style.display = '';
+  else if (tabId === 'scores' && scores) scores.style.display = '';
+};
+</script>
 
 {% endblock %}
 

@@ -3927,6 +3927,7 @@ async function loadContractors() {
             creed_total_24h: data.creed_total_24h || 0,
             creed_blocked_24h: data.creed_blocked_24h || 0
         });
+        loadFleetUsage();
     } catch (e) {
         console.error('loadContractors error:', e);
         var grid = document.getElementById('contractors-grid');

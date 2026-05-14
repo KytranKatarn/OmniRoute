@@ -430,6 +430,44 @@ def get_gpu_usage():
     return None
 
 
+def get_ram_gb():
+    """Return total RAM in GB from /proc/meminfo, or None on failure."""
+    try:
+        with open("/proc/meminfo", "r") as fh:
+            for line in fh:
+                if line.startswith("MemTotal:"):
+                    kb = int(line.split()[1])
+                    return round(kb / 1024 / 1024, 1)
+    except Exception:
+        pass
+    return None
+
+
+def get_gpu_info():
+    """Return (gpu_model, gpu_vram_gb) from nvidia-smi, or (None, None) if unavailable."""
+    try:
+        result = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,memory.total",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            line = result.stdout.strip().split("\n")[0]
+            parts = line.split(",")
+            if len(parts) >= 2:
+                model = parts[0].strip()
+                vram_mb = float(parts[1].strip())
+                return model, round(vram_mb / 1024, 1)
+    except (FileNotFoundError, subprocess.TimeoutExpired, ValueError, OSError):
+        pass
+    return None, None
+
+
 def get_ollama_models(ollama_host):
     """
     Query the Ollama API for loaded models.
@@ -575,6 +613,8 @@ def send_heartbeat(config):
     cpu = get_cpu_usage()
     mem = get_memory_usage()
     gpu = get_gpu_usage()
+    ram_gb = get_ram_gb()
+    gpu_model, gpu_vram_gb = get_gpu_info()
     models = get_ollama_models(config["ollama_host"])
 
     payload = {
@@ -583,6 +623,11 @@ def send_heartbeat(config):
         "cpu_usage": cpu,
         "memory_usage": mem,
         "gpu_usage": gpu if gpu is not None else 0,
+        "ram_gb": ram_gb,
+        "gpu_available": gpu_model is not None,
+        "gpu_model": gpu_model,
+        "gpu_vram_gb": gpu_vram_gb,
+        "hostname": _get_hostname(),
         "ollama_online": len(models) > 0 or _check_ollama_alive(config["ollama_host"]),
         "ollama_models": [
             {"name": m["name"], "size": int(m["size_gb"] * (1024**3))} for m in models

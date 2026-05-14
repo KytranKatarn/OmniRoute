@@ -7,6 +7,7 @@ import hashlib
 from hmac import compare_digest
 import json
 import os
+import subprocess
 import time
 import logging
 from datetime import datetime
@@ -991,6 +992,68 @@ def register_node_routes(bp, login_required, admin_required):
             logger.error("Error updating mesh IP for %s: %s", node_id, e)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
+    @bp.route("/api/nodes/<node_id>/headscale-key", methods=["POST"])
+    def node_headscale_key(node_id):
+        """Generate a Headscale pre-auth key for a node joining the mesh.
+
+        Called during Fresh install by deploy-node.ps1 with X-API-Key header.
+        Runs: docker exec archie_headscale headscale preauthkeys create
+              --user archie-fleet --expiration 24h --reusable
+        Returns: {auth_key, login_server, hostname}
+        """
+        api_key = request.headers.get("X-API-Key") or request.headers.get("X-Node-API-Key")
+        if not api_key:
+            return jsonify({"success": False, "error": "API key required"}), 401
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT id, node_id, node_name, api_key_hash FROM remote_nodes WHERE node_id = %s",
+                (node_id,),
+            )
+            node = cur.fetchone()
+        if not node or not verify_api_key(api_key, node["api_key_hash"]):
+            return jsonify({"success": False, "error": "Invalid node or API key"}), 403
+
+        try:
+            result = subprocess.run(
+                [
+                    "docker",
+                    "exec",
+                    "archie_headscale",
+                    "headscale",
+                    "preauthkeys",
+                    "create",
+                    "--user",
+                    "archie-fleet",
+                    "--expiration",
+                    "24h",
+                    "--reusable",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if result.returncode != 0:
+                logger.error("Headscale key gen failed for %s: %s", node_id, result.stderr)
+                return jsonify({"success": False, "error": "Headscale key generation failed"}), 500
+
+            auth_key = result.stdout.strip()
+            # Headscale default control URL (Headscale listens on port 8095 via NPM)
+            login_server = "http://192.168.1.200:8095"
+            return jsonify(
+                {
+                    "success": True,
+                    "auth_key": auth_key,
+                    "login_server": login_server,
+                    "hostname": node["node_name"],
+                }
+            )
+        except subprocess.TimeoutExpired:
+            return jsonify({"success": False, "error": "Headscale timeout"}), 500
+        except Exception as e:
+            logger.exception("Error generating headscale key for %s", node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
     @bp.route("/api/nodes/<node_id>/heartbeat", methods=["POST"])
     def node_heartbeat(node_id):
         """Receive heartbeat from a remote node"""
@@ -1044,6 +1107,7 @@ def register_node_routes(bp, login_required, admin_required):
                         last_heartbeat = NOW(),
                         current_load = %s,
                         client_version = %s,
+                        hostname = COALESCE(%s, hostname),
                         cpu_cores = COALESCE(%s, cpu_cores),
                         cpu_model = COALESCE(%s, cpu_model),
                         ram_gb = COALESCE(%s, ram_gb),
@@ -1067,6 +1131,7 @@ def register_node_routes(bp, login_required, admin_required):
                         status,
                         data.get("current_load", 0),
                         client_version,
+                        data.get("hostname"),
                         data.get("cpu_cores"),
                         data.get("cpu_model"),
                         data.get("ram_gb"),

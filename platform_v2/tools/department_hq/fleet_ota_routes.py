@@ -473,12 +473,12 @@ def register_ota_routes(bp, auth_decorator):
 
     # Allowlist of files nodes may download via OTA code_update.
     _OTA_ALLOWED_FILES = frozenset({"node_api.py", "node_sync.py", "node_triage.py"})
-    _NODE_CLIENT_DIR = os.path.normpath(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "node_client")
+    _NODE_CLIENT_DIR = os.environ.get(
+        "NODE_CLIENT_DIR",
+        os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "node_client")),
     )
 
     @bp.route("/api/nodes/ota/<filename>")
-    @auth_decorator
     def serve_node_file(filename):
         """Serve node client source files for OTA code_update downloads.
 

@@ -22,7 +22,7 @@ param(
     [string]$InstallDir = "C:\archie-node"
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
@@ -145,6 +145,53 @@ HEARTBEAT_INTERVAL=30
 "@ | Set-Content .env -Encoding UTF8
 
     Write-Host "[OK] .env written (node: $NodeId)" -ForegroundColor Green
+
+    # =====================================================================
+    # Auto-join Tailscale mesh (Fresh install only)
+    # =====================================================================
+    Write-Host ""
+    Write-Host "Joining Tailscale mesh..." -ForegroundColor Cyan
+
+    # Request a pre-auth key from the Hub
+    $headscaleUrl = "$HubUrl/tools/department-hq/api/nodes/$NodeId/headscale-key"
+    $headers = @{ "X-API-Key" = $HubApiKey; "Content-Type" = "application/json" }
+    try {
+        $keyResp = Invoke-RestMethod -Uri $headscaleUrl -Method Post -Headers $headers -ErrorAction Stop
+        $meshAuthKey = $keyResp.auth_key
+        $loginServer = $keyResp.login_server
+
+        if ($meshAuthKey) {
+            # Install Tailscale if not already present
+            if (-not (Get-Command tailscale -ErrorAction SilentlyContinue)) {
+                Write-Host "  Installing Tailscale..." -ForegroundColor Yellow
+                winget install --id Tailscale.Tailscale --silent --accept-package-agreements --accept-source-agreements 2>$null
+                $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+            }
+
+            if (Get-Command tailscale -ErrorAction SilentlyContinue) {
+                Write-Host "  Joining mesh at $loginServer ..." -ForegroundColor Cyan
+                tailscale up --login-server $loginServer --authkey $meshAuthKey --accept-routes --hostname $NodeId 2>&1 | Out-Null
+                Start-Sleep -Seconds 3
+                $meshIp = (tailscale ip --4 2>$null)
+                if ($meshIp) {
+                    Write-Host "[OK] Joined mesh — mesh IP: $meshIp" -ForegroundColor Green
+                    # Report mesh IP back to Hub
+                    $vpnBody = @{ vpn_ip = $meshIp } | ConvertTo-Json
+                    Invoke-RestMethod -Uri "$HubUrl/tools/department-hq/api/nodes/$NodeId/settings" -Method Put -Headers $headers -Body $vpnBody -ContentType "application/json" -ErrorAction SilentlyContinue | Out-Null
+                } else {
+                    Write-Host "  [WARN] Tailscale joined but mesh IP not yet assigned" -ForegroundColor Yellow
+                }
+            } else {
+                Write-Host "  [WARN] Tailscale install failed — mesh join skipped. Join manually." -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "  [WARN] Hub returned no auth key — mesh join skipped" -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Host "  [WARN] Mesh join failed: $_" -ForegroundColor Yellow
+        Write-Host "  Manual join: tailscale up --login-server <hub-ip>:8095 --authkey <key>" -ForegroundColor Gray
+    }
 }
 else {
     if (-not (Test-Path ".env")) {

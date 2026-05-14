@@ -88,6 +88,7 @@ services:
     environment:
       TZ: America/Toronto
       PYTHONPATH: /mnt/archie_brain
+      NODE_CLIENT_DIR: /mnt/archie_brain/node_client
       SECRET_KEY: ${SECRET_KEY}
       FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
       FLASK_ENV: production
@@ -286,6 +287,7 @@ services:
     environment:
       TZ: America/Toronto
       PYTHONPATH: /mnt/archie_brain
+      NODE_CLIENT_DIR: /mnt/archie_brain/node_client
       ARCHIE_RUN_SCHEDULER: "1"
       ARCHIE_RUN_TELEGRAM: "0"
       SECRET_KEY: ${SECRET_KEY}

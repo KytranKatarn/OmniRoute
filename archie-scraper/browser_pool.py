@@ -1,6 +1,7 @@
 import logging
 import os
 import threading
+import time
 
 from playwright.sync_api import sync_playwright
 
@@ -35,10 +36,15 @@ class BrowserPool:
         self._slots: dict[int, str] = {i: "free" for i in range(self.size)}
         # thread-local storage: each worker thread keeps its own pw/browser/context/page
         self._tls = threading.local()
+        # fleet_labels: slot_id -> node label (for dynamic fleet egress slots)
+        self._fleet_labels: dict[int, str] = {}
+        # slot_proxy: slot_id -> proxy string (overrides SLOT_PROXIES for fleet slots)
+        self._slot_proxy: dict[int, str | None] = {}
         # Emit "ready" log lines so startup looks the same as before
         for slot_id in range(self.size):
             proxy = SLOT_PROXIES.get(slot_id)
             logger.info("Pool slot %d ready (proxy=%s)", slot_id, proxy or "direct")
+        self._start_fleet_refresh()
 
     # ------------------------------------------------------------------
     # Internal: per-thread Playwright lifecycle
@@ -106,7 +112,8 @@ class BrowserPool:
         # Step 2: open page OUTSIDE the lock so Playwright I/O doesn't block other claims
         try:
             self._tls_start()
-            proxy = SLOT_PROXIES.get(slot_id)
+            # Fleet slots override SLOT_PROXIES; static slots fall back to SLOT_PROXIES
+            proxy = self._slot_proxy.get(slot_id, SLOT_PROXIES.get(slot_id))
             page = self._tls_open_page(proxy)
             return slot_id, page
         except Exception:
@@ -128,6 +135,51 @@ class BrowserPool:
     def status(self) -> dict:
         with self._lock:
             return {"pool_size": self.size, "slots": dict(self._slots)}
+
+    def _refresh_fleet_slots(self) -> None:
+        """Register/deregister fleet node egress slots based on remote_nodes."""
+        from proxy_selector import discover_fleet_egress
+
+        fleet_nodes = discover_fleet_egress()
+        fleet_proxies = {n["label"]: n["proxy"] for n in fleet_nodes}
+
+        with self._lock:
+            # Remove stale fleet slots
+            stale = [
+                slot_id
+                for slot_id, label in self._fleet_labels.items()
+                if label not in fleet_proxies
+            ]
+            for slot_id in stale:
+                self._slots.pop(slot_id, None)
+                self._slot_proxy.pop(slot_id, None)
+                self._fleet_labels.pop(slot_id, None)
+                logger.info("Fleet slot %d removed (node offline)", slot_id)
+
+            # Add new fleet slots (slot tracking only — TLS init on first claim)
+            existing_labels = set(self._fleet_labels.values())
+            next_id = (max(self._slots.keys(), default=self.size - 1) + 1)
+            for label, proxy in fleet_proxies.items():
+                if label not in existing_labels:
+                    self._slots[next_id] = "free"
+                    self._slot_proxy[next_id] = proxy
+                    self._fleet_labels[next_id] = label
+                    logger.info("Fleet slot %d added: %s (%s)", next_id, label, proxy)
+                    next_id += 1
+
+    def _start_fleet_refresh(self) -> None:
+        """Background thread: refresh fleet node egress slots every 5 minutes."""
+        def _loop():
+            while True:
+                time.sleep(300)
+                try:
+                    self._refresh_fleet_slots()
+                except Exception as exc:
+                    logger.warning("Fleet refresh error: %s", exc)
+
+        t = threading.Thread(target=_loop, daemon=True, name="fleet-egress-refresh")
+        t.start()
+        logger.info("Fleet egress refresh started (5min interval)")
 
     @property
     def size(self) -> int:

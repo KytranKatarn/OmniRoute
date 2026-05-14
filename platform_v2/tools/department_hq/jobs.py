@@ -1040,4 +1040,75 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered model_queue_planner job (5-min interval)")
 
+    # ── S.C.O.U.T. Jobs ─────────────────────────────────────────────────────
+
+    def _run_scout_procurement_sync():
+        """Nightly CanadaBuys tender sync via S.C.O.U.T. browser fleet."""
+        import urllib.request as _ur
+        import json as _json
+
+        url = "http://archie_scraper:4243/jobs"
+        payload = _json.dumps(
+            {
+                "job_type": "procurement_sync",
+                "target_url": "https://canadabuys.canada.ca/en/tender-opportunities",
+                "params": {"max_pages": 5},
+                "requested_by": "agent_loop",
+            }
+        ).encode()
+        try:
+            req = _ur.Request(url, data=payload)
+            req.add_header("Content-Type", "application/json")
+            r = _ur.urlopen(req, timeout=10)
+            d = _json.loads(r.read())
+            logger.info("[scout] procurement sync job #%s submitted", d.get("job_id"))
+        except Exception as exc:
+            logger.warning("[scout] procurement sync dispatch failed: %s", exc)
+
+    def _run_scout_platform_ux_check():
+        """Weekly UX screenshot check of platform + watch product landing pages."""
+        import urllib.request as _ur
+        import json as _json
+
+        targets = [
+            "https://platform.kytranempowerment.com",
+            "https://gov.kytranempowerment.com",
+            "https://civic.kytranempowerment.com",
+        ]
+        for target_url in targets:
+            try:
+                payload = _json.dumps(
+                    {
+                        "job_type": "ux_audit",
+                        "target_url": target_url,
+                        "params": {"viewport": "1280x800"},
+                        "requested_by": "agent_loop",
+                    }
+                ).encode()
+                req = _ur.Request("http://archie_scraper:4243/jobs", data=payload)
+                req.add_header("Content-Type", "application/json")
+                r = _ur.urlopen(req, timeout=10)
+                d = _json.loads(r.read())
+                logger.info("[scout] UX check job #%s submitted for %s", d.get("job_id"), target_url)
+            except Exception as exc:
+                logger.warning("[scout] UX check failed for %s: %s", target_url, exc)
+
+    scheduler.add_job(
+        with_ctx(_run_scout_procurement_sync),
+        trigger=CronTrigger(hour=2, minute=0, timezone="America/Toronto"),
+        id="scout_procurement_sync",
+        name="Scout: Nightly CanadaBuys tender sync",
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered scout_procurement_sync job (daily 2:00 AM)")
+
+    scheduler.add_job(
+        with_ctx(_run_scout_platform_ux_check),
+        trigger=CronTrigger(day_of_week="sun", hour=9, minute=0, timezone="America/Toronto"),
+        id="scout_platform_ux_check",
+        name="Scout: Weekly platform UX check",
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered scout_platform_ux_check job (Sunday 9:00 AM)")
+
     logger.info("[DeptHQ] Registered 12 code health/audit jobs")

@@ -253,3 +253,79 @@ def get_review(pr_number: int, repo: str = None) -> dict | None:
         )
         row = cur.fetchone()
         return dict(row) if row else None
+
+
+# ---- Tiered PR Merge Authority ----
+
+_TIER3_TITLE_KW = {"breaking", "migration", "security"}
+
+
+def classify_pr_tier(review: dict) -> int:
+    """Classify a PR review into merge tier 1 (F.O.R.G.E.), 2 (A.R.C.H.I.E.), or 3 (Kytran).
+
+    Tier 3 (highest precedence):
+        - > 1500 lines changed
+        - title contains breaking/migration/security
+        - branch looks like a numbered migration (e.g. 382_partner_profiles)
+        - F.O.R.G.E. verdict contains REJECT
+
+    Tier 1:
+        - < 300 lines changed AND < 10 files changed
+        - AND (has auto-merge label OR F.O.R.G.E. verdict contains APPROVED)
+
+    Tier 2: everything else.
+    """
+    import re as _re  # noqa: PLC0415
+
+    additions = review.get("additions") or 0
+    deletions = review.get("deletions") or 0
+    changed_files = review.get("changed_files") or 0
+    total = additions + deletions
+    title = (review.get("title") or "").lower()
+    summary = (review.get("ai_summary") or "").upper()
+    branch = (review.get("branch") or "").lower()
+    meta = review.get("metadata") or {}
+
+    # --- Tier 3 gates ---
+    if total > 1500:
+        return 3
+    if "REJECT" in summary:
+        return 3
+    if any(kw in title for kw in _TIER3_TITLE_KW):
+        return 3
+    if "migration" in branch or _re.search(r"\d{3}_", branch):
+        return 3
+
+    # --- Tier 1 gates ---
+    small = total < 300 and changed_files < 10
+    approved = "APPROVED" in summary
+    auto_label = "auto-merge" in (meta.get("labels") or [])
+    if small and (approved or auto_label):
+        return 1
+
+    return 2
+
+
+def _mark_tier_processed(pr_number: int, tier: int) -> None:
+    """Record tier merge decision in pr_reviews.metadata."""
+    from psycopg2.extras import Json as _Json  # noqa: PLC0415
+    from services.time_utils import now_utc  # noqa: PLC0415
+
+    payload = _Json({"tier_processed": tier, "tier_processed_at": now_utc().isoformat()})
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE pr_reviews SET metadata = COALESCE(metadata, '{}'::jsonb) || %s WHERE pr_number = %s",
+            (payload, pr_number),
+        )
+
+
+def _mark_kytran_approval_sent(pr_number: int) -> None:
+    """Prevent duplicate Tier 3 Telegram messages for this PR."""
+    from psycopg2.extras import Json as _Json  # noqa: PLC0415
+
+    payload = _Json({"kytran_approval_sent": True})
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE pr_reviews SET metadata = COALESCE(metadata, '{}'::jsonb) || %s WHERE pr_number = %s",
+            (payload, pr_number),
+        )

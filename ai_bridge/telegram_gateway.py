@@ -125,6 +125,9 @@ class TelegramGateway:
             app.add_handler(
                 CallbackQueryHandler(self._social_callback, pattern=r"^social_")
             )
+            app.add_handler(
+                CallbackQueryHandler(self._pr_merge_callback, pattern=r"^pr_merge_")
+            )
             app.add_handler(CallbackQueryHandler(self._callback_handler))
             app.add_handler(
                 MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message)
@@ -1204,6 +1207,60 @@ class TelegramGateway:
         except Exception as exc:
             logger.error("[TelegramGateway] social callback failed: %s", exc)
             await query.edit_message_text(f"❌ Action failed: {exc}")
+
+    # ------------------------------------------------------------------
+    # PR Merge Authority via Telegram
+    # ------------------------------------------------------------------
+
+    async def _pr_merge_callback(self, update, context):
+        """Handle pr_merge_approve_N and pr_merge_deny_N inline button callbacks."""
+        query = update.callback_query
+        await query.answer()
+        data = query.data  # e.g. "pr_merge_approve_692"
+
+        try:
+            parts = data.split("_")
+            # data format: pr_merge_approve_123 -> parts = ['pr', 'merge', 'approve', '123']
+            action = parts[2]  # "approve" or "deny"
+            pr_number = int(parts[3])
+        except (IndexError, ValueError):
+            await query.edit_message_text("Invalid PR merge callback data.")
+            return
+
+        try:
+            from tools.repair_bay.services.pr_review_service import (  # noqa: PLC0415
+                merge_pr,
+                _mark_tier_processed,
+            )
+            from database import get_db_cursor as _gdc  # noqa: PLC0415
+            from psycopg2.extras import Json as _Json  # noqa: PLC0415
+
+            if action == "approve":
+                result = merge_pr(pr_number, "squash")
+                if result.get("merged"):
+                    _mark_tier_processed(pr_number, tier=3)
+                    await query.edit_message_text(
+                        f"✅ Kytran approved — PR #{pr_number} merged successfully."
+                    )
+                else:
+                    await query.edit_message_text(
+                        f"❌ Merge failed for PR #{pr_number}: {result.get('error', 'unknown error')}"
+                    )
+
+            elif action == "deny":
+                payload = _Json({"kytran_denied": True})
+                with _gdc(commit=True) as (_conn, _cur):
+                    _cur.execute(
+                        "UPDATE pr_reviews SET metadata = COALESCE(metadata, '{}'::jsonb) || %s WHERE pr_number = %s",
+                        (payload, pr_number),
+                    )
+                await query.edit_message_text(
+                    f"❌ PR #{pr_number} denied. Please close it manually on GitHub if needed."
+                )
+
+        except Exception as e:
+            logger.error("[PRMergeCallback] Error for PR #%s: %s", pr_number, e)
+            await query.edit_message_text(f"❌ Error processing PR #{pr_number}: {e}")
 
     # ------------------------------------------------------------------
     # Email Interaction via Telegram

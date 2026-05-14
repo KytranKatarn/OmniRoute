@@ -723,6 +723,18 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # Tiered PR Merge Authority — F.O.R.G.E./A.R.C.H.I.E./Kytran governance.
+        # Every 10 min: picks up reviewed PRs, auto-merges T1/T2, Telegrams T3.
+        self.scheduler.add_job(
+            with_app_context(self._run_archie_pr_review_worker),
+            trigger=IntervalTrigger(minutes=10, timezone="America/Toronto"),
+            id="forge_archie_pr_review",
+            name="Agent Loop: Tiered PR Merge Authority (F.O.R.G.E./A.R.C.H.I.E./Kytran)",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         # C.O.D.E.X. — event auto-documentation (Project #272 Phase 2 / Task #2108).
         # Runs every 30 min; template-based, no LLM. Scans project_decisions
         # for undocumented rows and writes a vault_note per ADR.
@@ -5157,6 +5169,122 @@ class AgentLoop:
             )
         except Exception as e:
             logger.error("github_presence_audit failed: %s", e)
+
+    # ------------------------------------------------------------------
+    # Tiered PR Merge Authority (Project #244 / feat/tiered-pr-merge-authority)
+    # ------------------------------------------------------------------
+
+    def _request_kytran_pr_approval(self, pr_number: int, title: str, summary: str) -> None:
+        """Send Tier 3 Telegram message with approve/deny buttons to Kytran."""
+        from services.telegram_service import send_with_buttons  # noqa: PLC0415
+
+        short_summary = summary[:400] if summary else "No review summary available."
+        send_with_buttons(
+            category="system",
+            title=f"PR #{pr_number} — Merge Approval Required",
+            message=(
+                f"*PR #{pr_number}:* {title}\n\n"
+                f"*F.O.R.G.E. Review:*\n{short_summary}\n\n"
+                "Tier 3 — requires your approval before merge."
+            ),
+            buttons=[
+                {"text": "✅ Merge", "callback_data": f"pr_merge_approve_{pr_number}"},
+                {"text": "❌ Deny", "callback_data": f"pr_merge_deny_{pr_number}"},
+            ],
+            source_agent="A.R.C.H.I.E.",
+        )
+
+    def _run_archie_pr_review_worker(self):
+        """Job: Tiered PR merge authority — F.O.R.G.E./A.R.C.H.I.E./Kytran governance."""
+        import time as _time  # noqa: PLC0415
+
+        start = _time.time()
+        try:
+            from tools.repair_bay.services.pr_review_service import (  # noqa: PLC0415
+                list_reviews,
+                merge_pr,
+                classify_pr_tier,
+                _mark_tier_processed,
+                _mark_kytran_approval_sent,
+            )
+            from services.telegram_service import send_info  # noqa: PLC0415
+
+            reviews = list_reviews(state="open", review_status="reviewed")
+            processed = 0
+
+            for review in reviews:
+                meta = review.get("metadata") or {}
+                if meta.get("tier_processed") or meta.get("kytran_approval_sent"):
+                    continue
+
+                pr_num = review["pr_number"]
+                title = review.get("title") or f"PR #{pr_num}"
+                summary = review.get("ai_summary") or ""
+                tier = classify_pr_tier(review)
+
+                if tier == 1:
+                    result = merge_pr(pr_num, "squash")
+                    if result.get("merged"):
+                        _mark_tier_processed(pr_num, tier=1)
+                        send_info(
+                            title=f"F.O.R.G.E. auto-merged PR #{pr_num}",
+                            message=f"*{title}*\nTier 1 auto-merge (small, approved).",
+                            source_agent="F.O.R.G.E.",
+                        )
+                        processed += 1
+                    else:
+                        logger.warning(
+                            "[PRTiers] Tier 1 merge failed for PR #%s: %s",
+                            pr_num,
+                            result.get("error"),
+                        )
+
+                elif tier == 2:
+                    result = merge_pr(pr_num, "squash")
+                    if result.get("merged"):
+                        _mark_tier_processed(pr_num, tier=2)
+                        send_info(
+                            title=f"A.R.C.H.I.E. merged PR #{pr_num}",
+                            message=(
+                                f"*{title}*\n"
+                                f"Tier 2 autonomous merge (COO authority).\n"
+                                f"F.O.R.G.E.: {summary[:200]}"
+                            ),
+                            source_agent="A.R.C.H.I.E.",
+                        )
+                        processed += 1
+                    else:
+                        logger.warning(
+                            "[PRTiers] Tier 2 merge failed for PR #%s: %s",
+                            pr_num,
+                            result.get("error"),
+                        )
+
+                elif tier == 3:
+                    self._request_kytran_pr_approval(pr_num, title, summary)
+                    _mark_kytran_approval_sent(pr_num)
+                    processed += 1
+
+            elapsed = int((_time.time() - start) * 1000)
+            self._log_cycle(
+                "archie_pr_review",
+                processed,
+                0,
+                elapsed,
+                department="Engineering & Technology",
+            )
+
+        except Exception as e:
+            elapsed = int((_time.time() - start) * 1000)
+            logger.warning("[PRTiers] archie_pr_review_worker failed: %s", e)
+            self._log_cycle(
+                "archie_pr_review",
+                0,
+                1,
+                elapsed,
+                error_message=str(e),
+                department="Engineering & Technology",
+            )
 
     # ------------------------------------------------------------------
     # C.O.D.E.X. Event Auto-Documentation (Project #272 Phase 2 / Task #2108)

@@ -5202,11 +5202,11 @@ class AgentLoop:
         try:
             from tools.repair_bay.services.pr_review_service import (  # noqa: PLC0415
                 list_reviews,
-                merge_pr,
                 classify_pr_tier,
                 _mark_tier_processed,
                 _mark_kytran_approval_sent,
             )
+            from tools.repair_bay.services.github_service import merge_pr  # noqa: PLC0415
             from services.telegram_service import send_info  # noqa: PLC0415
 
             reviews = list_reviews(state="open", review_status="reviewed")

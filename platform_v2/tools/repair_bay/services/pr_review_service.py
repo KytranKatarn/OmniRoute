@@ -193,8 +193,8 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
         from .github_service import merge_pr
 
         result = merge_pr(pr_number, "squash")
-        if result.get("merged"):
-            logger.info("[F.O.R.G.E.] PR #%s auto-merged after approval", pr_number)
+        if result.get("success") and result.get("sha"):
+            logger.info("[F.O.R.G.E.] PR #%s auto-merged after approval (sha=%s)", pr_number, result["sha"][:8])
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
                     "INSERT INTO system_notifications (title, message, type, source, visibility) "

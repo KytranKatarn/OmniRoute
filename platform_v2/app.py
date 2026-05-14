@@ -2448,6 +2448,13 @@ from tools.revenue_standup import revenue_standup_bp  # noqa: E402
 
 app.register_blueprint(revenue_standup_bp)
 
+# Cluster proxy — hub acts as trusted egress for VPS fleet nodes (Project #339)
+# VPS products POST to /api/proxy/fetch with X-Proxy-Key to route blocked
+# external HTTP requests through hub's residential IP (153.68.195.85).
+from tools.cluster_proxy.routes import proxy_bp as cluster_proxy_bp  # noqa: E402
+
+app.register_blueprint(cluster_proxy_bp)
+
 # NOTE: fleet_proxy (B.E.A.C.O.N. dashboard routing via *.fleet.kytranempowerment.com)
 # was removed 2026-04-18 — project #173 cancelled, DNS cleaned up 2026-04-13,
 # see task #2144 for the full fleet observability triad context.

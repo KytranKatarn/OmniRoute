@@ -19,3 +19,7 @@ from .routes import admin_required
 from .demo_routes import register_demo_routes
 
 register_demo_routes(account_center_bp, admin_required)
+
+from .partner_routes import register_partner_routes
+
+register_partner_routes(account_center_bp, admin_required)

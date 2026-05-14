@@ -1417,6 +1417,17 @@ def accept_invite():
                             "UPDATE user_invites SET status='accepted', accepted_at=NOW(), accepted_user_id=%s WHERE id=%s",
                             (new_user_id, invite_id),
                         )
+                        # Link partner profile if this is a COLLABORATOR invite
+                        cur.execute(
+                            "SELECT partner_profile_id FROM user_invites WHERE id = %s",
+                            (invite_id,),
+                        )
+                        inv_row = cur.fetchone()
+                        if inv_row and inv_row[0]:
+                            cur.execute(
+                                "UPDATE partner_profiles SET user_id = %s WHERE id = %s",
+                                (new_user_id, inv_row[0]),
+                            )
                         conn.commit()
                         cur.close()
                         conn.close()
@@ -2938,6 +2949,78 @@ def enforce_guest_readonly():
         if request.is_json:
             return jsonify({"error": "demo_mode", "message": "Read-only in demo mode"}), 403
         return "Demo mode: read-only", 403
+
+
+@app.before_request
+def enforce_partner_onboarding():
+    """Redirect COLLABORATOR users who haven't completed onboarding."""
+    if not current_user.is_authenticated:
+        return
+    if getattr(current_user, "role_value", 100) != 15:
+        return
+    if request.path.startswith("/partner-welcome"):
+        return
+    if request.path.startswith("/static") or request.path.startswith("/api"):
+        return
+    if request.path in ("/login", "/logout", "/accept-invite"):
+        return
+    try:
+        from database import get_db_cursor as _gdc
+
+        with _gdc(commit=False) as (_conn, _cur):
+            _cur.execute(
+                "SELECT onboarding_complete FROM partner_profiles WHERE user_id = %s",
+                (current_user.id,),
+            )
+            row = _cur.fetchone()
+        if row and not row["onboarding_complete"]:
+            return redirect("/partner-welcome")
+    except Exception:
+        pass
+
+
+@app.route("/partner-welcome")
+def partner_welcome():
+    """Welcome screen for COLLABORATOR users completing onboarding."""
+    if not current_user.is_authenticated:
+        return redirect(url_for("login"))
+    if getattr(current_user, "role_value", 100) != 15:
+        return redirect("/")
+    try:
+        from database import get_db_cursor as _gdc
+
+        with _gdc(commit=False) as (_conn, _cur):
+            _cur.execute(
+                """SELECT p.slug, p.display_name, u2.username AS inviter
+                   FROM partner_profiles p
+                   LEFT JOIN users u2 ON p.invited_by = u2.id
+                   WHERE p.user_id = %s""",
+                (current_user.id,),
+            )
+            profile = _cur.fetchone()
+    except Exception:
+        profile = None
+    return render_template("partner_welcome.html", profile=profile)
+
+
+@app.route("/api/partner/onboarding-complete", methods=["POST"])
+def partner_onboarding_complete():
+    """Mark partner onboarding as complete."""
+    if not current_user.is_authenticated:
+        return jsonify({"error": "unauthorized"}), 401
+    if getattr(current_user, "role_value", 100) != 15:
+        return jsonify({"error": "forbidden"}), 403
+    try:
+        from database import get_db_cursor as _gdc
+
+        with _gdc(commit=True) as (_conn, _cur):
+            _cur.execute(
+                "UPDATE partner_profiles SET onboarding_complete = TRUE WHERE user_id = %s",
+                (current_user.id,),
+            )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"done": True})
 
 
 @app.before_request

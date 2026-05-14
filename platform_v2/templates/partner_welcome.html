@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Welcome — A.R.C.H.I.E. Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg: #0a0a0f; --surface: #12121a; --border: rgba(255,255,255,0.08);
+            --accent: #00d4ff; --text: #e2e8f0; --muted: #94a3b8; --radius: 8px; }
+    body { font-family: 'IBM Plex Mono', monospace; background: var(--bg); color: var(--text);
+           min-height: 100vh; display: flex; align-items: center; justify-content: center;
+           padding: 2rem; }
+    .card { background: var(--surface); border: 1px solid var(--accent);
+            border-radius: var(--radius); padding: 2.5rem; max-width: 560px; width: 100%; }
+    .logo { font-family: 'Orbitron', monospace; color: var(--accent); font-size: 0.85rem;
+            letter-spacing: 4px; text-transform: uppercase; margin-bottom: 2rem; }
+    h1 { font-family: 'Orbitron', monospace; color: var(--text); font-size: 1.2rem;
+         letter-spacing: 2px; margin-bottom: 0.5rem; }
+    .subtitle { color: var(--muted); font-size: 0.85rem; line-height: 1.7; margin-bottom: 2rem; }
+    .info-box { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+                padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+    .info-label { font-size: 0.7rem; color: var(--muted); letter-spacing: 2px;
+                  text-transform: uppercase; margin-bottom: 4px; }
+    .info-value { font-size: 0.9rem; color: var(--accent); display: flex;
+                  align-items: center; gap: 0.5rem; }
+    .copy-btn { background: none; border: 1px solid var(--border); color: var(--muted);
+                padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem;
+                font-family: 'IBM Plex Mono', monospace; }
+    .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+    details { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 1.5rem; }
+    summary { padding: 0.75rem 1rem; cursor: pointer; font-size: 0.82rem; color: var(--muted); }
+    summary:hover { color: var(--text); }
+    .fleet-body { padding: 0 1rem 1rem; font-size: 0.8rem; line-height: 1.8; color: var(--muted); }
+    .btn { display: block; width: 100%; padding: 0.85rem; background: var(--accent);
+           color: #000; border: none; border-radius: var(--radius); font-weight: 700;
+           cursor: pointer; font-size: 0.95rem; font-family: 'IBM Plex Mono', monospace;
+           text-align: center; }
+    .btn:hover { opacity: 0.9; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">A.R.C.H.I.E. Platform</div>
+    <h1>WELCOME{% if profile and profile.display_name %}, {{ profile.display_name | upper }}{% endif %}</h1>
+    <p class="subtitle">
+      {% if profile and profile.inviter %}
+      {{ profile.inviter }} has invited you to collaborate on the A.R.C.H.I.E. platform.
+      {% else %}
+      You've been invited to collaborate on the A.R.C.H.I.E. platform.
+      {% endif %}
+      You have access to A.R.C.H.I.E. Chat and Media Studio.
+    </p>
+
+    {% if profile and profile.slug %}
+    <div class="info-box">
+      <div class="info-label">Your Workspace URL</div>
+      <div class="info-value">
+        <span id="subdomain-url">{{ profile.slug }}.kytranempowerment.com</span>
+        <button class="copy-btn" onclick="copySubdomain()">COPY</button>
+      </div>
+    </div>
+    {% endif %}
+
+    <details>
+      <summary>&#128187; Contribute your hardware to the fleet (optional)</summary>
+      <div class="fleet-body">
+        <p style="margin-bottom:0.75rem;">You can join your machine to the A.R.C.H.I.E. fleet to share GPU/RAM resources. Ask your coordinator for the Headscale join command once you are ready.</p>
+        <p>Your machine will appear in the Fleet tab after connecting. Your coordinator will link it to your profile.</p>
+      </div>
+    </details>
+
+    <button class="btn" id="enter-btn" onclick="enterPlatform()">ENTER PLATFORM</button>
+  </div>
+
+  <script>
+  function copySubdomain() {
+    var el = document.getElementById('subdomain-url');
+    if (!el) return;
+    navigator.clipboard.writeText(el.textContent).catch(function() {});
+    var btn = document.querySelector('.copy-btn');
+    if (btn) { btn.textContent = 'COPIED!'; setTimeout(function() { btn.textContent = 'COPY'; }, 2000); }
+  }
+
+  function enterPlatform() {
+    var btn = document.getElementById('enter-btn');
+    btn.disabled = true;
+    btn.textContent = 'ENTERING...';
+    fetch('/api/partner/onboarding-complete', { method: 'POST' })
+      .then(function() { window.location.href = '/'; })
+      .catch(function() { btn.disabled = false; btn.textContent = 'ENTER PLATFORM'; });
+  }
+  </script>
+</body>
+</html>

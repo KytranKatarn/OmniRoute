@@ -115,6 +115,78 @@
                                 </div>
                                 <div id="demo-links-table-wrap" style="margin-bottom:20px;"></div>
 
+                                <!-- PARTNERS SECTION -->
+                                <div class="lcars-section-label" style="margin-top:24px;"><div class="lcars-section-cap"></div><div class="lcars-section-title">PARTNER COLLABORATORS</div></div>
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                                  <span style="color:var(--archie-text-secondary);font-size:0.8rem;">Invited partners with COLLABORATOR access</span>
+                                  <button class="btn btn-primary btn-sm" onclick="partnerOpenWizard()">+ ADD PARTNER</button>
+                                </div>
+                                <div id="partner-table-wrap" style="margin-bottom:20px;"></div>
+
+                                <!-- Partner Wizard Modal -->
+                                <div class="bm-overlay" id="partner-wizard-modal">
+                                  <div class="bm-shell" style="--bm-accent:#00d4ff;max-width:520px;">
+                                    <div class="bm-frame"></div>
+                                    <div class="bm-content">
+                                      <div class="bm-header">
+                                        <span id="partner-wizard-title">ADD PARTNER — STEP 1 OF 3</span>
+                                        <button class="bm-close" onclick="partnerCloseWizard()">&#x2715;</button>
+                                      </div>
+                                      <div class="bm-body">
+                                        <div id="partner-step-1">
+                                          <div style="margin-bottom:14px;">
+                                            <label style="display:block;font-size:0.75rem;color:var(--archie-text-secondary);margin-bottom:6px;">Display Name</label>
+                                            <input type="text" id="partner-display-name" placeholder="e.g. Jane Smith" maxlength="100"
+                                              style="width:100%;background:var(--archie-bg-primary);border:1px solid rgba(255,255,255,0.2);color:var(--archie-text-primary);padding:8px 12px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:0.85rem;"
+                                              oninput="partnerAutoSlug()" />
+                                          </div>
+                                          <div style="margin-bottom:14px;">
+                                            <label style="display:block;font-size:0.75rem;color:var(--archie-text-secondary);margin-bottom:6px;">Email Address</label>
+                                            <input type="email" id="partner-email" placeholder="partner@example.com"
+                                              style="width:100%;background:var(--archie-bg-primary);border:1px solid rgba(255,255,255,0.2);color:var(--archie-text-primary);padding:8px 12px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:0.85rem;" />
+                                          </div>
+                                          <div>
+                                            <label style="display:block;font-size:0.75rem;color:var(--archie-text-secondary);margin-bottom:6px;">Subdomain Slug</label>
+                                            <input type="text" id="partner-slug" placeholder="jane-smith" maxlength="50"
+                                              style="width:100%;background:var(--archie-bg-primary);border:1px solid rgba(255,255,255,0.2);color:var(--archie-text-primary);padding:8px 12px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:0.85rem;"
+                                              oninput="partnerCheckSlug()" />
+                                            <div id="partner-slug-status" style="font-size:0.75rem;margin-top:4px;color:var(--archie-text-secondary);"></div>
+                                          </div>
+                                        </div>
+                                        <div id="partner-step-2" style="display:none;">
+                                          <p style="color:var(--archie-text-secondary);font-size:0.85rem;margin-bottom:12px;">The following subdomain will be provisioned:</p>
+                                          <div style="background:var(--archie-bg-primary);border:1px solid #00d4ff;border-radius:6px;padding:12px 16px;font-family:'IBM Plex Mono',monospace;color:#00d4ff;font-size:0.9rem;" id="partner-subdomain-preview"></div>
+                                          <p style="color:var(--archie-text-secondary);font-size:0.75rem;margin-top:12px;">An NPM proxy host will be created automatically. SSL can be enabled via NPM UI after setup.</p>
+                                        </div>
+                                        <div id="partner-step-3" style="display:none;">
+                                          <p style="color:var(--archie-text-secondary);font-size:0.85rem;margin-bottom:12px;">Ready to send. Review details:</p>
+                                          <div id="partner-review-box" style="background:var(--archie-bg-primary);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:12px 16px;font-size:0.82rem;line-height:1.8;"></div>
+                                        </div>
+                                      </div>
+                                      <div class="bm-footer">
+                                        <button class="btn btn-secondary" id="partner-back-btn" onclick="partnerBack()" style="display:none;">BACK</button>
+                                        <button class="btn btn-primary" id="partner-next-btn" onclick="partnerNext()">NEXT</button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <!-- Partner Result Modal -->
+                                <div class="bm-overlay" id="partner-result-modal">
+                                  <div class="bm-shell" style="--bm-accent:#00d4ff;max-width:480px;">
+                                    <div class="bm-frame"></div>
+                                    <div class="bm-content">
+                                      <div class="bm-header">
+                                        <span>PARTNER INVITED</span>
+                                        <button class="bm-close" onclick="document.getElementById('partner-result-modal').classList.remove('active')">&#x2715;</button>
+                                      </div>
+                                      <div class="bm-body">
+                                        <p id="partner-result-text" style="color:var(--archie-text-secondary);font-size:0.85rem;line-height:1.7;"></p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
                             </div>
                             <div style="height:6px !important; background:#ef4444 !important; border-radius:0 0 20px 0 !important; flex-shrink:0 !important;"></div>
                         </div>
@@ -1985,4 +2057,199 @@ document.addEventListener('DOMContentLoaded', function() { demoLoadLinks(); });
     </div>
   </div>
 </div>
+<script>
+// ---- Partner Admin ----
+var _partnerStep = 1;
+var _partnerSlugOk = false;
+var _partnerSlugTimer = null;
+
+function partnerLoadList() {
+  var wrap = document.getElementById('partner-table-wrap');
+  if (!wrap) return;
+  fetch('/tools/account-center/api/admin/partners')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
+      if (!data.partners || !data.partners.length) {
+        var msg = document.createElement('div');
+        msg.style.cssText = 'color:var(--archie-text-secondary);padding:12px;font-size:0.8rem;';
+        msg.textContent = 'No partners yet. Add one above.';
+        wrap.appendChild(msg);
+        return;
+      }
+      var tbl = document.createElement('table');
+      tbl.style.cssText = 'width:100%;border-collapse:collapse;font-size:0.8rem;';
+      var thead = tbl.createTHead();
+      var hrow = thead.insertRow();
+      ['Name', 'Subdomain', 'Status', 'Fleet', ''].forEach(function(h) {
+        var th = document.createElement('th');
+        th.style.cssText = 'padding:6px 12px;text-align:left;color:var(--archie-text-secondary);';
+        th.textContent = h;
+        hrow.appendChild(th);
+      });
+      var tbody = tbl.createTBody();
+      data.partners.forEach(function(p) {
+        var tr = tbody.insertRow();
+        tr.style.cssText = 'border-bottom:1px solid rgba(255,255,255,0.05);';
+        var tdName = tr.insertCell(); tdName.style.padding = '8px 12px';
+        tdName.textContent = p.display_name;
+        var tdSub = tr.insertCell(); tdSub.style.cssText = 'padding:8px 12px;font-size:0.77rem;color:#00d4ff;';
+        tdSub.textContent = p.slug + '.kytranempowerment.com';
+        var tdStatus = tr.insertCell(); tdStatus.style.padding = '8px 12px';
+        var badge = document.createElement('span');
+        badge.style.color = p.is_active === false ? '#ef4444' : (p.onboarding_complete ? '#22c55e' : '#f59e0b');
+        badge.style.fontSize = '0.75rem';
+        badge.textContent = p.is_active === false ? 'REVOKED' : (p.onboarding_complete ? 'ACTIVE' : 'PENDING');
+        tdStatus.appendChild(badge);
+        var tdFleet = tr.insertCell(); tdFleet.style.padding = '8px 12px';
+        tdFleet.textContent = p.fleet_node_id ? 'LINKED' : '—';
+        tdFleet.style.color = p.fleet_node_id ? '#22c55e' : 'var(--archie-text-secondary)';
+        var tdAct = tr.insertCell(); tdAct.style.padding = '8px 12px';
+        if (p.is_active !== false) {
+          var rBtn = document.createElement('button');
+          rBtn.className = 'btn btn-sm';
+          rBtn.style.cssText = 'background:#ef4444;color:#fff;padding:2px 8px;font-size:0.7rem;';
+          rBtn.textContent = 'REVOKE';
+          (function(id) { rBtn.addEventListener('click', function() { partnerRevoke(id); }); })(p.id);
+          tdAct.appendChild(rBtn);
+        }
+      });
+      wrap.appendChild(tbl);
+    })
+    .catch(function() {
+      var w = document.getElementById('partner-table-wrap');
+      if (w) { w.textContent = 'Failed to load partners.'; }
+    });
+}
+
+function partnerOpenWizard() {
+  _partnerStep = 1; _partnerSlugOk = false;
+  document.getElementById('partner-wizard-title').textContent = 'ADD PARTNER — STEP 1 OF 3';
+  document.getElementById('partner-step-1').style.display = '';
+  document.getElementById('partner-step-2').style.display = 'none';
+  document.getElementById('partner-step-3').style.display = 'none';
+  document.getElementById('partner-back-btn').style.display = 'none';
+  document.getElementById('partner-next-btn').textContent = 'NEXT';
+  document.getElementById('partner-wizard-modal').classList.add('active');
+}
+function partnerCloseWizard() {
+  document.getElementById('partner-wizard-modal').classList.remove('active');
+}
+
+function partnerAutoSlug() {
+  var name = document.getElementById('partner-display-name').value;
+  var slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
+  document.getElementById('partner-slug').value = slug;
+  partnerCheckSlug();
+}
+
+function partnerCheckSlug() {
+  clearTimeout(_partnerSlugTimer);
+  var slug = document.getElementById('partner-slug').value.trim();
+  var status = document.getElementById('partner-slug-status');
+  _partnerSlugOk = false;
+  if (!slug) { status.textContent = ''; return; }
+  _partnerSlugTimer = setTimeout(function() {
+    fetch('/tools/account-center/api/admin/partners/check-slug?slug=' + encodeURIComponent(slug))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.available) {
+          status.textContent = slug + '.kytranempowerment.com — available';
+          status.style.color = '#22c55e';
+          _partnerSlugOk = true;
+        } else {
+          status.textContent = data.reason || 'Slug unavailable';
+          status.style.color = '#ef4444';
+          _partnerSlugOk = false;
+        }
+      });
+  }, 400);
+}
+
+function partnerNext() {
+  if (_partnerStep === 1) {
+    var name = document.getElementById('partner-display-name').value.trim();
+    var email = document.getElementById('partner-email').value.trim();
+    var slug = document.getElementById('partner-slug').value.trim();
+    if (!name || !email || !slug) { alert('All fields are required.'); return; }
+    if (!_partnerSlugOk) { alert('Please fix the slug before continuing.'); return; }
+    document.getElementById('partner-subdomain-preview').textContent = slug + '.kytranempowerment.com';
+    _partnerStep = 2;
+    document.getElementById('partner-step-1').style.display = 'none';
+    document.getElementById('partner-step-2').style.display = '';
+    document.getElementById('partner-wizard-title').textContent = 'ADD PARTNER — STEP 2 OF 3';
+    document.getElementById('partner-back-btn').style.display = '';
+    return;
+  }
+  if (_partnerStep === 2) {
+    var n = document.getElementById('partner-display-name').value.trim();
+    var e = document.getElementById('partner-email').value.trim();
+    var s = document.getElementById('partner-slug').value.trim();
+    var box = document.getElementById('partner-review-box');
+    while (box.firstChild) box.removeChild(box.firstChild);
+    [['Name', n], ['Email', e], ['Subdomain', s + '.kytranempowerment.com']].forEach(function(r) {
+      var line = document.createElement('div');
+      var lbl = document.createElement('span'); lbl.style.color = 'var(--archie-text-secondary)';
+      lbl.textContent = r[0] + ': ';
+      var val = document.createElement('span'); val.textContent = r[1];
+      line.appendChild(lbl); line.appendChild(val); box.appendChild(line);
+    });
+    _partnerStep = 3;
+    document.getElementById('partner-step-2').style.display = 'none';
+    document.getElementById('partner-step-3').style.display = '';
+    document.getElementById('partner-wizard-title').textContent = 'ADD PARTNER — STEP 3 OF 3';
+    document.getElementById('partner-next-btn').textContent = 'SEND INVITE';
+    return;
+  }
+  if (_partnerStep === 3) {
+    var btn = document.getElementById('partner-next-btn');
+    btn.disabled = true; btn.textContent = 'SENDING...';
+    fetch('/tools/account-center/api/admin/partners', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        display_name: document.getElementById('partner-display-name').value.trim(),
+        email: document.getElementById('partner-email').value.trim(),
+        slug: document.getElementById('partner-slug').value.trim()
+      })
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      partnerCloseWizard();
+      var txt = document.getElementById('partner-result-text');
+      txt.textContent = data.error
+        ? 'Error: ' + data.error
+        : 'Partner invited. Subdomain: ' + (data.subdomain || '') + '. Invite email ' + (data.invite_sent ? 'sent.' : 'failed — check logs.');
+      document.getElementById('partner-result-modal').classList.add('active');
+      partnerLoadList();
+      btn.disabled = false; btn.textContent = 'SEND INVITE';
+    }).catch(function() {
+      alert('Request failed. Check logs.');
+      btn.disabled = false; btn.textContent = 'SEND INVITE';
+    });
+  }
+}
+
+function partnerBack() {
+  if (_partnerStep === 2) {
+    _partnerStep = 1;
+    document.getElementById('partner-step-2').style.display = 'none';
+    document.getElementById('partner-step-1').style.display = '';
+    document.getElementById('partner-wizard-title').textContent = 'ADD PARTNER — STEP 1 OF 3';
+    document.getElementById('partner-back-btn').style.display = 'none';
+    document.getElementById('partner-next-btn').textContent = 'NEXT';
+  } else if (_partnerStep === 3) {
+    _partnerStep = 2;
+    document.getElementById('partner-step-3').style.display = 'none';
+    document.getElementById('partner-step-2').style.display = '';
+    document.getElementById('partner-wizard-title').textContent = 'ADD PARTNER — STEP 2 OF 3';
+    document.getElementById('partner-next-btn').textContent = 'NEXT';
+  }
+}
+
+function partnerRevoke(id) {
+  if (!confirm('Revoke this partner? Their account will be deactivated and subdomain removed.')) return;
+  fetch('/tools/account-center/api/admin/partners/' + id, {method: 'DELETE'})
+    .then(function() { partnerLoadList(); });
+}
+
+document.addEventListener('DOMContentLoaded', function() { partnerLoadList(); });
+</script>
 {% endblock %}

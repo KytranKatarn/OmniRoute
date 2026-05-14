@@ -737,6 +737,31 @@ def register_routes(bp, admin_required):
             title_prefix = f"[This conversation is about: {conv['title']}]\n\n"
         contextual_message = f"{title_prefix}{conv_context}{message}" if (title_prefix or conv_context) else message
 
+        # Inject partner context for COLLABORATOR users (role_value == 15)
+        if getattr(current_user, "role_value", 0) == 15:
+            try:
+                from database import get_db_cursor as _gdc  # noqa: PLC0415
+
+                with _gdc(commit=False) as (_conn, _pcur):
+                    _pcur.execute(
+                        """SELECT p.display_name, u2.username AS inviter
+                           FROM partner_profiles p
+                           LEFT JOIN users u2 ON p.invited_by = u2.id
+                           WHERE p.user_id = %s""",
+                        (current_user.id,),
+                    )
+                    _prow = _pcur.fetchone()
+                if _prow:
+                    _partner_ctx = (
+                        f"You are speaking with {_prow['display_name']}, "
+                        f"an invited collaborator of {_prow['inviter']}. "
+                        "Greet them warmly by name on their first message and assist with their "
+                        "creative and business needs. They have access to A.R.C.H.I.E. Chat and Media Studio."
+                    )
+                    contextual_message = _partner_ctx + "\n\n" + contextual_message
+            except Exception:
+                pass  # Fail silently — partner still gets normal ARCHIE response
+
         # Inject live briefing so agents always know their module's current state
         if effective_target == "W.A.R.D.E.N.":
             try:

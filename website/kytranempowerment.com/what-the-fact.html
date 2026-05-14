@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en" data-barba="wrapper">
+<head>
+    <!-- Google Analytics (fires only after consent) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-259QFNHSSN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('consent', 'default', { analytics_storage: 'denied' });
+      if (localStorage.getItem('ke-cookie-consent') === 'accepted') {
+        gtag('consent', 'update', { analytics_storage: 'granted' });
+        gtag('config', 'G-259QFNHSSN', { anonymize_ip: true });
+      }
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>What The Fact — Kytran Empowerment</title>
+    <meta name="description" content="AI-powered Canadian news intelligence. Bias scoring, fact-checking, and multi-source story analysis from independent journalism AI.">
+    <meta name="theme-color" content="#0a0a1a">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="favicon.ico" sizes="32x32">
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css?v=20260407q">
+    <link rel="stylesheet" href="css/components.css?v=20260407q">
+    <link rel="stylesheet" href="css/responsive.css?v=20260407q">
+    <link rel="stylesheet" href="css/reduced-motion.css?v=20260407q">
+    <link rel="stylesheet" href="css/pages/watch.css?v=20260407q">
+    <link rel="canonical" href="https://kytranempowerment.com/what-the-fact.html">
+    <meta property="og:title" content="What The Fact — Kytran Empowerment">
+    <meta property="og:description" content="AI-powered Canadian news intelligence. Bias scoring, fact-checking, and multi-source story analysis.">
+    <meta property="og:url" content="https://kytranempowerment.com/what-the-fact.html">
+    <meta property="og:image" content="https://kytranempowerment.com/assets/og-default.png">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+    <!-- Global background layers -->
+    <div class="aurora"></div>
+    <div class="dot-grid"></div>
+    <div class="noise-overlay"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+    <!-- Navigation -->
+    <nav class="nav" role="navigation" aria-label="Main navigation">
+      <div class="nav__inner">
+        <a href="/" class="nav__brand">
+          <img src="assets/logo-sm.png" alt="Kytran Empowerment logo" class="nav__logo-img">
+          <span class="nav__brand-text">Kytran Empowerment</span>
+        </a>
+
+        <div class="nav__links">
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.products">Products</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="platform.html" class="nav__dropdown-item" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
+              <a href="archie-code.html" class="nav__dropdown-item" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="market-watch.html" class="nav__dropdown-item" data-i18n="nav.market_watch">Market Watch</a>
+              <a href="civic-watch.html" class="nav__dropdown-item" data-i18n="nav.civic_watch">Civic Watch</a>
+              <a href="legal-watch.html" class="nav__dropdown-item" data-i18n="nav.legal_watch">Legal Watch</a>
+              <a href="gov-watch.html" class="nav__dropdown-item" data-i18n="nav.gov_watch">Gov Watch</a>
+              <a href="what-the-fact.html" class="nav__dropdown-item" data-i18n="nav.what_the_fact">What The Fact</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="business-suite.html" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
+              <a href="system-operations.html" class="nav__dropdown-item" data-i18n="nav.sysops">System Operations</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.services">Services</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="services.html" class="nav__dropdown-item" data-i18n="nav.all_services">All Services</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="website-services.html" class="nav__dropdown-item">Website Design &amp; Hosting</a>
+              <a href="security-services.html" class="nav__dropdown-item">Security Testing</a>
+              <a href="ai-services.html" class="nav__dropdown-item">AI Automation</a>
+              <a href="compliance-services.html" class="nav__dropdown-item" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="membership.html" class="nav__dropdown-item" data-i18n="nav.pricing">Membership &amp; Pricing</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.trust">Trust</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="compliance-services.html" class="nav__dropdown-item" data-i18n="nav.trust_center">Trust Center</a>
+              <a href="competitors.html" class="nav__dropdown-item" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
+              <a href="creed.html" class="nav__dropdown-item" data-i18n="nav.creed">C.R.E.E.D.</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.company">Company</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="about.html" class="nav__dropdown-item" data-i18n="nav.about">About</a>
+              <a href="vision.html" class="nav__dropdown-item" data-i18n="nav.vision">Vision</a>
+              <a href="ai-directors.html" class="nav__dropdown-item" data-i18n="nav.ai_directors">AI Directors</a>
+              <a href="directory.html" class="nav__dropdown-item" data-i18n="nav.directory">Directory</a>
+              <a href="tips.html" class="nav__dropdown-item" data-i18n="nav.tips">Tips &amp; Tricks</a>
+              <a href="links.html" class="nav__dropdown-item" data-i18n="nav.links">Programs &amp; Resources</a>
+              <a href="submit-story.html" class="nav__dropdown-item" data-i18n="nav.submit_story">Submit Your Story</a>
+            </div>
+          </div>
+
+          <a href="store.html" class="nav__link" data-i18n="nav.store">Store</a>
+          <a href="contact.html" class="nav__link" data-i18n="nav.contact">Contact</a>
+        </div>
+
+        <div class="nav__actions">
+          <button class="nav__lang-btn" aria-label="Change language" title="Change language">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M2 10h16M10 2c-2.5 3-2.5 13 0 16M10 2c2.5 3 2.5 13 0 16" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
+          <a href="membership.html" class="nav__link nav__link--cta" data-i18n="nav.get_started">Get Started</a>
+          <button class="nav__menu-btn" aria-label="Toggle menu" aria-expanded="false">
+            <span class="nav__menu-icon"></span>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="lang-overlay" hidden>
+      <div class="lang-overlay__panel">
+        <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
+        <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
+        <div class="lang-overlay__grid">
+          <button class="lang-overlay__btn" data-lang="en">English</button>
+          <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
+          <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
+          <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
+          <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
+          <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
+          <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
+          <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-mobile" id="navMobile" aria-hidden="true">
+      <div class="nav-mobile__inner">
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.products">Products</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="platform.html" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
+            <a href="archie-code.html" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
+            <a href="market-watch.html" data-i18n="nav.market_watch">Market Watch</a>
+            <a href="civic-watch.html" data-i18n="nav.civic_watch">Civic Watch</a>
+            <a href="legal-watch.html" data-i18n="nav.legal_watch">Legal Watch</a>
+            <a href="gov-watch.html" data-i18n="nav.gov_watch">Gov Watch</a>
+            <a href="what-the-fact.html" data-i18n="nav.what_the_fact">What The Fact</a>
+            <a href="business-suite.html" data-i18n="nav.business_suite">Business Suite</a>
+            <a href="system-operations.html" data-i18n="nav.sysops">System Operations</a>
+          </div>
+        </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.services">Services</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="services.html" data-i18n="nav.all_services">All Services</a>
+            <a href="website-services.html">Website Design &amp; Hosting</a>
+            <a href="security-services.html">Security Testing</a>
+            <a href="ai-services.html">AI Automation</a>
+            <a href="compliance-services.html" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+            <a href="membership.html" data-i18n="nav.pricing">Membership &amp; Pricing</a>
+          </div>
+        </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.trust">Trust</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="compliance-services.html" data-i18n="nav.trust_center">Trust Center</a>
+            <a href="competitors.html" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
+            <a href="creed.html" data-i18n="nav.creed">C.R.E.E.D.</a>
+          </div>
+        </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.company">Company</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="about.html" data-i18n="nav.about">About</a>
+            <a href="vision.html" data-i18n="nav.vision">Vision</a>
+            <a href="ai-directors.html" data-i18n="nav.ai_directors">AI Directors</a>
+            <a href="directory.html" data-i18n="nav.directory">Directory</a>
+            <a href="tips.html" data-i18n="nav.tips">Tips &amp; Tricks</a>
+            <a href="links.html" data-i18n="nav.links">Programs &amp; Resources</a>
+            <a href="submit-story.html" data-i18n="nav.submit_story">Submit Your Story</a>
+          </div>
+        </div>
+        <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
+        <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
+        <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
+      </div>
+    </div>
+
+    <!-- Page content -->
+    <main data-barba="container" data-barba-namespace="what-the-fact">
+      <div class="watch-page" style="--watch-accent: #3b82f6">
+
+        <section class="watch-hero">
+            <span class="watch-hero__badge">Canadian News Intelligence Platform</span>
+            <h1 class="watch-hero__title">What The Fact</h1>
+            <p class="watch-hero__subtitle">AI-powered news analysis for independent thinkers. Bias scoring, automated fact-checking, and multi-source story clustering across Canadian media — so you see the full picture, not just one outlet's angle.</p>
+            <div class="watch-cta" style="margin-top:2rem;">
+                <a href="https://what-the-fact.com" class="watch-cta__primary">Read the News</a>
+                <a href="membership.html" class="watch-cta__secondary">See Plans</a>
+            </div>
+        </section>
+
+        <section class="watch-stats" style="display:flex;justify-content:center;gap:3rem;padding:2.5rem 1rem;border-top:1px solid rgba(255,255,255,0.06);border-bottom:1px solid rgba(255,255,255,0.06);">
+            <div class="watch-stat"><div class="watch-stat__value">10+</div><div class="watch-stat__label">Canadian Sources</div></div>
+            <div class="watch-stat"><div class="watch-stat__value">Live</div><div class="watch-stat__label">Bias Scoring</div></div>
+            <div class="watch-stat"><div class="watch-stat__value">AI</div><div class="watch-stat__label">Fact-Checked</div></div>
+            <div class="watch-stat"><div class="watch-stat__value">30 min</div><div class="watch-stat__label">Ingest Cycle</div></div>
+        </section>
+
+        <section class="watch-features">
+            <h2 class="watch-features__heading">Features</h2>
+            <div class="watch-features__grid">
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#9878;</div>
+                    <h3 class="watch-feature__title">Bias Analysis</h3>
+                    <p class="watch-feature__text">Every article is scored on the left-right spectrum. See outlet rolling averages and understand how political lean shapes coverage — not just what is said, but how.</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#128270;</div>
+                    <h3 class="watch-feature__title">Automated Fact-Checking</h3>
+                    <p class="watch-feature__text">V.E.R.I.F.Y. AI extracts key claims from every article and returns heuristic verdicts. Upgrade to Starter for deep rationale and trigger phrase breakdowns.</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#128203;</div>
+                    <h3 class="watch-feature__title">Story Clustering</h3>
+                    <p class="watch-feature__text">The same story, from every angle. Articles covering the same event are automatically grouped so you can compare how CBC, National Post, and La Presse frame the same facts.</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#127757;</div>
+                    <h3 class="watch-feature__title">Geographic Variation</h3>
+                    <p class="watch-feature__text">L.O.C.A.L. AI detects when the same article loads differently based on your location — flagging geo-filtered content and regional narrative differences.</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#128200;</div>
+                    <h3 class="watch-feature__title">Outlet Intelligence</h3>
+                    <p class="watch-feature__text">Rolling bias averages and coverage maps per source. Know which outlets lean which direction on which topics — backed by data, not opinion.</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#128240;</div>
+                    <h3 class="watch-feature__title">Daily Digest</h3>
+                    <p class="watch-feature__text">A curated briefing of the top Canadian stories — summarized, scored, and cross-referenced — delivered to your inbox or read on-site.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="watch-agent" style="max-width:720px;margin:0 auto;padding:3rem 1.5rem;text-align:center;">
+            <h2 class="watch-features__heading">Your AI Intelligence Team</h2>
+            <div style="background:linear-gradient(135deg,rgba(17,24,39,1) 0%,#3b82f622 100%);border:1px solid #3b82f644;border-radius:12px;padding:2.5rem;margin-top:1.5rem;">
+                <div style="font-family:'Orbitron',sans-serif;font-size:1.1rem;color:#3b82f6;letter-spacing:3px;margin-bottom:0.3rem;">B.I.A.S.</div>
+                <div style="font-size:0.78rem;color:#fbbf24;margin-bottom:1rem;">Balanced Intelligence &amp; Analysis System</div>
+                <div style="color:#9ca3af;font-size:0.8rem;line-height:1.7;max-width:500px;margin:0 auto;margin-bottom:1.5rem;">B.I.A.S. scores every article on the political spectrum, tracks outlet-level rolling averages, and surfaces framing patterns so readers understand the angle behind every story.</div>
+                <div style="display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;">
+                    <div style="text-align:center;">
+                        <div style="font-family:'Orbitron',sans-serif;font-size:0.75rem;color:#60a5fa;letter-spacing:2px;">V.E.R.I.F.Y.</div>
+                        <div style="font-size:0.7rem;color:#6b7280;margin-top:0.2rem;">Fact Checker</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-family:'Orbitron',sans-serif;font-size:0.75rem;color:#60a5fa;letter-spacing:2px;">L.O.C.A.L.</div>
+                        <div style="font-size:0.7rem;color:#6b7280;margin-top:0.2rem;">Geo Intelligence</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-family:'Orbitron',sans-serif;font-size:0.75rem;color:#60a5fa;letter-spacing:2px;">F.A.C.T.</div>
+                        <div style="font-size:0.7rem;color:#6b7280;margin-top:0.2rem;">News Director</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="watch-pricing-section" style="max-width:960px;margin:0 auto;padding:3rem 1.5rem;">
+            <h2 class="watch-features__heading">Pricing</h2>
+            <p style="text-align:center;color:#9ca3af;font-size:0.82rem;margin-bottom:2rem;">Start free — upgrade for the full picture</p>
+            <div style="display:flex;justify-content:center;gap:1.5rem;flex-wrap:wrap;">
+                <div class="watch-pricing-card" style="max-width:340px;width:100%">
+                    <div class="watch-pricing-card__badge">FREE</div>
+                    <div class="watch-pricing-card__tier">Reader</div>
+                    <div class="watch-pricing-card__price">$0<span>/mo</span></div>
+                    <div class="watch-pricing-card__desc">News with bias band — no account required</div>
+                    <ul class="watch-pricing-card__list">
+                        <li class="watch-pricing-card__item">Full article feed — all 10+ sources</li>
+                        <li class="watch-pricing-card__item">Bias band (left ← center → right)</li>
+                        <li class="watch-pricing-card__item">Story clustering &amp; cross-source grouping</li>
+                        <li class="watch-pricing-card__item">Outlet rolling bias averages</li>
+                        <li class="watch-pricing-card__item">Daily digest (top stories)</li>
+                    </ul>
+                    <a href="https://what-the-fact.com" class="watch-pricing-card__cta" style="background:rgba(59,130,246,0.15);color:#3b82f6;border:1px solid #3b82f644;">Start Reading Free</a>
+                </div>
+                <div class="watch-pricing-card watch-pricing-card--featured" style="max-width:340px;width:100%">
+                    <div class="watch-pricing-card__badge">STARTER</div>
+                    <div class="watch-pricing-card__tier">Analyst</div>
+                    <div class="watch-pricing-card__price">$19<span>/mo</span></div>
+                    <div class="watch-pricing-card__desc">The full intelligence layer — cancel anytime</div>
+                    <ul class="watch-pricing-card__list">
+                        <li class="watch-pricing-card__item">Everything in Reader</li>
+                        <li class="watch-pricing-card__item">Bias rationale &amp; trigger phrase breakdown</li>
+                        <li class="watch-pricing-card__item">V.E.R.I.F.Y. deep fact-check panel</li>
+                        <li class="watch-pricing-card__item">Deep Dive — full AI story analysis</li>
+                        <li class="watch-pricing-card__item">Geographic variation detection</li>
+                        <li class="watch-pricing-card__item">Email alerts on breaking stories</li>
+                    </ul>
+                    <a href="https://business.kytranempowerment.com/billing/checkout?product=what-the-fact&return_url=https://what-the-fact.com" class="watch-pricing-card__cta">Subscribe Now</a>
+                    <div style="text-align:center;margin-top:10px;font-size:0.8rem;color:#9ca3af">
+                      Already subscribed? <a href="https://what-the-fact.com" style="color:var(--accent,#22d3ee)">Read Now →</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="watch-coming" style="max-width:960px;margin:0 auto;padding:3rem 1.5rem;">
+            <h2 class="watch-features__heading">Coming Soon</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem;margin-top:1.5rem;">
+                <div class="watch-coming__card">
+                    <span class="watch-coming__badge">Q2 2026</span>
+                    <div><h4 class="watch-coming__title">Source Expansion</h4><p class="watch-coming__text">25+ Canadian sources including regional outlets, Indigenous media, and French-language press.</p></div>
+                </div>
+                <div class="watch-coming__card">
+                    <span class="watch-coming__badge">Q2 2026</span>
+                    <div><h4 class="watch-coming__title">Custom Alerts</h4><p class="watch-coming__text">Track specific topics, politicians, or keywords across all sources with real-time notifications.</p></div>
+                </div>
+                <div class="watch-coming__card">
+                    <span class="watch-coming__badge">Q3 2026</span>
+                    <div><h4 class="watch-coming__title">Media Literacy Score</h4><p class="watch-coming__text">Your personal reading diet analysis — how balanced is your news consumption? Track it over time.</p></div>
+                </div>
+                <div class="watch-coming__card">
+                    <span class="watch-coming__badge">Q3 2026</span>
+                    <div><h4 class="watch-coming__title">Historical Bias Trends</h4><p class="watch-coming__text">See how outlet bias has shifted over time — elections, ownership changes, editorial shifts.</p></div>
+                </div>
+                <div class="watch-coming__card">
+                    <span class="watch-coming__badge">Q4 2026</span>
+                    <div><h4 class="watch-coming__title">Journalist Profiles</h4><p class="watch-coming__text">Track individual bylines — their beat, their outlet history, their consistent framing patterns.</p></div>
+                </div>
+                <div class="watch-coming__card">
+                    <span class="watch-coming__badge">Q4 2026</span>
+                    <div><h4 class="watch-coming__title">API Access</h4><p class="watch-coming__text">RESTful API for researchers, educators, and civic tech builders who need structured news data.</p></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="watch-demo">
+            <div class="watch-demo__panel">
+                <h2 class="watch-demo__heading">Ready to read news differently?</h2>
+                <p class="watch-demo__text">Join What The Fact and let B.I.A.S. show you what every outlet is really saying.</p>
+                <a href="https://what-the-fact.com" class="watch-demo__link">Read the News</a>
+            </div>
+        </section>
+
+        <div class="watch-cta">
+            <a href="https://what-the-fact.com" class="watch-cta__primary">Open What The Fact</a>
+            <a href="membership.html" class="watch-cta__secondary">See Plans</a>
+        </div>
+
+      </div>
+    </main>
+
+<!-- Footer -->
+    <footer class="footer">
+        <div class="footer__inner container">
+            <div class="footer__brand">
+                <span class="footer__logo">KYTRAN EMPOWERMENT</span>
+                <p class="footer__tagline">Montreal, Canada</p>
+            </div>
+            <div class="footer__links">
+                <a href="about.html" data-i18n="nav.about">About</a>
+                <a href="services.html" data-i18n="nav.all_services">Services</a>
+                <a href="compliance-services.html" data-i18n="nav.trust_center">Trust Center</a>
+                <a href="contact.html" data-i18n="nav.contact">Contact</a>
+                <a href="membership.html" data-i18n="nav.pricing">Pricing</a>
+            </div>
+            <div class="footer__contact">
+                <a href="tel:+18774633352" data-i18n="common.phone">1-877-463-3352</a>
+            </div>
+            <div class="footer__copyright" data-i18n="footer.copyright">&copy; 2026 Kytran Empowerment Inc. All rights reserved.</div>
+        </div>
+    </footer>
+    <!-- Scripts -->
+    <script defer src="js/lib/gsap.min.js?v=20260407q"></script>
+    <script defer src="js/lib/ScrollTrigger.min.js?v=20260407q"></script>
+    <script defer src="js/lib/lenis.min.js?v=20260407q"></script>
+    <script defer src="js/lib/splitting.min.js?v=20260407q"></script>
+    <script defer src="js/lib/barba.min.js?v=20260407q"></script>
+    <script defer src="js/effects.js?v=20260407q"></script>
+    <script defer src="js/nav.js?v=20260407q"></script>
+    <script defer src="js/transitions.js?v=20260407q"></script>
+    <script defer src="js/i18n.js?v=20260407q"></script>
+    <script defer src="js/app.js?v=20260407q"></script>
+    <!-- Cookie Consent -->
+    <div id="cookieConsent" class="cookie-consent" style="display:none;">
+      <div class="cookie-consent__inner">
+        <p class="cookie-consent__text" data-i18n="cookie.text">We use cookies to improve your experience and analyze site traffic. By continuing, you agree to our use of cookies.</p>
+        <div class="cookie-consent__actions">
+          <button class="cookie-consent__btn cookie-consent__btn--accept" onclick="acceptCookies()" data-i18n="cookie.accept">Accept</button>
+          <button class="cookie-consent__btn cookie-consent__btn--decline" onclick="declineCookies()" data-i18n="cookie.decline">Decline</button>
+        </div>
+      </div>
+    </div>
+    <script>
+    (function() {
+      var consent = localStorage.getItem('ke-cookie-consent');
+      if (!consent) {
+        document.getElementById('cookieConsent').style.display = 'block';
+      }
+    })();
+    function acceptCookies() {
+      localStorage.setItem('ke-cookie-consent', 'accepted');
+      document.getElementById('cookieConsent').style.display = 'none';
+      if (typeof gtag === 'function') {
+        gtag('consent', 'update', { analytics_storage: 'granted' });
+        gtag('config', 'G-259QFNHSSN', { anonymize_ip: true });
+      }
+    }
+    function declineCookies() {
+      localStorage.setItem('ke-cookie-consent', 'declined');
+      document.getElementById('cookieConsent').style.display = 'none';
+    }
+    </script>
+</body>
+</html>

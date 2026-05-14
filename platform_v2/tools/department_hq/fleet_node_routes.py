@@ -82,18 +82,53 @@ def _generate_bash_installer(hub_url: str, node_id: str, token: str) -> str:
 
 def _generate_setup_ps1(hub_url: str, node_id: str, token: str, node_name: str) -> str:
     """Return a self-contained PowerShell node setup script."""
-    raise RuntimeError(
-        "_generate_setup_ps1 not yet implemented — see Project #243 follow-up. "
-        "Use the pre-built installers in node_client/ instead."
-    )
+    return f"""# A.R.C.H.I.E. Starship Node — Auto Setup
+# Generated for: {node_name} ({node_id})
+$ErrorActionPreference = "Stop"
+$HubUrl = "{hub_url}"
+$NodeId = "{node_id}"
+$HubApiKey = "{token}"
+$InstallDir = "C:\\archie-node"
+
+Write-Host "" ; Write-Host "============================================" -ForegroundColor Cyan
+Write-Host "  A.R.C.H.I.E. Starship Node Setup" -ForegroundColor Cyan
+Write-Host "  Node: $NodeId" -ForegroundColor Cyan
+Write-Host "============================================" -ForegroundColor Cyan ; Write-Host ""
+
+if (-not (Test-Path $InstallDir)) {{ New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null }}
+Set-Location $InstallDir
+
+Write-Host "Downloading deploy script..." -ForegroundColor Cyan
+Invoke-WebRequest -Uri "$HubUrl/api/nodes/deploy-node.ps1" -OutFile "deploy-node.ps1" -UseBasicParsing
+
+Write-Host "Running deployment..." -ForegroundColor Cyan
+Set-ExecutionPolicy Bypass -Scope Process -Force
+& ".\\deploy-node.ps1" -Fresh -NodeId $NodeId -HubUrl $HubUrl -HubApiKey $HubApiKey
+
+Write-Host "" ; Write-Host "Setup complete! Node $NodeId is pending admin approval." -ForegroundColor Green
+"""
 
 
 def _generate_setup_sh(hub_url: str, node_id: str, token: str, node_name: str) -> str:
     """Return a self-contained Bash node setup script."""
-    raise RuntimeError(
-        "_generate_setup_sh not yet implemented — see Project #243 follow-up. "
-        "Use the pre-built installers in node_client/ instead."
-    )
+    return f"""#!/bin/bash
+# A.R.C.H.I.E. Node Auto Setup — {node_name} ({node_id})
+set -e
+HUB_URL="{hub_url}"
+NODE_ID="{node_id}"
+HUB_API_KEY="{token}"
+
+echo "" ; echo "============================================"
+echo "  A.R.C.H.I.E. Node Setup: $NODE_ID"
+echo "============================================" ; echo ""
+
+mkdir -p /opt/archie-node && cd /opt/archie-node
+curl -sL "$HUB_URL/api/nodes/install-node.sh" -o install-node.sh
+chmod +x install-node.sh
+bash install-node.sh --fresh --node-id "$NODE_ID" --hub-url "$HUB_URL" --api-key "$HUB_API_KEY"
+
+echo "" ; echo "Setup complete! Node $NODE_ID is pending admin approval."
+"""
 
 
 def register_node_routes(bp, login_required, admin_required):
@@ -567,6 +602,20 @@ def register_node_routes(bp, login_required, admin_required):
             mimetype="application/gzip",
             as_attachment=True,
             download_name="archie-node-latest.tar.gz",
+        )
+
+    @bp.route("/api/nodes/deploy-node.ps1", methods=["GET"])
+    def serve_deploy_node_ps1():
+        """Serve the deploy-node.ps1 Windows setup script from node_client/."""
+        script_path = os.path.join(NODE_CLIENT_DIR, "deploy-node.ps1")
+        if not os.path.isfile(script_path):
+            return jsonify({"error": "deploy-node.ps1 not found"}), 404
+        with open(script_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return Response(
+            content,
+            mimetype="text/plain",
+            headers={"Content-Disposition": 'inline; filename="deploy-node.ps1"'},
         )
 
     @bp.route("/api/nodes/install-node.sh", methods=["GET"])
@@ -3378,7 +3427,7 @@ def register_node_routes(bp, login_required, admin_required):
         if not node_name:
             node_name = f"Starship-{secrets.token_hex(3).upper()}"
 
-        hub_url = os.environ.get("STARSHIP_HUB_URL", "https://platform.kytranempowerment.com")
+        hub_url = os.environ.get("STARSHIP_HUB_URL", os.environ.get("HUB_URL", "http://192.168.1.200:3000"))
 
         try:
             with get_db_cursor(commit=True) as (conn, cur):
@@ -3400,6 +3449,32 @@ def register_node_routes(bp, login_required, admin_required):
                     (node_id, node_name, user_id, setup_token),
                 )
                 cur.fetchone()
+
+            # JSON mode — return credentials + copy-paste command for the UI modal
+            if request.args.get("format") == "json":
+                cmd_win = (
+                    f"Set-ExecutionPolicy Bypass -Scope Process -Force; "
+                    f"mkdir C:\\archie-node -ErrorAction SilentlyContinue; "
+                    f"cd C:\\archie-node; "
+                    f"iwr {hub_url}/api/nodes/deploy-node.ps1 -OutFile deploy-node.ps1 -UseBasicParsing; "
+                    f'.\\deploy-node.ps1 -Fresh -NodeId "{node_id}" '
+                    f'-HubUrl "{hub_url}" -HubApiKey "{setup_token}"'
+                )
+                cmd_linux = (
+                    f"curl -sL {hub_url}/api/nodes/install-node.sh | "
+                    f"bash -s -- --fresh --node-id {node_id} "
+                    f"--hub-url {hub_url} --api-key {setup_token}"
+                )
+                return jsonify(
+                    {
+                        "success": True,
+                        "node_id": node_id,
+                        "node_name": node_name,
+                        "setup_token": setup_token,
+                        "command_windows": cmd_win,
+                        "command_linux": cmd_linux,
+                    }
+                )
 
             if os_type == "windows":
                 # Prefer the pre-built GUI installer .exe — check static/downloads first, then installer/dist

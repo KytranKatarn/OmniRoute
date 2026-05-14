@@ -522,6 +522,7 @@
             <span style="color:#a3e635;margin-left:8px;">&bull;</span> nodes
             <span style="color:#f59e0b;margin-left:8px;">&bull;</span> providers
           </span>
+          <button onclick="openAddNodeModal()" style="float:right;background:rgba(0,255,255,0.12);border:1px solid rgba(0,255,255,0.4);color:#00ffff;padding:3px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;">+ ADD NODE</button>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:8px;font-size:0.75rem;">
           <span id="fleetStatNodes" style="color:var(--dhq-text-dim);">-- nodes</span>
@@ -604,6 +605,98 @@
         </div>
       </div>
     </div>
+
+    <!-- ADD NODE MODAL -->
+    <div id="addNodeModal" class="bm-overlay" onclick="if(event.target===this)closeAddNodeModal()" style="display:none;">
+      <div class="bm-shell" style="max-width:540px;width:95%;">
+        <div class="bm-frame">
+          <div style="height:12px;background:#00ffff;border-radius:20px 20px 0 0;"></div>
+        </div>
+        <div class="bm-content">
+          <div class="bm-header" style="background:#00ffff;color:#010409;font-family:'Antonio',sans-serif;letter-spacing:2px;font-size:0.9rem;padding:10px 16px;">
+            ENLIST NEW STARSHIP NODE
+            <span style="float:right;cursor:pointer;font-size:1rem;" onclick="closeAddNodeModal()">✕</span>
+          </div>
+          <div class="bm-body" style="padding:20px;background:var(--archie-bg,#0a0f0f);">
+            <div id="addNodeStep1">
+              <div style="margin-bottom:14px;">
+                <label style="font-size:0.7rem;letter-spacing:1px;color:var(--dhq-text-dim,#aaa);font-family:'IBM Plex Mono',monospace;">NODE NAME</label>
+                <input id="addNodeName" type="text" placeholder="e.g. Starship-246" maxlength="40"
+                  style="width:100%;margin-top:6px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.25);color:#e0e0e0;padding:8px 12px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;box-sizing:border-box;">
+              </div>
+              <div style="margin-bottom:20px;">
+                <label style="font-size:0.7rem;letter-spacing:1px;color:var(--dhq-text-dim,#aaa);font-family:'IBM Plex Mono',monospace;">OPERATING SYSTEM</label>
+                <div style="display:flex;gap:10px;margin-top:8px;">
+                  <label style="flex:1;display:flex;align-items:center;gap:8px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.2);border-radius:4px;padding:8px 12px;cursor:pointer;">
+                    <input type="radio" name="addNodeOs" value="windows" checked> <span style="font-size:0.8rem;font-family:'IBM Plex Mono',monospace;">Windows</span>
+                  </label>
+                  <label style="flex:1;display:flex;align-items:center;gap:8px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.2);border-radius:4px;padding:8px 12px;cursor:pointer;">
+                    <input type="radio" name="addNodeOs" value="linux"> <span style="font-size:0.8rem;font-family:'IBM Plex Mono',monospace;">Linux</span>
+                  </label>
+                </div>
+              </div>
+              <div style="display:flex;gap:10px;">
+                <button onclick="closeAddNodeModal()" style="flex:1;background:none;border:1px solid rgba(255,255,255,0.15);color:#aaa;padding:8px;border-radius:4px;cursor:pointer;font-size:0.75rem;letter-spacing:1px;">CANCEL</button>
+                <button onclick="generateNodeSetup()" id="addNodeGenBtn" style="flex:2;background:rgba(0,255,255,0.15);border:1px solid rgba(0,255,255,0.5);color:#00ffff;padding:8px;border-radius:4px;cursor:pointer;font-size:0.75rem;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;">GENERATE SETUP COMMAND →</button>
+              </div>
+            </div>
+            <div id="addNodeStep2" style="display:none;">
+              <div style="margin-bottom:12px;font-size:0.75rem;color:#10b981;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;">✓ NODE REGISTERED — AWAITING APPROVAL</div>
+              <div style="margin-bottom:6px;font-size:0.7rem;color:var(--dhq-text-dim,#aaa);font-family:'IBM Plex Mono',monospace;">NODE ID: <span id="addNodeResultId" style="color:#00ffff;"></span></div>
+              <div style="margin-bottom:12px;font-size:0.7rem;color:var(--dhq-text-dim,#aaa);font-family:'IBM Plex Mono',monospace;letter-spacing:1px;">RUN THIS ON THE TARGET MACHINE (PowerShell as Admin):</div>
+              <div style="position:relative;">
+                <textarea id="addNodeCommand" readonly rows="4"
+                  style="width:100%;background:#050d0d;border:1px solid rgba(0,255,255,0.2);color:#a3e635;padding:10px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:0.72rem;line-height:1.5;resize:none;box-sizing:border-box;"></textarea>
+                <button onclick="copyNodeCommand()" style="position:absolute;top:6px;right:6px;background:rgba(0,255,255,0.15);border:1px solid rgba(0,255,255,0.3);color:#00ffff;padding:3px 10px;border-radius:3px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;" id="addNodeCopyBtn">COPY</button>
+              </div>
+              <div style="margin-top:12px;font-size:0.68rem;color:var(--dhq-text-dim,#aaa);">After running the script, approve the node in DHQ Fleet → pending nodes list.</div>
+              <button onclick="closeAddNodeModal()" style="margin-top:14px;width:100%;background:rgba(0,255,255,0.12);border:1px solid rgba(0,255,255,0.3);color:#00ffff;padding:8px;border-radius:4px;cursor:pointer;font-size:0.75rem;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;">DONE</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+    function openAddNodeModal() {
+      document.getElementById('addNodeModal').style.display = 'flex';
+      document.getElementById('addNodeStep1').style.display = 'block';
+      document.getElementById('addNodeStep2').style.display = 'none';
+      document.getElementById('addNodeName').value = '';
+      document.getElementById('addNodeName').focus();
+    }
+    function closeAddNodeModal() {
+      document.getElementById('addNodeModal').style.display = 'none';
+    }
+    async function generateNodeSetup() {
+      const name = document.getElementById('addNodeName').value.trim() || 'Starship-' + Math.random().toString(36).substr(2,4).toUpperCase();
+      const os = document.querySelector('input[name="addNodeOs"]:checked').value;
+      const btn = document.getElementById('addNodeGenBtn');
+      btn.textContent = 'GENERATING...';
+      btn.disabled = true;
+      try {
+        const resp = await fetch(`/tools/department-hq/api/nodes/new-setup-script?os=${os}&name=${encodeURIComponent(name)}&format=json`);
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || 'Unknown error');
+        document.getElementById('addNodeResultId').textContent = data.node_id;
+        document.getElementById('addNodeCommand').value = os === 'windows' ? data.command_windows : data.command_linux;
+        document.getElementById('addNodeStep1').style.display = 'none';
+        document.getElementById('addNodeStep2').style.display = 'block';
+      } catch(e) {
+        btn.textContent = 'ERROR — TRY AGAIN';
+        btn.disabled = false;
+        btn.style.color = '#ef4444';
+      }
+    }
+    function copyNodeCommand() {
+      const ta = document.getElementById('addNodeCommand');
+      ta.select();
+      navigator.clipboard.writeText(ta.value).then(() => {
+        const btn = document.getElementById('addNodeCopyBtn');
+        btn.textContent = 'COPIED!';
+        setTimeout(() => btn.textContent = 'COPY', 1800);
+      });
+    }
+    </script>
 
     <!-- COMS TAB — A.R.C.H.I.E.'s cross-channel conversation feed -->
     <div class="dhq-panel" id="panel-coms">

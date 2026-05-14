@@ -99,7 +99,7 @@ if (-not (Test-Path $InstallDir)) {{ New-Item -ItemType Directory -Path $Install
 Set-Location $InstallDir
 
 Write-Host "Downloading deploy script..." -ForegroundColor Cyan
-Invoke-WebRequest -Uri "$HubUrl/api/nodes/deploy-node.ps1" -OutFile "deploy-node.ps1" -UseBasicParsing
+Invoke-WebRequest -Uri "$HubUrl/tools/department-hq/api/nodes/deploy-node.ps1" -OutFile "deploy-node.ps1" -UseBasicParsing
 
 Write-Host "Running deployment..." -ForegroundColor Cyan
 Set-ExecutionPolicy Bypass -Scope Process -Force
@@ -123,7 +123,7 @@ echo "  A.R.C.H.I.E. Node Setup: $NODE_ID"
 echo "============================================" ; echo ""
 
 mkdir -p /opt/archie-node && cd /opt/archie-node
-curl -sL "$HUB_URL/api/nodes/install-node.sh" -o install-node.sh
+curl -sL "$HUB_URL/tools/department-hq/api/nodes/install-node.sh" -o install-node.sh
 chmod +x install-node.sh
 bash install-node.sh --fresh --node-id "$NODE_ID" --hub-url "$HUB_URL" --api-key "$HUB_API_KEY"
 
@@ -3437,16 +3437,16 @@ def register_node_routes(bp, login_required, admin_required):
                         node_id, node_name, deployment_mode, status,
                         is_active, bridge_enabled, bridge_priority,
                         approval_status, user_id, setup_token,
-                        privacy_settings
+                        api_key_hash, privacy_settings
                     ) VALUES (
                         %s, %s, 'starship', 'pending',
                         false, false, 50,
                         'pending', %s, %s,
-                        '{}'::jsonb
+                        %s, '{}'::jsonb
                     )
                     RETURNING id, node_id, node_name
                     """,
-                    (node_id, node_name, user_id, setup_token),
+                    (node_id, node_name, user_id, setup_token, hash_api_key(setup_token)),
                 )
                 cur.fetchone()
 
@@ -3456,12 +3456,12 @@ def register_node_routes(bp, login_required, admin_required):
                     f"Set-ExecutionPolicy Bypass -Scope Process -Force; "
                     f"mkdir C:\\archie-node -ErrorAction SilentlyContinue; "
                     f"cd C:\\archie-node; "
-                    f"iwr {hub_url}/api/nodes/deploy-node.ps1 -OutFile deploy-node.ps1 -UseBasicParsing; "
+                    f"iwr {hub_url}/tools/department-hq/api/nodes/deploy-node.ps1 -OutFile deploy-node.ps1 -UseBasicParsing; "
                     f'.\\deploy-node.ps1 -Fresh -NodeId "{node_id}" '
                     f'-HubUrl "{hub_url}" -HubApiKey "{setup_token}"'
                 )
                 cmd_linux = (
-                    f"curl -sL {hub_url}/api/nodes/install-node.sh | "
+                    f"curl -sL {hub_url}/tools/department-hq/api/nodes/install-node.sh | "
                     f"bash -s -- --fresh --node-id {node_id} "
                     f"--hub-url {hub_url} --api-key {setup_token}"
                 )

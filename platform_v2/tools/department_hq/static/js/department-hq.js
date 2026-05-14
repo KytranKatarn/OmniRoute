@@ -3461,7 +3461,48 @@ function jitterClusteredProviders(providers) {
     return result;
 }
 
+function renderFleetIndex(data) {
+    var panel = document.getElementById('fleetNodeIndex');
+    if (!panel) return;
+    while (panel.firstChild) panel.removeChild(panel.firstChild);
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.6rem;letter-spacing:2px;color:rgba(0,220,170,0.5);margin-bottom:4px;';
+    hdr.textContent = 'NODES';
+    panel.appendChild(hdr);
+    var entries = [];
+    if (data.hub) entries.push({ label: data.hub.name || 'HUB', lat: data.hub.lat, lon: data.hub.lon, online: true });
+    (data.nodes || []).forEach(function(n) {
+        if (!n.lat || !n.lon) return; // skip nodes with no coordinates
+        entries.push({ label: n.name || n.hostname || n.node_id || 'Node', lat: n.lat, lon: n.lon, online: n.status === 'online' });
+    });
+    entries.forEach(function(e, i) {
+        var dot = e.online ? '#10b981' : '#6b7280';
+        var hasCoords = e.lat && e.lon;
+        var item = document.createElement('div');
+        item.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;border:1px solid rgba(0,220,170,' + (e.online ? '0.2' : '0.08') + ');background:rgba(0,0,0,0.3);cursor:' + (hasCoords ? 'pointer' : 'default') + ';transition:border-color 0.15s;margin-bottom:4px;';
+        var num = document.createElement('span');
+        num.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.65rem;color:rgba(0,220,170,0.4);min-width:14px;';
+        num.textContent = i + 1;
+        var dot_el = document.createElement('span');
+        dot_el.style.cssText = 'width:7px;height:7px;border-radius:50%;background:' + dot + ';flex-shrink:0;' + (e.online ? 'box-shadow:0 0 5px ' + dot + ';' : '');
+        var lbl = document.createElement('span');
+        lbl.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.62rem;color:#c0c0c0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:108px;';
+        lbl.title = e.label;
+        lbl.textContent = e.label;
+        item.appendChild(num); item.appendChild(dot_el); item.appendChild(lbl);
+        if (hasCoords) {
+            (function(lat, lon, online) {
+                item.addEventListener('click', function() { fleetMap.setView([lat, lon], 10, { animate: true }); });
+                item.addEventListener('mouseenter', function() { item.style.borderColor = 'rgba(0,220,170,0.5)'; item.style.background = 'rgba(0,220,170,0.06)'; });
+                item.addEventListener('mouseleave', function() { item.style.borderColor = 'rgba(0,220,170,' + (online ? '0.2' : '0.08') + ')'; item.style.background = 'rgba(0,0,0,0.3)'; });
+            })(e.lat, e.lon, e.online);
+        }
+        panel.appendChild(item);
+    });
+}
+
 function renderFleetPins(data) {
+    renderFleetIndex(data);
     fleetMarkers.forEach(function(m) { fleetMap.removeLayer(m); });
     fleetMarkers = [];
 

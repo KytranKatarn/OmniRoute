@@ -184,6 +184,7 @@ $files = @(
     @{ Url = "$ApiBase/docker-compose.node.yml"; Out = "docker-compose.yml" },
     @{ Url = "$ApiBase/node_sync.py";            Out = "node_sync.py" },
     @{ Url = "$ApiBase/node_api.py";             Out = "node_api.py" },
+    @{ Url = "$ApiBase/node_triage.py";          Out = "node_triage.py" },
     @{ Url = "$ApiBase/Dockerfile.node";         Out = "Dockerfile.node" }
 )
 

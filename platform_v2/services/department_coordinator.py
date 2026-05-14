@@ -234,9 +234,14 @@ CAPABILITY_DEPARTMENT_MAP = {
     "social_post_approve": "Executive Office",  # A.R.C.H.I.E. approves
     # News & Media — WTF hub dispatch (bias, fact-check, geo). Agents:
     # B.I.A.S. (bias_analysis), V.E.R.I.F.Y. (fact_check), L.O.C.A.L. (geo_extraction)
+    # S.C.O.U.T. (web_scraping, data_collection, browser_automation, procurement_research)
     "bias_analysis": "News & Media",
     "fact_check": "News & Media",
     "geo_extraction": "News & Media",
+    "web_scraping": "News & Media",
+    "data_collection": "News & Media",
+    "browser_automation": "News & Media",
+    "procurement_research": "News & Media",
     # -----------------------------------------------------------------------
     # Routing expansion — idle agent fix (2026-05-01)
     # 20 active LLM agents were receiving zero dispatches because their skill

@@ -2533,6 +2533,8 @@ function copyDeviceKey() {
 
 async function loadDispatch() {
     loaded['dispatch'] = true;
+    var ah = document.getElementById('alerts-history-section');
+    if (ah) { ah.style.display = 'block'; if (typeof window.ahFetch === 'function') window.ahFetch(true); }
     try {
         var data = await api('/api/dispatch/overview');
         renderOllamaHud(data.ollama || {});
@@ -3158,6 +3160,8 @@ document.addEventListener('click', function(e) {
 // ───────────────────────────────────────────────────────────────
 function loadFleet() {
     loaded["fleet"] = true;
+    var ah = document.getElementById('alerts-history-section');
+    if (ah) ah.style.display = 'none';
     setTimeout(function() {
         initFleetMap();
         loadFleetData();
@@ -3165,6 +3169,8 @@ function loadFleet() {
         loadCloudProviders();
         loadProviderManagement();
         loadQueueStatus();
+        loadDispatchComponents();
+        if (typeof window.ahFetch === 'function') window.ahFetch(true);
         startFleetRefresh();
     }, 200);
 }
@@ -3476,29 +3482,50 @@ function renderFleetIndex(data) {
         entries.push({ label: n.name || n.hostname || n.node_id || 'Node', lat: n.lat, lon: n.lon, online: n.status === 'online' });
     });
     entries.forEach(function(e, i) {
-        var dot = e.online ? '#10b981' : '#6b7280';
-        var hasCoords = e.lat && e.lon;
-        var item = document.createElement('div');
-        item.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;border:1px solid rgba(0,220,170,' + (e.online ? '0.2' : '0.08') + ');background:rgba(0,0,0,0.3);cursor:' + (hasCoords ? 'pointer' : 'default') + ';transition:border-color 0.15s;margin-bottom:4px;';
-        var num = document.createElement('span');
-        num.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.65rem;color:rgba(0,220,170,0.4);min-width:14px;';
-        num.textContent = i + 1;
-        var dot_el = document.createElement('span');
-        dot_el.style.cssText = 'width:7px;height:7px;border-radius:50%;background:' + dot + ';flex-shrink:0;' + (e.online ? 'box-shadow:0 0 5px ' + dot + ';' : '');
-        var lbl = document.createElement('span');
-        lbl.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.62rem;color:#c0c0c0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:108px;';
-        lbl.title = e.label;
-        lbl.textContent = e.label;
-        item.appendChild(num); item.appendChild(dot_el); item.appendChild(lbl);
-        if (hasCoords) {
-            (function(lat, lon, online) {
-                item.addEventListener('click', function() { fleetMap.setView([lat, lon], 10, { animate: true }); });
-                item.addEventListener('mouseenter', function() { item.style.borderColor = 'rgba(0,220,170,0.5)'; item.style.background = 'rgba(0,220,170,0.06)'; });
-                item.addEventListener('mouseleave', function() { item.style.borderColor = 'rgba(0,220,170,' + (online ? '0.2' : '0.08') + ')'; item.style.background = 'rgba(0,0,0,0.3)'; });
-            })(e.lat, e.lon, e.online);
-        }
-        panel.appendChild(item);
+        panel.appendChild(buildIndexItem(i + 1, e.label, e.lat, e.lon, e.online, '#00dcaa'));
     });
+
+    // CONTRACTORS section
+    var contractors = (data.providers || []).filter(function(p) { return p.lat && p.lon; });
+    if (contractors.length) {
+        var chdr = document.createElement('div');
+        chdr.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.6rem;letter-spacing:2px;color:rgba(249,115,22,0.5);margin-top:10px;margin-bottom:4px;';
+        chdr.textContent = 'CONTRACTORS';
+        panel.appendChild(chdr);
+        contractors.forEach(function(p, i) {
+            var label = (p.provider_key || 'Unknown').toUpperCase();
+            panel.appendChild(buildIndexItem(i + 1, label, p.lat, p.lon, p.is_active, '#f97316'));
+        });
+    }
+}
+
+function buildIndexItem(num, label, lat, lon, active, accentColor) {
+    var dot = active ? accentColor : '#6b7280';
+    var border = active ? 'rgba(' + hexToRgb(accentColor) + ',0.2)' : 'rgba(255,255,255,0.06)';
+    var item = document.createElement('div');
+    item.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;border:1px solid ' + border + ';background:rgba(0,0,0,0.3);cursor:' + (lat && lon ? 'pointer' : 'default') + ';transition:border-color 0.15s;margin-bottom:4px;';
+    var n = document.createElement('span');
+    n.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.65rem;color:rgba(' + hexToRgb(accentColor) + ',0.4);min-width:14px;';
+    n.textContent = num;
+    var dot_el = document.createElement('span');
+    dot_el.style.cssText = 'width:7px;height:7px;border-radius:50%;background:' + dot + ';flex-shrink:0;' + (active ? 'box-shadow:0 0 5px ' + dot + ';' : '');
+    var lbl = document.createElement('span');
+    lbl.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.62rem;color:#c0c0c0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:108px;';
+    lbl.title = label; lbl.textContent = label;
+    item.appendChild(n); item.appendChild(dot_el); item.appendChild(lbl);
+    if (lat && lon) {
+        (function(la, lo) {
+            item.addEventListener('click', function() { fleetMap.setView([la, lo], 6, { animate: true }); });
+            item.addEventListener('mouseenter', function() { item.style.borderColor = 'rgba(' + hexToRgb(accentColor) + ',0.5)'; item.style.background = 'rgba(' + hexToRgb(accentColor) + ',0.06)'; });
+            item.addEventListener('mouseleave', function() { item.style.borderColor = border; item.style.background = 'rgba(0,0,0,0.3)'; });
+        })(lat, lon);
+    }
+    return item;
+}
+
+function hexToRgb(hex) {
+    var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return r + ',' + g + ',' + b;
 }
 
 function renderFleetPins(data) {
@@ -3534,12 +3561,12 @@ function renderFleetPins(data) {
                 iconAnchor: [17, 17],
             }),
         }).addTo(fleetMap);
-        marker.bindPopup(buildFleetPopup(node.node_name || node.hostname, [
+        marker.bindPopup(buildFleetPopup(node.name || node.hostname, [
             ['Type', node.deployment_mode || 'starship'],
             ['Status', isOnline ? '<span style="color:#10b981;">ONLINE</span>' : '<span style="color:#ef4444;">OFFLINE</span>'],
-            ['GPU', node.gpu_model || 'None'],
+            ['GPU', node.gpu || 'Not reported'],
             ['VRAM', node.gpu_vram_gb ? node.gpu_vram_gb + ' GB' : '--'],
-            ['RAM', node.ram_gb ? node.ram_gb + ' GB' : '--'],
+            ['RAM', node.ram ? node.ram + ' GB' : '--'],
         ]), { className: 'fleet-popup' });
         marker.on('click', function() { showNodeDetail(node); });
         fleetMarkers.push(marker);
@@ -3735,22 +3762,22 @@ function showNodeDetail(node) {
         ]},
         { title: 'Status', rows: [
             ['Status', node.status || '--'],
-            ['Last Heartbeat', node.last_heartbeat || '--']
+            ['Last Heartbeat', node.last_heartbeat ? new Date(node.last_heartbeat).toLocaleString() : '--']
         ]}
     ];
     sections.forEach(function(sec) {
         var h = document.createElement('div');
-        h.className = 'detail-section-title';
+        h.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.65rem;letter-spacing:2px;color:var(--cat-accent,#00ffff);margin:14px 0 6px;text-transform:uppercase;border-bottom:1px solid rgba(0,255,255,0.2);padding-bottom:4px;';
         h.textContent = sec.title;
         body.appendChild(h);
         sec.rows.forEach(function(r) {
             var row = document.createElement('div');
-            row.className = 'detail-row';
+            row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);';
             var lbl = document.createElement('span');
-            lbl.className = 'detail-label';
+            lbl.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;color:rgba(163,230,53,0.6);letter-spacing:1px;';
             lbl.textContent = r[0];
             var val = document.createElement('span');
-            val.className = 'detail-value';
+            val.style.cssText = 'font-size:0.78rem;color:#e0e0e0;text-align:right;';
             val.textContent = r[1];
             row.appendChild(lbl);
             row.appendChild(val);
@@ -3803,12 +3830,13 @@ function showNodeDetail(node) {
         body.appendChild(viewAll);
     }
 
-    panel.style.display = 'block';
+    var modal = document.getElementById('fleetNodeModal');
+    if (modal) modal.style.display = 'flex';
 }
 
 function closeFleetDetail() {
-    var panel = document.getElementById('fleetDetailPanel');
-    if (panel) panel.style.display = 'none';
+    var modal = document.getElementById('fleetNodeModal');
+    if (modal) modal.style.display = 'none';
 }
 
 // Auto-init fleet map when tab becomes active

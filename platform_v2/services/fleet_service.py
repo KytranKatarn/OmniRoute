@@ -298,7 +298,10 @@ def get_fleet_map_data():
                 "lon": float(n["longitude"]) if n.get("longitude") else None,
                 "status": n.get("status", "unknown"),
                 "gpu": n.get("gpu_model", ""),
+                "gpu_vram_gb": n.get("gpu_vram_gb"),
                 "ram": n.get("ram_gb"),
+                "mesh_ip": n.get("vpn_ip", ""),
+                "last_heartbeat": n["last_heartbeat"].isoformat() if n.get("last_heartbeat") else None,
                 "deployment_mode": n.get("deployment_mode", ""),
                 "agents": [
                     {

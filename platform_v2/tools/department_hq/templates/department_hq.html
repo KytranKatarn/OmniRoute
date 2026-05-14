@@ -449,12 +449,12 @@
         </div>
       </div>
     </div>
-      <!-- System Alerts History -->
-      <div class="dhq-dispatch-section" id="alerts-history-section" style="margin-top:1.5rem;">
+      <!-- System Alerts History (moved into fleet panel — was floating outside all panels) -->
+      <div class="dhq-dispatch-section" id="alerts-history-section" style="margin-top:1.5rem;display:none;">
         <div class="dhq-section-title">
           SYSTEM ALERTS HISTORY
           <span id="ahTotalBadge" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem;margin-left:8px;"></span>
-          <button onclick="ahReset()" style="float:right;background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">&#8634; RESET</button>
+          <button onclick="ahFetch(true)" style="float:right;background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">&#8635; REFRESH</button>
         </div>
         <div id="ahStats" style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 0;"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">
@@ -520,13 +520,13 @@
           <span style="margin-left:12px;font-size:0.7rem;">
             <span style="color:#10b981;">&bull;</span> Hub
             <span style="color:#a3e635;margin-left:8px;">&bull;</span> nodes
-            <span style="color:#f59e0b;margin-left:8px;">&bull;</span> providers
+            <span style="color:#f59e0b;margin-left:8px;">&bull;</span> Contractors
           </span>
           <button onclick="openAddNodeModal()" style="float:right;background:rgba(0,255,255,0.12);border:1px solid rgba(0,255,255,0.4);color:#00ffff;padding:3px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;">+ ADD NODE</button>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:8px;font-size:0.75rem;">
           <span id="fleetStatNodes" style="color:var(--dhq-text-dim);">-- nodes</span>
-          <span id="fleetStatProviders" style="color:var(--dhq-text-dim);">-- providers</span>
+          <span id="fleetStatProviders" style="color:var(--dhq-text-dim);">-- contractors</span>
         </div>
         <div style="display:flex;align-items:flex-start;justify-content:center;gap:16px;margin-bottom:20px;position:relative;z-index:0;isolation:isolate;">
           <!-- Node Index Panel -->
@@ -570,8 +570,8 @@
 
       <!-- Fleet Detail Panel (hidden by default) -->
       <div id="fleetDetailPanel" style="display:none;">
-        <div class="dhq-section-title" id="fleetDetailTitle">Node Details</div>
-        <div id="fleetDetailBody"></div>
+        <div class="dhq-section-title">Node Details</div>
+        <div></div>
       </div>
 
       <!-- System Components (moved from Dispatch — infrastructure belongs with Fleet) -->
@@ -607,6 +607,32 @@
       </div>
           </div>
           <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NODE DETAIL MODAL -->
+    <div id="fleetNodeModal" class="bm-overlay" onclick="if(event.target===this)closeFleetDetail()" style="display:none;align-items:center;justify-content:center;">
+      <div style="max-width:540px;width:95%;margin:auto;">
+        <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;">
+          <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
+            <div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
+            <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div>
+            <div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
+            <div style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:var(--cat-accent,#00ffff);box-shadow:0 0 8px var(--cat-accent,#00ffff);animation:bmLightPulse 2s ease-in-out infinite;"></div>
+            <div style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+            <div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.15) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
+            <div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
+          </div>
+          <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;overflow:visible !important;">
+            <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+              <span id="fleetDetailTitle" style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">NODE DETAILS</span>
+              <div style="flex:1"></div>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">FLEET NODE</span>
+              <span onclick="closeFleetDetail()" style="cursor:pointer;font-size:1rem;color:rgba(0,0,0,0.5);font-weight:bold;padding:0 4px;">✕</span>
+            </div>
+            <div id="fleetDetailBody" style="flex:1 !important;padding:16px !important;background:var(--archie-bg,#0a0f0f);max-height:60vh;overflow-y:auto;border-radius:0 0 12px 0;"></div>
+          </div>
         </div>
       </div>
     </div>

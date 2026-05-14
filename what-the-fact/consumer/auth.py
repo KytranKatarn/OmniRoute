@@ -19,7 +19,20 @@ _SUBSCRIBED_TIERS = {"starter", "professional", "enterprise", "vip", "pro", "bus
 
 def is_subscriber() -> bool:
     """True if the current session has a paid subscription tier."""
-    return session.get("wtf_tier") in _SUBSCRIBED_TIERS
+    if session.get("wtf_tier") in _SUBSCRIBED_TIERS:
+        return True
+    # Check local Stripe billing subscription as fallback
+    email = session.get("wtf_email", "")
+    if email:
+        try:
+            try:
+                from .db import get_billing_tier
+            except ImportError:
+                from db import get_billing_tier
+            return get_billing_tier(email) in _SUBSCRIBED_TIERS
+        except Exception:
+            pass
+    return False
 
 
 def current_username() -> str | None:
@@ -71,6 +84,7 @@ def callback():
 
     user = token_data.get("user") or {}
     session["wtf_username"] = user.get("username") or token_data.get("username")
+    session["wtf_email"] = user.get("email", "")
     session["wtf_tier"] = user.get("subscription_tier") or "free"
     session["wtf_authenticated"] = True
 

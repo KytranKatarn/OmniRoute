@@ -1,0 +1,148 @@
+# platform_v2/tools/department_hq/scout_routes.py
+"""DHQ Scout tab — mirrors social_routes.py (S.I.G.N.A.L.) pattern."""
+import json
+import logging
+import urllib.request
+
+from flask import jsonify, request
+
+logger = logging.getLogger(__name__)
+
+_SCRAPER_BASE = "http://archie_scraper:4243"
+
+
+def _scraper_post(path: str, body: dict) -> dict:
+    payload = json.dumps(body).encode()
+    req = urllib.request.Request(f"{_SCRAPER_BASE}{path}", data=payload)
+    req.add_header("Content-Type", "application/json")
+    try:
+        r = urllib.request.urlopen(req, timeout=10)
+        return json.loads(r.read())
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+def _scraper_get(path: str) -> dict:
+    try:
+        r = urllib.request.urlopen(f"{_SCRAPER_BASE}{path}", timeout=5)
+        return json.loads(r.read())
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+def register_scout_routes(bp, admin_required):
+
+    @bp.route("/api/scout/overview")
+    @admin_required
+    def api_scout_overview():
+        from database import get_db_cursor
+
+        pool = _scraper_get("/pool/status")
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT status, COUNT(*) AS cnt FROM scout_jobs GROUP BY status")
+            counts = {r["status"]: r["cnt"] for r in cur.fetchall()}
+            cur.execute(
+                """SELECT id, job_type, target_url, status, created_at, findings
+                   FROM scout_jobs ORDER BY created_at DESC LIMIT 5"""
+            )
+            recent = [dict(r) for r in cur.fetchall()]
+        return jsonify({"pool": pool, "job_counts": counts, "recent_jobs": recent})
+
+    @bp.route("/api/scout/jobs")
+    @admin_required
+    def api_scout_jobs():
+        from database import get_db_cursor
+
+        status_filter = request.args.get("status")
+        job_type_filter = request.args.get("job_type")
+        limit = min(int(request.args.get("limit") or 50), 200)
+        clauses, params = [], []
+        if status_filter:
+            clauses.append("status = %s")
+            params.append(status_filter)
+        if job_type_filter:
+            clauses.append("job_type = %s")
+            params.append(job_type_filter)
+        base_sql = """SELECT id, job_type, target_url, status, egress_tier,
+                             created_at, completed_at, requested_by, findings, auto_approve
+                      FROM scout_jobs"""
+        if clauses:
+            base_sql += " WHERE " + " AND ".join(clauses)
+        base_sql += " ORDER BY created_at DESC LIMIT %s"
+        with get_db_cursor() as (conn, cur):
+            cur.execute(base_sql, params + [limit])
+            jobs = [dict(r) for r in cur.fetchall()]
+        return jsonify({"jobs": jobs, "total": len(jobs)})
+
+    @bp.route("/api/scout/jobs/<int:job_id>")
+    @admin_required
+    def api_scout_job_detail(job_id):
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT * FROM scout_jobs WHERE id = %s", (job_id,))
+            row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
+        return jsonify(dict(row))
+
+    @bp.route("/api/scout/jobs/<int:job_id>/approve", methods=["POST"])
+    @admin_required
+    def api_scout_approve(job_id):
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """UPDATE scout_jobs
+                   SET status = 'approved', reviewed_at = NOW(), reviewed_by = 'admin'
+                   WHERE id = %s AND status = 'needs_review'
+                   RETURNING id""",
+                (job_id,),
+            )
+            updated = cur.fetchone()
+        if not updated:
+            return jsonify({"error": "not found or not in needs_review state"}), 400
+        return jsonify({"success": True, "job_id": job_id, "status": "approved"})
+
+    @bp.route("/api/scout/jobs/<int:job_id>/reject", methods=["POST"])
+    @admin_required
+    def api_scout_reject(job_id):
+        from database import get_db_cursor
+
+        data = request.get_json(silent=True) or {}
+        note = (data.get("note") or "")[:500]
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """UPDATE scout_jobs
+                   SET status = 'rejected', reviewed_at = NOW(),
+                       reviewed_by = 'admin', error_log = %s
+                   WHERE id = %s AND status = 'needs_review'
+                   RETURNING id""",
+                (f"Rejected: {note}", job_id),
+            )
+            updated = cur.fetchone()
+        if not updated:
+            return jsonify({"error": "not found or not in needs_review state"}), 400
+        return jsonify({"success": True, "job_id": job_id, "status": "rejected"})
+
+    @bp.route("/api/scout/run-now", methods=["POST"])
+    @admin_required
+    def api_scout_run_now():
+        data = request.get_json(silent=True) or {}
+        job_type = (data.get("job_type") or "procurement_sync").strip()
+        target_url = data.get("target_url") or "https://canadabuys.canada.ca/en/tender-opportunities"
+        result = _scraper_post(
+            "/jobs",
+            {
+                "job_type": job_type,
+                "target_url": target_url,
+                "params": data.get("params") or {},
+                "requested_by": "dhq_manual",
+            },
+        )
+        return jsonify(result)
+
+    @bp.route("/api/scout/pool")
+    @admin_required
+    def api_scout_pool():
+        return jsonify(_scraper_get("/pool/status"))

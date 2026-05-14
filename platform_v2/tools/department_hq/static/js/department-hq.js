@@ -125,6 +125,7 @@ function switchTab(tab) {
         'autonomy':     loadAutonomy,
         'approvals':    function() { if (typeof loadDhqApprovals === 'function') loadDhqApprovals(); },
         'coms':         function() { if (typeof window._comsLoad === 'function') window._comsLoad(); },
+        'scout':        function() { if (typeof loadScoutTab === 'function') loadScoutTab(); },
     };
     // Approvals should always reload on tab click (not cached) for fresh state
     if (tab === 'approvals') {

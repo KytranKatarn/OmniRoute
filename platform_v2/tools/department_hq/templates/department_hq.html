@@ -32,6 +32,7 @@
     ("performance", "Performance", "bar-chart-3"),
     ("creed", "C.R.E.E.D.", "shield-check"),
     ("social", "S.I.G.N.A.L.", "heart"),
+    ("scout", "S.C.O.U.T.", "radar"),
     ("devices", "API Access", "monitor"),
     ("dispatch", "Dispatch", "send"),
     ("autonomy", "Autonomy", "cpu"),
@@ -186,6 +187,51 @@
       <div id="socialFeedContent"></div>
           </div>
           <div style="height:6px !important;background:#e879f9 !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- S.C.O.U.T. -->
+    <div class="dhq-panel" id="panel-scout">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;"><div style="height:52px !important;background:#38bdf8 !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#38bdf8 !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#0284c7 !important;opacity:0.6 !important;flex-shrink:0 !important;"></div><div style="flex:1 !important;background:rgba(56,189,248,0.15) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div><div style="height:36px !important;background:#38bdf8 !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div></div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:#38bdf8 !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;">
+            <span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">S.C.O.U.T. — Field Data Correspondent</span>
+            <div style="flex:1"></div>
+            <button onclick="scoutRunNow('procurement_sync', event)" class="dhq-btn dhq-btn-primary" style="font-size:0.7rem;padding:4px 10px;">Run Procurement Sync</button>
+            <button onclick="scoutRefresh()" class="dhq-btn" style="font-size:0.7rem;padding:4px 10px;">Refresh</button>
+          </div>
+          <div style="flex:1 !important;padding:16px !important;">
+            <div id="scout-overview" style="margin-bottom:12px;display:flex;gap:12px;align-items:center;">
+              <span id="scout-pool-status" style="font-family:'IBM Plex Mono',monospace;font-size:0.75rem;color:var(--cat-accent,#38bdf8);">Loading pool...</span>
+              <span id="scout-job-counts" style="display:flex;gap:6px;flex-wrap:wrap;"></span>
+            </div>
+            <div class="scout-subtabs" style="display:flex;gap:4px;margin-bottom:10px;">
+              <button class="dhq-btn scout-subtab-btn active" data-panel="jobs" onclick="scoutSubtab(this,'jobs')">All Jobs</button>
+              <button class="dhq-btn scout-subtab-btn" data-panel="reports" onclick="scoutSubtab(this,'reports')">Reports (Review)</button>
+              <button class="dhq-btn scout-subtab-btn" data-panel="procurement" onclick="scoutSubtab(this,'procurement')">Procurement</button>
+            </div>
+            <div id="scout-panel-jobs" class="scout-subtab-panel">
+              <table class="dhq-table" style="width:100%;">
+                <thead>
+                  <tr>
+                    <th>ID</th><th>Type</th><th>URL</th><th>Status</th>
+                    <th>Egress</th><th>Created</th><th>Findings</th>
+                  </tr>
+                </thead>
+                <tbody id="scout-jobs-tbody"></tbody>
+              </table>
+            </div>
+            <div id="scout-panel-reports" class="scout-subtab-panel" style="display:none;">
+              <p style="font-size:0.8rem;color:rgba(255,255,255,0.5);margin-bottom:8px;">Jobs awaiting review before client delivery.</p>
+              <div id="scout-reports-list"></div>
+            </div>
+            <div id="scout-panel-procurement" class="scout-subtab-panel" style="display:none;">
+              <div id="scout-procurement-list"></div>
+            </div>
+          </div>
+          <div style="height:6px !important;background:#38bdf8 !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
         </div>
       </div>
     </div>
@@ -2047,6 +2093,7 @@ async function _dhqRejectHire(approvalId, btn) {
 <script src="{{ url_for('static', filename='js/department-hq-chat.js') }}" defer></script>
 <script src="{{ url_for('static', filename='js/dispatch-history.js') }}"></script>
 <script src="{{ url_for('static', filename='js/alerts-history.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scout.js') }}"></script>
 <script>
   var _comsHook = window.onLcarsTabSwitch || function(){};
   window.onLcarsTabSwitch = function(tabId) { switchTab(tabId); _comsHook(tabId); if (tabId === 'autonomy') { if (typeof ahInit === 'function') ahInit(); } };

@@ -1010,6 +1010,34 @@ services:
     expose:
       - "4242"
 
+  archie_scraper:
+    build:
+      context: ./archie-scraper
+      dockerfile: Dockerfile
+    container_name: archie_scraper
+    restart: unless-stopped
+    ports:
+      - "4243:4243"
+    environment:
+      - DB_HOST=archie_database
+      - DB_NAME=archie
+      - DB_USER=archie
+      - DB_PASSWORD=${DB_PASSWORD}
+      - SCOUT_POOL_SIZE=3
+      - SCOUT_VPS_SOCKS=socks5://100.64.0.2:1080
+      - SCOUT_PROXY_URL=${SCOUT_PROXY_URL:-}
+      - SCREENSHOT_DIR=/mnt/screenshots
+    volumes:
+      - /mnt/data2/scout/screenshots:/mnt/screenshots
+    networks:
+      - archie_internal
+    depends_on:
+      - archie_database
+    mem_limit: 2g
+    dns:
+      - 192.168.1.200
+      - 1.1.1.1
+
 secrets:
   db_password:
     file: ./secrets/database/password.txt

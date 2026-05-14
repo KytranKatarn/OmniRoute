@@ -805,7 +805,7 @@ def api_reset_password(user_id):
         if not is_valid:
             return jsonify({"success": False, "error": error_msg}), 400
 
-        with get_db_cursor() as (conn, cur):
+        with get_db_cursor(commit=True) as (conn, cur):
             password_hash = generate_password_hash(new_password)
             cur.execute(
                 "UPDATE users SET password_hash = %s WHERE id = %s",

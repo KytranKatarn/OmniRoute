@@ -146,3 +146,54 @@ def register_scout_routes(bp, admin_required):
     @admin_required
     def api_scout_pool():
         return jsonify(_scraper_get("/pool/status"))
+
+    @bp.route("/api/scout/cli-dispatch", methods=["POST"])
+    def api_scout_cli_dispatch():
+        """Key-authenticated job submission for Claude Code /scout skill."""
+        from os import getenv
+
+        key = request.headers.get("X-Scout-Key", "")
+        expected = getenv("CLUSTER_PROXY_KEY", "")
+        if not expected or key != expected:
+            return jsonify({"error": "Unauthorized"}), 401
+
+        data = request.get_json(silent=True) or {}
+        job_type = (data.get("job_type") or "").strip()
+        target_url = (data.get("target_url") or "").strip()
+        if not job_type or not target_url:
+            return jsonify({"error": "job_type and target_url required"}), 400
+
+        result = _scraper_post(
+            "/jobs",
+            {
+                "job_type": job_type,
+                "target_url": target_url,
+                "params": data.get("params") or {},
+                "requested_by": "claude_cli",
+            },
+        )
+        return jsonify(result)
+
+    @bp.route("/api/scout/cli-status/<int:job_id>")
+    def api_scout_cli_status(job_id):
+        """Key-authenticated job status for Claude Code /scout skill."""
+        from os import getenv
+
+        key = request.headers.get("X-Scout-Key", "")
+        expected = getenv("CLUSTER_PROXY_KEY", "")
+        if not expected or key != expected:
+            return jsonify({"error": "Unauthorized"}), 401
+
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT id, job_type, target_url, status, findings,
+                          screenshots, data, created_at, completed_at
+                   FROM scout_jobs WHERE id = %s""",
+                (job_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
+        return jsonify(dict(row))

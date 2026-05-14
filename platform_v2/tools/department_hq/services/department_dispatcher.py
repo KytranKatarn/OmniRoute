@@ -1718,6 +1718,61 @@ class DepartmentDispatcher:
             logger.warning(f"[BridgeDispatcher] Fleet agent lookup failed: {e}")
             return None
 
+    def _find_fleet_agent_for_hub_agent(self, hub_agent_id: int) -> Optional[Dict]:
+        """Check if a hub agent is stationed on an online fleet node.
+
+        Returns the same agent_info dict shape as _find_fleet_agent() so the
+        caller can pass it directly to _dispatch_to_node(), or None if no
+        active node assignment exists.
+        """
+        try:
+            from psycopg2.extras import RealDictCursor
+
+            conn = self._get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT na.model, na.display_name,
+                       rn.id as node_id, rn.node_name,
+                       rn.hostname, rn.port, rn.vpn_ip
+                FROM node_agents na
+                JOIN remote_nodes rn ON rn.id = na.node_id
+                WHERE na.hub_agent_id = %s
+                  AND na.status = 'active'
+                  AND rn.status = 'online'
+                  AND rn.approval_status = 'approved'
+                  AND rn.last_heartbeat > NOW() - INTERVAL '2 minutes'
+                ORDER BY rn.last_heartbeat DESC
+                LIMIT 1
+                """,
+                (hub_agent_id,),
+            )
+            row = cur.fetchone()
+            conn.close()
+            if not row:
+                return None
+
+            agent_name = row["display_name"] or f"fleet-agent-{hub_agent_id}"
+            model = row["model"] or "qwen2.5:7b"
+            hostname = row["vpn_ip"] or row["hostname"] or ""
+            port = row["port"] or 11434
+
+            if not hostname:
+                return None
+
+            return {
+                "agent_name": agent_name,
+                "model": model,
+                "node_hostname": hostname,
+                "node_port": port,
+                "node_id": row["node_id"],
+                "node_name": row["node_name"],
+                "conn_type": "lan",
+            }
+        except Exception as e:
+            logger.warning(f"[BridgeDispatcher] Node assignment lookup failed for agent {hub_agent_id}: {e}")
+            return None
+
     def _dispatch_to_node(
         self,
         agent_info: Dict,
@@ -4692,6 +4747,57 @@ class DepartmentDispatcher:
                     is_cross_station = True
 
         station_code = DEPARTMENT_FLOOR_MAP.get(dispatch_department, "ENGINEERING")
+
+        # 1d. Node-preference: if selected hub agent is stationed on an online fleet
+        # node, route inference there instead of hub Ollama. Falls through silently
+        # if the node is offline or the dispatch fails.
+        if agent:
+            _hub_agent_id = agent.get("id") if isinstance(agent, dict) else getattr(agent, "id", None)
+            if _hub_agent_id:
+                _node_assign = self._find_fleet_agent_for_hub_agent(_hub_agent_id)
+                if _node_assign:
+                    logger.info(
+                        "[BridgeDispatcher] Node-preference: %s@%s for '%s' (agent %s stationed on fleet)",
+                        _node_assign["agent_name"],
+                        _node_assign["node_name"],
+                        capability,
+                        _hub_agent_id,
+                    )
+                    _fleet_res = self._dispatch_to_node(
+                        agent_info=_node_assign,
+                        prompt=prompt,
+                        system_prompt=system_prompt,
+                        options={"temperature": 0.7},
+                        capability=capability,
+                        module_id=module_id,
+                        station_code=station_code,
+                        user_id=user_id,
+                        job_id=job_id,
+                    )
+                    if _fleet_res and _fleet_res.get("success"):
+                        _dur_ms = int((time.time() - start) * 1000)
+                        _node_result = DispatchResult(
+                            success=True,
+                            response=_fleet_res.get("response", ""),
+                            agent_name=_node_assign["agent_name"],
+                            agent_id=None,
+                            model_used=_node_assign["model"],
+                            department=dispatch_department,
+                            capability=capability,
+                            duration_ms=_dur_ms,
+                            prompt_tokens=_fleet_res.get("prompt_tokens", 0),
+                            completion_tokens=_fleet_res.get("completion_tokens", 0),
+                            provider="fleet_node",
+                            metadata={
+                                "escalation": "node_preferred",
+                                "node_id": _node_assign["node_id"],
+                                "node_name": _node_assign["node_name"],
+                                "node_hostname": _node_assign["node_hostname"],
+                                "is_remote": True,
+                            },
+                        )
+                        self._log_execution(_node_result, module_id, user_id, job_id=job_id)
+                        return _node_result
 
         # 2. Fallback if no agent found — try cross-department, then fleet, then cloud
         department_exhausted = False

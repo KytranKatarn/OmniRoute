@@ -13,9 +13,32 @@ from proxy_selector import select_egress
 logger = logging.getLogger(__name__)
 
 SKILL_MAP = {
+    # Core data collection
     "web_scrape": "skills.web_scrape",
+    "multi_page_scrape": "skills.multi_page_scrape",
+    "authenticated_fetch": "skills.authenticated_fetch",
+    "search_scrape": "skills.search_scrape",
+    "site_change_monitor": "skills.site_change_monitor",
+    "pdf_extract": "skills.pdf_extract",
+    "document_download": "skills.document_download",
+    # Client UX intelligence
     "ux_audit": "skills.ux_audit",
+    "login_test": "skills.login_test",
+    "signup_flow": "skills.signup_flow",
+    "network_inspect": "skills.network_inspect",
+    "accessibility_check": "skills.accessibility_check",
+    "seo_snapshot": "skills.seo_snapshot",
+    "broken_link_check": "skills.broken_link_check",
+    "screenshot_diff": "skills.screenshot_diff",
+    "form_audit": "skills.form_audit",
+    "competitor_snapshot": "skills.competitor_snapshot",
+    # Domain-specific
     "procurement_sync": "skills.procurement_sync",
+    "ancestry_research": "skills.ancestry_research",
+    "crm_enrich": "skills.crm_enrich",
+    "contact_harvest": "skills.contact_harvest",
+    "social_profile_check": "skills.social_profile_check",
+    "price_monitor": "skills.price_monitor",
 }
 _POLL_INTERVAL = 5
 
@@ -39,7 +62,12 @@ class JobWorker:
         egress_tier: int,
         requested_by: str,
     ) -> int:
-        auto_approve = job_type in ("web_scrape", "procurement_sync")
+        auto_approve = job_type in {
+            "web_scrape", "multi_page_scrape", "authenticated_fetch",
+            "search_scrape", "site_change_monitor", "pdf_extract",
+            "document_download", "procurement_sync", "ancestry_research",
+            "crm_enrich", "contact_harvest", "social_profile_check", "price_monitor",
+        }
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute(

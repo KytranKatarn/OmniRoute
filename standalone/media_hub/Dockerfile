@@ -22,14 +22,15 @@ WORKDIR /app
 
 # Install deps first (stable layer)
 COPY standalone/media_hub/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+COPY standalone/media_hub/kytran-auth-pkg/ /tmp/kytran-auth-pkg/
+RUN pip install --no-cache-dir -r /tmp/requirements.txt \
+    && rm -rf /tmp/kytran-auth-pkg
 
 # Standalone shims (database.py, app.py, auth, users) land at /app/ so Python
 # resolves them first.
 COPY standalone/media_hub/database.py    /app/database.py
 COPY standalone/media_hub/app.py         /app/app.py
 COPY standalone/media_hub/auth_routes.py /app/auth_routes.py
-COPY kytran-auth/kytran_auth.py           /app/kytran_auth.py
 COPY standalone/media_hub/users.py       /app/users.py
 COPY standalone/media_hub/user_routes.py        /app/user_routes.py
 COPY standalone/media_hub/watchlist_routes.py   /app/watchlist_routes.py

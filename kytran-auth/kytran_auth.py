@@ -175,6 +175,8 @@ class KytranAuth:
                         f'<p><a href="/auth/kytran/login?next=/maven/discover">Try again</a></p>'
                     ), 400
                 token_data = token_resp.json()
+                _refresh_token_val = token_data.get("refresh_token", "")
+                _access_token_exp = int(time.time()) + token_data.get("expires_in", 28800)
             except Exception as e:
                 return (
                     "<h2>Login Failed</h2>"
@@ -231,6 +233,8 @@ class KytranAuth:
                 "entitlements": entitlements,
                 "product_tiers": userinfo.get("product_tiers", {}),
                 "access_token": access_token,
+                "refresh_token": _refresh_token_val,
+                "access_token_exp": _access_token_exp,
             }
 
             if sdk._on_login:
@@ -264,12 +268,41 @@ class KytranAuth:
         def decorated(*args, **kwargs):
             if "kytran_user" not in session:
                 return redirect(url_for("kytran_login", next=request.url))
+            self._refresh_if_needed()
             return f(*args, **kwargs)
         return decorated
 
     def get_current_user(self):
         """Return current Kytran user from session, or None."""
         return session.get("kytran_user")
+
+    def _refresh_if_needed(self):
+        """Silently refresh access token if expiring within 5 minutes."""
+        auth_data = session.get("kytran_user", {})
+        exp = auth_data.get("access_token_exp", 0)
+        refresh_token = auth_data.get("refresh_token", "")
+        if not refresh_token or not exp:
+            return
+        if time.time() < exp - 300:  # more than 5 minutes remaining
+            return
+        try:
+            resp = requests.post(
+                f"{self.internal_url}/oauth/token",
+                data={
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_token,
+                    "client_id": self.client_id,
+                },
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                session["kytran_user"]["access_token"] = data["access_token"]
+                session["kytran_user"]["refresh_token"] = data.get("refresh_token", refresh_token)
+                session["kytran_user"]["access_token_exp"] = int(time.time()) + data.get("expires_in", 28800)
+                session.modified = True
+        except Exception:
+            pass  # Fail silently — token expiry will handle it on the next request
 
     def has_entitlement(self, entitlement):
         """Check if current user has a specific product entitlement."""

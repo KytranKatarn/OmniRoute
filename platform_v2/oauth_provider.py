@@ -14,6 +14,7 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 
+import psycopg2
 import jwt
 from flask import Blueprint, redirect, request, jsonify
 from flask_login import login_required, current_user
@@ -128,6 +129,71 @@ def token():
     redirect_uri = data.get("redirect_uri")
     code_verifier = data.get("code_verifier") or None
 
+    # ── Refresh token grant ────────────────────────────────────────────────
+    if grant_type == "refresh_token":
+        incoming_rt = data.get("refresh_token", "")
+        if not incoming_rt:
+            return jsonify({"error": "invalid_request", "error_description": "refresh_token required"}), 400
+
+        new_rt = secrets.token_urlsafe(32)
+        now_rt = datetime.now(timezone.utc)
+
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                # Lock the token row to prevent concurrent refresh races
+                cur.execute(
+                    """SELECT rt.user_id, rt.client_id,
+                              u.id, u.username, u.email, u.role, u.subscription_tier
+                       FROM oauth_refresh_tokens rt
+                       JOIN users u ON u.id = rt.user_id
+                       WHERE rt.token = %s
+                         AND rt.revoked = FALSE
+                         AND rt.expires_at > NOW()
+                         AND u.is_active = TRUE
+                       FOR UPDATE""",
+                    (incoming_rt,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"error": "invalid_grant"}), 400
+
+                # Rotate in the same transaction
+                cur.execute(
+                    "UPDATE oauth_refresh_tokens SET revoked = TRUE WHERE token = %s",
+                    (incoming_rt,),
+                )
+                cur.execute(
+                    """INSERT INTO oauth_refresh_tokens (token, client_id, user_id, expires_at)
+                       VALUES (%s, %s, %s, NOW() + INTERVAL '30 days')""",
+                    (new_rt, row["client_id"], row["id"]),
+                )
+        except psycopg2.Error:
+            return jsonify({"error": "server_error"}), 503
+        except Exception:
+            return jsonify({"error": "invalid_grant"}), 400
+
+        rt_payload = {
+            "sub": str(row["id"]),
+            "username": row["username"],
+            "email": row["email"],
+            "role": row["role"],
+            "tier": row["subscription_tier"] or "free",
+            "is_owner": (row["subscription_tier"] == "kytran" or row["username"] == "kytran"),
+            "iat": now_rt,
+            "exp": now_rt + timedelta(hours=8),
+        }
+        new_at = jwt.encode(rt_payload, JWT_SECRET, algorithm="HS256")
+
+        return jsonify(
+            {
+                "access_token": new_at,
+                "token_type": "Bearer",
+                "expires_in": 28800,
+                "refresh_token": new_rt,
+            }
+        )
+    # ── End refresh token grant ────────────────────────────────────────────
+
     if grant_type != "authorization_code":
         return jsonify({"error": "unsupported_grant_type"}), 400
 
@@ -161,7 +227,7 @@ def token():
 
         if code_row["used"]:
             return jsonify({"error": "code_already_used"}), 400
-        if datetime.now(timezone.utc).replace(tzinfo=None) > code_row["expires_at"]:
+        if datetime.now(timezone.utc) > code_row["expires_at"]:
             return jsonify({"error": "code_expired"}), 400
         if code_row["redirect_uri"] != redirect_uri:
             return jsonify({"error": "redirect_uri_mismatch"}), 400
@@ -210,22 +276,36 @@ def token():
         "tier": subscription_tier,
         "is_owner": is_owner,
         "iat": now,
-        "exp": now + timedelta(hours=1),
+        "exp": now + timedelta(hours=8),
     }
     access_token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
-    return jsonify(
-        {
-            "access_token": access_token,
-            "token_type": "Bearer",
-            "expires_in": 3600,
-            "user": {
-                "id": uid,
-                "username": username,
-                "email": email,
-                "role": role,
-                "subscription_tier": subscription_tier,
-                "is_owner": is_owner,
-            },
-        }
-    )
+    # Issue a refresh token — store in oauth_refresh_tokens (30-day TTL)
+    refresh_token_value = secrets.token_urlsafe(32)
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO oauth_refresh_tokens (token, client_id, user_id)
+                   VALUES (%s, %s, %s)
+                   ON CONFLICT (token) DO NOTHING""",
+                (refresh_token_value, client_id, uid),
+            )
+    except Exception:
+        refresh_token_value = ""
+
+    _token_resp = {
+        "access_token": access_token,
+        "token_type": "Bearer",
+        "expires_in": 28800,
+        "user": {
+            "id": uid,
+            "username": username,
+            "email": email,
+            "role": role,
+            "subscription_tier": subscription_tier,
+            "is_owner": is_owner,
+        },
+    }
+    if refresh_token_value:
+        _token_resp["refresh_token"] = refresh_token_value
+    return jsonify(_token_resp)

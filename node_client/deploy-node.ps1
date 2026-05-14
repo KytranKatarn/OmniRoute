@@ -7,7 +7,7 @@
 #
 # Fresh install requires:
 #   -NodeId     "node_xxx"
-#   -HubUrl     "https://archie.kytranempowerment.com"
+#   -HubUrl     "http://192.168.1.200:3000"  (ALWAYS use LAN mesh IP, never CDN hostname)
 #   -HubApiKey  "your-api-key"
 #
 # Handles: Docker Desktop install, GPU detection, file download, build, start
@@ -16,7 +16,7 @@
 param(
     [switch]$Fresh,
     [string]$NodeId,
-    [string]$HubUrl = "https://archie.kytranempowerment.com",
+    [string]$HubUrl = "http://192.168.1.200:3000",
     [string]$HubApiKey,
     [string]$DbPassword = "archie_node_default",
     [string]$InstallDir = "C:\archie-node"

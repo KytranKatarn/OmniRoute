@@ -70,11 +70,17 @@ class KytranAuth:
 
         @app.route("/auth/kytran/login")
         def kytran_login():
-            # Already logged in AND session is complete? Skip OAuth.
-            # NOTE: "kytran_user" alone is not enough — a previous failed _on_login
-            # can leave it set without completing Flask-Login. Rely on Flask-Login.
-            from flask_login import current_user as _cu
-            if "kytran_user" in session and _cu.is_authenticated:
+            # Already logged in? Skip OAuth.
+            # Flask-Login check is best-effort — products that don't use LoginManager
+            # will hit AttributeError; fall back to session-only check.
+            _already_authenticated = False
+            if "kytran_user" in session:
+                try:
+                    from flask_login import current_user as _cu
+                    _already_authenticated = _cu.is_authenticated
+                except (ImportError, AttributeError):
+                    _already_authenticated = True
+            if _already_authenticated:
                 next_url = request.args.get("next", "/maven/discover")
                 return redirect(next_url)
 
@@ -167,6 +173,7 @@ class KytranAuth:
                     f"{sdk.internal_url}/oauth/token",
                     data=token_payload,
                     timeout=15,
+                    allow_redirects=False,
                 )
                 if token_resp.status_code != 200:
                     return (
@@ -177,7 +184,7 @@ class KytranAuth:
                 token_data = token_resp.json()
                 _refresh_token_val = token_data.get("refresh_token", "")
                 _access_token_exp = int(time.time()) + token_data.get("expires_in", 28800)
-            except Exception as e:
+            except Exception:
                 return (
                     "<h2>Login Failed</h2>"
                     f"<p>Could not connect to auth server. Please try again.</p>"

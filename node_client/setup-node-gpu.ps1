@@ -30,9 +30,16 @@ $cpuCount = (Get-CimInstance Win32_Processor | Measure-Object -Property NumberOf
 Write-Host "System RAM: ${totalRamGB}GB | Allocating ${wsLRamGB}GB to WSL2" -ForegroundColor Cyan
 Write-Host "CPU cores: $cpuCount" -ForegroundColor Cyan
 
-$wslContent = "[wsl2]`nmemory=${wsLRamGB}GB`nprocessors=$cpuCount`nswap=0`nlocalhostForwarding=true`n"
+$wslContent = @"
+[wsl2]
+memory=${wsLRamGB}GB
+processors=$cpuCount
+swap=0
+localhostForwarding=true
+networkingMode=mirrored
+"@
 Set-Content $wslConfig $wslContent -Encoding UTF8
-Write-Host '[OK] .wslconfig written' -ForegroundColor Green
+Write-Host "[OK] .wslconfig written (networkingMode=mirrored enables LAN + mesh access from containers)" -ForegroundColor Green
 
 # =====================================================================
 # Step 2: Restart WSL2 to apply memory settings

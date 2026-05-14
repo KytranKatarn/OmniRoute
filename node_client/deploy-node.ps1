@@ -16,7 +16,7 @@
 param(
     [switch]$Fresh,
     [string]$NodeId,
-    [string]$HubUrl = "http://192.168.1.200:3000",
+    [string]$HubUrl = "http://100.64.0.1:3000",
     [string]$HubApiKey,
     [string]$DbPassword = "archie_node_default",
     [string]$InstallDir = "C:\archie-node"
@@ -145,6 +145,40 @@ HEARTBEAT_INTERVAL=30
 "@ | Set-Content .env -Encoding UTF8
 
     Write-Host "[OK] .env written (node: $NodeId)" -ForegroundColor Green
+
+    # =====================================================================
+    # WSL2 mirrored networking — required so Docker containers can reach
+    # hub via LAN (192.168.1.x) and Tailscale mesh (100.64.x.x)
+    # =====================================================================
+    $wslConfig = "$env:USERPROFILE\.wslconfig"
+    $needsMirrored = $true
+    if (Test-Path $wslConfig) {
+        $wslText = Get-Content $wslConfig -Raw
+        if ($wslText -match 'networkingMode\s*=\s*mirrored') { $needsMirrored = $false }
+    }
+    if ($needsMirrored) {
+        Write-Host ""
+        Write-Host "Configuring WSL2 mirrored networking (required for hub connectivity)..." -ForegroundColor Cyan
+        $totalRamGB = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum / 1GB)
+        $wslRamGB = [math]::Max(8, $totalRamGB - 4)
+        $cpuCount = (Get-CimInstance Win32_Processor | Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum
+        Set-Content $wslConfig @"
+[wsl2]
+memory=${wslRamGB}GB
+processors=$cpuCount
+swap=0
+localhostForwarding=true
+networkingMode=mirrored
+"@ -Encoding UTF8
+        Write-Host "[OK] .wslconfig written with networkingMode=mirrored" -ForegroundColor Green
+        Write-Host "  Restarting WSL2..." -ForegroundColor Yellow
+        wsl --shutdown 2>&1 | Out-Null
+        Start-Sleep -Seconds 5
+        Write-Host "[OK] WSL2 restarted" -ForegroundColor Green
+    }
+    else {
+        Write-Host "[OK] WSL2 mirrored networking already configured" -ForegroundColor Green
+    }
 
     # =====================================================================
     # Auto-join Tailscale mesh (Fresh install only)

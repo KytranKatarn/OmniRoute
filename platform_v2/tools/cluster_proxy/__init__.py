@@ -10,6 +10,6 @@ Usage from VPS:
     Body: {"url": "https://open.canada.ca/...", "method": "GET"}
 """
 
-from .routes import register_proxy_routes
+from .routes import proxy_bp
 
-__all__ = ["register_proxy_routes"]
+__all__ = ["proxy_bp"]

@@ -1907,12 +1907,12 @@
   display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;
 }
 .signal-acct-btn {
-  padding: 6px 14px; border-radius: 20px; border: 1.5px solid rgba(232,121,249,0.4);
-  background: transparent; color: #e879f9; font-family: 'Antonio', sans-serif;
+  padding: 6px 14px; border-radius: 20px; border: 1.5px solid rgba(0,255,255,0.4);
+  background: transparent; color: #00ffff; font-family: 'Antonio', sans-serif;
   font-size: 0.8rem; letter-spacing: 1px; cursor: pointer; transition: all .15s;
 }
-.signal-acct-btn:hover { background: rgba(232,121,249,0.1); }
-.signal-acct-btn.active { background: #e879f9; color: #010409; border-color: #e879f9; }
+.signal-acct-btn:hover { background: rgba(0,255,255,0.1); }
+.signal-acct-btn.active { background: #00ffff; color: #010409; border-color: #00ffff; }
 .signal-acct-btn.signal-acct-soon { opacity: 0.4; cursor: not-allowed; }
 .signal-soon-badge {
   font-size: 0.6rem; background: rgba(255,255,255,0.15); padding: 1px 5px;
@@ -1920,7 +1920,7 @@
 }
 
 .signal-subtabs {
-  display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid rgba(232,121,249,0.2);
+  display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid rgba(0,255,255,0.2);
   margin-bottom: 16px; padding-bottom: 0;
 }
 .signal-sub {
@@ -1929,8 +1929,8 @@
   font-size: 0.78rem; letter-spacing: 0.5px; cursor: pointer; transition: all .15s;
   margin-bottom: -1px; position: relative;
 }
-.signal-sub:hover { color: #e879f9; }
-.signal-sub.active { color: #e879f9; border-bottom-color: #e879f9; }
+.signal-sub:hover { color: #00ffff; }
+.signal-sub.active { color: #00ffff; border-bottom-color: #00ffff; }
 .signal-badge {
   display: inline-flex; align-items: center; justify-content: center;
   background: #ef4444; color: #fff; border-radius: 10px; font-size: 0.65rem;
@@ -1943,13 +1943,13 @@
   gap: 12px;
 }
 .signal-card {
-  background: rgba(255,255,255,0.04); border: 1px solid rgba(232,121,249,0.15);
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(0,255,255,0.15);
   border-radius: 8px; padding: 14px 16px;
 }
 .signal-card-wide { grid-column: 1 / -1; }
 .signal-card-title {
   font-family: 'Antonio', sans-serif; letter-spacing: 1.5px; font-size: 0.7rem;
-  text-transform: uppercase; color: #e879f9; margin-bottom: 4px;
+  text-transform: uppercase; color: #00ffff; margin-bottom: 4px;
 }
 .signal-big-stat { font-size: 2.2rem; font-weight: 700; line-height: 1.1; }
 .signal-stat-sub { font-size: 0.7rem; color: var(--archie-muted, #64748b); margin-top: 2px; }
@@ -1963,10 +1963,10 @@
   flex: 1; min-width: 52px; text-align: center; padding: 8px 4px;
   border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
 }
-.signal-cal-day.signal-cal-active { border-color: rgba(232,121,249,0.3); background: rgba(232,121,249,0.07); }
-.signal-cal-day.signal-cal-today { border-color: #e879f9; box-shadow: 0 0 6px rgba(232,121,249,0.3); }
+.signal-cal-day.signal-cal-active { border-color: rgba(0,255,255,0.3); background: rgba(0,255,255,0.07); }
+.signal-cal-day.signal-cal-today { border-color: #00ffff; box-shadow: 0 0 6px rgba(0,255,255,0.3); }
 .signal-cal-label { font-family: 'Antonio', sans-serif; font-size: 0.7rem; letter-spacing: 1px; color: var(--archie-muted, #64748b); }
-.signal-cal-theme { font-size: 0.65rem; color: #e879f9; margin-top: 4px; line-height: 1.3; }
+.signal-cal-theme { font-size: 0.65rem; color: #00ffff; margin-top: 4px; line-height: 1.3; }
 .signal-cal-off { font-size: 0.7rem; color: rgba(255,255,255,0.15); margin-top: 4px; }
 
 /* Compose */
@@ -2005,7 +2005,7 @@
   border-radius: 8px; padding: 14px;
 }
 .signal-pending-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.signal-pending-from { font-size: 0.75rem; color: #e879f9; font-family: 'Antonio', sans-serif; letter-spacing: 1px; }
+.signal-pending-from { font-size: 0.75rem; color: #00ffff; font-family: 'Antonio', sans-serif; letter-spacing: 1px; }
 .signal-pending-time { font-size: 0.7rem; color: var(--archie-muted, #64748b); }
 .signal-pending-content {
   font-size: 0.8rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
@@ -2017,14 +2017,14 @@
 /* Hashtags */
 .signal-hashtag-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
 .signal-hashtag-table th {
-  text-align: left; padding: 6px 10px; border-bottom: 1px solid rgba(232,121,249,0.2);
+  text-align: left; padding: 6px 10px; border-bottom: 1px solid rgba(0,255,255,0.2);
   font-family: 'Antonio', sans-serif; letter-spacing: 1px; font-size: 0.7rem;
-  color: #e879f9; font-weight: 500;
+  color: #00ffff; font-weight: 500;
 }
 .signal-hashtag-table td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
 .signal-hashtag-table tr:hover td { background: rgba(255,255,255,0.03); }
 .signal-tag {
-  display: inline-block; background: rgba(232,121,249,0.12); color: #e879f9;
+  display: inline-block; background: rgba(0,255,255,0.12); color: #00ffff;
   border-radius: 4px; padding: 2px 6px; font-size: 0.75rem;
 }
 

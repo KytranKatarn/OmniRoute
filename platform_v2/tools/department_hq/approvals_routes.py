@@ -228,7 +228,12 @@ def register_approvals_routes(bp, admin_required_decorator):
                     elif at == "create_agent":
                         category, display = "agent_creation", "Create New Agent"
                     elif at == "linkedin_post":
-                        category, display = "linkedin_post", "LinkedIn Post Approval"
+                        _ad = r.get("action_data") or {}
+                        _pt = _ad.get("post_type", "personal") if isinstance(_ad, dict) else "personal"
+                        _acct_label = {"company": "KE Inc.", "creed": "Creed-AI", "personal": "Kytran"}.get(
+                            _pt, _pt.title()
+                        )
+                        category, display = "linkedin_post", f"LinkedIn Post — {_acct_label}"
                     elif at == "contractor_dispatch":
                         category, display = "contractor_dispatch", "Contractor Dispatch"
                     elif at == "restart_container":

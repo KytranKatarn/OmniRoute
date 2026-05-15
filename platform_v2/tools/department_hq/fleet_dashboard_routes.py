@@ -1502,6 +1502,40 @@ def register_dashboard_routes(bp, auth_decorator):
             logger.error("api_fleet_queue_status: %s", exc)
             return jsonify(success=False, error=str(exc)[:200]), 500
 
+    @bp.route("/api/fleet/routing-enabled")
+    @auth_decorator
+    def api_fleet_routing_enabled():
+        """Return current agent mobility toggle state."""
+        try:
+            with get_db_cursor(commit=False) as (_, cur):
+                cur.execute("SELECT value FROM system_config WHERE key='fleet_node_routing_enabled'")
+                row = cur.fetchone()
+                enabled = (row["value"] if row else "true").lower() != "false"
+            return jsonify({"success": True, "enabled": enabled})
+        except Exception as exc:
+            logger.error("api_fleet_routing_enabled: %s", exc)
+            return jsonify({"success": False, "enabled": True})
+
+    @bp.route("/api/fleet/routing-toggle", methods=["POST"])
+    @auth_decorator
+    def api_fleet_routing_toggle():
+        """Toggle agent mobility on/off via system_config."""
+        try:
+            data = request.get_json(silent=True) or {}
+            enabled = bool(data.get("enabled", True))
+            with get_db_cursor(commit=True) as (_, cur):
+                cur.execute(
+                    """INSERT INTO system_config (key, value, updated_at)
+                       VALUES ('fleet_node_routing_enabled', %s, NOW())
+                       ON CONFLICT (key) DO UPDATE
+                         SET value=EXCLUDED.value, updated_at=NOW()""",
+                    (str(enabled).lower(),),
+                )
+            return jsonify({"success": True, "enabled": enabled})
+        except Exception as exc:
+            logger.error("api_fleet_routing_toggle: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
     @bp.route("/api/fleet/cluster-activity")
     @auth_decorator
     def api_fleet_cluster_activity():

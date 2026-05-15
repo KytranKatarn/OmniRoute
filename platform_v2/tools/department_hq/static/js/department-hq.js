@@ -3375,6 +3375,35 @@ function loadClusterActivity() {
             }
         })
         .catch(function() {});
+    // Sync toggle state with server on each load
+    fetch('/tools/department-hq/api/fleet/routing-enabled')
+        .then(function(r) { return r.json(); })
+        .then(function(d) { _applyRoutingToggle(d.enabled !== false); })
+        .catch(function() {});
+}
+
+function _applyRoutingToggle(enabled) {
+    var cb = document.getElementById('fleetRoutingToggle');
+    var slider = document.getElementById('fleetRoutingSlider');
+    var thumb = document.getElementById('fleetRoutingThumb');
+    if (!cb) return;
+    cb.checked = enabled;
+    if (slider) slider.style.background = enabled ? '#10b981' : '#444';
+    if (thumb) thumb.style.left = enabled ? '19px' : '3px';
+}
+
+function toggleFleetRouting(enabled) {
+    _applyRoutingToggle(enabled);
+    fetch('/tools/department-hq/api/fleet/routing-toggle', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled: enabled})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (!d.success) { _applyRoutingToggle(!enabled); } // revert on error
+    })
+    .catch(function() { _applyRoutingToggle(!enabled); });
 }
 
 function initFleetMap() {

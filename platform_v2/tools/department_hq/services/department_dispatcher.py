@@ -548,6 +548,19 @@ def _detect_project_id(text: str) -> Optional[int]:
     return min(best_pids)
 
 
+def _fleet_routing_enabled() -> bool:
+    """Check system_config toggle — defaults to True (enabled) on any error."""
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (_, cur):
+            cur.execute("SELECT value FROM system_config WHERE key='fleet_node_routing_enabled'")
+            row = cur.fetchone()
+            return (row["value"] if row else "true").lower() != "false"
+    except Exception:
+        return True
+
+
 def _pick_fleet_node(model: str, agent: Optional[dict]) -> Optional[int]:
     """Return the best fleet node DB id for a task, or None for hub.
 
@@ -556,7 +569,11 @@ def _pick_fleet_node(model: str, agent: Optional[dict]) -> Optional[int]:
     bi-directional cluster dispatch. GPU-preferred 7B models escalate to
     Starship RTX nodes; CPU-preferred small models stay on hub/VPS. Colocation
     preference: home node wins if it scores within 80% of best. Fails open.
+
+    Returns None immediately when the fleet_node_routing_enabled toggle is off.
     """
+    if not _fleet_routing_enabled():
+        return None
     home = agent.get("node_db_id") if agent else None
     try:
         from services.fleet_resource_router import find_best_node_for_model

@@ -18,7 +18,8 @@ def register_theme_routes(bp, admin_required):
     def api_signal_themes():
         from tools.media_studio.services.theme_service import get_all_themes
 
-        return jsonify({"themes": get_all_themes(active_only=False)})
+        account = request.args.get("account") or None
+        return jsonify({"themes": get_all_themes(active_only=False, account=account)})
 
     @bp.route("/api/signal/themes/<int:theme_id>/scenes")
     @admin_required

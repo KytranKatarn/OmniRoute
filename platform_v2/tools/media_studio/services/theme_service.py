@@ -19,9 +19,16 @@ _SCENE_FIELDS = {
 }
 
 
-def get_all_themes(active_only: bool = True) -> List[Dict]:
+def get_all_themes(active_only: bool = True, account: Optional[str] = None) -> List[Dict]:
     """Return all themes with curator agent display_name and scene count."""
-    where = "WHERE t.is_active = TRUE" if active_only else ""
+    conditions = []
+    params: List = []
+    if active_only:
+        conditions.append("t.is_active = TRUE")
+    if account:
+        conditions.append("t.account = %s")
+        params.append(account)
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     sql = f"""
         SELECT t.*, a.display_name AS curator_name, COUNT(s.id) AS scene_count
         FROM social_content_themes t
@@ -32,7 +39,7 @@ def get_all_themes(active_only: bool = True) -> List[Dict]:
         ORDER BY t.id
     """
     with get_db_cursor() as (conn, cur):
-        cur.execute(sql)
+        cur.execute(sql, params if params else None)
         return [dict(r) for r in cur.fetchall()]
 
 

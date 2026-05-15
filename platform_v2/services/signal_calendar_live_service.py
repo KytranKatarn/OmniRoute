@@ -163,18 +163,48 @@ def get_week_view(
         d_str = r["created_at"].date().isoformat()
         by_date.setdefault(d_str, []).append(_row_to_post(r))
 
+    # Fetch scheduled calendar slots for this account (for empty-day hints)
+    slots_by_dow: Dict[int, Dict[str, Any]] = {}
+    try:
+        with get_db_cursor() as (_conn2, cur2):
+            cur2.execute(
+                """
+                SELECT scc.day_of_week, scc.time_of_day,
+                       sct.name AS theme_name, sct.tone, sct.accent_color
+                FROM social_content_calendar scc
+                JOIN social_content_themes sct ON sct.id = scc.theme_id
+                WHERE scc.account = %s AND scc.is_active = TRUE
+                ORDER BY scc.day_of_week, scc.slot_order
+                """,
+                (account,),
+            )
+            for slot_row in cur2.fetchall():
+                dow = slot_row["day_of_week"]
+                if dow not in slots_by_dow:
+                    slots_by_dow[dow] = dict(slot_row)
+    except Exception:
+        pass
+
     # Build 7-day array
     days = []
     for offset in range(7):
         d = week_start + timedelta(days=offset)
         d_str = d.isoformat()
-        days.append(
-            {
-                "date": d_str,
-                "is_today": d == today,
-                "posts": by_date.get(d_str, []),
+        dow = d.weekday()  # 0=Monday … 6=Sunday
+        day_entry: Dict[str, Any] = {
+            "date": d_str,
+            "is_today": d == today,
+            "posts": by_date.get(d_str, []),
+        }
+        slot = slots_by_dow.get(dow)
+        if slot:
+            day_entry["scheduled_slot"] = {
+                "theme_name": slot["theme_name"],
+                "tone": slot.get("tone") or "",
+                "accent_color": slot.get("accent_color") or "",
+                "time_of_day": str(slot["time_of_day"]) if slot.get("time_of_day") else None,
             }
-        )
+        days.append(day_entry)
 
     return {
         "account": account,

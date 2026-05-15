@@ -2308,29 +2308,34 @@ def signal_linkedin_draft(account_filter="all"):
         # ── 3. Dispatch to S.I.G.N.A.L. for content generation ───────────────
         from tools.department_hq.services.department_dispatcher import dispatch
 
-        # Day-of-week content theme
+        # Day-of-week content theme — resolved from per-account DB calendar
         from datetime import datetime as _dt
 
-        weekday = _dt.now().weekday()  # 0=Mon, 2=Wed, 4=Fri
-        theme_map = {
-            0: (
-                "Vision & Mission",
-                "WHY we're building — the problem with fragmented AI, our mission, "
-                "the future we're working toward with A.R.C.H.I.E. and C.R.E.E.D.",
-            ),
-            2: (
-                "Product Spotlight",
-                "WHAT we've built — highlight one product: Gov Watch (federal procurement "
-                "intelligence), C.R.E.E.D. (AI ethics governance), ARCHIE (self-healing platform), "
-                "or KBS (business suite). Concrete capabilities, real value.",
-            ),
-            4: (
-                "Building in Public",
-                "HOW we're building — share a specific thing that shipped this week, "
-                "a technical challenge we solved, or a behind-the-scenes look at running 34 AI agents.",
-            ),
-        }
-        theme_name, theme_guidance = theme_map.get(weekday, theme_map[0])
+        weekday = _dt.now().weekday()  # 0=Mon … 6=Sun
+        _lookup_account = account_filter if account_filter not in ("all", None) else "personal"
+        theme_name = "Content Update"
+        theme_guidance = "Share a recent platform milestone or AI ethics insight relevant to this brand."
+        try:
+            from database import get_db_cursor as _gc_theme
+
+            with _gc_theme() as (_c_t, _cur_t):
+                _cur_t.execute(
+                    """
+                    SELECT sct.name, sct.tone
+                    FROM social_content_calendar scc
+                    JOIN social_content_themes sct ON sct.id = scc.theme_id
+                    WHERE scc.account = %s AND scc.day_of_week = %s AND scc.is_active = TRUE
+                    ORDER BY scc.slot_order
+                    LIMIT 1
+                    """,
+                    (_lookup_account, weekday),
+                )
+                _theme_row = _cur_t.fetchone()
+                if _theme_row:
+                    theme_name = _theme_row["name"]
+                    theme_guidance = _theme_row["tone"] or theme_guidance
+        except Exception as _te:
+            logger.warning("[LinkedInDraft] DB theme lookup failed: %s", _te)
 
         # Fetch S.I.G.N.A.L.'s style guide from KB (denial learnings)
         style_notes = ""
@@ -3679,12 +3684,42 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         max_instances=1,
     )
 
-    # S.I.G.N.A.L. LinkedIn content calendar — Mon(Vision)/Wed(Product)/Fri(Building) at 09:00
+    # S.I.G.N.A.L. LinkedIn content calendar — per-account schedules
+    # Personal (Kytran): Mon/Wed/Fri at 09:00 — Build & Innovate / Live the Dream / Faith & Strength
+    def _personal_draft():
+        signal_linkedin_draft(account_filter="personal")
+
     scheduler.add_job(
-        with_ctx(signal_linkedin_draft),
+        with_ctx(_personal_draft),
         trigger=CronTrigger(day_of_week="mon,wed,fri", hour=9, minute=0, timezone="America/Toronto"),
-        id="signal_linkedin_draft",
-        name="S.I.G.N.A.L.: LinkedIn Draft → Telegram Approval",
+        id="signal_linkedin_draft_personal",
+        name="S.I.G.N.A.L.: LinkedIn Draft — Personal → Telegram",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    # KE Inc. (company): Tue/Thu/Sat at 10:00 — Platform Intelligence / Business Suite / Community
+    def _company_draft():
+        signal_linkedin_draft(account_filter="company")
+
+    scheduler.add_job(
+        with_ctx(_company_draft),
+        trigger=CronTrigger(day_of_week="tue,thu,sat", hour=10, minute=0, timezone="America/Toronto"),
+        id="signal_linkedin_draft_company",
+        name="S.I.G.N.A.L.: LinkedIn Draft — KE Inc. → Telegram",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    # Creed-AI: Mon/Thu/Fri at 13:00 — Ethics & Governance / Agent Welfare / Audit & Transparency
+    def _creed_draft():
+        signal_linkedin_draft(account_filter="creed")
+
+    scheduler.add_job(
+        with_ctx(_creed_draft),
+        trigger=CronTrigger(day_of_week="mon,thu,fri", hour=13, minute=0, timezone="America/Toronto"),
+        id="signal_linkedin_draft_creed",
+        name="S.I.G.N.A.L.: LinkedIn Draft — Creed-AI → Telegram",
         replace_existing=True,
         max_instances=1,
     )

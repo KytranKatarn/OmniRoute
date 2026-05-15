@@ -1501,3 +1501,116 @@ def register_dashboard_routes(bp, auth_decorator):
         except Exception as exc:
             logger.error("api_fleet_queue_status: %s", exc)
             return jsonify(success=False, error=str(exc)[:200]), 500
+
+    @bp.route("/api/fleet/cluster-activity")
+    @auth_decorator
+    def api_fleet_cluster_activity():
+        """Live cluster activity — tasks per node + recent dispatch log."""
+        try:
+            with get_db_cursor(commit=False) as (_, cur):
+                # Per-node active task breakdown
+                cur.execute(
+                    """
+                    SELECT
+                        COALESCE(rn.node_name, 'Hub')   AS node_name,
+                        COALESCE(rn.node_id, 'hub')     AS node_id,
+                        COALESCE(rn.status, 'online')   AS node_status,
+                        COALESCE(rn.mesh_ip, '')        AS mesh_ip,
+                        rn.gpu_available,
+                        COUNT(*) FILTER (WHERE dpq.status = 'queued')  AS queued,
+                        COUNT(*) FILTER (WHERE dpq.status = 'running') AS running,
+                        json_agg(
+                            json_build_object(
+                                'id',         dpq.id,
+                                'agent',      dpq.agent_name,
+                                'capability', dpq.capability,
+                                'model',      dpq.model_needed,
+                                'status',     dpq.status,
+                                'source',     dpq.source_product,
+                                'queued_at',  dpq.queued_at
+                            ) ORDER BY dpq.queued_at
+                        ) AS tasks
+                    FROM dispatch_pending_queue dpq
+                    LEFT JOIN remote_nodes rn ON rn.id = dpq.preferred_node_id
+                    WHERE dpq.status IN ('queued', 'running')
+                      AND (dpq.expires_at IS NULL OR dpq.expires_at > NOW())
+                    GROUP BY rn.node_name, rn.node_id, rn.status, rn.mesh_ip, rn.gpu_available
+                    ORDER BY running DESC, queued DESC
+                    """
+                )
+                nodes_with_work = []
+                for r in cur.fetchall():
+                    tasks = r["tasks"] or []
+                    nodes_with_work.append(
+                        {
+                            "node_name": r["node_name"],
+                            "node_id": r["node_id"],
+                            "status": r["node_status"],
+                            "mesh_ip": r["mesh_ip"],
+                            "gpu": bool(r["gpu_available"]),
+                            "queued": r["queued"],
+                            "running": r["running"],
+                            "tasks": [t for t in tasks if t],
+                        }
+                    )
+
+                # All online nodes (include idle ones)
+                cur.execute(
+                    """
+                    SELECT node_id, node_name, status, mesh_ip, gpu_available,
+                           current_load, last_heartbeat
+                    FROM remote_nodes
+                    WHERE is_active = TRUE AND status = 'online'
+                      AND last_heartbeat > NOW() - INTERVAL '3 minutes'
+                    ORDER BY node_name
+                    """
+                )
+                online_nodes = [dict(r) for r in cur.fetchall()]
+
+                # Recent dispatch log from task_execution_log
+                cur.execute(
+                    """
+                    SELECT tel.agent_name, tel.capability, tel.module_source,
+                           tel.success, tel.duration_ms, tel.created_at,
+                           rn.node_name
+                    FROM task_execution_log tel
+                    LEFT JOIN remote_nodes rn ON rn.node_id = tel.node_id
+                    WHERE tel.created_at > NOW() - INTERVAL '30 minutes'
+                    ORDER BY tel.created_at DESC
+                    LIMIT 20
+                    """
+                )
+                log = []
+                for r in cur.fetchall():
+                    log.append(
+                        {
+                            "agent": r["agent_name"],
+                            "capability": r["capability"],
+                            "source": r["module_source"],
+                            "node": r["node_name"] or "Hub",
+                            "success": r["success"],
+                            "duration_ms": r["duration_ms"],
+                            "ts": r["created_at"].isoformat() if r["created_at"] else None,
+                        }
+                    )
+
+            return jsonify(
+                success=True,
+                nodes_with_work=nodes_with_work,
+                online_nodes=[
+                    {
+                        "node_id": n["node_id"],
+                        "node_name": n["node_name"],
+                        "status": n["status"],
+                        "mesh_ip": str(n["mesh_ip"] or ""),
+                        "gpu": bool(n["gpu_available"]),
+                        "load": n["current_load"] or 0,
+                        "last_heartbeat": n["last_heartbeat"].isoformat() if n["last_heartbeat"] else None,
+                    }
+                    for n in online_nodes
+                ],
+                dispatch_log=log,
+            )
+        except Exception as exc:
+            logger.error("api_fleet_cluster_activity: %s", exc)
+            return jsonify(success=False, error=str(exc)[:200]), 500

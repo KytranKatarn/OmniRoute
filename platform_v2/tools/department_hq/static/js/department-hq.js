@@ -3170,6 +3170,7 @@ function loadFleet() {
         loadCloudProviders();
         loadProviderManagement();
         loadQueueStatus();
+        loadClusterActivity();
         loadDispatchComponents();
         if (typeof window.ahFetch === 'function') window.ahFetch(true);
         startFleetRefresh();
@@ -3192,7 +3193,8 @@ function startFleetRefresh() {
         loadCloudProviders();
         loadProviderManagement();
         loadQueueStatus();
-    }, 30000);
+        loadClusterActivity();
+    }, 10000);
 }
 
 /* ============================================================
@@ -3290,6 +3292,88 @@ function stopFleetRefresh() {
         clearInterval(_fleetRefreshInterval);
         _fleetRefreshInterval = null;
     }
+}
+
+/* ============================================================
+   CLUSTER ACTIVITY — live task routing across nodes
+   Polls /api/fleet/cluster-activity every 10s (via startFleetRefresh).
+   ============================================================ */
+function loadClusterActivity() {
+    fetch('/tools/department-hq/api/fleet/cluster-activity')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var grid = document.getElementById('clusterNodesGrid');
+            var logEl = document.getElementById('clusterDispatchLog');
+            var badge = document.getElementById('clusterActivityBadge');
+            if (!grid) return;
+
+            // Merge online nodes + nodes with active work into one map
+            var nodeMap = {};
+            (data.online_nodes || []).forEach(function(n) {
+                nodeMap[n.node_id] = { name: n.node_name, status: n.status, gpu: n.gpu, load: n.load, mesh_ip: n.mesh_ip, queued: 0, running: 0, tasks: [] };
+            });
+            // Hub always shown
+            if (!nodeMap['hub']) nodeMap['hub'] = { name: 'Hub', status: 'online', gpu: true, load: 0, queued: 0, running: 0, tasks: [] };
+            (data.nodes_with_work || []).forEach(function(n) {
+                if (!nodeMap[n.node_id]) nodeMap[n.node_id] = { name: n.node_name, status: n.status, gpu: n.gpu };
+                nodeMap[n.node_id].queued = n.queued;
+                nodeMap[n.node_id].running = n.running;
+                nodeMap[n.node_id].tasks = n.tasks || [];
+            });
+
+            var totalActive = 0;
+            grid.innerHTML = '';
+            Object.keys(nodeMap).forEach(function(nid) {
+                var n = nodeMap[nid];
+                totalActive += (n.running || 0);
+                var card = document.createElement('div');
+                var isActive = (n.running || 0) > 0;
+                var hasPending = (n.queued || 0) > 0;
+                card.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid ' + (isActive ? '#10b981' : 'rgba(255,255,255,0.1)') + ';border-radius:6px;padding:10px 12px;';
+                var header = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+                    + '<span style="width:8px;height:8px;border-radius:50%;background:' + (n.status === 'online' ? (isActive ? '#10b981' : '#00bcd4') : '#ef4444') + ';flex-shrink:0;' + (isActive ? 'box-shadow:0 0 6px #10b981;' : '') + '"></span>'
+                    + '<span style="font-family:Antonio,sans-serif;font-size:0.8rem;letter-spacing:1px;color:var(--dhq-text-main);">' + escHtml(n.name) + '</span>'
+                    + (n.gpu ? '<span style="margin-left:auto;font-size:0.6rem;color:#a78bfa;letter-spacing:1px;">GPU</span>' : '<span style="margin-left:auto;font-size:0.6rem;color:var(--dhq-text-dim);letter-spacing:1px;">CPU</span>')
+                    + '</div>';
+                var counts = '<div style="display:flex;gap:12px;font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;margin-bottom:6px;">'
+                    + '<span style="color:' + (isActive ? '#10b981' : 'var(--dhq-text-dim)') + ';">▶ ' + (n.running || 0) + ' running</span>'
+                    + '<span style="color:' + (hasPending ? '#f59e0b' : 'var(--dhq-text-dim)') + ';">⏳ ' + (n.queued || 0) + ' queued</span>'
+                    + '</div>';
+                var taskList = '';
+                (n.tasks || []).slice(0, 3).forEach(function(t) {
+                    taskList += '<div style="font-size:0.68rem;color:' + (t.status === 'running' ? '#10b981' : '#f59e0b') + ';padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
+                        + '→ ' + escHtml(t.agent || '?') + ' · ' + escHtml(t.capability || '') + '</div>';
+                });
+                if (!taskList) taskList = '<span style="font-size:0.68rem;color:var(--dhq-text-dim);font-style:italic;">idle</span>';
+                card.innerHTML = header + counts + taskList;
+                grid.appendChild(card);
+            });
+
+            if (badge) badge.textContent = totalActive > 0 ? totalActive + ' active' : 'all idle';
+
+            // Dispatch log
+            if (logEl) {
+                logEl.innerHTML = '';
+                (data.dispatch_log || []).slice(0, 15).forEach(function(e) {
+                    var row = document.createElement('div');
+                    row.style.cssText = 'padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;gap:8px;align-items:center;';
+                    var ts = e.ts ? new Date(e.ts).toLocaleTimeString('en-CA', {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '';
+                    var ok = e.success !== false;
+                    row.innerHTML = '<span style="color:var(--dhq-text-dim);font-size:0.65rem;flex-shrink:0;">' + escHtml(ts) + '</span>'
+                        + '<span style="color:' + (ok ? '#10b981' : '#ef4444') + ';font-size:0.68rem;flex-shrink:0;">' + (ok ? '✓' : '✗') + '</span>'
+                        + '<span style="color:var(--dhq-text-main);font-size:0.7rem;">' + escHtml(e.agent || '?') + '</span>'
+                        + '<span style="color:var(--dhq-text-dim);font-size:0.68rem;">→</span>'
+                        + '<span style="color:#00bcd4;font-size:0.68rem;">' + escHtml(e.node || 'Hub') + '</span>'
+                        + '<span style="color:var(--dhq-text-dim);font-size:0.65rem;margin-left:auto;">' + escHtml(e.capability || '') + '</span>';
+                    logEl.appendChild(row);
+                });
+                if (!data.dispatch_log || !data.dispatch_log.length) {
+                    logEl.innerHTML = '<span style="color:var(--dhq-text-dim);font-style:italic;font-size:0.72rem;">No recent dispatches</span>';
+                }
+            }
+        })
+        .catch(function() {});
 }
 
 function initFleetMap() {

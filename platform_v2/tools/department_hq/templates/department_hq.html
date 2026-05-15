@@ -600,6 +600,18 @@
       <!-- Provider cards moved to Contractors tab -->
       <div id="fleetProvidersGrid" style="display:none;"></div>
 
+      <!-- Cluster Activity — live task routing across nodes -->
+      <div class="dhq-dispatch-section" id="clusterActivitySection">
+        <div class="dhq-section-title">
+          CLUSTER ACTIVITY
+          <span id="clusterActivityBadge" style="margin-left:8px;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--dhq-text-dim);">--</span>
+          <button onclick="loadClusterActivity()" style="float:right;background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">↻ REFRESH</button>
+        </div>
+        <div id="clusterNodesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:12px;"></div>
+        <div class="dhq-section-title" style="margin-top:4px;font-size:0.65rem;">DISPATCH LOG <span style="font-size:0.6rem;color:var(--dhq-text-dim);">— last 30 min</span></div>
+        <div id="clusterDispatchLog" style="font-size:0.73rem;max-height:180px;overflow-y:auto;font-family:'IBM Plex Mono',monospace;"></div>
+      </div>
+
       <!-- Dispatch Queue & Model Load Status -->
       <div class="dhq-dispatch-section" id="queueStatusSection">
         <div class="dhq-section-title">

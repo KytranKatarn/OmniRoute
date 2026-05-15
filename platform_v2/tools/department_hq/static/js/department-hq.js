@@ -3299,6 +3299,7 @@ function stopFleetRefresh() {
    Polls /api/fleet/cluster-activity every 10s (via startFleetRefresh).
    ============================================================ */
 function loadClusterActivity() {
+    function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
     fetch('/tools/department-hq/api/fleet/cluster-activity')
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -3333,7 +3334,7 @@ function loadClusterActivity() {
                 card.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid ' + (isActive ? '#10b981' : 'rgba(255,255,255,0.1)') + ';border-radius:6px;padding:10px 12px;';
                 var header = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
                     + '<span style="width:8px;height:8px;border-radius:50%;background:' + (n.status === 'online' ? (isActive ? '#10b981' : '#00bcd4') : '#ef4444') + ';flex-shrink:0;' + (isActive ? 'box-shadow:0 0 6px #10b981;' : '') + '"></span>'
-                    + '<span style="font-family:Antonio,sans-serif;font-size:0.8rem;letter-spacing:1px;color:var(--dhq-text-main);">' + escHtml(n.name) + '</span>'
+                    + '<span style="font-family:Antonio,sans-serif;font-size:0.8rem;letter-spacing:1px;color:var(--dhq-text-main);">' + esc(n.name) + '</span>'
                     + (n.gpu ? '<span style="margin-left:auto;font-size:0.6rem;color:#a78bfa;letter-spacing:1px;">GPU</span>' : '<span style="margin-left:auto;font-size:0.6rem;color:var(--dhq-text-dim);letter-spacing:1px;">CPU</span>')
                     + '</div>';
                 var counts = '<div style="display:flex;gap:12px;font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;margin-bottom:6px;">'
@@ -3343,7 +3344,7 @@ function loadClusterActivity() {
                 var taskList = '';
                 (n.tasks || []).slice(0, 3).forEach(function(t) {
                     taskList += '<div style="font-size:0.68rem;color:' + (t.status === 'running' ? '#10b981' : '#f59e0b') + ';padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
-                        + '→ ' + escHtml(t.agent || '?') + ' · ' + escHtml(t.capability || '') + '</div>';
+                        + '→ ' + esc(t.agent || '?') + ' · ' + esc(t.capability || '') + '</div>';
                 });
                 if (!taskList) taskList = '<span style="font-size:0.68rem;color:var(--dhq-text-dim);font-style:italic;">idle</span>';
                 card.innerHTML = header + counts + taskList;
@@ -3360,12 +3361,12 @@ function loadClusterActivity() {
                     row.style.cssText = 'padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;gap:8px;align-items:center;';
                     var ts = e.ts ? new Date(e.ts).toLocaleTimeString('en-CA', {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '';
                     var ok = e.success !== false;
-                    row.innerHTML = '<span style="color:var(--dhq-text-dim);font-size:0.65rem;flex-shrink:0;">' + escHtml(ts) + '</span>'
+                    row.innerHTML = '<span style="color:var(--dhq-text-dim);font-size:0.65rem;flex-shrink:0;">' + esc(ts) + '</span>'
                         + '<span style="color:' + (ok ? '#10b981' : '#ef4444') + ';font-size:0.68rem;flex-shrink:0;">' + (ok ? '✓' : '✗') + '</span>'
-                        + '<span style="color:var(--dhq-text-main);font-size:0.7rem;">' + escHtml(e.agent || '?') + '</span>'
+                        + '<span style="color:var(--dhq-text-main);font-size:0.7rem;">' + esc(e.agent || '?') + '</span>'
                         + '<span style="color:var(--dhq-text-dim);font-size:0.68rem;">→</span>'
-                        + '<span style="color:#00bcd4;font-size:0.68rem;">' + escHtml(e.node || 'Hub') + '</span>'
-                        + '<span style="color:var(--dhq-text-dim);font-size:0.65rem;margin-left:auto;">' + escHtml(e.capability || '') + '</span>';
+                        + '<span style="color:#00bcd4;font-size:0.68rem;">' + esc(e.node || 'Hub') + '</span>'
+                        + '<span style="color:var(--dhq-text-dim);font-size:0.65rem;margin-left:auto;">' + esc(e.capability || '') + '</span>';
                     logEl.appendChild(row);
                 });
                 if (!data.dispatch_log || !data.dispatch_log.length) {

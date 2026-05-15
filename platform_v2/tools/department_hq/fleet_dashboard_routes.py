@@ -1567,16 +1567,17 @@ def register_dashboard_routes(bp, auth_decorator):
                 )
                 online_nodes = [dict(r) for r in cur.fetchall()]
 
-                # Recent dispatch log from task_execution_log
+                # Recent dispatch log from dispatch_pending_queue (has node routing info)
                 cur.execute(
                     """
-                    SELECT tel.agent_name, tel.capability, tel.module_source,
-                           tel.success, tel.duration_ms, tel.created_at,
-                           rn.node_name
-                    FROM task_execution_log tel
-                    LEFT JOIN remote_nodes rn ON rn.node_id = tel.node_id
-                    WHERE tel.created_at > NOW() - INTERVAL '30 minutes'
-                    ORDER BY tel.created_at DESC
+                    SELECT dpq.agent_name, dpq.capability, dpq.source_product,
+                           dpq.status, dpq.queued_at, dpq.completed_at,
+                           COALESCE(rn.node_name, 'Hub') AS node_name
+                    FROM dispatch_pending_queue dpq
+                    LEFT JOIN remote_nodes rn ON rn.id = dpq.preferred_node_id
+                    WHERE dpq.status IN ('done', 'completed', 'failed')
+                      AND COALESCE(dpq.completed_at, dpq.queued_at) > NOW() - INTERVAL '30 minutes'
+                    ORDER BY COALESCE(dpq.completed_at, dpq.queued_at) DESC
                     LIMIT 20
                     """
                 )
@@ -1586,11 +1587,15 @@ def register_dashboard_routes(bp, auth_decorator):
                         {
                             "agent": r["agent_name"],
                             "capability": r["capability"],
-                            "source": r["module_source"],
-                            "node": r["node_name"] or "Hub",
-                            "success": r["success"],
-                            "duration_ms": r["duration_ms"],
-                            "ts": r["created_at"].isoformat() if r["created_at"] else None,
+                            "source": r["source_product"],
+                            "node": r["node_name"],
+                            "success": r["status"] != "failed",
+                            "duration_ms": None,
+                            "ts": (
+                                (r["completed_at"] or r["queued_at"]).isoformat()
+                                if (r["completed_at"] or r["queued_at"])
+                                else None
+                            ),
                         }
                     )
 

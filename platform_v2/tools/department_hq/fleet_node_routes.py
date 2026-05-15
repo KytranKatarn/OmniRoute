@@ -1229,6 +1229,7 @@ def register_node_routes(bp, login_required, admin_required):
                         comfyui_port = COALESCE(%s, comfyui_port),
                         auto1111_port = COALESCE(%s, auto1111_port),
                         ssh_enabled = COALESCE(%s, ssh_enabled),
+                        mesh_ip = COALESCE(%s, mesh_ip),
                         last_error = %s,
                         error_count = CASE WHEN %s IS NOT NULL THEN error_count + 1 ELSE 0 END
                     WHERE id = %s
@@ -1253,6 +1254,7 @@ def register_node_routes(bp, login_required, admin_required):
                         data.get("comfyui_port"),
                         data.get("auto1111_port"),
                         data.get("ssh_enabled"),
+                        data.get("mesh_ip"),
                         data.get("error"),
                         data.get("error"),
                         node["id"],

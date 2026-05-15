@@ -21,6 +21,21 @@ from ingest.sources.le_devoir import fetch_articles as ld_fetch, SOURCE_SLUG as 
 from ingest.sources.vancouver_sun import fetch_articles as vs_fetch, SOURCE_SLUG as VS_SLUG, SOURCE_NAME as VS_NAME, SOURCE_URL as VS_URL, RSS_URL as VS_RSS, BIAS_LEAN as VS_BIAS
 from ingest.sources.montreal_gazette import fetch_articles as mg_fetch, SOURCE_SLUG as MG_SLUG, SOURCE_NAME as MG_NAME, SOURCE_URL as MG_URL, RSS_URL as MG_RSS, BIAS_LEAN as MG_BIAS
 from ingest.sources.ottawa_citizen import fetch_articles as oc_fetch, SOURCE_SLUG as OC_SLUG, SOURCE_NAME as OC_NAME, SOURCE_URL as OC_URL, RSS_URL as OC_RSS, BIAS_LEAN as OC_BIAS
+from ingest.sources.calgary_herald import fetch_articles as ch_fetch, SOURCE_SLUG as CH_SLUG, SOURCE_NAME as CH_NAME, SOURCE_URL as CH_URL, RSS_URL as CH_RSS, BIAS_LEAN as CH_BIAS
+from ingest.sources.edmonton_journal import fetch_articles as ej_fetch, SOURCE_SLUG as EJ_SLUG, SOURCE_NAME as EJ_NAME, SOURCE_URL as EJ_URL, RSS_URL as EJ_RSS, BIAS_LEAN as EJ_BIAS
+from ingest.sources.saskatoon_starphoenix import fetch_articles as sp_fetch, SOURCE_SLUG as SP_SLUG, SOURCE_NAME as SP_NAME, SOURCE_URL as SP_URL, RSS_URL as SP_RSS, BIAS_LEAN as SP_BIAS
+from ingest.sources.regina_leaderpost import fetch_articles as rl_fetch, SOURCE_SLUG as RL_SLUG, SOURCE_NAME as RL_NAME, SOURCE_URL as RL_URL, RSS_URL as RL_RSS, BIAS_LEAN as RL_BIAS
+from ingest.sources.winnipeg_free_press import fetch_articles as wp_fetch, SOURCE_SLUG as WP_SLUG, SOURCE_NAME as WP_NAME, SOURCE_URL as WP_URL, RSS_URL as WP_RSS, BIAS_LEAN as WP_BIAS
+from ingest.sources.the_tyee import fetch_articles as tt_fetch, SOURCE_SLUG as TT_SLUG, SOURCE_NAME as TT_NAME, SOURCE_URL as TT_URL, RSS_URL as TT_RSS, BIAS_LEAN as TT_BIAS
+from ingest.sources.ricochet_media import fetch_articles as rm_fetch, SOURCE_SLUG as RM_SLUG, SOURCE_NAME as RM_NAME, SOURCE_URL as RM_URL, RSS_URL as RM_RSS, BIAS_LEAN as RM_BIAS
+from ingest.sources.financial_post import fetch_articles as fp_fetch, SOURCE_SLUG as FP_SLUG, SOURCE_NAME as FP_NAME, SOURCE_URL as FP_URL, RSS_URL as FP_RSS, BIAS_LEAN as FP_BIAS
+from ingest.sources.journal_de_montreal import fetch_articles as jdm_fetch, SOURCE_SLUG as JDM_SLUG, SOURCE_NAME as JDM_NAME, SOURCE_URL as JDM_URL, RSS_URL as JDM_RSS, BIAS_LEAN as JDM_BIAS
+from ingest.sources.lactualite import fetch_articles as la_fetch, SOURCE_SLUG as LA_SLUG, SOURCE_NAME as LA_NAME, SOURCE_URL as LA_URL, RSS_URL as LA_RSS, BIAS_LEAN as LA_BIAS
+from ingest.sources.aptn_news import fetch_articles as aptn_fetch, SOURCE_SLUG as APTN_SLUG, SOURCE_NAME as APTN_NAME, SOURCE_URL as APTN_URL, RSS_URL as APTN_RSS, BIAS_LEAN as APTN_BIAS
+from ingest.sources.bnn_bloomberg import fetch_articles as bnn_fetch, SOURCE_SLUG as BNN_SLUG, SOURCE_NAME as BNN_NAME, SOURCE_URL as BNN_URL, RSS_URL as BNN_RSS, BIAS_LEAN as BNN_BIAS
+from ingest.sources.the_conversation_canada import fetch_articles as tcc_fetch, SOURCE_SLUG as TCC_SLUG, SOURCE_NAME as TCC_NAME, SOURCE_URL as TCC_URL, RSS_URL as TCC_RSS, BIAS_LEAN as TCC_BIAS
+from ingest.sources.press_progress import fetch_articles as pp_fetch, SOURCE_SLUG as PP_SLUG, SOURCE_NAME as PP_NAME, SOURCE_URL as PP_URL, RSS_URL as PP_RSS, BIAS_LEAN as PP_BIAS
+from ingest.sources.saltwire_news import fetch_articles as sw_fetch, SOURCE_SLUG as SW_SLUG, SOURCE_NAME as SW_NAME, SOURCE_URL as SW_URL, RSS_URL as SW_RSS, BIAS_LEAN as SW_BIAS
 from ingest.normalizer import canonicalize
 from ingest.bias import score_bias
 from ingest.persist import upsert_article, record_failure, mark_ai_analyzed
@@ -50,6 +65,22 @@ SOURCES = [
     (VS_SLUG,        VS_NAME,                    VS_URL,                             VS_RSS,         VS_BIAS,        vs_fetch),
     (MG_SLUG,        MG_NAME,                    MG_URL,                             MG_RSS,         MG_BIAS,        mg_fetch),
     (OC_SLUG,        OC_NAME,                    OC_URL,                             OC_RSS,         OC_BIAS,        oc_fetch),
+    # ── Expansion batch 2: regional, French-language, Indigenous, business ─────
+    (CH_SLUG,        CH_NAME,                    CH_URL,                             CH_RSS,         CH_BIAS,        ch_fetch),
+    (EJ_SLUG,        EJ_NAME,                    EJ_URL,                             EJ_RSS,         EJ_BIAS,        ej_fetch),
+    (SP_SLUG,        SP_NAME,                    SP_URL,                             SP_RSS,         SP_BIAS,        sp_fetch),
+    (RL_SLUG,        RL_NAME,                    RL_URL,                             RL_RSS,         RL_BIAS,        rl_fetch),
+    (WP_SLUG,        WP_NAME,                    WP_URL,                             WP_RSS,         WP_BIAS,        wp_fetch),
+    (TT_SLUG,        TT_NAME,                    TT_URL,                             TT_RSS,         TT_BIAS,        tt_fetch),
+    (RM_SLUG,        RM_NAME,                    RM_URL,                             RM_RSS,         RM_BIAS,        rm_fetch),
+    (FP_SLUG,        FP_NAME,                    FP_URL,                             FP_RSS,         FP_BIAS,        fp_fetch),
+    (JDM_SLUG,       JDM_NAME,                   JDM_URL,                            JDM_RSS,        JDM_BIAS,       jdm_fetch),
+    (LA_SLUG,        LA_NAME,                    LA_URL,                             LA_RSS,         LA_BIAS,        la_fetch),
+    (APTN_SLUG,      APTN_NAME,                  APTN_URL,                           APTN_RSS,       APTN_BIAS,      aptn_fetch),
+    (BNN_SLUG,       BNN_NAME,                   BNN_URL,                            BNN_RSS,        BNN_BIAS,       bnn_fetch),
+    (TCC_SLUG,       TCC_NAME,                   TCC_URL,                            TCC_RSS,        TCC_BIAS,       tcc_fetch),
+    (PP_SLUG,        PP_NAME,                    PP_URL,                             PP_RSS,         PP_BIAS,        pp_fetch),
+    (SW_SLUG,        SW_NAME,                    SW_URL,                             SW_RSS,         SW_BIAS,        sw_fetch),
 ]
 
 

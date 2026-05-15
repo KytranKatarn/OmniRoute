@@ -330,6 +330,11 @@ def register_social_routes(bp, admin_required):
                 company_count = cur.fetchone()["cnt"]
 
                 cur.execute(
+                    "SELECT COUNT(*) AS cnt FROM linkedin_post_log WHERE post_type ILIKE '%creed%' AND status = 'posted'"
+                )
+                creed_count = cur.fetchone()["cnt"]
+
+                cur.execute(
                     "SELECT COUNT(*) AS cnt FROM dispatch_pending_queue WHERE capability = 'social_post_draft' AND status IN ('queued','running')"
                 )
                 queue_depth = cur.fetchone()["cnt"]
@@ -353,6 +358,7 @@ def register_social_routes(bp, admin_required):
                         "posted_this_week": int(week_posted),
                         "personal_posts": int(personal_count),
                         "company_posts": int(company_count),
+                        "creed_posts": int(creed_count),
                     },
                 }
             )

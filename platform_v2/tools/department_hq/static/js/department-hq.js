@@ -1608,7 +1608,7 @@ async function renderSignalOverview(el) {
     var data = await api('/api/signal/overview');
     var agent = data.agent || {};
     var stats = data.stats || {};
-    var accountPosts = signalAccount === 'company' ? stats.company_posts : stats.personal_posts;
+    var accountPosts = signalAccount === 'company' ? stats.company_posts : signalAccount === 'creed' ? (stats.creed_posts || 0) : stats.personal_posts;
     var moodColors = { happy: '#10b981', focused: '#3b82f6', stressed: '#ef4444', neutral: '#9ca3af', curious: '#8b5cf6', tired: '#f59e0b' };
     var moodColor = moodColors[agent.current_mood] || '#9ca3af';
     var isActive = agent.shift_state === 'active';
@@ -1643,7 +1643,7 @@ async function renderSignalOverview(el) {
         + '</div>'
 
         + '<div class="signal-card">'
-        +   '<div class="signal-card-title">' + esc(signalAccount === 'company' ? 'KE Inc.' : 'Kytran Katarn') + '</div>'
+        +   '<div class="signal-card-title">' + _signalAccountLabel(signalAccount) + '</div>'
         +   '<div class="signal-big-stat">' + (accountPosts || 0) + '</div>'
         +   '<div class="signal-stat-sub">Total posted</div>'
         + '</div>'
@@ -1804,7 +1804,7 @@ async function renderSignalPostLog(el) {
     var data = await api('/api/signal/post-log?account=' + signalAccount + '&limit=30');
     var posts = data.posts || [];
     if (posts.length === 0) {
-        setHtml(el, '<div class="dhq-empty">No posts logged for ' + esc(signalAccount === 'company' ? 'Kytran Empowerment Inc.' : 'Kytran Katarn') + ' yet. Content calendar fires Mon/Wed/Fri at 9 AM ET.</div>');
+        setHtml(el, '<div class="dhq-empty">No posts logged for ' + _signalAccountLabel(signalAccount) + ' yet. Content calendar fires Mon/Wed/Fri at 9 AM ET.</div>');
         return;
     }
     var html = '<div class="signal-post-log">';

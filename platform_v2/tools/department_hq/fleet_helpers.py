@@ -457,3 +457,58 @@ def _get_node_for_user_by_int_id(int_id, user_id):
             (int_id, user_id),
         )
         return cur.fetchone()
+
+
+def auto_assign_agents_for_model(node_id_str: str, model_name: str) -> int:
+    """Auto-assign hub AI agents whose model matches to a fleet node.
+
+    Called after a model becomes available on a node (heartbeat model sync or
+    OTA model_pull ack). Inserts into node_agents with auto_assigned=TRUE.
+    Skips agents already assigned to this node. Returns count assigned.
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO node_agents
+                    (node_id, source_agent_id, hub_agent_id, name, display_name,
+                     model, department, status, auto_assigned)
+                SELECT
+                    rn.id,
+                    a.id, a.id,
+                    a.name, COALESCE(a.display_name, a.name),
+                    a.model, a.department,
+                    'active', TRUE
+                FROM agents a
+                JOIN remote_nodes rn ON rn.node_id = %s
+                WHERE a.model = %s
+                  AND a.worker_type = 'ai'
+                  AND a.shift_state IN ('active', 'barracked')
+                  AND NOT EXISTS (
+                      SELECT 1 FROM node_agents na2
+                      WHERE na2.hub_agent_id = a.id
+                        AND na2.node_id = rn.id
+                  )
+                ON CONFLICT (node_id, name)
+                DO UPDATE SET status = 'active', auto_assigned = TRUE
+                RETURNING id
+                """,
+                (node_id_str, model_name),
+            )
+            count = len(cur.fetchall())
+            if count:
+                logger.info(
+                    "fleet: auto-assigned %d agent(s) with model %s to node %s",
+                    count,
+                    model_name,
+                    node_id_str,
+                )
+            return count
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "auto_assign_agents_for_model failed for %s/%s: %s", node_id_str, model_name, exc
+        )
+        return 0

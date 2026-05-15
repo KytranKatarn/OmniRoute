@@ -1286,7 +1286,7 @@ def register_node_routes(bp, login_required, admin_required):
                 ollama_models_payload = None
 
                 # Support both flat (ollama_models) and nested (ollama.available_models) formats
-                if data.get("ollama_models") and data.get("ollama_online"):
+                if data.get("ollama_models") and (data.get("ollama_online") or data.get("ollama_available")):
                     ollama_models_payload = data["ollama_models"]
                 elif "ollama" in data:
                     ollama_data = data["ollama"]

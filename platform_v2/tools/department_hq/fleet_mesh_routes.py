@@ -686,6 +686,20 @@ def register_mesh_routes(bp, auth_decorator):
                     except Exception as job_err:
                         logger.warning(f"Mesh ack job result logging failed: {job_err}")
 
+                # Auto-assign hub agents when a model pull lands on a node
+                if sync_entry["sync_type"] == "model_pull" and status in ("acknowledged", "completed"):
+                    try:
+                        pull_payload = sync_entry["payload"] or {}
+                        if isinstance(pull_payload, str):
+                            pull_payload = json.loads(pull_payload)
+                        model_name = (pull_payload.get("model_name") or pull_payload.get("model", "")).strip()
+                        if model_name:
+                            from .fleet_helpers import auto_assign_agents_for_model
+
+                            auto_assign_agents_for_model(node_id, model_name)
+                    except Exception as _ae:
+                        logger.warning("auto_assign after model_pull ack failed: %s", _ae)
+
             return jsonify(
                 {
                     "success": True,

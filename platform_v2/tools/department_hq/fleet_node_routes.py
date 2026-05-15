@@ -1038,8 +1038,7 @@ def register_node_routes(bp, login_required, admin_required):
                 return jsonify({"success": False, "error": "Headscale key generation failed"}), 500
 
             auth_key = result.stdout.strip()
-            # Headscale default control URL (Headscale listens on port 8095 via NPM)
-            login_server = "http://192.168.1.200:8095"
+            login_server = os.environ.get("HEADSCALE_URL", "https://mesh.kytranempowerment.com")
             return jsonify(
                 {
                     "success": True,
@@ -1053,6 +1052,95 @@ def register_node_routes(bp, login_required, admin_required):
         except Exception as e:
             logger.exception("Error generating headscale key for %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    @bp.route("/api/nodes/<node_id>/repair-command", methods=["POST"])
+    @login_required
+    def node_repair_command(node_id):
+        """Generate a repair script for a broken/offline node.
+
+        Produces a copy-paste command that fixes HUB_URL, generates a fresh
+        Headscale pre-auth key, and restarts the node containers — without
+        touching docker-compose.yml (ADR-007 safe).
+        """
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT id, node_id, node_name, api_key_hash, deployment_mode, hostname
+                   FROM remote_nodes WHERE node_id = %s AND is_active = TRUE""",
+                (node_id,),
+            )
+            node = cur.fetchone()
+        if not node:
+            return jsonify({"success": False, "error": "Node not found"}), 404
+
+        hub_url = os.environ.get("STARSHIP_HUB_URL", "http://192.168.1.200:3000")
+        headscale_url = os.environ.get("HEADSCALE_URL", "https://mesh.kytranempowerment.com")
+
+        # Generate fresh Headscale pre-auth key
+        headscale_key = ""
+        try:
+            result = subprocess.run(
+                [
+                    "docker",
+                    "exec",
+                    "archie_headscale",
+                    "headscale",
+                    "preauthkeys",
+                    "create",
+                    "--user",
+                    "archie-fleet",
+                    "--expiration",
+                    "24h",
+                    "--reusable",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if result.returncode == 0:
+                headscale_key = result.stdout.strip()
+        except Exception:
+            logger.warning("Could not generate Headscale key for repair of %s", node_id)
+
+        mode = node.get("deployment_mode", "starship")
+        compose_file = "docker-compose.starship.yml" if mode == "starship" else "docker-compose.vps.yml"
+        install_dir_linux = "/opt/archie-node"
+        install_dir_win = "C:\\archie-node"
+
+        tailscale_cmd = (
+            f"tailscale up --login-server={headscale_url} --auth-key={headscale_key} --force-reauth"
+            if headscale_key
+            else f"tailscale up --login-server={headscale_url} --force-reauth"
+        )
+
+        cmd_linux = (
+            f"cd {install_dir_linux} && "
+            f"sed -i 's|HUB_URL=.*|HUB_URL={hub_url}|' .env 2>/dev/null || "
+            f"echo 'HUB_URL={hub_url}' >> .env && "
+            f"{tailscale_cmd} && "
+            f"docker compose -f {compose_file} up -d --force-recreate && "
+            f"echo 'Node repair complete — heartbeat will appear in Fleet tab within 30s'"
+        )
+
+        cmd_windows = (
+            f"cd {install_dir_win}; "
+            f"(Get-Content .env) -replace 'HUB_URL=.*', 'HUB_URL={hub_url}' | Set-Content .env; "
+            f"{tailscale_cmd}; "
+            f"docker compose -f {compose_file} up -d --force-recreate; "
+            f"Write-Host 'Node repair complete'"
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "node_id": node_id,
+                "node_name": node["node_name"],
+                "hub_url": hub_url,
+                "headscale_url": headscale_url,
+                "headscale_key_generated": bool(headscale_key),
+                "command_linux": cmd_linux,
+                "command_windows": cmd_windows,
+            }
+        )
 
     @bp.route("/api/nodes/<node_id>/heartbeat", methods=["POST"])
     def node_heartbeat(node_id):

@@ -568,6 +568,7 @@
             <span style="color:#a3e635;margin-left:8px;">&bull;</span> nodes
             <span style="color:#f59e0b;margin-left:8px;">&bull;</span> Contractors
           </span>
+          <button onclick="openRepairNodeModal()" style="float:right;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#ef4444;padding:3px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;margin-right:6px;">⚙ REPAIR NODE</button>
           <button onclick="openAddNodeModal()" style="float:right;background:rgba(0,255,255,0.12);border:1px solid rgba(0,255,255,0.4);color:#00ffff;padding:3px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;">+ ADD NODE</button>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:8px;font-size:0.75rem;">
@@ -772,6 +773,92 @@
         btn.textContent = 'COPIED!';
         setTimeout(() => btn.textContent = 'COPY', 1800);
       });
+    }
+    </script>
+
+    <!-- REPAIR NODE MODAL -->
+    <div id="repairNodeModal" class="bm-overlay" onclick="if(event.target===this)closeRepairNodeModal()" style="display:none;">
+      <div class="bm-shell" style="max-width:520px;width:90%;">
+        <div class="bm-frame" style="background:#0a0e1a;border:1px solid rgba(239,68,68,0.4);border-radius:6px;">
+          <div class="bm-content">
+            <div class="bm-header" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+              <span style="color:#ef4444;font-family:'Antonio',sans-serif;font-size:1rem;letter-spacing:2px;">⚙ REPAIR NODE</span>
+              <div style="flex:1"></div>
+              <button onclick="closeRepairNodeModal()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:1rem;">✕</button>
+            </div>
+            <div class="bm-body">
+              <div style="font-size:0.7rem;color:#aaa;font-family:'IBM Plex Mono',monospace;margin-bottom:10px;">
+                Generate a repair command for an offline or broken node. Fixes HUB_URL, regenerates Headscale key, restarts containers.
+              </div>
+              <div id="repairStep1">
+                <label style="font-size:0.7rem;color:#aaa;font-family:'IBM Plex Mono',monospace;">NODE ID</label>
+                <input id="repairNodeId" type="text" placeholder="e.g. starship_abc123 or outpost_us_001" maxlength="80"
+                  style="width:100%;margin:4px 0 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(239,68,68,0.3);color:#fff;padding:6px 10px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:0.75rem;box-sizing:border-box;">
+                <div style="display:flex;gap:8px;margin-bottom:10px;">
+                  <label style="font-size:0.7rem;color:#aaa;font-family:'IBM Plex Mono',monospace;display:flex;align-items:center;gap:4px;">
+                    <input type="radio" name="repairOs" value="windows" checked> Windows
+                  </label>
+                  <label style="font-size:0.7rem;color:#aaa;font-family:'IBM Plex Mono',monospace;display:flex;align-items:center;gap:4px;">
+                    <input type="radio" name="repairOs" value="linux"> Linux
+                  </label>
+                </div>
+                <button onclick="generateRepairCommand()" id="repairGenBtn"
+                  style="width:100%;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.5);color:#ef4444;padding:8px;border-radius:4px;cursor:pointer;font-size:0.75rem;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;">
+                  GENERATE REPAIR COMMAND →
+                </button>
+              </div>
+              <div id="repairStep2" style="display:none;">
+                <div style="margin-bottom:6px;font-size:0.7rem;color:#aaa;font-family:'IBM Plex Mono',monospace;">
+                  Run this on the broken node machine:
+                </div>
+                <div style="position:relative;">
+                  <textarea id="repairCommand" readonly rows="5"
+                    style="width:100%;background:rgba(0,0,0,0.4);border:1px solid rgba(239,68,68,0.3);color:#ef4444;padding:8px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:0.65rem;resize:none;box-sizing:border-box;"></textarea>
+                  <button onclick="copyRepairCommand()" id="repairCopyBtn"
+                    style="position:absolute;top:6px;right:6px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#ef4444;padding:3px 10px;border-radius:3px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">COPY</button>
+                </div>
+                <div id="repairNote" style="margin-top:8px;font-size:0.65rem;color:#aaa;font-family:'IBM Plex Mono',monospace;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+    function openRepairNodeModal() {
+      document.getElementById('repairNodeModal').style.display = 'flex';
+      document.getElementById('repairStep1').style.display = 'block';
+      document.getElementById('repairStep2').style.display = 'none';
+      document.getElementById('repairNodeId').value = '';
+      document.getElementById('repairNodeId').focus();
+    }
+    function closeRepairNodeModal() {
+      document.getElementById('repairNodeModal').style.display = 'none';
+    }
+    async function generateRepairCommand() {
+      const nodeId = document.getElementById('repairNodeId').value.trim();
+      const os = document.querySelector('input[name="repairOs"]:checked').value;
+      if (!nodeId) { alert('Enter a node ID'); return; }
+      const btn = document.getElementById('repairGenBtn');
+      btn.textContent = 'Generating...'; btn.disabled = true;
+      try {
+        const resp = await fetch(`/tools/department-hq/api/nodes/${encodeURIComponent(nodeId)}/repair-command`, {method:'POST'});
+        const data = await resp.json();
+        if (!data.success) { alert('Error: ' + (data.error || 'Unknown')); btn.textContent = 'GENERATE REPAIR COMMAND →'; btn.disabled = false; return; }
+        const cmd = os === 'windows' ? data.command_windows : data.command_linux;
+        document.getElementById('repairCommand').value = cmd;
+        const keyNote = data.headscale_key_generated ? '✓ Fresh Headscale key baked in (24h)' : '⚠ Headscale key generation failed — you may need to re-enroll manually';
+        document.getElementById('repairNote').textContent = keyNote;
+        document.getElementById('repairStep1').style.display = 'none';
+        document.getElementById('repairStep2').style.display = 'block';
+      } catch(e) { alert('Request failed: ' + e.message); }
+      btn.textContent = 'GENERATE REPAIR COMMAND →'; btn.disabled = false;
+    }
+    function copyRepairCommand() {
+      const ta = document.getElementById('repairCommand');
+      ta.select(); document.execCommand('copy');
+      const btn = document.getElementById('repairCopyBtn');
+      btn.textContent = 'COPIED!'; setTimeout(() => btn.textContent = 'COPY', 2000);
     }
     </script>
 

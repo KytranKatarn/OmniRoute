@@ -224,7 +224,7 @@ networkingMode=mirrored
     }
     catch {
         Write-Host "  [WARN] Mesh join failed: $_" -ForegroundColor Yellow
-        Write-Host "  Manual join: tailscale up --login-server <hub-ip>:8095 --authkey <key>" -ForegroundColor Gray
+        Write-Host "  Manual join: tailscale up --login-server [hub-url] --authkey [key]" -ForegroundColor Gray
     }
 }
 else {

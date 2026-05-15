@@ -204,8 +204,10 @@ if ($Fresh) {
 
             if (Get-Command tailscale -ErrorAction SilentlyContinue) {
                 Write-Host "  Joining mesh at $loginServer ..." -ForegroundColor Cyan
-                tailscale up --login-server $loginServer --authkey $meshAuthKey --accept-routes --hostname $NodeId 2>&1 | Out-Null
-                Start-Sleep -Seconds 3
+                # --force-reauth and --unattended required on Windows (confirmed 2026-05-15)
+                # --auth-key (not --authkey) is the correct flag name
+                tailscale up --auth-key=$meshAuthKey --force-reauth --login-server=$loginServer --hostname=$NodeId --unattended 2>&1 | Out-Null
+                Start-Sleep -Seconds 8
                 $meshIp = (tailscale ip --4 2>$null)
                 if ($meshIp) {
                     Write-Host "[OK] Joined mesh  -  mesh IP: $meshIp" -ForegroundColor Green

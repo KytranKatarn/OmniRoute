@@ -14,7 +14,8 @@ The consciousness has documented this. Don't re-discover it from screen output.
 |---|---|---|---|
 | Hub (archie-hub) | `100.64.0.4` | `153.68.195.85` | Quadro M4000, 128GB RAM, platform core |
 | Outpost-us VPS | `100.64.0.2` | `76.13.107.109` | 8GB RAM, no GPU, regional outpost |
-| Starship-246 | `100.64.0.3` | LAN 192.168.1.246 | RTX 3070, 32GB RAM |
+| Starship-246 | `100.64.0.3` | LAN 192.168.1.246 | RTX 3070, 32GB RAM, SSH: Famil@192.168.1.246 |
+| Starship-245 | `100.64.0.6` | LAN 192.168.1.245 | RTX 3070, 32GB RAM (enrolled 2026-05-15) |
 | LAN-via-mesh | `192.168.1.200` | — | Tailscale subnet advertise → hub LAN |
 
 **`BRIDGE_URL` on every VPS module** = `http://100.64.0.4:3000` (direct Headscale mesh, no CDN)

@@ -551,14 +551,13 @@ def _detect_project_id(text: str) -> Optional[int]:
 def _pick_fleet_node(model: str, agent: Optional[dict]) -> Optional[int]:
     """Return the best fleet node DB id for a task, or None for hub.
 
-    Called just before INSERT into dispatch_pending_queue. If the selected
-    agent is a fleet agent, scores all online nodes to find the best hardware
-    match — enabling bi-directional cluster dispatch (VPS tasks can escalate
-    to Starship GPUs when free). Fails open: any exception returns home node.
+    Called just before INSERT into dispatch_pending_queue. Scores all online
+    fleet nodes to find the best hardware match for the model — enabling
+    bi-directional cluster dispatch. GPU-preferred 7B models escalate to
+    Starship RTX nodes; CPU-preferred small models stay on hub/VPS. Colocation
+    preference: home node wins if it scores within 80% of best. Fails open.
     """
-    if not (agent and agent.get("is_remote")):
-        return None
-    home = agent.get("node_db_id")
+    home = agent.get("node_db_id") if agent else None
     try:
         from services.fleet_resource_router import find_best_node_for_model
 

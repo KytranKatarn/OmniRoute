@@ -362,9 +362,27 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
         task.get("source_product", "unknown"),
     )
     try:
-        # Honour agent's preferred fleet node when warm-model routing didn't pick one
+        # Honour agent's preferred fleet node when warm-model routing didn't pick one.
+        # Verify the node is still online before committing — fall back to hub if stale.
         if not node_id and task.get("preferred_node_id"):
-            node_id = task["preferred_node_id"]
+            preferred = task["preferred_node_id"]
+            try:
+                with get_db_cursor() as (_conn, _cur):
+                    _cur.execute(
+                        """SELECT id FROM remote_nodes
+                           WHERE id = %s AND status = 'online'
+                             AND last_heartbeat > NOW() - INTERVAL '3 minutes'""",
+                        (preferred,),
+                    )
+                    if _cur.fetchone():
+                        node_id = preferred
+                    else:
+                        log.warning(
+                            "model_dispatch: preferred node %d offline — falling back to hub",
+                            preferred,
+                        )
+            except Exception:
+                node_id = preferred  # fail-open: attempt dispatch, let _dispatch_to_node surface the error
 
         if node_id:
             # Route to fleet node

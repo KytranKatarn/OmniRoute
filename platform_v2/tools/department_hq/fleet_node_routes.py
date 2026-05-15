@@ -415,12 +415,16 @@ def register_node_routes(bp, login_required, admin_required):
         """Serve the Windows deploy script (no auth needed)"""
         script_path = "/mnt/archie_brain/node_client/deploy-node.ps1"
         if os.path.exists(script_path):
-            with open(script_path, "r") as f:
+            with open(script_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
             # Replace placeholder URL with actual server URL
             server_url = request.host_url.rstrip("/")
             content = content.replace("http://192.168.1.200:3000", server_url)
+
+            # PowerShell 5.1 on Windows requires CRLF line endings for here-strings.
+            # Source file has LF (Linux); normalize to CRLF before serving.
+            content = content.replace("\r\n", "\n").replace("\n", "\r\n")
 
             from flask import Response
 
@@ -613,6 +617,9 @@ def register_node_routes(bp, login_required, admin_required):
             return jsonify({"error": "deploy-node.ps1 not found"}), 404
         with open(script_path, "r", encoding="utf-8") as f:
             content = f.read()
+        # PowerShell 5.1 on Windows requires CRLF line endings for here-strings (@"..."@).
+        # The source file has LF endings (Linux); normalize to CRLF before serving.
+        content = content.replace("\r\n", "\n").replace("\n", "\r\n")
         return Response(
             content,
             mimetype="text/plain",

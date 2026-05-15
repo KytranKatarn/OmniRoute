@@ -1,5 +1,5 @@
 ###############################################################################
-# A.R.C.H.I.E. Starship Node — Deploy / Update Script (Windows)
+# A.R.C.H.I.E. Starship Node  -  Deploy / Update Script (Windows)
 # ============================================================================
 # Usage:
 #   .\deploy-node.ps1                    # Update existing node
@@ -133,21 +133,21 @@ if ($Fresh) {
         Write-Host "[OK] Backed up existing .env" -ForegroundColor Yellow
     }
 
-    @"
-# A.R.C.H.I.E. Starship Node Configuration
-NODE_ID=$NodeId
-HUB_URL=$HubUrl
-HUB_API_KEY=$HubApiKey
-DB_PASSWORD=$DbPassword
-OLLAMA_PORT=11434
-NODE_API_PORT=3001
-HEARTBEAT_INTERVAL=30
-"@ | Set-Content .env -Encoding UTF8
+    Set-Content .env -Encoding UTF8 -Value @(
+        "# A.R.C.H.I.E. Starship Node Configuration",
+        "NODE_ID=$NodeId",
+        "HUB_URL=$HubUrl",
+        "HUB_API_KEY=$HubApiKey",
+        "DB_PASSWORD=$DbPassword",
+        "OLLAMA_PORT=11434",
+        "NODE_API_PORT=3001",
+        "HEARTBEAT_INTERVAL=30"
+    )
 
     Write-Host "[OK] .env written (node: $NodeId)" -ForegroundColor Green
 
     # =====================================================================
-    # WSL2 mirrored networking — required so Docker containers can reach
+    # WSL2 mirrored networking  -  required so Docker containers can reach
     # hub via LAN (192.168.1.x) and Tailscale mesh (100.64.x.x)
     # =====================================================================
     $wslConfig = "$env:USERPROFILE\.wslconfig"
@@ -162,14 +162,14 @@ HEARTBEAT_INTERVAL=30
         $totalRamGB = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum / 1GB)
         $wslRamGB = [math]::Max(8, $totalRamGB - 4)
         $cpuCount = (Get-CimInstance Win32_Processor | Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum
-        Set-Content $wslConfig @"
-[wsl2]
-memory=${wslRamGB}GB
-processors=$cpuCount
-swap=0
-localhostForwarding=true
-networkingMode=mirrored
-"@ -Encoding UTF8
+        Set-Content $wslConfig -Encoding UTF8 -Value @(
+            "[wsl2]",
+            "memory=${wslRamGB}GB",
+            "processors=$cpuCount",
+            "swap=0",
+            "localhostForwarding=true",
+            "networkingMode=mirrored"
+        )
         Write-Host "[OK] .wslconfig written with networkingMode=mirrored" -ForegroundColor Green
         Write-Host "  Restarting WSL2..." -ForegroundColor Yellow
         wsl --shutdown 2>&1 | Out-Null
@@ -208,7 +208,7 @@ networkingMode=mirrored
                 Start-Sleep -Seconds 3
                 $meshIp = (tailscale ip --4 2>$null)
                 if ($meshIp) {
-                    Write-Host "[OK] Joined mesh — mesh IP: $meshIp" -ForegroundColor Green
+                    Write-Host "[OK] Joined mesh  -  mesh IP: $meshIp" -ForegroundColor Green
                     # Report mesh IP back to Hub
                     $vpnBody = @{ vpn_ip = $meshIp } | ConvertTo-Json
                     Invoke-RestMethod -Uri "$HubUrl/tools/department-hq/api/nodes/$NodeId/settings" -Method Put -Headers $headers -Body $vpnBody -ContentType "application/json" -ErrorAction SilentlyContinue | Out-Null
@@ -216,10 +216,10 @@ networkingMode=mirrored
                     Write-Host "  [WARN] Tailscale joined but mesh IP not yet assigned" -ForegroundColor Yellow
                 }
             } else {
-                Write-Host "  [WARN] Tailscale install failed — mesh join skipped. Join manually." -ForegroundColor Yellow
+                Write-Host "  [WARN] Tailscale install failed  -  mesh join skipped. Join manually." -ForegroundColor Yellow
             }
         } else {
-            Write-Host "  [WARN] Hub returned no auth key — mesh join skipped" -ForegroundColor Yellow
+            Write-Host "  [WARN] Hub returned no auth key  -  mesh join skipped" -ForegroundColor Yellow
         }
     }
     catch {

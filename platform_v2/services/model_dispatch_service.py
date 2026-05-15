@@ -104,6 +104,37 @@ def _claim_tasks(model_needed: str, limit: int = MAX_TASKS_PER_MODEL) -> list[di
         return []
 
 
+def _claim_preferred_node_tasks(limit: int = 2) -> list:
+    """Claim tasks pinned to a fleet node regardless of warm-model state.
+
+    These tasks bypass the warm-model filter — the node will cold-load the
+    model if needed. Capped at 2/cycle to avoid starving hub warm tasks.
+    """
+    try:
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                """
+                UPDATE dispatch_pending_queue
+                SET status = 'running', claimed_at = NOW()
+                WHERE id IN (
+                    SELECT id FROM dispatch_pending_queue
+                    WHERE status = 'queued'
+                      AND preferred_node_id IS NOT NULL
+                      AND (expires_at IS NULL OR expires_at > NOW())
+                    ORDER BY priority DESC, queued_at ASC
+                    LIMIT %s
+                    FOR UPDATE SKIP LOCKED
+                )
+                RETURNING *
+                """,
+                (limit,),
+            )
+            return [dict(r) for r in cur.fetchall()]
+    except Exception as exc:
+        log.error("model_dispatch: claim_preferred_node_tasks failed: %s", exc)
+        return []
+
+
 def _mark_done(task_id: int, response: str, model_used: str, tokens: int, node_id: Optional[int]) -> None:
     try:
         with get_db_cursor(commit=True) as (_conn, cur):
@@ -331,6 +362,10 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
         task.get("source_product", "unknown"),
     )
     try:
+        # Honour agent's preferred fleet node when warm-model routing didn't pick one
+        if not node_id and task.get("preferred_node_id"):
+            node_id = task["preferred_node_id"]
+
         if node_id:
             # Route to fleet node
             from tools.department_hq.services.department_dispatcher import get_dispatcher
@@ -679,6 +714,13 @@ def model_dispatch_worker() -> None:
         tasks = _claim_tasks(model_name, limit=remaining)
         for task in tasks:
             _execute_task(task, node_id=node_id)
+            total_executed += 1
+
+    # 3.5 Drain tasks pinned to fleet nodes (cold-load acceptable)
+    if total_executed < MAX_TASKS_PER_CYCLE:
+        preferred_tasks = _claim_preferred_node_tasks(limit=2)
+        for task in preferred_tasks:
+            _execute_task(task)  # node_id resolved from task["preferred_node_id"]
             total_executed += 1
 
     # 4. If capacity remaining and nothing was warm for the queue,

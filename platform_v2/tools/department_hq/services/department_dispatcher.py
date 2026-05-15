@@ -5399,8 +5399,8 @@ class DepartmentDispatcher:
                                 (capability, model_needed, model_type, prompt,
                                  system_prompt, json_mode, agent_name, agent_id,
                                  module_id, source_product, requested_by,
-                                 user_id, priority)
-                            VALUES (%s,%s,'llama',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                                 user_id, priority, preferred_node_id)
+                            VALUES (%s,%s,'llama',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                             RETURNING id
                             """,
                             (
@@ -5416,6 +5416,9 @@ class DepartmentDispatcher:
                                 agent.get("name") if agent else "dispatcher",
                                 user_id,
                                 _cpu_priority_int,
+                                # Fleet agents carry their node's DB id so
+                                # model_dispatch_worker routes to the right hardware
+                                agent.get("node_db_id") if (agent and agent.get("is_remote")) else None,
                             ),
                         )
                         _cpu_row = _qcur2.fetchone()

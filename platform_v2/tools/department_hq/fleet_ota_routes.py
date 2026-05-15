@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -560,4 +561,80 @@ def register_ota_routes(bp, auth_decorator):
                 )
         except Exception as e:
             logger.exception("Failed to get sync status for node %s", node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    # ── Node-authenticated OTA polling endpoints ──────────────────────────
+
+    def _verify_node_key(node_id_str: str, api_key: str) -> bool:
+        """Verify a node's API key against the stored hash."""
+        if not api_key:
+            return False
+        key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT api_key_hash FROM remote_nodes WHERE node_id=%s AND is_active=TRUE",
+                    (node_id_str,),
+                )
+                row = cur.fetchone()
+            return bool(row and row["api_key_hash"] == key_hash)
+        except Exception:
+            return False
+
+    @bp.route("/api/nodes/<node_id>/pending-commands", methods=["GET"])
+    def api_pending_commands(node_id):
+        """Return unacknowledged sync commands for a node (node-auth)."""
+        if not _verify_node_key(node_id, request.headers.get("X-Node-API-Key", "")):
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT id, sync_type, payload
+                    FROM mesh_sync_log
+                    WHERE node_id = %s AND status = 'sent' AND acknowledged_at IS NULL
+                    ORDER BY sent_at ASC LIMIT 10
+                    """,
+                    (node_id,),
+                )
+                commands = [
+                    {"id": r["id"], "sync_type": r["sync_type"], "payload": r["payload"] or {}} for r in cur.fetchall()
+                ]
+            return jsonify({"success": True, "commands": commands})
+        except Exception:
+            logger.exception("pending-commands failed for %s", node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    @bp.route("/api/nodes/<node_id>/ack-command/<int:sync_id>", methods=["POST"])
+    def api_ack_command(node_id, sync_id):
+        """Node acknowledges a sync command with result (node-auth)."""
+        if not _verify_node_key(node_id, request.headers.get("X-Node-API-Key", "")):
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
+        data = request.get_json() or {}
+        import psycopg2.extras
+
+        status = "acknowledged" if data.get("success") else "error"
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    UPDATE mesh_sync_log
+                    SET status = %s,
+                        acknowledged_at = NOW(),
+                        result_payload = %s,
+                        error_message = %s
+                    WHERE id = %s AND node_id = %s
+                    """,
+                    (
+                        status,
+                        psycopg2.extras.Json(data.get("result", {})),
+                        data.get("error"),
+                        sync_id,
+                        node_id,
+                    ),
+                )
+            logger.info("Node %s acked sync command #%d — %s", node_id, sync_id, status)
+            return jsonify({"success": True})
+        except Exception:
+            logger.exception("ack-command failed for %s #%d", node_id, sync_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500

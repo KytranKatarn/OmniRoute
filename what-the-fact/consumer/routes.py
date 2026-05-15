@@ -220,7 +220,8 @@ def news():
     return render_template("news.html", articles=rows, source_count=source_count,
                            total=total, page=page, total_pages=total_pages,
                            page_size=PAGE_SIZE, band_filter=band_filter,
-                           sources=[dict(s) for s in sources])
+                           sources=[dict(s) for s in sources],
+                           is_subscriber=is_subscriber())
 
 
 @bp.get("/activity")
@@ -354,7 +355,8 @@ def index():
         source_count = c.execute(
             text(f"SELECT COUNT(*) FROM {S}.sources")
         ).scalar() or 0
-    return render_template("index.html", articles=rows, wtf_tech_url=wtf_tech_url, source_count=source_count)
+    return render_template("index.html", articles=rows, wtf_tech_url=wtf_tech_url,
+                           source_count=source_count, is_subscriber=is_subscriber())
 
 
 @bp.get("/article/<int:article_id>")

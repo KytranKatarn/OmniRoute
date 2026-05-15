@@ -115,7 +115,7 @@
     {% elif a.bias_rationale or a.trigger_phrases %}
     <div class="wtf-paywall-inline">
       🔒 <a href="/login?next=/article/{{ a.id }}">Sign in</a> or
-      <a href="https://business.kytranempowerment.com/billing/checkout?product=membership_starter&amp;tier=starter&amp;return_url=https://what-the-fact.com/article/{{ a.id }}">Subscribe</a>
+      <a href="/billing/checkout/starter">Subscribe</a>
       to unlock B.I.A.S. rationale &amp; trigger phrases
     </div>
     {% endif %}
@@ -151,7 +151,7 @@
         Subscribe to see claim-by-claim verdicts and reasoning.
       </div>
       <div class="wtf-paywall-panel-actions">
-        <a href="https://business.kytranempowerment.com/billing/checkout?product=membership_starter&amp;tier=starter&amp;return_url=https://what-the-fact.com/article/{{ a.id }}" class="wtf-paywall-cta">Subscribe — Starter</a>
+        <a href="/billing/checkout/starter" class="wtf-paywall-cta">Subscribe — $19/mo</a>
         <a href="/login?next=/article/{{ a.id }}" class="wtf-paywall-signin">Already subscribed? Sign in →</a>
       </div>
     </div>

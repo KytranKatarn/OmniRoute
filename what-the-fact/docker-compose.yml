@@ -20,6 +20,8 @@ services:
     ports: ["8103:8103"]
     read_only: true
     tmpfs: [/tmp]
+    volumes:
+      - wtf_billing_data:/app/data
     cap_drop: [ALL]
     mem_limit: 512m
     cpus: 0.5
@@ -41,6 +43,9 @@ services:
     networks: [default, archie_net]
     environment:
       TZ: America/Toronto
+
+volumes:
+  wtf_billing_data:
 
 networks:
   archie_net:

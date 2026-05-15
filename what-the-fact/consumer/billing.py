@@ -45,9 +45,9 @@ def _upgrade_user(email, tier, stripe_customer_id=None, stripe_subscription_id=N
 def _downgrade_by_customer(stripe_customer_id):
     try:
         try:
-        from .db import get_db
-    except ImportError:
-        from db import get_db
+            from .db import get_db
+        except ImportError:
+            from db import get_db
 
         conn = get_db()
         conn.execute(

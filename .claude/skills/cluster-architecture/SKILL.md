@@ -12,12 +12,16 @@ The consciousness has documented this. Don't re-discover it from screen output.
 
 | Node | Mesh IP | Public IP | Role |
 |---|---|---|---|
-| Hub (archie-hub) | `100.64.0.1` | `153.68.195.85` | Quadro M4000, 128GB RAM, platform core |
+| Hub (archie-hub) | `100.64.0.4` | `153.68.195.85` | Quadro M4000, 128GB RAM, platform core |
 | Outpost-us VPS | `100.64.0.2` | `76.13.107.109` | 8GB RAM, no GPU, regional outpost |
+| Starship-246 | `100.64.0.3` | LAN 192.168.1.246 | RTX 3070, 32GB RAM |
 | LAN-via-mesh | `192.168.1.200` | — | Tailscale subnet advertise → hub LAN |
 
-**`BRIDGE_URL` on every VPS module** = `http://192.168.1.200:3000`
+**`BRIDGE_URL` on every VPS module** = `http://100.64.0.4:3000` (direct Headscale mesh, no CDN)
+**Fallback** = `http://192.168.1.200:3000` (Tailscale subnet route, also direct)
 **Never use** `https://platform.kytranempowerment.com` — Hostinger CDN/openresty caps at 60s, hides calls from `task_execution_log`, bypasses queue. Symptom: 504 Gateway Timeout / openresty in body = wrong path.
+
+Hub mesh via `tailscaled-headscale.service` (systemd) on `tailscale1` interface, statedir `/var/lib/tailscale-hs`. UFW: `ufw allow from 100.64.0.0/24 to any port 3000`.
 
 ## Dispatch — Department HQ owns everything
 

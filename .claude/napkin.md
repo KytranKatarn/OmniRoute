@@ -32,6 +32,25 @@
 3. **[2026-04-15] Feature branches mandatory**
    Do instead: Never push to main. Create feat/fix/chore branch + PR via `gh pr create`.
 
+## Infrastructure & Mesh (CRITICAL)
+1. **[2026-05-15] Hub Headscale mesh IP = 100.64.0.4 (NOT 100.64.0.1 — deleted)**
+   Do instead: All VPS→hub calls use `http://100.64.0.4:3000`. NEVER `https://platform.kytranempowerment.com` (CDN caps at 60s). UFW allows `100.64.0.0/24 → port 3000`.
+
+2. **[2026-05-15] tailscaled-headscale.service needs ExecStartPre for stale socket**
+   Do instead: Unit must have `ExecStartPre=/bin/rm -f /tmp/tailscaled.sock` before ExecStart. Restart=always alone won't recover from stale socket.
+
+3. **[2026-05-15] Docker read_only containers — writable dirs need tmpfs or named volumes**
+   Do instead: For persistence (billing DBs, data) use named volumes. For temp-only, use `tmpfs: /tmp`. Billing SQLite must NOT be on tmpfs (lost on restart).
+
+4. **[2026-05-15] VPS Stripe env vars must be in docker-compose environment: block**
+   Do instead: Even if vars are in `.env`, they must be explicitly listed in `environment:` section of docker-compose.yml — they don't auto-inject into containers otherwise.
+
+5. **[2026-05-15] WTF_DATABASE_URL must use container hostname, not 127.0.0.1**
+   Do instead: Use `postgresql+psycopg2://user:pass@wtf_db/wtf` (container service name). `127.0.0.1` fails inside Docker.
+
+6. **[2026-05-15] stripe must be in ROOT requirements.txt for Docker builds**
+   Do instead: Dockerfile installs ROOT `requirements.txt`, not `consumer/requirements.txt`. Always add deps to root file for VPS services.
+
 ## Domain Behavior Guardrails
 1. **[2026-04-15] All LLM inference through Bridge dispatcher**
    Do instead: `from tools.department_hq.services.bridge_dispatcher import dispatch` — never direct Ollama.

@@ -553,9 +553,14 @@ def send_with_buttons(
     if not token:
         return {"sent": False, "reason": "no bot token configured"}
 
+    import re as _re
+
     cat_info = CATEGORIES.get(category, CATEGORIES["info"])
     emoji = cat_info["icon"]
-    tg_text = f"{emoji} *{title}*\n\n{message}"
+    # Escape Markdown v1 special chars in user-generated content to prevent
+    # Telegram 400 "can't parse entities" when post content contains _, *, `, [
+    _safe_msg = _re.sub(r"([_*`\[])", r"\\\1", message)
+    tg_text = f"{emoji} *{title}*\n\n{_safe_msg}"
 
     target = _get_chat_id()
     if not target:

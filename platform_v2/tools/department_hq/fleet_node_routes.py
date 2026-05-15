@@ -1102,21 +1102,32 @@ def register_node_routes(bp, login_required, admin_required):
             logger.warning("Could not generate Headscale key for repair of %s", node_id)
 
         mode = node.get("deployment_mode", "starship")
-        compose_file = "docker-compose.starship.yml" if mode == "starship" else "docker-compose.vps.yml"
+        # deploy-node.ps1 always creates docker-compose.yml (not .starship.yml)
+        compose_file = "docker-compose.yml" if mode == "starship" else "docker-compose.vps.yml"
         install_dir_linux = "/opt/archie-node"
         install_dir_win = "C:\\archie-node"
+        node_hostname = node.get("node_name", "archie-node").lower().replace(" ", "-")
 
-        tailscale_cmd = (
+        # Linux tailscale command
+        tailscale_linux = (
             f"tailscale up --login-server={headscale_url} --auth-key={headscale_key} --force-reauth"
             if headscale_key
             else f"tailscale up --login-server={headscale_url} --force-reauth"
+        )
+        # Windows tailscale requires --hostname and --unattended (confirmed 2026-05-15 on .246)
+        tailscale_win = (
+            f"tailscale up --auth-key={headscale_key} --force-reauth"
+            f" --login-server={headscale_url} --hostname={node_hostname} --unattended"
+            if headscale_key
+            else f"tailscale up --force-reauth --login-server={headscale_url}"
+            f" --hostname={node_hostname} --unattended"
         )
 
         cmd_linux = (
             f"cd {install_dir_linux} && "
             f"sed -i 's|HUB_URL=.*|HUB_URL={hub_url}|' .env 2>/dev/null || "
             f"echo 'HUB_URL={hub_url}' >> .env && "
-            f"{tailscale_cmd} && "
+            f"{tailscale_linux} && "
             f"docker compose -f {compose_file} up -d --force-recreate && "
             f"echo 'Node repair complete — heartbeat will appear in Fleet tab within 30s'"
         )
@@ -1124,9 +1135,9 @@ def register_node_routes(bp, login_required, admin_required):
         cmd_windows = (
             f"cd {install_dir_win}; "
             f"(Get-Content .env) -replace 'HUB_URL=.*', 'HUB_URL={hub_url}' | Set-Content .env; "
-            f"{tailscale_cmd}; "
+            f"{tailscale_win}; "
             f"docker compose -f {compose_file} up -d --force-recreate; "
-            f"Write-Host 'Node repair complete'"
+            f"Write-Host 'Node repair complete — check Fleet tab in 30s'"
         )
 
         return jsonify(

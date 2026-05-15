@@ -9,7 +9,7 @@ services:
     cap_drop: [ALL]
     mem_limit: 512m
     cpus: 0.5
-
+    networks: [default, archie_net]
     environment:
       TZ: America/Toronto
   wtf-consumer:

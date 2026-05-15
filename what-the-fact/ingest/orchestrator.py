@@ -19,7 +19,7 @@ BREAKING_KEYWORDS = [
     "explosion",
     "resign",
 ]
-MAX_PRIORITY_PER_CYCLE = 10
+MAX_PRIORITY_PER_CYCLE = 20  # bumped from 10 after source count doubled (15 → 31)
 
 
 def score_priority(title: str, heuristic_bias_score: float, cross_source_count: int) -> int:

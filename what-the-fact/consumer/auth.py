@@ -14,6 +14,7 @@ auth_bp = Blueprint("auth", __name__)
 _PLATFORM = os.environ.get("WTF_PLATFORM_URL", "https://platform.kytranempowerment.com")
 _CLIENT_ID = os.environ.get("WTF_CLIENT_ID", "wtf-consumer")
 _CLIENT_SECRET = os.environ.get("WTF_CLIENT_SECRET", "")
+_CALLBACK_URL = os.environ.get("WTF_CALLBACK_URL", "")
 _SUBSCRIBED_TIERS = {"starter", "professional", "enterprise", "vip", "pro", "business", "kytran", "owner", "admin"}
 
 
@@ -43,7 +44,7 @@ def current_username() -> str | None:
 def login():
     next_url = request.args.get("next", "/")
     session["wtf_next"] = next_url
-    callback_url = request.url_root.rstrip("/") + "/auth/callback"
+    callback_url = _CALLBACK_URL or (request.url_root.rstrip("/") + "/auth/callback")
     authorize_url = (
         f"{_PLATFORM}/oauth/authorize"
         f"?client_id={urllib.parse.quote(_CLIENT_ID)}"
@@ -59,7 +60,7 @@ def callback():
     if not code:
         return redirect("/")
 
-    callback_url = request.url_root.rstrip("/") + "/auth/callback"
+    callback_url = _CALLBACK_URL or (request.url_root.rstrip("/") + "/auth/callback")
     try:
         payload = urllib.parse.urlencode(
             {

@@ -402,3 +402,10 @@ def article(article_id: int):
 
     return render_template("article.html", a=a, wtf_tech_url=wtf_tech_url,
                            is_subscriber=subscribed)
+
+
+@bp.route("/api/health")
+def health():
+    from datetime import datetime, timezone
+    from flask import jsonify
+    return jsonify({"status": "ok", "product": "what-the-fact", "timestamp": datetime.now(timezone.utc).isoformat()})

@@ -129,6 +129,62 @@ def is_stale(node: dict[str, Any], seconds: int = STALE_HEARTBEAT_SECONDS) -> bo
     return (datetime.now(timezone.utc) - last_hb) > timedelta(seconds=seconds)
 
 
+def find_best_node_for_model(model: str, home_node_db_id: Optional[int] = None) -> Optional[int]:
+    """Find the best online fleet node for a given model.
+
+    Scores all online nodes against the model. If a node scores significantly
+    better than the agent's home node (e.g. GPU Starship vs CPU VPS), escalate
+    there instead — enabling bi-directional cluster dispatch.
+
+    Colocation preference: if home node scores within 80% of best, keep home.
+    This ensures news-team VPS agents stay on VPS for 1.5b models (GPU nodes
+    score lower for CPU-preferred small models anyway).
+
+    Returns the integer DB id of the best node, or ``home_node_db_id`` if no
+    improvement is found. Returns ``None`` only when there are no online nodes.
+    """
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, node_id, node_name, gpu_available, gpu_vram_gb,
+                       ram_gb, current_load, max_concurrent, priority,
+                       last_heartbeat, extra_capabilities
+                FROM remote_nodes
+                WHERE is_active = TRUE
+                  AND status = 'online'
+                  AND last_heartbeat > NOW() - INTERVAL '3 minutes'
+                ORDER BY priority DESC NULLS LAST
+                """,
+            )
+            nodes = [dict(r) for r in cur.fetchall()]
+    except Exception:
+        return home_node_db_id
+
+    best_db_id = home_node_db_id
+    best_score: Optional[float] = None
+    home_score: Optional[float] = None
+
+    for node in nodes:
+        score = score_node_for_model(node, model)
+        if score is None:
+            continue
+        if node["id"] == home_node_db_id:
+            home_score = score
+        if best_score is None or score > best_score:
+            best_score = score
+            best_db_id = node["id"]
+
+    # Keep home node when it's within 80% of the best score — colocation wins
+    if home_score is not None and best_score is not None and best_score > 0:
+        if home_score >= best_score * 0.80:
+            return home_node_db_id
+
+    return best_db_id
+
+
 def should_dispatch_to_node(node: dict[str, Any], model: str, enforce: bool) -> tuple[bool, str]:
     """Pre-dispatch capacity guard.
 

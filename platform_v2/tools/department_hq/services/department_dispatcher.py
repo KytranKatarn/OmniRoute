@@ -548,6 +548,25 @@ def _detect_project_id(text: str) -> Optional[int]:
     return min(best_pids)
 
 
+def _pick_fleet_node(model: str, agent: Optional[dict]) -> Optional[int]:
+    """Return the best fleet node DB id for a task, or None for hub.
+
+    Called just before INSERT into dispatch_pending_queue. If the selected
+    agent is a fleet agent, scores all online nodes to find the best hardware
+    match — enabling bi-directional cluster dispatch (VPS tasks can escalate
+    to Starship GPUs when free). Fails open: any exception returns home node.
+    """
+    if not (agent and agent.get("is_remote")):
+        return None
+    home = agent.get("node_db_id")
+    try:
+        from services.fleet_resource_router import find_best_node_for_model
+
+        return find_best_node_for_model(model, home)
+    except Exception:
+        return home
+
+
 class DepartmentDispatcher:
     """
     Central dispatch system for all AI work on the ARCHIE Platform.
@@ -5416,9 +5435,11 @@ class DepartmentDispatcher:
                                 agent.get("name") if agent else "dispatcher",
                                 user_id,
                                 _cpu_priority_int,
-                                # Fleet agents carry their node's DB id so
-                                # model_dispatch_worker routes to the right hardware
-                                agent.get("node_db_id") if (agent and agent.get("is_remote")) else None,
+                                # Bi-directional fleet routing: score all online nodes and
+                                # escalate to better hardware when available (e.g. GPU Starship
+                                # beats CPU VPS for GPU-preferred models). Colocation wins when
+                                # home node scores within 80% of best.
+                                _pick_fleet_node(model, agent),
                             ),
                         )
                         _cpu_row = _qcur2.fetchone()

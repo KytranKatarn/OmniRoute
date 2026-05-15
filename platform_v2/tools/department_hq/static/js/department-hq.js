@@ -1511,7 +1511,7 @@ function renderSignalShell() {
     return '<div class="signal-accounts">'
         + '<button class="signal-acct-btn active" data-account="personal" onclick="switchSignalAccount(\'personal\')">👤 Kytran Katarn</button>'
         + '<button class="signal-acct-btn" data-account="company" onclick="switchSignalAccount(\'company\')">🏢 Kytran Empowerment Inc.</button>'
-        + '<button class="signal-acct-btn signal-acct-soon" disabled>🔒 Creed-AI <span class="signal-soon-badge">SOON</span></button>'
+        + '<button class="signal-acct-btn" data-account="creed" onclick="switchSignalAccount(\'creed\')">⚖️ Creed-AI</button>'
         + '</div>'
         + '<div class="signal-subtabs">'
         + '<button class="signal-sub active" data-sub="overview" onclick="switchSignalTab(\'overview\')">Overview</button>'

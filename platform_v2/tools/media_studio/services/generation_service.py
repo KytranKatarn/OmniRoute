@@ -1395,6 +1395,16 @@ def get_image_providers() -> dict:
 
     try:
         with get_db_cursor() as (conn, cur):
+            # Active API keys — used to decide which paid providers should be
+            # selectable in the dropdown. Free providers (Pollinations, etc.)
+            # bypass the key check.
+            cur.execute(
+                "SELECT provider FROM external_api_keys "
+                "WHERE is_active = true AND api_key_encrypted IS NOT NULL "
+                "AND api_key_encrypted != ''"
+            )
+            active_keys = {r["provider"] for r in cur.fetchall()}
+
             cur.execute(
                 """SELECT provider_key, display_name
                    FROM contractor_providers
@@ -1406,11 +1416,18 @@ def get_image_providers() -> dict:
                 if pk in ("comfyui", "ollama_diffuser"):
                     continue
                 is_free = pk in FREE_PROVIDERS
-                suffix = " (free)" if is_free else " ($)"
+                needs_key = (not is_free) and (pk not in active_keys)
+                if is_free:
+                    suffix = " (free)"
+                elif needs_key:
+                    suffix = " ($) — needs API key"
+                else:
+                    suffix = " ($)"
                 entry = {
                     "value": f"provider:{pk}",
                     "label": f"{row['display_name']}{suffix}",
                     "free": is_free,
+                    "needs_key": needs_key,
                 }
                 target = result["cloud_free"] if is_free else result["cloud_paid"]
                 target.append(entry)

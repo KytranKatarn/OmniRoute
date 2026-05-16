@@ -2310,6 +2310,14 @@
             var o = document.createElement('option');
             o.value = it.value;
             o.textContent = it.label;
+            // Backend marks paid providers without an active API key as
+            // needs_key=true. Show them so users see what's possible, but
+            // disable selection — they should add a key in DHQ → Contractors
+            // before using.
+            if (it.needs_key) {
+                o.disabled = true;
+                o.title = 'Add an API key in Department HQ → Contractors to enable.';
+            }
             og.appendChild(o);
         });
         return og;

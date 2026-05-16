@@ -1954,51 +1954,34 @@ class DepartmentDispatcher:
             logger.warning(f"[BridgeDispatcher] Failed to create fleet bridge_job: {job_err} — aborting fleet dispatch")
             return None
 
-        # Auto warm-boot: ensure model loaded on node before calling
-        try:
-            readiness = self.ensure_model_ready(
-                agent_name, model, target_host={"hostname": hostname, "port": port, "node_db_id": node_id}
-            )
-            if readiness and not readiness.get("ready"):
-                logger.warning(f"[BridgeDispatcher] Node model {model} not ready on {node_name} — skipping")
-                return None
-        except Exception as wb_err:
-            logger.warning(f"[BridgeDispatcher] Node warm boot check failed: {wb_err} — skipping")
-            return None
-
-        # Call the node's Ollama API
+        # Call the node's Ollama API directly via mesh_ip — no local warm-boot
+        # check; Ollama loads models on-demand and the timeout covers cold load.
         try:
             payload = {
                 "model": model,
                 "prompt": prompt,
                 "stream": False,
+                "keep_alive": "5m",
             }
             if system_prompt:
                 payload["system"] = system_prompt
             if options:
                 payload["options"] = options
 
+            # Use the fleet node's mesh_ip:port directly (canonical mesh transport).
+            # Never use _node_url / build_options here — those resolve to hub Ollama.
+            _gen_url = f"http://{hostname}:{port}/api/generate"
             logger.info(
-                f"[BridgeDispatcher] Dispatching to fleet node {node_name} "
-                f"({hostname}:{port}) agent={agent_name} model={model}"
+                "[BridgeDispatcher] Fleet dispatch → %s (%s) agent=%s model=%s",
+                node_name,
+                _gen_url,
+                agent_name,
+                model,
             )
-
-            _opts = build_options(
-                model=model,
-                target_node=None,  # select_node picks hub or fleet via build_options
-                prompt_tokens_hint=len(prompt) // 4 if prompt else 0,
-                keep_alive="5m",
-            )
-            _gen_url = f"{_node_url(_opts['target_node_id'])}/api/generate"
-            if options:
-                payload["options"] = {**_opts["options"], **options}
-            else:
-                payload["options"] = _opts["options"]
-            payload["keep_alive"] = _opts["keep_alive"]
             resp = requests.post(
                 _gen_url,
                 json=payload,
-                timeout=15,
+                timeout=120,  # VPS CPU cold load can take 40-90s for small models
             )
             logger.info(
                 "placement: node=%s model=%s placement=%s reason=%s",

@@ -1111,4 +1111,59 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered scout_platform_ux_check job (Sunday 9:00 AM)")
 
+    # -------------------------------------------------------------------------
+    # Job #120: Dispatch queue zombie reaper — expire stale running rows
+    # -------------------------------------------------------------------------
+    def _run_dispatch_zombie_reaper():
+        """Expire dispatch_pending_queue rows stuck in 'running' for >30 min.
+
+        Platform restarts orphan in-flight rows at 'running' status. Without
+        this reaper they accumulate indefinitely, making the CLUSTER ACTIVITY
+        panel show false counts and blocking queue health checks.
+        """
+        try:
+            from database import get_db_cursor
+            from services.telegram_service import send_system
+
+            with get_db_cursor(commit=True) as (_, cur):
+                cur.execute(
+                    """
+                    UPDATE dispatch_pending_queue
+                       SET status = 'failed'
+                     WHERE status = 'running'
+                       AND queued_at < NOW() - INTERVAL '30 minutes'
+                    RETURNING id, agent_name, capability
+                    """
+                )
+                reaped = cur.fetchall() or []
+
+            if reaped:
+                summary = ", ".join(f"{r['agent_name']}/{r['capability']}" for r in reaped[:5])
+                if len(reaped) > 5:
+                    summary += f" +{len(reaped) - 5} more"
+                logger.warning(
+                    "[DeptHQ] Zombie reaper: expired %d stuck running tasks — %s",
+                    len(reaped),
+                    summary,
+                )
+                try:
+                    send_system(
+                        f"⚠️ Queue zombie reaper: expired {len(reaped)} tasks " f"stuck >30 min.\nAgents: {summary}"
+                    )
+                except Exception:
+                    pass
+            else:
+                logger.debug("[DeptHQ] Zombie reaper: queue clean")
+        except Exception as exc:
+            logger.error("[DeptHQ] Zombie reaper failed: %s", exc)
+
+    scheduler.add_job(
+        with_ctx(_run_dispatch_zombie_reaper),
+        trigger=CronTrigger(minute="*/15", timezone="America/Toronto"),
+        id="dispatch_zombie_reaper",
+        name="Queue: Expire zombie running tasks (>30 min)",
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered dispatch_zombie_reaper job (every 15 min)")
+
     logger.info("[DeptHQ] Registered 12 code health/audit jobs")

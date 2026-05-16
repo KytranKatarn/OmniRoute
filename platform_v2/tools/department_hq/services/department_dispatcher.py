@@ -1808,6 +1808,50 @@ class DepartmentDispatcher:
             logger.warning(f"[BridgeDispatcher] Node assignment lookup failed for agent {hub_agent_id}: {e}")
             return None
 
+    def _get_fleet_node_for_dispatch(self, node_db_id: int, model: str, agent: Optional[Dict]) -> Optional[Dict]:
+        """Build an agent_info dict for _dispatch_to_node() from a remote_nodes integer id.
+
+        Uses mesh_ip as the transport host (canonical cluster architecture —
+        never public hostnames). Returns None if node is offline or unreachable.
+        """
+        try:
+            from psycopg2.extras import RealDictCursor
+
+            conn = self._get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT node_id, node_name, mesh_ip, hostname, port, status
+                FROM remote_nodes
+                WHERE id = %s
+                  AND status = 'online'
+                  AND last_heartbeat > NOW() - INTERVAL '3 minutes'
+                """,
+                (node_db_id,),
+            )
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            if not row:
+                return None
+            # Prefer mesh_ip — canonical inter-cluster transport (ADR mesh mandate)
+            host = row.get("mesh_ip") or row.get("hostname") or ""
+            if not host:
+                return None
+            agent_name = (agent.get("name") if agent else None) or "hub_agent"
+            return {
+                "agent_name": agent_name,
+                "model": model,
+                "node_hostname": host,
+                "node_port": row.get("port") or 11434,
+                "node_id": row["node_id"],
+                "node_name": row["node_name"],
+                "conn_type": "mesh",
+            }
+        except Exception as exc:
+            logger.debug("[BridgeDispatcher] _get_fleet_node_for_dispatch failed: %s", exc)
+            return None
+
     def _dispatch_to_node(
         self,
         agent_info: Dict,
@@ -4833,6 +4877,60 @@ class DepartmentDispatcher:
                         )
                         self._log_execution(_node_result, module_id, user_id, job_id=job_id)
                         return _node_result
+
+        # 1b. Score-based warm-path fleet routing — fires when no explicit
+        #     node_agents entry exists. _pick_fleet_node() scores all online
+        #     nodes; if a Starship or VPS wins (>20% better than hub), route
+        #     the warm-model call there via mesh_ip. Fails open — any error
+        #     falls through to normal hub execution. Gated by agent-mobility
+        #     toggle (fleet_node_routing_enabled in system_config).
+        if agent and _fleet_routing_enabled():
+            _wp_node_id = _pick_fleet_node(model, agent if isinstance(agent, dict) else {})
+            if _wp_node_id is not None:
+                _wp_info = self._get_fleet_node_for_dispatch(
+                    _wp_node_id, model, agent if isinstance(agent, dict) else None
+                )
+                if _wp_info:
+                    logger.info(
+                        "[BridgeDispatcher] Score-routing '%s' (%s) → %s via mesh",
+                        capability,
+                        model,
+                        _wp_info["node_name"],
+                    )
+                    _wp_res = self._dispatch_to_node(
+                        agent_info=_wp_info,
+                        prompt=prompt,
+                        system_prompt=system_prompt,
+                        options={"temperature": 0.7},
+                        capability=capability,
+                        module_id=module_id,
+                        station_code=station_code,
+                        user_id=user_id,
+                        job_id=job_id,
+                    )
+                    if _wp_res and _wp_res.get("success"):
+                        _wp_dur = int((time.time() - start) * 1000)
+                        _wp_result = DispatchResult(
+                            success=True,
+                            response=_wp_res.get("response", ""),
+                            agent_name=(_wp_info["agent_name"]),
+                            agent_id=agent.get("id") if isinstance(agent, dict) else None,
+                            model_used=model,
+                            department=dispatch_department,
+                            capability=capability,
+                            duration_ms=_wp_dur,
+                            prompt_tokens=_wp_res.get("prompt_tokens", 0),
+                            completion_tokens=_wp_res.get("completion_tokens", 0),
+                            provider="fleet_node",
+                            metadata={
+                                "escalation": "score_routed",
+                                "node_name": _wp_info["node_name"],
+                                "node_id": _wp_info["node_id"],
+                                "is_remote": True,
+                            },
+                        )
+                        self._log_execution(_wp_result, module_id, user_id, job_id=job_id)
+                        return _wp_result
 
         # 2. Fallback if no agent found — try cross-department, then fleet, then cloud
         department_exhausted = False

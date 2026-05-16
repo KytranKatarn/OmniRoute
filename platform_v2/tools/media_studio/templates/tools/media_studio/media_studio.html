@@ -489,6 +489,13 @@
                     <option value="action pose">Action</option>
                     <option value="LCARS holographic">Holographic</option>
                 </select>
+                <select id="ms-variant-model" class="ms-model-select" title="Image model">
+                    <option value="">Auto (fleet-aware)</option>
+                    <option value="sd_xl_base_1.0.safetensors">SDXL Base 1.0</option>
+                    <option value="RealVisXL_V4.0.safetensors">RealVisXL v4 (photorealistic)</option>
+                    <option value="sdxl_turbo.safetensors">SDXL Turbo (fast preview)</option>
+                    <option value="juggernautXL_v9.safetensors">Juggernaut XL v9 (cinematic)</option>
+                </select>
             </div>
 
             <div id="ms-variant-grid" class="ms-recent-grid">
@@ -2835,10 +2842,14 @@
     window.generateVariant = function() {
         if (!_currentAgentId) return;
         var style = document.getElementById('ms-variant-style').value;
+        var model = document.getElementById('ms-variant-model').value;
+        var payload = {};
+        if (style) payload.style = style;
+        if (model) payload.model = model;
         fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/generate-variant', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({style: style || undefined})
+            body: JSON.stringify(payload)
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {

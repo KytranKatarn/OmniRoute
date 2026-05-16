@@ -387,7 +387,12 @@ def generate_canonical(agent_id: int, prompt_override: Optional[str] = None) -> 
     )
 
 
-def generate_variant(agent_id: int, style: Optional[str] = None, pose: Optional[str] = None) -> Dict:
+def generate_variant(
+    agent_id: int,
+    style: Optional[str] = None,
+    pose: Optional[str] = None,
+    model: Optional[str] = None,
+) -> Dict:
     """Generate face-consistent variant using IP-Adapter + canonical ref.
 
     Requires approved canonical with ip_adapter_ref_path.
@@ -420,13 +425,14 @@ def generate_variant(agent_id: int, style: Optional[str] = None, pose: Optional[
     if pose:
         base_prompt += f", {pose} pose"
 
+    _model = model or "sd_xl_base_1.0.safetensors"
     return submit_generation(
         user_id=None,
         media_type="image",
         prompt=base_prompt,
         negative_prompt="blurry, deformed, extra limbs, bad anatomy, text, watermark",
         params={
-            "model": "sd_xl_base_1.0.safetensors",
+            "model": _model,
             "width": 1024,
             "height": 1024,
             "steps": 30,

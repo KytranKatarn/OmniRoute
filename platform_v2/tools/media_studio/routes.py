@@ -624,7 +624,7 @@ def api_generate_variant(agent_id):
     from .services.portrait_service import generate_variant
 
     data = request.get_json() or {}
-    result = generate_variant(agent_id, style=data.get("style"), pose=data.get("pose"))
+    result = generate_variant(agent_id, style=data.get("style"), pose=data.get("pose"), model=data.get("model"))
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result), 201

@@ -1983,13 +1983,6 @@ class DepartmentDispatcher:
                 json=payload,
                 timeout=120,  # VPS CPU cold load can take 40-90s for small models
             )
-            logger.info(
-                "placement: node=%s model=%s placement=%s reason=%s",
-                _opts["target_node_id"],
-                _opts["model"],
-                _opts["placement"],
-                _opts["reason"],
-            )
 
             if resp.status_code == 200:
                 data = resp.json()

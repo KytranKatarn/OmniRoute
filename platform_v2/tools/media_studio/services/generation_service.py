@@ -535,34 +535,119 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
         )
 
     try:
-        start = time.time()
-        svc = get_comfyui_service()
+        import requests as _http
+        import random
 
-        result = svc.generate_image(
-            prompt=params.get("prompt", ""),
-            model=params.get("model", "sd_xl_base_1.0.safetensors"),
-            steps=params.get("steps", 25),
-            width=params.get("width", 1024),
-            height=params.get("height", 1024),
-            cfg=params.get("cfg", 7.0),
-            sampler=params.get("sampler", "euler_ancestral"),
-            seed=params.get("seed", -1),
-            negative_prompt=params.get("negative_prompt", ""),
+        start = time.time()
+        prompt_text = params.get("prompt", "")
+        model = params.get("model", "sd_xl_base_1.0.safetensors")
+        steps = params.get("steps", 25)
+        width = params.get("width", 1024)
+        height = params.get("height", 1024)
+        cfg = params.get("cfg", 7.0)
+        sampler = params.get("sampler", "euler_ancestral")
+        seed = params.get("seed", -1)
+        negative_prompt = params.get("negative_prompt", "")
+
+        # Fleet-aware routing — prefer Starship RTX nodes over hub Quadro M4000.
+        # Falls back to hub svc.generate_image() on any fleet failure.
+        from tools.media_studio.services.comfyui_manager import (
+            build_txt2img_workflow,
+            get_best_comfyui_url,
         )
 
-        duration_ms = int((time.time() - start) * 1000)
+        fleet_url, fleet_node = get_best_comfyui_url()
+        is_fleet = fleet_node is not None
 
-        if result.success and result.file_path:
-            return on_generation_complete(
-                queue_id=queue_id,
-                file_path=result.file_path,
-                seed=params.get("seed"),
-                duration_ms=duration_ms,
-                provider="comfyui",
+        if is_fleet:
+            if seed < 0:
+                seed = random.randint(0, 2**63)
+            workflow = build_txt2img_workflow(
+                prompt=prompt_text,
+                negative_prompt=negative_prompt,
+                model=model,
+                width=width,
+                height=height,
+                seed=seed,
+                steps=steps,
+                cfg=float(cfg) if cfg is not None else 7.0,
+                sampler=sampler,
             )
-        else:
-            on_generation_failed(queue_id, result.error or "Unknown ComfyUI error")
-            return None
+            resp = _http.post(f"{fleet_url}/prompt", json=workflow, timeout=10)
+            resp.raise_for_status()
+            prompt_id = resp.json()["prompt_id"]
+
+            # Poll for result
+            max_wait, poll_interval, elapsed = 180, 3, 0
+            output_file = None
+            while elapsed < max_wait:
+                import time as _t
+
+                _t.sleep(poll_interval)
+                elapsed += poll_interval
+                hist = _http.get(f"{fleet_url}/history/{prompt_id}", timeout=10).json()
+                if prompt_id not in hist:
+                    continue
+                outputs = hist[prompt_id].get("outputs", {})
+                for node_out in outputs.values():
+                    imgs = node_out.get("images", [])
+                    if imgs:
+                        output_file = imgs[0].get("filename")
+                        break
+                if output_file:
+                    break
+
+            duration_ms = int((time.time() - start) * 1000)
+            if output_file:
+                dl = _http.get(
+                    f"{fleet_url}/view",
+                    params={"filename": output_file, "type": "output"},
+                    timeout=30,
+                )
+                file_path = os.path.join(
+                    MEDIA_ROOT,
+                    f"images/{time.strftime('%Y-%m-%d')}/{output_file}",
+                )
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                with open(file_path, "wb") as fh:
+                    fh.write(dl.content)
+                rel_path = f"/static/media/images/{time.strftime('%Y-%m-%d')}/{output_file}"
+                return on_generation_complete(
+                    queue_id=queue_id,
+                    file_path=rel_path,
+                    seed=seed,
+                    duration_ms=duration_ms,
+                    provider=f"comfyui_fleet:{fleet_node}",
+                )
+            else:
+                logger.warning("Fleet ComfyUI timed out — falling back to hub")
+                is_fleet = False  # fall through to hub path
+
+        if not is_fleet:
+            svc = get_comfyui_service()
+            result = svc.generate_image(
+                prompt=prompt_text,
+                model=model,
+                steps=steps,
+                width=width,
+                height=height,
+                cfg=float(cfg) if cfg is not None else 7.0,
+                sampler=sampler,
+                seed=seed,
+                negative_prompt=negative_prompt,
+            )
+            duration_ms = int((time.time() - start) * 1000)
+            if result.success and result.file_path:
+                return on_generation_complete(
+                    queue_id=queue_id,
+                    file_path=result.file_path,
+                    seed=seed,
+                    duration_ms=duration_ms,
+                    provider="comfyui",
+                )
+            else:
+                on_generation_failed(queue_id, result.error or "Unknown ComfyUI error")
+                return None
 
     except Exception as e:
         logger.error(f"ComfyUI generation failed for queue {queue_id}: {e}")

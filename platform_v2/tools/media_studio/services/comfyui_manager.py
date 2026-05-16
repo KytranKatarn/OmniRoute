@@ -6,7 +6,7 @@ for fleet-wide ComfyUI status reported via heartbeat.
 
 import logging
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Tuple
 
 from database import get_db_cursor
 
@@ -186,6 +186,64 @@ def rank_nodes_for_operation(operation: str) -> List[Dict]:
     capable = [n for n in fleet if can_node_handle(n, operation)]
     capable.sort(key=lambda n: n["vram_mb"], reverse=True)
     return capable
+
+
+def get_best_comfyui_url() -> Tuple[str, Optional[str]]:
+    """Return (comfyui_url, node_name) for the best available ComfyUI node.
+
+    Prefers fleet nodes with higher VRAM over hub — RTX Starships beat the
+    hub's Quadro M4000 for image generation throughput. Falls back to hub on
+    any error or when no fleet node is healthy.
+
+    Uses extra_capabilities.comfyui_url + gpu_vram_gb from remote_nodes
+    (populated by heartbeat), not metadata.gpu which is unreliable.
+    """
+    import requests as _req
+
+    hub_url = os.environ.get("COMFYUI_HOST", "http://host.docker.internal:8188")
+    hub_vram_mb = 8192  # Quadro M4000 8 GB
+
+    try:
+        with get_db_cursor() as (_, cur):
+            cur.execute(
+                """
+                SELECT node_name, gpu_vram_gb,
+                       extra_capabilities->>'comfyui_url' AS comfyui_url
+                FROM remote_nodes
+                WHERE status = 'online'
+                  AND gpu_available = TRUE
+                  AND extra_capabilities ? 'comfyui_url'
+                  AND last_heartbeat > NOW() - INTERVAL '3 minutes'
+                ORDER BY gpu_vram_gb DESC NULLS LAST
+                LIMIT 1
+                """
+            )
+            row = cur.fetchone()
+
+        if row and row["comfyui_url"]:
+            fleet_url = row["comfyui_url"]
+            fleet_vram_mb = int((row["gpu_vram_gb"] or 0) * 1024)
+            # Only prefer fleet node if it has comparable or more VRAM
+            if fleet_vram_mb >= hub_vram_mb * 0.75:
+                try:
+                    _req.get(f"{fleet_url}/system_stats", timeout=3)
+                    logger.info(
+                        "[ComfyUI] Fleet routing → %s (%s) %d MB VRAM",
+                        row["node_name"],
+                        fleet_url,
+                        fleet_vram_mb,
+                    )
+                    return fleet_url, row["node_name"]
+                except Exception:
+                    logger.warning(
+                        "[ComfyUI] Fleet node %s unreachable at %s — falling back to hub",
+                        row["node_name"],
+                        fleet_url,
+                    )
+    except Exception as exc:
+        logger.debug("[ComfyUI] Fleet discovery failed: %s", exc)
+
+    return hub_url, None
 
 
 def build_txt2img_workflow(

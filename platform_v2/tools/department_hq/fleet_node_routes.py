@@ -3600,7 +3600,12 @@ def register_node_routes(bp, login_required, admin_required):
         if not node_name:
             node_name = f"Starship-{secrets.token_hex(3).upper()}"
 
-        hub_url = os.environ.get("STARSHIP_HUB_URL", os.environ.get("HUB_URL", "http://192.168.1.200:3000"))
+        # Prefer mesh IP — canonical inter-cluster transport (ADR mesh mandate).
+        # LAN IP (192.168.1.200) works for on-LAN nodes as fallback.
+        hub_url = os.environ.get(
+            "STARSHIP_HUB_URL",
+            os.environ.get("HUB_URL", "http://100.64.0.4:3000"),
+        )
 
         try:
             with get_db_cursor(commit=True) as (conn, cur):

@@ -748,8 +748,22 @@ def register_node_routes(bp, login_required, admin_required):
                 api_key = secrets.token_urlsafe(32)
                 api_key_hash = hash_api_key(api_key)
 
-                # Auto-detect network type from hostname/IP or request origin
-                node_hostname = data.get("hostname") or request.remote_addr
+                # Auto-detect network type from hostname/IP or request origin.
+                # Reject Docker container short IDs (12-char hex) from either
+                # source — those are unresolvable from the hub and have
+                # historically poisoned remote_nodes.hostname via X-Forwarded-For
+                # injection. mesh_ip is the canonical inter-cluster address
+                # (ADR-008). Mirrors the heartbeat handler guard from PR #769.
+                import re as _re_reg
+
+                def _ok_host(v):
+                    if not isinstance(v, str) or not v:
+                        return None
+                    if _re_reg.fullmatch(r"[0-9a-f]{12}", v):
+                        return None
+                    return v
+
+                node_hostname = _ok_host(data.get("hostname")) or _ok_host(request.remote_addr)
                 network_type = detect_network_type(node_hostname)
 
                 # Clean up stale duplicate registrations for this hostname

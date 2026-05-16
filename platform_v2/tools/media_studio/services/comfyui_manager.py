@@ -244,21 +244,15 @@ def get_best_comfyui_url(model_name: Optional[str] = None) -> Tuple[str, Optiona
                             row["node_name"],
                         )
                         return hub_url, None
-                try:
-                    _req.get(f"{fleet_url}/system_stats", timeout=3)
-                    logger.info(
-                        "[ComfyUI] Fleet routing → %s (%s) %d MB VRAM",
-                        row["node_name"],
-                        fleet_url,
-                        fleet_vram_mb,
-                    )
-                    return fleet_url, row["node_name"]
-                except Exception:
-                    logger.warning(
-                        "[ComfyUI] Fleet node %s unreachable at %s — falling back to hub",
-                        row["node_name"],
-                        fleet_url,
-                    )
+                # Heartbeat freshness already confirms node is alive — skip live ping
+                # (live ping times out under SDXL inference load, causing false fallbacks)
+                logger.info(
+                    "[ComfyUI] Fleet routing → %s (%s) %d MB VRAM",
+                    row["node_name"],
+                    fleet_url,
+                    fleet_vram_mb,
+                )
+                return fleet_url, row["node_name"]
     except Exception as exc:
         logger.debug("[ComfyUI] Fleet discovery failed: %s", exc)
 

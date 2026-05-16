@@ -4,6 +4,7 @@ Submits jobs to Bridge dispatcher which handles agent selection,
 GPU-tiered fleet routing, and escalation chain.
 """
 
+import json
 import logging
 import os
 import shutil
@@ -123,11 +124,12 @@ def submit_generation(
         )
         queue_id = cur.fetchone()["id"]
 
-    # ComfyUI jobs are consumed by the media_generation_worker loop in agent_loop
-    # (Creative & Design / M.U.S.E.) which handles cold boot, VRAM management,
-    # and future fleet routing. Return immediately so the web thread doesn't block.
-    provider = merged_params.get("provider", "comfyui")
-    if provider == "comfyui":
+    # Image gen — local ComfyUI and cloud contractors both go through the
+    # media_generation_worker loop. The worker calls generate_via_comfyui()
+    # which branches on params.provider (contractor) vs default (local ComfyUI).
+    # This avoids the dispatcher sync path which has an unrelated unbound-local
+    # bug for image gen and would block the web thread anyway.
+    if media_type == "image":
         return {"queue_id": queue_id, "status": "pending"}
 
     # Non-comfyui (cloud providers): dispatch synchronously through Bridge
@@ -510,11 +512,76 @@ def get_dashboard_stats(user_id: int) -> Dict:
     return counts
 
 
+def _generate_via_contractor(queue_id: int, queue_row: Dict, params: Dict, provider_key: str) -> Optional[int]:
+    """Generate an image via an external cloud contractor (OpenAI, Pollinations, etc.).
+
+    Mirrors the success shape of the ComfyUI path so the rest of the pipeline
+    (gallery, badges, queue status) doesn't need to differ. On success, calls
+    on_generation_complete to register the file in media_library; on failure,
+    marks the queue row failed with the provider's error message.
+    """
+    from ai_bridge.external_providers import generate_media
+
+    logger.info("[Contractor] Routing queue #%s to provider=%s", queue_id, provider_key)
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE media_generation_queue SET status = 'generating', started_at = NOW() WHERE id = %s",
+            (queue_id,),
+        )
+
+    request = {
+        "type": "image",
+        "prompt": params.get("prompt", ""),
+        "params": {
+            "model": params.get("model"),
+            "width": params.get("width", 1024),
+            "height": params.get("height", 1024),
+            "seed": params.get("seed", -1),
+        },
+    }
+
+    start = time.time()
+    result = generate_media(provider_key, request)
+    duration_ms = int((time.time() - start) * 1000)
+
+    if not result.get("success"):
+        err = result.get("error", "Unknown contractor error")
+        logger.warning("[Contractor] queue #%s failed: %s", queue_id, err)
+        on_generation_failed(queue_id, f"{provider_key}: {err}")
+        return None
+
+    meta = result.get("metadata", {})
+    file_rel_path = result.get("file_path", "")
+    # Strip leading slash so on_generation_complete can resolve against MEDIA_ROOT
+    if file_rel_path.startswith("/"):
+        file_rel_path = file_rel_path[1:]
+
+    media_id = on_generation_complete(
+        queue_id=queue_id,
+        file_path=file_rel_path,
+        seed=params.get("seed"),
+        duration_ms=meta.get("duration_ms", duration_ms),
+        provider=f"contractor:{provider_key}",
+    )
+    logger.info(
+        "[Contractor] queue #%s completed: media_id=%s cost=$%.4f",
+        queue_id,
+        media_id,
+        meta.get("cost_usd", 0.0),
+    )
+    return media_id
+
+
 def generate_via_comfyui(queue_id: int) -> Optional[int]:
     """Direct ComfyUI generation — called when Bridge routes an image_generation job to a local ComfyUI node.
 
     Builds workflow, submits to ComfyUI API, polls for completion,
     retrieves output file, calls on_generation_complete.
+
+    If params.provider is set to a non-comfyui contractor (e.g. 'pollinations',
+    'openai', 'stability_ai'), routes through external_providers.generate_media
+    instead of ComfyUI.
     """
     from ai_bridge.comfyui_service import get_comfyui_service
 
@@ -526,6 +593,12 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
         return None
 
     params = queue_row["params"] or {}
+
+    # Contractor branch — if a cloud provider was selected, route through external_providers
+    # instead of ComfyUI. Local checkpoint flow continues unchanged below when no provider set.
+    contractor_key = params.get("provider")
+    if contractor_key and contractor_key not in ("comfyui", "ollama_diffuser"):
+        return _generate_via_contractor(queue_id, queue_row, params, contractor_key)
 
     # Update status
     with get_db_cursor(commit=True) as (conn, cur):
@@ -559,6 +632,13 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
         fleet_url, fleet_node = get_best_comfyui_url(model_name=model)
         is_fleet = fleet_node is not None
 
+        if fleet_node:
+            with get_db_cursor(commit=True) as (_c, _cu):
+                _cu.execute(
+                    "UPDATE media_generation_queue SET params = params || %s::jsonb WHERE id = %s",
+                    (json.dumps({"fleet_node": fleet_node}), queue_id),
+                )
+
         if is_fleet:
             if seed < 0:
                 seed = random.randint(0, 2**63)
@@ -577,8 +657,9 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
             resp.raise_for_status()
             prompt_id = resp.json()["prompt_id"]
 
-            # Poll for result — 360s to allow cold SDXL model load on fleet RTX nodes
-            max_wait, poll_interval, elapsed = 360, 3, 0
+            # Poll for result — 600s to allow cold SDXL model load on fleet RTX nodes
+            # (sd_xl_base_1.0 ~6.9GB can take 7-8 min cold on RTX 3070 disk read)
+            max_wait, poll_interval, elapsed = 600, 3, 0
             output_file = None
             while elapsed < max_wait:
                 import time as _t
@@ -620,8 +701,12 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
                     provider=f"comfyui_fleet:{fleet_node}",
                 )
             else:
-                logger.warning("Fleet ComfyUI timed out — falling back to hub")
-                is_fleet = False  # fall through to hub path
+                logger.warning("Fleet ComfyUI timed out after %ds — model may still be loading", max_wait)
+                on_generation_failed(
+                    queue_id,
+                    f"Fleet generation timed out after {max_wait}s — model cold-loading on node, will retry automatically",
+                )
+                return None
 
         if not is_fleet:
             svc = get_comfyui_service()
@@ -1182,3 +1267,89 @@ def get_audio_providers(audio_mode: str = "sfx") -> list:
     except Exception as e:
         logger.warning(f"Failed to query audio providers: {e}")
     return providers
+
+
+# ─── Image providers (local checkpoints + cloud contractors) ──────────
+
+IMAGE_CHECKPOINT_DIR = os.environ.get("COMFYUI_CHECKPOINTS_DIR", "/mnt/data2/comfyui/models/checkpoints")
+
+LOCAL_DISPLAY_NAMES = {
+    "RealVisXL_V4.0.safetensors": "RealVisXL v4 (photorealistic)",
+    "sd_xl_base_1.0.safetensors": "SDXL Base 1.0",
+    "sdxl_turbo.safetensors": "SDXL Turbo (fast preview)",
+    "juggernautXL_v9.safetensors": "Juggernaut XL v9 (cinematic)",
+    "v1-5-pruned-emaonly.safetensors": "Stable Diffusion 1.5",
+    "v1-5-pruned-emaonly.ckpt": "Stable Diffusion 1.5",
+    "ltx-video-2b-v0.9.safetensors": "LTX Video 2B v0.9",
+    "tripo-sr.ckpt": "TripoSR (3D reconstruction)",
+}
+
+PROVIDER_DEFAULT_MODEL = {
+    "openai": "gpt-image-1",
+    "stability_ai": "stable-diffusion-xl-1024-v1-0",
+    "replicate": "black-forest-labs/flux-schnell",
+    "fal_ai": "fal-ai/flux/schnell",
+    "huggingface": "stabilityai/stable-diffusion-xl-base-1.0",
+    "cloudflare_ai": "@cf/stabilityai/stable-diffusion-xl-base-1.0",
+    "gemini": "imagen-3.0-generate-002",
+    "together": "black-forest-labs/FLUX.1-schnell-Free",
+    "pollinations": "flux",
+    "comfyui": None,
+    "ollama_diffuser": None,
+}
+
+FREE_PROVIDERS = {"comfyui", "ollama_diffuser", "pollinations", "cloudflare_ai", "together"}
+
+
+def get_image_providers() -> dict:
+    """Return merged list of local checkpoints + active image_gen contractors.
+
+    Shape:
+    {
+      "auto": {"value": "", "label": "Auto (fleet-aware)"},
+      "local": [{"value": "local:<filename>", "label": str, "free": True}, ...],
+      "cloud_free": [{"value": "provider:<key>", "label": str, "free": True}, ...],
+      "cloud_paid": [{"value": "provider:<key>", "label": str, "free": False}, ...],
+    }
+    """
+    result = {
+        "auto": {"value": "", "label": "Auto (fleet-aware)"},
+        "local": [],
+        "cloud_free": [],
+        "cloud_paid": [],
+    }
+
+    try:
+        for fname in sorted(os.listdir(IMAGE_CHECKPOINT_DIR)):
+            if not (fname.endswith(".safetensors") or fname.endswith(".ckpt")):
+                continue
+            label = LOCAL_DISPLAY_NAMES.get(fname, fname.replace(".safetensors", "").replace(".ckpt", ""))
+            result["local"].append({"value": fname, "label": f"{label} (free)", "free": True})
+    except OSError as e:
+        logger.warning(f"Could not list local checkpoints at {IMAGE_CHECKPOINT_DIR}: {e}")
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT provider_key, display_name
+                   FROM contractor_providers
+                   WHERE is_active = true AND capabilities ? 'image_gen'
+                   ORDER BY display_name"""
+            )
+            for row in cur.fetchall():
+                pk = row["provider_key"]
+                if pk in ("comfyui", "ollama_diffuser"):
+                    continue
+                is_free = pk in FREE_PROVIDERS
+                suffix = " (free)" if is_free else " ($)"
+                entry = {
+                    "value": f"provider:{pk}",
+                    "label": f"{row['display_name']}{suffix}",
+                    "free": is_free,
+                }
+                target = result["cloud_free"] if is_free else result["cloud_paid"]
+                target.append(entry)
+    except Exception as e:
+        logger.warning(f"Failed to query image providers: {e}")
+
+    return result

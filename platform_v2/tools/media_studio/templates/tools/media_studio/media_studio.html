@@ -393,6 +393,9 @@
                     </div>
                     <div class="ms-canonical-actions" style="flex-direction:column;align-items:center;gap:8px;">
                         <span id="ms-portrait-status" class="ms-status-badge"></span>
+                        <select id="ms-canonical-model" class="ms-model-select" title="Image model" style="width:100%;">
+                            <option value="">Auto (fleet-aware)</option>
+                        </select>
                         <button id="ms-generate-canonical-btn"
                                 onclick="generateCanonical()"
                                 style="background:var(--ms-accent,#7c3aed);color:#fff;border:none;padding:8px 24px;border-radius:6px;font-family:'Orbitron',sans-serif;font-size:0.8rem;letter-spacing:1px;cursor:pointer;font-weight:600;width:100%;">
@@ -491,10 +494,6 @@
                 </select>
                 <select id="ms-variant-model" class="ms-model-select" title="Image model">
                     <option value="">Auto (fleet-aware)</option>
-                    <option value="sd_xl_base_1.0.safetensors">SDXL Base 1.0</option>
-                    <option value="RealVisXL_V4.0.safetensors">RealVisXL v4 (photorealistic)</option>
-                    <option value="sdxl_turbo.safetensors">SDXL Turbo (fast preview)</option>
-                    <option value="juggernautXL_v9.safetensors">Juggernaut XL v9 (cinematic)</option>
                 </select>
             </div>
 
@@ -2290,10 +2289,59 @@
             });
     };
 
+    // Image provider dropdown — fetched once, reused for canonical + variant selects
+    var _imageProviderCache = null;
+    async function loadImageProviders() {
+        if (_imageProviderCache) return _imageProviderCache;
+        try {
+            var r = await fetch(API_BASE + '/api/image-providers');
+            _imageProviderCache = await r.json();
+        } catch (e) {
+            console.warn('[MediaStudio] failed to load image providers:', e);
+            _imageProviderCache = {auto: {value:'', label:'Auto (fleet-aware)'}, local:[], cloud_free:[], cloud_paid:[]};
+        }
+        return _imageProviderCache;
+    }
+    function _msBuildOptgroup(label, items) {
+        if (!items || !items.length) return null;
+        var og = document.createElement('optgroup');
+        og.label = label;
+        items.forEach(function(it) {
+            var o = document.createElement('option');
+            o.value = it.value;
+            o.textContent = it.label;
+            og.appendChild(o);
+        });
+        return og;
+    }
+    async function populateImageProviderSelect(sel) {
+        if (!sel) return;
+        var data = await loadImageProviders();
+        var prev = sel.value;
+        sel.replaceChildren();  // Safe DOM clear (no innerHTML — XSS lint)
+        var autoOpt = document.createElement('option');
+        autoOpt.value = data.auto.value;
+        autoOpt.textContent = data.auto.label;
+        sel.appendChild(autoOpt);
+        var groups = [
+            ['Local Checkpoints', data.local],
+            ['Cloud Providers (free)', data.cloud_free],
+            ['Cloud Providers (paid)', data.cloud_paid]
+        ];
+        for (var i = 0; i < groups.length; i++) {
+            var og = _msBuildOptgroup(groups[i][0], groups[i][1]);
+            if (og) sel.appendChild(og);
+        }
+        if (prev) sel.value = prev;  // restore selection if still present
+    }
+
     window.openPortraitDetail = function(agentId) {
         // Cancel any in-flight SSE stream from the previous agent
         if (_activeRefineAbort) { _activeRefineAbort.abort(); _activeRefineAbort = null; }
         _currentAgentId = agentId;
+        // Populate model dropdowns from /api/image-providers (cached after first call)
+        populateImageProviderSelect(document.getElementById('ms-canonical-model'));
+        populateImageProviderSelect(document.getElementById('ms-variant-model'));
         document.getElementById('ms-portrait-grid').style.display = 'none';
         document.getElementById('ms-portrait-detail').style.display = 'block';
 
@@ -2473,6 +2521,53 @@
                     item.addEventListener('mouseenter', function() { overlay.style.opacity = '1'; });
                     item.addEventListener('mouseleave', function() { overlay.style.opacity = '0'; });
 
+                    // GPU label — bottom-left transparent badge
+                    var GPU_MAP = {
+                        'starship_76583490e36955ab': 'RTX 3070',
+                        'archie-starbase': 'Quadro M4000',
+                        'outpost_us_001': 'CPU (VPS)'
+                    };
+                    var gpuLabel = v.fleet_node ? (GPU_MAP[v.fleet_node] || v.fleet_node) : null;
+                    if (gpuLabel) {
+                        var gpuBadge = document.createElement('div');
+                        gpuBadge.style.cssText = 'position:absolute;bottom:4px;left:4px;'
+                            + 'background:rgba(0,0,0,0.55);color:rgba(255,220,100,0.9);'
+                            + 'font-size:9px;font-weight:600;letter-spacing:0.5px;'
+                            + 'padding:2px 5px;border-radius:3px;pointer-events:none;'
+                            + 'backdrop-filter:blur(2px);';
+                        gpuBadge.textContent = gpuLabel;
+                        item.appendChild(gpuBadge);
+                    }
+
+                    // Provider/model label — bottom-right transparent badge
+                    // Provider wins when set (contractor route); else model name (local route).
+                    var PROVIDER_DISPLAY = {
+                        openai: 'OpenAI', stability_ai: 'Stability AI', replicate: 'Replicate',
+                        fal_ai: 'Fal.ai', huggingface: 'HuggingFace', cloudflare_ai: 'Cloudflare AI',
+                        gemini: 'Google Gemini', together: 'Together AI', pollinations: 'Pollinations'
+                    };
+                    var rightLabel = null;
+                    if (v.provider) {
+                        rightLabel = PROVIDER_DISPLAY[v.provider] || v.provider;
+                    } else if (v.model_name) {
+                        rightLabel = v.model_name
+                            .replace('.safetensors','').replace('.ckpt','')
+                            .replace('RealVisXL_V4.0','RealVisXL')
+                            .replace('sd_xl_base_1.0','SDXL Base')
+                            .replace('sdxl_turbo','SDXL Turbo')
+                            .replace('juggernautXL_v9','Juggernaut XL');
+                    }
+                    if (rightLabel) {
+                        var modelBadge = document.createElement('div');
+                        modelBadge.style.cssText = 'position:absolute;bottom:4px;right:4px;'
+                            + 'background:rgba(0,0,0,0.55);color:rgba(255,255,255,0.85);'
+                            + 'font-size:9px;font-weight:600;letter-spacing:0.5px;'
+                            + 'padding:2px 5px;border-radius:3px;pointer-events:none;'
+                            + 'backdrop-filter:blur(2px);';
+                        modelBadge.textContent = rightLabel;
+                        item.appendChild(modelBadge);
+                    }
+
                     vGrid.appendChild(item);
                 });
             });
@@ -2538,10 +2633,11 @@
                 var btn = document.getElementById('ms-generate-canonical-btn');
                 if (btn) { btn.disabled = true; btn.textContent = 'Queuing...'; }
 
+                var canonicalModel = (document.getElementById('ms-canonical-model') || {}).value || undefined;
                 fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/generate-fanout', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({prompt: prompt || undefined})
+                    body: JSON.stringify({prompt: prompt || undefined, model: canonicalModel})
                 })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {

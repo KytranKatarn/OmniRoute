@@ -292,11 +292,15 @@ def get_agent_portrait(agent_id: int) -> Optional[Dict]:
 
         cur.execute(
             """
-            SELECT id, file_path, thumbnail_path, prompt, seed,
-                   width, height, metadata, created_at
-            FROM media_library
-            WHERE owner_type = 'agent' AND owner_id = %s
-                  AND media_type = 'image' AND is_deleted = false
+            SELECT ml.id, ml.file_path, ml.thumbnail_path, ml.prompt, ml.seed,
+                   ml.width, ml.height, ml.metadata, ml.created_at,
+                   q.params->>'model' AS model_name,
+                   q.params->>'fleet_node' AS fleet_node,
+                   q.params->>'provider' AS provider
+            FROM media_library ml
+            LEFT JOIN media_generation_queue q ON q.result_media_id = ml.id
+            WHERE ml.owner_type = 'agent' AND ml.owner_id = %s
+                  AND ml.media_type = 'image' AND ml.is_deleted = false
             ORDER BY created_at DESC
             """,
             (agent_id,),
@@ -387,6 +391,23 @@ def generate_canonical(agent_id: int, prompt_override: Optional[str] = None) -> 
     )
 
 
+def _parse_provider_or_model(value: Optional[str]) -> Dict:
+    """Parse a model selector value into provider/model components.
+
+    Returns {"provider": str|None, "model": str|None}. Provider keys come from
+    contractor_providers; model is a local checkpoint filename. When neither is
+    set, the caller falls back to defaults (Auto / fleet-aware).
+    """
+    from .generation_service import PROVIDER_DEFAULT_MODEL
+
+    if not value:
+        return {"provider": None, "model": None}
+    if value.startswith("provider:"):
+        key = value[len("provider:") :]
+        return {"provider": key, "model": PROVIDER_DEFAULT_MODEL.get(key)}
+    return {"provider": None, "model": value}
+
+
 def generate_variant(
     agent_id: int,
     style: Optional[str] = None,
@@ -416,8 +437,6 @@ def generate_variant(
         return {"error": "No portrait record for this agent"}
     if not row["approved"]:
         return {"error": "Canonical portrait must be approved before generating variants"}
-    if not row["ip_adapter_ref_path"]:
-        return {"error": "IP-Adapter reference not extracted yet. Approve canonical first."}
 
     base_prompt = row["identity_prompt"] or ""
     if style:
@@ -425,23 +444,29 @@ def generate_variant(
     if pose:
         base_prompt += f", {pose} pose"
 
-    _model = model or "sd_xl_base_1.0.safetensors"
+    parsed = _parse_provider_or_model(model)
+    params: Dict = {
+        "model": parsed["model"] or "sd_xl_base_1.0.safetensors",
+        "width": 1024,
+        "height": 1024,
+        "steps": 30,
+        "cfg": 7.0,
+        "sampler": "euler_ancestral",
+        "seed": -1,
+    }
+    if parsed["provider"]:
+        params["provider"] = parsed["provider"]
+    if row["ip_adapter_ref_path"] and not parsed["provider"]:
+        # IP-Adapter face anchoring only works on local ComfyUI today
+        params["ip_adapter_ref"] = row["ip_adapter_ref_path"]
+        params["ip_adapter_weight"] = 0.85
+
     return submit_generation(
         user_id=None,
         media_type="image",
         prompt=base_prompt,
         negative_prompt="blurry, deformed, extra limbs, bad anatomy, text, watermark",
-        params={
-            "model": _model,
-            "width": 1024,
-            "height": 1024,
-            "steps": 30,
-            "cfg": 7.0,
-            "sampler": "euler_ancestral",
-            "seed": -1,
-            "ip_adapter_ref": row["ip_adapter_ref_path"],
-            "ip_adapter_weight": 0.85,
-        },
+        params=params,
         owner_type="agent",
         owner_id=agent_id,
     )
@@ -454,7 +479,7 @@ _FANOUT_STYLES = [
 ]
 
 
-def generate_fanout(agent_id: int, prompt_override: Optional[str] = None) -> Dict:
+def generate_fanout(agent_id: int, prompt_override: Optional[str] = None, model: Optional[str] = None) -> Dict:
     """Submit N portrait generation jobs in one click.
 
     If agent has an approved canonical with ip_adapter_ref_path, generates
@@ -489,10 +514,12 @@ def generate_fanout(agent_id: int, prompt_override: Optional[str] = None) -> Dic
     queue_ids = []
     use_ip_adapter = bool(row.get("approved") and row.get("ip_adapter_ref_path"))
 
+    parsed = _parse_provider_or_model(model)
+    _model = parsed["model"] or "sd_xl_base_1.0.safetensors"
     for style in _FANOUT_STYLES:
         prompt = identity_prompt + (f", {style}" if style else "")
         params: Dict = {
-            "model": "sd_xl_base_1.0.safetensors",
+            "model": _model,
             "width": 1024,
             "height": 1024,
             "steps": 30,
@@ -500,7 +527,9 @@ def generate_fanout(agent_id: int, prompt_override: Optional[str] = None) -> Dic
             "sampler": "euler_ancestral",
             "seed": -1,
         }
-        if use_ip_adapter:
+        if parsed["provider"]:
+            params["provider"] = parsed["provider"]
+        if use_ip_adapter and not parsed["provider"]:
             params["ip_adapter_ref"] = row["ip_adapter_ref_path"]
             params["ip_adapter_weight"] = 0.85
 

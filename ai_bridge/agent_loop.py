@@ -1640,7 +1640,9 @@ class AgentLoop:
                     WHERE id IN (
                         SELECT id FROM media_generation_queue
                         WHERE status = 'pending'
-                          AND (params->>'provider' = 'comfyui' OR params->>'provider' IS NULL)
+                        -- All image/video/audio providers consumed here: comfyui (local SDXL),
+                        -- cloud contractors (pollinations, openai, stability_ai, etc).
+                        -- generate_via_comfyui branches on params.provider.
                         ORDER BY created_at ASC
                         LIMIT 1
                         FOR UPDATE SKIP LOCKED

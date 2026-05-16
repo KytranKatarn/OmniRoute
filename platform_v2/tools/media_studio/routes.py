@@ -550,6 +550,21 @@ def api_portraits():
     return jsonify({"agents": get_all_agent_portraits()})
 
 
+@media_studio_bp.route("/api/image-providers")
+@login_required
+def api_image_providers():
+    """Merged list of local checkpoints + active cloud image-gen contractors.
+
+    Returns {auto, local[], cloud_free[], cloud_paid[]} for the Media Studio
+    model selector dropdown. Local entries enumerate the ComfyUI checkpoints
+    directory; cloud entries come from contractor_providers WHERE capabilities ?
+    'image_gen'. See spec ~/.claude/plans/2026-05-16-image-provider-selector.md.
+    """
+    from .services.generation_service import get_image_providers
+
+    return jsonify(get_image_providers())
+
+
 @media_studio_bp.route("/api/portraits/<int:agent_id>")
 @login_required
 def api_portrait_detail(agent_id):
@@ -624,7 +639,12 @@ def api_generate_variant(agent_id):
     from .services.portrait_service import generate_variant
 
     data = request.get_json() or {}
-    result = generate_variant(agent_id, style=data.get("style"), pose=data.get("pose"), model=data.get("model"))
+    result = generate_variant(
+        agent_id,
+        style=data.get("style"),
+        pose=data.get("pose"),
+        model=data.get("model"),  # may be bare filename, "provider:<key>", or None (Auto)
+    )
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result), 201
@@ -637,7 +657,11 @@ def api_generate_fanout(agent_id):
     from .services.portrait_service import generate_fanout
 
     data = request.get_json() or {}
-    result = generate_fanout(agent_id, prompt_override=data.get("prompt"))
+    result = generate_fanout(
+        agent_id,
+        prompt_override=data.get("prompt"),
+        model=data.get("model"),  # may be bare filename, "provider:<key>", or None (Auto)
+    )
     if not result.get("success"):
         return jsonify(result), 400
     return jsonify(result), 201

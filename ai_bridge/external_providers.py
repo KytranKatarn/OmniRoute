@@ -472,6 +472,7 @@ def generate_media(provider_key: str, request: dict) -> dict:
         "huggingface": _huggingface_image_adapter,
         "cloudflare_ai": _cloudflare_image_adapter,
         "together": _together_image_adapter,
+        "pollinations": _pollinations_image_adapter,
     }
     adapter = adapters.get(provider_key)
     if not adapter:
@@ -879,3 +880,70 @@ def _together_image_adapter(request: dict) -> dict:
             return {"success": False, "error": f"Together AI returned {resp.status_code}: {resp.text[:200]}"}
     except Exception as e:
         return {"success": False, "error": f"Together: {e}"}
+
+
+def _pollinations_image_adapter(request: dict) -> dict:
+    """Generate image via Pollinations.ai — free, no auth required.
+
+    API: GET https://image.pollinations.ai/prompt/<urlencoded>?width=...&height=...&model=flux&nologo=true
+    Returns image binary directly.
+    """
+    import urllib.parse
+    import uuid
+    from datetime import date
+
+    prompt = request.get("prompt", "")
+    params = request.get("params", {})
+    model = params.get("model", "flux")  # flux | flux-realism | flux-anime | turbo
+    width = params.get("width", 1024)
+    height = params.get("height", 1024)
+    seed = params.get("seed", -1)
+
+    if not prompt:
+        return {"success": False, "error": "Pollinations: empty prompt"}
+
+    encoded = urllib.parse.quote(prompt, safe="")
+    query = f"width={width}&height={height}&model={model}&nologo=true"
+    if seed and seed > 0:
+        query += f"&seed={seed}"
+    url = f"https://image.pollinations.ai/prompt/{encoded}?{query}"
+
+    start = time.time()
+    try:
+        resp = requests.get(url, timeout=120)
+        duration_ms = int((time.time() - start) * 1000)
+    except Exception as e:
+        return {"success": False, "error": f"Pollinations request failed: {e}"}
+
+    if resp.status_code != 200:
+        return {"success": False, "error": f"Pollinations {resp.status_code}: {resp.text[:200]}"}
+
+    image_bytes = resp.content
+    if not image_bytes or len(image_bytes) < 1024:
+        return {"success": False, "error": f"Pollinations returned empty/tiny response ({len(image_bytes)} bytes)"}
+
+    date_str = date.today().strftime("%Y-%m-%d")
+    rel_dir = f"static/media/images/{date_str}"
+    app_root = os.environ.get("FLASK_APP_ROOT", "/app")
+    abs_dir = os.path.join(app_root, rel_dir)
+    os.makedirs(abs_dir, exist_ok=True)
+
+    file_name = f"pollinations_{uuid.uuid4().hex[:12]}.png"
+    file_path = os.path.join(abs_dir, file_name)
+    with open(file_path, "wb") as f:
+        f.write(image_bytes)
+
+    return {
+        "success": True,
+        "file_path": f"/{rel_dir}/{file_name}",
+        "metadata": {
+            "provider": "pollinations",
+            "model": model,
+            "cost_usd": 0.0,
+            "mime_type": "image/png",
+            "file_size_bytes": len(image_bytes),
+            "width": width,
+            "height": height,
+            "duration_ms": duration_ms,
+        },
+    }

@@ -54,7 +54,7 @@ services:
     # others fall through). mem_limit raised 4g → 8g to fit 4 workers each
     # ~1.5GB RSS without --preload (avoiding the Telegram daemon-thread fork
     # gotcha that comes with shared imports).
-    command: ["gunicorn", "--bind", "0.0.0.0:3000", "--workers", "4", "--threads", "8", "--timeout", "300", "app:app"]
+    command: ["gunicorn", "--bind", "0.0.0.0:3000", "--workers", "4", "--threads", "8", "--timeout", "600", "app:app"]
     restart: unless-stopped
     read_only: true
     tmpfs:

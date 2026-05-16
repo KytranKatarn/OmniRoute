@@ -3323,6 +3323,17 @@ function loadClusterActivity() {
                 nodeMap[n.node_id].tasks = n.tasks || [];
             });
 
+            // last_run_by_node from backend (bridge_jobs — covers all fleet history)
+            // supplemented by dispatch_log for queue-based dispatches
+            var lastRunByNode = data.last_run_by_node || {};
+            (data.dispatch_log || []).forEach(function(e) {
+                var node = e.node || 'Hub';
+                if (e.node && e.node !== 'Hub' && (!lastRunByNode[node] ||
+                    (e.ts && lastRunByNode[node].ts && e.ts > lastRunByNode[node].ts))) {
+                    lastRunByNode[node] = e;
+                }
+            });
+
             var totalActive = 0;
             grid.innerHTML = '';
             Object.keys(nodeMap).forEach(function(nid) {
@@ -3346,7 +3357,22 @@ function loadClusterActivity() {
                     taskList += '<div style="font-size:0.68rem;color:' + (t.status === 'running' ? '#10b981' : '#f59e0b') + ';padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
                         + '→ ' + esc(t.agent || '?') + ' · ' + esc(t.capability || '') + '</div>';
                 });
-                if (!taskList) taskList = '<span style="font-size:0.68rem;color:var(--dhq-text-dim);font-style:italic;">idle</span>';
+                if (!taskList) {
+                    var last = lastRunByNode[n.name];
+                    if (last && last.agent) {
+                        var ago = '';
+                        if (last.ts) {
+                            var diff = Math.round((Date.now() - new Date(last.ts)) / 60000);
+                            ago = diff < 1 ? ' just now' : ' ' + diff + 'm ago';
+                        }
+                        taskList = '<div style="font-size:0.67rem;color:var(--dhq-text-dim);">'
+                            + '<span style="color:#00bcd4;">' + esc(last.agent) + '</span>'
+                            + ' · ' + esc(last.capability || '') + ago
+                            + '</div>';
+                    } else {
+                        taskList = '<span style="font-size:0.68rem;color:var(--dhq-text-dim);font-style:italic;">idle</span>';
+                    }
+                }
                 card.innerHTML = header + counts + taskList;
                 grid.appendChild(card);
             });

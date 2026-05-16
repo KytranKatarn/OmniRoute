@@ -1633,6 +1633,32 @@ def register_dashboard_routes(bp, auth_decorator):
                         }
                     )
 
+                # Last fleet dispatch per node from bridge_jobs metadata
+                cur.execute(
+                    """
+                    SELECT DISTINCT ON ((metadata->>'node_name'))
+                        metadata->>'node_name' AS node_name,
+                        agent_name,
+                        job_type AS capability,
+                        completed_at,
+                        created_at
+                    FROM bridge_jobs
+                    WHERE status IN ('completed', 'failed')
+                      AND metadata ? 'node_name'
+                      AND metadata->>'node_name' != ''
+                    ORDER BY (metadata->>'node_name'), completed_at DESC NULLS LAST
+                    """
+                )
+                last_run_by_node = {}
+                for r in cur.fetchall():
+                    node_name = r["node_name"]
+                    ts = r["completed_at"] or r["created_at"]
+                    last_run_by_node[node_name] = {
+                        "agent": r["agent_name"],
+                        "capability": r["capability"],
+                        "ts": ts.isoformat() if ts else None,
+                    }
+
             return jsonify(
                 success=True,
                 nodes_with_work=nodes_with_work,
@@ -1649,6 +1675,7 @@ def register_dashboard_routes(bp, auth_decorator):
                     for n in online_nodes
                 ],
                 dispatch_log=log,
+                last_run_by_node=last_run_by_node,
             )
         except Exception as exc:
             logger.error("api_fleet_cluster_activity: %s", exc)

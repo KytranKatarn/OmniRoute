@@ -94,6 +94,12 @@ services:
       ARCHIE_VERSION: "1.0.0"
       NODE_TIMEZONE: ${NODE_TIMEZONE:-America/Toronto}
       COMFYUI_PORT: "${COMFYUI_PORT:-8188}"
+      # Tailscale/Headscale mesh IP — used as self-reported hostname
+      # so the hub's remote_nodes.hostname column gets the canonical
+      # inter-cluster address instead of socket.gethostname() (which is
+      # the Docker container ID inside this container). Auto-detected and
+      # written to .env by deploy-node.ps1 from `tailscale ip --4`.
+      MESH_IP: ${MESH_IP:-}
     volumes:
       - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock
       - comfyui_data:/comfyui/models

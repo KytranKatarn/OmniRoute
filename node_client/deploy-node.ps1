@@ -210,10 +210,21 @@ if ($Fresh) {
                 Start-Sleep -Seconds 8
                 $meshIp = (tailscale ip --4 2>$null)
                 if ($meshIp) {
+                    $meshIp = $meshIp.Trim()
                     Write-Host "[OK] Joined mesh  -  mesh IP: $meshIp" -ForegroundColor Green
                     # Report mesh IP back to Hub
                     $vpnBody = @{ vpn_ip = $meshIp } | ConvertTo-Json
                     Invoke-RestMethod -Uri "$HubUrl/tools/department-hq/api/nodes/$NodeId/settings" -Method Put -Headers $headers -Body $vpnBody -ContentType "application/json" -ErrorAction SilentlyContinue | Out-Null
+                    # Persist MESH_IP to .env so the sync container can self-report
+                    # hostname=mesh_ip in heartbeats (instead of socket.gethostname()
+                    # which is the Docker container ID). Hub-side guards in PR #769/#770
+                    # neutralize the bad value, but this is defense-in-depth.
+                    if (Test-Path ".env") {
+                        $envLines = Get-Content .env | Where-Object { $_ -notmatch "^MESH_IP=" }
+                        $envLines += "MESH_IP=$meshIp"
+                        Set-Content .env -Encoding UTF8 -Value $envLines
+                        Write-Host "[OK] MESH_IP=$meshIp written to .env" -ForegroundColor Green
+                    }
                 } else {
                     Write-Host "  [WARN] Tailscale joined but mesh IP not yet assigned" -ForegroundColor Yellow
                 }

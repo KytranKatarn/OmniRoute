@@ -627,7 +627,7 @@ def send_heartbeat(config):
         "gpu_available": gpu_model is not None,
         "gpu_model": gpu_model,
         "gpu_vram_gb": gpu_vram_gb,
-        "hostname": _get_hostname(),
+        "hostname": _get_mesh_ip() or _get_hostname(),
         "ollama_online": len(models) > 0 or _check_ollama_alive(config["ollama_host"]),
         "ollama_models": [
             {"name": m["name"], "size": int(m["size_gb"] * (1024**3))} for m in models
@@ -2064,6 +2064,32 @@ def _get_hostname():
         return "unknown"
 
 
+def _get_mesh_ip():
+    """Return the node's Tailscale/Headscale mesh IP, or None.
+
+    Reads MESH_IP env var (set in .env by deploy-node.ps1 after
+    `tailscale ip --4` detection). Used to self-report the canonical
+    inter-cluster address as `hostname` in heartbeats/registrations,
+    so the hub's remote_nodes.hostname column gets a usable value
+    instead of socket.gethostname() (which is the Docker container ID
+    inside the sync container).
+
+    Hub-side container-ID guards (PR #769/#770) catch the bad value
+    if MESH_IP isn't set — this function is defense-in-depth.
+    """
+    value = os.environ.get("MESH_IP", "").strip()
+    if value and value.startswith("100."):
+        # Sanity check: Tailscale CGNAT range is 100.64.0.0/10
+        octets = value.split(".")
+        if len(octets) == 4:
+            try:
+                if 64 <= int(octets[1]) <= 127:
+                    return value
+            except ValueError:
+                pass
+    return None
+
+
 def _get_uptime():
     """Return system uptime in seconds (Linux), or 0."""
     try:
@@ -2097,7 +2123,7 @@ def _attempt_re_registration(config):
     payload = {
         "node_id": config["node_id"],
         "node_name": _get_hostname(),
-        "hostname": _get_hostname(),
+        "hostname": _get_mesh_ip() or _get_hostname(),
         "port": 11434,
         "client_version": CLIENT_VERSION,
         "re_register": True,

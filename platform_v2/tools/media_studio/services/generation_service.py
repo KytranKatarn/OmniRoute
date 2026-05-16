@@ -1365,6 +1365,46 @@ PROVIDER_DEFAULT_MODEL = {
 
 FREE_PROVIDERS = {"comfyui", "ollama_diffuser", "pollinations", "cloudflare_ai", "together"}
 
+# Per-provider model catalog. Each entry is (model_id, display_label).
+# Only well-known, validated model IDs — silent failures from wrong IDs
+# are worse than a smaller list. Add more as users validate them.
+PROVIDER_MODELS = {
+    "openai": [
+        ("dall-e-3", "DALL-E 3"),
+        ("dall-e-2", "DALL-E 2 (legacy)"),
+    ],
+    "gemini": [
+        ("imagen-3.0-generate-002", "Imagen 3"),
+    ],
+    "replicate": [
+        ("black-forest-labs/flux-schnell", "FLUX Schnell (fast)"),
+        ("black-forest-labs/flux-dev", "FLUX Dev (quality)"),
+    ],
+    "fal_ai": [
+        ("fal-ai/flux/schnell", "FLUX Schnell (fast)"),
+        ("fal-ai/flux/dev", "FLUX Dev (quality)"),
+    ],
+    "stability_ai": [
+        ("stable-diffusion-xl-1024-v1-0", "SDXL 1.0"),
+    ],
+    "huggingface": [
+        ("stabilityai/stable-diffusion-xl-base-1.0", "SDXL Base"),
+    ],
+    "cloudflare_ai": [
+        ("@cf/stabilityai/stable-diffusion-xl-base-1.0", "SDXL Base"),
+        ("@cf/black-forest-labs/flux-1-schnell", "FLUX Schnell"),
+    ],
+    "together": [
+        ("black-forest-labs/FLUX.1-schnell-Free", "FLUX Schnell (free)"),
+    ],
+    "pollinations": [
+        ("flux", "FLUX"),
+        ("flux-realism", "FLUX Realism"),
+        ("flux-anime", "FLUX Anime"),
+        ("turbo", "Turbo (fast)"),
+    ],
+}
+
 
 def get_image_providers() -> dict:
     """Return merged list of local checkpoints + active image_gen contractors.
@@ -1423,11 +1463,14 @@ def get_image_providers() -> dict:
                     suffix = " ($) — needs API key"
                 else:
                     suffix = " ($)"
+                models = [{"value": m, "label": lbl} for m, lbl in PROVIDER_MODELS.get(pk, [])]
                 entry = {
                     "value": f"provider:{pk}",
                     "label": f"{row['display_name']}{suffix}",
                     "free": is_free,
                     "needs_key": needs_key,
+                    "models": models,
+                    "default_model": PROVIDER_DEFAULT_MODEL.get(pk),
                 }
                 target = result["cloud_free"] if is_free else result["cloud_paid"]
                 target.append(entry)

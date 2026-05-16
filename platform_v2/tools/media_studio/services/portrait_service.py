@@ -391,12 +391,17 @@ def generate_canonical(agent_id: int, prompt_override: Optional[str] = None) -> 
     )
 
 
-def _parse_provider_or_model(value: Optional[str]) -> Dict:
+def _parse_provider_or_model(value: Optional[str], model_override: Optional[str] = None) -> Dict:
     """Parse a model selector value into provider/model components.
 
     Returns {"provider": str|None, "model": str|None}. Provider keys come from
     contractor_providers; model is a local checkpoint filename. When neither is
     set, the caller falls back to defaults (Auto / fleet-aware).
+
+    When `value` is a "provider:<key>" selector AND `model_override` is supplied,
+    the override wins over PROVIDER_DEFAULT_MODEL — this is the per-provider
+    model picker (#2942). Override is ignored for local-checkpoint selections
+    since those values ARE the model.
     """
     from .generation_service import PROVIDER_DEFAULT_MODEL
 
@@ -404,7 +409,8 @@ def _parse_provider_or_model(value: Optional[str]) -> Dict:
         return {"provider": None, "model": None}
     if value.startswith("provider:"):
         key = value[len("provider:") :]
-        return {"provider": key, "model": PROVIDER_DEFAULT_MODEL.get(key)}
+        model = model_override or PROVIDER_DEFAULT_MODEL.get(key)
+        return {"provider": key, "model": model}
     return {"provider": None, "model": value}
 
 
@@ -413,6 +419,7 @@ def generate_variant(
     style: Optional[str] = None,
     pose: Optional[str] = None,
     model: Optional[str] = None,
+    model_override: Optional[str] = None,
 ) -> Dict:
     """Generate face-consistent variant using IP-Adapter + canonical ref.
 
@@ -444,7 +451,7 @@ def generate_variant(
     if pose:
         base_prompt += f", {pose} pose"
 
-    parsed = _parse_provider_or_model(model)
+    parsed = _parse_provider_or_model(model, model_override=model_override)
     params: Dict = {
         "model": parsed["model"] or "sd_xl_base_1.0.safetensors",
         "width": 1024,
@@ -479,7 +486,12 @@ _FANOUT_STYLES = [
 ]
 
 
-def generate_fanout(agent_id: int, prompt_override: Optional[str] = None, model: Optional[str] = None) -> Dict:
+def generate_fanout(
+    agent_id: int,
+    prompt_override: Optional[str] = None,
+    model: Optional[str] = None,
+    model_override: Optional[str] = None,
+) -> Dict:
     """Submit N portrait generation jobs in one click.
 
     If agent has an approved canonical with ip_adapter_ref_path, generates
@@ -514,7 +526,7 @@ def generate_fanout(agent_id: int, prompt_override: Optional[str] = None, model:
     queue_ids = []
     use_ip_adapter = bool(row.get("approved") and row.get("ip_adapter_ref_path"))
 
-    parsed = _parse_provider_or_model(model)
+    parsed = _parse_provider_or_model(model, model_override=model_override)
     _model = parsed["model"] or "sd_xl_base_1.0.safetensors"
     for style in _FANOUT_STYLES:
         prompt = identity_prompt + (f", {style}" if style else "")

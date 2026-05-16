@@ -501,8 +501,9 @@ def _gemini_media_adapter(request: dict) -> dict:
     if req_type != "image":
         return {"success": False, "error": f"Gemini adapter only supports image generation, got: {req_type}"}
 
-    # Gemini Imagen 3 via predict endpoint
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key={api_key}"
+    # Gemini Imagen via predict endpoint; model is selectable per request.
+    model = params.get("model") or "imagen-3.0-generate-002"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:predict?key={api_key}"
     payload = {
         "instances": [{"prompt": prompt}],
         "parameters": {
@@ -549,7 +550,7 @@ def _gemini_media_adapter(request: dict) -> dict:
         "file_path": f"/{rel_dir}/{file_name}",
         "metadata": {
             "provider": "gemini",
-            "model": "imagen-3.0-generate-002",
+            "model": params.get("model") or "imagen-3.0-generate-002",
             "cost_usd": 0.0,
             "mime_type": "image/png",
             "file_size_bytes": len(img_bytes),
@@ -560,7 +561,7 @@ def _gemini_media_adapter(request: dict) -> dict:
 
 
 def _openai_image_adapter(request: dict) -> dict:
-    """Generate images via OpenAI DALL-E 3 API."""
+    """Generate images via OpenAI image API (DALL-E 3 / DALL-E 2)."""
     import base64
     import uuid
 
@@ -570,6 +571,7 @@ def _openai_image_adapter(request: dict) -> dict:
 
     prompt = request.get("prompt", "")
     params = request.get("params", {})
+    model = params.get("model") or "dall-e-3"
     size = params.get("size", "1024x1024")
     quality = params.get("quality", "standard")
     style = params.get("style", "vivid")
@@ -577,7 +579,7 @@ def _openai_image_adapter(request: dict) -> dict:
     url = "https://api.openai.com/v1/images/generations"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {
-        "model": "dall-e-3",
+        "model": model,
         "prompt": prompt,
         "n": 1,
         "size": size,
@@ -629,7 +631,7 @@ def _openai_image_adapter(request: dict) -> dict:
         "file_path": f"/{rel_dir}/{file_name}",
         "metadata": {
             "provider": "openai",
-            "model": "dall-e-3",
+            "model": model,
             "cost_usd": cost_usd,
             "mime_type": "image/png",
             "file_size_bytes": len(img_bytes),

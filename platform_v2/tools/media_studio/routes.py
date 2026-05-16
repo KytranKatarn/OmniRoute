@@ -644,6 +644,7 @@ def api_generate_variant(agent_id):
         style=data.get("style"),
         pose=data.get("pose"),
         model=data.get("model"),  # may be bare filename, "provider:<key>", or None (Auto)
+        model_override=data.get("model_override"),  # per-provider model picker (#2942)
     )
     if "error" in result:
         return jsonify(result), 400
@@ -661,6 +662,7 @@ def api_generate_fanout(agent_id):
         agent_id,
         prompt_override=data.get("prompt"),
         model=data.get("model"),  # may be bare filename, "provider:<key>", or None (Auto)
+        model_override=data.get("model_override"),  # per-provider model picker (#2942)
     )
     if not result.get("success"):
         return jsonify(result), 400

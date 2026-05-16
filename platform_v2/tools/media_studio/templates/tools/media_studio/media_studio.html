@@ -393,9 +393,10 @@
                     </div>
                     <div class="ms-canonical-actions" style="flex-direction:column;align-items:center;gap:8px;">
                         <span id="ms-portrait-status" class="ms-status-badge"></span>
-                        <select id="ms-canonical-model" class="ms-model-select" title="Image model" style="width:100%;">
+                        <select id="ms-canonical-model" class="ms-model-select" title="Image model" style="width:100%;" onchange="updateProviderModelPicker('ms-canonical-model', 'ms-canonical-provider-model')">
                             <option value="">Auto (fleet-aware)</option>
                         </select>
+                        <select id="ms-canonical-provider-model" class="ms-model-select" title="Provider model" style="width:100%;display:none;"></select>
                         <button id="ms-generate-canonical-btn"
                                 onclick="generateCanonical()"
                                 style="background:var(--ms-accent,#7c3aed);color:#fff;border:none;padding:8px 24px;border-radius:6px;font-family:'Orbitron',sans-serif;font-size:0.8rem;letter-spacing:1px;cursor:pointer;font-weight:600;width:100%;">
@@ -492,9 +493,10 @@
                     <option value="action pose">Action</option>
                     <option value="LCARS holographic">Holographic</option>
                 </select>
-                <select id="ms-variant-model" class="ms-model-select" title="Image model">
+                <select id="ms-variant-model" class="ms-model-select" title="Image model" onchange="updateProviderModelPicker('ms-variant-model', 'ms-variant-provider-model')">
                     <option value="">Auto (fleet-aware)</option>
                 </select>
+                <select id="ms-variant-provider-model" class="ms-model-select" title="Provider model" style="display:none;"></select>
             </div>
 
             <div id="ms-variant-grid" class="ms-recent-grid">
@@ -2343,6 +2345,41 @@
         if (prev) sel.value = prev;  // restore selection if still present
     }
 
+    // Per-provider model picker (#2942). When the provider <select> is set
+    // to "provider:<key>", show a second <select> listing that provider's
+    // models from the cached response. Hidden for local checkpoints and
+    // for the Auto entry — those values ARE the model.
+    window.updateProviderModelPicker = async function(providerSelId, modelPickerId) {
+        var providerSel = document.getElementById(providerSelId);
+        var modelPicker = document.getElementById(modelPickerId);
+        if (!providerSel || !modelPicker) return;
+        var val = providerSel.value || '';
+        if (!val.startsWith('provider:')) {
+            modelPicker.style.display = 'none';
+            modelPicker.replaceChildren();
+            return;
+        }
+        var providerKey = val.slice('provider:'.length);
+        var data = await loadImageProviders();
+        var pool = (data.cloud_free || []).concat(data.cloud_paid || []);
+        var entry = pool.find(function(p) { return p.value === val; });
+        var models = (entry && entry.models) || [];
+        if (!models.length) {
+            modelPicker.style.display = 'none';
+            modelPicker.replaceChildren();
+            return;
+        }
+        modelPicker.replaceChildren();
+        models.forEach(function(m) {
+            var o = document.createElement('option');
+            o.value = m.value;
+            o.textContent = m.label;
+            if (entry.default_model && m.value === entry.default_model) o.selected = true;
+            modelPicker.appendChild(o);
+        });
+        modelPicker.style.display = '';
+    };
+
     window.openPortraitDetail = function(agentId) {
         // Cancel any in-flight SSE stream from the previous agent
         if (_activeRefineAbort) { _activeRefineAbort.abort(); _activeRefineAbort = null; }
@@ -2642,10 +2679,19 @@
                 if (btn) { btn.disabled = true; btn.textContent = 'Queuing...'; }
 
                 var canonicalModel = (document.getElementById('ms-canonical-model') || {}).value || undefined;
+                var canonicalProviderModel = undefined;
+                var cpmSel = document.getElementById('ms-canonical-provider-model');
+                if (cpmSel && cpmSel.style.display !== 'none' && cpmSel.value) {
+                    canonicalProviderModel = cpmSel.value;
+                }
                 fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/generate-fanout', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({prompt: prompt || undefined, model: canonicalModel})
+                    body: JSON.stringify({
+                        prompt: prompt || undefined,
+                        model: canonicalModel,
+                        model_override: canonicalProviderModel
+                    })
                 })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
@@ -2950,6 +2996,10 @@
         var payload = {};
         if (style) payload.style = style;
         if (model) payload.model = model;
+        var vpmSel = document.getElementById('ms-variant-provider-model');
+        if (vpmSel && vpmSel.style.display !== 'none' && vpmSel.value) {
+            payload.model_override = vpmSel.value;
+        }
         fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/generate-variant', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},

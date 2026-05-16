@@ -512,13 +512,61 @@ def get_dashboard_stats(user_id: int) -> Dict:
     return counts
 
 
+def _log_image_contractor_usage(
+    provider: str,
+    model: Optional[str],
+    cost_usd: float,
+    response_ms: int,
+    success: bool,
+    queue_row: Dict,
+    error_message: Optional[str] = None,
+) -> None:
+    """Append a row to cloud_model_usage for contractor image generation.
+
+    Mirrors the dispatcher's _log_cloud_image_usage shape (task_type='image_generation')
+    but attributes user_id/agent_id from the queue row's owner. Free providers
+    (cost=0) still get a row so we can see provider mix in analytics. Failures
+    log success=false with error_message. Inert on DB error — never blocks
+    the generation pipeline.
+    """
+    try:
+        owner_type = queue_row.get("owner_type")
+        owner_id = queue_row.get("owner_id")
+        user_id = owner_id if owner_type == "user" else None
+        agent_id = owner_id if owner_type == "agent" else None
+        model_name = model or f"{provider}_image"
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO cloud_model_usage
+                    (model_name, provider, prompt_tokens, completion_tokens,
+                     cost_usd, response_ms, success, error_message,
+                     user_id, agent_id, task_type)
+                VALUES (%s, %s, 0, 0, %s, %s, %s, %s, %s, %s, 'image_generation')
+                """,
+                (
+                    model_name,
+                    provider,
+                    cost_usd,
+                    response_ms,
+                    success,
+                    (error_message or "")[:1000] if not success else None,
+                    user_id,
+                    agent_id,
+                ),
+            )
+    except Exception as e:
+        logger.debug("[Contractor] cost ledger insert failed: %s", e)
+
+
 def _generate_via_contractor(queue_id: int, queue_row: Dict, params: Dict, provider_key: str) -> Optional[int]:
     """Generate an image via an external cloud contractor (OpenAI, Pollinations, etc.).
 
     Mirrors the success shape of the ComfyUI path so the rest of the pipeline
     (gallery, badges, queue status) doesn't need to differ. On success, calls
     on_generation_complete to register the file in media_library; on failure,
-    marks the queue row failed with the provider's error message.
+    marks the queue row failed with the provider's error message. Both success
+    and failure paths log to cloud_model_usage for analytics (#2941).
     """
     from ai_bridge.external_providers import generate_media
 
@@ -548,6 +596,15 @@ def _generate_via_contractor(queue_id: int, queue_row: Dict, params: Dict, provi
     if not result.get("success"):
         err = result.get("error", "Unknown contractor error")
         logger.warning("[Contractor] queue #%s failed: %s", queue_id, err)
+        _log_image_contractor_usage(
+            provider=provider_key,
+            model=params.get("model"),
+            cost_usd=0.0,
+            response_ms=duration_ms,
+            success=False,
+            queue_row=queue_row,
+            error_message=err,
+        )
         on_generation_failed(queue_id, f"{provider_key}: {err}")
         return None
 
@@ -563,6 +620,14 @@ def _generate_via_contractor(queue_id: int, queue_row: Dict, params: Dict, provi
         seed=params.get("seed"),
         duration_ms=meta.get("duration_ms", duration_ms),
         provider=f"contractor:{provider_key}",
+    )
+    _log_image_contractor_usage(
+        provider=provider_key,
+        model=meta.get("model") or params.get("model"),
+        cost_usd=float(meta.get("cost_usd", 0.0)),
+        response_ms=int(meta.get("duration_ms", duration_ms)),
+        success=True,
+        queue_row=queue_row,
     )
     logger.info(
         "[Contractor] queue #%s completed: media_id=%s cost=$%.4f",

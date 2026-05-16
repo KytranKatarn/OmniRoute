@@ -4861,16 +4861,26 @@ class DepartmentDispatcher:
         #     falls through to normal hub execution. Gated by agent-mobility
         #     toggle (fleet_node_routing_enabled in system_config).
         if agent and _fleet_routing_enabled():
-            _wp_node_id = _pick_fleet_node(model, agent if isinstance(agent, dict) else {})
+            # Resolve the agent's model once — `model` is not yet a local
+            # variable at this point in request_work() (it's assigned later
+            # in the hub-execute branch). Without this derivation, any
+            # dispatch that reaches this block hits UnboundLocalError on
+            # `model`. See ADR-005 for the broader image_gen routing context.
+            _wp_model = ""
+            if isinstance(agent, dict):
+                _wp_model = agent.get("model") or ""
+            else:
+                _wp_model = getattr(agent, "model", "") or ""
+            _wp_node_id = _pick_fleet_node(_wp_model, agent if isinstance(agent, dict) else {})
             if _wp_node_id is not None:
                 _wp_info = self._get_fleet_node_for_dispatch(
-                    _wp_node_id, model, agent if isinstance(agent, dict) else None
+                    _wp_node_id, _wp_model, agent if isinstance(agent, dict) else None
                 )
                 if _wp_info:
                     logger.info(
                         "[BridgeDispatcher] Score-routing '%s' (%s) → %s via mesh",
                         capability,
-                        model,
+                        _wp_model,
                         _wp_info["node_name"],
                     )
                     _wp_res = self._dispatch_to_node(
@@ -4891,7 +4901,7 @@ class DepartmentDispatcher:
                             response=_wp_res.get("response", ""),
                             agent_name=(_wp_info["agent_name"]),
                             agent_id=agent.get("id") if isinstance(agent, dict) else None,
-                            model_used=model,
+                            model_used=_wp_model,
                             department=dispatch_department,
                             capability=capability,
                             duration_ms=_wp_dur,

@@ -403,10 +403,9 @@ def register_ota_routes(bp, auth_decorator):
         if not re.match(r"^[\w\-. ]+$", safe_name):
             return jsonify({"success": False, "error": "Invalid filename"}), 400
 
-        # Search: ComfyUI checkpoints dir first, then fleet node source dir
+        # Search ComfyUI checkpoints dir for the requested file.
         search_dirs = [
             os.environ.get("COMFYUI_CHECKPOINTS_DIR", "/mnt/data2/comfyui/models/checkpoints"),
-            "/mnt/archie_brain/fleet/archie-node",
         ]
         file_path = None
         for d in search_dirs:

@@ -8451,14 +8451,17 @@ class DepartmentDispatcher:
             # Determine Ollama URL
             if node_db_id:
                 cur.execute(
-                    "SELECT hostname, port FROM remote_nodes WHERE id = %s",
+                    "SELECT hostname, mesh_ip, vpn_ip, port FROM remote_nodes WHERE id = %s",
                     (node_db_id,),
                 )
                 node = cur.fetchone()
                 if not node:
                     logger.warning("[BridgeDispatcher] _save_model_state: node %s not found", node_db_id)
                     return
-                ollama_url = f"http://{node['hostname']}:{node['port'] or 11434}"
+                from tools.department_hq.fleet_helpers import node_inter_cluster_host
+
+                host = node_inter_cluster_host(node)
+                ollama_url = f"http://{host}:{node['port'] or 11434}"
             else:
                 ollama_url = os.getenv("OLLAMA_HOST", "http://192.168.1.200:11434")
                 if not ollama_url.startswith("http"):
@@ -8583,14 +8586,17 @@ class DepartmentDispatcher:
             if node_db_id:
                 cur2 = conn.cursor(cursor_factory=RealDictCursor)
                 cur2.execute(
-                    "SELECT hostname, port FROM remote_nodes WHERE id = %s",
+                    "SELECT hostname, mesh_ip, vpn_ip, port FROM remote_nodes WHERE id = %s",
                     (node_db_id,),
                 )
                 node = cur2.fetchone()
                 cur2.close()
                 if not node:
                     return
-                ollama_url = f"http://{node['hostname']}:{node['port'] or 11434}"
+                from tools.department_hq.fleet_helpers import node_inter_cluster_host
+
+                host = node_inter_cluster_host(node)
+                ollama_url = f"http://{host}:{node['port'] or 11434}"
             else:
                 ollama_url = os.getenv("OLLAMA_HOST", "http://192.168.1.200:11434")
                 if not ollama_url.startswith("http"):

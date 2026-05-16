@@ -311,6 +311,21 @@ def push_agent_event(event_type, agent_id=None, data=None):
 # ============================================================================
 
 
+def node_inter_cluster_host(node, fallback=None):
+    """Pick the host string for inter-cluster traffic to a remote_nodes row.
+
+    Order: mesh_ip → vpn_ip → hostname → fallback. Mesh IP wins because
+    hub↔node traffic must traverse Headscale per the DHQ mesh-routing
+    mandate (KB #263641, ADR-008). Hostname is a last resort — heartbeats
+    have been seen to write the node's Docker container ID into it, which
+    is unresolvable from the hub.
+    """
+    if node is None:
+        return fallback
+    getter = node.get if hasattr(node, "get") else lambda k, d=None: node[k] if k in node else d
+    return getter("mesh_ip") or getter("vpn_ip") or getter("hostname") or fallback
+
+
 def check_ollama_status(host, port):
     """Check if Ollama is running and responsive"""
     try:

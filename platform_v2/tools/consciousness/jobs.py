@@ -2011,7 +2011,7 @@ def push_skills_to_fleet():
         # Find online starship nodes (heartbeat within 10 minutes)
         with get_db_cursor() as (conn, cur):
             cur.execute(
-                """SELECT id, hostname, port, node_name, node_id, node_api_port
+                """SELECT id, hostname, mesh_ip, vpn_ip, port, node_name, node_id, node_api_port
                    FROM remote_nodes
                    WHERE deployment_mode = 'starship'
                      AND last_heartbeat > NOW() - INTERVAL '10 minutes'"""
@@ -2055,9 +2055,11 @@ def push_skills_to_fleet():
         all_skill_ids = {s["skill_id"] for s in all_skills}
         skill_map = {s["skill_id"]: s for s in all_skills}
 
+        from tools.department_hq.fleet_helpers import node_inter_cluster_host
+
         for node in nodes:
             node_db_id = node["id"]
-            hostname = node["hostname"]
+            hostname = node_inter_cluster_host(node)
             inbound_port = node.get("node_api_port") or 3001
             node_name = node["node_name"]
 

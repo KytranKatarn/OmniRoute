@@ -1163,7 +1163,14 @@ def register_node_routes(bp, login_required, admin_required):
     @bp.route("/api/nodes/<node_id>/heartbeat", methods=["POST"])
     def node_heartbeat(node_id):
         """Receive heartbeat from a remote node"""
+        import re as _re_hb
+
         data = request.get_json() or {}
+        # Reject Docker container short IDs as hostname — those are unresolvable
+        # from the hub. mesh_ip is the canonical inter-cluster address (ADR-008).
+        _hb_host = data.get("hostname")
+        if isinstance(_hb_host, str) and _re_hb.fullmatch(r"[0-9a-f]{12}", _hb_host):
+            data["hostname"] = None
         api_key = request.headers.get("X-Node-API-Key")
 
         if not api_key:
@@ -1654,7 +1661,7 @@ def register_node_routes(bp, login_required, admin_required):
                 cur.execute(
                     """
                     SELECT
-                        rn.id, rn.node_id, rn.node_name, rn.vpn_ip, rn.hostname, rn.port,
+                        rn.id, rn.node_id, rn.node_name, rn.mesh_ip, rn.vpn_ip, rn.hostname, rn.port,
                         rn.priority, rn.weight, rn.current_load, rn.max_concurrent,
                         nc.avg_tokens_per_sec
                     FROM remote_nodes rn
@@ -1697,13 +1704,15 @@ def register_node_routes(bp, login_required, admin_required):
                     (node["id"],),
                 )
 
+                from tools.department_hq.fleet_helpers import node_inter_cluster_host
+
                 return jsonify(
                     {
                         "success": True,
                         "node": {
                             "node_id": node["node_id"],
                             "name": node["node_name"],
-                            "host": node["vpn_ip"] or node["hostname"],
+                            "host": node_inter_cluster_host(node),
                             "port": node["port"],
                         },
                         "use_local": False,
@@ -2026,7 +2035,7 @@ def register_node_routes(bp, login_required, admin_required):
 
                 cur.execute(
                     """
-                    SELECT node_id, node_name, vpn_ip, hostname, port
+                    SELECT node_id, node_name, mesh_ip, vpn_ip, hostname, port
                     FROM remote_nodes
                     WHERE node_id = %s AND is_active = TRUE
                 """,
@@ -2039,7 +2048,9 @@ def register_node_routes(bp, login_required, admin_required):
                     return jsonify({"success": False, "error": "Node not found"}), 404
 
                 # Build endpoint URL
-                host = node["vpn_ip"] or node["hostname"]
+                from tools.department_hq.fleet_helpers import node_inter_cluster_host
+
+                host = node_inter_cluster_host(node)
                 port = node["port"] or DEFAULT_NODE_PORT
                 url = f"http://{host}:{port}/api/tags"
 
@@ -2196,7 +2207,7 @@ def register_node_routes(bp, login_required, admin_required):
             with get_db_cursor(commit=False) as (conn, cur):
                 cur.execute(
                     """
-                    SELECT vpn_ip, hostname, port FROM remote_nodes
+                    SELECT mesh_ip, vpn_ip, hostname, port FROM remote_nodes
                     WHERE node_id = %s AND is_active = true
                 """,
                     (node_id,),
@@ -2206,7 +2217,9 @@ def register_node_routes(bp, login_required, admin_required):
             if not node:
                 return jsonify({"success": False, "error": "Node not found or inactive"}), 404
 
-            host = node["vpn_ip"] or node["hostname"]
+            from tools.department_hq.fleet_helpers import node_inter_cluster_host
+
+            host = node_inter_cluster_host(node)
             port = node["port"] or DEFAULT_NODE_PORT
             ollama_url = f"http://{host}:{port}"
             start = _time.time()
@@ -2784,7 +2797,9 @@ def register_node_routes(bp, login_required, admin_required):
         if not node:
             return jsonify({"success": False, "error": "Node not found"}), 404
 
-        hostname = node["hostname"]
+        from tools.department_hq.fleet_helpers import node_inter_cluster_host
+
+        hostname = node_inter_cluster_host(node)
         api_port = 3001  # node_api default port
         try:
             resp = _req.get(f"http://{hostname}:{api_port}/diagnostics", timeout=8)

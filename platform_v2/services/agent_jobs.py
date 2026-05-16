@@ -3374,7 +3374,7 @@ def poll_outpost_heartbeat():
 
         with get_db_cursor() as (_, cur):
             cur.execute(
-                """SELECT node_id, hostname, port
+                """SELECT node_id, hostname, mesh_ip, vpn_ip, port
                    FROM remote_nodes
                    WHERE bridge_enabled = true
                      AND network_type = 'external'
@@ -3382,8 +3382,10 @@ def poll_outpost_heartbeat():
             )
             nodes = cur.fetchall()
 
+        from tools.department_hq.fleet_helpers import node_inter_cluster_host
+
         for node in nodes:
-            url = f"http://{node['hostname']}:{node['port']}/api/tags"
+            url = f"http://{node_inter_cluster_host(node)}:{node['port']}/api/tags"
             try:
                 with _req.urlopen(url, timeout=5) as r:
                     if r.status == 200:

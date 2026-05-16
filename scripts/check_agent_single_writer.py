@@ -137,6 +137,13 @@ _API_GENERATE_ALLOWLIST: set[str] = {
     # endpoint that routes through build_options() on the hub's behalf.
     # Until that lands, keep the raw call behind this entry.
     "standalone/media_hub/maven/chat.py",
+    # Department HQ model load/unload admin routes. Ollama has no dedicated
+    # load endpoint — load = POST /api/generate with keep_alive=5m, unload =
+    # same with keep_alive=0. Not user-facing inference; these are explicit
+    # lifecycle controls invoked from the Fleet tab. Refactoring would just
+    # wrap build_options() around an empty-prompt request that intentionally
+    # never generates a token. Pre-existing.
+    "platform_v2/tools/department_hq/model_routes.py",
     # Media Studio — Flask route path @bp.route("/api/generate") for image
     # generation (ComfyUI-backed, not Ollama). Legitimate false positive on
     # the regex. Actual LLM dispatches from this module go through

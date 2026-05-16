@@ -91,13 +91,16 @@ def register_model_routes(bp, admin_required):
             if node_id:
                 with get_db_cursor() as (conn, cur):
                     cur.execute(
-                        "SELECT hostname, ollama_port FROM remote_nodes " "WHERE id = %s AND status = 'online'",
+                        "SELECT hostname, mesh_ip, vpn_ip, ollama_port FROM remote_nodes "
+                        "WHERE id = %s AND status = 'online'",
                         (node_id,),
                     )
                     node = cur.fetchone()
                     if not node:
                         return jsonify({"success": False, "error": f"Node {node_id} not found or offline"}), 404
-                    node_host = node["hostname"]
+                    from tools.department_hq.fleet_helpers import node_inter_cluster_host
+
+                    node_host = node_inter_cluster_host(node)
                     node_port = node.get("ollama_port", 11434)
                     target_url = f"http://{node_host}:{node_port}"
 

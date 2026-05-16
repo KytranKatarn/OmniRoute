@@ -175,7 +175,9 @@ def register_ota_routes(bp, auth_decorator):
         if not node:
             return jsonify({"success": False, "error": "Node not found"}), 404
 
-        hostname = node["hostname"]
+        from tools.department_hq.fleet_helpers import node_inter_cluster_host
+
+        hostname = node_inter_cluster_host(node)
         api_port = 3001  # node_api default port
 
         data = request.get_json() or {}

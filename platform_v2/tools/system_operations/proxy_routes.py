@@ -86,7 +86,8 @@ def register_proxy_routes(bp, admin_required_decorator):
         try:
             with get_db_cursor() as (conn, cur):
                 cur.execute(
-                    "SELECT hostname, port, auth_token FROM remote_nodes " "WHERE node_id = %s AND is_active = true",
+                    "SELECT hostname, mesh_ip, vpn_ip, port, auth_token FROM remote_nodes "
+                    "WHERE node_id = %s AND is_active = true",
                     (node_id,),
                 )
                 node = cur.fetchone()
@@ -99,7 +100,9 @@ def register_proxy_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": str(e)}), 500
 
         # Build signed request
-        hostname = node["hostname"]
+        from tools.department_hq.fleet_helpers import node_inter_cluster_host
+
+        hostname = node_inter_cluster_host(node)
         port = node["port"] or 3000
         auth_token = node.get("auth_token", "") or ""
 

@@ -133,15 +133,17 @@ def register_crew_routes(bp, admin_required):
             try:
                 with get_db_cursor(commit=False) as (nconn, ncur):
                     ncur.execute(
-                        """SELECT rn.id, rn.node_id, rn.node_name, rn.hostname, rn.port,
+                        """SELECT rn.id, rn.node_id, rn.node_name, rn.hostname, rn.mesh_ip, rn.vpn_ip, rn.port,
                                   rn.gpu_model, rn.gpu_vram_gb, rn.ram_gb, rn.cpu_cores,
                                   (SELECT COUNT(*) FROM node_agents na WHERE na.node_id = rn.id AND na.status = 'active') as agent_count
                            FROM remote_nodes rn
                            WHERE rn.is_active = true AND rn.deployment_mode != 'starbase'
                              AND (rn.last_heartbeat > NOW() - INTERVAL '2 minutes')"""
                     )
+                    from tools.department_hq.fleet_helpers import node_inter_cluster_host
+
                     for node in ncur.fetchall():
-                        node_url = f"http://{node['hostname']}:{node['port']}"
+                        node_url = f"http://{node_inter_cluster_host(node)}:{node['port']}"
                         vram_total = float(node["gpu_vram_gb"]) if node["gpu_vram_gb"] else 0
                         ram_total = float(node["ram_gb"]) if node["ram_gb"] else 0
 

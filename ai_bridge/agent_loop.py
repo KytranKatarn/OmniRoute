@@ -1583,19 +1583,38 @@ class AgentLoop:
         except Exception as dhq_err:
             logger.warning("media_generation_worker: DHQ agent lookup failed (non-blocking): %s", dhq_err)
 
-        # Step 2: P.I.X.E.L.'s tool is ComfyUI — warm it up before claiming work.
+        # Step 2: Prefer fleet ComfyUI (RTX Starship) over hub Quadro M4000.
+        # If a fleet node is healthy, skip hub warmboot entirely — fleet routing
+        # happens inside generate_via_comfyui() via get_best_comfyui_url().
+        _fleet_available = False
         try:
-            from ai_bridge.comfyui_service import get_comfyui_service
-            svc = get_comfyui_service()
-            if svc.is_stopped():
-                logger.info("media_generation_worker: ComfyUI stopped — P.I.X.E.L. warming up container")
-                healthy = svc.wake_if_stopped()
-                if not healthy:
-                    logger.warning("media_generation_worker: ComfyUI warmboot failed — leaving jobs pending for next tick")
-                    return
-                logger.info("media_generation_worker: ComfyUI healthy after warmboot")
-        except Exception as wake_err:
-            logger.warning("media_generation_worker: ComfyUI warmboot check failed: %s", wake_err)
+            from tools.media_studio.services.comfyui_manager import get_best_comfyui_url
+
+            _fleet_url, _fleet_node = get_best_comfyui_url()
+            if _fleet_node:
+                logger.info(
+                    "media_generation_worker: fleet ComfyUI on %s — skipping hub warmboot",
+                    _fleet_node,
+                )
+                _fleet_available = True
+        except Exception as _fe:
+            logger.debug("media_generation_worker: fleet ComfyUI check failed: %s", _fe)
+
+        if not _fleet_available:
+            # Fall back to hub ComfyUI — warm up container if stopped.
+            try:
+                from ai_bridge.comfyui_service import get_comfyui_service
+
+                svc = get_comfyui_service()
+                if svc.is_stopped():
+                    logger.info("media_generation_worker: ComfyUI stopped — P.I.X.E.L. warming up container")
+                    healthy = svc.wake_if_stopped()
+                    if not healthy:
+                        logger.warning("media_generation_worker: ComfyUI warmboot failed — leaving jobs pending for next tick")
+                        return
+                    logger.info("media_generation_worker: ComfyUI healthy after warmboot")
+            except Exception as wake_err:
+                logger.warning("media_generation_worker: ComfyUI warmboot check failed: %s", wake_err)
 
         try:
             with get_db_cursor(commit=True) as (conn, cur):

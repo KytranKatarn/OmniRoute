@@ -1166,4 +1166,57 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered dispatch_zombie_reaper job (every 15 min)")
 
+    # Job #121: Media generation queue reaper — re-queue stuck generating jobs
+    # -------------------------------------------------------------------------
+    def _run_media_generation_reaper():
+        """Reset media_generation_queue rows stuck in 'generating' >15 min.
+
+        If a fleet node drops mid-generation, the queue entry stays at
+        'generating' forever. This reaper resets it to 'pending' so the
+        media_generation_worker re-dispatches to the next best available node.
+        """
+        try:
+            from database import get_db_cursor
+            from services.telegram_service import send_system
+
+            with get_db_cursor(commit=True) as (_, cur):
+                cur.execute(
+                    """
+                    UPDATE media_generation_queue
+                       SET status = 'pending', started_at = NULL
+                     WHERE status = 'generating'
+                       AND started_at < NOW() - INTERVAL '15 minutes'
+                    RETURNING id, media_type, params->>'model' AS model
+                    """
+                )
+                reaped = cur.fetchall() or []
+
+            if reaped:
+                summary = ", ".join(f"#{r['id']} {r['media_type']}/{r.get('model', '?')}" for r in reaped[:5])
+                logger.warning(
+                    "[DeptHQ] Media reaper: reset %d stuck jobs → pending — %s",
+                    len(reaped),
+                    summary,
+                )
+                try:
+                    send_system(
+                        f"⚠️ Media generation reaper: {len(reaped)} stuck job(s) "
+                        f"reset to pending (node may have dropped).\n{summary}"
+                    )
+                except Exception:
+                    pass
+            else:
+                logger.debug("[DeptHQ] Media reaper: queue clean")
+        except Exception as exc:
+            logger.error("[DeptHQ] Media generation reaper failed: %s", exc)
+
+    scheduler.add_job(
+        with_ctx(_run_media_generation_reaper),
+        trigger=CronTrigger(minute="*/10", timezone="America/Toronto"),
+        id="media_generation_reaper",
+        name="Queue: Reset stuck media generation jobs (>15 min)",
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered media_generation_reaper job (every 10 min)")
+
     logger.info("[DeptHQ] Registered 12 code health/audit jobs")

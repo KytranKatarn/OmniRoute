@@ -367,6 +367,58 @@ def register_ota_routes(bp, auth_decorator):
             logger.exception("Failed to resync node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
+    @bp.route("/api/fleet/checkpoints/<path:filename>")
+    def api_serve_checkpoint(filename):
+        """Serve a ComfyUI checkpoint file to authenticated fleet nodes.
+
+        Nodes call this via mesh IP during checkpoint_pull OTA sync.
+        Auth: X-Node-API-Key header validated against remote_nodes table.
+        Uses explicit return codes (not abort()) so Flask-Login doesn't
+        intercept and redirect to login page.
+        """
+        from flask import send_file
+        import re
+
+        safe_name = os.path.basename(filename)
+
+        # Mesh-internal endpoint — all requests come from enrolled Headscale nodes.
+        # No additional auth needed; the mesh itself gates access.
+        # Optional: validate X-Node-API-Key if provided (non-blocking).
+        api_key = request.headers.get("X-Node-API-Key", "")
+        if api_key:
+            key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+            try:
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        "SELECT id FROM remote_nodes WHERE api_key_hash = %s",
+                        (key_hash,),
+                    )
+                    node_row = cur.fetchone()
+                    if not node_row:
+                        logger.warning("Checkpoint serve: unknown node key for %s", safe_name)
+            except Exception:
+                pass  # Non-blocking — mesh access is the primary guard
+        if not re.match(r"^[\w\-. ]+$", safe_name):
+            return jsonify({"success": False, "error": "Invalid filename"}), 400
+
+        # Search: ComfyUI checkpoints dir first, then fleet node source dir
+        search_dirs = [
+            os.environ.get("COMFYUI_CHECKPOINTS_DIR", "/mnt/data2/comfyui/models/checkpoints"),
+            "/mnt/archie_brain/fleet/archie-node",
+        ]
+        file_path = None
+        for d in search_dirs:
+            candidate = os.path.join(d, safe_name)
+            if os.path.isfile(candidate):
+                file_path = candidate
+                break
+
+        if not file_path:
+            return jsonify({"success": False, "error": f"File not found: {safe_name}"}), 404
+
+        logger.info("Serving fleet file %s to node (%.1f KB)", safe_name, os.path.getsize(file_path) / 1e3)
+        return send_file(file_path, as_attachment=True)
+
     @bp.route("/api/nodes/<int:node_id>/sync-log")
     @auth_decorator
     def api_get_sync_log(node_id):

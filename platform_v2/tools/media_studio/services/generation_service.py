@@ -577,8 +577,8 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
             resp.raise_for_status()
             prompt_id = resp.json()["prompt_id"]
 
-            # Poll for result
-            max_wait, poll_interval, elapsed = 180, 3, 0
+            # Poll for result — 360s to allow cold SDXL model load on fleet RTX nodes
+            max_wait, poll_interval, elapsed = 360, 3, 0
             output_file = None
             while elapsed < max_wait:
                 import time as _t

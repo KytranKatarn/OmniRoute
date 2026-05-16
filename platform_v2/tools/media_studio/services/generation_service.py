@@ -556,7 +556,7 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
             get_best_comfyui_url,
         )
 
-        fleet_url, fleet_node = get_best_comfyui_url()
+        fleet_url, fleet_node = get_best_comfyui_url(model_name=model)
         is_fleet = fleet_node is not None
 
         if is_fleet:

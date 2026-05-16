@@ -188,12 +188,16 @@ def rank_nodes_for_operation(operation: str) -> List[Dict]:
     return capable
 
 
-def get_best_comfyui_url() -> Tuple[str, Optional[str]]:
+def get_best_comfyui_url(model_name: Optional[str] = None) -> Tuple[str, Optional[str]]:
     """Return (comfyui_url, node_name) for the best available ComfyUI node.
 
     Prefers fleet nodes with higher VRAM over hub — RTX Starships beat the
     hub's Quadro M4000 for image generation throughput. Falls back to hub on
     any error or when no fleet node is healthy.
+
+    If model_name is provided, only routes to a fleet node when that model
+    is listed in extra_capabilities['comfyui_models'] — prevents 400 errors
+    for models that haven't been transferred to the fleet node yet.
 
     Uses extra_capabilities.comfyui_url + gpu_vram_gb from remote_nodes
     (populated by heartbeat), not metadata.gpu which is unreliable.
@@ -208,7 +212,8 @@ def get_best_comfyui_url() -> Tuple[str, Optional[str]]:
             cur.execute(
                 """
                 SELECT node_name, gpu_vram_gb,
-                       extra_capabilities->>'comfyui_url' AS comfyui_url
+                       extra_capabilities->>'comfyui_url' AS comfyui_url,
+                       extra_capabilities->'comfyui_models' AS comfyui_models
                 FROM remote_nodes
                 WHERE status = 'online'
                   AND gpu_available = TRUE
@@ -225,6 +230,20 @@ def get_best_comfyui_url() -> Tuple[str, Optional[str]]:
             fleet_vram_mb = int((row["gpu_vram_gb"] or 0) * 1024)
             # Only prefer fleet node if it has comparable or more VRAM
             if fleet_vram_mb >= hub_vram_mb * 0.75:
+                # Model availability check — only route to fleet if model is known there
+                if model_name:
+                    import json as _json
+
+                    fleet_models = row.get("comfyui_models") or []
+                    if isinstance(fleet_models, str):
+                        fleet_models = _json.loads(fleet_models)
+                    if model_name not in fleet_models:
+                        logger.info(
+                            "[ComfyUI] Model %s not on fleet node %s — falling back to hub",
+                            model_name,
+                            row["node_name"],
+                        )
+                        return hub_url, None
                 try:
                     _req.get(f"{fleet_url}/system_stats", timeout=3)
                     logger.info(

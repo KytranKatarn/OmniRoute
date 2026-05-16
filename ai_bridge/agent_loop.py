@@ -1584,13 +1584,28 @@ class AgentLoop:
             logger.warning("media_generation_worker: DHQ agent lookup failed (non-blocking): %s", dhq_err)
 
         # Step 2: Prefer fleet ComfyUI (RTX Starship) over hub Quadro M4000.
-        # If a fleet node is healthy, skip hub warmboot entirely — fleet routing
-        # happens inside generate_via_comfyui() via get_best_comfyui_url().
+        # Peek at next pending job's model to check fleet model availability.
+        # Only skip hub warmboot when fleet can actually handle that model.
         _fleet_available = False
         try:
             from tools.media_studio.services.comfyui_manager import get_best_comfyui_url
+            from database import get_db_cursor as _gdc
 
-            _fleet_url, _fleet_node = get_best_comfyui_url()
+            _next_model = None
+            try:
+                with _gdc() as (_, _cur):
+                    _cur.execute(
+                        "SELECT params->>'model' AS model FROM media_generation_queue "
+                        "WHERE status='pending' AND (params->>'provider'='comfyui' OR params->>'provider' IS NULL) "
+                        "ORDER BY created_at ASC LIMIT 1"
+                    )
+                    _row = _cur.fetchone()
+                    if _row:
+                        _next_model = _row["model"]
+            except Exception:
+                pass
+
+            _fleet_url, _fleet_node = get_best_comfyui_url(model_name=_next_model)
             if _fleet_node:
                 logger.info(
                     "media_generation_worker: fleet ComfyUI on %s — skipping hub warmboot",

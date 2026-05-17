@@ -127,32 +127,40 @@ def run_backlog(engine, schema: str = "wtf") -> dict:
         return {"processed": 0, "failed": 0, "stopped": "disabled"}
 
     processed = 0
+    rate_limited = 0
     failed = 0
-    while processed + failed < _MAX_RUNS_PER_NIGHT:
+    while processed + rate_limited + failed < _MAX_RUNS_PER_NIGHT:
         batch = _fetch_batch(engine, schema, _BATCH_SIZE)
         if not batch:
-            return {"processed": processed, "failed": failed, "stopped": "no_backlog"}
+            return {"processed": processed, "rate_limited": rate_limited,
+                    "failed": failed, "stopped": "no_backlog"}
 
         for article in batch:
-            if processed + failed >= _MAX_RUNS_PER_NIGHT:
-                return {"processed": processed, "failed": failed, "stopped": "max_runs"}
+            if processed + rate_limited + failed >= _MAX_RUNS_PER_NIGHT:
+                return {"processed": processed, "rate_limited": rate_limited,
+                        "failed": failed, "stopped": "max_runs"}
 
-            result = ai_dispatcher.analyze(
+            outcome = ai_dispatcher.analyze_with_status(
                 task="factcheck",
                 article_id=article["id"],
                 title=article["title"],
                 body=article["body"],
                 source_slug=article["source_slug"] or "",
             )
-            if result is None:
+            status = outcome["status"]
+            if status == "rate_limited":
+                # Skip persist; hub will be ready next cycle (#2944).
+                rate_limited += 1
+            elif status == "failed":
                 failed += 1
             else:
                 try:
-                    _persist(engine, schema, article["id"], result)
+                    _persist(engine, schema, article["id"], outcome["result"])
                     processed += 1
                 except Exception as exc:
                     failed += 1
                     logger.exception("[factcheck_backlog] article=%s persist failed: %s", article["id"], exc)
             time.sleep(_DISPATCH_SLEEP_SEC)
 
-    return {"processed": processed, "failed": failed, "stopped": "max_runs"}
+    return {"processed": processed, "rate_limited": rate_limited,
+            "failed": failed, "stopped": "max_runs"}

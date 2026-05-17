@@ -82,34 +82,41 @@ def _persist(engine, schema: str, article_id: int, sections: dict) -> None:
 def run_backlog(engine, schema: str = "wtf") -> dict:
     """Process one shift of LLM analysis backlog. Returns {processed, failed, skipped, stopped}."""
     if not _ENABLED:
-        return {"processed": 0, "failed": 0, "skipped": 0, "stopped": "disabled"}
+        return {"processed": 0, "rate_limited": 0, "failed": 0, "skipped": 0, "stopped": "disabled"}
 
     processed = 0
+    rate_limited = 0
     failed = 0
     skipped = 0
-    while processed + failed < _MAX_RUNS_PER_NIGHT:
+    while processed + rate_limited + failed < _MAX_RUNS_PER_NIGHT:
         batch = _fetch_batch(engine, schema, _BATCH_SIZE)
         if not batch:
-            return {"processed": processed, "failed": failed, "skipped": skipped, "stopped": "no_backlog"}
+            return {"processed": processed, "rate_limited": rate_limited,
+                    "failed": failed, "skipped": skipped, "stopped": "no_backlog"}
 
         for article in batch:
-            if processed + failed >= _MAX_RUNS_PER_NIGHT:
-                return {"processed": processed, "failed": failed, "skipped": skipped, "stopped": "max_runs"}
+            if processed + rate_limited + failed >= _MAX_RUNS_PER_NIGHT:
+                return {"processed": processed, "rate_limited": rate_limited,
+                        "failed": failed, "skipped": skipped, "stopped": "max_runs"}
 
-            result = ai_dispatcher.analyze(
+            outcome = ai_dispatcher.analyze_with_status(
                 task="deep_analysis",
                 article_id=article["id"],
                 title=article["title"],
                 body=article["body"],
                 source_slug=article["source_slug"] or "",
             )
+            status = outcome["status"]
 
-            if result is None:
+            if status == "rate_limited":
+                # Per #2944 — transient, retry next cycle without burning a 'failed' slot.
+                rate_limited += 1
+            elif status == "failed":
                 failed += 1
-                logger.warning("[llm_backlog] article=%s dispatch returned None", article["id"])
+                logger.warning("[llm_backlog] article=%s dispatch failed", article["id"])
             else:
                 try:
-                    _persist(engine, schema, article["id"], result)
+                    _persist(engine, schema, article["id"], outcome["result"])
                     processed += 1
                 except Exception as exc:
                     failed += 1
@@ -117,4 +124,5 @@ def run_backlog(engine, schema: str = "wtf") -> dict:
 
             time.sleep(_DISPATCH_SLEEP_SEC)
 
-    return {"processed": processed, "failed": failed, "skipped": skipped, "stopped": "max_runs"}
+    return {"processed": processed, "rate_limited": rate_limited,
+            "failed": failed, "skipped": skipped, "stopped": "max_runs"}

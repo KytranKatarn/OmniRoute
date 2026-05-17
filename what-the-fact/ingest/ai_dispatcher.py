@@ -12,11 +12,22 @@ _TIMEOUT = int(os.environ.get("WTF_HUB_TIMEOUT", "90"))
 _ENABLED = bool(_HUB_URL and _HUB_TOKEN)
 
 
-def analyze(task: str, article_id: int, title: str, body: str, source_slug: str = "") -> dict | None:
-    """Dispatch analysis task to hub. Returns parsed result dict or None on failure."""
+def analyze_with_status(task: str, article_id: int, title: str, body: str,
+                        source_slug: str = "") -> dict:
+    """Dispatch analysis task to hub. Returns {result, status} where status is one of:
+
+      ok            — hub returned a usable result dict
+      rate_limited  — hub returned ok:true but result:null + rate_limited:true
+                      (per-task interval not elapsed — retry later, not a failure)
+      failed        — hub returned ok:false, dispatcher disabled, timeout, or network error
+                      (don't retry without reason)
+
+    Callers that don't need the distinction can use analyze() — see below.
+    Closes #2944.
+    """
     if not _ENABLED:
         logger.debug("ai_dispatcher: WTF_HUB_URL or WTF_HUB_TOKEN not set — skipping %s", task)
-        return None
+        return {"result": None, "status": "failed"}
     try:
         resp = requests.post(
             f"{_HUB_URL}/tools/wtf-hub/api/analyze",
@@ -36,15 +47,27 @@ def analyze(task: str, article_id: int, title: str, body: str, source_slug: str 
         resp.raise_for_status()
         data = resp.json()
         if data.get("ok"):
-            return data.get("result")
+            if data.get("rate_limited"):
+                return {"result": None, "status": "rate_limited"}
+            return {"result": data.get("result"), "status": "ok"}
         logger.warning("ai_dispatcher: task=%s failed: %s", task, data.get("error"))
-        return None
+        return {"result": None, "status": "failed"}
     except requests.Timeout:
         logger.warning("ai_dispatcher: task=%s timed out after %ss", task, _TIMEOUT)
-        return None
+        return {"result": None, "status": "failed"}
     except requests.RequestException as exc:
         logger.error("ai_dispatcher: task=%s connectivity error: %s", task, exc)
-        return None
+        return {"result": None, "status": "failed"}
     except Exception as exc:
         logger.warning("ai_dispatcher: task=%s unexpected error: %s", task, exc)
-        return None
+        return {"result": None, "status": "failed"}
+
+
+def analyze(task: str, article_id: int, title: str, body: str, source_slug: str = "") -> dict | None:
+    """Back-compat wrapper — returns the result dict or None on any non-ok outcome.
+
+    Rate-limited and hard-failed both collapse to None here, matching the pre-#2944
+    contract. New code should prefer analyze_with_status() so it can distinguish
+    transient rate-limits from real failures (per-task counters, retry strategy).
+    """
+    return analyze_with_status(task, article_id, title, body, source_slug).get("result")

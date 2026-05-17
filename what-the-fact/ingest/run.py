@@ -46,6 +46,7 @@ from ingest import (
     factcheck_backlog_worker,
     geo_backlog_worker,
     llm_analysis_backlog_worker,
+    scout_body_backlog_worker,
 )
 from shared.creed_events import emit as creed_emit
 
@@ -286,6 +287,7 @@ def main():
             geo_backlog_worker,
             factcheck_backlog_worker,
             llm_analysis_backlog_worker,
+            scout_body_backlog_worker,
         ):
             try:
                 result = worker.run_backlog(engine)

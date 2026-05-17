@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}News Map — What The Fact{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<div class="wtf-team-hero">
+  <div class="wtf-team-hero-live">
+    <span class="wtf-live-pulse"></span>
+    <span style="font-size:0.7rem;letter-spacing:2px;color:#7fbf7f;">LAST 7 DAYS</span>
+  </div>
+  <h1 style="font-size:1.6rem;">NEWS MAP</h1>
+  <p style="font-size:0.85rem;color:#9ca3af;max-width:680px;margin-top:8px;">
+    Where the news happens. Circles sized by article count.
+    Canadian articles cluster at province centroids; international
+    articles pin at country centers from L.O.C.A.L.
+  </p>
+</div>
+
+<div style="max-width:1200px;margin:0 auto;padding:8px 16px 24px;">
+  <div id="wtfMap" style="width:100%;height:560px;background:#050d0d;border:1px solid #1a2a3a;border-radius:4px;"></div>
+  <div id="wtfMapLegend" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:0.7rem;color:#9ca3af;">
+    <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;margin-right:4px;"></span>Canadian</span>
+    <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;margin-right:4px;"></span>International</span>
+    <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#6b7280;margin-right:4px;"></span>Unknown country</span>
+    <span style="margin-left:auto;color:#6b7280;font-size:0.6rem;font-family:'IBM Plex Mono', monospace;">
+      <span id="wtfMapPinCount">--</span> pins
+    </span>
+  </div>
+</div>
+
+<script>
+(function() {
+  var map = L.map('wtfMap', {
+    center: [40, -30],
+    zoom: 2,
+    minZoom: 1,
+    maxZoom: 8,
+    attributionControl: false,
+  });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd',
+  }).addTo(map);
+
+  function pinColor(cc) {
+    if (cc === 'CA') return '#10b981';
+    if (cc === '??' || !cc) return '#6b7280';
+    return '#3b82f6';
+  }
+
+  function pinRadius(count) {
+    // sqrt scale — 1 article = 6px, 100 = 60px
+    return Math.min(60, Math.max(6, 6 + Math.sqrt(count) * 3));
+  }
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+  fetch('/api/v1/map-data')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok || !data.pins) return;
+      document.getElementById('wtfMapPinCount').textContent = data.pins.length;
+      data.pins.forEach(function(pin) {
+        var color = pinColor(pin.country_code);
+        var circle = L.circleMarker([pin.lat, pin.lng], {
+          radius: pinRadius(pin.article_count),
+          color: color,
+          weight: 1.5,
+          fillColor: color,
+          fillOpacity: 0.45,
+        });
+        var label = pin.province_code
+          ? pin.country_code + '/' + pin.province_code
+          : (pin.country_code === '??' ? 'Unknown' : pin.country_code);
+        var popup = '<div style="font-family:system-ui,sans-serif;min-width:240px;max-width:320px;">'
+                  + '<div style="font-weight:600;color:#0a0f0a;font-size:0.75rem;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">'
+                  + esc(label) + ' · ' + pin.article_count + ' article' + (pin.article_count === 1 ? '' : 's')
+                  + '</div>';
+        (pin.samples || []).forEach(function(s) {
+          popup += '<div style="font-size:0.78rem;color:#1a1a1a;margin-top:6px;padding-top:4px;border-top:1px solid #e5e7eb;">'
+                + '<a href="/article/' + s.id + '" style="color:#1a3a5a;text-decoration:none;">' + esc(s.title) + '</a>'
+                + '<div style="font-size:0.65rem;color:#6b7280;margin-top:2px;">' + esc(s.source) + '</div>'
+                + '</div>';
+        });
+        popup += '</div>';
+        circle.bindPopup(popup);
+        circle.addTo(map);
+      });
+    })
+    .catch(function(e) {
+      console.error('map load failed:', e);
+    });
+})();
+</script>
+{% endblock %}

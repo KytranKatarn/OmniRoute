@@ -565,6 +565,66 @@ def health():
 
 
 # ───────────────────────────────────────────────────────────────────────────
+# Map page (#2961) — Leaflet map of articles pinned by lat/lng
+# ───────────────────────────────────────────────────────────────────────────
+
+
+@bp.get("/map")
+def map_page():
+    """Public map view — articles pinned globally by their lat/lng."""
+    return render_template("map.html", source_count=46)
+
+
+@bp.get("/api/v1/map-data")
+def api_map_data():
+    """JSON pin data for /map. Aggregates by (lat, lng) cluster to avoid
+    1,700+ stacked dots at province centroids. Returns up to 3 sample
+    article titles + a total count per pin.
+    """
+    from flask import jsonify
+    S = _schema()
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT
+                ROUND(a.lat::numeric, 2) AS lat,
+                ROUND(a.lng::numeric, 2) AS lng,
+                COALESCE(a.country_code, '??') AS country_code,
+                COALESCE(a.province_code, '') AS province_code,
+                COUNT(*) AS article_count,
+                (ARRAY_AGG(a.id ORDER BY a.published_at DESC))[1:3] AS sample_ids,
+                (ARRAY_AGG(a.title ORDER BY a.published_at DESC))[1:3] AS sample_titles,
+                (ARRAY_AGG(s.name ORDER BY a.published_at DESC))[1:3] AS sample_sources,
+                MAX(a.published_at) AS latest
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            WHERE a.lat IS NOT NULL AND a.lng IS NOT NULL
+              AND a.published_at > NOW() - INTERVAL '7 days'
+            GROUP BY 1, 2, 3, 4
+            ORDER BY article_count DESC
+            LIMIT 500
+        """)).mappings().all()
+    pins = []
+    for r in rows:
+        pins.append({
+            "lat": float(r["lat"]),
+            "lng": float(r["lng"]),
+            "country_code": r["country_code"],
+            "province_code": r["province_code"],
+            "article_count": int(r["article_count"]),
+            "samples": [
+                {"id": sid, "title": (title or "")[:120], "source": src or ""}
+                for sid, title, src in zip(
+                    r["sample_ids"] or [],
+                    r["sample_titles"] or [],
+                    r["sample_sources"] or [],
+                )
+            ],
+            "latest": r["latest"].isoformat() if r["latest"] else None,
+        })
+    return jsonify({"ok": True, "pins": pins, "window_days": 7})
+
+
+# ───────────────────────────────────────────────────────────────────────────
 # Custom alerts (#2913) — subscriber-gated keyword/topic tracking
 # ───────────────────────────────────────────────────────────────────────────
 

@@ -1643,8 +1643,15 @@ class AgentLoop:
                         -- All image/video/audio providers consumed here: comfyui (local SDXL),
                         -- cloud contractors (pollinations, openai, stability_ai, etc).
                         -- generate_via_comfyui branches on params.provider.
+                        --
+                        -- LIMIT 3 — claim up to 3 jobs per cycle so different
+                        -- jobs can dispatch to different ComfyUI backends
+                        -- (hub Quadro, Starship-246 RTX 3070, Starship-245 RTX 3050).
+                        -- comfyui_manager.get_best_comfyui_url(model_name) picks
+                        -- per-model, so SDXL → 8GB nodes, SD 1.5 → any node.
+                        -- FOR UPDATE SKIP LOCKED guarantees exclusive ownership.
                         ORDER BY created_at ASC
-                        LIMIT 1
+                        LIMIT 3
                         FOR UPDATE SKIP LOCKED
                     )
                     RETURNING id, media_type, params

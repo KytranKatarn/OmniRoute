@@ -87,12 +87,13 @@
   </div>
 
   <!-- Bias Panel -->
-  {% if a.bias_band %}
+  {% if a.bias_ensemble_band or a.bias_band %}
   <div class="wtf-bias-panel">
     <div class="wtf-panel-label">B.I.A.S. ANALYSIS</div>
-    {% set band_class = (a.bias_band or 'center').lower().replace(' ', '-') %}
-    <div class="wtf-band-label wtf-band-{{ band_class }}">{{ (a.bias_band or 'CENTER').upper() }}</div>
-    {% set score_val = (a.bias_score or 0)|float %}
+    {% set display_band = a.bias_ensemble_band or a.bias_band or 'center' %}
+    {% set band_class = display_band.lower().replace(' ', '-') %}
+    <div class="wtf-band-label wtf-band-{{ band_class }}">{{ display_band.upper().replace('-',' ') }}</div>
+    {% set score_val = (a.bias_ensemble_score or a.bias_score or 0)|float %}
     {% set pct = ((score_val + 1) / 2 * 100)|int %}
     <div class="wtf-bias-bar-wrap">
       <div class="wtf-bias-bar" style="width:100%"></div>
@@ -101,6 +102,31 @@
     <div style="display:flex;justify-content:space-between;font-size:9px;color:#555;margin-bottom:6px;">
       <span>LEFT</span><span>CENTER</span><span>RIGHT</span>
     </div>
+    {% if a.bias_v2_score is not none or a.bias_score is not none %}
+    <details style="margin-bottom:6px;">
+      <summary style="font-size:10px;color:#4b5563;cursor:pointer;">Signal breakdown</summary>
+      <div style="margin-top:6px;display:grid;gap:4px;font-size:10px;">
+        {% if a.bias_score is not none %}
+        <div style="display:flex;justify-content:space-between;color:#6b7280;padding:3px 0;border-bottom:1px solid #0a1520;">
+          <span>Heuristic (v1/v3)</span>
+          <span style="font-family:'IBM Plex Mono',monospace;">{{ "%.2f"|format(a.bias_score|float) }} · <span style="color:#9ca3af;">{{ (a.bias_band or '—').upper() }}</span></span>
+        </div>
+        {% endif %}
+        {% if a.bias_v2_score is not none %}
+        <div style="display:flex;justify-content:space-between;color:#6b7280;padding:3px 0;border-bottom:1px solid #0a1520;">
+          <span>ML v2 (DistilBERT)</span>
+          <span style="font-family:'IBM Plex Mono',monospace;">{{ "%.3f"|format(a.bias_v2_score|float) }} · <span style="color:#9ca3af;">{{ (a.bias_v2_label or '—').upper() }}</span></span>
+        </div>
+        {% endif %}
+        {% if a.bias_ensemble_score is not none %}
+        <div style="display:flex;justify-content:space-between;color:#9ca3af;padding:3px 0;font-weight:bold;">
+          <span>Ensemble</span>
+          <span style="font-family:'IBM Plex Mono',monospace;">{{ "%.3f"|format(a.bias_ensemble_score|float) }} · <span>{{ display_band.upper().replace('-',' ') }}</span></span>
+        </div>
+        {% endif %}
+      </div>
+    </details>
+    {% endif %}
     {% if is_subscriber %}
       {% if a.bias_rationale %}
       <div class="wtf-rationale">{{ a.bias_rationale }}</div>

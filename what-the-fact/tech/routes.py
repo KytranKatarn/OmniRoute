@@ -54,6 +54,9 @@ def transparency(article_id: int):
                    a.province_code, a.country_code, a.geo_scope,
                    a.analysis_tier, a.tier1_at, a.tier2_at, a.cluster_id,
                    a.ai_analyzed, a.ai_analyzed_at,
+                   a.bias_v2_score, a.bias_v2_label, a.bias_v2_confidence,
+                   a.bias_v2_model, a.bias_v2_computed_at,
+                   a.bias_ensemble_score, a.bias_ensemble_band,
                    s.slug AS source_slug, s.name AS source_name,
                    s.bias_lean AS source_bias_lean,
                    s.owner_name, s.owner_type,
@@ -259,6 +262,66 @@ def articles_geo():
         }
         for r in rows
     ]})
+
+
+@bp.get("/api/v1/articles/<int:article_id>")
+def get_article(article_id: int):
+    """Single article with full bias signals (heuristic, LLM tier-1, ML v2, ensemble)."""
+    from flask import jsonify
+    S = _schema()
+    with _db().connect() as c:
+        row = c.execute(text(f"""
+            SELECT a.id, a.title, a.url, a.published_at, a.province_code,
+                   a.country_code, a.geo_scope, a.ai_analyzed, a.analysis_tier,
+                   a.bias_v2_score, a.bias_v2_label, a.bias_v2_confidence,
+                   a.bias_v2_model, a.bias_v2_computed_at,
+                   a.bias_ensemble_score, a.bias_ensemble_band,
+                   s.name AS source_name, s.bias_lean AS source_bias_lean,
+                   b.band AS heuristic_band, b.score AS heuristic_score,
+                   b.heuristic_version, b.confidence AS llm_confidence,
+                   b.computed_at AS bias_computed_at
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE a.id = :id
+        """), {"id": article_id}).mappings().first()
+    if not row:
+        from flask import abort
+        abort(404)
+    r = dict(row)
+    bias_signals = {
+        "heuristic": {
+            "band": r.get("heuristic_band"),
+            "score": float(r["heuristic_score"]) if r.get("heuristic_score") is not None else None,
+            "version": r.get("heuristic_version"),
+            "computed_at": r["bias_computed_at"].isoformat() if r.get("bias_computed_at") else None,
+        },
+        "ml_v2": {
+            "label": r.get("bias_v2_label"),
+            "score": float(r["bias_v2_score"]) if r.get("bias_v2_score") is not None else None,
+            "confidence": float(r["bias_v2_confidence"]) if r.get("bias_v2_confidence") is not None else None,
+            "model": r.get("bias_v2_model"),
+            "computed_at": r["bias_v2_computed_at"].isoformat() if r.get("bias_v2_computed_at") else None,
+        },
+        "ensemble": {
+            "band": r.get("bias_ensemble_band"),
+            "score": float(r["bias_ensemble_score"]) if r.get("bias_ensemble_score") is not None else None,
+        },
+    }
+    return jsonify({
+        "id": r["id"],
+        "title": r["title"],
+        "url": r["url"],
+        "published_at": r["published_at"].isoformat() if r.get("published_at") else None,
+        "source": r["source_name"],
+        "source_bias_lean": r["source_bias_lean"],
+        "province_code": r["province_code"],
+        "country_code": r["country_code"],
+        "geo_scope": r["geo_scope"],
+        "ai_analyzed": bool(r.get("ai_analyzed")),
+        "analysis_tier": r.get("analysis_tier"),
+        "bias_signals": bias_signals,
+    })
 
 
 @bp.post("/api/v1/articles/<int:article_id>/analyze")

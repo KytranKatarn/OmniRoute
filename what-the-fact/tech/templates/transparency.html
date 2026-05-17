@@ -60,6 +60,51 @@
     {% endif %}
   </section>
 
+  <!-- Bias v2 + Ensemble section -->
+  <section style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      ML Bias Signal · DistilBERT Zero-Shot (v2)
+    </div>
+    {% if a.bias_v2_score is not none %}
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+      {% set v2_label = a.bias_v2_label or 'center' %}
+      {% set v2_color = {'left': '#3b82f6', 'center': '#9ca3af', 'right': '#ef4444'}.get(v2_label, '#9ca3af') %}
+      <span style="font-size:0.7rem;padding:3px 10px;border-radius:3px;background:#0a1520;border:1px solid {{ v2_color }};color:{{ v2_color }};">
+        {{ v2_label|upper }}
+      </span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:0.85rem;color:#e0e0e0;">
+        score: {{ "%.3f"|format(a.bias_v2_score|float) }}
+      </span>
+      {% if a.bias_v2_confidence is not none %}
+      <span style="font-size:0.7rem;color:#6b7280;">confidence: {{ "%.0f"|format(a.bias_v2_confidence|float * 100) }}%</span>
+      {% endif %}
+      {% if a.bias_v2_model %}
+      <span style="font-size:0.6rem;color:#4b5563;margin-left:auto;font-family:'IBM Plex Mono',monospace;">{{ a.bias_v2_model }}</span>
+      {% endif %}
+    </div>
+    {% if a.bias_v2_computed_at %}
+    <div style="font-size:0.6rem;color:#4b5563;font-family:'IBM Plex Mono',monospace;">
+      computed at {{ a.bias_v2_computed_at.isoformat() }}
+    </div>
+    {% endif %}
+    {% if a.bias_ensemble_score is not none %}
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid #1a2a3a;">
+      <span style="font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;color:#9ca3af;">Ensemble (heuristic + ML v2)</span>
+      <div style="display:flex;gap:14px;align-items:center;margin-top:6px;flex-wrap:wrap;">
+        {% set ens_band = a.bias_ensemble_band or 'center' %}
+        {% set ens_color = {'left': '#3b82f6', 'center-left': '#93c5fd', 'center': '#9ca3af', 'center-right': '#fca5a5', 'right': '#ef4444'}.get(ens_band, '#9ca3af') %}
+        <span style="font-size:0.8rem;font-weight:bold;color:{{ ens_color }};">{{ ens_band|upper|replace('-',' ') }}</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:0.85rem;color:#e0e0e0;">
+          score: {{ "%.3f"|format(a.bias_ensemble_score|float) }}
+        </span>
+      </div>
+    </div>
+    {% endif %}
+    {% else %}
+    <div style="color:#6b7280;font-size:0.75rem;font-style:italic;">ML scoring pending — backlog worker processes ~50 articles per ingest cycle.</div>
+    {% endif %}
+  </section>
+
   <!-- Tier section -->
   <section style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
     <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">

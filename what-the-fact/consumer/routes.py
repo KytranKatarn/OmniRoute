@@ -521,6 +521,8 @@ def article(article_id: int):
             SELECT a.id, a.title, a.body, a.url, a.published_at,
                    a.ai_analyzed, a.province_code, a.cluster_id,
                    a.analysis_tier, a.tier2_pending,
+                   a.bias_v2_score, a.bias_v2_label,
+                   a.bias_ensemble_score, a.bias_ensemble_band,
                    s.name AS source_name,
                    b.band AS bias_band, b.score AS bias_score,
                    b.rationale AS bias_rationale, b.trigger_phrases,

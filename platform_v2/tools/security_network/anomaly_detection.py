@@ -10,6 +10,7 @@ Analyzes traffic patterns for suspicious activity:
 
 import ipaddress
 import logging
+import os
 import time
 from datetime import datetime, timedelta
 
@@ -387,6 +388,29 @@ def _get_iot_ips() -> set:
         return set()
 
 
+def _get_hub_ips() -> set:
+    """Return IP addresses of the A.R.C.H.I.E. hub (platform host).
+
+    The hub IP is the AdGuard DNS upstream for every container on the
+    LAN, so all container DNS traffic appears to originate from this
+    single IP — github.com (F.O.R.G.E. + GitHub ingest), kytranempowerment.com
+    (deploy pipeline + health checks), tailscale.com (mesh keepalive),
+    plex.direct (media server), telegram.org (bot), what-the-fact.{com,tech}
+    (WTF ingest). That trips dns_tunneling on legitimate base domains
+    with many subdomains, and odd_hours_dns on nightly scheduled jobs
+    (GitHub ingest, embeddings, backup cleanup) that run 0-5 AM.
+
+    Applied to dns_tunneling + odd_hours_dns ONLY. The hub is NOT
+    exempted from exfiltration or bandwidth_spikes — actual exfil from
+    the platform host would still be a real concern.
+
+    Source: comma-separated ANOMALY_HUB_IPS env var, defaulting to
+    {'192.168.1.200'}.
+    """
+    raw = os.getenv("ANOMALY_HUB_IPS", "192.168.1.200")
+    return {ip.strip() for ip in raw.split(",") if ip.strip()}
+
+
 def _is_trusted(ip: str, trusted: set) -> bool:
     """Return True if ip is in the trusted IP set or a trusted subnet."""
     if ip in trusted:
@@ -445,8 +469,10 @@ def run_all_anomaly_checks():
     # quarantined devices still get flagged as before.
     trusted_ips = _get_trusted_ips()
     iot_ips = _get_iot_ips()
+    hub_ips = _get_hub_ips()
     suppressed_total = 0
     suppressed_iot_exfil = 0
+    suppressed_hub_dns = 0
 
     # 1. Bandwidth spikes — dashboard + digest
     spikes_raw = detect_bandwidth_spikes()
@@ -490,9 +516,16 @@ def run_all_anomaly_checks():
     all_findings["exfiltration"] = exfil
 
     # 3. Odd-hours activity — dashboard + digest
+    # Hub IP runs nightly scheduled jobs (GitHub ingest, embeddings batch,
+    # backup cleanup) that legitimately produce 100K+ DNS queries 0-5 AM.
+    # Exempt the hub from odd-hours DNS detection only.
     odd_raw = detect_odd_hours_activity()
     odd, suppressed = _filter_trusted(odd_raw, trusted_ips)
     suppressed_total += len(suppressed)
+    hub_filtered_odd = [o for o in odd if o.get("device_ip", "") in hub_ips]
+    suppressed_hub_dns += len(hub_filtered_odd)
+    suppressed_total += len(hub_filtered_odd)
+    odd = [o for o in odd if o.get("device_ip", "") not in hub_ips]
     for o in odd:
         create_security_alert(
             "intrusion",
@@ -505,9 +538,18 @@ def run_all_anomaly_checks():
     all_findings["odd_hours"] = odd
 
     # 4. DNS tunneling — dashboard + digest
+    # Hub IP is the AdGuard upstream for every container, so all container DNS
+    # appears to originate from one IP. Many subdomains across legit base
+    # domains (github.com, plex.direct, tailscale.com, etc.) trips this
+    # detector with structurally identical false positives. Hub is exempt
+    # from DNS tunneling only; bandwidth + exfil still cover real threats.
     tunneling_raw = detect_dns_tunneling()
     tunneling, suppressed = _filter_trusted(tunneling_raw, trusted_ips)
     suppressed_total += len(suppressed)
+    hub_filtered_tun = [t for t in tunneling if t.get("device_ip", "") in hub_ips]
+    suppressed_hub_dns += len(hub_filtered_tun)
+    suppressed_total += len(hub_filtered_tun)
+    tunneling = [t for t in tunneling if t.get("device_ip", "") not in hub_ips]
     for t in tunneling:
         if t["type"] == "long_domain":
             detail = f"Long domain ({t['domain_length']} chars): {t['domain'][:60]}"

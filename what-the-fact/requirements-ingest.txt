@@ -4,7 +4,7 @@
 
 # CPU-only torch wheel — outpost-us has no GPU.
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.1.2+cpu
+torch==2.7.1+cpu
 
 # torch 2.1.2 was compiled against NumPy 1.x; NumPy 2.x breaks the ABI
 numpy<2

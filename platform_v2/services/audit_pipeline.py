@@ -510,6 +510,26 @@ _FIX_PROMPTS = {
     "MISSING_INIT": ("Create an __init__.py that imports and exposes the module's public Blueprint and key functions."),
 }
 
+# Code Health scanner emits module placeholders that don't match real filesystem paths.
+# Map placeholder prefix -> real path root (relative to /mnt/archie_brain).
+_PLACEHOLDER_MAP = {
+    "[APP_CORE]/": "platform_v2/",
+    "[AI_BRIDGE]/": "ai_bridge/",
+    "[MIGRATIONS]/": "database/migrations/",
+    "standalone_kytran_business_suite/": "kytran-business-suite/",
+    "standalone_kytran_system_operations/": "kytran-server-manager/",
+    "standalone_kytran_gov_watch/": "kytran-gov-watch/",
+    "standalone_archie_comms/": "archie-comms/",
+    "standalone_media_hub/": "standalone/media_hub/",
+    "standalone_creed_governance/": "kytran-creed/",
+    "website_kytranempowerment/": "website/kytranempowerment.com/",
+    "website_creed_ai/": "website/creed-ai.org/",
+    "website_what_the_fact/": "website/what-the-fact.com/",
+}
+
+# Synthetic placeholders that don't represent real files (e.g., routing rules) — skip rather than fail noisily.
+_SKIP_PREFIXES = ("[dispatch_routing]/",)
+
 
 def dispatch_proposal_fix(proposal_id):
     """Dispatch a single audit proposal to a Bridge agent for AI-powered fix generation.
@@ -571,8 +591,19 @@ def dispatch_proposal_fix(proposal_id):
         logger.warning("Work session creation failed (non-blocking): %s", ws_err)
 
     # Read source file
-    # Resolve path: file_path is "platform_v2/tools/..." but inside Docker root is /app/ (= platform_v2/)
-    # Try /mnt/archie_brain first (host), fall back to /app/ (Docker) with prefix stripped
+    # Resolve module placeholders ([APP_CORE]/, standalone_*/, website_*/, etc.) to real paths.
+    # Synthetic placeholders (routing rules, not files) short-circuit early.
+    if any(file_path.startswith(p) for p in _SKIP_PREFIXES):
+        if session_id:
+            fail_work_session(session_id, error_msg=f"Synthetic placeholder, no file to fix: {file_path}")
+        return {"success": False, "error": f"Synthetic placeholder, no file to fix: {file_path}"}
+
+    for placeholder, real_root in _PLACEHOLDER_MAP.items():
+        if file_path.startswith(placeholder):
+            file_path = real_root + file_path[len(placeholder) :]
+            break
+
+    # Try /mnt/archie_brain first (host), fall back to /app/ (Docker) with platform_v2/ stripped
     abs_path = os.path.join("/mnt/archie_brain", file_path)
     if not os.path.isfile(abs_path) and file_path.startswith("platform_v2/"):
         abs_path = os.path.join("/app", file_path[len("platform_v2/") :])

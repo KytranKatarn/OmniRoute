@@ -4,6 +4,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+# tech/app.py imports `from shared.kytran_auth import KytranAuth` which is a
+# shim that re-exports from the pip-installed `kytran_auth` module. Install
+# the local kytran-auth-pkg so the shim resolves. A fresh image build of
+# wtf-tech silently dropped this in PR #820 deploy — adding it explicitly so
+# the dependency is always present.
+COPY kytran-auth-pkg/ /app/kytran-auth-pkg/
+RUN pip install --no-cache-dir /app/kytran-auth-pkg/
 COPY shared/ /app/shared/
 COPY tech/ /app/tech/
 ENV PYTHONPATH=/app

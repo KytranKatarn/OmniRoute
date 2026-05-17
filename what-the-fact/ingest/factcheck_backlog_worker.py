@@ -27,6 +27,26 @@ _MAX_RUNS_PER_NIGHT = int(os.environ.get("WTF_FACTCHECK_BACKLOG_MAX_RUNS_PER_NIG
 
 _ALLOWED_SCHEMAS = frozenset({"wtf"})
 
+# LLM returns verdicts per the wtf-hub prompt: verified|mixed|disputed|unverifiable
+# wtf.fact_checks.verdict CHECK constraint allows: true|mostly_true|mixed|false|unverified
+_VERDICT_MAP = {
+    "verified": "true",
+    "true": "true",
+    "mostly true": "mostly_true",
+    "mostly_true": "mostly_true",
+    "partly true": "mixed",
+    "mixed": "mixed",
+    "disputed": "mixed",
+    "misleading": "false",
+    "false": "false",
+    "unverified": "unverified",
+    "unverifiable": "unverified",
+}
+
+
+def _normalize_verdict(raw) -> str:
+    return _VERDICT_MAP.get((raw or "").strip().lower(), "unverified")
+
 
 def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
     if schema not in _ALLOWED_SCHEMAS:
@@ -50,24 +70,56 @@ def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
 
 
 def _persist(engine, schema: str, article_id: int, result: dict) -> None:
-    """Persist fact-check result. Matches existing wtf.fact_checks schema —
-    one row per article holding the full claims JSON + overall verdict."""
+    """Persist V.E.R.I.F.Y. fact-check result into wtf.fact_checks.
+
+    Schema reality: NOT NULL columns are (article_id, claim, verdict, evidence,
+    checker, checked_at). Nullable JSONB columns (claims, overall_verdict) hold
+    the aggregate. Matches the forward heuristic pipeline (one row per claim).
+
+    If the LLM returned no claims, writes a single placeholder row so the
+    article won't be re-fetched on the next cycle (NOT EXISTS filter).
+    """
     if schema not in _ALLOWED_SCHEMAS:
         raise ValueError(f"_persist: disallowed schema {schema!r}")
+    claims = result.get("claims") or []
+    overall = _normalize_verdict(result.get("overall_verdict"))
+    claims_json = json.dumps(claims)
+
+    if not claims:
+        rows = [{
+            "claim": "(no factual claims extracted)",
+            "verdict": overall,
+            "evidence": "(model returned no claims for this article)",
+        }]
+    else:
+        rows = []
+        for cl in claims:
+            rows.append({
+                "claim": (cl.get("text") or "(claim text missing)")[:500],
+                "verdict": _normalize_verdict(cl.get("verdict")),
+                "evidence": (cl.get("reasoning") or "")[:1000],
+            })
+
     with engine.begin() as c:
-        c.execute(
-            text(f"""
-                INSERT INTO {schema}.fact_checks (article_id, claims_json, overall_verdict, confidence, created_at)
-                VALUES (:article_id, CAST(:claims AS JSONB), :verdict, :confidence, NOW())
-                ON CONFLICT (article_id) DO NOTHING
-            """),
-            {
-                "article_id": article_id,
-                "claims": json.dumps(result.get("claims", [])),
-                "verdict": result.get("overall_verdict", "unverifiable"),
-                "confidence": result.get("confidence", 0.0),
-            },
-        )
+        for i, row in enumerate(rows):
+            c.execute(
+                text(f"""
+                    INSERT INTO {schema}.fact_checks
+                        (article_id, claim, verdict, evidence, checker,
+                         analyzed_by, claims, overall_verdict)
+                    VALUES (:article_id, :claim, :verdict, :evidence,
+                            'V.E.R.I.F.Y.', 'V.E.R.I.F.Y.',
+                            CAST(:claims AS JSONB), :overall)
+                """),
+                {
+                    "article_id": article_id,
+                    "claim": row["claim"],
+                    "verdict": row["verdict"],
+                    "evidence": row["evidence"],
+                    "claims": claims_json if i == 0 else None,
+                    "overall": overall,
+                },
+            )
 
 
 def run_backlog(engine, schema: str = "wtf") -> dict:

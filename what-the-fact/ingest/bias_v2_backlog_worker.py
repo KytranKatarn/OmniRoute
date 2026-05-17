@@ -39,11 +39,12 @@ def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
     with engine.connect() as c:
         rows = c.execute(
             text(f"""
-                SELECT id, title, body, score AS bias_score_v1
-                FROM {schema}.articles
-                WHERE bias_v2_score IS NULL
-                  AND published_at > NOW() - make_interval(days => :max_age_days)
-                ORDER BY ingested_at DESC NULLS LAST
+                SELECT a.id, a.title, a.body, bs.score AS bias_score_v1
+                FROM {schema}.articles a
+                LEFT JOIN {schema}.bias_scores bs ON bs.article_id = a.id
+                WHERE a.bias_v2_score IS NULL
+                  AND a.published_at > NOW() - make_interval(days => :max_age_days)
+                ORDER BY a.ingested_at DESC NULLS LAST
                 LIMIT :limit
             """),
             {"max_age_days": _MAX_AGE_DAYS, "limit": limit},

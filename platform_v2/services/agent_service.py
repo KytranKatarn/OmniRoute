@@ -1660,8 +1660,17 @@ def update_welfare_after_task(agent_id, success=True):
             if prior["timestamp"]:
                 from datetime import datetime, timezone
 
+                # agent_emotional_state.timestamp is TIMESTAMP (not TIMESTAMPTZ) —
+                # psycopg2 returns it naive. Coerce to UTC-aware before subtracting
+                # from datetime.now(timezone.utc) or we hit
+                # "can't subtract offset-naive and offset-aware datetimes".
+                # Storage convention is already UTC (timezone.md); the column type
+                # is a migration debt to fix separately.
+                prior_ts = prior["timestamp"]
+                if prior_ts.tzinfo is None:
+                    prior_ts = prior_ts.replace(tzinfo=timezone.utc)
                 duration_minutes = max(
-                    int((datetime.now(timezone.utc) - prior["timestamp"]).total_seconds() / 60),
+                    int((datetime.now(timezone.utc) - prior_ts).total_seconds() / 60),
                     0,
                 )
 

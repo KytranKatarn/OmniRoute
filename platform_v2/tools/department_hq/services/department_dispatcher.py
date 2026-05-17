@@ -4922,7 +4922,11 @@ class DepartmentDispatcher:
                             metadata={
                                 "escalation": "score_routed",
                                 "node_name": _wp_info["node_name"],
-                                "node_id": _wp_info["node_id"],
+                                # Use the PK int we already have in scope — _wp_info["node_id"]
+                                # carries the TEXT identifier from remote_nodes.node_id and would
+                                # fail node_used_id FK in task_execution_log (migration 384).
+                                "node_id": _wp_node_id,
+                                "node_text_id": _wp_info["node_id"],
                                 "is_remote": True,
                             },
                         )

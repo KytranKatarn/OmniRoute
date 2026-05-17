@@ -663,6 +663,238 @@ def health():
 
 
 # ───────────────────────────────────────────────────────────────────────────
+# Public API v1 (#2915) — RESTful read endpoints for researchers + civic tech
+# ───────────────────────────────────────────────────────────────────────────
+
+# In-memory IP token bucket. 60 requests / 60-second rolling window per IP.
+# Resets when the container restarts. Sufficient for the read-only public API
+# without dragging Redis in — first abuser hits 429 long before they DoS us.
+_API_RATE_BUCKETS: dict = {}  # ip → [timestamps]
+_API_RATE_LIMIT = int(os.environ.get("WTF_API_V1_RATE_LIMIT", "60"))
+_API_RATE_WINDOW_SEC = 60
+
+
+def _api_rate_ok(ip: str) -> tuple[bool, int]:
+    """Return (allowed, retry_after_seconds)."""
+    now = time.time()
+    bucket = _API_RATE_BUCKETS.setdefault(ip, [])
+    cutoff = now - _API_RATE_WINDOW_SEC
+    # Drop expired
+    bucket[:] = [t for t in bucket if t > cutoff]
+    if len(bucket) >= _API_RATE_LIMIT:
+        oldest = bucket[0]
+        retry = int(_API_RATE_WINDOW_SEC - (now - oldest)) + 1
+        return False, max(1, retry)
+    bucket.append(now)
+    return True, 0
+
+
+def _api_cors_response(payload, status: int = 200):
+    """Wrap a JSON payload with permissive CORS so research/civic-tech callers
+    can hit the v1 API from any origin. Read-only endpoints only."""
+    from flask import jsonify, make_response
+    resp = make_response(jsonify(payload), status)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    resp.headers["X-WTF-API-Version"] = "v1"
+    return resp
+
+
+def _api_rate_check():
+    """Returns 429 response if rate-limited, else None to proceed."""
+    from flask import request as _req
+    ip = _req.headers.get("X-Forwarded-For", "").split(",")[0].strip() or _req.remote_addr or "unknown"
+    ok, retry = _api_rate_ok(ip)
+    if not ok:
+        resp = _api_cors_response({
+            "ok": False, "error": "rate_limited",
+            "retry_after": retry,
+            "limit": _API_RATE_LIMIT,
+            "window_seconds": _API_RATE_WINDOW_SEC,
+        }, status=429)
+        resp.headers["Retry-After"] = str(retry)
+        return resp
+    return None
+
+
+@bp.get("/api/v1")
+def api_v1_index():
+    """Public API v1 docs page (HTML for humans + JSON via Accept: app/json)."""
+    from flask import request as _req
+    spec = {
+        "ok": True,
+        "version": "v1",
+        "endpoints": [
+            {"path": "/api/v1/articles", "params": "source, bias, province, country, since (ISO), limit (max 100), offset"},
+            {"path": "/api/v1/sources", "params": "—"},
+            {"path": "/api/v1/bias-distribution", "params": "since (ISO, default 7d ago)"},
+            {"path": "/api/v1/map-data", "params": "— (7d window, 500-pin cap)"},
+        ],
+        "rate_limit": {"limit": _API_RATE_LIMIT, "window_seconds": _API_RATE_WINDOW_SEC,
+                       "scope": "per-ip rolling window"},
+        "cors": "Access-Control-Allow-Origin: *",
+        "license": "WTF data is sourced from public RSS feeds. Cite individual articles per their publisher's terms. Aggregate bias scores are CC-BY-NC.",
+    }
+    if "application/json" in (_req.headers.get("Accept") or ""):
+        return _api_cors_response(spec)
+    # Plain-text fallback for browsers — keep it simple, no template
+    lines = [
+        "What The Fact — Public API v1", "=" * 40, "",
+        f"Rate limit: {_API_RATE_LIMIT} requests / {_API_RATE_WINDOW_SEC}s per IP",
+        "CORS: enabled, all origins", "",
+        "Endpoints:",
+    ]
+    for ep in spec["endpoints"]:
+        lines.append(f"  GET {ep['path']}")
+        lines.append(f"      params: {ep['params']}")
+    lines.append("")
+    lines.append("License: " + spec["license"])
+    from flask import Response
+    return Response("\n".join(lines), mimetype="text/plain")
+
+
+@bp.get("/api/v1/articles")
+def api_v1_articles():
+    """List articles with filters. Excludes body (use /article/<id> for full content)."""
+    from flask import request as _req
+    rate_err = _api_rate_check()
+    if rate_err:
+        return rate_err
+
+    source = (_req.args.get("source") or "").strip()[:80]
+    bias = (_req.args.get("bias") or "").strip()[:20]
+    province = (_req.args.get("province") or "").strip().upper()[:2]
+    country = (_req.args.get("country") or "").strip().upper()[:2]
+    since = (_req.args.get("since") or "").strip()[:25]  # ISO 8601 stub
+    try:
+        limit = min(100, max(1, int(_req.args.get("limit", 50))))
+        offset = max(0, int(_req.args.get("offset", 0)))
+    except (TypeError, ValueError):
+        return _api_cors_response({"ok": False, "error": "invalid_limit_or_offset"}, status=400)
+
+    S = _schema()
+    where = ["1=1"]
+    params = {"limit": limit, "offset": offset}
+    if source:
+        where.append("s.slug = :source"); params["source"] = source
+    if bias:
+        where.append("b.band = :bias"); params["bias"] = bias
+    if province:
+        where.append("a.province_code = :province"); params["province"] = province
+    if country:
+        where.append("a.country_code = :country"); params["country"] = country
+    if since:
+        where.append("a.published_at >= :since::timestamp"); params["since"] = since
+    where_clause = " AND ".join(where)
+
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT a.id, a.title, a.url, a.published_at, a.province_code,
+                   a.country_code, a.geo_scope, a.analysis_tier,
+                   s.slug AS source_slug, s.name AS source_name,
+                   s.bias_lean AS source_bias_lean,
+                   b.band AS bias_band, b.score AS bias_score
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE {where_clause}
+            ORDER BY a.published_at DESC NULLS LAST
+            LIMIT :limit OFFSET :offset
+        """), params).mappings().all()
+    return _api_cors_response({
+        "ok": True,
+        "count": len(rows),
+        "limit": limit,
+        "offset": offset,
+        "articles": [
+            {
+                "id": r["id"],
+                "title": r["title"],
+                "url": r["url"],
+                "published_at": r["published_at"].isoformat() if r.get("published_at") else None,
+                "source": {"slug": r["source_slug"], "name": r["source_name"],
+                           "bias_lean": r["source_bias_lean"]},
+                "bias": {"band": r["bias_band"],
+                         "score": float(r["bias_score"]) if r["bias_score"] is not None else None},
+                "geo": {"province_code": r["province_code"],
+                        "country_code": r["country_code"],
+                        "scope": r["geo_scope"]},
+                "analysis_tier": r["analysis_tier"],
+            }
+            for r in rows
+        ],
+    })
+
+
+@bp.get("/api/v1/sources")
+def api_v1_sources():
+    """List all WTF sources."""
+    rate_err = _api_rate_check()
+    if rate_err:
+        return rate_err
+    S = _schema()
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT slug, name, url, country, language,
+                   bias_lean, owner_name, owner_type
+            FROM {S}.sources
+            ORDER BY name
+        """)).mappings().all()
+    return _api_cors_response({
+        "ok": True,
+        "count": len(rows),
+        "sources": [dict(r) for r in rows],
+    })
+
+
+@bp.get("/api/v1/bias-distribution")
+def api_v1_bias_distribution():
+    """Aggregate bias counts grouped by source. Defaults to last 7d."""
+    from flask import request as _req
+    rate_err = _api_rate_check()
+    if rate_err:
+        return rate_err
+    since = (_req.args.get("since") or "").strip()[:25]
+    S = _schema()
+    floor_clause = ":since::timestamp" if since else "NOW() - INTERVAL '7 days'"
+    params = {}
+    if since:
+        params["since"] = since
+    with _db().begin() as c:
+        overall = c.execute(text(f"""
+            SELECT COALESCE(b.band, 'unscored') AS band, COUNT(*) AS n
+            FROM {S}.articles a
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE a.published_at > {floor_clause}
+            GROUP BY 1 ORDER BY 2 DESC
+        """), params).mappings().all()
+        by_source = c.execute(text(f"""
+            SELECT s.slug, s.bias_lean,
+                   COUNT(*) AS articles,
+                   COUNT(*) FILTER (WHERE b.band IS NOT NULL) AS scored,
+                   AVG(b.score)::numeric(5,3) AS avg_score
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE a.published_at > {floor_clause}
+            GROUP BY s.slug, s.bias_lean
+            ORDER BY articles DESC
+        """), params).mappings().all()
+    return _api_cors_response({
+        "ok": True,
+        "window": since or "7d",
+        "overall": [dict(r) for r in overall],
+        "by_source": [
+            {"slug": r["slug"], "bias_lean": r["bias_lean"],
+             "articles": int(r["articles"]), "scored": int(r["scored"]),
+             "avg_score": float(r["avg_score"]) if r["avg_score"] is not None else None}
+            for r in by_source
+        ],
+    })
+
+
+# ───────────────────────────────────────────────────────────────────────────
 # Map page (#2961) — Leaflet map of articles pinned by lat/lng
 # ───────────────────────────────────────────────────────────────────────────
 

@@ -54,6 +54,29 @@
     </div>
     {% endfor %}
   </div>
+
+  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:20px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      Story cluster sizes &middot; how many outlets cover each story
+    </div>
+    {% set max_bucket = [stats.cluster_singletons, stats.cluster_small, stats.cluster_medium, stats.cluster_large] | max %}
+    {% for label, count, hint in [
+      ('1 article (singleton)', stats.cluster_singletons, 'isolated reports'),
+      ('2-3 articles', stats.cluster_small, 'small cross-outlet coverage'),
+      ('4-9 articles', stats.cluster_medium, 'broad coverage'),
+      ('10+ articles', stats.cluster_large, 'major shared stories'),
+    ] %}
+    {% set pct = ((count / max_bucket * 100) | int) if max_bucket else 0 %}
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:0.7rem;color:#9ca3af;">
+      <div style="width:160px;flex-shrink:0;">{{ label }}</div>
+      <div style="flex:1;background:#060d14;border-radius:2px;height:14px;min-width:80px;">
+        <div style="background:#9ca3af;height:14px;border-radius:2px;width:{{ pct }}%;"></div>
+      </div>
+      <div style="width:60px;text-align:right;color:#e0e0e0;">{{ "{:,}".format(count) }}</div>
+      <div style="width:200px;color:#6b7280;font-size:0.6rem;">{{ hint }}</div>
+    </div>
+    {% endfor %}
+  </div>
 </div>
 
 <div style="max-width:1100px;margin:0 auto;padding:0 16px 24px;">

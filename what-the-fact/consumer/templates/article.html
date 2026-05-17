@@ -160,7 +160,18 @@
 
   <!-- Agent Bylines + Deep Dive -->
   <div class="wtf-bylines">
-    {% if a.ai_analyzed %}
+    {% if a.analysis_tier == 'quick_v1+full' %}
+      <div class="wtf-byline" style="border-left:2px solid #f80;">&#x1F916; <strong>B.I.A.S.</strong> &mdash; Bias Analyst (full)</div>
+      <div class="wtf-byline" style="border-left:2px solid #4a9;">&#x2713; <strong>V.E.R.I.F.Y.</strong> &mdash; Fact-Checker (full)</div>
+      <div class="wtf-byline" style="border-left:2px solid #0af;">&#x1F4CD; <strong>L.O.C.A.L.</strong> &mdash; Geo Analyst</div>
+    {% elif a.analysis_tier == 'quick_v1' %}
+      <div class="wtf-byline" style="border-left:2px solid #3b82f6;">&#x26A1; Tier 1 &mdash; quick triage (band + claims via qwen2.5:1.5b)</div>
+      {% if is_subscriber %}
+      <button class="wtf-deep-dive-btn" id="wtf-dive-btn" onclick="upgradeTier2({{ a.id }})">&#x1F50D; Upgrade to Full Analysis &mdash; B.I.A.S. + V.E.R.I.F.Y. rationale + verdicts</button>
+      {% else %}
+      <a href="/login?next=/article/{{ a.id }}" class="wtf-deep-dive-btn" style="text-decoration:none;">&#x1F512; Sign in to Upgrade</a>
+      {% endif %}
+    {% elif a.ai_analyzed %}
       <div class="wtf-byline" style="border-left:2px solid #f80;">&#x1F916; <strong>B.I.A.S.</strong> &mdash; Bias Analyst</div>
       <div class="wtf-byline" style="border-left:2px solid #4a9;">&#x2713; <strong>V.E.R.I.F.Y.</strong> &mdash; Fact-Checker</div>
       <div class="wtf-byline" style="border-left:2px solid #0af;">&#x1F4CD; <strong>L.O.C.A.L.</strong> &mdash; Geo Analyst</div>
@@ -223,6 +234,34 @@ async function deepDive(articleId) {
   } catch(e) {
     result.textContent = 'Network error: ' + e.message;
     if (btn) { btn.disabled = false; btn.textContent = '🔍 Deep Dive — Full AI Analysis'; }
+  }
+}
+
+// Phase D (#2943): force a Tier-2 upgrade on a Tier-1-only article.
+// Hits the local consumer endpoint /api/upgrade-tier2/<id> which dispatches
+// 'deep_analysis' via hub WTF Hub and updates bias_scores + fact_checks.
+async function upgradeTier2(articleId) {
+  var btn = document.getElementById('wtf-dive-btn');
+  var result = document.getElementById('wtf-deep-dive-result');
+  if (btn) { btn.disabled = true; btn.textContent = 'Upgrading…'; }
+  result.style.display = 'block';
+  result.textContent = 'Upgrading to full analysis — qwen2.5:7b on hub. Up to 90 seconds for cold model…';
+  try {
+    var resp = await fetch('/api/upgrade-tier2/' + articleId, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'}
+    });
+    var data = await resp.json();
+    if (data.ok) {
+      result.textContent = '✓ Upgraded to ' + (data.analysis_tier || 'full') + ' — ' + (data.claims_count || 0) + ' verdicts. Reloading…';
+      setTimeout(function() { location.reload(); }, 2000);
+    } else {
+      result.textContent = 'Upgrade failed: ' + (data.error || 'unknown error');
+      if (btn) { btn.disabled = false; btn.textContent = '🔍 Upgrade to Full Analysis — B.I.A.S. + V.E.R.I.F.Y. rationale + verdicts'; }
+    }
+  } catch(e) {
+    result.textContent = 'Network error: ' + e.message;
+    if (btn) { btn.disabled = false; btn.textContent = '🔍 Upgrade to Full Analysis — B.I.A.S. + V.E.R.I.F.Y. rationale + verdicts'; }
   }
 }
 </script>

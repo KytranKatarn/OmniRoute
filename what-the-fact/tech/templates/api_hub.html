@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Developer API — What The Fact{% endblock %}
+{% block content %}
+<article class="wtf-api-hub" style="max-width:900px;margin:0 auto;padding:24px 16px;">
+
+  <div style="border-bottom:1px solid #1a2a3a;padding-bottom:14px;margin-bottom:24px;">
+    <div style="font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;color:#6b7280;margin-bottom:6px;">
+      Developer Hub
+    </div>
+    <h1 style="font-size:1.6rem;color:#e0e0e0;margin:0 0 6px 0;">Public API v1</h1>
+    <p style="color:#9ca3af;font-size:0.85rem;margin:0;">
+      Read-only endpoints for researchers, civic-tech projects, and dashboards.
+      No auth required — rate-limited per IP. CORS open.
+    </p>
+  </div>
+
+  <!-- Quickstart -->
+  <section style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      Quickstart
+    </div>
+    <pre style="background:#0a0f1a;padding:12px;border-radius:3px;font-size:0.75rem;color:#e0e0e0;overflow-x:auto;margin:0;">curl https://what-the-fact.tech/api/v1/articles?limit=5</pre>
+  </section>
+
+  <!-- Endpoint catalog -->
+  <section style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      Endpoints
+    </div>
+    {% for ep in [
+      {'method':'GET', 'path':'/api/v1/articles', 'desc':'List articles. Params: limit (max 100), offset, since (ISO).'},
+      {'method':'GET', 'path':'/api/v1/articles/<id>', 'desc':'Single article with full bias + tier metadata.'},
+      {'method':'GET', 'path':'/api/v1/articles/<id>/audit', 'desc':'Audit trail (event log) for one article.'},
+      {'method':'GET', 'path':'/api/v1/articles/<id>/fact-checks', 'desc':'V.E.R.I.F.Y. claims + verdicts for one article.'},
+      {'method':'GET', 'path':'/api/v1/clusters', 'desc':'Story clusters (same story across multiple outlets).'},
+      {'method':'GET', 'path':'/api/v1/clusters/<id>', 'desc':'Cluster detail with member article IDs.'},
+      {'method':'GET', 'path':'/api/v1/sources', 'desc':'All 46 sources with bias_lean + ownership metadata.'},
+    ] %}
+    <div style="border-top:1px solid #0a1520;padding:8px 0;{% if loop.first %}border-top:none;padding-top:0;{% endif %}">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:4px;">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;padding:1px 6px;border-radius:2px;background:#0a3a4a;color:#0af;">{{ ep.method }}</span>
+        <code style="font-family:'IBM Plex Mono',monospace;font-size:0.78rem;color:#e0e0e0;">{{ ep.path }}</code>
+      </div>
+      <div style="font-size:0.7rem;color:#9ca3af;margin-left:8px;">{{ ep.desc }}</div>
+    </div>
+    {% endfor %}
+  </section>
+
+  <!-- Response example -->
+  <section style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      Example: GET /api/v1/articles?limit=2
+    </div>
+    <pre style="background:#0a0f1a;padding:12px;border-radius:3px;font-size:0.7rem;color:#9ca3af;overflow-x:auto;margin:0;line-height:1.5;">{
+  "ok": true,
+  "count": 2,
+  "limit": 2,
+  "offset": 0,
+  "articles": [
+    {
+      "id": 252730,
+      "title": "Federal cabinet approved a new pipeline expansion ...",
+      "url": "https://www.cbc.ca/news/...",
+      "published_at": "2026-05-17T17:23:00+00:00",
+      "source": { "slug": "cbc_english", "name": "CBC News",
+                  "bias_lean": "center" },
+      "bias": { "band": "center", "score": -0.12 },
+      "geo": { "province_code": "BC", "country_code": "CA",
+               "scope": "provincial" },
+      "analysis_tier": "quick_v1+full"
+    },
+    { "...": "..." }
+  ]
+}</pre>
+  </section>
+
+  <!-- Rate limit + license -->
+  <section style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      Limits &amp; License
+    </div>
+    <div style="font-size:0.72rem;color:#9ca3af;line-height:1.7;">
+      <div><strong style="color:#e0e0e0;">Rate limit:</strong> 60 requests / 60-second rolling window per IP. Exceeding returns HTTP 429 with <code>Retry-After</code> header.</div>
+      <div><strong style="color:#e0e0e0;">Auth:</strong> none required for read endpoints.</div>
+      <div><strong style="color:#e0e0e0;">CORS:</strong> open — call from any origin.</div>
+      <div><strong style="color:#e0e0e0;">Versioning:</strong> every response carries <code>X-WTF-API-Version: v1</code>. Breaking changes ship as <code>/api/v2</code>.</div>
+      <div style="margin-top:8px;"><strong style="color:#e0e0e0;">Data license:</strong> Aggregate bias scores released CC-BY-NC. Article titles, URLs, and bodies remain the property of their publishers — cite per their terms.</div>
+    </div>
+  </section>
+
+  <!-- Companion endpoints (consumer side) -->
+  <section style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      Also Available on what-the-fact.com
+    </div>
+    <div style="font-size:0.72rem;color:#9ca3af;">
+      Consumer mirror with the same shape, plus map + bias-distribution helpers:
+    </div>
+    <ul style="font-size:0.72rem;color:#9ca3af;margin:8px 0;padding-left:18px;">
+      <li><code>GET /api/v1/articles</code> · filterable by source, bias, province, country</li>
+      <li><code>GET /api/v1/sources</code></li>
+      <li><code>GET /api/v1/bias-distribution</code> · aggregated counts + per-source averages</li>
+      <li><code>GET /api/v1/map-data</code> · pre-aggregated map pins for the consumer /map page</li>
+    </ul>
+  </section>
+
+  <div style="font-size:0.65rem;color:#4b5563;text-align:center;margin-top:18px;">
+    Questions? Cite a stable article via its audit trail — every article has a
+    <code>/transparency/&lt;id&gt;</code> page showing every signal we computed.
+  </div>
+
+</article>
+{% endblock %}

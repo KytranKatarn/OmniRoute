@@ -45,20 +45,55 @@ def methodology():
 
 @bp.get("/transparency/<int:article_id>")
 def transparency(article_id: int):
+    """Per-article audit dashboard (#1881 SP4) — every signal we computed about
+    this article, with timestamps + agent attribution where available."""
     S = _schema()
     with _db().begin() as c:
         art = c.execute(text(f"""
-            SELECT a.id, a.title, a.url, b.band, b.score, b.rationale, b.heuristic_version
-            FROM {S}.articles a LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            SELECT a.id, a.title, a.url, a.published_at, a.ingested_at, a.body,
+                   a.province_code, a.country_code, a.geo_scope,
+                   a.analysis_tier, a.tier1_at, a.tier2_at, a.cluster_id,
+                   a.ai_analyzed, a.ai_analyzed_at,
+                   s.slug AS source_slug, s.name AS source_name,
+                   s.bias_lean AS source_bias_lean,
+                   s.owner_name, s.owner_type,
+                   b.band, b.score, b.rationale, b.heuristic_version,
+                   b.trigger_phrases, b.computed_at AS bias_computed_at,
+                   b.confidence AS bias_confidence
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
             WHERE a.id = :id
         """), {"id": article_id}).mappings().first()
         if not art:
             abort(404)
+        fc = c.execute(text(f"""
+            SELECT claim, verdict, evidence, checker, checked_at
+            FROM {S}.fact_checks WHERE article_id = :id ORDER BY id
+        """), {"id": article_id}).mappings().all()
+        cluster = None
+        if art.get("cluster_id"):
+            cluster = c.execute(text(f"""
+                SELECT id, representative_title, article_count, created_at
+                FROM {S}.story_clusters WHERE id = :cid
+            """), {"cid": art["cluster_id"]}).mappings().first()
         trail = c.execute(text(f"""
             SELECT event_type, payload, created_at FROM {S}.audit_trail
             WHERE article_id = :id ORDER BY created_at
         """), {"id": article_id}).mappings().all()
-    return render_template("transparency.html", a=art, trail=trail)
+    return render_template(
+        "transparency.html",
+        a=art,
+        fact_checks=[dict(r) for r in fc],
+        cluster=dict(cluster) if cluster else None,
+        trail=trail,
+    )
+
+
+@bp.get("/api")
+def api_hub():
+    """Developer hub (#1882 SP4) — endpoint catalog + curl examples."""
+    return render_template("api_hub.html")
 
 
 @bp.get("/dashboard")

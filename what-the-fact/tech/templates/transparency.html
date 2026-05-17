@@ -1,23 +1,183 @@
 {% extends "base.html" %}
+{% block title %}Article Audit Trail — What The Fact{% endblock %}
 {% block content %}
-<article class="wtf-transparency">
-  <h1>{{ a.title }}</h1>
-  <p><a href="{{ a.url }}">Source article</a></p>
-  <section>
-    <h2>Bias score</h2>
-    <p><span class="wtf-bias wtf-bias-{{ a.band }}">{{ a.band }}</span>
-       score: {{ "%.2f"|format(a.score) }} · heuristic: {{ a.heuristic_version }}</p>
-    <blockquote>{{ a.rationale }}</blockquote>
+<article class="wtf-transparency" style="max-width:980px;margin:0 auto;padding:24px 16px;">
+
+  <!-- Header -->
+  <div style="border-bottom:1px solid #1a2a3a;padding-bottom:14px;margin-bottom:20px;">
+    <div style="font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;color:#6b7280;margin-bottom:6px;">
+      Audit Trail · Article #{{ a.id }}
+    </div>
+    <h1 style="font-size:1.4rem;color:#e0e0e0;margin:0 0 8px 0;">{{ a.title }}</h1>
+    <div style="font-size:0.7rem;color:#9ca3af;">
+      <a href="{{ a.url }}" style="color:#3b82f6;">Source article ↗</a>
+      &middot; {{ a.source_name }}
+      {% if a.source_bias_lean %}&middot; outlet lean: <strong>{{ a.source_bias_lean }}</strong>{% endif %}
+      {% if a.owner_name %}&middot; owner: {{ a.owner_name }} ({{ a.owner_type }}){% endif %}
+    </div>
+    <div style="font-size:0.65rem;color:#6b7280;margin-top:4px;">
+      published {{ a.published_at.isoformat() if a.published_at else '—' }}
+      &middot; ingested {{ a.ingested_at.isoformat() if a.ingested_at else '—' }}
+    </div>
+  </div>
+
+  <!-- Bias section -->
+  <section style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      Bias Analysis · B.I.A.S.
+    </div>
+    {% if a.band %}
+    <div style="display:flex;gap:14px;align-items:center;margin-bottom:8px;">
+      <span class="wtf-bias wtf-bias-{{ a.band }}" style="font-size:0.7rem;padding:3px 10px;border-radius:3px;">{{ a.band|upper }}</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:0.85rem;color:#e0e0e0;">
+        score: {{ "%.2f"|format(a.score) if a.score is not none else '—' }}
+      </span>
+      {% if a.bias_confidence is not none %}
+      <span style="font-size:0.7rem;color:#6b7280;">confidence: {{ "%.0f"|format(a.bias_confidence * 100) }}%</span>
+      {% endif %}
+      {% if a.heuristic_version %}
+      <span style="font-size:0.6rem;color:#4b5563;margin-left:auto;font-family:'IBM Plex Mono',monospace;">v{{ a.heuristic_version }}</span>
+      {% endif %}
+    </div>
+    {% if a.rationale %}
+    <blockquote style="border-left:2px solid #3b82f6;margin:10px 0;padding:6px 0 6px 12px;color:#9ca3af;font-size:0.78rem;font-style:italic;">
+      {{ a.rationale }}
+    </blockquote>
+    {% endif %}
+    {% if a.trigger_phrases %}
+    <div style="font-size:0.65rem;color:#6b7280;margin-top:6px;">
+      Trigger phrases:
+      {% for p in a.trigger_phrases %}<code style="background:#0a0f1a;border:1px solid #1a2a3a;padding:1px 5px;border-radius:2px;color:#fb923c;margin-right:3px;">{{ p }}</code>{% endfor %}
+    </div>
+    {% endif %}
+    {% if a.bias_computed_at %}
+    <div style="font-size:0.6rem;color:#4b5563;margin-top:8px;font-family:'IBM Plex Mono',monospace;">
+      computed at {{ a.bias_computed_at.isoformat() }}
+    </div>
+    {% endif %}
+    {% else %}
+    <div style="color:#6b7280;font-size:0.75rem;font-style:italic;">Not yet bias-scored (heuristic + LLM run on each ingest cycle).</div>
+    {% endif %}
   </section>
-  <section>
-    <h2>Audit trail</h2>
-    <ol>
+
+  <!-- Tier section -->
+  <section style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      Analysis Tier
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;font-size:0.72rem;">
+      <div>
+        <span style="color:#6b7280;">Tier:</span>
+        <span style="font-family:'IBM Plex Mono',monospace;color:#e0e0e0;">{{ a.analysis_tier or 'pending' }}</span>
+      </div>
+      <div>
+        <span style="color:#6b7280;">Tier-1 at:</span>
+        <span style="font-family:'IBM Plex Mono',monospace;color:{% if a.tier1_at %}#10b981{% else %}#4b5563{% endif %};">
+          {{ a.tier1_at.isoformat() if a.tier1_at else '—' }}
+        </span>
+      </div>
+      <div>
+        <span style="color:#6b7280;">Tier-2 at:</span>
+        <span style="font-family:'IBM Plex Mono',monospace;color:{% if a.tier2_at %}#10b981{% else %}#4b5563{% endif %};">
+          {{ a.tier2_at.isoformat() if a.tier2_at else '—' }}
+        </span>
+      </div>
+      <div>
+        <span style="color:#6b7280;">AI analyzed:</span>
+        <span style="color:{% if a.ai_analyzed %}#10b981{% else %}#ef4444{% endif %};">
+          {{ '✓' if a.ai_analyzed else '✗' }}
+        </span>
+        {% if a.ai_analyzed_at %}
+        <span style="font-size:0.6rem;color:#6b7280;">at {{ a.ai_analyzed_at.isoformat() }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <!-- Geo section -->
+  <section style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      Geographic Extraction · L.O.C.A.L.
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;font-size:0.72rem;">
+      <div><span style="color:#6b7280;">Country:</span> <strong style="color:#e0e0e0;">{{ a.country_code or '—' }}</strong></div>
+      <div><span style="color:#6b7280;">Province:</span> <strong style="color:#e0e0e0;">{{ a.province_code or '—' }}</strong></div>
+      <div><span style="color:#6b7280;">Scope:</span> <strong style="color:#e0e0e0;">{{ a.geo_scope or '—' }}</strong></div>
+    </div>
+  </section>
+
+  <!-- Fact-checks section -->
+  <section style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      Fact-Check Claims · V.E.R.I.F.Y. ({{ fact_checks|length }})
+    </div>
+    {% if not fact_checks %}
+    <div style="color:#6b7280;font-size:0.75rem;font-style:italic;">No claims extracted yet.</div>
+    {% else %}
+    {% for fc in fact_checks %}
+    <div style="border-top:1px solid #0a1520;padding:8px 0;{% if loop.first %}border-top:none;padding-top:0;{% endif %}">
+      <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:4px;">
+        <span style="font-size:0.6rem;padding:2px 8px;border-radius:2px;color:#0a0f0a;background:{% if fc.verdict == 'true' %}#10b981{% elif fc.verdict == 'mostly_true' %}#34d399{% elif fc.verdict == 'mixed' %}#f59e0b{% elif fc.verdict == 'false' %}#ef4444{% else %}#6b7280{% endif %};">
+          {{ fc.verdict or 'unverified' }}
+        </span>
+        <span style="font-size:0.78rem;color:#e0e0e0;flex:1;">{{ fc.claim }}</span>
+      </div>
+      {% if fc.evidence %}
+      <div style="font-size:0.68rem;color:#9ca3af;margin-left:8px;padding-left:8px;border-left:1px solid #1a2a3a;">{{ fc.evidence }}</div>
+      {% endif %}
+      <div style="font-size:0.6rem;color:#4b5563;margin-top:4px;font-family:'IBM Plex Mono',monospace;">
+        {{ fc.checker or 'V.E.R.I.F.Y.' }} · {{ fc.checked_at.isoformat() if fc.checked_at else '—' }}
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </section>
+
+  <!-- Cluster section -->
+  {% if cluster %}
+  <section style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      Cross-Outlet Cluster · I.N.K.
+    </div>
+    <div style="font-size:0.78rem;color:#e0e0e0;">
+      <a href="/clusters/{{ cluster.id }}" style="color:#3b82f6;">{{ cluster.representative_title }}</a>
+      <span style="color:#6b7280;margin-left:6px;">{{ cluster.article_count }} article{{ 's' if cluster.article_count != 1 else '' }} across outlets</span>
+    </div>
+    <div style="font-size:0.6rem;color:#4b5563;margin-top:4px;font-family:'IBM Plex Mono',monospace;">
+      clustered at {{ cluster.created_at.isoformat() if cluster.created_at else '—' }}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Audit-trail event log -->
+  <section style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      Raw Audit Trail ({{ trail|length }} event{{ 's' if trail|length != 1 else '' }})
+    </div>
+    {% if not trail %}
+    <div style="color:#6b7280;font-size:0.75rem;font-style:italic;">No audit events recorded.</div>
+    {% else %}
+    <ol style="margin:0;padding-left:18px;font-size:0.7rem;color:#9ca3af;">
     {% for e in trail %}
-      <li><time>{{ e.created_at.isoformat() }}</time>
-          <strong>{{ e.event_type }}</strong>
-          <pre>{{ e.payload|tojson(indent=2) }}</pre></li>
+      <li style="padding:6px 0;border-bottom:1px solid #0a1520;">
+        <time style="font-family:'IBM Plex Mono',monospace;color:#6b7280;">{{ e.created_at.isoformat() }}</time>
+        <strong style="color:#fb923c;margin-left:8px;">{{ e.event_type }}</strong>
+        {% if e.payload %}
+        <details style="margin-top:4px;">
+          <summary style="cursor:pointer;font-size:0.6rem;color:#4b5563;">payload</summary>
+          <pre style="font-size:0.65rem;background:#0a0f1a;padding:8px;border-radius:2px;margin-top:4px;overflow-x:auto;">{{ e.payload|tojson(indent=2) }}</pre>
+        </details>
+        {% endif %}
+      </li>
     {% endfor %}
     </ol>
+    {% endif %}
   </section>
+
+  <div style="font-size:0.6rem;color:#4b5563;text-align:center;margin-top:18px;">
+    Every signal computed about this article, with timestamps. Source for the
+    transparency promise behind <a href="/methodology" style="color:#3b82f6;">our methodology</a>.
+  </div>
+
 </article>
 {% endblock %}

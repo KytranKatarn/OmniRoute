@@ -245,6 +245,8 @@ def activity():
               (SELECT COUNT(DISTINCT article_id) FROM {S}.fact_checks) AS fact_checked_articles,
               (SELECT COUNT(*) FROM {S}.articles WHERE province_code IS NOT NULL) AS geo_mapped,
               (SELECT COUNT(*) FROM {S}.audit_trail WHERE event_type='ingested') AS fact_ingested,
+              (SELECT COUNT(*) FROM {S}.audit_trail WHERE event_type='ingested' AND created_at > NOW() - INTERVAL '24 hours') AS articles_24h,
+              (SELECT COUNT(*) FROM {S}.articles WHERE ai_analyzed_at > NOW() - INTERVAL '1 hour') AS llm_analyzed_1h,
               (SELECT COUNT(*) FROM {S}.summaries) AS draft_summarized,
               (SELECT COUNT(*) FROM {S}.story_clusters) AS ink_clustered,
               (SELECT COUNT(*) FROM {S}.articles WHERE cluster_id IS NOT NULL) AS ink_articles_clustered,

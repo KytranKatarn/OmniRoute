@@ -14,13 +14,13 @@
 <div style="max-width:1100px;margin:0 auto;padding:16px 16px 0;">
   {% set n = stats.total_articles %}
   {% set rows = [
-    ('F.A.C.T.', 'fact', 'Ingested articles', stats.fact_ingested, n, ''),
+    ('F.A.C.T.', 'fact', 'Ingested today', stats.articles_24h, n, '(last 24h, {:,} total)'.format(stats.fact_ingested)),
     ('B.I.A.S.', 'bias', 'Bias scored', stats.bias_scored, n, ''),
     ('V.E.R.I.F.Y.', 'verify', 'Fact-checked', stats.fact_checked_articles, n, '⚠ Priority only ({:,} claim rows)'.format(stats.fact_checked)),
     ('L.O.C.A.L.', 'local', 'Geo-mapped', stats.geo_mapped, n, '⚠ Only location-detectable'),
     ('D.R.A.F.T.', 'draft', 'Stories summarized', stats.draft_summarized, stats.ink_clustered, '(of clusters)'),
     ('I.N.K.', 'ink', 'Articles clustered', stats.ink_articles_clustered, n, '({:,} unique clusters)'.format(stats.ink_clustered)),
-    ('LLM Analyzed', 'fact', 'Full AI analysis', stats.llm_analyzed, n, '⚠ Hub dispatch needed'),
+    ('LLM Analyzed', 'fact', 'Full AI analysis', stats.llm_analyzed, n, '+{:,} in last hour'.format(stats.llm_analyzed_1h)),
   ] %}
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-bottom:20px;">
     {% for agent, cls, label, done, total_ref, note in rows %}

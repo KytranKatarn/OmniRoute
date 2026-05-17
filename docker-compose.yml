@@ -33,6 +33,7 @@ services:
       - ./database/schema:/docker-entrypoint-initdb.d:ro
     ports:
       - "192.168.1.200:5432:5432"  # Local network access for remote nodes
+      - "100.64.0.4:5432:5432"      # Mesh access for VPS modules (#2142 wtf-db move)
     networks:
       - archie_internal
     command: ["postgres", "-c", "listen_addresses=*", "-c", "max_connections=200"]

@@ -353,6 +353,40 @@ def _get_trusted_ips() -> set:
         return set()
 
 
+def _get_iot_ips() -> set:
+    """Return IP addresses classified as iot zone in network_devices.
+
+    IoT devices (Chromecast, Honeywell thermostat, Ring doorbell, smart
+    bulbs, etc.) legitimately push outbound telemetry on a steady cadence
+    with effectively zero inbound traffic. That pattern trips the
+    exfiltration detector with `infx` ratios on every run. We exempt them
+    from exfil only — bandwidth-spike, odd-hours, and DNS-tunneling
+    detectors still apply because a sudden 50x bandwidth jump or a long
+    base64-style subdomain IS suspicious even on an IoT device.
+
+    Like _get_trusted_ips, falls back to MAC matching so DHCP lease
+    changes don't bypass the allowlist.
+    """
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT host(ip_address) AS ip, mac_address " "FROM network_devices WHERE security_zone = 'iot'"
+            )
+            rows = cur.fetchall()
+            iot_ips = {row["ip"] for row in rows}
+            iot_macs = [row["mac_address"].lower() for row in rows if row["mac_address"]]
+            if iot_macs:
+                cur.execute(
+                    "SELECT DISTINCT host(ip_address) AS ip " "FROM network_devices WHERE LOWER(mac_address) = ANY(%s)",
+                    (iot_macs,),
+                )
+                iot_ips.update(row["ip"] for row in cur.fetchall())
+            return iot_ips
+    except Exception as e:
+        logger.error("[AnomalyDetection] iot-IP lookup failed: %s", e)
+        return set()
+
+
 def _is_trusted(ip: str, trusted: set) -> bool:
     """Return True if ip is in the trusted IP set or a trusted subnet."""
     if ip in trusted:
@@ -410,7 +444,9 @@ def run_all_anomaly_checks():
     # phone sync at 3 AM looks like odd-hours activity). Unknown /
     # quarantined devices still get flagged as before.
     trusted_ips = _get_trusted_ips()
+    iot_ips = _get_iot_ips()
     suppressed_total = 0
+    suppressed_iot_exfil = 0
 
     # 1. Bandwidth spikes — dashboard + digest
     spikes_raw = detect_bandwidth_spikes()
@@ -430,9 +466,17 @@ def run_all_anomaly_checks():
     all_findings["bandwidth_spikes"] = spikes
 
     # 2. Data exfiltration — IMMEDIATE Telegram (active threat)
+    # IoT devices are exempt here only: telemetry from Chromecasts, Honeywell
+    # thermostats, smart bulbs etc. is upload-only by design and the `infx`
+    # ratio fires every run. Bandwidth-spike + DNS-tunneling still cover IoT
+    # devices that go genuinely rogue.
     exfil_raw = detect_exfiltration()
     exfil, suppressed = _filter_trusted(exfil_raw, trusted_ips)
     suppressed_total += len(suppressed)
+    iot_filtered = [e for e in exfil if e.get("device_ip", "") in iot_ips]
+    suppressed_iot_exfil = len(iot_filtered)
+    suppressed_total += suppressed_iot_exfil
+    exfil = [e for e in exfil if e.get("device_ip", "") not in iot_ips]
     for e in exfil:
         create_security_alert(
             "intrusion",

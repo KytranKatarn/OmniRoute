@@ -51,6 +51,15 @@
         {{ "{:,}".format(done) }} / {{ "{:,}".format(total_ref) }}
         {% if note %}<span style="color:#444;margin-left:4px;">{{ note }}</span>{% endif %}
       </div>
+      {% set spark = sparklines.get(agent) %}
+      {% if spark %}
+        {% set spark_max = spark|max or 1 %}
+        <div style="display:flex;align-items:flex-end;gap:1px;height:14px;margin-top:6px;" title="Daily count, 7 days (oldest → newest)">
+          {% for v in spark %}
+          <div style="flex:1;background:{{ tier_color }};height:{{ ((v / spark_max) * 100) | int }}%;min-height:1px;opacity:0.55;border-radius:1px;"></div>
+          {% endfor %}
+        </div>
+      {% endif %}
     </div>
     {% endfor %}
   </div>

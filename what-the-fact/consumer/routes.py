@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 import time
@@ -358,6 +359,45 @@ def activity():
             LIMIT {PAGE_SIZE} OFFSET {offset}
         """)).fetchall()
 
+        def _daily(sql: str) -> list:
+            today = datetime.date.today()
+            by_date = {r[0]: int(r[1] or 0) for r in c.execute(text(sql)).fetchall()}
+            return [by_date.get(today - datetime.timedelta(days=i), 0) for i in range(6, -1, -1)]
+
+        sparklines = {
+            "F.A.C.T.": _daily(f"""
+                SELECT created_at::date AS d, COUNT(*) FROM {S}.audit_trail
+                WHERE event_type='ingested' AND created_at > CURRENT_DATE - INTERVAL '7 days'
+                GROUP BY 1
+            """),
+            "B.I.A.S.": _daily(f"""
+                SELECT computed_at::date AS d, COUNT(*) FROM {S}.bias_scores
+                WHERE computed_at > CURRENT_DATE - INTERVAL '7 days'
+                GROUP BY 1
+            """),
+            "V.E.R.I.F.Y.": _daily(f"""
+                SELECT checked_at::date AS d, COUNT(DISTINCT article_id) FROM {S}.fact_checks
+                WHERE checked_at > CURRENT_DATE - INTERVAL '7 days'
+                GROUP BY 1
+            """),
+            "D.R.A.F.T.": _daily(f"""
+                SELECT created_at::date AS d, COUNT(*) FROM {S}.summaries
+                WHERE created_at > CURRENT_DATE - INTERVAL '7 days'
+                GROUP BY 1
+            """),
+            "I.N.K.": _daily(f"""
+                SELECT created_at::date AS d, COUNT(*) FROM {S}.story_clusters
+                WHERE created_at > CURRENT_DATE - INTERVAL '7 days'
+                GROUP BY 1
+            """),
+            "LLM Analyzed": _daily(f"""
+                SELECT ai_analyzed_at::date AS d, COUNT(*) FROM {S}.articles
+                WHERE ai_analyzed_at > CURRENT_DATE - INTERVAL '7 days'
+                GROUP BY 1
+            """),
+            # L.O.C.A.L. omitted — no timestamp on province_code being set.
+        }
+
         source_health_rows = c.execute(text(f"""
             SELECT
                 s.slug,
@@ -407,7 +447,8 @@ def activity():
     return render_template("activity.html", events=events, source_count=source_count,
                            total=total, page=page, total_pages=total_pages,
                            page_size=PAGE_SIZE, agent_filter=agent_filter,
-                           stats=dict(stats), source_health=source_health)
+                           stats=dict(stats), source_health=source_health,
+                           sparklines=sparklines)
 
 
 @bp.get("/team")

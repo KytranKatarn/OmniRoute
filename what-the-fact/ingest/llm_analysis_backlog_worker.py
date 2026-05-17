@@ -17,7 +17,7 @@ import time
 
 from sqlalchemy import text
 
-from . import ai_dispatcher
+from . import ai_dispatcher, tier_router  # noqa: F401 — ai_dispatcher kept for any remaining single-tier callers
 
 logger = logging.getLogger("wtf-ingest")
 
@@ -38,9 +38,12 @@ def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
     with engine.connect() as c:
         rows = c.execute(
             text(f"""
-                SELECT a.id, a.title, a.body, s.slug AS source_slug
+                SELECT a.id, a.title, a.body, s.slug AS source_slug,
+                       s.bias_lean AS source_bias_lean,
+                       COALESCE(sc.article_count, 0) AS cluster_size
                 FROM {schema}.articles a
                 JOIN {schema}.sources s ON s.id = a.source_id
+                LEFT JOIN {schema}.story_clusters sc ON sc.id = a.cluster_id
                 WHERE a.ai_analyzed = false
                   AND a.published_at > NOW() - make_interval(days => :max_age_days)
                   AND NOT EXISTS (
@@ -55,9 +58,24 @@ def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def _persist(engine, schema: str, article_id: int, sections: dict) -> None:
+def _persist(engine, schema: str, article_id: int, sections: dict, tier_meta: dict) -> None:
+    """Persist analysis JSONB + update wtf.articles tier-tracking columns.
+
+    tier_meta shape from tier_router.analyze_tiered():
+      analysis_tier: 'quick_v1' | 'quick_v1+full' | 'quick_v1_failed+full' | ...
+      tier1_ok: bool
+      tier2_ran: bool
+      tier2_status: 'ok' | 'rate_limited' | 'failed' | 'skipped'
+      tier2_pending: bool (optional)
+    """
     if schema not in _ALLOWED_SCHEMAS:
         raise ValueError(f"_persist: disallowed schema {schema!r}")
+    analysis_tier = tier_meta.get("analysis_tier") or "pending"
+    tier1_ok = bool(tier_meta.get("tier1_ok"))
+    tier2_ran = bool(tier_meta.get("tier2_ran"))
+    tier2_status = tier_meta.get("tier2_status") or "skipped"
+    tier2_pending = bool(tier_meta.get("tier2_pending"))
+    failed_delta = 1 if (tier2_ran and tier2_status not in ("ok", "skipped")) else 0
     with engine.begin() as c:
         c.execute(
             text(f"""
@@ -72,10 +90,23 @@ def _persist(engine, schema: str, article_id: int, sections: dict) -> None:
         c.execute(
             text(f"""
                 UPDATE {schema}.articles
-                SET ai_analyzed = true, ai_analyzed_at = NOW()
+                SET ai_analyzed = true,
+                    ai_analyzed_at = NOW(),
+                    analysis_tier = :analysis_tier,
+                    tier1_at = CASE WHEN :tier1_ok THEN NOW() ELSE tier1_at END,
+                    tier2_at = CASE WHEN :tier2_ok THEN NOW() ELSE tier2_at END,
+                    tier2_pending = :tier2_pending,
+                    tier2_failures = COALESCE(tier2_failures, 0) + :failed_delta
                 WHERE id = :article_id
             """),
-            {"article_id": article_id},
+            {
+                "article_id": article_id,
+                "analysis_tier": analysis_tier,
+                "tier1_ok": tier1_ok,
+                "tier2_ok": tier2_ran and tier2_status == "ok",
+                "tier2_pending": tier2_pending,
+                "failed_delta": failed_delta,
+            },
         )
 
 
@@ -99,25 +130,38 @@ def run_backlog(engine, schema: str = "wtf") -> dict:
                 return {"processed": processed, "rate_limited": rate_limited,
                         "failed": failed, "skipped": skipped, "stopped": "max_runs"}
 
-            outcome = ai_dispatcher.analyze_with_status(
-                task="deep_analysis",
+            outcome = tier_router.analyze_tiered(
                 article_id=article["id"],
                 title=article["title"],
                 body=article["body"],
                 source_slug=article["source_slug"] or "",
+                source_bias_lean=article.get("source_bias_lean") or "",
+                cluster_size=int(article.get("cluster_size") or 0),
             )
             status = outcome["status"]
+            tier_meta = outcome.get("tier_meta") or {}
 
             if status == "rate_limited":
                 # Per #2944 — transient, retry next cycle without burning a 'failed' slot.
                 rate_limited += 1
             elif status == "failed":
                 failed += 1
-                logger.warning("[llm_backlog] article=%s dispatch failed", article["id"])
+                logger.warning(
+                    "[llm_backlog] article=%s dispatch failed (analysis_tier=%s)",
+                    article["id"],
+                    tier_meta.get("analysis_tier", "pending"),
+                )
             else:
                 try:
-                    _persist(engine, schema, article["id"], outcome["result"])
+                    _persist(engine, schema, article["id"], outcome["result"], tier_meta)
                     processed += 1
+                    logger.info(
+                        "[llm_backlog] article=%s persisted tier=%s gate=%s tier2=%s",
+                        article["id"],
+                        tier_meta.get("analysis_tier"),
+                        tier_meta.get("gate_reason"),
+                        tier_meta.get("tier2_status"),
+                    )
                 except Exception as exc:
                     failed += 1
                     logger.exception("[llm_backlog] article=%s persist failed: %s", article["id"], exc)

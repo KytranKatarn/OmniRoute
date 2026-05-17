@@ -1325,7 +1325,9 @@ def register_node_routes(bp, login_required, admin_required):
                             (node_id, psycopg2.extras.Json(ollama_models_payload)),
                         )
                         result = cur.fetchone()
-                        models_synced = result[0] if result else 0
+                        # get_db_cursor returns RealDictRow — result[0] raises KeyError(0)
+                        # which str()'s to literal "0" and silently aborts every model sync.
+                        models_synced = result["sync_node_models"] if result else 0
                         logger.debug(f"Synced {models_synced} models for node {node_id}")
 
                         # Mark models no longer available

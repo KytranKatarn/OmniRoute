@@ -41,6 +41,12 @@ from ingest.bias import score_bias
 from ingest.persist import upsert_article, record_failure, mark_ai_analyzed
 from ingest.orchestrator import pick_priority_articles
 from ingest.ai_dispatcher import analyze as ai_analyze
+from ingest import (
+    cluster_backlog_worker,
+    factcheck_backlog_worker,
+    geo_backlog_worker,
+    llm_analysis_backlog_worker,
+)
 from shared.creed_events import emit as creed_emit
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -272,6 +278,22 @@ def main():
             run_once(engine)
         except Exception:
             log.exception("run_once crashed — sleeping and retrying")
+
+        # Backlog workers — cheapest first, all default OFF via *_ENABLED env flags.
+        # Each is independent; one failure must not block the others.
+        for worker in (
+            cluster_backlog_worker,
+            geo_backlog_worker,
+            factcheck_backlog_worker,
+            llm_analysis_backlog_worker,
+        ):
+            try:
+                result = worker.run_backlog(engine)
+                if result.get("stopped") != "disabled":
+                    log.info("backlog %s: %s", worker.__name__, result)
+            except Exception:
+                log.exception("%s crashed", worker.__name__)
+
         time.sleep(POLL_SECS)
 
 

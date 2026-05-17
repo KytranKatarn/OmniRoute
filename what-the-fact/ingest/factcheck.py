@@ -3,8 +3,9 @@
 Extracts factual claims from article bodies and assigns verdicts based on
 claim type and source credibility. No external API calls.
 
-Verdicts:
-  verified       — statistical claim from a credible source slug (CBC, Reuters, StatsCan)
+Verdicts (must match wtf.fact_checks.verdict CHECK constraint:
+true | mostly_true | mixed | false | unverified):
+  true           — statistical claim from a credible source slug (CBC, Reuters, StatsCan)
   mostly_true    — numerical claim with hedging language
   mixed          — claim with contradicting keywords present in same article
   false          — contains known correction markers ("correction:", "retraction:")
@@ -55,7 +56,7 @@ def _assign_verdict(claim: str, body: str, source_slug: str) -> str:
     if _CONTRADICT_RE.search(claim):
         return "mixed"
     if source_slug in _CREDIBLE_SLUGS and _STAT_RE.search(claim):
-        return "mostly_true" if _HEDGE_RE.search(claim) else "verified"
+        return "mostly_true" if _HEDGE_RE.search(claim) else "true"
     return "unverified"
 
 

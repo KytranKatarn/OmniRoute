@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Media Literacy Score — What The Fact{% endblock %}
+{% block content %}
+
+<div class="wtf-team-hero">
+  <div class="wtf-team-hero-live">
+    <span class="wtf-live-pulse"></span>
+    <span style="font-size:0.7rem;letter-spacing:2px;color:#7fbf7f;">{{ user_email }}</span>
+  </div>
+  <h1 style="font-size:1.6rem;">MEDIA LITERACY SCORE</h1>
+  <p style="font-size:0.85rem;color:#9ca3af;max-width:680px;margin-top:8px;">
+    Your reading diet across the bias spectrum. Score reflects how
+    balanced your sourcing is — perfectly balanced reader scores 100,
+    one-sided reader scores closer to 0.
+  </p>
+</div>
+
+<div style="max-width:1000px;margin:0 auto;padding:16px 16px 24px;">
+
+  {% if score is none %}
+  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:24px;text-align:center;color:#9ca3af;">
+    <div style="font-size:1.2rem;color:#e0e0e0;margin-bottom:8px;">No data yet</div>
+    <div style="font-size:0.8rem;">Read a few scored articles and check back. We track every article you open while signed in.</div>
+    <a href="/" style="display:inline-block;margin-top:12px;padding:6px 14px;background:#10b981;color:#0a0f0a;text-decoration:none;border-radius:3px;font-size:0.75rem;">Browse News</a>
+  </div>
+  {% else %}
+
+  <!-- Score hero -->
+  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:24px;margin-bottom:20px;text-align:center;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">
+      Your Score
+    </div>
+    <div style="font-size:4rem;font-weight:700;line-height:1;color:{% if score >= 80 %}#10b981{% elif score >= 60 %}#f59e0b{% else %}#ef4444{% endif %};font-family:'IBM Plex Mono', monospace;">
+      {{ score }}<span style="font-size:1.5rem;color:#6b7280;"> / 100</span>
+    </div>
+    <div style="color:#6b7280;font-size:0.75rem;margin-top:8px;">
+      Based on {{ "{:,}".format(total_scored) }} scored article(s)
+      &middot; {{ "{:,}".format(total_views) }} total view(s)
+    </div>
+    <div style="font-size:0.8rem;color:#9ca3af;margin-top:14px;max-width:520px;margin-left:auto;margin-right:auto;">
+      {% if score >= 90 %}
+        ⚖ Exceptional balance — you read across the political spectrum.
+      {% elif score >= 75 %}
+        ✓ Well-balanced. You read across the spectrum with mild lean.
+      {% elif score >= 50 %}
+        ⚠ Moderate skew — consider broadening to opposite-band sources.
+      {% else %}
+        ⚠ Strong one-sided reading pattern. Try outlets across the spectrum.
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Bias distribution chart -->
+  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:20px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;">
+      Your bias distribution
+    </div>
+    {% set max_n = distribution.values()|max %}
+    {% for band, color in [('left', '#ef4444'), ('center-left', '#fb923c'), ('center', '#10b981'), ('center-right', '#3b82f6'), ('right', '#8b5cf6'), ('unscored', '#6b7280')] %}
+    {% set n = distribution.get(band, 0) %}
+    {% set pct = ((n / max_n * 100) | int) if max_n else 0 %}
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:0.72rem;color:#9ca3af;">
+      <div style="width:120px;flex-shrink:0;text-transform:uppercase;font-size:0.65rem;letter-spacing:1px;">{{ band }}</div>
+      <div style="flex:1;background:#060d14;border-radius:2px;height:18px;">
+        <div style="background:{{ color }};height:18px;border-radius:2px;width:{{ pct }}%;transition:width 0.4s ease;"></div>
+      </div>
+      <div style="width:60px;text-align:right;color:#e0e0e0;font-family:'IBM Plex Mono', monospace;">{{ "{:,}".format(n) }}</div>
+    </div>
+    {% endfor %}
+    <div style="font-size:0.6rem;color:#4b5563;margin-top:10px;">
+      Unscored articles don't count toward your score — those are pieces
+      where B.I.A.S. hasn't run yet (Tier-1 only or pending).
+    </div>
+  </div>
+
+  <!-- Recent reads strip -->
+  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      Recent reading ({{ recent|length }})
+    </div>
+    {% if not recent %}
+    <div style="color:#6b7280;font-size:0.75rem;font-style:italic;text-align:center;padding:12px 0;">No reads yet.</div>
+    {% else %}
+    <table style="width:100%;border-collapse:collapse;font-size:0.7rem;">
+      <tbody>
+        {% for r in recent %}
+        <tr style="border-bottom:1px solid #0a1520;">
+          <td style="padding:6px 8px;color:#e0e0e0;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            <a href="/article/{{ r.id }}" style="color:inherit;text-decoration:none;">{{ r.title }}</a>
+          </td>
+          <td style="padding:6px 8px;color:#9ca3af;font-size:0.65rem;">{{ r.source_name }}</td>
+          <td style="padding:6px 8px;">
+            {% if r.band %}
+            <span style="font-size:0.6rem;padding:1px 6px;border-radius:2px;color:#0a0f0a;background:{% if r.band == 'left' %}#ef4444{% elif r.band == 'center-left' %}#fb923c{% elif r.band == 'center' %}#10b981{% elif r.band == 'center-right' %}#3b82f6{% else %}#8b5cf6{% endif %};">{{ r.band }}</span>
+            {% else %}<span style="color:#4b5563;font-size:0.6rem;">unscored</span>{% endif %}
+          </td>
+          <td style="padding:6px 8px;color:#6b7280;font-size:0.6rem;text-align:right;font-family:'IBM Plex Mono', monospace;">{{ r.last_view_at.strftime('%m-%d %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+
+  {% endif %}
+
+  <div style="margin-top:14px;font-size:0.6rem;color:#4b5563;text-align:center;">
+    Privacy: reading history is logged only for signed-in users. Anonymous visits are not tracked.
+  </div>
+
+</div>
+{% endblock %}

@@ -553,8 +553,106 @@ def article(article_id: int):
         a["trigger_phrases"] = []
         a["fact_check_claims"] = []
 
+    # #2914 reading-history log — only for signed-in users.
+    # UPSERT advances view_count + last_view_at; first row sets first_view_at.
+    user_email = _user_email()
+    if user_email:
+        try:
+            with _db().begin() as c:
+                c.execute(text(f"""
+                    INSERT INTO {S}.user_article_views (user_email, article_id, view_count)
+                    VALUES (:email, :id, 1)
+                    ON CONFLICT (user_email, article_id) DO UPDATE
+                      SET view_count = {S}.user_article_views.view_count + 1,
+                          last_view_at = NOW()
+                """), {"email": user_email, "id": article_id})
+        except Exception:
+            # Don't break article rendering on logging failure
+            pass
+
     return render_template("article.html", a=a, wtf_tech_url=wtf_tech_url,
                            is_subscriber=subscribed)
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# Media Literacy Score (#2914) — personal reading-diet dashboard
+# ───────────────────────────────────────────────────────────────────────────
+
+# Bias band → numeric weight for distribution math. Symmetric around 0.
+_BAND_WEIGHTS = {
+    "left": -2,
+    "center-left": -1,
+    "center": 0,
+    "center-right": 1,
+    "right": 2,
+}
+
+
+@bp.get("/literacy")
+def literacy_page():
+    """Personal media-literacy dashboard. Subscriber-gated."""
+    from flask import redirect
+    email = _user_email()
+    if not email:
+        return redirect("/login?next=/literacy")
+    if not is_subscriber():
+        return redirect("/connect?gated=literacy")
+
+    S = _schema()
+    with _db().begin() as c:
+        # Bias distribution of articles the user has viewed
+        rows = c.execute(text(f"""
+            SELECT COALESCE(b.band, 'unscored') AS band,
+                   COUNT(DISTINCT v.article_id) AS articles,
+                   SUM(v.view_count) AS views
+            FROM {S}.user_article_views v
+            LEFT JOIN {S}.bias_scores b ON b.article_id = v.article_id
+            WHERE v.user_email = :email
+            GROUP BY 1
+            ORDER BY articles DESC
+        """), {"email": email}).mappings().all()
+        # Recent reads with bias for the activity strip
+        recent = c.execute(text(f"""
+            SELECT a.id, a.title, s.name AS source_name,
+                   b.band, v.last_view_at
+            FROM {S}.user_article_views v
+            JOIN {S}.articles a ON a.id = v.article_id
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE v.user_email = :email
+            ORDER BY v.last_view_at DESC
+            LIMIT 20
+        """), {"email": email}).mappings().all()
+
+    # Compute Media Literacy Score
+    # Strategy: 100 - skew, where skew is the |centroid| of bias weights.
+    # Perfectly balanced reader -> 100. Reader who only consumes one extreme -> ~0.
+    total_articles = 0
+    weighted_sum = 0.0
+    distribution = {b: 0 for b in _BAND_WEIGHTS}
+    distribution["unscored"] = 0
+    for r in rows:
+        n = int(r["articles"] or 0)
+        band = r["band"]
+        distribution[band] = n
+        if band in _BAND_WEIGHTS:
+            total_articles += n
+            weighted_sum += n * _BAND_WEIGHTS[band]
+    if total_articles > 0:
+        centroid = weighted_sum / total_articles  # range roughly -2..+2
+        # |centroid| / 2 → 0..1 skew. 100 - 100 * skew → 0..100.
+        skew_pct = abs(centroid) / 2.0
+        score = max(0, min(100, int(round(100 * (1 - skew_pct)))))
+    else:
+        score = None
+
+    return render_template("literacy.html",
+                           user_email=email,
+                           score=score,
+                           total_scored=total_articles,
+                           total_views=sum(int(r["views"] or 0) for r in rows),
+                           distribution=distribution,
+                           recent=[dict(r) for r in recent])
 
 
 @bp.route("/api/health")

@@ -6,45 +6,6 @@ import urllib.request
 
 from flask import Blueprint, render_template, abort
 
-# Source ownership mapping — exposes Canadian media consolidation.
-# See task #2968 for formalisation into wtf.sources.owner column.
-SOURCE_OWNERS = {
-    # Postmedia (national chain — owns ~10 of our sources)
-    "national_post": ("Postmedia", "corporate"),
-    "vancouver_sun": ("Postmedia", "corporate"),
-    "ottawa_citizen": ("Postmedia", "corporate"),
-    "montreal_gazette": ("Postmedia", "corporate"),
-    "calgary_herald": ("Postmedia", "corporate"),
-    "edmonton_journal": ("Postmedia", "corporate"),
-    "saskatoon_starphoenix": ("Postmedia", "corporate"),
-    "regina_leaderpost": ("Postmedia", "corporate"),
-    "financial_post": ("Postmedia", "corporate"),
-    "saltwire_news": ("Postmedia (ex-SaltWire, 2024)", "corporate"),
-    # Public broadcaster
-    "cbc_english": ("CBC/Radio-Canada", "public"),
-    "radio_canada": ("CBC/Radio-Canada", "public"),
-    # Bell Media
-    "ctv_news": ("Bell Media", "corporate"),
-    "bnn_bloomberg": ("Bell Media", "corporate"),
-    # Other corporate chains
-    "global_news": ("Corus Entertainment", "corporate"),
-    "journal_de_montreal": ("Quebecor", "corporate"),
-    "toronto_star": ("Torstar", "corporate"),
-    "globe_mail": ("Globe and Mail Inc. (Woodbridge)", "corporate"),
-    "winnipeg_free_press": ("FP Newspapers (independent local)", "independent"),
-    # Independent / non-profit
-    "le_devoir": ("Le Devoir (independent co-op)", "non_profit"),
-    "la_presse": ("La Presse (non-profit since 2018)", "non_profit"),
-    "lactualite": ("Mishmash Media", "independent"),
-    "the_tyee": ("Tyee Solutions Society", "non_profit"),
-    "ricochet_media": ("Ricochet Media Inc.", "independent"),
-    "canadaland": ("Canadaland", "independent"),
-    "press_progress": ("Broadbent Institute", "non_profit"),
-    "the_narwhal": ("The Narwhal (non-profit)", "non_profit"),
-    "ipolitics": ("iPolitics Inc.", "independent"),
-    "the_conversation_canada": ("The Conversation (academic)", "non_profit"),
-    "aptn_news": ("APTN (Indigenous-owned)", "non_profit"),
-}
 from sqlalchemy import create_engine, text
 from .auth import is_subscriber
 
@@ -402,19 +363,22 @@ def activity():
             SELECT
                 s.slug,
                 s.bias_lean,
+                s.owner_name,
+                s.owner_type,
                 COUNT(a.id) AS articles_total,
                 COUNT(a.id) FILTER (WHERE a.published_at > NOW() - INTERVAL '7 days') AS articles_7d,
                 COUNT(a.id) FILTER (WHERE LENGTH(a.body) >= 100) AS articles_with_body,
                 MAX(a.published_at)::date AS last_article
             FROM {S}.sources s
             LEFT JOIN {S}.articles a ON a.source_id = s.id
-            GROUP BY s.id, s.slug, s.bias_lean
+            GROUP BY s.id, s.slug, s.bias_lean, s.owner_name, s.owner_type
             ORDER BY articles_7d DESC NULLS LAST, articles_total DESC NULLS LAST
         """)).mappings().all()
 
     source_health = []
     for r in source_health_rows:
-        owner, ownership_type = SOURCE_OWNERS.get(r["slug"], ("Unknown", "unknown"))
+        owner = r["owner_name"] or "Unknown"
+        ownership_type = r["owner_type"] or "unknown"
         total = r["articles_total"] or 0
         recent = r["articles_7d"] or 0
         with_body = r["articles_with_body"] or 0

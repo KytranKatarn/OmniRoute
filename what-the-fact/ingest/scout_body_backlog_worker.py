@@ -20,7 +20,8 @@ Env:
     WTF_SCOUT_BODY_POLL_INTERVAL_SEC     5       poll cadence
     WTF_SCOUT_BODY_MIN_BODY_CHARS        300     articles below this length are eligible
     WTF_SCOUT_BODY_MIN_RESCUE_CHARS      400     rescued body must beat this to commit
-    WTF_SCOUT_BODY_DISPATCH_SLEEP_SEC    2       sleep between dispatches (politeness)
+    WTF_SCOUT_BODY_DISPATCH_SLEEP_SEC    2       sleep between BATCHES (politeness)
+    WTF_SCOUT_BODY_WORKERS               4       parallel S.C.O.U.T. dispatches per batch
 
 Eligible sources (Google-News fallback only):
     toronto_star, la_presse, the_tyee, bnn_bloomberg
@@ -34,6 +35,7 @@ import os
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from sqlalchemy import text
 
@@ -49,6 +51,7 @@ _POLL_INTERVAL_SEC = int(os.environ.get("WTF_SCOUT_BODY_POLL_INTERVAL_SEC", "5")
 _MIN_BODY_CHARS = int(os.environ.get("WTF_SCOUT_BODY_MIN_BODY_CHARS", "300"))
 _MIN_RESCUE_CHARS = int(os.environ.get("WTF_SCOUT_BODY_MIN_RESCUE_CHARS", "400"))
 _DISPATCH_SLEEP_SEC = float(os.environ.get("WTF_SCOUT_BODY_DISPATCH_SLEEP_SEC", "2"))
+_WORKERS = max(1, int(os.environ.get("WTF_SCOUT_BODY_WORKERS", "4")))
 
 _ALLOWED_SCHEMAS = frozenset({"wtf"})
 
@@ -201,8 +204,56 @@ def _persist_failure(engine, schema: str, article_id: int,
         )
 
 
+def _process_article(engine, schema: str, article: dict) -> tuple[bool, str | None]:
+    """Dispatch + poll + persist for a single article. Used as the worker
+    fn inside run_backlog's ThreadPoolExecutor. Self-contained: each call
+    acquires its own DB connection through engine.begin() in _persist_*.
+    Returns (success, error_short_label).
+    """
+    aid = article["id"]
+    url = article["url"]
+    body_before = article["body_len"] or 0
+
+    scout_job_id, err = _dispatch_scout(url)
+    if scout_job_id is None:
+        _persist_failure(engine, schema, aid, None, body_before, "failed", err or "dispatch failed")
+        logger.warning("[scout_body] article=%s dispatch failed: %s", aid, err)
+        return False, "dispatch"
+
+    job_row, poll_err = _poll_scout(scout_job_id)
+    if job_row is None:
+        _persist_failure(engine, schema, aid, scout_job_id, body_before,
+                         "timeout" if poll_err == "timeout" else "failed",
+                         poll_err or "poll failed")
+        logger.warning("[scout_body] article=%s scout_job=%s poll: %s", aid, scout_job_id, poll_err)
+        return False, "poll"
+
+    new_body = _pick_longest_body(job_row.get("data") or {})
+    if len(new_body) < _MIN_RESCUE_CHARS or len(new_body) <= body_before:
+        _persist_failure(engine, schema, aid, scout_job_id, body_before,
+                         "failed",
+                         f"rescued body too short ({len(new_body)} chars, needed > {body_before} and >= {_MIN_RESCUE_CHARS})")
+        logger.info("[scout_body] article=%s scout_job=%s rescued only %d chars — skipped",
+                    aid, scout_job_id, len(new_body))
+        return False, "short"
+
+    try:
+        _persist_success(engine, schema, aid, scout_job_id, body_before, new_body)
+        logger.info("[scout_body] article=%s scout_job=%s rescued %d → %d chars",
+                    aid, scout_job_id, body_before, len(new_body))
+        return True, None
+    except Exception as exc:
+        logger.exception("[scout_body] article=%s persist failed: %s", aid, exc)
+        return False, "persist"
+
+
 def run_backlog(engine, schema: str = "wtf") -> dict:
-    """Main entry — called once per ingest cycle from run.py."""
+    """Main entry — called once per ingest cycle from run.py.
+
+    Dispatches up to _WORKERS articles in parallel via ThreadPoolExecutor.
+    Each worker thread is fully self-contained; the politeness sleep is
+    per-batch (was per-article in the serial version).
+    """
     if not _ENABLED:
         return {"processed": 0, "failed": 0, "stopped": "disabled"}
     if not _SCOUT_KEY:
@@ -211,56 +262,21 @@ def run_backlog(engine, schema: str = "wtf") -> dict:
     processed = 0
     failed = 0
     while processed + failed < _MAX_RUNS_PER_NIGHT:
-        batch = _fetch_batch(engine, schema, _BATCH_SIZE)
+        remaining = _MAX_RUNS_PER_NIGHT - (processed + failed)
+        batch = _fetch_batch(engine, schema, min(_BATCH_SIZE, remaining))
         if not batch:
             return {"processed": processed, "failed": failed, "stopped": "no_backlog"}
 
-        for article in batch:
-            if processed + failed >= _MAX_RUNS_PER_NIGHT:
-                return {"processed": processed, "failed": failed, "stopped": "max_runs"}
+        with ThreadPoolExecutor(max_workers=_WORKERS) as pool:
+            futures = [pool.submit(_process_article, engine, schema, art) for art in batch]
+            for fut in as_completed(futures):
+                success, _label = fut.result()
+                if success:
+                    processed += 1
+                else:
+                    failed += 1
 
-            aid = article["id"]
-            url = article["url"]
-            body_before = article["body_len"] or 0
-
-            scout_job_id, err = _dispatch_scout(url)
-            if scout_job_id is None:
-                _persist_failure(engine, schema, aid, None, body_before, "failed", err or "dispatch failed")
-                failed += 1
-                logger.warning("[scout_body] article=%s dispatch failed: %s", aid, err)
-                time.sleep(_DISPATCH_SLEEP_SEC)
-                continue
-
-            job_row, poll_err = _poll_scout(scout_job_id)
-            if job_row is None:
-                _persist_failure(engine, schema, aid, scout_job_id, body_before,
-                                 "timeout" if poll_err == "timeout" else "failed",
-                                 poll_err or "poll failed")
-                failed += 1
-                logger.warning("[scout_body] article=%s scout_job=%s poll: %s", aid, scout_job_id, poll_err)
-                time.sleep(_DISPATCH_SLEEP_SEC)
-                continue
-
-            new_body = _pick_longest_body(job_row.get("data") or {})
-            if len(new_body) < _MIN_RESCUE_CHARS or len(new_body) <= body_before:
-                _persist_failure(engine, schema, aid, scout_job_id, body_before,
-                                 "failed",
-                                 f"rescued body too short ({len(new_body)} chars, needed > {body_before} and >= {_MIN_RESCUE_CHARS})")
-                failed += 1
-                logger.info("[scout_body] article=%s scout_job=%s rescued only %d chars — skipped",
-                            aid, scout_job_id, len(new_body))
-                time.sleep(_DISPATCH_SLEEP_SEC)
-                continue
-
-            try:
-                _persist_success(engine, schema, aid, scout_job_id, body_before, new_body)
-                processed += 1
-                logger.info("[scout_body] article=%s scout_job=%s rescued %d → %d chars",
-                            aid, scout_job_id, body_before, len(new_body))
-            except Exception as exc:
-                failed += 1
-                logger.exception("[scout_body] article=%s persist failed: %s", aid, exc)
-
+        if processed + failed < _MAX_RUNS_PER_NIGHT:
             time.sleep(_DISPATCH_SLEEP_SEC)
 
     return {"processed": processed, "failed": failed, "stopped": "max_runs"}

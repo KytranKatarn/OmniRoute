@@ -282,12 +282,15 @@ def main():
 
         # Backlog workers — cheapest first, all default OFF via *_ENABLED env flags.
         # Each is independent; one failure must not block the others.
+        # scout_body sits at position 2 (after cluster) because it runs S.C.O.U.T.
+        # in parallel via ThreadPoolExecutor and finishes a 50-article batch in
+        # ~1-2 min; keeping it behind llm_analysis (~20+ min) starved it.
         for worker in (
             cluster_backlog_worker,
+            scout_body_backlog_worker,
             geo_backlog_worker,
             factcheck_backlog_worker,
             llm_analysis_backlog_worker,
-            scout_body_backlog_worker,
         ):
             try:
                 result = worker.run_backlog(engine)

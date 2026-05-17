@@ -191,3 +191,139 @@ def analyze():
     except Exception as exc:
         logger.exception("[WTFHub] dispatch failed for task=%s", task)
         return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# Phase A: Two-tier LLM (Task #2943) — quick capabilities
+# ───────────────────────────────────────────────────────────────────────────
+
+
+@wtf_hub_bp.route("/api/analyze-quick", methods=["POST"])
+def analyze_quick():
+    """Tier-1 dispatch — small/fast model for first-pass triage.
+
+    Auth: Authorization: Bearer <WTF_HUB_TOKEN>
+
+    Request JSON:
+      task        (str) — "bias" | "factcheck" | "geo"
+      article_id  (int) — wtf article id
+      title       (str) — article title
+      body        (str) — article body (first 2000 chars used — shorter than full tier)
+      source_slug (str) — e.g. "cbc_english"
+      prefer_node (str) — optional, e.g. "outpost_us_001"
+
+    Response JSON (Tier-1 strict shape, see docs/two-tier-llm-design.md):
+      { "ok": true, "result": {
+          "tier": "quick_v1", "model": "qwen2.5:1.5b", "node": "...",
+          "bias"|"claims"|"geo": ...,
+          "gate_to_full": bool,
+          "duration_ms": int
+      }}
+
+    Phase A: endpoint is wired but no caller in WTF ingest yet. Verify the
+    DHQ path returns sub-8s responses for qwen2.5:1.5b before Phase B wires
+    callers.
+    """
+    if not _auth_ok(request):
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+
+    data = request.get_json(force=True, silent=True) or {}
+    task = data.get("task", "")
+    if task not in ("bias", "factcheck", "geo"):
+        return jsonify({"ok": False, "error": f"unknown task: {task}"}), 400
+
+    title = (data.get("title") or "")[:200]
+    body = (data.get("body") or "")[:2000]
+    source_slug = (data.get("source_slug") or "")[:100]
+    prefer_node = (data.get("prefer_node") or "").strip() or None
+
+    if not title and not body:
+        return jsonify({"ok": False, "error": "title or body required"}), 400
+
+    # Tier-1 prompts — strict, short, single-shot JSON. No rationale, no verdict.
+    quick_prompts = {
+        "bias": (
+            f"Classify the political bias of this article. Output ONLY one of "
+            f"these five labels: left, center-left, center, center-right, right.\n\n"
+            f"Source: {source_slug}\nTitle: {title}\nBody: {body[:1200]}\n\n"
+            'Return ONLY valid JSON: {"band": "<one of 5>", "confidence": 0.0-1.0}'
+        ),
+        "factcheck": (
+            f"Extract up to 3 factual claims from this article. No verdict, no reasoning.\n\n"
+            f"Title: {title}\nBody: {body[:1500]}\n\n"
+            'Return ONLY valid JSON: {"claims": ["claim text", ...]} (max 3, can be empty list)'
+        ),
+        "geo": (
+            f"Identify the Canadian province this article is primarily about.\n\n"
+            f"Title: {title}\nBody: {body[:800]}\n\n"
+            'Return ONLY valid JSON: {"province_code": "ON"|"QC"|"BC"|"AB"|...|null, '
+            '"country_code": "CA"|null, "confidence": 0.0-1.0}'
+        ),
+    }
+
+    capabilities = {
+        "bias": "bias_quick",
+        "factcheck": "factcheck_quick",
+        "geo": "geo_quick",
+    }
+
+    started = time.time()
+    try:
+        from tools.department_hq.services.department_dispatcher import dispatch
+
+        # Always pass capability + prompt explicitly so V.I.G.I.L.'s static
+        # dispatch-signature guardrail can verify the call. context is fed
+        # via **kwargs and may be empty.
+        result = dispatch(
+            capability=capabilities[task],
+            prompt=quick_prompts[task],
+            module_id="wtf_hub_quick",
+            json_mode=True,
+            context={"prefer_node": prefer_node} if prefer_node else {},
+        )
+        duration_ms = int((time.time() - started) * 1000)
+
+        if not result.success:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": result.error or "dispatch failed",
+                        "duration_ms": duration_ms,
+                    }
+                ),
+                500,
+            )
+
+        try:
+            parsed = json.loads(result.response)
+        except Exception:
+            parsed = {"raw": result.response}
+
+        # Apply Tier-1 → Tier-2 gate (see design doc §gate)
+        gate_to_full = False
+        if task == "bias":
+            band = (parsed.get("band") or "").lower()
+            if band in ("left", "right"):
+                gate_to_full = True
+        elif task == "factcheck":
+            claims = parsed.get("claims") or []
+            if isinstance(claims, list) and len(claims) >= 3 and len(body) >= 1500:
+                gate_to_full = True
+
+        return jsonify(
+            {
+                "ok": True,
+                "result": {
+                    "tier": "quick_v1",
+                    "model": getattr(result, "model_used", None) or "unknown",
+                    "node": getattr(result, "node_name", None) or "hub",
+                    **parsed,
+                    "gate_to_full": gate_to_full,
+                    "duration_ms": duration_ms,
+                },
+            }
+        )
+    except Exception as exc:
+        logger.exception("[WTFHub] quick dispatch failed for task=%s", task)
+        return jsonify({"ok": False, "error": str(exc)}), 500

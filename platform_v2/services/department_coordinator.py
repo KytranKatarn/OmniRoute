@@ -238,6 +238,14 @@ CAPABILITY_DEPARTMENT_MAP = {
     "bias_analysis": "News & Media",
     "fact_check": "News & Media",
     "geo_extraction": "News & Media",
+    # Two-tier WTF pipeline (Task #2943 Phase A, ADR pending).
+    # Quick tier runs on qwen2.5:1.5b (or llama3.2:3b) for fast first-pass
+    # triage; full tier (above) only runs when Tier 1's gate flips.
+    # Both stay in News & Media so the same B.I.A.S./V.E.R.I.F.Y./L.O.C.A.L.
+    # agents own both quality levels.
+    "bias_quick": "News & Media",
+    "factcheck_quick": "News & Media",
+    "geo_quick": "News & Media",
     "web_scraping": "News & Media",
     "data_collection": "News & Media",
     "browser_automation": "News & Media",

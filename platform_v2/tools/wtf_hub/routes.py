@@ -274,11 +274,19 @@ def analyze_quick():
         # Always pass capability + prompt explicitly so V.I.G.I.L.'s static
         # dispatch-signature guardrail can verify the call. context is fed
         # via **kwargs and may be empty.
+        #
+        # Pin Tier-1 to qwen2.5:1.5b. prefer_model was the wrong lever — it
+        # only finds an agent that already runs that model and silently no-ops
+        # if no roster match. model_override hard-pins the model regardless
+        # of which agent the coordinator picks. Without this, factcheck_quick
+        # routes to V.E.R.I.F.Y. and uses its 7b primary (4.7GB, ~5-15s)
+        # instead of the cheap 1.5b model the tier is for.
         result = dispatch(
             capability=capabilities[task],
             prompt=quick_prompts[task],
             module_id="wtf_hub_quick",
             json_mode=True,
+            model_override="qwen2.5:1.5b",
             context={"prefer_node": prefer_node} if prefer_node else {},
         )
         duration_ms = int((time.time() - started) * 1000)

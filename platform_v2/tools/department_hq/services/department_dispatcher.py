@@ -4626,6 +4626,7 @@ class DepartmentDispatcher:
         job_id: Optional[int] = None,
         prefer_agent: Optional[str] = None,
         prefer_model: Optional[str] = None,
+        model_override: Optional[str] = None,
         local_only: bool = False,
         project_id: Optional[int] = None,
         images: Optional[List[str]] = None,
@@ -4878,7 +4879,12 @@ class DepartmentDispatcher:
             # dispatch that reaches this block hits UnboundLocalError on
             # `model`. See ADR-005 for the broader image_gen routing context.
             _wp_model = ""
-            if isinstance(agent, dict):
+            if model_override:
+                # Hard pin from caller (e.g., wtf_hub *_quick capabilities) —
+                # overrides the agent's primary model so we don't promote
+                # to qwen2.5:7b for a Tier-1 task.
+                _wp_model = model_override
+            elif isinstance(agent, dict):
                 _wp_model = agent.get("model") or ""
             else:
                 _wp_model = getattr(agent, "model", "") or ""
@@ -5327,7 +5333,9 @@ class DepartmentDispatcher:
             )
 
         # 3. Determine model and system prompt
-        model = agent.get("model", "dolphin3-8k:latest")
+        # Caller's model_override (e.g., wtf_hub *_quick capabilities) wins
+        # over the agent's primary model — see request_work() docstring.
+        model = model_override or agent.get("model", "dolphin3-8k:latest")
         if not system_prompt:
             system_prompt = agent.get("system_prompt")
         temperature = agent.get("temperature", 0.5)

@@ -3199,6 +3199,16 @@ class DepartmentDispatcher:
             is_contractor = meta.get("is_cloud", False)
             worker_type = "contract" if is_contractor else "internal"
 
+            # Fleet node attribution (migration 384). Populated by
+            # _dispatch_to_node via metadata["node_id"] (= remote_nodes.id PK).
+            # NULL for hub-direct dispatches. Cast defensively in case metadata
+            # carries a stringified id from a serialized path.
+            node_id_used = meta.get("node_id")
+            try:
+                node_id_used = int(node_id_used) if node_id_used is not None else None
+            except (TypeError, ValueError):
+                node_id_used = None
+
             # Pick up Claude MCP attribution if dispatch was called from
             # within an MCP tool handler (Tasks #1297/#1298).
             request_origin = None
@@ -3221,13 +3231,13 @@ class DepartmentDispatcher:
                     model_used, provider, prompt_tokens, completion_tokens,
                     tokens_used, duration_ms, success, error_message,
                     station_code, requested_by, priority, request_metadata, job_id,
-                    worker_type, request_origin, mcp_tool
+                    worker_type, request_origin, mcp_tool, node_used_id
                 ) VALUES (
                     %s, %s, %s, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
-                    %s, %s, %s
+                    %s, %s, %s, %s
                 )
                 """,
                 (
@@ -3252,6 +3262,7 @@ class DepartmentDispatcher:
                     worker_type,
                     request_origin,
                     mcp_tool,
+                    node_id_used,
                 ),
             )
             conn.commit()

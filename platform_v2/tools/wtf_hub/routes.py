@@ -28,6 +28,7 @@ _AGENT_IDS: dict[str, int | None] = {
     "bias": None,
     "factcheck": None,
     "geo": None,
+    "deep_analysis": None,
 }
 
 
@@ -51,6 +52,11 @@ def _resolve_agents() -> None:
         _AGENT_IDS["factcheck"] = _get_agent_id("V.E.R.I.F.Y.")
     if not _AGENT_IDS["geo"]:
         _AGENT_IDS["geo"] = _get_agent_id("L.O.C.A.L.")
+    if not _AGENT_IDS["deep_analysis"]:
+        # Deep-analysis combines bias + factcheck + geo + editorial take
+        # in one LLM round-trip. V.E.R.I.F.Y. owns it (claims verification
+        # is the load-bearing piece — the others are supporting context).
+        _AGENT_IDS["deep_analysis"] = _get_agent_id("V.E.R.I.F.Y.")
 
 
 def _auth_ok(req) -> bool:
@@ -88,7 +94,7 @@ def analyze():
 
     data = request.get_json(force=True, silent=True) or {}
     task = data.get("task", "")
-    if task not in ("bias", "factcheck", "geo"):
+    if task not in ("bias", "factcheck", "geo", "deep_analysis"):
         return jsonify({"ok": False, "error": f"unknown task: {task}"}), 400
 
     title = (data.get("title") or "")[:200]
@@ -121,9 +127,27 @@ def analyze():
             '"lat": float or null, "lng": float or null, '
             '"geo_scope": "national|provincial|municipal|international", "geo_confidence": 0.0-1.0}'
         ),
+        "deep_analysis": (
+            f"Provide a complete editorial review of this Canadian news article.\n\n"
+            f"Source: {source_slug}\nTitle: {title}\nBody: {body}\n\n"
+            "Return ONLY valid JSON with these top-level keys:\n"
+            '  "bias_summary": {"score": float -1 to 1, "band": str, "rationale": str, '
+            '"trigger_phrases": list[str], "confidence": float},\n'
+            '  "key_claims": [{"text": str, "verdict": "verified|mixed|disputed|unverifiable", '
+            '"reasoning": str}, ...],\n'
+            '  "geo_entities": [{"name": str, "type": "city|province|country", '
+            '"lat": float or null, "lng": float or null}, ...],\n'
+            '  "editorial_take": str (1-3 sentence summary of importance + reliability),\n'
+            '  "confidence": float 0.0-1.0\n'
+        ),
     }
 
-    agent_names = {"bias": "B.I.A.S.", "factcheck": "V.E.R.I.F.Y.", "geo": "L.O.C.A.L."}
+    agent_names = {
+        "bias": "B.I.A.S.",
+        "factcheck": "V.E.R.I.F.Y.",
+        "geo": "L.O.C.A.L.",
+        "deep_analysis": "V.E.R.I.F.Y.",
+    }
     agent_name = agent_names[task]
     agent_id = _AGENT_IDS.get(task)
     if not agent_id:
@@ -144,6 +168,7 @@ def analyze():
         "bias": "bias_analysis",
         "factcheck": "fact_check",
         "geo": "geo_extraction",
+        "deep_analysis": "fact_check",  # routes to V.E.R.I.F.Y. — same agent, longer prompt
     }
 
     try:

@@ -51,6 +51,19 @@
         {{ "{:,}".format(done) }} / {{ "{:,}".format(total_ref) }}
         {% if note %}<span style="color:#444;margin-left:4px;">{{ note }}</span>{% endif %}
       </div>
+      {# Dispatch path subtitle (#2956) — only shows when hub agent-stats has data #}
+      {% set astats = agent_stats.get(agent) if agent_stats else none %}
+      {% if astats %}
+      <div style="font-size:0.6rem;color:#4b5563;margin-top:3px;font-family:'IBM Plex Mono', monospace;letter-spacing:0.5px;"
+           title="Last 24h via DHQ dispatch">
+        {{ astats.top_model or '—' }}@{{ astats.last_node or 'hub' }} ·
+        avg {{ (astats.avg_ms // 1000) if astats.avg_ms else '—' }}s ·
+        {{ "{:,}".format(astats.count or 0) }} disp
+        {% if astats.success_rate is not none %}
+          · <span style="color:{% if astats.success_rate >= 0.9 %}#10b981{% elif astats.success_rate >= 0.7 %}#f59e0b{% else %}#ef4444{% endif %};">{{ (astats.success_rate * 100) | int }}% ok</span>
+        {% endif %}
+      </div>
+      {% endif %}
       {% set spark = sparklines.get(agent) %}
       {% if spark %}
         {% set spark_max = spark|max or 1 %}
@@ -100,6 +113,34 @@
         </tbody>
       </table>
     </div>
+  </div>
+
+  <!-- Pipeline Health (#2955) — surfaces "skipped" / backlog the workers log to stdout
+       but never persisted. These are queryable proxies: failed_ingest, geo backlog,
+       LLM-pending articles, scout_body paywall rescues. -->
+  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      Pipeline Health &middot; backlog &amp; skipped counters
+    </div>
+    {% set scout_total = (stats.scout_body_done_24h or 0) + (stats.scout_body_failed or 0) %}
+    {% set scout_pct = ((stats.scout_body_done_24h or 0) / scout_total * 100) | int if scout_total else 0 %}
+    {% for label, value, color, hint in [
+      ('LLM pending',             stats.llm_pending,          '#f59e0b', 'articles still awaiting first-pass AI analysis'),
+      ('Geo retryable',           stats.geo_pending,          '#3b82f6', 'province=NULL but not terminal unmappable'),
+      ('Failed ingest (24h)',     stats.failed_ingest_24h,    '#ef4444', '({:,} total ever)'.format(stats.failed_ingest_total or 0)),
+      ('Scout body rescues',      stats.scout_body_done_24h,  '#10b981', 'paywall scrapes succeeded last 24h ({:,} failed total)'.format(stats.scout_body_failed or 0)),
+    ] %}
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:0.7rem;color:#9ca3af;">
+      <div style="width:160px;flex-shrink:0;">{{ label }}</div>
+      <div style="flex:1;background:#060d14;border-radius:2px;height:14px;min-width:80px;">
+        {% set max_v = [stats.llm_pending or 0, stats.geo_pending or 0, stats.failed_ingest_24h or 0, stats.scout_body_done_24h or 0] | max %}
+        {% set pct = ((value or 0) / max_v * 100) | int if max_v else 0 %}
+        <div style="background:{{ color }};height:14px;border-radius:2px;width:{{ pct }}%;"></div>
+      </div>
+      <div style="width:60px;text-align:right;color:#e0e0e0;">{{ "{:,}".format(value or 0) }}</div>
+      <div style="width:240px;color:#6b7280;font-size:0.6rem;">{{ hint }}</div>
+    </div>
+    {% endfor %}
   </div>
 
   <!-- Tier distribution (Phase C #2943) — how many articles got quick-tier vs full -->

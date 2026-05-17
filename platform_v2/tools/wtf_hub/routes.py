@@ -200,6 +200,64 @@ def analyze():
 
 
 # ───────────────────────────────────────────────────────────────────────────
+# Agent dispatch stats (#2956) — per-agent aggregations from task_execution_log
+# ───────────────────────────────────────────────────────────────────────────
+
+
+@wtf_hub_bp.route("/api/agent-stats", methods=["GET"])
+def agent_stats():
+    """Per-agent dispatch stats over last 24h for WTF traffic.
+
+    Powers the consumer activity-page dispatch-path subtitle (#2956).
+    Subset of task_execution_log filtered to module_source IN
+    ('wtf_hub', 'wtf_hub_quick', 'wtf-ingest') for News & Media agents.
+
+    Returns {agent_name: {count, success_rate, avg_ms, last_model, last_node}}.
+    """
+    if not _auth_ok(request):
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                """
+                SELECT
+                    tel.agent_name,
+                    COUNT(*) AS total,
+                    COUNT(*) FILTER (WHERE tel.success) AS successes,
+                    ROUND(AVG(tel.duration_ms))::int AS avg_ms,
+                    MODE() WITHIN GROUP (ORDER BY tel.model_used) AS top_model,
+                    MAX(COALESCE(rn.node_name, 'hub')) AS last_node
+                FROM task_execution_log tel
+                LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
+                WHERE tel.created_at > NOW() - INTERVAL '24 hours'
+                  AND tel.module_source IN ('wtf_hub', 'wtf_hub_quick', 'wtf-ingest', 'wtf-tech')
+                  AND tel.agent_name IS NOT NULL
+                GROUP BY tel.agent_name
+                ORDER BY total DESC
+                """
+            )
+            rows = cur.fetchall()
+        stats = {}
+        for r in rows:
+            d = dict(r)
+            total = int(d.get("total") or 0)
+            successes = int(d.get("successes") or 0)
+            stats[d["agent_name"]] = {
+                "count": total,
+                "success_rate": round(successes / total, 3) if total else None,
+                "avg_ms": d.get("avg_ms"),
+                "top_model": d.get("top_model"),
+                "last_node": d.get("last_node"),
+            }
+        return jsonify({"ok": True, "agents": stats, "generated_at": time.time()})
+    except Exception as exc:
+        logger.exception("[WTFHub] agent_stats failed")
+        return jsonify({"ok": False, "error": str(exc)[:200]}), 500
+
+
+# ───────────────────────────────────────────────────────────────────────────
 # Phase A: Two-tier LLM (Task #2943) — quick capabilities
 # ───────────────────────────────────────────────────────────────────────────
 

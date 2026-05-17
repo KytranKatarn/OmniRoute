@@ -18,6 +18,45 @@ _PLATFORM = "https://platform.kytranempowerment.com"
 _PORTRAIT_CACHE: dict = {}
 _PORTRAIT_CACHE_TTL = 3600  # 1 hour
 
+# Agent dispatch-stats cache (#2956) — fetches per-agent path data from
+# hub WTF Hub mesh endpoint. 60s TTL keeps the activity page snappy while
+# absorbing hub latency. Falls back to empty dict on any error so the page
+# always renders.
+_AGENT_STATS_CACHE: dict = {}
+_AGENT_STATS_CACHE_TTL = 60
+
+
+def _fetch_agent_stats() -> dict:
+    """Return {agent_name: {count, success_rate, avg_ms, top_model, last_node}}.
+
+    Calls hub /tools/wtf-hub/api/agent-stats via mesh (WTF_HUB_URL). 60s cache.
+    Returns {} on any error — caller renders without dispatch subtitle if empty.
+    """
+    now = time.time()
+    if _AGENT_STATS_CACHE.get("ts", 0) + _AGENT_STATS_CACHE_TTL > now:
+        return _AGENT_STATS_CACHE.get("data", {})
+    hub_url = os.environ.get("WTF_HUB_URL", "")
+    hub_token = os.environ.get("WTF_HUB_TOKEN", "")
+    if not hub_url or not hub_token:
+        return {}
+    try:
+        req = urllib.request.Request(
+            f"{hub_url}/tools/wtf-hub/api/agent-stats",
+            headers={
+                "Authorization": f"Bearer {hub_token}",
+                "Accept": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+        agents = data.get("agents") or {} if data.get("ok") else {}
+        _AGENT_STATS_CACHE["ts"] = now
+        _AGENT_STATS_CACHE["data"] = agents
+        return agents
+    except Exception:
+        # Fail-open: stale cache is better than no data; empty if we never got it
+        return _AGENT_STATS_CACHE.get("data", {})
+
 
 def _get_portrait_lookup() -> dict:
     """Return {display_name: portrait_url} from platform directory. Cached 1h."""
@@ -266,7 +305,18 @@ def activity():
               (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier='quick_v1') AS tier_quick_v1,
               (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier='quick_v1+full') AS tier_quick_v1_full,
               (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier IN ('quick_v1_failed', 'quick_v1_failed+full', 'quick_v1+failed')) AS tier_quick_v1_failed,
-              (SELECT COUNT(*) FROM {S}.articles WHERE tier2_pending=true) AS tier2_pending_count
+              (SELECT COUNT(*) FROM {S}.articles WHERE tier2_pending=true) AS tier2_pending_count,
+              -- Pipeline health counters (#2955) — surfaces skipped/backlog
+              -- alongside the done/failed split workers already log to stdout.
+              (SELECT COUNT(*) FROM {S}.failed_ingest
+                 WHERE created_at > NOW() - INTERVAL '24 hours') AS failed_ingest_24h,
+              (SELECT COUNT(*) FROM {S}.failed_ingest) AS failed_ingest_total,
+              (SELECT COUNT(*) FROM {S}.articles
+                 WHERE province_code IS NULL AND geo_scope != 'unmappable') AS geo_pending,
+              (SELECT COUNT(*) FROM {S}.articles WHERE NOT ai_analyzed) AS llm_pending,
+              (SELECT COUNT(*) FROM {S}.scout_body_jobs WHERE status='failed') AS scout_body_failed,
+              (SELECT COUNT(*) FROM {S}.scout_body_jobs
+                 WHERE status='completed' AND completed_at > NOW() - INTERVAL '24 hours') AS scout_body_done_24h
         """)).mappings().first()
 
         # Build unified event query per agent type, then union + paginate
@@ -417,7 +467,8 @@ def activity():
                            total=total, page=page, total_pages=total_pages,
                            page_size=PAGE_SIZE, agent_filter=agent_filter,
                            stats=dict(stats), source_health=source_health,
-                           sparklines=sparklines)
+                           sparklines=sparklines,
+                           agent_stats=_fetch_agent_stats())
 
 
 @bp.get("/team")

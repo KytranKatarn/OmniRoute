@@ -242,10 +242,12 @@ def activity():
               (SELECT COUNT(*) FROM {S}.articles) AS total_articles,
               (SELECT COUNT(*) FROM {S}.bias_scores) AS bias_scored,
               (SELECT COUNT(*) FROM {S}.fact_checks) AS fact_checked,
+              (SELECT COUNT(DISTINCT article_id) FROM {S}.fact_checks) AS fact_checked_articles,
               (SELECT COUNT(*) FROM {S}.articles WHERE province_code IS NOT NULL) AS geo_mapped,
               (SELECT COUNT(*) FROM {S}.audit_trail WHERE event_type='ingested') AS fact_ingested,
               (SELECT COUNT(*) FROM {S}.summaries) AS draft_summarized,
               (SELECT COUNT(*) FROM {S}.story_clusters) AS ink_clustered,
+              (SELECT COUNT(*) FROM {S}.articles WHERE cluster_id IS NOT NULL) AS ink_articles_clustered,
               (SELECT COUNT(*) FROM {S}.articles WHERE ai_analyzed=true) AS llm_analyzed
         """)).mappings().first()
 

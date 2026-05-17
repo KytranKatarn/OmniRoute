@@ -16,10 +16,10 @@
   {% set rows = [
     ('F.A.C.T.', 'fact', 'Ingested articles', stats.fact_ingested, n, ''),
     ('B.I.A.S.', 'bias', 'Bias scored', stats.bias_scored, n, ''),
-    ('V.E.R.I.F.Y.', 'verify', 'Fact-checked', stats.fact_checked, n, '⚠ Only priority articles'),
+    ('V.E.R.I.F.Y.', 'verify', 'Fact-checked', stats.fact_checked_articles, n, '⚠ Priority only ({:,} claim rows)'.format(stats.fact_checked)),
     ('L.O.C.A.L.', 'local', 'Geo-mapped', stats.geo_mapped, n, '⚠ Only location-detectable'),
     ('D.R.A.F.T.', 'draft', 'Stories summarized', stats.draft_summarized, stats.ink_clustered, '(of clusters)'),
-    ('I.N.K.', 'ink', 'Story clusters', stats.ink_clustered, n, '(from articles)'),
+    ('I.N.K.', 'ink', 'Articles clustered', stats.ink_articles_clustered, n, '({:,} unique clusters)'.format(stats.ink_clustered)),
     ('LLM Analyzed', 'fact', 'Full AI analysis', stats.llm_analyzed, n, '⚠ Hub dispatch needed'),
   ] %}
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-bottom:20px;">

@@ -1,10 +1,15 @@
-"""geo_backlog_worker.py — fill L.O.C.A.L. geo gap (5,774 articles).
+"""geo_backlog_worker.py — fill L.O.C.A.L. geo gap.
 
-Reads articles with no geo info (province_code IS NULL AND city IS NULL),
-dispatches wtf-hub 'geo' task, writes lat/lng/province_code/city back onto
-the articles row. Many articles have no detectable Canadian location (sports
-columns, international news) — those get geo_scope='international' and stop
-re-dispatching.
+Reads articles with no geo info (province_code IS NULL AND city IS NULL AND
+geo_scope='national'), routes through geocoder.extract_geo() which combines
+the L.O.C.A.L. agent with a regex heuristic fallback. Writes
+province_code/city/lat/lng/country_code/geo_scope back onto the row.
+
+Articles where neither path finds a Canadian location are now stamped
+geo_scope='unmappable' (terminal) instead of staying at 'national' — that
+fixes the re-fetch loop documented in #2959. Future global expansion (#2960
+Phase B) will set country_code for non-Canadian articles via prompt update
+on the hub side.
 
 Default OFF — set WTF_GEO_BACKLOG_ENABLED=true.
 """
@@ -14,7 +19,7 @@ import time
 
 from sqlalchemy import text
 
-from . import ai_dispatcher
+from .geocoder import extract_geo
 
 logger = logging.getLogger("wtf-ingest")
 
@@ -49,6 +54,12 @@ def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
 
 
 def _persist(engine, schema: str, article_id: int, result: dict) -> None:
+    """Always advance geo_scope OFF 'national' so the next cycle won't re-fetch.
+
+    Even an 'unmappable' write is progress — it tells the worker we tried.
+    Per #2959, the COALESCE that preserved 'national' on a NULL result is
+    exactly what kept re-dispatching the same articles forever.
+    """
     if schema not in _ALLOWED_SCHEMAS:
         raise ValueError(f"_persist: disallowed schema {schema!r}")
     with engine.begin() as c:
@@ -59,7 +70,8 @@ def _persist(engine, schema: str, article_id: int, result: dict) -> None:
                     city          = :city,
                     lat           = :lat,
                     lng           = :lng,
-                    geo_scope     = COALESCE(:geo_scope, geo_scope)
+                    country_code  = :country,
+                    geo_scope     = :geo_scope
                 WHERE id = :article_id
             """),
             {
@@ -68,7 +80,8 @@ def _persist(engine, schema: str, article_id: int, result: dict) -> None:
                 "city": result.get("city"),
                 "lat": result.get("lat"),
                 "lng": result.get("lng"),
-                "geo_scope": result.get("geo_scope"),
+                "country": result.get("country_code"),
+                "geo_scope": result.get("geo_scope") or "unmappable",
             },
         )
 
@@ -78,32 +91,31 @@ def run_backlog(engine, schema: str = "wtf") -> dict:
         return {"processed": 0, "failed": 0, "stopped": "disabled"}
 
     processed = 0
+    unmapped = 0
     failed = 0
-    while processed + failed < _MAX_RUNS_PER_NIGHT:
+    while processed + unmapped + failed < _MAX_RUNS_PER_NIGHT:
         batch = _fetch_batch(engine, schema, _BATCH_SIZE)
         if not batch:
-            return {"processed": processed, "failed": failed, "stopped": "no_backlog"}
+            return {"processed": processed, "unmapped": unmapped, "failed": failed,
+                    "stopped": "no_backlog"}
 
         for article in batch:
-            if processed + failed >= _MAX_RUNS_PER_NIGHT:
-                return {"processed": processed, "failed": failed, "stopped": "max_runs"}
+            if processed + unmapped + failed >= _MAX_RUNS_PER_NIGHT:
+                return {"processed": processed, "unmapped": unmapped, "failed": failed,
+                        "stopped": "max_runs"}
 
-            result = ai_dispatcher.analyze(
-                task="geo",
-                article_id=article["id"],
-                title=article["title"],
-                body=article["body"],
-                source_slug=article["source_slug"] or "",
-            )
-            if result is None:
-                failed += 1
-            else:
-                try:
-                    _persist(engine, schema, article["id"], result)
+            # extract_geo() always returns a dict — terminal geo_scope is its contract.
+            result = extract_geo(article["id"], article["title"] or "", article["body"] or "")
+            try:
+                _persist(engine, schema, article["id"], result)
+                if result.get("geo_scope") == "unmappable":
+                    unmapped += 1
+                else:
                     processed += 1
-                except Exception as exc:
-                    failed += 1
-                    logger.exception("[geo_backlog] article=%s persist failed: %s", article["id"], exc)
+            except Exception as exc:
+                failed += 1
+                logger.exception("[geo_backlog] article=%s persist failed: %s", article["id"], exc)
             time.sleep(_DISPATCH_SLEEP_SEC)
 
-    return {"processed": processed, "failed": failed, "stopped": "max_runs"}
+    return {"processed": processed, "unmapped": unmapped, "failed": failed,
+            "stopped": "max_runs"}

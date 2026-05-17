@@ -39,12 +39,18 @@ _PROVINCE_PATTERNS = {
 
 
 def extract_geo(article_id: int, title: str, body: str) -> dict:
-    """Extract geo info via L.O.C.A.L. agent. Falls back to heuristic if agent unavailable."""
+    """Extract geo info via L.O.C.A.L. agent. Falls back to heuristic if agent unavailable.
+
+    Always returns a dict with a terminal geo_scope so the backlog worker won't
+    re-dispatch the same article. 'unmappable' is the terminal state when
+    neither LLM nor heuristic finds a Canadian location — see #2959.
+    """
     result = analyze("geo", article_id, title, body)
     if result and isinstance(result, dict) and result.get("province_code") in VALID_PROVINCES:
         pc = result["province_code"]
         if not result.get("lat") and pc in PROVINCE_CENTROIDS:
             result["lat"], result["lng"] = PROVINCE_CENTROIDS[pc]
+        result.setdefault("country_code", "CA")
         return result
 
     # Heuristic fallback: province name in title or first 500 chars of body
@@ -57,14 +63,17 @@ def extract_geo(article_id: int, title: str, body: str) -> dict:
                 "city": None,
                 "lat": lat,
                 "lng": lng,
+                "country_code": "CA",
                 "geo_scope": "provincial",
                 "geo_confidence": 0.5,
             }
+    # Nothing matched — terminal state, prevents re-fetch loop (#2959).
     return {
         "province_code": None,
         "city": None,
         "lat": None,
         "lng": None,
-        "geo_scope": "national",
+        "country_code": None,
+        "geo_scope": "unmappable",
         "geo_confidence": 0.0,
     }

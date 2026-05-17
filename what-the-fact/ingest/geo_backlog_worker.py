@@ -63,6 +63,13 @@ def _persist(engine, schema: str, article_id: int, result: dict) -> None:
     if schema not in _ALLOWED_SCHEMAS:
         raise ValueError(f"_persist: disallowed schema {schema!r}")
     with engine.begin() as c:
+        # Phase C (#2943): mark geo as Tier-1 work. extract_geo() is heuristic-
+        # fallback (always returns a terminal scope) so it's effectively
+        # quick_v1 by design. International Tier-2 upgrade is #2960 Phase B,
+        # a separate task.
+        # Don't downgrade analysis_tier if some other worker already promoted
+        # this row to quick_v1+full — only stamp 'quick_v1' on rows still in
+        # 'pending' state.
         c.execute(
             text(f"""
                 UPDATE {schema}.articles
@@ -71,7 +78,12 @@ def _persist(engine, schema: str, article_id: int, result: dict) -> None:
                     lat           = :lat,
                     lng           = :lng,
                     country_code  = :country,
-                    geo_scope     = :geo_scope
+                    geo_scope     = :geo_scope,
+                    analysis_tier = CASE
+                        WHEN analysis_tier = 'pending' THEN 'quick_v1'
+                        ELSE analysis_tier
+                    END,
+                    tier1_at = COALESCE(tier1_at, NOW())
                 WHERE id = :article_id
             """),
             {

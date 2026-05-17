@@ -15,7 +15,7 @@ import time
 
 from sqlalchemy import text
 
-from . import ai_dispatcher
+from . import ai_dispatcher, tier_router  # noqa: F401 — ai_dispatcher kept for any legacy callers
 
 logger = logging.getLogger("wtf-ingest")
 
@@ -54,9 +54,12 @@ def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
     with engine.connect() as c:
         rows = c.execute(
             text(f"""
-                SELECT a.id, a.title, a.body, s.slug AS source_slug
+                SELECT a.id, a.title, a.body, s.slug AS source_slug,
+                       s.bias_lean AS source_bias_lean,
+                       COALESCE(sc.article_count, 0) AS cluster_size
                 FROM {schema}.articles a
                 JOIN {schema}.sources s ON s.id = a.source_id
+                LEFT JOIN {schema}.story_clusters sc ON sc.id = a.cluster_id
                 WHERE a.published_at > NOW() - make_interval(days => :max_age_days)
                   AND NOT EXISTS (
                       SELECT 1 FROM {schema}.fact_checks f WHERE f.article_id = a.id
@@ -67,6 +70,38 @@ def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
             {"max_age_days": _MAX_AGE_DAYS, "limit": limit},
         ).mappings().all()
     return [dict(r) for r in rows]
+
+
+def _update_article_tier(engine, schema: str, article_id: int, tier_meta: dict) -> None:
+    """Stamp wtf.articles tier columns after a factcheck tier-router run."""
+    if schema not in _ALLOWED_SCHEMAS:
+        raise ValueError(f"_update_article_tier: disallowed schema {schema!r}")
+    analysis_tier = tier_meta.get("analysis_tier") or "pending"
+    tier1_ok = bool(tier_meta.get("tier1_ok"))
+    tier2_ran = bool(tier_meta.get("tier2_ran"))
+    tier2_status = tier_meta.get("tier2_status") or "skipped"
+    tier2_pending = bool(tier_meta.get("tier2_pending"))
+    failed_delta = 1 if (tier2_ran and tier2_status not in ("ok", "skipped")) else 0
+    with engine.begin() as c:
+        c.execute(
+            text(f"""
+                UPDATE {schema}.articles
+                SET analysis_tier = :analysis_tier,
+                    tier1_at = CASE WHEN :tier1_ok THEN NOW() ELSE tier1_at END,
+                    tier2_at = CASE WHEN :tier2_ok THEN NOW() ELSE tier2_at END,
+                    tier2_pending = :tier2_pending,
+                    tier2_failures = COALESCE(tier2_failures, 0) + :failed_delta
+                WHERE id = :article_id
+            """),
+            {
+                "article_id": article_id,
+                "analysis_tier": analysis_tier,
+                "tier1_ok": tier1_ok,
+                "tier2_ok": tier2_ran and tier2_status == "ok",
+                "tier2_pending": tier2_pending,
+                "failed_delta": failed_delta,
+            },
+        )
 
 
 def _persist(engine, schema: str, article_id: int, result: dict) -> None:
@@ -140,23 +175,39 @@ def run_backlog(engine, schema: str = "wtf") -> dict:
                 return {"processed": processed, "rate_limited": rate_limited,
                         "failed": failed, "stopped": "max_runs"}
 
-            outcome = ai_dispatcher.analyze_with_status(
-                task="factcheck",
+            outcome = tier_router.analyze_factcheck_tiered(
                 article_id=article["id"],
                 title=article["title"],
                 body=article["body"],
                 source_slug=article["source_slug"] or "",
+                source_bias_lean=article.get("source_bias_lean") or "",
+                cluster_size=int(article.get("cluster_size") or 0),
             )
             status = outcome["status"]
+            tier_meta = outcome.get("tier_meta") or {}
+
             if status == "rate_limited":
                 # Skip persist; hub will be ready next cycle (#2944).
                 rate_limited += 1
             elif status == "failed":
                 failed += 1
+                logger.warning(
+                    "[factcheck_backlog] article=%s dispatch failed (tier=%s)",
+                    article["id"],
+                    tier_meta.get("analysis_tier", "pending"),
+                )
             else:
                 try:
                     _persist(engine, schema, article["id"], outcome["result"])
+                    _update_article_tier(engine, schema, article["id"], tier_meta)
                     processed += 1
+                    logger.info(
+                        "[factcheck_backlog] article=%s persisted tier=%s gate=%s tier2=%s",
+                        article["id"],
+                        tier_meta.get("analysis_tier"),
+                        tier_meta.get("gate_reason"),
+                        tier_meta.get("tier2_status"),
+                    )
                 except Exception as exc:
                     failed += 1
                     logger.exception("[factcheck_backlog] article=%s persist failed: %s", article["id"], exc)

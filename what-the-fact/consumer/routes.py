@@ -261,7 +261,12 @@ def activity():
               (SELECT COUNT(*) FROM {S}.summaries) AS draft_summarized,
               (SELECT COUNT(*) FROM {S}.story_clusters) AS ink_clustered,
               (SELECT COUNT(*) FROM {S}.articles WHERE cluster_id IS NOT NULL) AS ink_articles_clustered,
-              (SELECT COUNT(*) FROM {S}.articles WHERE ai_analyzed=true) AS llm_analyzed
+              (SELECT COUNT(*) FROM {S}.articles WHERE ai_analyzed=true) AS llm_analyzed,
+              (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier='pending') AS tier_pending,
+              (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier='quick_v1') AS tier_quick_v1,
+              (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier='quick_v1+full') AS tier_quick_v1_full,
+              (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier IN ('quick_v1_failed', 'quick_v1_failed+full', 'quick_v1+failed')) AS tier_quick_v1_failed,
+              (SELECT COUNT(*) FROM {S}.articles WHERE tier2_pending=true) AS tier2_pending_count
         """)).mappings().first()
 
         # Build unified event query per agent type, then union + paginate

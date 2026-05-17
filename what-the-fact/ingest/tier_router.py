@@ -190,3 +190,136 @@ def analyze_tiered(article_id: int, title: str, body: str,
             "gate_reason": gate_reason,
         },
     }
+
+
+def _factcheck_gate(tier1_claims: list, body_len: int, source_slug: str,
+                    source_bias_lean: str, cluster_size: int) -> tuple[bool, str]:
+    """Gate for factcheck-tier flow. Same shape as _evaluate_gate but the primary
+    signal is claim count (Tier-1 extracts claims with no verdict; Tier-2 adds verdicts)."""
+    n_claims = len(tier1_claims or [])
+    if n_claims >= _GATE_MIN_CLAIMS and body_len >= _GATE_MIN_BODY_CHARS:
+        return True, f"claims={n_claims}>=3 + body={body_len}>=1500"
+    if (source_bias_lean or "").lower() in _GATE_SPECIAL_LEANS:
+        return True, f"source_lean={source_bias_lean}"
+    if (source_slug or "").lower() in _GATE_SPECIAL_SLUGS:
+        return True, f"source_slug={source_slug} (Indigenous press)"
+    if cluster_size and cluster_size >= _GATE_MIN_CLUSTER_SIZE:
+        return True, f"cluster_size={cluster_size}>={_GATE_MIN_CLUSTER_SIZE}"
+    return False, f"no gate hit (claims={n_claims}, body={body_len})"
+
+
+def _factcheck_tier1_only(tier1: dict) -> dict:
+    """Synthesize a fact_check-shaped dict from Tier-1 claim list alone.
+
+    The fact_check table expects claims with verdict + reasoning. Tier 1 only
+    extracted claim text — fill verdict=unverifiable + empty reasoning so the
+    row is valid but clearly marked as Tier-1-only (consumer can show badge).
+    """
+    raw_claims = tier1.get("claims") or []
+    return {
+        "claims": [
+            {"text": c, "verdict": "unverifiable", "reasoning": ""}
+            for c in raw_claims if isinstance(c, str)
+        ],
+        "overall_verdict": "unverifiable",
+        "confidence": 0.0,
+        "_tier_synthesized": True,
+    }
+
+
+def analyze_factcheck_tiered(article_id: int, title: str, body: str,
+                             source_slug: str = "",
+                             source_bias_lean: str = "",
+                             cluster_size: int = 0) -> dict:
+    """Two-tier factcheck. Returns same shape as analyze_tiered() — caller persists
+    tier_meta into wtf.articles.
+
+    Tier 1: factcheck_quick → claim list (no verdicts).
+    Gate: >=3 claims AND >=1500 char body, OR right-lean/Indigenous/trending source.
+    Tier 2: existing ai_dispatcher 'factcheck' → claims + verdicts + reasoning.
+    """
+    body_len = len(body or "")
+
+    # Tier 1
+    tier1_outcome = quick_analyzer.analyze_quick(
+        task="factcheck",
+        article_id=article_id,
+        title=title,
+        body=body,
+        source_slug=source_slug,
+        prefer_node=_TIER1_PREFER_NODE,
+    )
+    tier1_ok = tier1_outcome["status"] == "ok" and tier1_outcome["result"] is not None
+    tier1_result = tier1_outcome["result"] if tier1_ok else {}
+    tier1_claims = tier1_result.get("claims") if tier1_ok else []
+
+    # Gate
+    if tier1_ok:
+        gate, gate_reason = _factcheck_gate(
+            tier1_claims, body_len, source_slug, source_bias_lean, cluster_size
+        )
+    else:
+        gate, gate_reason = True, "tier1_failed_fallback"
+        logger.warning("[tier_router] factcheck article=%s tier1 failed, falling through", article_id)
+
+    if not gate:
+        logger.debug("[tier_router] factcheck article=%s gate=skip (%s)", article_id, gate_reason)
+        return {
+            "result": _factcheck_tier1_only(tier1_result),
+            "status": "ok",
+            "tier_meta": {
+                "analysis_tier": "quick_v1",
+                "tier1_ok": True,
+                "tier2_ran": False,
+                "tier2_status": "skipped",
+                "gate_reason": gate_reason,
+            },
+        }
+
+    tier2_outcome = ai_dispatcher.analyze_with_status(
+        task="factcheck",
+        article_id=article_id,
+        title=title,
+        body=body,
+        source_slug=source_slug,
+    )
+    tier2_status = tier2_outcome["status"]
+
+    if tier2_status == "ok":
+        return {
+            "result": tier2_outcome["result"],
+            "status": "ok",
+            "tier_meta": {
+                "analysis_tier": "quick_v1+full" if tier1_ok else "quick_v1_failed+full",
+                "tier1_ok": tier1_ok,
+                "tier2_ran": True,
+                "tier2_status": "ok",
+                "gate_reason": gate_reason,
+            },
+        }
+
+    # Tier 2 hiccup — preserve Tier 1 if we have it.
+    if tier1_ok:
+        return {
+            "result": _factcheck_tier1_only(tier1_result),
+            "status": "ok",
+            "tier_meta": {
+                "analysis_tier": "quick_v1",
+                "tier1_ok": True,
+                "tier2_ran": True,
+                "tier2_status": tier2_status,
+                "gate_reason": gate_reason,
+                "tier2_pending": True,
+            },
+        }
+    return {
+        "result": None,
+        "status": tier2_status,
+        "tier_meta": {
+            "analysis_tier": "pending",
+            "tier1_ok": False,
+            "tier2_ran": True,
+            "tier2_status": tier2_status,
+            "gate_reason": gate_reason,
+        },
+    }

@@ -57,6 +57,11 @@ _ALLOWED_SCHEMAS = frozenset({"wtf"})
 
 # Sources that route through Google News RSS — bodies are snippets, not full text.
 # Keep aligned with what's in ingest/sources/*.py using news.google.com/rss/search.
+# LEGACY hardcoded list — kept for backward compat but no longer the source of
+# truth. As of #2971 the worker dynamically selects any source whose rss_feed
+# routes through news.google.com (the established fallback pattern from PR #795
+# / #805). This means any new Google-News-backed source added to wtf.sources
+# is automatically eligible for body rescue with zero worker code change.
 _GOOGLE_NEWS_SOURCES = (
     "toronto_star",
     "la_presse",
@@ -76,7 +81,14 @@ _SELECTORS = {
 
 
 def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
-    """Pull articles eligible for body rescue: short body, Google-News source, untried."""
+    """Pull articles eligible for body rescue: short body, Google-News-backed source, untried.
+
+    #2971: source detection is now dynamic — any source whose rss_feed routes
+    via news.google.com qualifies. Picks up PR #805's regional/Indigenous
+    sources (cbc_north, windspeaker, le_droit, le_quotidien, le_soleil) plus
+    the original 4 (toronto_star, la_presse, the_tyee, bnn_bloomberg) without
+    keeping a hardcoded list in sync.
+    """
     if schema not in _ALLOWED_SCHEMAS:
         raise ValueError(f"_fetch_batch: disallowed schema {schema!r}")
     with engine.connect() as c:
@@ -85,7 +97,7 @@ def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
                 SELECT a.id, a.url, a.title, s.slug AS source_slug, LENGTH(a.body) AS body_len
                 FROM {schema}.articles a
                 JOIN {schema}.sources s ON s.id = a.source_id
-                WHERE s.slug = ANY(:sources)
+                WHERE s.rss_feed LIKE '%news.google.com%'
                   AND LENGTH(a.body) < :min_chars
                   AND NOT EXISTS (
                       SELECT 1 FROM {schema}.scout_body_jobs j WHERE j.article_id = a.id
@@ -94,7 +106,6 @@ def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
                 LIMIT :limit
             """),
             {
-                "sources": list(_GOOGLE_NEWS_SOURCES),
                 "min_chars": _MIN_BODY_CHARS,
                 "limit": limit,
             },

@@ -1015,12 +1015,20 @@ def register_dispatch_routes(bp, admin_required_decorator):
 
                 by_node = []
                 try:
+                    # task_execution_log.node_used_id was added in PR #802 and is
+                    # now the canonical fleet attribution source. The earlier
+                    # version of this block joined dispatch_pending_queue on a
+                    # non-existent node_id column — silent failure swallowed by
+                    # the surrounding try/except. Fixed here as part of the
+                    # DHQ Dispatch panel breakdown.
                     cur.execute(
                         """SELECT COALESCE(rn.node_name, 'hub') AS label,
-                                  COUNT(*) AS total
-                           FROM dispatch_pending_queue dpq
-                           LEFT JOIN remote_nodes rn ON dpq.node_id = rn.id
-                           WHERE dpq.created_at > NOW() - INTERVAL '%s hours'
+                                  COUNT(*) AS total,
+                                  COUNT(*) FILTER (WHERE tel.success) AS successes,
+                                  ROUND(AVG(tel.duration_ms))::int AS avg_ms
+                           FROM task_execution_log tel
+                           LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
+                           WHERE tel.created_at > NOW() - INTERVAL '%s hours'
                            GROUP BY rn.node_name ORDER BY total DESC LIMIT 10""",
                         (hours,),
                     )

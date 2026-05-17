@@ -3038,7 +3038,7 @@ async function loadDispatchTraffic() {
 
 function showTrafficView(view) {
     _trafficView = view;
-    ['feed','source','agent','model'].forEach(function(v) {
+    ['feed','source','agent','model','node'].forEach(function(v) {
         var btn = document.getElementById('trafficBtn-' + v);
         if (btn) btn.className = 'dhq-traffic-btn' + (v === view ? ' dhq-traffic-btn-active' : '');
     });
@@ -3070,9 +3070,15 @@ function showTrafficView(view) {
         });
         setHtml(el, html + '</table>');
     } else {
-        var key = view === 'source' ? 'by_source' : view === 'agent' ? 'by_agent' : 'by_model';
+        var key = view === 'source' ? 'by_source'
+                : view === 'agent'  ? 'by_agent'
+                : view === 'node'   ? 'by_node'
+                                    : 'by_model';
         var rows = (_trafficData[key] || []);
-        var label = view === 'source' ? 'SOURCE' : view === 'agent' ? 'AGENT' : 'MODEL';
+        var label = view === 'source' ? 'SOURCE'
+                  : view === 'agent'  ? 'AGENT'
+                  : view === 'node'   ? 'NODE'
+                                      : 'MODEL';
         if (!rows.length) { setHtml(el, '<div class="dhq-empty">No data</div>'); return; }
         var html = '<table style="width:100%;border-collapse:collapse;font-size:0.72rem">'
             + '<tr style="color:var(--dhq-text-dim);border-bottom:1px solid var(--dhq-border)">'

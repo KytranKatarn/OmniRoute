@@ -14,7 +14,7 @@
 <div style="max-width:1100px;margin:0 auto;padding:16px 16px 0;">
   {% set n = stats.total_articles %}
   {% set rows = [
-    ('F.A.C.T.', 'fact', 'Ingested today', stats.articles_24h, n, '(last 24h, {:,} total)'.format(stats.fact_ingested)),
+    ('F.A.C.T.', 'fact', 'Articles ingested', stats.fact_ingested, n, '+{:,} in last 24h'.format(stats.articles_24h)),
     ('B.I.A.S.', 'bias', 'Bias scored', stats.bias_scored, n, ''),
     ('V.E.R.I.F.Y.', 'verify', 'Fact-checked', stats.fact_checked_articles, n, '⚠ Priority only ({:,} claim rows)'.format(stats.fact_checked)),
     ('L.O.C.A.L.', 'local', 'Geo-mapped', stats.geo_mapped, n, '⚠ Only location-detectable'),

@@ -1659,6 +1659,44 @@ def register_dashboard_routes(bp, auth_decorator):
                         "ts": ts.isoformat() if ts else None,
                     }
 
+                # Per-node throughput from task_execution_log.node_used_id
+                # (column shipped in PR #802; rows attributed to fleet warm-path routing)
+                cur.execute(
+                    """
+                    SELECT
+                        COALESCE(rn.node_name, 'Hub') AS node_name,
+                        COUNT(*) AS rows_5m,
+                        COUNT(*) FILTER (WHERE tel.created_at > NOW() - INTERVAL '60 seconds') AS rows_60s,
+                        SUM(CASE WHEN tel.success THEN 1 ELSE 0 END)::float
+                            / NULLIF(COUNT(*), 0) AS success_rate
+                    FROM task_execution_log tel
+                    LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
+                    WHERE tel.created_at > NOW() - INTERVAL '5 minutes'
+                    GROUP BY 1
+                    """
+                )
+                throughput_by_node = {}
+                total_rows_5m = 0
+                total_rows_60s = 0
+                for r in cur.fetchall():
+                    rows_5m = int(r["rows_5m"] or 0)
+                    rows_60s = int(r["rows_60s"] or 0)
+                    total_rows_5m += rows_5m
+                    total_rows_60s += rows_60s
+                    throughput_by_node[r["node_name"]] = {
+                        "rows_5m": rows_5m,
+                        "rows_60s": rows_60s,
+                        "rate_per_min": round(rows_5m / 5.0, 2),
+                        "success_rate": round(float(r["success_rate"] or 0.0), 3),
+                    }
+
+                throughput_total = {
+                    "rows_5m": total_rows_5m,
+                    "rows_60s": total_rows_60s,
+                    "rate_per_min": round(total_rows_5m / 5.0, 2),
+                    "rate_per_sec": round(total_rows_5m / 300.0, 3),
+                }
+
             return jsonify(
                 success=True,
                 nodes_with_work=nodes_with_work,
@@ -1676,6 +1714,8 @@ def register_dashboard_routes(bp, auth_decorator):
                 ],
                 dispatch_log=log,
                 last_run_by_node=last_run_by_node,
+                throughput_by_node=throughput_by_node,
+                throughput_total=throughput_total,
             )
         except Exception as exc:
             logger.error("api_fleet_cluster_activity: %s", exc)

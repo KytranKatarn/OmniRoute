@@ -3334,6 +3334,10 @@ function loadClusterActivity() {
                 }
             });
 
+            // throughput_by_node from task_execution_log.node_used_id (PR #802 attribution)
+            var throughputByNode = data.throughput_by_node || {};
+            var throughputTotal = data.throughput_total || { rows_5m: 0, rate_per_min: 0, rate_per_sec: 0 };
+
             var totalActive = 0;
             grid.innerHTML = '';
             Object.keys(nodeMap).forEach(function(nid) {
@@ -3351,6 +3355,18 @@ function loadClusterActivity() {
                 var counts = '<div style="display:flex;gap:12px;font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;margin-bottom:6px;">'
                     + '<span style="color:' + (isActive ? '#10b981' : 'var(--dhq-text-dim)') + ';">▶ ' + (n.running || 0) + ' running</span>'
                     + '<span style="color:' + (hasPending ? '#f59e0b' : 'var(--dhq-text-dim)') + ';">⏳ ' + (n.queued || 0) + ' queued</span>'
+                    + '</div>';
+                // Throughput line — disp/min (5-min window) + success% from task_execution_log
+                var tp = throughputByNode[n.name] || { rows_5m: 0, rows_60s: 0, rate_per_min: 0, success_rate: 0 };
+                var tpActive = (tp.rows_5m || 0) > 0;
+                var rateLabel = (tp.rate_per_min || 0).toFixed(1) + ' disp/min';
+                var spike = (tp.rows_60s || 0) > 0 ? ' <span style="color:#10b981;">●</span>' : '';
+                var okPct = tp.rows_5m ? Math.round((tp.success_rate || 0) * 100) : null;
+                var okBadge = okPct !== null
+                    ? ' <span style="color:' + (okPct >= 90 ? '#10b981' : (okPct >= 70 ? '#f59e0b' : '#ef4444')) + ';">' + okPct + '% ok</span>'
+                    : '';
+                var throughputLine = '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;margin-bottom:6px;color:' + (tpActive ? '#00bcd4' : 'var(--dhq-text-dim)') + ';">'
+                    + '▲ ' + rateLabel + spike + okBadge
                     + '</div>';
                 var taskList = '';
                 (n.tasks || []).slice(0, 3).forEach(function(t) {
@@ -3373,11 +3389,26 @@ function loadClusterActivity() {
                         taskList = '<span style="font-size:0.68rem;color:var(--dhq-text-dim);font-style:italic;">idle</span>';
                     }
                 }
-                card.innerHTML = header + counts + taskList;
+                card.innerHTML = header + counts + throughputLine + taskList;
                 grid.appendChild(card);
             });
 
-            if (badge) badge.textContent = totalActive > 0 ? totalActive + ' active' : 'all idle';
+            if (badge) {
+                while (badge.firstChild) badge.removeChild(badge.firstChild);
+                badge.appendChild(document.createTextNode(totalActive > 0 ? totalActive + ' active' : 'all idle'));
+                if ((throughputTotal.rows_5m || 0) > 0) {
+                    badge.appendChild(document.createTextNode(' · '));
+                    var rateSpan = document.createElement('span');
+                    rateSpan.style.color = '#00bcd4';
+                    rateSpan.textContent = '▲ ' + (throughputTotal.rate_per_sec || 0).toFixed(2) + ' disp/s';
+                    badge.appendChild(rateSpan);
+                    badge.appendChild(document.createTextNode(' '));
+                    var minSpan = document.createElement('span');
+                    minSpan.style.color = 'var(--dhq-text-dim)';
+                    minSpan.textContent = '(' + (throughputTotal.rate_per_min || 0).toFixed(1) + '/min)';
+                    badge.appendChild(minSpan);
+                }
+            }
 
             // Dispatch log
             if (logEl) {
@@ -3454,8 +3485,45 @@ function initFleetMap() {
     _initSonarStyles();
     fleetMap.on('moveend zoomend', updateOffscreenBlips);
 
+    _initFleetFpsOverlay();
+
     loadFleetData();
     loadCloudProviders();
+}
+
+var fleetFpsRafId = null;
+function _initFleetFpsOverlay() {
+    var mapEl = document.getElementById('fleetMap');
+    if (!mapEl || mapEl.querySelector('.fleet-fps-overlay')) return;
+
+    var pill = document.createElement('div');
+    pill.className = 'fleet-fps-overlay';
+    pill.style.cssText = 'position:absolute;bottom:8px;right:8px;z-index:1000;pointer-events:none;'
+        + 'background:rgba(10,16,22,0.75);border:1px solid rgba(0,220,170,0.30);border-radius:10px;'
+        + 'padding:2px 8px;font-family:\'IBM Plex Mono\',monospace;font-size:0.62rem;letter-spacing:1px;'
+        + 'color:#00dcaa;text-shadow:0 0 4px rgba(0,220,170,0.4);';
+    pill.textContent = '-- fps';
+    mapEl.appendChild(pill);
+
+    var frames = 0;
+    var lastSample = performance.now();
+    function tick(now) {
+        frames++;
+        if (now - lastSample >= 1000) {
+            var fps = Math.round((frames * 1000) / (now - lastSample));
+            // Re-fetch pill in case map was torn down/rebuilt
+            var p = mapEl.querySelector('.fleet-fps-overlay');
+            if (p) {
+                p.textContent = fps + ' fps';
+                p.style.color = fps >= 50 ? '#00dcaa' : (fps >= 30 ? '#f59e0b' : '#ef4444');
+            }
+            frames = 0;
+            lastSample = now;
+        }
+        fleetFpsRafId = requestAnimationFrame(tick);
+    }
+    if (fleetFpsRafId) cancelAnimationFrame(fleetFpsRafId);
+    fleetFpsRafId = requestAnimationFrame(tick);
 }
 
 function _initSonarStyles() {

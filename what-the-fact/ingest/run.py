@@ -49,6 +49,7 @@ from ingest import (
     scout_body_backlog_worker,
     bias_v2_backlog_worker,
     alerts_digest_worker,
+    factcheck_partner_worker,
 )
 from shared.creed_events import emit as creed_emit
 
@@ -309,6 +310,14 @@ def main():
                 log.info("alerts_digest: %s", result)
         except Exception:
             log.exception("alerts_digest crashed")
+
+        # Google Fact Check Tools API partner signal (#2137)
+        try:
+            result = factcheck_partner_worker.run_partner_check(engine)
+            if result.get("matched") or result.get("errors"):
+                log.info("factcheck_partner: %s", result)
+        except Exception:
+            log.exception("factcheck_partner crashed")
 
         time.sleep(POLL_SECS)
 

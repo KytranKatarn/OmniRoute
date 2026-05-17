@@ -72,7 +72,10 @@ def transparency(article_id: int):
             abort(404)
         fc = c.execute(text(f"""
             SELECT claim, verdict, evidence, checker, checked_at
-            FROM {S}.fact_checks WHERE article_id = :id ORDER BY id
+            FROM {S}.fact_checks
+            WHERE article_id = :id
+              AND checker != 'GoogleFCT:none'
+            ORDER BY id
         """), {"id": article_id}).mappings().all()
         cluster = None
         if art.get("cluster_id"):

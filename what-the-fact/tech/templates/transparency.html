@@ -152,14 +152,16 @@
   </section>
 
   <!-- Fact-checks section -->
+  {% set verify_checks = fact_checks | selectattr("checker", "defined") | rejectattr("checker", "match", "^GoogleFCT") | list %}
+  {% set partner_checks = fact_checks | selectattr("checker", "defined") | selectattr("checker", "match", "^GoogleFCT") | list %}
   <section style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
     <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
-      Fact-Check Claims · V.E.R.I.F.Y. ({{ fact_checks|length }})
+      Fact-Check Claims · V.E.R.I.F.Y. ({{ verify_checks|length }})
     </div>
-    {% if not fact_checks %}
+    {% if not verify_checks %}
     <div style="color:#6b7280;font-size:0.75rem;font-style:italic;">No claims extracted yet.</div>
     {% else %}
-    {% for fc in fact_checks %}
+    {% for fc in verify_checks %}
     <div style="border-top:1px solid #0a1520;padding:8px 0;{% if loop.first %}border-top:none;padding-top:0;{% endif %}">
       <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:4px;">
         <span style="font-size:0.6rem;padding:2px 8px;border-radius:2px;color:#0a0f0a;background:{% if fc.verdict == 'true' %}#10b981{% elif fc.verdict == 'mostly_true' %}#34d399{% elif fc.verdict == 'mixed' %}#f59e0b{% elif fc.verdict == 'false' %}#ef4444{% else %}#6b7280{% endif %};">
@@ -177,6 +179,32 @@
     {% endfor %}
     {% endif %}
   </section>
+
+  {% if partner_checks %}
+  <!-- Google Fact Check Tools API — external partner verdicts -->
+  <section style="background:#050d1a;border:1px solid #1a2a5a;border-radius:4px;padding:14px;margin-bottom:14px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      External Fact-Checks · Google FCTAPI ({{ partner_checks|length }})
+    </div>
+    {% for fc in partner_checks %}
+    <div style="border-top:1px solid #0a1520;padding:8px 0;{% if loop.first %}border-top:none;padding-top:0;{% endif %}">
+      <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:4px;">
+        <span style="font-size:0.6rem;padding:2px 8px;border-radius:2px;color:#0a0f0a;background:{% if fc.verdict == 'true' %}#10b981{% elif fc.verdict == 'mostly_true' %}#34d399{% elif fc.verdict == 'mixed' %}#f59e0b{% elif fc.verdict == 'false' %}#ef4444{% else %}#6b7280{% endif %};">
+          {{ fc.verdict or 'unverified' }}
+        </span>
+        <span style="font-size:0.78rem;color:#e0e0e0;flex:1;">{{ fc.claim }}</span>
+      </div>
+      {% if fc.evidence %}
+      <a href="{{ fc.evidence }}" target="_blank" rel="noopener" style="font-size:0.68rem;color:#3b82f6;display:block;margin-left:8px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:600px;">{{ fc.evidence }}</a>
+      {% endif %}
+      <div style="font-size:0.6rem;color:#4b5563;margin-top:4px;font-family:'IBM Plex Mono',monospace;">
+        {% set pub = fc.checker | replace('GoogleFCT:', '') %}
+        <span style="color:#3b82f6;">{{ pub }}</span> via Google FCTAPI · {{ fc.checked_at.isoformat() if fc.checked_at else '—' }}
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
 
   <!-- Cluster section -->
   {% if cluster %}

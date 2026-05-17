@@ -48,6 +48,7 @@ from ingest import (
     llm_analysis_backlog_worker,
     scout_body_backlog_worker,
     bias_v2_backlog_worker,
+    alerts_digest_worker,
 )
 from shared.creed_events import emit as creed_emit
 
@@ -300,6 +301,14 @@ def main():
                     log.info("backlog %s: %s", worker.__name__, result)
             except Exception:
                 log.exception("%s crashed", worker.__name__)
+
+        # Alerts digest — separate API (run_digest, not run_backlog)
+        try:
+            result = alerts_digest_worker.run_digest(engine)
+            if result.get("matched") or result.get("errors"):
+                log.info("alerts_digest: %s", result)
+        except Exception:
+            log.exception("alerts_digest crashed")
 
         time.sleep(POLL_SECS)
 

@@ -385,7 +385,30 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
                 node_id = preferred  # fail-open: attempt dispatch, let _dispatch_to_node surface the error
 
         if node_id:
-            # Route to fleet node
+            # Route to fleet node. Resolve hostname+port here — _dispatch_to_node
+            # uses strict subscript on agent_info["node_port"], so the caller is
+            # the resolution authority (matches all other callers in the dispatcher).
+            # Prefer mesh_ip for inter-cluster transport per ADR-008 / mesh mandate.
+            try:
+                with get_db_cursor() as (_conn, _cur):
+                    _cur.execute(
+                        """SELECT node_name, hostname, mesh_ip, port
+                           FROM remote_nodes WHERE id = %s""",
+                        (node_id,),
+                    )
+                    node_row = _cur.fetchone()
+            except Exception as exc:
+                log.error("model_dispatch: node lookup failed for id=%s: %s", node_id, exc)
+                node_row = None
+
+            if not node_row:
+                _mark_failed(task_id, f"remote_nodes row missing for node_id={node_id}")
+                return
+
+            node_hostname = node_row.get("mesh_ip") or node_row.get("hostname") or ""
+            node_port = node_row.get("port") or 11434
+            node_name = node_row.get("node_name") or "unknown"
+
             from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             disp = get_dispatcher()
@@ -394,8 +417,9 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
                     "agent_name": task.get("agent_name", "unknown"),
                     "model": model,
                     "node_id": node_id,
-                    "node_hostname": "",  # dispatcher resolves from DB
-                    "node_name": "",
+                    "node_hostname": node_hostname,
+                    "node_port": node_port,
+                    "node_name": node_name,
                 },
                 prompt=task.get("prompt", ""),
                 system_prompt=task.get("system_prompt"),

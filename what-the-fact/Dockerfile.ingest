@@ -2,8 +2,22 @@ FROM python:3.11-slim
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev \
     && rm -rf /var/lib/apt/lists/*
-COPY requirements.txt .
+
+COPY requirements.txt requirements-ingest.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements-ingest.txt
+
+# Pre-download the DistilBERT zero-shot classifier used by bias_v2.py.
+# Baking the weights into the image avoids a ~500MB download on every
+# container restart, and lets the model load in <30s on outpost-us.
+# Cache lives under /opt/hf-cache (HF_HOME), readable by `nobody`.
+ENV HF_HOME=/opt/hf-cache
+ENV TRANSFORMERS_CACHE=/opt/hf-cache
+RUN mkdir -p /opt/hf-cache && \
+    python -c "from transformers import pipeline; \
+pipeline('zero-shot-classification', model='valhalla/distilbart-mnli-12-3')" && \
+    chown -R nobody:nogroup /opt/hf-cache
+
 COPY shared/ /app/shared/
 COPY ingest/ /app/ingest/
 COPY migrations/ /app/migrations/

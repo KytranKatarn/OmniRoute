@@ -1,0 +1,11 @@
+# Heavy ML dependencies for wtf-ingest only.
+# Consumer + tech containers MUST NOT install these — keeps their images small.
+# Added 2026-05-17 for #2136 (DistilBERT zero-shot bias scoring v2).
+
+# CPU-only torch wheel — outpost-us has no GPU.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.1.2+cpu
+
+transformers==4.36.2
+# transformers needs at least one tokenizer backend
+sentencepiece==0.1.99

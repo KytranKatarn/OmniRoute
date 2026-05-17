@@ -6,9 +6,11 @@ services:
     env_file: [.env]
     read_only: true
     tmpfs: [/tmp]
+    volumes:
+      - hf_cache:/opt/hf-cache
     cap_drop: [ALL]
-    mem_limit: 512m
-    cpus: 0.5
+    mem_limit: 2g
+    cpus: 1.0
     networks: [default, archie_net]
     environment:
       TZ: America/Toronto
@@ -46,6 +48,7 @@ services:
 
 volumes:
   wtf_billing_data:
+  hf_cache:
 
 networks:
   archie_net:

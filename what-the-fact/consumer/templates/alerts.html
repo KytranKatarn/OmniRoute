@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Custom Alerts — What The Fact{% endblock %}
+{% block content %}
+
+<div class="wtf-team-hero">
+  <div class="wtf-team-hero-live">
+    <span class="wtf-live-pulse"></span>
+    <span style="font-size:0.7rem;letter-spacing:2px;color:#7fbf7f;">{{ user_email }}</span>
+  </div>
+  <h1 style="font-size:1.6rem;">CUSTOM ALERTS</h1>
+  <p style="font-size:0.85rem;color:#9ca3af;max-width:680px;margin-top:8px;">
+    Track topics, keywords, politicians, or any term. Each cycle we scan
+    every new article across 46 Canadian sources and email you a digest
+    when something matches. Subscriber feature.
+  </p>
+</div>
+
+<div style="max-width:1000px;margin:0 auto;padding:16px 16px 24px;">
+
+  {% if request.args.get('added') %}
+  <div style="background:#0a2a1a;border:1px solid #10b981;color:#7fbf7f;padding:8px 12px;border-radius:4px;margin-bottom:14px;font-size:0.75rem;">
+    ✓ Alert added. Next digest will include any matches.
+  </div>
+  {% endif %}
+  {% if request.args.get('deleted') %}
+  <div style="background:#1a1a2a;border:1px solid #6b7280;color:#9ca3af;padding:8px 12px;border-radius:4px;margin-bottom:14px;font-size:0.75rem;">
+    Alert removed.
+  </div>
+  {% endif %}
+  {% if request.args.get('error') %}
+  <div style="background:#2a0a0a;border:1px solid #ef4444;color:#fca5a5;padding:8px 12px;border-radius:4px;margin-bottom:14px;font-size:0.75rem;">
+    Couldn't save that alert — {{ request.args.get('error') }}.
+  </div>
+  {% endif %}
+
+  <!-- Add new alert form -->
+  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:20px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      New Alert
+    </div>
+    <form method="POST" action="/alerts" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;">
+      <div>
+        <label style="display:block;font-size:0.65rem;color:#6b7280;margin-bottom:3px;">Keyword (required)</label>
+        <input type="text" name="keyword" required maxlength="120" placeholder="e.g. carbon tax, Trudeau, housing"
+               style="width:100%;padding:6px 8px;background:#0a0f1a;border:1px solid #1a2a3a;border-radius:3px;color:#e0e0e0;font-size:0.8rem;">
+      </div>
+      <div>
+        <label style="display:block;font-size:0.65rem;color:#6b7280;margin-bottom:3px;">Source</label>
+        <select name="source_slug" style="width:100%;padding:6px 8px;background:#0a0f1a;border:1px solid #1a2a3a;border-radius:3px;color:#e0e0e0;font-size:0.75rem;">
+          <option value="">Any</option>
+          {% for s in sources %}<option value="{{ s.slug }}">{{ s.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:0.65rem;color:#6b7280;margin-bottom:3px;">Bias</label>
+        <select name="bias_band" style="width:100%;padding:6px 8px;background:#0a0f1a;border:1px solid #1a2a3a;border-radius:3px;color:#e0e0e0;font-size:0.75rem;">
+          <option value="">Any</option>
+          <option value="left">Left</option>
+          <option value="center-left">Center-Left</option>
+          <option value="center">Center</option>
+          <option value="center-right">Center-Right</option>
+          <option value="right">Right</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:0.65rem;color:#6b7280;margin-bottom:3px;">Province</label>
+        <input type="text" name="province_code" maxlength="2" placeholder="ON"
+               style="width:100%;padding:6px 8px;background:#0a0f1a;border:1px solid #1a2a3a;border-radius:3px;color:#e0e0e0;font-size:0.8rem;text-transform:uppercase;">
+      </div>
+      <button type="submit" style="padding:7px 14px;background:#10b981;color:#0a0f0a;border:none;border-radius:3px;font-size:0.75rem;font-weight:600;cursor:pointer;letter-spacing:0.5px;">
+        + Add
+      </button>
+    </form>
+    <div style="font-size:0.65rem;color:#4b5563;margin-top:6px;">
+      Combine filters: e.g. "carbon tax" in right-leaning sources only, or anything from Quebec.
+    </div>
+  </div>
+
+  <!-- Existing alerts list -->
+  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;">
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+      Active Alerts ({{ alerts|length }})
+    </div>
+    {% if not alerts %}
+    <div style="color:#6b7280;font-size:0.8rem;padding:12px 0;text-align:center;font-style:italic;">
+      No alerts yet — add your first one above. Suggested: a politician name, a policy topic, or your hometown.
+    </div>
+    {% else %}
+    <table style="width:100%;border-collapse:collapse;font-size:0.75rem;">
+      <thead>
+        <tr style="color:#6b7280;font-size:0.55rem;letter-spacing:1.5px;text-transform:uppercase;">
+          <th style="text-align:left;padding:8px;border-bottom:1px solid #112233;">Keyword</th>
+          <th style="text-align:left;padding:8px;border-bottom:1px solid #112233;">Filters</th>
+          <th style="text-align:right;padding:8px;border-bottom:1px solid #112233;">Sent</th>
+          <th style="text-align:right;padding:8px;border-bottom:1px solid #112233;">Last sent</th>
+          <th style="padding:8px;border-bottom:1px solid #112233;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in alerts %}
+        <tr style="border-bottom:1px solid #0a1520;">
+          <td style="padding:8px;color:#e0e0e0;font-family:'IBM Plex Mono', monospace;">{{ a.keyword }}</td>
+          <td style="padding:8px;color:#9ca3af;font-size:0.7rem;">
+            {% set parts = [] %}
+            {% if a.source_slug %}{% set _ = parts.append('src=' + a.source_slug) %}{% endif %}
+            {% if a.bias_band %}{% set _ = parts.append('bias=' + a.bias_band) %}{% endif %}
+            {% if a.province_code %}{% set _ = parts.append(a.province_code) %}{% endif %}
+            {{ parts|join(' · ') or '— any —' }}
+          </td>
+          <td style="padding:8px;text-align:right;color:#9ca3af;">{{ a.sent_count }}</td>
+          <td style="padding:8px;text-align:right;color:#6b7280;font-size:0.7rem;">
+            {{ a.last_sent_at.strftime('%Y-%m-%d') if a.last_sent_at else '—' }}
+          </td>
+          <td style="padding:8px;text-align:right;">
+            <form method="POST" action="/alerts/{{ a.id }}/delete" style="display:inline;"
+                  onsubmit="return confirm('Remove this alert?');">
+              <button type="submit" style="background:none;border:1px solid #ef4444;color:#ef4444;padding:3px 8px;border-radius:3px;font-size:0.65rem;cursor:pointer;">
+                Remove
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+
+  <div style="margin-top:14px;font-size:0.65rem;color:#4b5563;text-align:center;">
+    Digests run once per cycle (30 min). Substring match against article title + body, case-insensitive.
+  </div>
+
+</div>
+
+{% endblock %}

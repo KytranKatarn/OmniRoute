@@ -14,6 +14,7 @@
     <div class="wtf-nav-links">
       <a href="/">News</a>
       <a href="/team">Team</a>
+      {% if session.get('wtf_authenticated') %}<a href="/alerts">Alerts</a>{% endif %}
       <a href="https://what-the-fact.tech/transparency">Methodology</a>
       <a href="https://what-the-fact.tech/score">Score</a>
     </div>

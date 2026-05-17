@@ -564,6 +564,90 @@ def health():
     return jsonify({"status": "ok", "product": "what-the-fact", "timestamp": datetime.now(timezone.utc).isoformat()})
 
 
+# ───────────────────────────────────────────────────────────────────────────
+# Custom alerts (#2913) — subscriber-gated keyword/topic tracking
+# ───────────────────────────────────────────────────────────────────────────
+
+
+def _user_email() -> str | None:
+    """Return the signed-in user's WTF email or None."""
+    from flask import session
+    return session.get("wtf_email") or None
+
+
+@bp.get("/alerts")
+def alerts_page():
+    """Subscriber-only — list user's alerts + form to add new ones."""
+    from flask import session, redirect
+    email = _user_email()
+    if not email:
+        return redirect("/login?next=/alerts")
+    if not is_subscriber():
+        return redirect("/connect?gated=alerts")
+    S = _schema()
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT id, keyword, source_slug, bias_band, province_code,
+                   active, created_at, last_sent_at, sent_count
+            FROM {S}.user_alerts
+            WHERE user_email = :email
+            ORDER BY created_at DESC
+        """), {"email": email}).mappings().all()
+        sources = c.execute(text(f"""
+            SELECT slug, name, bias_lean FROM {S}.sources
+            ORDER BY name
+        """)).mappings().all()
+    return render_template("alerts.html",
+                           alerts=[dict(r) for r in rows],
+                           sources=[dict(s) for s in sources],
+                           user_email=email)
+
+
+@bp.post("/alerts")
+def alerts_create():
+    """Create a new alert rule. Subscriber-gated."""
+    from flask import request as _req, redirect
+    if not _user_email() or not is_subscriber():
+        return redirect("/login?next=/alerts")
+    email = _user_email()
+    keyword = (_req.form.get("keyword") or "").strip()[:120]
+    if not keyword:
+        return redirect("/alerts?error=keyword_required")
+    source_slug = (_req.form.get("source_slug") or "").strip()[:80] or None
+    bias_band = (_req.form.get("bias_band") or "").strip()[:20] or None
+    province_code = (_req.form.get("province_code") or "").strip().upper()[:2] or None
+    S = _schema()
+    try:
+        with _db().begin() as c:
+            c.execute(text(f"""
+                INSERT INTO {S}.user_alerts
+                    (user_email, keyword, source_slug, bias_band, province_code)
+                VALUES (:email, :kw, :src, :bias, :prov)
+                ON CONFLICT (user_email, keyword, source_slug, bias_band, province_code)
+                  DO UPDATE SET active = TRUE
+            """), {"email": email, "kw": keyword, "src": source_slug,
+                   "bias": bias_band, "prov": province_code})
+    except Exception:
+        return redirect("/alerts?error=db")
+    return redirect("/alerts?added=1")
+
+
+@bp.post("/alerts/<int:alert_id>/delete")
+def alerts_delete(alert_id: int):
+    """Remove an alert (subscriber-gated, must own the row)."""
+    from flask import redirect
+    email = _user_email()
+    if not email or not is_subscriber():
+        return redirect("/login?next=/alerts")
+    S = _schema()
+    with _db().begin() as c:
+        c.execute(text(f"""
+            DELETE FROM {S}.user_alerts
+            WHERE id = :id AND user_email = :email
+        """), {"id": alert_id, "email": email})
+    return redirect("/alerts?deleted=1")
+
+
 @bp.post("/api/upgrade-tier2/<int:article_id>")
 def upgrade_tier2(article_id: int):
     """Phase D (#2943): force a Tier-2 upgrade on a Tier-1-only article.

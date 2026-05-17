@@ -72,6 +72,13 @@ def score_node_for_model(node: dict[str, Any], model: str) -> Optional[float]:
     # CPU-only models to CPU nodes.
     if footprint.prefer_gpu == gpu_avail:
         score += 1.0
+        # Small CPU-only model on a dedicated CPU-only node is the IDEAL
+        # placement — it frees hub GPU for prefer_gpu workloads. Without
+        # this nudge, hub (which has BOTH CPU and GPU) often outscores
+        # outpost-tier nodes via load balancing alone, so qwen2.5:1.5b
+        # ends up on the same hub that should be running 7B+ inference.
+        if not footprint.prefer_gpu and not gpu_avail:
+            score += 0.7
     else:
         # Allowed but not ideal (e.g. small model on hub GPU).
         score -= 0.3

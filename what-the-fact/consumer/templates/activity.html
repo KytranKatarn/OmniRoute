@@ -21,6 +21,17 @@
     <span><b style="color:#9ca3af;">{{ "{:,}".format(stats.ink_24h) }}</b> new clusters</span>
     <span><b style="color:#dc2626;">{{ "{:,}".format(stats.llm_24h) }}</b> LLM-analyzed</span>
   </div>
+  <!-- Pipeline health bar (#2955) -->
+  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:10px 14px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;font-size:0.7rem;color:#9ca3af;">
+    <span style="color:#6b7280;letter-spacing:2px;text-transform:uppercase;font-size:0.6rem;">Pipeline health</span>
+    <span title="Articles ingest failed in last 24h"><b style="color:{% if stats.failed_ingest_24h > 0 %}#ef4444{% else %}#10b981{% endif %};">{{ "{:,}".format(stats.failed_ingest_24h) }}</b> failed ingest (24h)</span>
+    <span title="Articles where L.O.C.A.L. gave up — no Canadian province or country match"><b style="color:#f59e0b;">{{ "{:,}".format(stats.geo_unmappable_24h) }}</b> geo unmappable (24h) · {{ "{:,}".format(stats.geo_unmappable) }} total</span>
+    <span title="Articles without geo coords, still in L.O.C.A.L. backlog"><b style="color:#9ca3af;">{{ "{:,}".format(stats.geo_pending) }}</b> geo pending</span>
+    <span title="S.C.O.U.T. body rescues completed in last 24h"><b style="color:#10b981;">{{ "{:,}".format(stats.scout_body_done_24h) }}</b> scout rescued (24h)</span>
+    {% if stats.scout_body_failed > 0 %}<span title="S.C.O.U.T. jobs that permanently failed"><b style="color:#ef4444;">{{ "{:,}".format(stats.scout_body_failed) }}</b> scout failed</span>{% endif %}
+    <span title="Articles with DistilBERT ML v2 bias score"><b style="color:#a78bfa;">{{ "{:,}".format(stats.bias_v2_scored) }}</b> ML v2 scored</span>
+    {% if stats.tier2_failed > 0 %}<span title="Articles where LLM Tier-2 analysis failed"><b style="color:#ef4444;">{{ "{:,}".format(stats.tier2_failed) }}</b> tier-2 failed</span>{% endif %}
+  </div>
   {% set n = stats.total_articles %}
   {% set rows = [
     ('F.A.C.T.', 'fact', 'Articles ingested', stats.fact_ingested, n, '+{:,} in last 24h'.format(stats.articles_24h)),

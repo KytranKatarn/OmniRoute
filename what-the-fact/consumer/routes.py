@@ -316,7 +316,12 @@ def activity():
               (SELECT COUNT(*) FROM {S}.articles WHERE NOT ai_analyzed) AS llm_pending,
               (SELECT COUNT(*) FROM {S}.scout_body_jobs WHERE status='failed') AS scout_body_failed,
               (SELECT COUNT(*) FROM {S}.scout_body_jobs
-                 WHERE status='completed' AND completed_at > NOW() - INTERVAL '24 hours') AS scout_body_done_24h
+                 WHERE status='completed' AND completed_at > NOW() - INTERVAL '24 hours') AS scout_body_done_24h,
+              (SELECT COUNT(*) FROM {S}.articles WHERE geo_scope = 'unmappable') AS geo_unmappable,
+              (SELECT COUNT(*) FROM {S}.articles
+                 WHERE geo_scope = 'unmappable' AND published_at > NOW() - INTERVAL '24 hours') AS geo_unmappable_24h,
+              (SELECT COUNT(*) FROM {S}.articles WHERE bias_v2_score IS NOT NULL) AS bias_v2_scored,
+              (SELECT COUNT(*) FROM {S}.articles WHERE tier2_failures > 0) AS tier2_failed
         """)).mappings().first()
 
         # Build unified event query per agent type, then union + paginate

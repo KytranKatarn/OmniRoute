@@ -6,6 +6,9 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.1.2+cpu
 
+# torch 2.1.2 was compiled against NumPy 1.x; NumPy 2.x breaks the ABI
+numpy<2
+
 transformers==4.36.2
 # transformers needs at least one tokenizer backend
 sentencepiece==0.1.99

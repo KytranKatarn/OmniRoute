@@ -121,10 +121,16 @@ def analyze():
             "Verdicts: verified | mixed | disputed | unverifiable"
         ),
         "geo": (
-            f"Extract the primary Canadian location from this news article.\n\n"
+            f"Extract the primary geographic location this news article is about.\n\n"
             f"Title: {title}\nBody: {body[:1000]}\n\n"
-            'Return ONLY valid JSON: {"province_code": "ON" or null, "city": "Toronto" or null, '
-            '"lat": float or null, "lng": float or null, '
+            "Rules:\n"
+            "  - If primarily Canadian, set country_code='CA' AND province_code (e.g. 'ON', 'QC').\n"
+            "  - If primarily another country, set country_code (ISO 3166-1 alpha-2: 'US', 'GB', 'FR'...) "
+            "and leave province_code null.\n"
+            "  - geo_scope: 'national' (Canada-wide), 'provincial', 'municipal', or 'international' (non-Canada).\n"
+            "  - If unclear, return all-null with geo_scope='international' and country_code=null.\n\n"
+            'Return ONLY valid JSON: {"province_code": "ON" or null, "country_code": "CA"|"US"|... or null, '
+            '"city": "Toronto" or null, "lat": float or null, "lng": float or null, '
             '"geo_scope": "national|provincial|municipal|international", "geo_confidence": 0.0-1.0}'
         ),
         "deep_analysis": (
@@ -254,10 +260,13 @@ def analyze_quick():
             'Return ONLY valid JSON: {"claims": ["claim text", ...]} (max 3, can be empty list)'
         ),
         "geo": (
-            f"Identify the Canadian province this article is primarily about.\n\n"
+            f"Identify the primary location this article is about.\n\n"
             f"Title: {title}\nBody: {body[:800]}\n\n"
+            "Rules: if Canadian, set country_code='CA' AND province_code (e.g. 'ON'). "
+            "If foreign, set country_code to ISO alpha-2 ('US','GB','FR'...) and "
+            "leave province_code null. If unclear, both null.\n\n"
             'Return ONLY valid JSON: {"province_code": "ON"|"QC"|"BC"|"AB"|...|null, '
-            '"country_code": "CA"|null, "confidence": 0.0-1.0}'
+            '"country_code": "CA"|"US"|"GB"|... or null, "confidence": 0.0-1.0}'
         ),
     }
 

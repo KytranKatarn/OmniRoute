@@ -97,8 +97,7 @@ def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
                 SELECT a.id, a.url, a.title, s.slug AS source_slug, LENGTH(a.body) AS body_len
                 FROM {schema}.articles a
                 JOIN {schema}.sources s ON s.id = a.source_id
-                WHERE s.rss_feed LIKE '%news.google.com%'
-                  AND LENGTH(a.body) < :min_chars
+                WHERE LENGTH(a.body) < :min_chars
                   AND NOT EXISTS (
                       SELECT 1 FROM {schema}.scout_body_jobs j WHERE j.article_id = a.id
                   )

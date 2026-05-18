@@ -121,6 +121,51 @@ function wtfTab(name, btn) {
   defs.innerHTML = '<filter id="wtf-leader-glow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
   document.getElementById('wtf-parl-svg').prepend(defs);
 
+  // ── Row arc guides ──────────────────────────────────────────
+  var ROW_RADII = [65, 110, 155, 200, 245, 290];
+  ROW_RADII.forEach(function(r) {
+    var arc = document.createElementNS(NS, 'path');
+    arc.setAttribute('d', 'M '+(cx-r)+' '+cy+' A '+r+' '+r+' 0 1 1 '+(cx+r)+' '+cy);
+    arc.setAttribute('stroke', '#1a3a5a');
+    arc.setAttribute('stroke-width', '0.8');
+    arc.setAttribute('fill', 'none');
+    arc.setAttribute('opacity', '0.6');
+    svgG.appendChild(arc);
+  });
+
+  // Centre aisle (Speaker chair divider)
+  var aisleEl = document.createElementNS(NS, 'line');
+  aisleEl.setAttribute('x1', cx); aisleEl.setAttribute('y1', cy - 298);
+  aisleEl.setAttribute('x2', cx); aisleEl.setAttribute('y2', cy + 2);
+  aisleEl.setAttribute('stroke', '#1a3a5a');
+  aisleEl.setAttribute('stroke-width', '1.5');
+  aisleEl.setAttribute('stroke-dasharray', '4 5');
+  svgG.appendChild(aisleEl);
+
+  // Base floor line
+  var floorEl = document.createElementNS(NS, 'line');
+  floorEl.setAttribute('x1', cx - 295); floorEl.setAttribute('y1', cy + 1);
+  floorEl.setAttribute('x2', cx + 295); floorEl.setAttribute('y2', cy + 1);
+  floorEl.setAttribute('stroke', '#1a3a5a');
+  floorEl.setAttribute('stroke-width', '1');
+  svgG.appendChild(floorEl);
+
+  // Side labels
+  function svgText(x, y, txt, anchor, rotate) {
+    var t = document.createElementNS(NS, 'text');
+    t.setAttribute('x', x); t.setAttribute('y', y);
+    t.setAttribute('text-anchor', anchor||'middle');
+    t.setAttribute('font-size', '8'); t.setAttribute('fill', '#374151');
+    t.setAttribute('font-family', 'monospace'); t.setAttribute('letter-spacing', '2');
+    if (rotate) t.setAttribute('transform', rotate);
+    t.textContent = txt;
+    svgG.appendChild(t);
+  }
+  svgText(18, cy, 'OPPOSITION', 'middle', 'rotate(-90,18,'+cy+')');
+  svgText(682, cy, 'GOVERNMENT', 'middle', 'rotate(90,682,'+cy+')');
+  svgText(cx, 18, 'SPEAKER', 'middle');
+  // ────────────────────────────────────────────────────────────
+
   ALL_MPS.forEach(function(mp) {
     var pos = SEAT_XY[mp.slug];
     if (!pos) return; // skip unpositioned

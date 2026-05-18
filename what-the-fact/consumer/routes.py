@@ -1042,14 +1042,23 @@ def cluster_comparison(cluster_id: int):
 
 _OPENPARL_BASE = "https://openparliament.ca"
 _PARTY_COLOURS = {
-    "Conservative": "#003399",
-    "Liberal": "#d71920",
-    "NDP": "#f37021",
-    "Bloc Québécois": "#89cff0",
-    "Green": "#3d9b35",
-    "Independent": "#888888",
-    "People's Party": "#6a0dad",
+    "conservative": "#1a56db",
+    "liberal": "#d71920",
+    "ndp": "#f37021",
+    "bloc": "#89cff0",
+    "green": "#3d9b35",
+    "independent": "#888888",
+    "people": "#6a0dad",
 }
+
+
+def _party_colour(party: str) -> str:
+    """Fuzzy party → colour lookup — insensitive to accents and exact casing."""
+    key = (party or "").lower()
+    for fragment, colour in _PARTY_COLOURS.items():
+        if fragment in key:
+            return colour
+    return "#6b7280"
 
 
 @bp.get("/mps")
@@ -1087,7 +1096,7 @@ def mps_listing():
         mp = dict(r)
         if mp.get("photo_url") and not mp["photo_url"].startswith("http"):
             mp["photo_url"] = _OPENPARL_BASE + mp["photo_url"]
-        mp["party_colour"] = _PARTY_COLOURS.get(mp.get("party") or "", "#6b7280")
+        mp["party_colour"] = _party_colour(mp.get("party") or "")
         mps.append(mp)
 
     return render_template("mps.html", mps=mps, parties=list(parties),

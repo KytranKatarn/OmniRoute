@@ -296,12 +296,23 @@ def run_geo_report(engine) -> None:
 def main():
     engine = create_engine(os.environ["WTF_DATABASE_URL"], pool_pre_ping=True)
     _last_report_date = None
+    _last_parliament_date = None
     while True:
         # Weekly geo report on Mondays
         today = datetime.date.today()
         if today.weekday() == 0 and _last_report_date != today:
             run_geo_report(engine)
             _last_report_date = today
+
+        # Weekly parliamentary sync on Sundays (MPs, votes, ballots, article tagging)
+        if today.weekday() == 6 and _last_parliament_date != today:
+            try:
+                from ingest.parliament.openparl import run_parliament_sync
+                result = run_parliament_sync(engine)
+                log.info("parliament sync: %s", result)
+            except Exception:
+                log.exception("parliament sync crashed — skipping this week")
+            _last_parliament_date = today
         try:
             run_once(engine)
         except Exception:

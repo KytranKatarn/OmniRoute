@@ -146,6 +146,29 @@ def run_once(engine) -> dict:
     stats = {"inserted": 0, "skipped": 0, "failed": 0, "inserted_ids": []}
     for slug, name, url, rss_url, bias_lean, fetch_fn in SOURCES:
         _process_source(engine, slug, name, url, rss_url, bias_lean, fetch_fn, stats)
+
+    # DB-driven generic sources — any wtf.sources row with rss_feed set that is
+    # not already handled by a dedicated entry in SOURCES above. New sources added
+    # to the DB via migrations are automatically ingested with zero code change.
+    handled_slugs = frozenset(s for s, *_ in SOURCES)
+    from ingest.sources.rss_generic import fetch_rss as _generic_fetch
+    try:
+        with engine.connect() as c:
+            db_rows = c.execute(
+                text("SELECT slug, name, url, rss_feed, bias_lean FROM wtf.sources WHERE rss_feed IS NOT NULL")
+            ).mappings().all()
+        for src in db_rows:
+            if src["slug"] in handled_slugs:
+                continue
+            _slug = src["slug"]
+            _rss = src["rss_feed"]
+            fetch_fn = lambda u=_rss, s=_slug: _generic_fetch(u, s)
+            _process_source(engine, _slug, src["name"] or _slug,
+                            src["url"] or "", _rss,
+                            src["bias_lean"] or "center", fetch_fn, stats)
+    except Exception as exc:
+        log.warning("db-driven generic sources failed: %s", exc)
+
     log.info("run_once: %s", {k: v for k, v in stats.items() if k != "inserted_ids"})
 
     # Recompute rolling outlet bias scores after each pass

@@ -1045,7 +1045,7 @@ _PARTY_COLOURS = {
     "Conservative": "#003399",
     "Liberal": "#d71920",
     "NDP": "#f37021",
-    "Bloc Québécois": "#33b2cc",
+    "Bloc Québécois": "#89cff0",
     "Green": "#3d9b35",
     "Independent": "#888888",
     "People's Party": "#6a0dad",

@@ -23,6 +23,20 @@
 .wtf-party-header { font-size:11px; color:#9ca3af; text-transform:uppercase; letter-spacing:.08em; padding:6px 0; border-bottom:1px solid #0d1f2d; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
 .wtf-party-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
 @media (max-width:600px) { .wtf-mp-grid { grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); } }
+
+.wtf-mps-tabs { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+.wtf-mps-tab { background:#060d14; border:1px solid #1a3a5a; color:#6b7280; padding:6px 16px; border-radius:3px; font-size:11px; cursor:pointer; font-family:inherit; letter-spacing:.04em; transition:all .15s; }
+.wtf-mps-tab:hover { border-color:#0af; color:#9ca3af; }
+.wtf-mps-tab.active { background:#0a2a3a; border-color:#0af; color:#0af; }
+
+.wtf-mp-leader { border:2px solid currentColor; }
+@keyframes wtf-leader-pulse {
+  0%,100% { box-shadow: 0 0 6px 2px currentColor; }
+  50%      { box-shadow: 0 0 16px 6px currentColor; }
+}
+.wtf-mp-leader { animation: wtf-leader-pulse 2s ease-in-out infinite; }
+.wtf-mp-leader-badge { font-size:9px; color:#f59e0b; letter-spacing:.06em; text-transform:uppercase; font-weight:700; }
+@keyframes wtf-halo-pulse { 0%,100%{fill-opacity:.2;r:7;} 50%{fill-opacity:.5;r:10;} }
 </style>
 
 <div class="wtf-mps-header">
@@ -30,6 +44,23 @@
   <div style="font-size:11px;color:#6b7280;">{{ mps|length }} current MPs tracked · votes, media coverage, accountability intelligence</div>
 </div>
 
+<div class="wtf-mps-tabs">
+  <button class="wtf-mps-tab active" onclick="wtfTab('hoc',this)">🏛 House of Commons</button>
+  <button class="wtf-mps-tab" onclick="wtfTab('senate',this)">🔴 Senate</button>
+  <button class="wtf-mps-tab" onclick="wtfTab('parties',this)">🎯 By Party</button>
+</div>
+<script>
+function wtfTab(name, btn) {
+  ['hoc','senate','parties'].forEach(function(t){
+    var el = document.getElementById('wtf-tab-'+t);
+    if (el) el.style.display = t===name ? '' : 'none';
+  });
+  document.querySelectorAll('.wtf-mps-tab').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+}
+</script>
+
+<div id="wtf-tab-hoc">
 <form method="get" action="/mps" class="wtf-mps-filters">
   <select name="party" onchange="this.form.submit()">
     <option value="all" {% if party_filter == 'all' %}selected{% endif %}>All parties</option>
@@ -65,95 +96,145 @@
 <script>
 (function(){
   var ALL_MPS = {{ mps | tojson }};
-  // Seating order matches actual House of Commons layout:
-  // LEFT arc (opposition): Green → NDP → Bloc → Conservative
-  // RIGHT arc (government): Liberal → Independent → PPC
-  var PARTY_ORDER = {
-    'Green':0, 'NDP':1, 'Bloc Québécois':2,
-    'Conservative':3,
-    'Liberal':4,
-    'Independent':5, "People's Party":6
+  // Actual HoC floor plan positions — scraped from ourcommons.ca/Members/en/floorplan
+  // Opposition (left arc): Conservative, NDP, Bloc, Green, Independent
+  // Government (right arc): Liberal, Independent, PPC
+  // Coordinates map to SVG viewBox 0 0 700 330, Speaker at (350,315)
+  var SEAT_XY = {"aaron-gunn":[90.2,186.1],"abdelhaq-sari":[541.3,97.0],"adam-chambers":[377.2,255.9],"adam-van-koeverden":[277.7,232.1],"ahmed-hussen":[407.8,285.2],"alana-hirtle":[127.4,129.1],"alex-ruff":[295.7,30.1],"alexandra-mendes":[60.0,315.0],"alexandre-boulerice":[588.1,149.5],"alexis-brunelle-duceppe":[401.2,275.0],"alexis-deschenes":[442.7,255.9],"ali-ehsassi":[275.3,179.2],"amandeep-sodhi":[583.0,142.3],"amanpreet-gill":[415.9,79.0],"amarjeet-gill":[439.7,87.0],"andreanne-larouche":[480.1,230.8],"andrew-lawton":[328.8,25.8],"andrew-scheer":[303.0,270.1],"angelo-iacono":[505.0,315.0],"anita-anand":[355.0,205.1],"anita-vandenbeld":[545.8,274.3],"anju-dhillon":[478.6,228.5],"anna-gainey":[285.9,225.6],"anna-roberts":[491.3,173.4],"annie-koutrakis":[435.4,185.6],"anthony-housefather":[442.5,255.5],"arielle-kayabaga":[333.3,160.9],"arnold-viersen":[213.4,168.9],"arpan-khanna":[324.3,208.1],"aslam-rana":[463.2,48.0],"bardish-chagger":[414.7,308.8],"ben-carr":[455.3,93.8],"ben-lobb":[240.9,204.9],"bernard-genereux":[198.0,284.6],"bienvenu-olivier-ntumba":[404.3,30.1],"billy-morin":[345.0,205.1],"blaine-calkins":[291.6,171.4],"blake-richards":[242.0,294.2],"bob-zimmer":[230.6,216.2],"bobby-morrissey":[513.4,199.7],"brad-redekopp":[306.1,166.4],"brad-vis":[206.9,255.4],"braedon-clark":[550.2,173.8],"branden-leslie":[523.0,141.6],"brendan-hanley":[276.8,128.9],"bruce-fanjoy":[80.4,208.2],"buckley-belanger":[313.7,211.1],"burton-bailey":[182.7,136.0],"carlos-leitao":[303.4,167.2],"carol-anstey":[136.4,195.0],"caroline-desrochers":[224.0,159.7],"cathay-wagantall":[343.0,115.1],"chak-au":[149.8,173.8],"charles-sousa":[432.2,84.2],"cheryl-gallant":[166.5,235.4],"chi-nguyen":[373.8,26.0],"chris-bittle":[219.9,230.8],"chris-dentremont":[145.3,180.4],"chris-lewis":[105.0,315.0],"chris-malette":[252.4,41.9],"chris-warkentin":[304.5,214.9],"christine-normandin":[397.2,270.3],"claude-debellefeuille":[487.8,244.0],"claude-guay":[408.4,171.4],"clifford-small":[247.9,274.1],"colin-reynolds":[459.6,46.5],"connie-cody":[316.5,72.3],"corey-hogan":[422.2,177.9],"corey-tochor":[213.5,241.6],"costas-menegakis":[322.6,116.9],"dalwinder-gill":[462.5,97.4],"dan-albas":[382.7,258.8],"dan-mazier":[252.3,264.5],"dan-muys":[321.0,162.7],"dane-lloyd":[414.1,225.6],"danielle-martin":[640.0,315.0],"darren-fisher":[205.9,257.9],"dave-epp":[282.9,126.6],"david-bexte":[222.6,105.7],"david-mcguinty":[298.8,275.0],"david-mckenzie":[428.0,35.7],"david-myles":[459.1,204.9],"dean-allison":[199.2,183.6],"doly-begum":[638.4,284.2],"dominic-leblanc":[317.3,258.8],"dominique-orourke":[434.3,37.5],"dominique-vien":[365.9,206.2],"don-davies":[567.4,202.0],"doug-eyolfson":[237.5,97.4],"doug-shipley":[437.7,187.2],"eleanor-olszewski":[392.5,265.8],"elisabeth-briere":[363.9,160.6],"elizabeth-may":[567.5,123.2],"ellis-ross":[355.5,205.1],"emma-harrison":[109.0,153.7],"emmanuella-lambropoulos":[550.0,315.0],"eric-duncan":[295.1,219.7],"eric-lefebvre":[159.4,254.5],"eric-melillo":[277.8,177.9],"eric-st-pierre":[600.0,168.0],"ernie-klassen":[436.0,134.4],"evan-solomon":[397.0,270.1],"fares-al-soud":[498.1,119.9],"faycal-el-khoury":[493.1,255.4],"francis-scarpaleggia":[350.0,310.0],"francois-philippe-champagne":[340.6,250.7],"frank-caputo":[240.5,304.5],"fraser-tolmie":[334.6,206.1],"fred-davies":[341.4,70.1],"gabriel-hardy":[396.6,167.2],"gabriel-ste-marie":[471.2,218.4],"gaetan-malette":[154.2,274.3],"garnett-genuis":[263.6,246.9],"gary-anandasangaree":[359.1,250.6],"gerard-deltell":[295.3,279.8],"ginette-lavack":[454.0,144.2],"ginette-petitpas-taylor":[412.4,296.7],"giovanna-mingarelli":[312.3,27.5],"glen-motz":[403.8,122.4],"gord-johns":[619.6,208.2],"grant-jackson":[126.6,130.1],"greg-fergus":[498.2,269.8],"greg-mclean":[476.0,159.7],"gregor-robertson":[307.3,266.0],"guillaume-deschenes-theriault":[589.9,265.2],"gurbux-saini":[517.0,77.9],"harb-gill":[484.2,110.0],"heath-macdonald":[295.2,280.1],"heather-mcpherson":[577.8,224.8],"hedy-fry":[247.7,274.5],"helena-jaczek":[252.0,265.0],"helena-konanz":[202.4,65.4],"iqra-khalid":[172.5,222.8],"iqwinder-gaheer":[333.5,70.6],"jacob-mantle":[395.4,28.6],"jacques-gourde":[201.8,269.8],"jacques-ramsay":[470.9,155.7],"jagsharan-singh-mahal":[362.1,25.3],"jaime-battiste":[417.1,126.6],"jake-sawatzky":[563.3,118.5],"james-bezan":[287.6,296.7],"james-maloney":[195.0,188.6],"jamie-schmale":[285.3,308.8],"jamil-jivani":[116.5,240.9],"jason-groleau":[110.1,265.2],"jasraj-singh-hallan":[323.1,255.8],"jean-denis-garon":[387.9,262.2],"jean-yip":[122.2,224.8],"jean-yves-duclos":[404.7,279.8],"jeff-kibble":[149.3,105.7],"jenna-sudds":[208.7,173.4],"jennifer-mckelvie":[240.5,147.6],"jenny-kwan":[554.7,180.4],"jeremy-patzer":[106.3,290.0],"jessica-fancy-landry":[595.0,315.0],"jill-mcknight":[323.8,208.2],"jim-belanger":[313.7,211.1],"joanne-thompson":[346.8,250.1],"joel-godin":[376.2,208.2],"joel-lightbound":[302.8,270.3],"john-barlow":[359.4,250.7],"john-brassard":[270.5,239.0],"john-nater":[67.7,248.8],"john-paul-danko":[583.5,240.9],"john-williamson":[246.0,144.2],"john-zerucelli":[413.7,225.3],"jonathan-rowe":[489.7,60.9],"jonathan-wilkinson":[413.8,302.7],"juanita-nathan":[343.0,25.1],"judy-sgro":[458.0,294.2],"julie-dabrusin":[312.1,262.2],"julie-dzerowicz":[486.5,241.6],"karim-bardeesy":[318.2,163.3],"karina-gould":[410.3,290.8],"kathy-borrelli":[267.8,84.2],"kelly-block":[289.7,290.8],"kelly-deridder":[391.4,73.5],"kelly-mccauley":[302.5,120.7],"kent-macdonald":[224.0,53.8],"kerry-diotte":[229.1,155.7],"kevin-lamoureux":[348.6,160.0],"kevin-waugh":[336.1,160.6],"kody-blois":[336.5,115.5],"kristina-tesser":[614.2,195.3],"kurt-holman":[106.8,157.1],"kyle-seeback":[365.5,251.9],"laila-goodridge":[424.7,179.2],"larry-brock":[286.2,302.7],"leah-gazan":[605.6,178.0],"lena-metlege-diab":[292.1,285.4],"leslie-church":[486.6,168.9],"leslyn-lewis":[328.8,253.5],"lianne-rood":[351.4,160.0],"linda-lapointe":[260.3,87.0],"lisa-hepfner":[358.6,70.1],"lori-idlout":[383.5,72.3],"louis-plamondon":[539.9,160.2],"louis-villeneuve":[625.4,224.1],"luc-berthold":[286.3,225.3],"luc-theriault":[410.4,291.1],"madeleine-chenette":[421.9,231.8],"maggie-chi":[447.7,194.7],"mandy-gull-masty":[375.7,208.1],"maninder-sidhu":[387.6,262.0],"marc-dalton":[423.2,128.9],"marc-miller":[382.4,258.7],"marcus-powlowski":[177.0,141.6],"marianne-dandurand":[574.7,217.4],"marie-france-lalonde":[160.1,160.2],"marie-gabrielle-menard":[452.1,274.1],"marie-helene-gaudreau":[494.1,257.9],"marilene-gill":[448.0,265.0],"marilyn-gladu":[504.2,299.7],"mario-beaulieu":[505.0,188.6],"mario-simard":[404.8,280.1],"marjorie-michel":[371.2,253.5],"mark-carney":[334.5,251.9],"mark-gerretsen":[344.5,205.1],"mark-strahl":[257.5,255.5],"martin-champoux":[429.9,239.4],"matt-jeneroux":[164.0,241.4],"matt-strauss":[544.0,99.5],"maxime-blanchette-joncas":[527.5,222.8],"mel-arnold":[151.0,294.6],"melanie-joly":[322.8,255.9],"melissa-lantsman":[317.6,258.7],"michael-barrett":[371.4,253.6],"michael-chong":[340.9,250.6],"michael-cooper":[405.3,219.9],"michael-coteau":[308.6,73.5],"michael-guglielmin":[77.1,216.8],"michael-kram":[459.5,147.6],"michael-ma":[197.0,68.7],"michelle-rempel-garner":[396.0,215.1],"mike-dawson":[366.5,70.6],"mike-kelloway":[393.9,166.4],"mike-lake":[240.0,315.0],"mona-fortier":[377.4,116.9],"nathalie-provost":[294.7,219.9],"nathaniel-erskine-smith":[460.0,315.0],"natilien-joseph":[148.4,106.5],"ned-kuruc":[263.3,38.3],"parm-bains":[284.1,79.0],"pat-kelly":[195.8,299.7],"patricia-lattanzio":[429.5,239.0],"patrick-bonin":[452.3,274.5],"patrick-weiler":[195.6,124.8],"patty-hajdu":[365.2,251.8],"paul-connors":[563.6,195.0],"pauline-rochefort":[296.2,122.4],"peter-fonseca":[502.0,284.6],"peter-fragiskatos":[263.3,247.3],"peter-schiefke":[524.4,217.0],"philip-earle":[593.7,290.0],"philip-lawrence":[422.3,232.1],"pierre-paul-hus":[298.9,274.8],"pierre-poilievre":[312.4,262.0],"rachael-harder":[292.2,285.2],"rachel-bendayan":[357.0,115.1],"randeep-sarai":[385.8,211.0],"randy-hoback":[186.6,199.7],"raquel-dancho":[334.8,251.8],"rebecca-alty":[365.4,206.1],"rebecca-chartrand":[334.1,206.2],"rechie-valdez":[401.1,274.8],"rheal-fortin":[407.9,285.4],"rhonda-kirkland":[174.7,84.0],"richard-bragdon":[449.9,196.5],"richard-martel":[386.3,211.1],"rob-moore":[278.1,231.8],"rob-morrison":[150.0,315.0],"rob-oliphant":[397.5,120.7],"roman-baber":[165.3,154.1],"ron-mckinnon":[500.8,183.6],"rosemarie-falk":[381.8,163.3],"ruby-sahota":[304.0,215.1],"ryan-turnbull":[379.0,162.7],"salma-zahid":[549.0,294.6],"sameer-zuberi":[215.8,110.0],"sandra-cobena":[291.8,77.0],"scot-davidson":[264.6,185.6],"scott-aitchison":[244.5,284.0],"scott-anderson":[125.3,217.4],"scott-reid":[175.6,217.0],"sean-casey":[316.2,117.9],"sean-fraser":[376.9,255.8],"sebastien-lemire":[536.0,241.4],"serge-cormier":[469.4,216.2],"shafqat-ali":[289.6,291.1],"shannon-miedema":[282.0,33.1],"shannon-stubbs":[353.2,250.1],"shaun-chen":[228.8,218.4],"shelby-kramp-neuman":[314.2,211.0],"sherry-romanado":[250.1,196.5],"shuv-majumdar":[410.9,172.5],"sima-acan":[477.4,105.7],"simon-pierre-savard-tremblay":[461.1,206.9],"sonia-sidhu":[540.6,254.5],"sophie-chatel":[238.9,206.9],"steeve-lavoie":[171.7,86.3],"stephane-lauzon":[182.9,205.1],"stephanie-kusie":[347.0,250.1],"stephanie-mclean":[395.5,214.9],"stephen-fuhr":[270.1,239.4],"steven-bonk":[244.7,93.8],"steven-guilbeault":[415.0,315.0],"steven-mackinnon":[328.6,253.6],"sukh-dhaliwal":[212.2,244.0],"sukhman-gill":[504.4,124.8],"tako-van-popta":[195.0,315.0],"taleeb-noormohamed":[447.7,264.5],"tamara-jansen":[363.5,115.5],"tamara-kronis":[232.0,50.1],"tatiana-auguste":[517.3,136.0],"ted-falk":[264.0,134.4],"terry-beech":[455.5,284.0],"terry-dowdall":[441.8,137.3],"terry-duguid":[459.5,304.5],"terry-sheehan":[533.5,235.4],"tim-hodgson":[353.0,250.1],"tim-louis":[262.3,187.2],"tim-uppal":[307.5,265.8],"tim-watchorn":[633.5,253.8],"todd-doherty":[285.0,315.0],"tom-kmiec":[61.9,281.7],"tom-osborne":[257.3,255.9],"tony-baldinelli":[252.3,194.7],"vince-gasparro":[258.2,137.3],"vincent-ho":[366.7,160.9],"viviane-lapointe":[410.0,72.0],"wade-chang":[534.7,154.1],"wade-grant":[289.1,172.5],"warren-steinley":[221.4,228.5],"wayne-long":[404.9,219.7],"will-greaves":[93.2,180.2],"william-stevenson":[518.0,78.6],"xavier-barsalou-duval":[517.1,205.1],"yasir-naqvi":[436.4,246.9],"yvan-baker":[132.6,202.0],"yves-francois-blanchet":[392.7,266.0],"yves-perron":[436.7,247.3],"ziad-aboultaif":[383.8,117.9],"zoe-royer":[490.9,61.5]};
+
+  // Party leaders — glowing dots + labels
+  var LEADERS = {
+    'mark-carney':          'Prime Minister',
+    'pierre-poilievre':     'Opposition Leader',
+    'yves-francois-blanchet':'Bloc Leader',
+    'elizabeth-may':        'Green Leader',
+    'don-davies':           'NDP House Leader'
   };
-  var sorted = ALL_MPS.slice().sort(function(a,b){
-    var ao = PARTY_ORDER[a.party]!=null?PARTY_ORDER[a.party]:99;
-    var bo = PARTY_ORDER[b.party]!=null?PARTY_ORDER[b.party]:99;
-    return ao !== bo ? ao - bo : (a.name||'').localeCompare(b.name||'');
-  });
 
   var svgG = document.getElementById('wtf-seats');
   var tip = document.getElementById('wtf-seat-tip');
-  var n = sorted.length;
-  var cx=350, cy=315, innerR=60, outerR=285, ROWS=8;
+  var NS = 'http://www.w3.org/2000/svg';
+  var R_SEAT = 4;
 
-  var radii=[];
-  for(var r=0;r<ROWS;r++) radii.push(innerR+r*(outerR-innerR)/(ROWS-1));
-  var totalC=radii.reduce(function(s,r){return s+r;},0);
-  var counts=radii.map(function(r,i){ return i===ROWS-1?0:Math.round(n*r/totalC); });
-  counts[ROWS-1]=n-counts.reduce(function(s,c){return s+c;},0);
+  // Add SVG defs for glow filter
+  var defs = document.createElementNS(NS, 'defs');
+  defs.innerHTML = '<filter id="wtf-leader-glow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
+  document.getElementById('wtf-parl-svg').prepend(defs);
 
-  var positions=[];
-  for(var r=0;r<ROWS;r++){
-    var rad=radii[r], cnt=counts[r];
-    for(var i=0;i<cnt;i++){
-      var angle=Math.PI*(1-(i+0.5)/cnt);
-      positions.push({x:cx+rad*Math.cos(angle), y:cy-rad*Math.sin(angle)});
+  ALL_MPS.forEach(function(mp) {
+    var pos = SEAT_XY[mp.slug];
+    if (!pos) return; // skip unpositioned
+    var isLeader = !!LEADERS[mp.slug];
+    // Pulsing halo for leaders
+    if (isLeader) {
+      var halo = document.createElementNS(NS, 'circle');
+      halo.setAttribute('cx', pos[0]);
+      halo.setAttribute('cy', pos[1]);
+      halo.setAttribute('r', R_SEAT + 4);
+      halo.setAttribute('fill', mp.party_colour || '#6b7280');
+      halo.setAttribute('fill-opacity', '0.35');
+      halo.setAttribute('stroke', 'none');
+      halo.style.animation = 'wtf-halo-pulse 1.8s ease-in-out infinite';
+      svgG.appendChild(halo);
     }
-  }
-
-  var R_SEAT=Math.max(3,Math.min(5,Math.floor(130/Math.sqrt(n))));
-  var NS='http://www.w3.org/2000/svg';
-  sorted.forEach(function(mp,i){
-    var pos=positions[i];
-    if(!pos) return;
-    var c=document.createElementNS(NS,'circle');
-    c.setAttribute('cx',pos.x.toFixed(1));
-    c.setAttribute('cy',pos.y.toFixed(1));
-    c.setAttribute('r',R_SEAT);
-    c.setAttribute('fill',mp.party_colour||'#6b7280');
-    c.setAttribute('stroke','#060d14');
-    c.setAttribute('stroke-width','0.5');
-    c.style.cursor='pointer';
-    (function(m){
-      c.addEventListener('mousemove',function(e){
-        tip.style.display='block';
-        tip.style.left=(e.clientX+12)+'px';
-        tip.style.top=(e.clientY-10)+'px';
-        while(tip.firstChild) tip.removeChild(tip.firstChild);
-        var strong=document.createElement('strong');
-        strong.textContent=m.name;
-        var br1=document.createElement('br');
-        var party=document.createTextNode(m.party||'');
-        var br2=document.createElement('br');
-        var riding=document.createElement('span');
-        riding.style.cssText='color:#6b7280;font-size:9px;';
-        riding.textContent=m.riding_name||'';
+    var c = document.createElementNS(NS, 'circle');
+    c.setAttribute('cx', pos[0]);
+    c.setAttribute('cy', pos[1]);
+    c.setAttribute('r', isLeader ? R_SEAT + 1.5 : R_SEAT);
+    c.setAttribute('fill', mp.party_colour || '#6b7280');
+    c.setAttribute('stroke', isLeader ? '#fff' : '#060d14');
+    c.setAttribute('stroke-width', isLeader ? '1.5' : '0.8');
+    if (isLeader) c.setAttribute('filter', 'url(#wtf-leader-glow)');
+    c.style.cursor = 'pointer';
+    (function(m, leaderTitle) {
+      c.addEventListener('mousemove', function(e) {
+        tip.style.display = 'block';
+        tip.style.left = (e.clientX + 12) + 'px';
+        tip.style.top = (e.clientY - 10) + 'px';
+        while (tip.firstChild) tip.removeChild(tip.firstChild);
+        if (leaderTitle) {
+          var lt = document.createElement('span');
+          lt.style.cssText = 'color:#f59e0b;font-size:9px;font-weight:700;display:block;margin-bottom:2px;';
+          lt.textContent = '⭐ ' + leaderTitle;
+          tip.appendChild(lt);
+        }
+        var strong = document.createElement('strong');
+        strong.textContent = m.name;
+        var br1 = document.createElement('br');
+        var party = document.createTextNode(m.party || '');
+        var br2 = document.createElement('br');
+        var riding = document.createElement('span');
+        riding.style.cssText = 'color:#6b7280;font-size:9px;';
+        riding.textContent = m.riding_name || '';
         tip.appendChild(strong); tip.appendChild(br1);
         tip.appendChild(party); tip.appendChild(br2); tip.appendChild(riding);
       });
-      c.addEventListener('mouseleave',function(){tip.style.display='none';});
-      c.addEventListener('click',function(){window.location='/mp/'+m.slug;});
-    })(mp);
+      c.addEventListener('mouseleave', function() { tip.style.display = 'none'; });
+      c.addEventListener('click', function() { window.location = '/mp/' + m.slug; });
+    })(mp, LEADERS[mp.slug] || '');
     svgG.appendChild(c);
   });
 
-  var legend=document.getElementById('wtf-parl-legend');
-  var seen={};
-  sorted.forEach(function(mp){
-    if(seen[mp.party]) return;
-    seen[mp.party]=true;
-    var wrap=document.createElement('span');
-    wrap.style.cssText='display:inline-flex;align-items:center;gap:4px;';
-    var dot=document.createElement('span');
-    dot.style.cssText='width:8px;height:8px;border-radius:50%;background:'+mp.party_colour+';flex-shrink:0;display:inline-block;';
-    var label=document.createTextNode(mp.party||'Unknown');
+  // Legend — by party
+  var legend = document.getElementById('wtf-parl-legend');
+  var seen = {};
+  ALL_MPS.forEach(function(mp) {
+    if (seen[mp.party]) return;
+    seen[mp.party] = true;
+    var wrap = document.createElement('span');
+    wrap.style.cssText = 'display:inline-flex;align-items:center;gap:4px;';
+    var dot = document.createElement('span');
+    dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:' + mp.party_colour + ';flex-shrink:0;display:inline-block;';
+    var label = document.createTextNode(mp.party || 'Unknown');
     wrap.appendChild(dot); wrap.appendChild(label);
     legend.appendChild(wrap);
   });
 })();
 </script>
+</div><!-- /wtf-tab-hoc -->
 
+<!-- Senate Tab -->
+<div id="wtf-tab-senate" style="display:none;">
+  <div style="background:#060d14;border:1px solid #4b0000;border-radius:4px;padding:20px 24px;margin-bottom:20px;">
+    <div style="font-size:10px;color:#ef4444;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">🔴 Senate of Canada — The Red Chamber</div>
+    <div style="font-size:13px;color:#e5e7eb;line-height:1.8;margin-bottom:14px;">
+      The Senate of Canada has <strong>105 senators</strong> appointed by the Governor General on the advice of the Prime Minister.
+      Unlike the House of Commons, senators serve until age 75. The Senate meets in a separate red-upholstered chamber.
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px;">
+      <div style="background:#0a0505;border:1px solid #3b0000;border-radius:3px;padding:10px;text-align:center;">
+        <div style="font-size:22px;font-weight:700;color:#ef4444;">105</div>
+        <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;">Total Seats</div>
+      </div>
+      <div style="background:#0a0505;border:1px solid #3b0000;border-radius:3px;padding:10px;text-align:center;">
+        <div style="font-size:22px;font-weight:700;color:#ef4444;">Age 75</div>
+        <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;">Mandatory Retirement</div>
+      </div>
+      <div style="background:#0a0505;border:1px solid #3b0000;border-radius:3px;padding:10px;text-align:center;">
+        <div style="font-size:22px;font-weight:700;color:#ef4444;">9</div>
+        <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;">Provinces &amp; Territories</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#6b7280;border-top:1px solid #1a0000;padding-top:12px;">
+      🔜 <strong style="color:#9ca3af;">Coming soon:</strong> Senator profiles, voting records, and seating map for the Red Chamber.
+      <br>Source: <a href="https://sencanada.ca" target="_blank" rel="noopener" style="color:#ef4444;">Senate of Canada</a> ·
+      <a href="https://api.openparliament.ca/politicians/?senator=true" target="_blank" rel="noopener" style="color:#ef4444;">OpenParliament senators API</a>
+    </div>
+  </div>
+</div>
+
+<!-- By Party Tab -->
+<div id="wtf-tab-parties" style="display:none;">
+{% set LEADERS = {
+  'mark-carney':           'Prime Minister',
+  'pierre-poilievre':      'Opposition Leader',
+  'yves-francois-blanchet':'Bloc Leader',
+  'elizabeth-may':         'Green Leader',
+  'don-davies':            'NDP House Leader'
+} %}
 {% set current_party = namespace(name='') %}
 {% for mp in mps %}
+  {% set leader_title = LEADERS.get(mp.slug, '') %}
   {% if mp.party != current_party.name %}
     {% if not loop.first %}</div>{% endif %}
     {% set current_party.name = mp.party %}
@@ -168,13 +249,19 @@
     <div class="wtf-mp-grid">
   {% endif %}
 
-  <a class="wtf-mp-card" href="/mp/{{ mp.slug }}">
+  <a class="wtf-mp-card" href="/mp/{{ mp.slug }}"
+     style="{% if leader_title %}border-color:{{ mp.party_colour }};{% endif %}">
     {% if mp.photo_url %}
-    <img class="wtf-mp-photo" src="{{ mp.photo_url }}" alt="{{ mp.name }}" loading="lazy"
+    <img class="wtf-mp-photo {% if leader_title %}wtf-mp-leader{% endif %}"
+         style="{% if leader_title %}color:{{ mp.party_colour }};{% endif %}"
+         src="{{ mp.photo_url }}" alt="{{ mp.name }}" loading="lazy"
          onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
     <div class="wtf-mp-photo-placeholder" style="display:none;">👤</div>
     {% else %}
     <div class="wtf-mp-photo-placeholder">👤</div>
+    {% endif %}
+    {% if leader_title %}
+    <div class="wtf-mp-leader-badge">⭐ {{ leader_title }}</div>
     {% endif %}
     <div class="wtf-mp-name">{{ mp.name }}</div>
     <span class="wtf-mp-party-badge" style="background:{{ mp.party_colour }}22;color:{{ mp.party_colour }};border:1px solid {{ mp.party_colour }}44;">
@@ -193,5 +280,7 @@
   No MPs found for this filter. <a href="/mps" style="color:#0af;">Reset filters →</a>
 </div>
 {% endif %}
+
+</div><!-- /wtf-tab-parties -->
 
 {% endblock %}

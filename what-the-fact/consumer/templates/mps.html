@@ -47,7 +47,6 @@
 <div class="wtf-mps-tabs">
   <button class="wtf-mps-tab active" onclick="wtfTab('hoc',this)">🏛 House of Commons</button>
   <button class="wtf-mps-tab" onclick="wtfTab('senate',this)">🔴 Senate</button>
-  <button class="wtf-mps-tab" onclick="wtfTab('parties',this)">🎯 By Party</button>
 </div>
 <script>
 function wtfTab(name, btn) {
@@ -349,22 +348,19 @@ function wtfShowMPCard(mp, cx, cy) {
     barWrap.appendChild(mk);
     barEl.appendChild(barWrap);
 
-    // Party labels — proportionally aligned under bar segments
+    // Party labels — flat row, all visible
     var lbls=document.createElement('div');
-    lbls.style.cssText='display:flex;width:100%;font-size:10px;margin-top:4px;';
+    lbls.style.cssText='display:flex;flex-wrap:wrap;gap:8px 14px;font-size:10px;margin-top:6px;';
     PARTY_ORDER.forEach(function(p){
       var cnt=counts[p]||0;
       if(!cnt) return;
-      var pct=(cnt/total338*100).toFixed(2);
       var span=document.createElement('span');
-      span.style.cssText='display:flex;align-items:center;gap:3px;color:#9ca3af;overflow:hidden;width:'+pct+'%;min-width:0;white-space:nowrap;';
+      span.style.cssText='display:inline-flex;align-items:center;gap:4px;color:#9ca3af;';
       var dot=document.createElement('span');
-      dot.style.cssText='width:7px;height:7px;border-radius:50%;background:'+(COLOURS[p]||'#888')+';flex-shrink:0;';
+      dot.style.cssText='width:8px;height:8px;border-radius:50%;background:'+(COLOURS[p]||'#888')+';flex-shrink:0;';
       var abbr=p==='Bloc'?'Bloc':p.replace("People's Party",'PPC');
-      var txt=document.createElement('span');
-      txt.style.cssText='overflow:hidden;text-overflow:ellipsis;font-size:9px;';
-      txt.textContent=abbr+' '+cnt;
-      span.appendChild(dot);span.appendChild(txt);
+      span.appendChild(dot);
+      span.appendChild(document.createTextNode(abbr+' '+cnt));
       lbls.appendChild(span);
     });
     barEl.appendChild(lbls);
@@ -373,7 +369,6 @@ function wtfShowMPCard(mp, cx, cy) {
 
 })();
 </script>
-</div><!-- /wtf-tab-hoc -->
 
 <!-- Senate Tab -->
 <div id="wtf-tab-senate" style="display:none;">
@@ -524,8 +519,8 @@ function wtfShowMPCard(mp, cx, cy) {
 })();
 </script>
 
-<!-- By Party Tab -->
-<div id="wtf-tab-parties" style="display:none;">
+<!-- Party Grid (under HoC tab) -->
+<div id="wtf-party-grid-section" style="margin-top:20px;">
 {% set LEADERS = {
   'mark-carney':           'Prime Minister',
   'pierre-poilievre':      'Opposition Leader',
@@ -582,6 +577,6 @@ function wtfShowMPCard(mp, cx, cy) {
 </div>
 {% endif %}
 
-</div><!-- /wtf-tab-parties -->
+</div><!-- /wtf-party-grid-section -->
 
 {% endblock %}

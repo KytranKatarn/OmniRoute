@@ -358,6 +358,15 @@ def run_parliament_sync(engine, current_session: str = "45-1") -> dict:
     _log_task("sync_ballots", sync_ballots, engine, session_filter=current_session)
     _log_task("tag_articles", tag_articles, engine)
 
+    # Phase 2: Elections Canada contribution data (~201MB, 4M rows, ~5-10 min)
+    try:
+        from ingest.parliament.elections_canada import run_ec_sync
+        ec_result = run_ec_sync(engine)
+        results["ec_contributions"] = ec_result
+    except Exception as exc:
+        logger.exception("ec_contributions sync failed (non-fatal): %s", exc)
+        results["ec_contributions"] = {"error": str(exc)}
+
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
     logger.info("parliament sync complete in %.1fs: %s", elapsed, results)
     return results

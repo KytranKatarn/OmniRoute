@@ -189,9 +189,62 @@
   {% endif %}
 </div>
 
-<!-- Phase 2 teaser -->
-<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:14px;margin-top:8px;font-size:11px;color:#6b7280;line-height:1.6;">
-  <strong style="color:#9ca3af;">Coming in Phase 2:</strong> Political donor data from Elections Canada — see who funds {{ mp.name.split()[0] }}'s party, and whether their votes align with their donors' interests.
+<!-- Funding section (Elections Canada data) -->
+{% if riding_donor_totals or top_named_donors %}
+<div class="wtf-mp-section">
+  <div class="wtf-mp-section-title">💰 Riding funding — Elections Canada data</div>
+
+  {% if riding_donor_totals %}
+  <div style="margin-bottom:14px;">
+    <div style="font-size:10px;color:#6b7280;margin-bottom:8px;">Total raised by {{ mp.riding_name or 'riding' }} association + candidate</div>
+    {% for r in riding_donor_totals %}
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #060d14;font-size:11px;">
+      <div>
+        <span style="color:#ccc;">{{ r.electoral_event or '—' }}</span>
+        <span style="font-size:9px;color:#4b5563;margin-left:6px;">{{ r.political_entity }}</span>
+      </div>
+      <div style="text-align:right;">
+        <span style="color:#22c55e;font-family:'IBM Plex Mono',monospace;">
+          ${{ "{:,.0f}".format(r.total_raised | float) }}
+        </span>
+        <span style="font-size:9px;color:#4b5563;margin-left:6px;">{{ r.donation_count }} donations</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if top_named_donors %}
+  <div>
+    <div style="font-size:10px;color:#6b7280;margin-bottom:8px;">
+      Named individual donors (≥$200) — Elections Canada public disclosure
+    </div>
+    {% for d in top_named_donors %}
+    <div style="display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:1px solid #060d14;font-size:11px;">
+      <div>
+        <span style="color:#ccc;">{{ d.contributor_name }}</span>
+        {% if d.contributor_city %}
+        <span style="font-size:9px;color:#4b5563;margin-left:6px;">{{ d.contributor_city }}{% if d.contributor_province %}, {{ d.contributor_province }}{% endif %}</span>
+        {% endif %}
+      </div>
+      <span style="color:#f59e0b;font-family:'IBM Plex Mono',monospace;flex-shrink:0;margin-left:10px;">
+        ${{ "{:,.0f}".format(d.total_given | float) }}
+      </span>
+    </div>
+    {% endfor %}
+    <div style="font-size:9px;color:#374151;margin-top:8px;">
+      Source: Elections Canada Open Data · Donations &lt;$200 are anonymized by law.
+    </div>
+  </div>
+  {% endif %}
 </div>
+{% else %}
+<div class="wtf-mp-section">
+  <div class="wtf-mp-section-title">💰 Riding funding</div>
+  <div style="color:#6b7280;font-size:12px;padding:12px 0;">
+    Elections Canada donation data loads on the first Sunday sync.
+  </div>
+</div>
+{% endif %}
 
 {% endblock %}

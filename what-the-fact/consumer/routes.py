@@ -1049,11 +1049,54 @@ def mp_profile(slug: str):
     stats = {r["ballot"]: r["cnt"] for r in vote_stats}
     total_votes = sum(stats.values())
 
+    # Donor data from Elections Canada (parliament.ec_contributions)
+    riding_donor_totals = []
+    top_named_donors = []
+    try:
+        riding = mp.get("riding_name") or ""
+        # EC uses "--" (double dash), parliament.mps uses "—" (em dash) — normalize
+        riding_ec = riding.replace("—", "--").replace("–", "--")
+        with _db().begin() as c:
+            riding_donor_totals = c.execute(text("""
+                SELECT electoral_event, political_entity,
+                       COUNT(*) AS donation_count,
+                       SUM(monetary_amount) AS total_raised,
+                       COUNT(DISTINCT contributor_name)
+                           FILTER (WHERE contributor_name NOT ILIKE '%200 or less%'
+                                     AND contributor_name NOT ILIKE '%ou moins%') AS named_donors
+                FROM parliament.ec_contributions
+                WHERE electoral_district ILIKE :riding
+                  AND monetary_amount > 0
+                GROUP BY electoral_event, political_entity
+                ORDER BY electoral_event DESC, total_raised DESC
+                LIMIT 12
+            """), {"riding": riding_ec}).mappings().all()
+
+            top_named_donors = c.execute(text("""
+                SELECT contributor_name, contributor_city, contributor_province,
+                       SUM(monetary_amount) AS total_given,
+                       COUNT(*) AS num_contributions,
+                       MAX(electoral_event) AS latest_event
+                FROM parliament.ec_contributions
+                WHERE electoral_district ILIKE :riding
+                  AND monetary_amount >= 200
+                  AND contributor_name NOT ILIKE '%200 or less%'
+                  AND contributor_name NOT ILIKE '%ou moins%'
+                  AND contributor_name != ''
+                GROUP BY contributor_name, contributor_city, contributor_province
+                ORDER BY total_given DESC
+                LIMIT 20
+            """), {"riding": riding_ec}).mappings().all()
+    except Exception:
+        pass  # ec_contributions might not be populated yet
+
     return render_template("mp.html", mp=mp,
                            votes=[dict(r) for r in votes],
                            articles=[dict(r) for r in articles],
                            stats=stats, total_votes=total_votes,
                            source_count=source_count,
+                           riding_donor_totals=[dict(r) for r in riding_donor_totals],
+                           top_named_donors=[dict(r) for r in top_named_donors],
                            is_subscriber=is_subscriber())
 
 

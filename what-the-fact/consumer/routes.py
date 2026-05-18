@@ -1082,7 +1082,6 @@ def officers_of_parliament():
                            is_subscriber=is_subscriber())
 
 
-<<<<<<< Updated upstream
 @bp.get("/crtc")
 def crtc_decisions():
     """CRTC rulings — broadcasting, telecom, compliance decisions."""
@@ -1103,7 +1102,10 @@ def crtc_decisions():
     return render_template("crtc.html",
                            decisions=[dict(r) for r in rows],
                            dtype=dtype,
-=======
+                           source_count=source_count,
+                           is_subscriber=is_subscriber())
+
+
 @bp.get("/ethics")
 def ethics_rulings():
     """Ethics Commissioner investigation reports."""
@@ -1119,7 +1121,30 @@ def ethics_rulings():
         source_count = c.execute(text(f"SELECT COUNT(*) FROM {_schema()}.sources")).scalar() or 0
     return render_template("ethics.html",
                            rulings=[dict(r) for r in rows],
->>>>>>> Stashed changes
+                           source_count=source_count,
+                           is_subscriber=is_subscriber())
+
+
+@bp.get("/rates")
+def boc_rates():
+    """Bank of Canada overnight rate decisions."""
+    with _db().begin() as c:
+        current = c.execute(text("""
+            SELECT rate_pct, decision_date
+            FROM market_watch.boc_rate_decisions
+            ORDER BY decision_date DESC LIMIT 1
+        """)).mappings().first()
+        decisions = c.execute(text("""
+            SELECT decision_date, rate_pct, change_bps
+            FROM market_watch.boc_rate_decisions
+            WHERE ABS(change_bps) >= 10 OR change_bps IS NULL
+            ORDER BY decision_date DESC
+            LIMIT 60
+        """)).mappings().all()
+        source_count = c.execute(text(f"SELECT COUNT(*) FROM {_schema()}.sources")).scalar() or 0
+    return render_template("rates.html",
+                           current=dict(current) if current else {},
+                           decisions=[dict(r) for r in decisions],
                            source_count=source_count,
                            is_subscriber=is_subscriber())
 

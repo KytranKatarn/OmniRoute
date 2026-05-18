@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}{{ mp.name }} — MP Profile · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="{{ mp.name }} ({{ mp.party }}, {{ mp.riding_name }}) — vote record, media coverage analysis by What The Fact.">
+<meta property="og:title" content="{{ mp.name }} — MP Profile">
+<meta property="og:description" content="{{ mp.party }} MP for {{ mp.riding_name }}. See their voting record and how the media covers them.">
+<meta property="og:url" content="https://what-the-fact.com/mp/{{ mp.slug }}">
+{% endblock %}
+{% block content %}
+<style>
+.wtf-mp-header { display:flex; gap:20px; align-items:flex-start; padding:20px 0 16px; border-bottom:1px solid #1a3a5a; margin-bottom:20px; flex-wrap:wrap; }
+.wtf-mp-hero-photo { width:96px; height:96px; border-radius:50%; object-fit:cover; background:#0a1520; border:2px solid #1a3a5a; flex-shrink:0; }
+.wtf-mp-hero-placeholder { width:96px; height:96px; border-radius:50%; background:#0a1520; border:2px solid #1a3a5a; display:flex; align-items:center; justify-content:center; font-size:40px; color:#374151; flex-shrink:0; }
+.wtf-mp-hero-info { flex:1; min-width:200px; }
+.wtf-mp-hero-name { font-family:'Orbitron',sans-serif; font-size:18px; color:#e5e7eb; margin:0 0 8px; }
+.wtf-mp-hero-meta { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
+.wtf-mp-party-pill { font-size:11px; padding:3px 10px; border-radius:10px; font-weight:600; }
+.wtf-mp-hero-riding { font-size:12px; color:#9ca3af; }
+.wtf-mp-hero-links { display:flex; gap:12px; margin-top:8px; flex-wrap:wrap; }
+.wtf-mp-hero-link { font-size:11px; color:#0af; text-decoration:none; }
+.wtf-mp-hero-link:hover { text-decoration:underline; }
+
+.wtf-mp-stats-row { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:20px; }
+.wtf-mp-stat { background:#060d14; border:1px solid #1a3a5a; border-radius:4px; padding:10px 14px; text-align:center; min-width:80px; }
+.wtf-mp-stat-num { font-size:22px; font-weight:700; font-family:'IBM Plex Mono',monospace; }
+.wtf-mp-stat-label { font-size:9px; color:#6b7280; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+
+.wtf-mp-section { margin-bottom:24px; }
+.wtf-mp-section-title { font-size:11px; color:#9ca3af; text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid #0d1f2d; }
+
+.wtf-vote-row { display:flex; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px solid #060d14; }
+.wtf-vote-ballot { flex-shrink:0; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; }
+.wtf-vote-yes { background:#052e16; color:#22c55e; border:1px solid #166534; }
+.wtf-vote-no { background:#3b0000; color:#ef4444; border:1px solid #991b1b; }
+.wtf-vote-paired { background:#1c1a00; color:#f59e0b; border:1px solid #92400e; }
+.wtf-vote-absent { background:#111; color:#6b7280; border:1px solid #374151; }
+.wtf-vote-desc { flex:1; font-size:12px; color:#ccc; line-height:1.5; }
+.wtf-vote-meta { font-size:10px; color:#4b5563; margin-top:2px; }
+.wtf-vote-result { font-size:10px; padding:1px 6px; border-radius:3px; }
+.wtf-vote-result-passed { background:#052e16; color:#22c55e; }
+.wtf-vote-result-failed { background:#3b0000; color:#ef4444; }
+
+.wtf-mp-article { display:flex; gap:10px; padding:8px 0; border-bottom:1px solid #060d14; align-items:flex-start; }
+.wtf-mp-article-band { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px; }
+.wtf-mp-article-info { flex:1; }
+.wtf-mp-article-title { font-size:12px; color:#ccc; text-decoration:none; line-height:1.4; }
+.wtf-mp-article-title:hover { color:#0af; }
+.wtf-mp-article-meta { font-size:10px; color:#4b5563; margin-top:2px; }
+
+.wtf-vote-bar { height:6px; border-radius:3px; background:#0a1520; position:relative; overflow:hidden; margin-bottom:6px; }
+.wtf-vote-bar-yes { height:100%; background:#22c55e; border-radius:3px; position:absolute; left:0; top:0; }
+</style>
+
+<div class="wtf-mp-header">
+  {% if mp.photo_url %}
+  <img class="wtf-mp-hero-photo" src="{{ mp.photo_url }}" alt="{{ mp.name }}"
+       onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+  <div class="wtf-mp-hero-placeholder" style="display:none;">👤</div>
+  {% else %}
+  <div class="wtf-mp-hero-placeholder">👤</div>
+  {% endif %}
+
+  <div class="wtf-mp-hero-info">
+    <div style="font-size:11px;color:#6b7280;margin-bottom:4px;">← <a href="/mps" style="color:#6b7280;text-decoration:none;">All MPs</a></div>
+    <h1 class="wtf-mp-hero-name">{{ mp.name }}</h1>
+    <div class="wtf-mp-hero-meta">
+      <span class="wtf-mp-party-pill" style="background:{{ mp.party_colour }}22;color:{{ mp.party_colour }};border:1px solid {{ mp.party_colour }}44;">
+        {{ mp.party or 'Independent' }}
+      </span>
+      {% if mp.province_code %}
+      <span style="font-size:11px;color:#6b7280;">{{ mp.province_code }}</span>
+      {% endif %}
+    </div>
+    <div class="wtf-mp-hero-riding">{{ mp.riding_name or '' }}</div>
+    <div class="wtf-mp-hero-links">
+      {% if mp.openparl_url %}
+      <a class="wtf-mp-hero-link" href="{{ mp.openparl_url }}" target="_blank" rel="noopener">OpenParliament ↗</a>
+      {% endif %}
+      {% if mp.twitter %}
+      <a class="wtf-mp-hero-link" href="https://twitter.com/{{ mp.twitter }}" target="_blank" rel="noopener">@{{ mp.twitter }}</a>
+      {% endif %}
+      {% if mp.email %}
+      <a class="wtf-mp-hero-link" href="mailto:{{ mp.email }}">{{ mp.email }}</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Stats row -->
+{% set yes_count = stats.get('Yes', 0) %}
+{% set no_count = stats.get('No', 0) %}
+{% set yes_pct = ((yes_count / total_votes * 100) | round | int) if total_votes else 0 %}
+<div class="wtf-mp-stats-row">
+  <div class="wtf-mp-stat">
+    <div class="wtf-mp-stat-num" style="color:#22c55e;">{{ yes_count }}</div>
+    <div class="wtf-mp-stat-label">Voted Yes</div>
+  </div>
+  <div class="wtf-mp-stat">
+    <div class="wtf-mp-stat-num" style="color:#ef4444;">{{ no_count }}</div>
+    <div class="wtf-mp-stat-label">Voted No</div>
+  </div>
+  {% if stats.get('Paired') %}
+  <div class="wtf-mp-stat">
+    <div class="wtf-mp-stat-num" style="color:#f59e0b;">{{ stats.get('Paired', 0) }}</div>
+    <div class="wtf-mp-stat-label">Paired</div>
+  </div>
+  {% endif %}
+  <div class="wtf-mp-stat">
+    <div class="wtf-mp-stat-num" style="color:#9ca3af;">{{ total_votes }}</div>
+    <div class="wtf-mp-stat-label">Total Votes</div>
+  </div>
+  <div class="wtf-mp-stat">
+    <div class="wtf-mp-stat-num" style="color:#0af;">{{ articles|length }}</div>
+    <div class="wtf-mp-stat-label">Media mentions</div>
+  </div>
+</div>
+
+{% if total_votes %}
+<div style="margin-bottom:16px;">
+  <div style="font-size:10px;color:#6b7280;margin-bottom:4px;">Yes rate — {{ yes_pct }}%</div>
+  <div class="wtf-vote-bar">
+    <div class="wtf-vote-bar-yes" style="width:{{ yes_pct }}%;"></div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Vote record -->
+<div class="wtf-mp-section">
+  <div class="wtf-mp-section-title">
+    🗳 Recent votes
+    {% if not votes %}— loading on next Sunday sync{% endif %}
+  </div>
+  {% if votes %}
+    {% for v in votes %}
+    {% set ballot_class = 'wtf-vote-yes' if v.ballot == 'Yes' else 'wtf-vote-no' if v.ballot == 'No' else 'wtf-vote-paired' if v.ballot == 'Paired' else 'wtf-vote-absent' %}
+    {% set ballot_icon = '✓' if v.ballot == 'Yes' else '✗' if v.ballot == 'No' else '⇌' if v.ballot == 'Paired' else '—' %}
+    <div class="wtf-vote-row">
+      <div class="wtf-vote-ballot {{ ballot_class }}" title="{{ v.ballot }}">{{ ballot_icon }}</div>
+      <div style="flex:1;">
+        <div class="wtf-vote-desc">
+          {{ (v.description_en or 'Motion')[:140] }}{% if (v.description_en or '')|length > 140 %}…{% endif %}
+          {% if v.bill_number %}
+          <span style="font-size:10px;color:#6b7280;margin-left:6px;">{{ v.bill_number }}</span>
+          {% endif %}
+        </div>
+        <div class="wtf-vote-meta">
+          {{ v.vote_date.strftime('%b %-d, %Y') if v.vote_date and v.vote_date.strftime is defined else (v.vote_date or '')[:10] }}
+          · Session {{ v.session }}
+          {% if v.result %}
+          · <span class="wtf-vote-result {% if v.result == 'Passed' %}wtf-vote-result-passed{% else %}wtf-vote-result-failed{% endif %}">{{ v.result }}</span>
+          {% endif %}
+          {% if v.yea_total is not none and v.nay_total is not none %}
+          · {{ v.yea_total }}–{{ v.nay_total }}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+  <div style="color:#6b7280;font-size:12px;padding:20px 0;">
+    Vote ballots load on the first Sunday sync. Check back soon.
+  </div>
+  {% endif %}
+</div>
+
+<!-- Articles mentioning this MP -->
+<div class="wtf-mp-section">
+  <div class="wtf-mp-section-title">📰 In the media</div>
+  {% if articles %}
+    {% set BAND_COLOURS = {'left': '#ef4444', 'center-left': '#f97316', 'center': '#22c55e', 'center-right': '#3b82f6', 'right': '#8b5cf6'} %}
+    {% for a in articles %}
+    <div class="wtf-mp-article">
+      <div class="wtf-mp-article-band" style="background:{{ BAND_COLOURS.get(a.bias_band or '', '#6b7280') }};"></div>
+      <div class="wtf-mp-article-info">
+        <a class="wtf-mp-article-title" href="/article/{{ a.id }}">{{ a.title or 'Untitled' }}</a>
+        <div class="wtf-mp-article-meta">
+          {% if a.source_slug %}<a href="/source/{{ a.source_slug }}" style="color:inherit;text-decoration:none;">{{ a.source_name }}</a>{% else %}{{ a.source_name }}{% endif %}
+          {% if a.published_at %}· {{ a.published_at.strftime('%b %-d') if a.published_at.strftime is defined else (a.published_at or '')[:10] }}{% endif %}
+          {% if a.bias_band %}· <span style="color:{{ BAND_COLOURS.get(a.bias_band, '#6b7280') }};">{{ a.bias_band.replace('-',' ') }}</span>{% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    <div style="margin-top:10px;font-size:11px;color:#6b7280;">Article tagging improves weekly as more articles are analyzed.</div>
+  {% else %}
+  <div style="color:#6b7280;font-size:12px;padding:16px 0;">
+    No articles linked yet — article tagging runs weekly. Check back after the next Sunday sync.
+  </div>
+  {% endif %}
+</div>
+
+<!-- Phase 2 teaser -->
+<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:14px;margin-top:8px;font-size:11px;color:#6b7280;line-height:1.6;">
+  <strong style="color:#9ca3af;">Coming in Phase 2:</strong> Political donor data from Elections Canada — see who funds {{ mp.name.split()[0] }}'s party, and whether their votes align with their donors' interests.
+</div>
+
+{% endblock %}

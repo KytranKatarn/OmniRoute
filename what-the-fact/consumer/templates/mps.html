@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Members of Parliament · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="{{ mps|length }} Members of Parliament tracked by What The Fact. See how they vote, who funds them, and how media covers them.">
+{% endblock %}
+{% block content %}
+<style>
+.wtf-mps-header { padding:16px 0 12px; border-bottom:1px solid #1a3a5a; margin-bottom:20px; }
+.wtf-mps-title { font-family:'Orbitron',sans-serif; font-size:18px; color:#e5e7eb; margin:0 0 6px; }
+.wtf-mps-filters { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+.wtf-mps-filters select { background:#060d14; border:1px solid #1a3a5a; color:#9ca3af; font-size:11px; padding:5px 10px; border-radius:3px; font-family:inherit; }
+.wtf-mps-filters select:focus { outline:none; border-color:#0af; }
+.wtf-mp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px; }
+.wtf-mp-card { background:#060d14; border:1px solid #1a3a5a; border-radius:4px; padding:14px 12px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:8px; text-decoration:none; transition:border-color .15s; }
+.wtf-mp-card:hover { border-color:#0af; }
+.wtf-mp-photo { width:56px; height:56px; border-radius:50%; object-fit:cover; background:#0a1520; }
+.wtf-mp-photo-placeholder { width:56px; height:56px; border-radius:50%; background:#0a1520; display:flex; align-items:center; justify-content:center; font-size:22px; color:#374151; }
+.wtf-mp-name { font-size:12px; color:#e5e7eb; font-weight:600; line-height:1.4; }
+.wtf-mp-party-badge { font-size:10px; padding:2px 8px; border-radius:10px; font-weight:600; }
+.wtf-mp-riding { font-size:10px; color:#6b7280; line-height:1.4; }
+.wtf-mp-stats { font-size:10px; color:#4b5563; }
+.wtf-party-section { margin-bottom:24px; }
+.wtf-party-header { font-size:11px; color:#9ca3af; text-transform:uppercase; letter-spacing:.08em; padding:6px 0; border-bottom:1px solid #0d1f2d; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+.wtf-party-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+@media (max-width:600px) { .wtf-mp-grid { grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); } }
+</style>
+
+<div class="wtf-mps-header">
+  <h1 class="wtf-mps-title">🏛 Members of Parliament</h1>
+  <div style="font-size:11px;color:#6b7280;">{{ mps|length }} current MPs tracked · votes, media coverage, accountability intelligence</div>
+</div>
+
+<form method="get" action="/mps" class="wtf-mps-filters">
+  <select name="party" onchange="this.form.submit()">
+    <option value="all" {% if party_filter == 'all' %}selected{% endif %}>All parties</option>
+    {% for p in parties %}
+    <option value="{{ p }}" {% if party_filter == p %}selected{% endif %}>{{ p }}</option>
+    {% endfor %}
+  </select>
+  <select name="province" onchange="this.form.submit()">
+    <option value="all" {% if province_filter == 'ALL' %}selected{% endif %}>All provinces</option>
+    {% for pc in provinces %}
+    <option value="{{ pc }}" {% if province_filter == pc %}selected{% endif %}>{{ pc }}</option>
+    {% endfor %}
+  </select>
+</form>
+
+{% set current_party = namespace(name='') %}
+{% for mp in mps %}
+  {% if mp.party != current_party.name %}
+    {% if not loop.first %}</div>{% endif %}
+    {% set current_party.name = mp.party %}
+    <div class="wtf-party-section">
+    <div class="wtf-party-header">
+      <span class="wtf-party-dot" style="background:{{ mp.party_colour }};"></span>
+      {{ mp.party or 'Unknown' }}
+      <span style="color:#4b5563;font-size:9px;">
+        ({{ mps | selectattr('party', 'equalto', mp.party) | list | length }})
+      </span>
+    </div>
+    <div class="wtf-mp-grid">
+  {% endif %}
+
+  <a class="wtf-mp-card" href="/mp/{{ mp.slug }}">
+    {% if mp.photo_url %}
+    <img class="wtf-mp-photo" src="{{ mp.photo_url }}" alt="{{ mp.name }}" loading="lazy"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+    <div class="wtf-mp-photo-placeholder" style="display:none;">👤</div>
+    {% else %}
+    <div class="wtf-mp-photo-placeholder">👤</div>
+    {% endif %}
+    <div class="wtf-mp-name">{{ mp.name }}</div>
+    <span class="wtf-mp-party-badge" style="background:{{ mp.party_colour }}22;color:{{ mp.party_colour }};border:1px solid {{ mp.party_colour }}44;">
+      {{ mp.party or '—' }}
+    </span>
+    <div class="wtf-mp-riding">{{ (mp.riding_name or '')[:40] }}{% if (mp.riding_name or '')|length > 40 %}…{% endif %}</div>
+    {% if mp.mention_count %}
+    <div class="wtf-mp-stats">{{ mp.mention_count }} article{% if mp.mention_count != 1 %}s{% endif %}</div>
+    {% endif %}
+  </a>
+{% endfor %}
+{% if mps %}</div></div>{% endif %}
+
+{% if not mps %}
+<div style="color:#6b7280;font-size:13px;padding:40px 0;text-align:center;">
+  No MPs found for this filter. <a href="/mps" style="color:#0af;">Reset filters →</a>
+</div>
+{% endif %}
+
+{% endblock %}

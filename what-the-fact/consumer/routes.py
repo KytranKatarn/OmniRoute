@@ -937,6 +937,126 @@ def cluster_comparison(cluster_id: int):
                            is_subscriber=is_subscriber())
 
 
+_OPENPARL_BASE = "https://openparliament.ca"
+_PARTY_COLOURS = {
+    "Conservative": "#003399",
+    "Liberal": "#d71920",
+    "NDP": "#f37021",
+    "Bloc Québécois": "#33b2cc",
+    "Green": "#3d9b35",
+    "Independent": "#888888",
+    "People's Party": "#6a0dad",
+}
+
+
+@bp.get("/mps")
+def mps_listing():
+    """All MPs with optional party/province filter."""
+    from flask import request as _req
+    S = _schema()
+    party_filter = (_req.args.get("party") or "all").strip()
+    province_filter = (_req.args.get("province") or "all").strip().upper()
+
+    with _db().begin() as c:
+        rows = c.execute(text("""
+            SELECT m.slug, m.name, m.party, m.riding_name, m.province_code,
+                   m.photo_url, m.twitter,
+                   COUNT(v.id) AS vote_count,
+                   (SELECT COUNT(*) FROM wtf.article_mp_tags t WHERE t.mp_id = m.id) AS mention_count
+            FROM parliament.mps m
+            LEFT JOIN parliament.mp_votes v ON v.mp_id = m.id
+            WHERE m.is_current = true
+              AND (:party = 'all' OR m.party = :party)
+              AND (:province = 'ALL' OR m.province_code = :province)
+            GROUP BY m.id
+            ORDER BY m.party, m.name
+        """), {"party": party_filter, "province": province_filter}).mappings().all()
+        parties = c.execute(text(
+            "SELECT DISTINCT party FROM parliament.mps WHERE is_current=true AND party IS NOT NULL ORDER BY party"
+        )).scalars().all()
+        provinces = c.execute(text(
+            "SELECT DISTINCT province_code FROM parliament.mps WHERE is_current=true AND province_code IS NOT NULL ORDER BY province_code"
+        )).scalars().all()
+        source_count = c.execute(text(f"SELECT COUNT(*) FROM {S}.sources")).scalar() or 0
+
+    mps = []
+    for r in rows:
+        mp = dict(r)
+        if mp.get("photo_url") and not mp["photo_url"].startswith("http"):
+            mp["photo_url"] = _OPENPARL_BASE + mp["photo_url"]
+        mp["party_colour"] = _PARTY_COLOURS.get(mp.get("party") or "", "#6b7280")
+        mps.append(mp)
+
+    return render_template("mps.html", mps=mps, parties=list(parties),
+                           provinces=list(provinces), party_filter=party_filter,
+                           province_filter=province_filter, source_count=source_count)
+
+
+@bp.get("/mp/<slug>")
+def mp_profile(slug: str):
+    """Individual MP profile — votes, party, riding, articles mentioning them."""
+    if not slug.replace("-", "").replace("_", "").isalnum():
+        abort(404)
+    S = _schema()
+    with _db().begin() as c:
+        mp_row = c.execute(text("""
+            SELECT id, slug, name, party, riding_name, province_code,
+                   photo_url, twitter, email, parl_mp_id, openparl_url, fetched_at
+            FROM parliament.mps WHERE slug = :slug AND is_current = true
+        """), {"slug": slug}).mappings().first()
+    if not mp_row:
+        abort(404)
+    mp = dict(mp_row)
+    if mp.get("photo_url") and not mp["photo_url"].startswith("http"):
+        mp["photo_url"] = _OPENPARL_BASE + mp["photo_url"]
+    mp["party_colour"] = _PARTY_COLOURS.get(mp.get("party") or "", "#6b7280")
+
+    with _db().begin() as c:
+        # Recent votes
+        votes = c.execute(text("""
+            SELECT b.description_en, b.bill_number, b.vote_date, b.result,
+                   b.yea_total, b.nay_total, b.session, b.vote_number, v.ballot
+            FROM parliament.mp_votes v
+            JOIN parliament.bills b ON b.id = v.bill_id
+            WHERE v.mp_id = :mp_id
+            ORDER BY b.vote_date DESC
+            LIMIT 30
+        """), {"mp_id": mp["id"]}).mappings().all()
+
+        # Vote summary
+        vote_stats = c.execute(text("""
+            SELECT ballot, COUNT(*) AS cnt
+            FROM parliament.mp_votes WHERE mp_id = :mp_id
+            GROUP BY ballot
+        """), {"mp_id": mp["id"]}).mappings().all()
+
+        # Articles mentioning this MP
+        articles = c.execute(text(f"""
+            SELECT a.id, a.title, a.url, a.published_at,
+                   s.name AS source_name, s.slug AS source_slug,
+                   bs.band AS bias_band
+            FROM wtf.article_mp_tags t
+            JOIN {S}.articles a ON a.id = t.article_id
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores bs ON bs.article_id = a.id
+            WHERE t.mp_id = :mp_id
+            ORDER BY a.published_at DESC
+            LIMIT 15
+        """), {"mp_id": mp["id"]}).mappings().all()
+
+        source_count = c.execute(text(f"SELECT COUNT(*) FROM {S}.sources")).scalar() or 0
+
+    stats = {r["ballot"]: r["cnt"] for r in vote_stats}
+    total_votes = sum(stats.values())
+
+    return render_template("mp.html", mp=mp,
+                           votes=[dict(r) for r in votes],
+                           articles=[dict(r) for r in articles],
+                           stats=stats, total_votes=total_votes,
+                           source_count=source_count,
+                           is_subscriber=is_subscriber())
+
+
 @bp.route("/score", methods=["GET", "POST"])
 def score_url():
     """Subscriber-gated: paste any article text for instant AI analysis."""

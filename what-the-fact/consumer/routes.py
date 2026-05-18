@@ -643,11 +643,30 @@ def article(article_id: int):
 
     is_paywalled = (a.get("source_slug") or "") in _PAYWALLED_SOURCES
     is_limited_body = len(a.get("body") or "") < 150
+
+    # Outlet comparison — other articles in the same cluster (#3069)
+    cluster_articles = []
+    if a.get("cluster_id"):
+        with _db().begin() as c:
+            siblings = c.execute(text(f"""
+                SELECT a2.id, a2.title, a2.url, a2.published_at,
+                       s2.name AS source_name, s2.slug AS source_slug,
+                       b2.band AS bias_band, b2.score AS bias_score
+                FROM {S}.articles a2
+                JOIN {S}.sources s2 ON s2.id = a2.source_id
+                LEFT JOIN {S}.bias_scores b2 ON b2.article_id = a2.id
+                WHERE a2.cluster_id = :cid AND a2.id != :aid
+                ORDER BY a2.published_at DESC
+                LIMIT 10
+            """), {"cid": a["cluster_id"], "aid": article_id}).mappings().all()
+        cluster_articles = [dict(r) for r in siblings]
+
     return render_template("article.html", a=a, wtf_tech_url=wtf_tech_url,
                            is_subscriber=subscribed,
                            is_paywalled=is_paywalled,
                            is_limited_body=is_limited_body,
-                           google_fact_checks=google_fact_checks)
+                           google_fact_checks=google_fact_checks,
+                           cluster_articles=cluster_articles)
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -824,6 +843,45 @@ def source_profile(slug: str):
                            src=dict(src),
                            band_counts=[dict(r) for r in band_counts],
                            recent=[dict(r) for r in recent])
+
+
+@bp.get("/cluster/<int:cluster_id>")
+def cluster_comparison(cluster_id: int):
+    """Side-by-side outlet comparison for a story cluster (#3069)."""
+    S = _schema()
+    with _db().begin() as c:
+        meta = c.execute(text(f"""
+            SELECT sc.id, sc.representative_title, sc.article_count,
+                   sc.created_at
+            FROM {S}.story_clusters sc
+            WHERE sc.id = :cid
+        """), {"cid": cluster_id}).mappings().first()
+    if not meta:
+        abort(404)
+    with _db().begin() as c:
+        articles = c.execute(text(f"""
+            SELECT a.id, a.title, a.url, a.published_at,
+                   LEFT(a.body, 400) AS excerpt,
+                   s.name AS source_name, s.slug AS source_slug, s.bias_lean,
+                   b.band AS bias_band, b.score AS bias_score,
+                   b.rationale AS bias_rationale, b.analyzed_by,
+                   fc.overall_verdict, fc.analyzed_by AS fc_analyzed_by
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            LEFT JOIN {S}.fact_checks fc
+                ON fc.article_id = a.id AND fc.checker NOT LIKE 'GoogleFCT%%'
+            WHERE a.cluster_id = :cid
+            ORDER BY a.published_at ASC
+        """), {"cid": cluster_id}).mappings().all()
+        source_count = c.execute(
+            text(f"SELECT COUNT(*) FROM {S}.sources")
+        ).scalar() or 0
+    return render_template("cluster.html",
+                           cluster=dict(meta),
+                           articles=[dict(r) for r in articles],
+                           source_count=source_count,
+                           is_subscriber=is_subscriber())
 
 
 @bp.route("/score", methods=["GET", "POST"])

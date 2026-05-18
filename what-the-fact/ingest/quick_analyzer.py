@@ -20,7 +20,7 @@ logger = logging.getLogger("wtf-ingest")
 
 _HUB_URL = os.environ.get("WTF_HUB_URL", "")
 _HUB_TOKEN = os.environ.get("WTF_HUB_TOKEN", "")
-_TIMEOUT = int(os.environ.get("WTF_TIER1_TIMEOUT", "15"))
+_TIMEOUT = int(os.environ.get("WTF_TIER1_TIMEOUT", "30"))
 _ENABLED = bool(_HUB_URL and _HUB_TOKEN)
 
 # Strip ```json fences and stray prefixes (e.g. "Here is the JSON:") that small
@@ -54,7 +54,16 @@ def _coerce_dict(raw):
         if isinstance(parsed, dict):
             return parsed
     except (json.JSONDecodeError, ValueError):
-        pass
+        # Trailing garbage (e.g. qwen2.5 appends `")` after the JSON object).
+        # Extract the first well-formed {...} blob and retry.
+        m = _FIRST_OBJ_RE.search(text)
+        if m:
+            try:
+                parsed = json.loads(m.group(0))
+                if isinstance(parsed, dict):
+                    return parsed
+            except (json.JSONDecodeError, ValueError):
+                pass
     return None
 
 

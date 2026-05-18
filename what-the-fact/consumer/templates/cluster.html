@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}{{ (cluster.representative_title or 'Story Cluster')|truncate(70) }} — Outlet Comparison · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="{{ articles|length }} outlets covered this story. Compare bias, framing, and fact-check verdicts side by side.">
+<meta property="og:title" content="Outlet Comparison: {{ (cluster.representative_title or 'Story Cluster')|truncate(60) }}">
+<meta property="og:description" content="{{ articles|length }} Canadian outlets covered this story. See how bias and framing differ.">
+<meta property="og:url" content="https://what-the-fact.com/cluster/{{ cluster.id }}">
+<meta property="og:type" content="article">
+<meta name="twitter:card" content="summary">
+{% endblock %}
+{% block content %}
+
+{% set BAND_COLOURS = {
+  'left': '#ef4444',
+  'center-left': '#f97316',
+  'center': '#22c55e',
+  'center-right': '#3b82f6',
+  'right': '#8b5cf6'
+} %}
+{% set VERDICT_COLOURS = {
+  'verified': '#22c55e',
+  'mostly_true': '#84cc16',
+  'mixed': '#f59e0b',
+  'disputed': '#f97316',
+  'unverifiable': '#6b7280',
+  'unverified': '#6b7280'
+} %}
+
+<style>
+.wtf-cluster-header { padding: 20px 0 14px; border-bottom: 1px solid #1a3a5a; margin-bottom: 20px; }
+.wtf-cluster-title { font-family: 'Orbitron', sans-serif; font-size: 16px; color: #e5e7eb; margin: 0 0 6px; line-height: 1.4; }
+.wtf-cluster-meta { font-size: 11px; color: #6b7280; }
+.wtf-cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.wtf-cluster-card { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.wtf-cluster-card-source { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: .06em; display: flex; align-items: center; gap: 6px; }
+.wtf-cluster-card-title { font-size: 13px; color: #e5e7eb; line-height: 1.5; text-decoration: none; }
+.wtf-cluster-card-title:hover { color: #0af; }
+.wtf-cluster-card-excerpt { font-size: 11px; color: #6b7280; line-height: 1.6; }
+.wtf-cluster-card-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+.wtf-band-pill { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.wtf-verdict-pill { font-size: 10px; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: .05em; }
+.wtf-cluster-card-date { font-size: 10px; color: #4b5563; }
+.wtf-cluster-card-link { font-size: 11px; color: #0af; text-decoration: none; margin-top: auto; }
+.wtf-cluster-card-link:hover { text-decoration: underline; }
+.wtf-bias-bar-mini { height: 4px; border-radius: 2px; background: linear-gradient(to right,#ef4444,#6b7280,#8b5cf6); position: relative; margin: 4px 0; }
+.wtf-bias-dot { position: absolute; top: -3px; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid #060d14; transform: translateX(-50%); }
+@media (max-width: 600px) { .wtf-cluster-grid { grid-template-columns: 1fr; } }
+</style>
+
+<div class="wtf-cluster-header">
+  <div class="wtf-cluster-meta">
+    <a href="/news" style="color:#6b7280;text-decoration:none;">← Back to News</a>
+    &nbsp;·&nbsp; {{ articles|length }} outlet{{ 's' if articles|length != 1 else '' }} · Story cluster #{{ cluster.id }}
+  </div>
+  <h1 class="wtf-cluster-title">{{ cluster.representative_title or 'Story Cluster' }}</h1>
+  <div class="wtf-cluster-meta">
+    How different outlets framed the same story — bias, verdict, and framing side by side.
+  </div>
+</div>
+
+{% if articles %}
+<div class="wtf-cluster-grid">
+  {% for art in articles %}
+  {% set band = art.bias_band or '' %}
+  {% set band_colour = BAND_COLOURS.get(band, '#6b7280') %}
+  {% set verdict = art.overall_verdict or '' %}
+  {% set verdict_colour = VERDICT_COLOURS.get(verdict, '#6b7280') %}
+  {% set score = art.bias_score or 0 %}
+  {% set pct = [[(score + 1) / 2 * 100, 5]|max, 95]|min %}
+  <div class="wtf-cluster-card">
+    <div class="wtf-cluster-card-source">
+      <span style="width:8px;height:8px;border-radius:50%;background:{{ band_colour }};flex-shrink:0;display:inline-block;"></span>
+      {% if art.source_slug %}
+      <a href="/source/{{ art.source_slug }}" style="color:inherit;text-decoration:none;">{{ art.source_name or art.source_slug }}</a>
+      {% else %}
+      {{ art.source_name or '—' }}
+      {% endif %}
+    </div>
+
+    <a class="wtf-cluster-card-title" href="/article/{{ art.id }}">
+      {{ art.title or 'Untitled' }}
+    </a>
+
+    {% if art.excerpt %}
+    <div class="wtf-cluster-card-excerpt">{{ art.excerpt[:300] }}{% if (art.excerpt or '')|length >= 300 %}…{% endif %}</div>
+    {% endif %}
+
+    <div class="wtf-bias-bar-mini">
+      <div class="wtf-bias-dot" style="left:{{ pct }}%;background:{{ band_colour }};"></div>
+    </div>
+
+    <div class="wtf-cluster-card-meta">
+      {% if band %}
+      <span class="wtf-band-pill" style="background:{{ band_colour }}22;color:{{ band_colour }};border:1px solid {{ band_colour }}44;">
+        {{ band.replace('-',' ') }}
+      </span>
+      {% else %}
+      <span class="wtf-band-pill" style="background:#1a1a1a;color:#6b7280;border:1px solid #333;">unscored</span>
+      {% endif %}
+
+      {% if verdict %}
+      <span class="wtf-verdict-pill" style="background:{{ verdict_colour }}22;color:{{ verdict_colour }};border:1px solid {{ verdict_colour }}44;">
+        V.E.R.I.F.Y.: {{ verdict.replace('_',' ') }}
+      </span>
+      {% endif %}
+
+      <span class="wtf-cluster-card-date">
+        {{ art.published_at.strftime('%b %-d') if art.published_at else '—' }}
+      </span>
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:center;margin-top:4px;">
+      <a class="wtf-cluster-card-link" href="/article/{{ art.id }}">Read full analysis →</a>
+      <a href="{{ art.url }}" target="_blank" rel="nofollow noopener" style="font-size:10px;color:#4b5563;text-decoration:none;">Source ↗</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if not is_subscriber %}
+<div style="margin-top:24px;background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:16px;text-align:center;font-size:12px;color:#9ca3af;">
+  🔒 <strong style="color:#e5e7eb;">Subscribers</strong> see full bias rationale, trigger phrases, and V.E.R.I.F.Y. evidence for every outlet in this comparison.
+  <br><br>
+  <a href="/billing/checkout/starter" style="background:#0a2a3a;border:1px solid #0af;color:#0af;padding:8px 18px;border-radius:3px;text-decoration:none;font-size:12px;">Subscribe — $19/mo</a>
+  &nbsp;&nbsp;
+  <a href="/login?next=/cluster/{{ cluster.id }}" style="font-size:11px;color:#6b7280;text-decoration:none;">Already subscribed? Sign in →</a>
+</div>
+{% endif %}
+
+{% else %}
+<div style="color:#6b7280;font-size:13px;padding:40px 0;text-align:center;">No articles found in this cluster.</div>
+{% endif %}
+
+{% endblock %}

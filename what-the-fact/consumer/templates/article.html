@@ -308,10 +308,31 @@
     <p><a href="https://what-the-fact.tech/transparency/{{ a.id }}" style="color:#a0f;">Full audit trail for this article &#x2192;</a></p>
   </details>
 
-  <!-- Cross-source -->
-  {% if a.cluster_id %}
+  <!-- Cross-source outlet comparison (#3069) -->
+  {% if cluster_articles %}
+  <div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px 14px;margin-top:14px;">
+    <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">
+      📰 {{ cluster_articles|length }} other outlet{{ 's' if cluster_articles|length != 1 else '' }} covered this story
+    </div>
+    {% for ca in cluster_articles[:5] %}
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #0d1f2d;{% if loop.last %}border-bottom:none;{% endif %}">
+      {% set _cb = ca.bias_band or '' %}
+      {% set _cc = '#ef4444' if _cb == 'right' else '#3b82f6' if _cb == 'left' else '#f59e0b' if 'center-' in _cb else '#6b7280' %}
+      <span style="width:8px;height:8px;border-radius:50%;background:{{ _cc }};flex-shrink:0;"></span>
+      <a href="/article/{{ ca.id }}" style="color:#ccc;text-decoration:none;font-size:12px;flex:1;line-height:1.4;">{{ (ca.title or '')[:90] }}{% if (ca.title or '')|length > 90 %}…{% endif %}</a>
+      <span style="font-size:10px;color:#6b7280;flex-shrink:0;">{{ ca.source_name or '' }}</span>
+    </div>
+    {% endfor %}
+    {% if cluster_articles|length > 5 %}
+    <div style="margin-top:8px;font-size:11px;color:#6b7280;">+ {{ cluster_articles|length - 5 }} more</div>
+    {% endif %}
+    <a href="/cluster/{{ a.cluster_id }}" style="display:inline-block;margin-top:10px;font-size:11px;color:#0af;text-decoration:none;">
+      See full side-by-side comparison &#x2192;
+    </a>
+  </div>
+  {% elif a.cluster_id %}
   <div style="margin-top:12px;">
-    <a class="wtf-cross-source" href="https://what-the-fact.tech/clusters/{{ a.cluster_id }}">
+    <a style="font-size:11px;color:#0af;text-decoration:none;" href="/cluster/{{ a.cluster_id }}">
       Compare with other outlets covering this story &#x2192;
     </a>
   </div>

@@ -58,6 +58,7 @@
   </div>
 </div>
 
+{% if is_subscriber %}
 <!-- F.A.C.T. Framing Comparison -->
 <div id="wtf-framing-panel" style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:14px 16px;margin-bottom:20px;">
   <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">🤖 F.A.C.T. Framing Analysis</div>
@@ -75,6 +76,15 @@
   </div>
   {% endif %}
 </div>
+{% else %}
+<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:8px;padding:24px;text-align:center;margin-bottom:20px;">
+  <div style="font-size:18px;margin-bottom:8px;">📰</div>
+  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">Side-by-Side Outlet Comparison — Starter+</div>
+  <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">See how {{ articles|length }} outlets framed this story — bias by source, F.A.C.T. framing analysis, and verdict side by side.</div>
+  <a href="/login?next=/cluster/{{ cluster.id }}" style="display:inline-block;background:#0af;color:#000;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
+  <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
+</div>
+{% endif %}
 
 <script>
 async function wtfReframe() {
@@ -108,7 +118,7 @@ async function wtfReframe() {
 }
 </script>
 
-{% if articles %}
+{% if articles and is_subscriber %}
 <div class="wtf-cluster-grid">
   {% for art in articles %}
   {% set band = art.bias_band or '' %}

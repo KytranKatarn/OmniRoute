@@ -110,10 +110,6 @@ body { background: var(--wtf-bg); color: #e0e0e0; font-family: 'IBM Plex Mono', 
           {% if a.mp_mentions %}
           <span class="wtf-card-badge" style="background:#0a1a2a;color:#a78bfa;border:1px solid #4c1d9544;font-size:9px;" title="{{ a.mp_mentions }}">🏛 {{ a.mp_mentions[:40] }}{% if a.mp_mentions|length > 40 %}…{% endif %}</span>
           {% endif %}
-          {% else %}
-          {% if a.cluster_size and a.cluster_size > 1 %}
-          <a href="/cluster/{{ a.cluster_id }}" class="wtf-card-badge" style="background:#0a2a3a;color:#0af;border:1px solid #0af3;text-decoration:none;">📰 {{ a.cluster_size }} outlets</a>
-          {% endif %}
           {% endif %}
         </div>
       </div>

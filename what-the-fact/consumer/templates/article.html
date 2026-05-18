@@ -425,6 +425,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
   <!-- Cross-source outlet comparison (#3069) -->
   {% if cluster_articles %}
   <div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px 14px;margin-top:14px;">
+    {% if is_subscriber %}
     <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">
       📰 {{ cluster_articles|length }} other outlet{{ 's' if cluster_articles|length != 1 else '' }} covered this story
     </div>
@@ -443,8 +444,18 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
     <a href="/cluster/{{ a.cluster_id }}" style="display:inline-block;margin-top:10px;font-size:11px;color:#0af;text-decoration:none;">
       See full side-by-side comparison &#x2192;
     </a>
+    {% else %}
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span style="font-size:20px;">📰</span>
+      <div>
+        <div style="font-size:12px;color:#e5e7eb;font-weight:600;">{{ cluster_articles|length }} outlet{{ 's' if cluster_articles|length != 1 else '' }} covered this story</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px;">Side-by-side comparison · bias by outlet · framing analysis</div>
+      </div>
+      <a href="/login?next=/cluster/{{ a.cluster_id }}" style="margin-left:auto;background:#0a2a3a;border:1px solid #0af;color:#0af;font-size:11px;font-weight:700;padding:6px 14px;border-radius:3px;text-decoration:none;white-space:nowrap;">🔒 Unlock — Starter+</a>
+    </div>
+    {% endif %}
   </div>
-  {% elif a.cluster_id %}
+  {% elif a.cluster_id and is_subscriber %}
   <div style="margin-top:12px;">
     <a style="font-size:11px;color:#0af;text-decoration:none;" href="/cluster/{{ a.cluster_id }}">
       Compare with other outlets covering this story &#x2192;

@@ -12,6 +12,11 @@ def canonicalize(raw: dict) -> dict:
         raise ValueError("url required")
     body = unescape(_TAG_RE.sub("", raw.get("body") or "")).strip()
     body = re.sub(r"\s+", " ", body)
+    # Strip RSS syndication footers (Postmedia/Quebecor/etc.)
+    body = re.sub(r'The post .{1,200} appeared first on [^.]{1,80}\.?\s*$', '', body, flags=re.IGNORECASE).strip()
+    # Strip leading pull-quote snippet that is the entire body (e.g. "Quote text")
+    if body and body.startswith('"') and len(body) < 300 and body.count('"') <= 2:
+        body = ""
     title = (raw.get("title") or "").strip()[:1024]
     return {
         "external_id": raw["external_id"][:512],

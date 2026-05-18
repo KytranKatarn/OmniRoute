@@ -115,6 +115,7 @@
     <h1 class="wtf-art-title">{{ a.title }}</h1>
     {% if a.url %}
     <a href="{{ a.url }}" target="_blank" rel="noopener" style="font-size:11px;color:#555;">Original article &#x2197;</a>
+    {% if is_paywalled %}<span style="font-size:10px;color:#6b7280;margin-left:8px;">🔒 Paywalled source — limited preview available</span>{% endif %}
     {% endif %}
   </div>
 
@@ -158,6 +159,11 @@
         {% endif %}
       </div>
     </details>
+    {% endif %}
+    {% if is_limited_body and not a.ai_analyzed %}
+    <div style="font-size:10px;color:#555;margin-top:6px;padding:6px 8px;background:#0a0a0a;border-radius:3px;border-left:2px solid #1f2937;">
+      ⚠ Limited content available — score is a heuristic default, not a measured bias signal.
+    </div>
     {% endif %}
     {% if is_subscriber %}
       {% if a.bias_rationale %}
@@ -268,9 +274,31 @@
   </div>
   {% endif %}
 
-  <!-- Article Body -->
-  {% if a.body %}
-  <div class="wtf-art-body">{{ a.body }}</div>
+  <!-- Article Body / Excerpt -->
+  {% if is_limited_body %}
+  <div style="background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:16px;margin-bottom:14px;text-align:center;">
+    <div style="font-size:18px;margin-bottom:6px;">📰</div>
+    <div style="font-size:12px;color:#6b7280;margin-bottom:10px;line-height:1.6;">
+      {% if is_paywalled %}
+        This source provides limited RSS previews. The full article is behind a paywall at {{ a.source_name or 'the publisher' }}.
+      {% else %}
+        Full article content is not available for this source. Read the original article for the complete story.
+      {% endif %}
+    </div>
+    {% if a.url %}
+    <a href="{{ a.url }}" target="_blank" rel="noopener" style="font-size:11px;background:#0a1f3a;border:1px solid #0af;color:#0af;padding:6px 14px;border-radius:3px;text-decoration:none;">
+      Read full article at {{ a.source_name or 'source' }} ↗
+    </a>
+    {% endif %}
+  </div>
+  {% elif a.body %}
+  <div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:14px 16px;margin-bottom:14px;">
+    <div style="font-size:10px;letter-spacing:1.5px;color:#4b5563;text-transform:uppercase;margin-bottom:10px;">Article Excerpt</div>
+    <div class="wtf-art-body" style="margin-bottom:10px;">{{ a.body[:600] }}{% if a.body|length > 600 %}…{% endif %}</div>
+    {% if a.url %}
+    <a href="{{ a.url }}" target="_blank" rel="noopener" style="font-size:11px;color:#0af;text-decoration:none;">Read full article at {{ a.source_name or 'source' }} ↗</a>
+    {% endif %}
+  </div>
   {% endif %}
 
   <!-- How We Scored This -->

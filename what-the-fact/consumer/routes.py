@@ -13,6 +13,14 @@ bp = Blueprint("wtf", __name__)
 _engine = None
 _PLATFORM = "https://platform.kytranempowerment.com"
 
+# Sources known to restrict RSS to snippet-only (paywalled originals).
+_PAYWALLED_SOURCES = frozenset({
+    "montreal_gazette", "national_post", "financial_post", "vancouver_sun",
+    "calgary_herald", "edmonton_journal", "ottawa_citizen", "toronto_star",
+    "globe_mail", "journal_de_montreal", "le_devoir", "la_presse",
+    "le_soleil", "le_quotidien",
+})
+
 # Portrait cache — fetches live URLs from platform /api/public/directory
 # so agent portraits update automatically when approved without a code change.
 _PORTRAIT_CACHE: dict = {}
@@ -633,8 +641,12 @@ def article(article_id: int):
             # Don't break article rendering on logging failure
             pass
 
+    is_paywalled = (a.get("source_slug") or "") in _PAYWALLED_SOURCES
+    is_limited_body = len(a.get("body") or "") < 150
     return render_template("article.html", a=a, wtf_tech_url=wtf_tech_url,
                            is_subscriber=subscribed,
+                           is_paywalled=is_paywalled,
+                           is_limited_body=is_limited_body,
                            google_fact_checks=google_fact_checks)
 
 

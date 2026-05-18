@@ -4,7 +4,7 @@ import os
 import time
 import urllib.request
 
-from flask import Blueprint, render_template, abort
+from flask import Blueprint, render_template, abort, Response
 
 from sqlalchemy import create_engine, text
 from .auth import is_subscriber
@@ -522,6 +522,41 @@ def index():
         ).scalar() or 0
     return render_template("index.html", articles=rows, wtf_tech_url=wtf_tech_url,
                            source_count=source_count, is_subscriber=is_subscriber())
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# Server-side proxy routes — browser JS must never call wtf-tech directly
+# (mixed content: page is HTTPS, wtf-tech is an internal Docker hostname)
+# ───────────────────────────────────────────────────────────────────────────
+def _proxy_tech(path: str, method: str = "GET", body: bytes = None) -> Response:
+    url = os.environ.get("WTF_TECH_URL", "https://what-the-fact.tech") + path
+    req = urllib.request.Request(url, data=body, method=method)
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return Response(resp.read(), content_type="application/json")
+    except Exception as exc:
+        return Response(json.dumps({"error": str(exc)}), status=502, content_type="application/json")
+
+
+@bp.get("/api/proxy/map-data")
+def proxy_map_data():
+    return _proxy_tech("/api/v1/map-data")
+
+
+@bp.get("/api/proxy/agent-activity")
+def proxy_agent_activity():
+    return _proxy_tech("/api/v1/agent-activity")
+
+
+@bp.get("/api/proxy/articles/geo")
+def proxy_articles_geo():
+    return _proxy_tech("/api/v1/articles/geo")
+
+
+@bp.post("/api/proxy/articles/<int:article_id>/analyze")
+def proxy_article_analyze(article_id: int):
+    return _proxy_tech(f"/api/v1/articles/{article_id}/analyze", method="POST", body=b"{}")
 
 
 @bp.get("/article/<int:article_id>")

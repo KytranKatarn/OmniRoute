@@ -111,7 +111,7 @@ def dashboard():
 
 @bp.get("/api/v1/map-data")
 def map_data():
-    """Province-level news stats for Canada map (last 24h)."""
+    """Province-level + world news stats for map toggle (last 24h)."""
     from flask import jsonify
     S = _schema()
     with _db().connect() as c:
@@ -127,6 +127,26 @@ def map_data():
             WHERE a.published_at >= NOW() - INTERVAL '24 hours'
               AND a.province_code IS NOT NULL
             GROUP BY a.province_code
+        """)).fetchall()
+
+        national_cnt = c.execute(text(f"""
+            SELECT COUNT(*) FROM {S}.articles
+            WHERE published_at >= NOW() - INTERVAL '24 hours'
+              AND geo_scope = 'national'
+        """)).scalar() or 0
+
+        intl_rows = c.execute(text(f"""
+            SELECT a.country_code, COUNT(*) AS cnt,
+                   AVG(a.lat) AS avg_lat, AVG(a.lng) AS avg_lng,
+                   AVG(bs.score) AS avg_score
+            FROM {S}.articles a
+            LEFT JOIN {S}.bias_scores bs ON bs.article_id = a.id
+            WHERE a.published_at >= NOW() - INTERVAL '24 hours'
+              AND a.geo_scope = 'international'
+              AND a.country_code IS NOT NULL
+              AND a.lat IS NOT NULL
+            GROUP BY a.country_code
+            ORDER BY cnt DESC
         """)).fetchall()
 
     def _band(score):
@@ -149,7 +169,22 @@ def map_data():
                 "dominant_outlet": row.top_outlet or "",
             }
 
-    return jsonify({"provinces": provinces})
+    countries = []
+    for row in intl_rows:
+        if row.avg_lat and row.avg_lng:
+            countries.append({
+                "code": row.country_code,
+                "lat": round(float(row.avg_lat), 4),
+                "lng": round(float(row.avg_lng), 4),
+                "articles": int(row.cnt),
+                "band": _band(row.avg_score),
+            })
+
+    return jsonify({
+        "provinces": provinces,
+        "national": {"articles": int(national_cnt)},
+        "countries": countries,
+    })
 
 
 @bp.get("/api/v1/agent-activity")

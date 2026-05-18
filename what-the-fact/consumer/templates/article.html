@@ -277,13 +277,13 @@
   <details class="wtf-how-scored">
     <summary>How we scored this article</summary>
     <p style="margin-top:8px;">WTF uses a two-tier system: every article gets a heuristic bias score from keyword analysis, and priority articles (high overlap across 3+ outlets or strong heuristic signal) get full LLM analysis from B.I.A.S. and V.E.R.I.F.Y.</p>
-    <p><a href="{{ wtf_tech_url }}/transparency/{{ a.id }}" style="color:#a0f;">Full audit trail for this article &#x2192;</a></p>
+    <p><a href="https://what-the-fact.tech/transparency/{{ a.id }}" style="color:#a0f;">Full audit trail for this article &#x2192;</a></p>
   </details>
 
   <!-- Cross-source -->
   {% if a.cluster_id %}
   <div style="margin-top:12px;">
-    <a class="wtf-cross-source" href="{{ wtf_tech_url }}/clusters/{{ a.cluster_id }}">
+    <a class="wtf-cross-source" href="https://what-the-fact.tech/clusters/{{ a.cluster_id }}">
       Compare with other outlets covering this story &#x2192;
     </a>
   </div>
@@ -299,7 +299,7 @@ async function deepDive(articleId) {
   result.style.display = 'block';
   result.textContent = 'Dispatching to B.I.A.S. + V.E.R.I.F.Y. + L.O.C.A.L. — this may take up to 90 seconds…';
   try {
-    var resp = await fetch('{{ wtf_tech_url }}/api/v1/articles/' + articleId + '/analyze', {
+    var resp = await fetch('/api/proxy/articles/' + articleId + '/analyze', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'}
     });

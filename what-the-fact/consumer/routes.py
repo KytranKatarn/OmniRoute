@@ -662,6 +662,38 @@ def literacy_page():
                            recent=[dict(r) for r in recent])
 
 
+@bp.get("/account")
+def account_page():
+    """Subscription status page — shows tier, manage/subscribe CTA."""
+    from flask import redirect
+    email = _user_email()
+    if not email:
+        return redirect("/login?next=/account")
+    subscribed = is_subscriber()
+    tier = session.get("wtf_tier", "free")
+    # Check local billing for Stripe customer ID (to show portal link)
+    has_stripe = False
+    try:
+        from .db import get_db
+        conn = get_db()
+        row = conn.execute(
+            "SELECT stripe_customer_id, status FROM billing_subscriptions"
+            " WHERE LOWER(email) = LOWER(?)",
+            (email,),
+        ).fetchone()
+        conn.close()
+        has_stripe = bool(row and row[0])
+        if row and row[1]:
+            tier = row[1] if row[1] != "active" else tier
+    except Exception:
+        pass
+    return render_template("account.html",
+                           user_email=email,
+                           tier=tier,
+                           subscribed=subscribed,
+                           has_stripe=has_stripe)
+
+
 @bp.route("/api/health")
 def health():
     from datetime import datetime, timezone

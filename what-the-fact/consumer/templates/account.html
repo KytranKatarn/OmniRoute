@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}My Account — What The Fact{% endblock %}
+{% block content %}
+
+<div style="max-width:600px;margin:64px auto;padding:0 16px;">
+
+  <!-- Header -->
+  <div style="margin-bottom:32px;">
+    <div style="font-size:0.58rem;letter-spacing:3px;color:var(--wtf-accent);text-transform:uppercase;margin-bottom:10px;">Your Account</div>
+    <h1 style="font-family:Georgia,serif;font-size:1.8rem;color:#f0f0f0;margin:0;">Account Overview</h1>
+    <p style="color:#6b7280;font-size:0.78rem;margin:8px 0 0;">{{ user_email }}</p>
+  </div>
+
+  {% if request.args.get('subscribed') %}
+  <div style="background:#0a1a0f;border:1px solid #166534;border-radius:6px;padding:16px 20px;margin-bottom:24px;color:#4ade80;font-size:0.82rem;">
+    ✓ Subscription activated. Welcome to What The Fact Starter.
+  </div>
+  {% endif %}
+
+  {% if request.args.get('portal_error') %}
+  <div style="background:#1a0a0a;border:1px solid #7f1d1d;border-radius:6px;padding:16px 20px;margin-bottom:24px;color:#f87171;font-size:0.82rem;">
+    Could not open billing portal. Please contact support@kytranempowerment.com
+  </div>
+  {% endif %}
+
+  <!-- Subscription status card -->
+  <div style="background:#0a0f1a;border:1px solid {% if subscribed %}rgba(220,38,38,0.4){% else %}#1f2937{% endif %};border-radius:8px;padding:28px;margin-bottom:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div style="font-size:0.58rem;letter-spacing:2px;color:#6b7280;text-transform:uppercase;margin-bottom:6px;">Subscription</div>
+        {% if subscribed %}
+        <div style="font-family:Georgia,serif;font-size:1.2rem;color:#f0f0f0;font-weight:600;">
+          What The Fact — Starter
+          <span style="font-size:0.65rem;background:rgba(220,38,38,0.15);color:var(--wtf-accent);border:1px solid rgba(220,38,38,0.3);border-radius:3px;padding:2px 8px;margin-left:8px;vertical-align:middle;">ACTIVE</span>
+        </div>
+        <div style="color:#6b7280;font-size:0.72rem;margin-top:4px;">$19 CAD/month · Full access to all features</div>
+        {% else %}
+        <div style="font-family:Georgia,serif;font-size:1.2rem;color:#9ca3af;">Free Plan</div>
+        <div style="color:#6b7280;font-size:0.72rem;margin-top:4px;">Basic access · Upgrade for full bias analysis, alerts, and more</div>
+        {% endif %}
+      </div>
+      <div>
+        {% if subscribed and has_stripe %}
+        <a href="/billing/portal"
+           style="background:transparent;border:1px solid #374151;color:#9ca3af;padding:10px 20px;border-radius:5px;text-decoration:none;font-size:0.78rem;display:inline-block;">
+          Manage Subscription
+        </a>
+        {% elif not subscribed %}
+        <a href="/billing/checkout/starter"
+           style="background:var(--wtf-accent);color:#fff;padding:10px 24px;border-radius:5px;text-decoration:none;font-size:0.82rem;letter-spacing:0.5px;display:inline-block;">
+          Subscribe — $19/mo →
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- What's included / what's locked -->
+  {% if subscribed %}
+  <div style="background:#060b10;border:1px solid #1f2937;border-radius:6px;padding:20px;margin-bottom:20px;">
+    <div style="font-size:0.58rem;letter-spacing:2px;color:#4b5563;text-transform:uppercase;margin-bottom:14px;">Your Access</div>
+    {% set perks = [
+      ('✓', 'Live News Feed — 30+ Canadian outlets'),
+      ('✓', 'Bias Scoring — heuristic + AI analysis'),
+      ('✓', 'Full bias rationale and trigger phrases'),
+      ('✓', 'V.E.R.I.F.Y. fact-checking on every article'),
+      ('✓', 'Story clustering and AI summaries'),
+      ('✓', 'Canada News Map'),
+      ('✓', 'Breaking Alerts — keyword + province tracking'),
+      ('✓', 'Media Literacy Score'),
+      ('✓', 'On-demand Deep Dive analysis'),
+    ] %}
+    {% for check, label in perks %}
+    <div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid #111827;font-size:0.75rem;">
+      <span style="color:#4ade80;font-weight:600;flex-shrink:0;">{{ check }}</span>
+      <span style="color:#9ca3af;">{{ label }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="background:#060b10;border:1px solid #1f2937;border-radius:6px;padding:20px;margin-bottom:20px;">
+    <div style="font-size:0.58rem;letter-spacing:2px;color:#4b5563;text-transform:uppercase;margin-bottom:14px;">Upgrade to Unlock</div>
+    {% set locked = [
+      ('🔒', 'Full bias rationale and trigger phrases'),
+      ('🔒', 'V.E.R.I.F.Y. fact-checking'),
+      ('🔒', 'Breaking Alerts'),
+      ('🔒', 'Media Literacy Score'),
+      ('🔒', 'On-demand Deep Dive analysis'),
+    ] %}
+    {% for icon, label in locked %}
+    <div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid #111827;font-size:0.75rem;">
+      <span style="color:#6b7280;flex-shrink:0;">{{ icon }}</span>
+      <span style="color:#6b7280;">{{ label }}</span>
+    </div>
+    {% endfor %}
+    <div style="margin-top:18px;text-align:center;">
+      <a href="/billing/checkout/starter"
+         style="background:var(--wtf-accent);color:#fff;padding:11px 32px;border-radius:5px;text-decoration:none;font-size:0.82rem;letter-spacing:0.5px;">
+        Subscribe Now — $19/mo →
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Quick nav -->
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;">
+    <a href="/" style="color:#6b7280;font-size:0.72rem;text-decoration:none;">← News Feed</a>
+    {% if subscribed %}
+    <a href="/alerts" style="color:#6b7280;font-size:0.72rem;text-decoration:none;">My Alerts</a>
+    <a href="/literacy" style="color:#6b7280;font-size:0.72rem;text-decoration:none;">Media Literacy Score</a>
+    {% endif %}
+    <a href="/logout" style="color:#4b5563;font-size:0.72rem;text-decoration:none;margin-left:auto;">Sign Out</a>
+  </div>
+
+</div>
+
+{% endblock %}

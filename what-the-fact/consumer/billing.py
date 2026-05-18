@@ -97,12 +97,51 @@ def success():
                     session["wtf_tier"] = tier
         except Exception:
             logger.exception("WTF billing success verify failed")
-    return redirect("/?subscribed=1")
+    return redirect("/account?subscribed=1")
 
 
 @billing_bp.route("/billing/cancel")
 def cancel():
-    return redirect("/#pricing")
+    return redirect("/join#pricing")
+
+
+@billing_bp.route("/billing/portal")
+def portal():
+    """Redirect to Stripe Customer Portal for subscription management."""
+    if not _STRIPE_KEY:
+        return "Billing not configured — contact support@kytranempowerment.com", 503
+    email = session.get("wtf_email")
+    if not email:
+        return redirect("/login?next=/billing/portal")
+    try:
+        try:
+            from .db import get_db
+        except ImportError:
+            from db import get_db
+        conn = get_db()
+        row = conn.execute(
+            "SELECT stripe_customer_id FROM billing_subscriptions"
+            " WHERE LOWER(email) = LOWER(?) AND status = 'active'",
+            (email,),
+        ).fetchone()
+        conn.close()
+    except Exception:
+        logger.exception("WTF portal: DB lookup failed")
+        row = None
+
+    if not row or not row[0]:
+        return redirect("/billing/checkout/starter")
+
+    stripe.api_key = _STRIPE_KEY
+    try:
+        ps = stripe.billing_portal.Session.create(
+            customer=row[0],
+            return_url=f"{_APP_URL}/account",
+        )
+        return redirect(ps.url)
+    except Exception:
+        logger.exception("WTF billing portal session failed")
+        return redirect("/account?portal_error=1")
 
 
 @billing_bp.route("/billing/webhook", methods=["POST"])

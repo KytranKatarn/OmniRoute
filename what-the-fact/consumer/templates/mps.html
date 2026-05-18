@@ -207,7 +207,7 @@ function wtfShowMPCard(mp, cx, cy) {
     t.setAttribute('font-family', 'monospace'); t.setAttribute('letter-spacing', '2');
     t.textContent = txt; svgG.appendChild(t);
   }
-  svgText(cx, 12, 'SPEAKER', 'middle', '8', '#4b5563');
+  // SPEAKER label: see SVG HTML below
   svgText(40, cy + 14, '← OPPOSITION', 'start', '7', '#2a5a8a');
   svgText(660, cy + 14, 'GOVERNMENT →', 'end', '7', '#2a5a8a');
   // ────────────────────────────────────────────────────────────
@@ -246,6 +246,7 @@ function wtfShowMPCard(mp, cx, cy) {
     c.style.cursor = 'pointer';
     (function(m, leaderTitle) {
       c.addEventListener('mousemove', function(e) {
+        if (document.getElementById('wtf-mp-popup')) return;
         tip.style.display = 'block';
         tip.style.left = (e.clientX + 12) + 'px';
         tip.style.top = (e.clientY - 10) + 'px';
@@ -268,7 +269,7 @@ function wtfShowMPCard(mp, cx, cy) {
         tip.appendChild(party); tip.appendChild(br2); tip.appendChild(riding);
       });
       c.addEventListener('mouseleave', function() { tip.style.display = 'none'; });
-      c.addEventListener('click', function(e) { e.stopPropagation(); wtfShowMPCard(m, e.clientX, e.clientY); });
+      c.addEventListener('click', function(e) { e.stopPropagation(); tip.style.display='none'; wtfShowMPCard(m, e.clientX, e.clientY); });
     })(mp, LEADERS[mp.slug] || '');
     svgG.appendChild(c);
   });

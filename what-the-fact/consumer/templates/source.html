@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}{{ src.name }} — Bias Profile · What The Fact{% endblock %}
+{% block meta %}
+{% set _band = src.rolling_band or src.bias_lean or 'unscored' %}
+<meta name="description" content="{{ src.name }} bias profile: {{ _band }} lean. {{ src.total_articles }} articles tracked by What The Fact's AI newsroom.">
+<meta property="og:title" content="{{ src.name }} — Bias Profile">
+<meta property="og:description" content="{{ src.name }} is rated {{ _band }} by What The Fact. {{ src.total_articles }} articles analyzed.">
+<meta property="og:url" content="https://what-the-fact.com/source/{{ src.slug }}">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{ src.name }} — Bias Profile">
+{% endblock %}
+{% block content %}
+
+{% set BAND_COLOURS = {
+  'left': '#ef4444',
+  'center-left': '#f97316',
+  'center': '#22c55e',
+  'center-right': '#3b82f6',
+  'right': '#8b5cf6',
+  'unscored': '#6b7280'
+} %}
+{% set band = src.rolling_band or src.bias_lean or 'unscored' %}
+{% set colour = BAND_COLOURS.get(band, '#6b7280') %}
+
+<div style="max-width:760px;margin:48px auto;padding:0 16px;">
+
+  <!-- Header -->
+  <div style="margin-bottom:28px;">
+    <div style="font-size:0.55rem;letter-spacing:3px;color:#4b5563;text-transform:uppercase;margin-bottom:8px;">
+      <a href="/" style="color:#4b5563;text-decoration:none;">What The Fact</a> / Source Profile
+    </div>
+    <h1 style="font-family:Georgia,serif;font-size:1.9rem;color:#f0f0f0;margin:0 0 6px;">{{ src.name }}</h1>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:0.65rem;background:{{ colour }}22;color:{{ colour }};border:1px solid {{ colour }}66;border-radius:3px;padding:2px 10px;text-transform:uppercase;letter-spacing:1px;font-weight:600;">{{ band.replace('-', ' ') }}</span>
+      {% if src.owner_type %}<span style="font-size:0.65rem;color:#6b7280;">{{ src.owner_type | capitalize }}</span>{% endif %}
+      {% if src.owner_name %}<span style="font-size:0.65rem;color:#4b5563;">{{ src.owner_name }}</span>{% endif %}
+      {% if src.url %}<a href="{{ src.url }}" target="_blank" rel="nofollow noopener" style="font-size:0.65rem;color:#4a9eff;text-decoration:none;">{{ src.url.replace('https://','').replace('http://','').rstrip('/') }} ↗</a>{% endif %}
+    </div>
+  </div>
+
+  <!-- Stats row -->
+  <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:24px;">
+    <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:6px;padding:16px 22px;text-align:center;min-width:110px;">
+      <div style="font-family:Georgia,serif;font-size:1.6rem;color:#e0e0e0;font-weight:700;">{{ src.total_articles | default(0) }}</div>
+      <div style="font-size:0.55rem;color:#4b5563;letter-spacing:1.5px;text-transform:uppercase;margin-top:2px;">Total Articles</div>
+    </div>
+    <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:6px;padding:16px 22px;text-align:center;min-width:110px;">
+      <div style="font-family:Georgia,serif;font-size:1.6rem;color:#e0e0e0;font-weight:700;">{{ src.articles_7d | default(0) }}</div>
+      <div style="font-size:0.55rem;color:#4b5563;letter-spacing:1.5px;text-transform:uppercase;margin-top:2px;">Last 7 Days</div>
+    </div>
+    {% if src.avg_score is not none %}
+    <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:6px;padding:16px 22px;text-align:center;min-width:110px;">
+      <div style="font-family:Georgia,serif;font-size:1.6rem;color:{{ colour }};font-weight:700;">{{ "%.2f"|format(src.avg_score | float) }}</div>
+      <div style="font-size:0.55rem;color:#4b5563;letter-spacing:1.5px;text-transform:uppercase;margin-top:2px;">Avg Bias Score</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Bias distribution -->
+  {% if band_counts %}
+  <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:6px;padding:18px;margin-bottom:24px;">
+    <div style="font-size:0.55rem;letter-spacing:2px;color:#4b5563;text-transform:uppercase;margin-bottom:12px;">Article Bias Distribution</div>
+    {% set total_scored = namespace(n=0) %}
+    {% for bc in band_counts %}{% set total_scored.n = total_scored.n + bc.n %}{% endfor %}
+    {% for bc in band_counts %}
+    {% set bc_colour = BAND_COLOURS.get(bc.band, '#6b7280') %}
+    {% set pct = (bc.n / total_scored.n * 100) | int if total_scored.n > 0 else 0 %}
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      <div style="width:80px;font-size:0.65rem;color:#9ca3af;text-align:right;text-transform:uppercase;">{{ bc.band }}</div>
+      <div style="flex:1;background:#111827;border-radius:2px;height:8px;">
+        <div style="width:{{ pct }}%;background:{{ bc_colour }};border-radius:2px;height:8px;"></div>
+      </div>
+      <div style="width:40px;font-size:0.65rem;color:#6b7280;text-align:right;">{{ bc.n }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Recent articles -->
+  <div style="margin-bottom:8px;">
+    <div style="font-size:0.55rem;letter-spacing:2px;color:#4b5563;text-transform:uppercase;margin-bottom:12px;">Recent Articles</div>
+    {% for art in recent %}
+    {% set art_band = art.band or 'unscored' %}
+    {% set art_colour = BAND_COLOURS.get(art_band, '#6b7280') %}
+    <a href="/article/{{ art.id }}" style="display:block;padding:9px 12px;margin-bottom:4px;background:#0a0f1a;border:1px solid #1a2030;border-radius:4px;text-decoration:none;border-left:2px solid {{ art_colour }};">
+      <div style="font-size:0.78rem;color:#d1d5db;line-height:1.4;margin-bottom:3px;">{{ art.title[:120] }}</div>
+      <div style="font-size:0.62rem;color:#4b5563;">
+        <span style="color:{{ art_colour }}">{{ art_band.upper() }}</span>
+        {% if art.score %}&nbsp;·&nbsp;{{ "%.2f"|format(art.score | float) }}{% endif %}
+        {% if art.published_at %}&nbsp;·&nbsp;{{ art.published_at.strftime('%b %d') }}{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+    {% if not recent %}
+    <div style="color:#4b5563;font-size:0.75rem;padding:12px;">No articles tracked yet.</div>
+    {% endif %}
+  </div>
+
+  <div style="margin-top:20px;">
+    <a href="/news" style="font-size:0.7rem;color:#4b5563;text-decoration:none;">← Back to news feed</a>
+  </div>
+
+</div>
+{% endblock %}

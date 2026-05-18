@@ -708,6 +708,50 @@ def account_page():
                            has_stripe=has_stripe)
 
 
+@bp.get("/source/<slug>")
+def source_profile(slug: str):
+    """Outlet bias profile page — SEO-indexable per source."""
+    S = _schema()
+    # Validate slug to prevent injection
+    if not slug.replace("-", "").replace("_", "").isalnum():
+        abort(404)
+    with _db().begin() as c:
+        src = c.execute(text(f"""
+            SELECT s.id, s.slug, s.name, s.url, s.bias_lean, s.country,
+                   s.language, s.owner_name, s.owner_type,
+                   obs.avg_score, obs.band AS rolling_band,
+                   COUNT(a.id) AS total_articles,
+                   COUNT(a.id) FILTER (WHERE a.published_at > NOW() - INTERVAL '7 days') AS articles_7d
+            FROM {S}.sources s
+            LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = s.id
+            LEFT JOIN {S}.articles a ON a.source_id = s.id
+            WHERE s.slug = :slug
+            GROUP BY s.id, s.slug, s.name, s.url, s.bias_lean, s.country,
+                     s.language, s.owner_name, s.owner_type, obs.avg_score, obs.band
+        """), {"slug": slug}).mappings().first()
+    if not src:
+        abort(404)
+    with _db().begin() as c:
+        band_counts = c.execute(text(f"""
+            SELECT COALESCE(b.band, 'unscored') AS band, COUNT(*) AS n
+            FROM {S}.articles a
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE a.source_id = :sid
+            GROUP BY 1 ORDER BY 2 DESC
+        """), {"sid": src["id"]}).mappings().all()
+        recent = c.execute(text(f"""
+            SELECT a.id, a.title, a.url, a.published_at, b.band, b.score
+            FROM {S}.articles a
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE a.source_id = :sid
+            ORDER BY a.published_at DESC LIMIT 20
+        """), {"sid": src["id"]}).mappings().all()
+    return render_template("source.html",
+                           src=dict(src),
+                           band_counts=[dict(r) for r in band_counts],
+                           recent=[dict(r) for r in recent])
+
+
 @bp.get("/robots.txt")
 def robots_txt():
     from flask import Response
@@ -742,6 +786,14 @@ def sitemap_xml():
     static_pages = ["/", "/map", "/team", "/join", "/activity", "/news"]
     for path in static_pages:
         lines.append(f"  <url><loc>https://what-the-fact.com{path}</loc></url>")
+    # Source profile pages
+    with _db().begin() as c:
+        src_rows = c.execute(text(f"SELECT slug FROM {S}.sources ORDER BY slug")).fetchall()
+    for sr in src_rows:
+        lines.append(
+            f"  <url><loc>https://what-the-fact.com/source/{sr[0]}</loc>"
+            "<changefreq>weekly</changefreq></url>"
+        )
     for row in rows:
         art_id = row[0]
         lastmod = row[1].strftime("%Y-%m-%d") if row[1] else ""

@@ -26,7 +26,7 @@
     </div>
     <div class="wtf-nav-actions">
       {% if session.get('wtf_authenticated') %}
-      <span class="wtf-nav-user">{{ session.get('wtf_username', '') }}</span>
+      <a href="/account" class="wtf-nav-login" style="margin-right:4px;">Account</a>
       <a href="/logout" class="wtf-nav-login">Sign out</a>
       {% else %}
       <a href="/join" class="wtf-nav-subscribe">Subscribe</a>
@@ -51,7 +51,7 @@
     <a href="https://what-the-fact.tech/transparency">Methodology</a>
     <a href="https://what-the-fact.tech/score">Score</a>
     {% if session.get('wtf_authenticated') %}
-    <span style="color:#888;font-size:0.75rem;">{{ session.get('wtf_username', '') }}</span>
+    <a href="/account" style="color:var(--wtf-accent);font-size:0.75rem;">Account</a>
     <a href="/logout"
        style="margin-top:6px;background:#0a2a3a;color:#0af;text-align:center;padding:10px;border-radius:4px;font-size:0.75rem;letter-spacing:1px;border:1px solid #0af;">
       Sign out

@@ -1061,6 +1061,47 @@ def _party_colour(party: str) -> str:
     return "#6b7280"
 
 
+@bp.get("/owners")
+def owners_listing():
+    """Media ownership transparency — who owns which outlets and their bias profile."""
+    S = _schema()
+    with _db().begin() as c:
+        # Owners grouped with their outlets and bias data
+        owner_rows = c.execute(text(f"""
+            SELECT
+                s.owner_name,
+                s.owner_type,
+                COUNT(s.id)                              AS outlet_count,
+                ARRAY_AGG(
+                    json_build_object(
+                        'name', s.name,
+                        'slug', s.slug,
+                        'url',  s.url,
+                        'bias_lean', s.bias_lean,
+                        'avg_score', ROUND(obs.avg_score::numeric, 2)
+                    ) ORDER BY s.name
+                )                                        AS outlets,
+                ROUND(AVG(obs.avg_score)::numeric, 2)    AS avg_bias,
+                MIN(s.bias_lean)                         AS sample_lean
+            FROM {S}.sources s
+            LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = s.id
+            WHERE s.owner_name IS NOT NULL
+            GROUP BY s.owner_name, s.owner_type
+            ORDER BY outlet_count DESC, s.owner_name
+        """)).mappings().all()
+
+        # Sources without owner attribution
+        unattributed = c.execute(text(f"""
+            SELECT COUNT(*) FROM {S}.sources WHERE owner_name IS NULL
+        """)).scalar() or 0
+
+        source_count = c.execute(text(f"SELECT COUNT(*) FROM {S}.sources")).scalar() or 0
+
+    owners = [dict(r) for r in owner_rows]
+    return render_template("owners.html", owners=owners, unattributed=unattributed,
+                           source_count=source_count, is_subscriber=is_subscriber())
+
+
 @bp.get("/mps")
 def mps_listing():
     """All MPs with optional party/province filter."""
@@ -1113,23 +1154,60 @@ def mps_listing():
 
 @bp.get("/senator/<slug>")
 def senator_profile(slug: str):
-    """Individual senator profile — caucus, province, appointment."""
+    """Individual senator profile — caucus, province, appointment, bio, committees."""
     if not slug.replace("-", "").replace("_", "").isalnum():
         abort(404)
-    with _db().begin() as c:
-        row = c.execute(text("""
-            SELECT id, slug, name, given_name, family_name, caucus, province,
-                   photo_url, profile_url, appointed_at
-            FROM parliament.senators WHERE slug = :slug AND is_current = true
-        """), {"slug": slug}).mappings().first()
-    if not row:
-        abort(404)
-    senator = dict(row)
     _CAUCUS_COLOURS = {
         "C": "#3b82f6", "ISG": "#cc0000", "CSG": "#059669",
         "PSG": "#7c3aed", "GRO": "#b45309", "Non-affiliated": "#888888",
     }
+    _CAUCUS_LABELS = {
+        "C": "Conservative", "ISG": "Independent Senators Group",
+        "CSG": "Canadian Senators Group", "PSG": "Progressive Senate Group",
+        "GRO": "Government Representative Office", "Non-affiliated": "Non-affiliated",
+    }
+    with _db().begin() as c:
+        row = c.execute(text("""
+            SELECT id, slug, name, given_name, family_name, caucus, province,
+                   photo_url, profile_url, appointed_at, date_of_birth,
+                   appointed_by, biography, office_phone, office_email,
+                   twitter_handle, linkedin_url, website_url
+            FROM parliament.senators WHERE slug = :slug AND is_current = true
+        """), {"slug": slug}).mappings().first()
+        if not row:
+            abort(404)
+        senator = dict(row)
+        # Fetch committees
+        committee_rows = c.execute(text("""
+            SELECT committee_abbr, committee_name, role
+            FROM parliament.senator_committees
+            WHERE senator_id = :sid AND is_current = true
+            ORDER BY role DESC, committee_name
+        """), {"sid": senator["id"]}).mappings().all()
+        senator["committees"] = [dict(r) for r in committee_rows]
+
     senator["caucus_colour"] = _CAUCUS_COLOURS.get(senator.get("caucus") or "", "#888888")
+    senator["caucus_label"] = _CAUCUS_LABELS.get(senator.get("caucus") or "", senator.get("caucus") or "")
+
+    # Computed date fields
+    today = datetime.date.today()
+    dob = senator.get("date_of_birth")
+    if dob:
+        age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        retirement = datetime.date(dob.year + 75, dob.month, dob.day)
+        days_left = (retirement - today).days
+        years_left = days_left // 365
+        senator["age"] = age
+        senator["retirement_date"] = retirement
+        senator["years_until_retirement"] = years_left
+        senator["retirement_date_str"] = retirement.strftime("%B %-d, %Y")
+    appt = senator.get("appointed_at")
+    if appt:
+        if hasattr(appt, "date"):
+            appt = appt.date()
+        years_in = today.year - appt.year - ((today.month, today.day) < (appt.month, appt.day))
+        senator["years_in_senate"] = years_in
+
     source_count = 0
     with _db().begin() as c:
         source_count = c.execute(text(f"SELECT COUNT(*) FROM {_schema()}.sources")).scalar() or 0

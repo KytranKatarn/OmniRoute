@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Media Owners — Who Controls Canadian News · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Who owns Canadian news outlets? Ownership map, bias profiles, and outlet counts for every media owner tracked by What The Fact.">
+{% endblock %}
+{% block content %}
+<style>
+.wtf-own-header { padding:20px 0 16px; border-bottom:1px solid #1a3a5a; margin-bottom:24px; }
+.wtf-own-title { font-family:'Orbitron',sans-serif; font-size:20px; color:#e5e7eb; margin:0 0 6px; }
+.wtf-own-sub { font-size:12px; color:#6b7280; }
+.wtf-own-filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+.wtf-own-filter { font-size:11px; padding:4px 12px; border-radius:12px; border:1px solid #1a3a5a; background:#060d14; color:#9ca3af; cursor:pointer; text-decoration:none; }
+.wtf-own-filter.active { border-color:#0af; color:#0af; background:#0a1a2a; }
+.wtf-own-grid { display:flex; flex-direction:column; gap:16px; }
+.wtf-own-card { background:#060d14; border:1px solid #1a3a5a; border-radius:6px; padding:16px; }
+.wtf-own-card-header { display:flex; align-items:flex-start; gap:12px; margin-bottom:12px; }
+.wtf-own-type-icon { width:36px; height:36px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+.wtf-own-name { font-family:'Orbitron',sans-serif; font-size:14px; color:#e5e7eb; margin:0 0 4px; }
+.wtf-own-meta { font-size:11px; color:#6b7280; display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+.wtf-own-type-pill { font-size:10px; padding:2px 8px; border-radius:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+.wtf-own-outlets { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.wtf-own-outlet { font-size:11px; padding:4px 10px; border-radius:4px; background:#0a1520; border:1px solid #1a3a5a; color:#9ca3af; text-decoration:none; display:flex; align-items:center; gap:5px; }
+.wtf-own-outlet:hover { border-color:#0af; color:#0af; }
+.wtf-own-bias-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.wtf-own-stats { display:flex; gap:16px; margin-top:12px; padding-top:12px; border-top:1px solid #0d1f2d; }
+.wtf-own-stat { text-align:center; }
+.wtf-own-stat strong { display:block; font-size:18px; font-family:'IBM Plex Mono',monospace; color:#e5e7eb; }
+.wtf-own-stat span { font-size:9px; color:#6b7280; text-transform:uppercase; letter-spacing:.05em; }
+</style>
+
+<div class="wtf-own-header">
+  <h1 class="wtf-own-title">🏢 Media Ownership Map</h1>
+  <div class="wtf-own-sub">
+    Who controls Canadian news — {{ owners|length }} owners · {{ source_count }} outlets tracked
+    {% if unattributed %} · {{ unattributed }} outlets unattributed{% endif %}
+  </div>
+</div>
+
+{# ── Type filter tabs ──────────────────────────────────────────────────── #}
+<div class="wtf-own-filters">
+  <a class="wtf-own-filter active" href="/owners">All</a>
+  <a class="wtf-own-filter" href="/owners?type=corporate">Corporate</a>
+  <a class="wtf-own-filter" href="/owners?type=public">Public</a>
+  <a class="wtf-own-filter" href="/owners?type=non_profit">Non-profit</a>
+  <a class="wtf-own-filter" href="/owners?type=independent">Independent</a>
+</div>
+
+{# ── Owner cards ───────────────────────────────────────────────────────── #}
+{% set TYPE_ICONS = {'corporate':'🏢', 'public':'🏛', 'non_profit':'🤝', 'independent':'👤'} %}
+{% set TYPE_COLOURS = {'corporate':'#ef4444', 'public':'#3b82f6', 'non_profit':'#22c55e', 'independent':'#a78bfa'} %}
+{% set BIAS_COLOURS = {'left':'#ef4444','center-left':'#f97316','center':'#22c55e','center-right':'#3b82f6','right':'#8b5cf6'} %}
+
+{% if is_subscriber %}
+<div class="wtf-own-grid">
+{% for o in owners %}
+{% set tc = TYPE_COLOURS.get(o.owner_type or '', '#6b7280') %}
+{% set ti = TYPE_ICONS.get(o.owner_type or '', '📰') %}
+<div class="wtf-own-card" style="border-left:3px solid {{ tc }};">
+  <div class="wtf-own-card-header">
+    <div class="wtf-own-type-icon" style="background:{{ tc }}22;color:{{ tc }};">{{ ti }}</div>
+    <div style="flex:1;">
+      <div class="wtf-own-name">{{ o.owner_name }}</div>
+      <div class="wtf-own-meta">
+        <span class="wtf-own-type-pill" style="background:{{ tc }}22;color:{{ tc }};border:1px solid {{ tc }}44;">
+          {{ (o.owner_type or 'unknown') | replace('_',' ') | title }}
+        </span>
+        <span>{{ o.outlet_count }} outlet{{ 's' if o.outlet_count != 1 else '' }}</span>
+        {% if o.avg_bias is not none %}
+        <span style="color:#6b7280;">Avg bias: <strong style="color:#e5e7eb;">{{ '%+.2f'|format(o.avg_bias|float) }}</strong></span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# Outlets list #}
+  <div class="wtf-own-outlets">
+    {% for outlet in o.outlets %}
+    {% set bias_col = BIAS_COLOURS.get(outlet.bias_lean or '', '#6b7280') %}
+    <a class="wtf-own-outlet" href="/source/{{ outlet.slug }}" title="{{ outlet.bias_lean or 'unscored' }}">
+      <span class="wtf-own-bias-dot" style="background:{{ bias_col }};"></span>
+      {{ outlet.name }}
+    </a>
+    {% endfor %}
+  </div>
+
+  {# Bias breakdown mini-stat #}
+  {% if o.outlets | selectattr('bias_lean') | list %}
+  <div class="wtf-own-stats">
+    {% set lean_counts = {} %}
+    {% for outlet in o.outlets %}
+      {% if outlet.bias_lean %}
+        {% if lean_counts.update({outlet.bias_lean: (lean_counts.get(outlet.bias_lean, 0) + 1)}) %}{% endif %}
+      {% endif %}
+    {% endfor %}
+    {% for lean, count in lean_counts.items() %}
+    <div class="wtf-own-stat">
+      <strong style="color:{{ BIAS_COLOURS.get(lean, '#6b7280') }};">{{ count }}</strong>
+      <span>{{ lean | replace('-',' ') }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+</div>
+
+{% else %}
+<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:8px;padding:28px;text-align:center;margin:8px 0 24px;">
+  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 Ownership Map — Starter+</div>
+  <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;max-width:400px;margin-left:auto;margin-right:auto;">
+    See who owns every Canadian outlet, their bias profiles, and how ownership shapes the news you read.
+  </div>
+  <a href="/login?next=/owners" style="display:inline-block;background:#0af;color:#000;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
+  <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
+</div>
+{% endif %}
+
+{# ── What this means ───────────────────────────────────────────────────── #}
+<div style="margin-top:32px;padding:16px;background:#060d14;border:1px solid #1a3a5a;border-radius:6px;font-size:12px;color:#6b7280;line-height:1.8;">
+  <strong style="color:#9ca3af;">Why ownership matters</strong><br>
+  Media ownership shapes editorial direction, hiring decisions, and what stories get amplified.
+  Corporate consolidation in Canada has concentrated news production into a small number of hands —
+  <strong style="color:#e5e7eb;">Postmedia</strong> alone owns over a third of daily newspapers.
+  Bias scores are rolling averages computed from our AI analysis pipeline.
+  <br><br>
+  <a href="/sources" style="color:#0af;text-decoration:none;">Browse all sources →</a>
+  &nbsp;&nbsp;
+  <a href="https://what-the-fact.tech/transparency" target="_blank" rel="noopener" style="color:#6b7280;">How we score bias ↗</a>
+</div>
+
+{% endblock %}

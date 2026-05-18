@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ senator.name }} — Senator Profile · What The Fact{% endblock %}
 {% block meta %}
-<meta name="description" content="{{ senator.name }} ({{ senator.caucus }}, {{ senator.province }}) — Senate of Canada profile on What The Fact.">
+<meta name="description" content="{{ senator.name }} ({{ senator.caucus_label }}, {{ senator.province }}) — Senate of Canada profile on What The Fact.">
 {% endblock %}
 {% block content %}
 <style>
@@ -9,11 +9,19 @@
 .wtf-sen-photo { width:96px; height:96px; border-radius:50%; object-fit:cover; background:#0a0505; border:2px solid #4b0000; flex-shrink:0; }
 .wtf-sen-photo-ph { width:96px; height:96px; border-radius:50%; background:#0a0505; border:2px solid #4b0000; display:flex; align-items:center; justify-content:center; font-size:40px; color:#4b0000; flex-shrink:0; }
 .wtf-sen-info { flex:1; min-width:200px; }
-.wtf-sen-name { font-family:'Orbitron',sans-serif; font-size:18px; color:#e5e7eb; margin:0 0 8px; }
+.wtf-sen-name { font-family:'Orbitron',sans-serif; font-size:18px; color:#e5e7eb; margin:0 0 6px; }
 .wtf-sen-badge { font-size:11px; padding:3px 10px; border-radius:10px; font-weight:600; display:inline-block; margin-bottom:8px; }
-.wtf-sen-meta { font-size:12px; color:#9ca3af; line-height:1.8; }
+.wtf-sen-meta { font-size:12px; color:#9ca3af; line-height:2; }
+.wtf-sen-stat { display:inline-block; background:#0a0505; border:1px solid #1a0000; border-radius:6px; padding:6px 12px; margin:4px 4px 4px 0; font-size:11px; color:#9ca3af; }
+.wtf-sen-stat strong { color:#e5e7eb; display:block; font-size:14px; }
 .wtf-sen-section { margin-bottom:24px; }
 .wtf-sen-section-title { font-size:11px; color:#9ca3af; text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid #1a0000; }
+.wtf-committee-chip { display:inline-block; font-size:10px; padding:3px 8px; border-radius:4px; margin:3px 3px 3px 0; border:1px solid #4b0000; color:#9ca3af; background:#0a0505; }
+.wtf-committee-chip.chair { border-color:#cc0000; color:#ef4444; }
+.wtf-paywall { background:#0a0505; border:1px solid #4b0000; border-radius:8px; padding:20px; text-align:center; margin:16px 0; }
+.wtf-paywall h3 { font-family:'Orbitron',sans-serif; font-size:13px; color:#e5e7eb; margin:0 0 8px; }
+.wtf-paywall p { font-size:12px; color:#9ca3af; margin:0 0 12px; }
+.wtf-paywall a { display:inline-block; background:#cc0000; color:#fff; font-size:11px; font-weight:700; padding:8px 20px; border-radius:4px; text-decoration:none; }
 </style>
 
 <div class="wtf-sen-header">
@@ -29,27 +37,117 @@
   <div class="wtf-sen-info">
     <h1 class="wtf-sen-name">{{ senator.name }}</h1>
     <span class="wtf-sen-badge" style="background:{{ senator.caucus_colour }}22;color:{{ senator.caucus_colour }};border:1px solid {{ senator.caucus_colour }}44;">
-      {{ senator.caucus or '—' }}
+      {{ senator.caucus_label or senator.caucus or '—' }}
     </span>
+    {% if senator.cabinet_role is defined and senator.cabinet_role %}
+    <span class="wtf-sen-badge" style="background:#78350f22;color:#f59e0b;border:1px solid #78350f44;margin-left:4px;">
+      {{ senator.cabinet_role }}
+    </span>
+    {% endif %}
     <div class="wtf-sen-meta">
-      <strong style="color:#e5e7eb;">{{ senator.province or '—' }}</strong><br>
+      <strong style="color:#e5e7eb;">{{ senator.province or '—' }}</strong>
       {% if senator.appointed_at %}
-      Appointed {{ senator.appointed_at.strftime('%B %-d, %Y') }}<br>
+      &nbsp;·&nbsp;Appointed {{ senator.appointed_at.strftime('%B %-d, %Y') }}
+      {% if senator.years_in_senate is defined %}&nbsp;({{ senator.years_in_senate }}y in Senate){% endif %}
+      {% endif %}
+      {% if senator.appointed_by %}
+      <br>Appointed by <strong style="color:#e5e7eb;">{{ senator.appointed_by }}</strong>
       {% endif %}
       {% if senator.profile_url %}
-      <a href="{{ senator.profile_url }}" target="_blank" rel="noopener" style="color:#ef4444;font-size:11px;">Senate of Canada profile ↗</a>
+      <br><a href="{{ senator.profile_url }}" target="_blank" rel="noopener" style="color:#ef4444;font-size:11px;">Senate of Canada profile ↗</a>
       {% endif %}
     </div>
   </div>
 </div>
 
+{# ── Key stats row ──────────────────────────────────────────────────────── #}
+{% if senator.age is defined or senator.retirement_date is defined %}
+<div style="margin-bottom:20px;">
+  {% if senator.age is defined %}
+  <div class="wtf-sen-stat">
+    <strong>{{ senator.age }}</strong>years old
+  </div>
+  {% endif %}
+  {% if senator.date_of_birth %}
+  <div class="wtf-sen-stat">
+    <strong>{{ senator.date_of_birth.strftime('%B %-d, %Y') }}</strong>date of birth
+  </div>
+  {% endif %}
+  {% if senator.retirement_date_str is defined %}
+  <div class="wtf-sen-stat">
+    <strong>{{ senator.retirement_date_str }}</strong>mandatory retirement
+  </div>
+  {% endif %}
+  {% if senator.years_until_retirement is defined %}
+  <div class="wtf-sen-stat">
+    <strong>{{ senator.years_until_retirement }}y</strong>until retirement
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── Paywalled detail section ───────────────────────────────────────────── #}
+{% if is_subscriber %}
+
+  {# Contact info #}
+  {% if senator.office_phone or senator.office_email or senator.twitter_handle %}
+  <div class="wtf-sen-section">
+    <div class="wtf-sen-section-title">📞 Contact</div>
+    <div style="font-size:12px;color:#9ca3af;line-height:2;">
+      {% if senator.office_phone %}
+      📞 <a href="tel:{{ senator.office_phone }}" style="color:#9ca3af;">{{ senator.office_phone }}</a><br>
+      {% endif %}
+      {% if senator.office_email %}
+      ✉️ <a href="mailto:{{ senator.office_email }}" style="color:#ef4444;">{{ senator.office_email }}</a><br>
+      {% endif %}
+      {% if senator.twitter_handle %}
+      🐦 <a href="https://twitter.com/{{ senator.twitter_handle }}" target="_blank" rel="noopener" style="color:#9ca3af;">@{{ senator.twitter_handle }}</a><br>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# Committees #}
+  {% if senator.committees %}
+  <div class="wtf-sen-section">
+    <div class="wtf-sen-section-title">🏛 Committee Memberships ({{ senator.committees | length }})</div>
+    <div>
+      {% for c in senator.committees %}
+      <span class="wtf-committee-chip {{ 'chair' if c.role in ('chair','deputy_chair') else '' }}"
+            title="{{ c.role | replace('_',' ') | title }}">
+        <strong>{{ c.committee_abbr }}</strong> {{ c.committee_name }}
+        {% if c.role == 'chair' %} · Chair{% elif c.role == 'deputy_chair' %} · Deputy Chair{% endif %}
+      </span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# Biography #}
+  {% if senator.biography %}
+  <div class="wtf-sen-section">
+    <div class="wtf-sen-section-title">📋 Biography</div>
+    <div style="font-size:12px;color:#9ca3af;line-height:1.9;">{{ senator.biography }}</div>
+  </div>
+  {% endif %}
+
+{% else %}
+  {# Paywall gate #}
+  <div class="wtf-paywall">
+    <h3>🔒 Full Profile — Starter+</h3>
+    <p>Contact information, committee memberships, full biography, and voting record are available to subscribers.</p>
+    <a href="/login?next={{ request.path }}">Unlock with Starter →</a>
+  </div>
+{% endif %}
+
+{# ── About the Senate ─────────────────────────────────────────────────── #}
 <div class="wtf-sen-section">
   <div class="wtf-sen-section-title">🔴 About the Senate</div>
   <div style="font-size:12px;color:#9ca3af;line-height:1.8;">
     Senators are appointed by the Governor General on the advice of the Prime Minister and serve until age 75.
     The Senate reviews, amends, and votes on legislation passed by the House of Commons.
     <br><br>
-    <a href="/mps" style="color:#ef4444;text-decoration:none;font-size:11px;">← Back to Parliament →</a>
+    <a href="/mps" style="color:#ef4444;text-decoration:none;font-size:11px;">← Back to Parliament</a>
     &nbsp;&nbsp;
     <a href="https://sencanada.ca" target="_blank" rel="noopener" style="color:#6b7280;font-size:11px;">Senate of Canada ↗</a>
   </div>

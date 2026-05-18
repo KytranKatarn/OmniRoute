@@ -23,6 +23,7 @@
   </div>
   <!-- Pipeline health bar (#2955) -->
   <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:10px 14px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;font-size:0.7rem;color:#9ca3af;">
+{% if is_subscriber %}
     <span style="color:#6b7280;letter-spacing:2px;text-transform:uppercase;font-size:0.6rem;">Pipeline health</span>
     <span title="Articles ingest failed in last 24h"><b style="color:{% if stats.failed_ingest_24h > 0 %}#ef4444{% else %}#10b981{% endif %};">{{ "{:,}".format(stats.failed_ingest_24h) }}</b> failed ingest (24h)</span>
     <span title="Articles where L.O.C.A.L. gave up — no Canadian province or country match"><b style="color:#f59e0b;">{{ "{:,}".format(stats.geo_unmappable_24h) }}</b> geo unmappable (24h) · {{ "{:,}".format(stats.geo_unmappable) }} total</span>
@@ -282,6 +283,16 @@
 
 </div>
 
+{% else %}
+<div style="max-width:800px;margin:0 auto;padding:16px;">
+  <div style="background:#060d14;border:1px solid #1a3a5a;border-radius:8px;padding:24px;text-align:center;">
+    <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 Activity Log — Starter+</div>
+    <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">Full pipeline analytics — per-agent processing rates, source health, bias coverage, and the live event log.</div>
+    <a href="/login?next=/activity" style="display:inline-block;background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
+    <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
+  </div>
+</div>
+{% endif %}
 <style>
 .wtf-act-filter {
   background: #0a0f1a;

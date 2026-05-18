@@ -495,7 +495,8 @@ def activity():
                            page_size=PAGE_SIZE, agent_filter=agent_filter,
                            stats=dict(stats), source_health=source_health,
                            sparklines=sparklines,
-                           agent_stats=_fetch_agent_stats())
+                           agent_stats=_fetch_agent_stats(),
+                           is_subscriber=is_subscriber())
 
 
 @bp.get("/team")
@@ -906,7 +907,8 @@ def source_profile(slug: str):
     return render_template("source.html",
                            src=dict(src),
                            band_counts=[dict(r) for r in band_counts],
-                           recent=[dict(r) for r in recent])
+                           recent=[dict(r) for r in recent],
+                           is_subscriber=is_subscriber())
 
 
 @bp.post("/api/clusters/<int:cluster_id>/frame")
@@ -1442,7 +1444,7 @@ def search():
     else:
         source_count = 0
     return render_template("search.html", q=q, results=results,
-                           source_count=source_count)
+                           source_count=source_count, is_subscriber=is_subscriber())
 
 
 @bp.get("/robots.txt")
@@ -1746,7 +1748,7 @@ def api_v1_bias_distribution():
 @bp.get("/map")
 def map_page():
     """Public map view — articles pinned globally by their lat/lng."""
-    return render_template("map.html", source_count=46)
+    return render_template("map.html", source_count=46, is_subscriber=is_subscriber())
 
 
 @bp.get("/api/v1/map-data")

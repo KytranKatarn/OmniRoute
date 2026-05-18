@@ -17,6 +17,7 @@
   </p>
 </div>
 
+{% if is_subscriber %}
 <div style="max-width:1200px;margin:0 auto;padding:8px 16px 24px;">
   <div id="wtfMap" style="width:100%;height:560px;background:#050d0d;border:1px solid #1a2a3a;border-radius:4px;"></div>
   <div id="wtfMapLegend" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:0.7rem;color:#9ca3af;">
@@ -92,4 +93,14 @@
     });
 })();
 </script>
+{% else %}
+<div style="max-width:800px;margin:0 auto;padding:16px;">
+  <div style="background:#060d14;border:1px solid #1a3a5a;border-radius:8px;padding:24px;text-align:center;">
+    <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 News Map — Starter+</div>
+    <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">Geographic coverage map — where Canadian and international stories originate, sized by article volume.</div>
+    <a href="/login?next=/map" style="display:inline-block;background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
+    <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

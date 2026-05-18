@@ -39,6 +39,7 @@
     </div>
   </div>
 
+  {% if is_subscriber %}
   <!-- Stats row -->
   <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:24px;">
     <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:6px;padding:16px 22px;text-align:center;min-width:110px;">
@@ -100,6 +101,14 @@
   <div style="margin-top:20px;">
     <a href="/news" style="font-size:0.7rem;color:#4b5563;text-decoration:none;">← Back to news feed</a>
   </div>
+  {% else %}
+  <div style="background:#060d14;border:1px solid #1a3a5a;border-radius:8px;padding:24px;text-align:center;margin-top:16px;">
+    <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 Bias Profile — Starter+</div>
+    <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">Bias distribution, article history, and score breakdown for {{ src.name }}.</div>
+    <a href="/login?next={{ request.path }}" style="display:inline-block;background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
+    <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
+  </div>
+  {% endif %}
 
 </div>
 {% endblock %}

@@ -70,6 +70,11 @@
       {% if mp.province_code %}
       <span style="font-size:11px;color:#6b7280;">{{ mp.province_code }}</span>
       {% endif %}
+      {% if mp.cabinet_role %}
+      <span style="font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;background:#78350f22;color:#f59e0b;border:1px solid #78350f66;">
+        {{ mp.cabinet_role }}
+      </span>
+      {% endif %}
     </div>
     <div class="wtf-mp-hero-riding">{{ mp.riding_name or '' }}</div>
     <div class="wtf-mp-hero-links">

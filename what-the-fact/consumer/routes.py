@@ -1115,7 +1115,7 @@ def mps_listing():
     with _db().begin() as c:
         rows = c.execute(text("""
             SELECT m.slug, m.name, m.party, m.riding_name, m.province_code,
-                   m.photo_url, m.twitter,
+                   m.photo_url, m.twitter, m.cabinet_role,
                    COUNT(v.id) AS vote_count,
                    (SELECT COUNT(*) FROM wtf.article_mp_tags t WHERE t.mp_id = m.id) AS mention_count
             FROM parliament.mps m
@@ -1226,7 +1226,8 @@ def mp_profile(slug: str):
     with _db().begin() as c:
         mp_row = c.execute(text("""
             SELECT id, slug, name, party, riding_name, province_code,
-                   photo_url, twitter, email, parl_mp_id, openparl_url, fetched_at
+                   photo_url, twitter, email, parl_mp_id, openparl_url, fetched_at,
+                   cabinet_role
             FROM parliament.mps WHERE slug = :slug AND is_current = true
         """), {"slug": slug}).mappings().first()
     if not mp_row:

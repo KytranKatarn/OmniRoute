@@ -116,6 +116,7 @@ function wtfShowMPCard(mp, cx, cy) {
   var nm=document.createElement('div');nm.style.cssText='font-size:13px;font-weight:700;color:#e5e7eb;text-align:center;margin-bottom:5px;';nm.textContent=mp.name;card.appendChild(nm);
   // Party
   var pb=document.createElement('span');pb.style.cssText='display:block;text-align:center;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;margin:0 auto 6px;background:'+(mp.party_colour||'#6b7280')+'22;color:'+(mp.party_colour||'#6b7280')+';border:1px solid '+(mp.party_colour||'#6b7280')+'44;';pb.textContent=mp.party||'—';card.appendChild(pb);
+  if(mp.cabinet_role){var cb=document.createElement('span');cb.style.cssText='display:block;text-align:center;font-size:9px;padding:2px 8px;border-radius:10px;font-weight:600;margin:0 auto 6px;background:#78350f22;color:#f59e0b;border:1px solid #78350f66;';cb.textContent=mp.cabinet_role;card.appendChild(cb);}
   // Riding
   var rd=document.createElement('div');rd.style.cssText='font-size:10px;color:#6b7280;text-align:center;margin-bottom:10px;line-height:1.4;';rd.textContent=(mp.riding_name||'').slice(0,40)+((mp.riding_name||'').length>40?'…':'');card.appendChild(rd);
   // Link
@@ -422,6 +423,8 @@ function wtfShowSenatorCard(s, cx, cy) {
         {% endif %}
         {% if leader_title %}
         <div class="wtf-mp-leader-badge">⭐ {{ leader_title }}</div>
+        {% elif mp.cabinet_role %}
+        <div class="wtf-mp-leader-badge" style="background:#78350f;color:#f59e0b;">🏛 {{ mp.cabinet_role[:28] }}{% if mp.cabinet_role|length > 28 %}…{% endif %}</div>
         {% endif %}
         <div class="wtf-mp-name">{{ mp.name }}</div>
         <span class="wtf-mp-party-badge" style="background:{{ col }}22;color:{{ col }};border:1px solid {{ col }}44;">{{ party_name or '—' }}</span>

@@ -186,12 +186,19 @@ function wtfTab(name, btn) {
     var pos = SEAT_XY[mp.slug];
     if (!pos) return; // skip unpositioned
     var isLeader = !!LEADERS[mp.slug];
+
+    // Scale dot size by distance from centre — inner rows smaller to avoid overlap
+    var dist = Math.sqrt((pos[0]-cx)*(pos[0]-cx)+(pos[1]-cy)*(pos[1]-cy));
+    var r_dot = 2.0 + (dist - 65) / (290 - 65) * 2.5; // 2.0 inner → 4.5 outer
+    r_dot = Math.max(1.8, Math.min(4.5, r_dot));
+    if (isLeader) r_dot += 1.0;
+
     // Pulsing halo for leaders
     if (isLeader) {
       var halo = document.createElementNS(NS, 'circle');
       halo.setAttribute('cx', pos[0]);
       halo.setAttribute('cy', pos[1]);
-      halo.setAttribute('r', R_SEAT + 4);
+      halo.setAttribute('r', r_dot + 3.5);
       halo.setAttribute('fill', mp.party_colour || '#6b7280');
       halo.setAttribute('fill-opacity', '0.35');
       halo.setAttribute('stroke', 'none');
@@ -201,10 +208,10 @@ function wtfTab(name, btn) {
     var c = document.createElementNS(NS, 'circle');
     c.setAttribute('cx', pos[0]);
     c.setAttribute('cy', pos[1]);
-    c.setAttribute('r', isLeader ? R_SEAT + 1.5 : R_SEAT);
+    c.setAttribute('r', r_dot.toFixed(1));
     c.setAttribute('fill', mp.party_colour || '#6b7280');
     c.setAttribute('stroke', isLeader ? '#fff' : '#060d14');
-    c.setAttribute('stroke-width', isLeader ? '1.5' : '0.8');
+    c.setAttribute('stroke-width', isLeader ? '1.2' : '0.5');
     if (isLeader) c.setAttribute('filter', 'url(#wtf-leader-glow)');
     c.style.cursor = 'pointer';
     (function(m, leaderTitle) {

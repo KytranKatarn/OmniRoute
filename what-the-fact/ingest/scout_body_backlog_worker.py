@@ -69,14 +69,21 @@ _GOOGLE_NEWS_SOURCES = (
     "bnn_bloomberg",
 )
 
-# CSS selector chain covering most Canadian news templates. S.C.O.U.T. extracts
+# CSS selector chain covering Canadian news templates. S.C.O.U.T. extracts
 # each independently — the worker picks whichever returns the longest text.
+# Add new publisher-specific selectors here; unknown selectors return empty
+# on non-matching sites (harmless).
 _SELECTORS = {
     "article_tag": "article",
     "schema_body": "[itemprop='articleBody']",
     "article_body_class": ".article-body, .article__body, .articleBody",
     "story_body_class": ".story-body, .story__body, .StoryBodyCompanionColumn",
     "main_content": "main",
+    # Postmedia CMS (Montreal Gazette, Calgary Herald, Vancouver Sun,
+    # Edmonton Journal, Ottawa Citizen, National Post, Financial Post)
+    # — uses story-v2 class system, verified 2026-05-18
+    "postmedia_block": ".story-v2-block-content",
+    "postmedia_elements": ".story-v2-content-element-inline",
 }
 
 

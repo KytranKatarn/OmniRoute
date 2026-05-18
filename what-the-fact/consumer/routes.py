@@ -252,10 +252,16 @@ def news():
         """), band_params).scalar() or 0
         rows = c.execute(text(f"""
             SELECT a.id, a.title, a.url, a.published_at,
-                   s.name AS source, b.band, a.ai_analyzed, a.province_code
+                   s.name AS source, b.band, a.ai_analyzed, a.province_code,
+                   a.cluster_id, sc.article_count AS cluster_size,
+                   (SELECT STRING_AGG(m.name, ', ' ORDER BY m.name)
+                    FROM {S}.article_mp_tags t
+                    JOIN parliament.mps m ON m.id = t.mp_id
+                    WHERE t.article_id = a.id) AS mp_mentions
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            LEFT JOIN {S}.story_clusters sc ON sc.id = a.cluster_id
             WHERE 1=1 {band_where}
             ORDER BY a.published_at DESC
             LIMIT {PAGE_SIZE} OFFSET {offset}
@@ -518,11 +524,16 @@ def index():
         rows = c.execute(text(f"""
             SELECT a.id, a.title, a.url, a.published_at,
                    s.name AS source, b.band,
-                   a.ai_analyzed,
-                   a.province_code
+                   a.ai_analyzed, a.province_code,
+                   a.cluster_id, sc.article_count AS cluster_size,
+                   (SELECT STRING_AGG(m.name, ', ' ORDER BY m.name)
+                    FROM {S}.article_mp_tags t
+                    JOIN parliament.mps m ON m.id = t.mp_id
+                    WHERE t.article_id = a.id) AS mp_mentions
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            LEFT JOIN {S}.story_clusters sc ON sc.id = a.cluster_id
             ORDER BY a.published_at DESC LIMIT 50
         """)).mappings().all()
         source_count = c.execute(

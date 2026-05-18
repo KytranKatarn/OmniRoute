@@ -82,12 +82,18 @@
       <span class="wtf-bias-pill wtf-bias-{{ band }}">{{ band.upper() }}</span>
     </div>
     <a class="wtf-card-title" href="/article/{{ a.id }}">{{ a.title }}</a>
-    <div style="margin-top:5px;">
+    <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
       {% if a.ai_analyzed %}
       <span class="wtf-card-badge wtf-badge-ai">AI Analyzed</span>
       {% if not is_subscriber %}<span class="wtf-card-badge" style="background:#0a1020;color:#f80;border:1px solid #2a1800;">🔒 Premium</span>{% endif %}
       {% else %}
       <span class="wtf-card-badge wtf-badge-quick">Quick Score</span>
+      {% endif %}
+      {% if a.cluster_size and a.cluster_size > 1 %}
+      <a href="/cluster/{{ a.cluster_id }}" class="wtf-card-badge" style="background:#0a2a3a;color:#0af;border:1px solid #0af33;text-decoration:none;">📰 {{ a.cluster_size }} outlets</a>
+      {% endif %}
+      {% if a.mp_mentions %}
+      <span class="wtf-card-badge" style="background:#0a1a2a;color:#a78bfa;border:1px solid #4c1d9544;font-size:9px;" title="{{ a.mp_mentions }}">🏛 {{ a.mp_mentions[:40] }}{% if a.mp_mentions|length > 40 %}…{% endif %}</span>
       {% endif %}
     </div>
   </div>

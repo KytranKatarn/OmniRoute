@@ -45,6 +45,103 @@
   </select>
 </form>
 
+<!-- Parliament Seating Map -->
+<div id="wtf-seating-wrap" style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:14px 16px;margin-bottom:20px;">
+  <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:10px;">
+    🏛 Seating Map
+    <button onclick="var w=document.getElementById('wtf-seating-svg-wrap');var shown=w.style.display!=='none';w.style.display=shown?'none':'block';this.textContent=shown?'Show map':'Hide map';"
+      style="background:none;border:1px solid #1a3a5a;color:#6b7280;padding:2px 8px;border-radius:2px;font-size:10px;cursor:pointer;font-family:inherit;">Hide map</button>
+  </div>
+  <div id="wtf-seating-svg-wrap">
+    <svg id="wtf-parl-svg" viewBox="0 0 700 330" style="width:100%;max-width:700px;display:block;margin:0 auto;" xmlns="http://www.w3.org/2000/svg">
+      <g id="wtf-seats"></g>
+      <rect x="336" y="305" width="28" height="14" rx="2" fill="#1a3a5a"/>
+      <text x="350" y="315" text-anchor="middle" font-size="7" fill="#6b7280" font-family="monospace">SPEAKER</text>
+    </svg>
+    <div id="wtf-parl-legend" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;justify-content:center;font-size:10px;color:#9ca3af;"></div>
+    <div id="wtf-seat-tip" style="position:fixed;background:#0a1520;border:1px solid #1a3a5a;border-radius:3px;padding:5px 9px;font-size:11px;color:#e5e7eb;pointer-events:none;display:none;z-index:9999;max-width:220px;line-height:1.6;"></div>
+  </div>
+</div>
+<script>
+(function(){
+  var ALL_MPS = {{ mps | tojson }};
+  var PARTY_ORDER = {'NDP':0,'Green':1,'Bloc Québécois':2,'Liberal':3,'Conservative':4,"People's Party":5,'Independent':6};
+  var sorted = ALL_MPS.slice().sort(function(a,b){
+    return (PARTY_ORDER[a.party]!=null?PARTY_ORDER[a.party]:99) - (PARTY_ORDER[b.party]!=null?PARTY_ORDER[b.party]:99);
+  });
+
+  var svgG = document.getElementById('wtf-seats');
+  var tip = document.getElementById('wtf-seat-tip');
+  var n = sorted.length;
+  var cx=350, cy=315, innerR=60, outerR=285, ROWS=8;
+
+  var radii=[];
+  for(var r=0;r<ROWS;r++) radii.push(innerR+r*(outerR-innerR)/(ROWS-1));
+  var totalC=radii.reduce(function(s,r){return s+r;},0);
+  var counts=radii.map(function(r,i){ return i===ROWS-1?0:Math.round(n*r/totalC); });
+  counts[ROWS-1]=n-counts.reduce(function(s,c){return s+c;},0);
+
+  var positions=[];
+  for(var r=0;r<ROWS;r++){
+    var rad=radii[r], cnt=counts[r];
+    for(var i=0;i<cnt;i++){
+      var angle=Math.PI*(1-(i+0.5)/cnt);
+      positions.push({x:cx+rad*Math.cos(angle), y:cy-rad*Math.sin(angle)});
+    }
+  }
+
+  var R_SEAT=Math.max(3,Math.min(5,Math.floor(130/Math.sqrt(n))));
+  var NS='http://www.w3.org/2000/svg';
+  sorted.forEach(function(mp,i){
+    var pos=positions[i];
+    if(!pos) return;
+    var c=document.createElementNS(NS,'circle');
+    c.setAttribute('cx',pos.x.toFixed(1));
+    c.setAttribute('cy',pos.y.toFixed(1));
+    c.setAttribute('r',R_SEAT);
+    c.setAttribute('fill',mp.party_colour||'#6b7280');
+    c.setAttribute('stroke','#060d14');
+    c.setAttribute('stroke-width','0.5');
+    c.style.cursor='pointer';
+    (function(m){
+      c.addEventListener('mousemove',function(e){
+        tip.style.display='block';
+        tip.style.left=(e.clientX+12)+'px';
+        tip.style.top=(e.clientY-10)+'px';
+        while(tip.firstChild) tip.removeChild(tip.firstChild);
+        var strong=document.createElement('strong');
+        strong.textContent=m.name;
+        var br1=document.createElement('br');
+        var party=document.createTextNode(m.party||'');
+        var br2=document.createElement('br');
+        var riding=document.createElement('span');
+        riding.style.cssText='color:#6b7280;font-size:9px;';
+        riding.textContent=m.riding_name||'';
+        tip.appendChild(strong); tip.appendChild(br1);
+        tip.appendChild(party); tip.appendChild(br2); tip.appendChild(riding);
+      });
+      c.addEventListener('mouseleave',function(){tip.style.display='none';});
+      c.addEventListener('click',function(){window.location='/mp/'+m.slug;});
+    })(mp);
+    svgG.appendChild(c);
+  });
+
+  var legend=document.getElementById('wtf-parl-legend');
+  var seen={};
+  sorted.forEach(function(mp){
+    if(seen[mp.party]) return;
+    seen[mp.party]=true;
+    var wrap=document.createElement('span');
+    wrap.style.cssText='display:inline-flex;align-items:center;gap:4px;';
+    var dot=document.createElement('span');
+    dot.style.cssText='width:8px;height:8px;border-radius:50%;background:'+mp.party_colour+';flex-shrink:0;display:inline-block;';
+    var label=document.createTextNode(mp.party||'Unknown');
+    wrap.appendChild(dot); wrap.appendChild(label);
+    legend.appendChild(wrap);
+  });
+})();
+</script>
+
 {% set current_party = namespace(name='') %}
 {% for mp in mps %}
   {% if mp.party != current_party.name %}

@@ -214,9 +214,13 @@ def news():
     PAGE_SIZE = 50
     page = max(1, int(_req.args.get("page", 1)))
     VALID_BANDS = {"all", "left", "center-left", "center", "center-right", "right"}
+    VALID_PROVINCES = {"all", "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"}
     band_filter = _req.args.get("band", "all")
+    province_filter = (_req.args.get("province") or "all").upper()
     if band_filter not in VALID_BANDS:
         band_filter = "all"
+    if province_filter not in VALID_PROVINCES:
+        province_filter = "all"
     offset = (page - 1) * PAGE_SIZE
 
     with _db().begin() as c:
@@ -224,11 +228,14 @@ def news():
             text(f"SELECT COUNT(*) FROM {S}.sources")
         ).scalar() or 0
         band_params = {}
-        if band_filter == "all":
-            band_where = ""
-        else:
-            band_where = "AND b.band = :band"
+        where_clauses = []
+        if band_filter != "all":
+            where_clauses.append("b.band = :band")
             band_params["band"] = band_filter
+        if province_filter != "all":
+            where_clauses.append("a.province_code = :province")
+            band_params["province"] = province_filter
+        band_where = ("AND " + " AND ".join(where_clauses)) if where_clauses else ""
         total = c.execute(text(f"""
             SELECT COUNT(*) FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
@@ -261,6 +268,7 @@ def news():
     return render_template("news.html", articles=rows, source_count=source_count,
                            total=total, page=page, total_pages=total_pages,
                            page_size=PAGE_SIZE, band_filter=band_filter,
+                           province_filter=province_filter,
                            sources=[dict(s) for s in sources],
                            is_subscriber=is_subscriber())
 
@@ -769,6 +777,36 @@ def source_profile(slug: str):
                            src=dict(src),
                            band_counts=[dict(r) for r in band_counts],
                            recent=[dict(r) for r in recent])
+
+
+@bp.get("/search")
+def search():
+    """Full-text article search using Postgres tsvector."""
+    from flask import request as _req
+    S = _schema()
+    q = (_req.args.get("q") or "").strip()[:200]
+    results = []
+    if q:
+        with _db().begin() as c:
+            source_count = c.execute(text(f"SELECT COUNT(*) FROM {S}.sources")).scalar() or 0
+            rows = c.execute(text(f"""
+                SELECT a.id, a.title, a.url, a.published_at,
+                       s.name AS source, s.slug AS source_slug, b.band,
+                       ts_rank(to_tsvector('english', COALESCE(a.title,'') || ' ' || COALESCE(a.body,'')),
+                               plainto_tsquery('english', :q)) AS rank
+                FROM {S}.articles a
+                JOIN {S}.sources s ON s.id = a.source_id
+                LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+                WHERE to_tsvector('english', COALESCE(a.title,'') || ' ' || COALESCE(a.body,''))
+                      @@ plainto_tsquery('english', :q)
+                ORDER BY rank DESC, a.published_at DESC
+                LIMIT 50
+            """), {"q": q}).mappings().all()
+        results = [dict(r) for r in rows]
+    else:
+        source_count = 0
+    return render_template("search.html", q=q, results=results,
+                           source_count=source_count)
 
 
 @bp.get("/robots.txt")

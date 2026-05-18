@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{% if q %}Search: {{ q }} — {% endif %}What The Fact{% endblock %}
+{% block content %}
+
+{% set BAND_COLOURS = {'left':'#ef4444','center-left':'#f97316','center':'#22c55e','center-right':'#3b82f6','right':'#8b5cf6','unscored':'#4b5563'} %}
+
+<div style="max-width:760px;margin:40px auto;padding:0 16px;">
+
+  <div style="margin-bottom:24px;">
+    <div style="font-size:0.55rem;letter-spacing:3px;color:#4b5563;text-transform:uppercase;margin-bottom:10px;">Search articles</div>
+    <form action="/search" method="get" style="display:flex;gap:8px;">
+      <input type="text" name="q" value="{{ q | e }}"
+             placeholder="e.g. housing affordability Ontario"
+             style="flex:1;background:#0a0f1a;border:1px solid #1f2937;color:#e0e0e0;padding:10px 14px;border-radius:5px;font-size:0.85rem;outline:none;"
+             autofocus>
+      <button type="submit"
+              style="background:var(--wtf-accent);color:#fff;border:none;padding:10px 20px;border-radius:5px;font-size:0.82rem;cursor:pointer;letter-spacing:0.5px;">
+        Search
+      </button>
+    </form>
+  </div>
+
+  {% if q %}
+  <div style="font-size:0.65rem;color:#6b7280;margin-bottom:16px;letter-spacing:1px;">
+    {{ results|length }} result{{ 's' if results|length != 1 else '' }} for "<span style="color:#9ca3af;">{{ q | e }}</span>"
+  </div>
+
+  {% if results %}
+  {% for r in results %}
+  {% set band = r.band or 'unscored' %}
+  {% set colour = BAND_COLOURS.get(band, '#4b5563') %}
+  <div style="background:#0a0f1a;border:1px solid #1a2030;border-left:2px solid {{ colour }};border-radius:4px;padding:12px 14px;margin-bottom:6px;">
+    <a href="/article/{{ r.id }}" style="display:block;color:#d1d5db;font-size:0.82rem;font-weight:500;line-height:1.4;text-decoration:none;margin-bottom:5px;">
+      {{ r.title[:160] }}
+    </a>
+    <div style="font-size:0.62rem;color:#4b5563;display:flex;gap:10px;flex-wrap:wrap;">
+      {% if r.source_slug %}
+      <a href="/source/{{ r.source_slug }}" style="color:#4b5563;text-decoration:none;">{{ r.source }}</a>
+      {% else %}{{ r.source }}{% endif %}
+      <span style="color:{{ colour }};">{{ band.upper() }}</span>
+      {% if r.published_at %}<span>{{ r.published_at.strftime('%b %d, %Y') }}</span>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div style="color:#4b5563;font-size:0.78rem;padding:20px 0;">No articles found for "{{ q | e }}".</div>
+  {% endif %}
+
+  {% endif %}
+</div>
+{% endblock %}

@@ -56,11 +56,21 @@
     <div style="display:flex;flex-wrap:wrap;gap:6px;">
       {% set bands = [('all','All',''),('left','Left','#3b82f6'),('center-left','Ctr-Left','#93c5fd'),('center','Center',''),('center-right','Ctr-Right','#fca5a5'),('right','Right','#ef4444')] %}
       {% for val, label, col in bands %}
-      <a href="/news?band={{ val }}&page=1"
+      <a href="/news?band={{ val }}&province={{ province_filter }}&page=1"
          class="wtf-act-filter {% if band_filter == val %}wtf-act-filter--active{% endif %}"
          style="text-decoration:none;{% if col %}color:{{ col }};{% endif %}">{{ label }}</a>
       {% endfor %}
     </div>
+  </div>
+
+  <!-- Province filter -->
+  <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px;">
+    {% set provinces = [('all','All'), ('AB','AB'), ('BC','BC'), ('MB','MB'), ('NB','NB'), ('NL','NL'), ('NS','NS'), ('ON','ON'), ('PE','PE'), ('QC','QC'), ('SK','SK'), ('YT','YT'), ('NT','NT'), ('NU','NU')] %}
+    {% for val, label in provinces %}
+    <a href="/news?band={{ band_filter }}&province={{ val }}&page=1"
+       class="wtf-act-filter {% if province_filter == val %}wtf-act-filter--active{% endif %}"
+       style="text-decoration:none;font-size:0.62rem;">{{ label }}</a>
+    {% endfor %}
   </div>
 
   {% for a in articles %}
@@ -96,11 +106,11 @@
   {% if total_pages > 1 %}
   <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:24px 0;">
     {% if page > 1 %}
-    <a href="/news?band={{ band_filter }}&page={{ page - 1 }}" class="wtf-act-filter" style="text-decoration:none;">← Prev</a>
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&page={{ page - 1 }}" class="wtf-act-filter" style="text-decoration:none;">← Prev</a>
     {% endif %}
     <span style="color:#6b7280;font-size:0.7rem;">Page {{ page }} of {{ total_pages }} &middot; {{ total }} articles</span>
     {% if page < total_pages %}
-    <a href="/news?band={{ band_filter }}&page={{ page + 1 }}" class="wtf-act-filter" style="text-decoration:none;">Next →</a>
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&page={{ page + 1 }}" class="wtf-act-filter" style="text-decoration:none;">Next →</a>
     {% endif %}
   </div>
   {% endif %}

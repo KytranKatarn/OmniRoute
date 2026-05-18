@@ -528,7 +528,7 @@ def article(article_id: int):
                    a.analysis_tier, a.tier2_pending,
                    a.bias_v2_score, a.bias_v2_label,
                    a.bias_ensemble_score, a.bias_ensemble_band,
-                   s.name AS source_name,
+                   s.name AS source_name, s.slug AS source_slug,
                    b.band AS bias_band, b.score AS bias_score,
                    b.rationale AS bias_rationale, b.trigger_phrases,
                    fc.overall_verdict, fc.claims AS fact_check_claims
@@ -708,6 +708,25 @@ def account_page():
                            has_stripe=has_stripe)
 
 
+@bp.get("/sources")
+def sources_list():
+    """All tracked outlets sorted by article count."""
+    S = _schema()
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT s.slug, s.name, s.url, s.bias_lean, s.owner_name, s.owner_type,
+                   obs.avg_score, obs.band AS rolling_band,
+                   COUNT(a.id) AS total_articles,
+                   COUNT(a.id) FILTER (WHERE a.published_at > NOW() - INTERVAL '7 days') AS articles_7d
+            FROM {S}.sources s
+            LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = s.id
+            LEFT JOIN {S}.articles a ON a.source_id = s.id
+            GROUP BY s.id, s.slug, s.name, s.url, s.bias_lean, s.owner_name, s.owner_type, obs.avg_score, obs.band
+            ORDER BY COUNT(a.id) DESC
+        """)).mappings().all()
+    return render_template("sources.html", sources=[dict(r) for r in rows])
+
+
 @bp.get("/source/<slug>")
 def source_profile(slug: str):
     """Outlet bias profile page — SEO-indexable per source."""
@@ -783,7 +802,7 @@ def sitemap_xml():
 
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
              '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-    static_pages = ["/", "/map", "/team", "/join", "/activity", "/news"]
+    static_pages = ["/", "/sources", "/map", "/team", "/join", "/activity", "/news"]
     for path in static_pages:
         lines.append(f"  <url><loc>https://what-the-fact.com{path}</loc></url>")
     # Source profile pages

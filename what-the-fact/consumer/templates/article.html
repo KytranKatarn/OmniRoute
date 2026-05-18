@@ -84,7 +84,7 @@
   <!-- Header -->
   <div class="wtf-art-header">
     <div class="wtf-art-meta">
-      <span>{{ a.source_name or '' }}</span>
+      {% if a.source_slug %}<a href="/source/{{ a.source_slug }}" style="color:inherit;text-decoration:none;" title="{{ a.source_name }} bias profile">{{ a.source_name or '' }}</a>{% else %}{{ a.source_name or '' }}{% endif %}
       {% if a.province_code %}<span>&#x1F4CD; {{ a.province_code }}</span>{% endif %}
       {% if a.published_at %}<span>{{ a.published_at.strftime('%Y-%m-%d') if a.published_at and a.published_at.strftime is defined else (a.published_at or '')[:10] }}</span>{% endif %}
       {% if a.ai_analyzed %}

@@ -49,6 +49,7 @@
   'market-watch': 'Market Watch'
 } %}
 
+{% if is_subscriber %}
 <div class="wtf-off-grid">
 {% for o in officers %}
 <div class="wtf-off-card">
@@ -84,6 +85,14 @@
 </div>
 {% endfor %}
 </div>
+{% else %}
+<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:8px;padding:24px;text-align:center;margin:8px 0 24px;">
+  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 Officers of Parliament — Starter+</div>
+  <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">Full profiles of Canada's 8 independent accountability watchdogs — mandates, current holders, and cross-product intelligence links.</div>
+  <a href="/login?next=/parliament/officers" style="display:inline-block;background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
+  <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
+</div>
+{% endif %}
 
 <div style="margin-top:28px;padding:14px 16px;background:#060d14;border:1px solid #1a3a5a;border-radius:6px;font-size:12px;color:#6b7280;line-height:1.8;">
   <strong style="color:#9ca3af;">Why Officers of Parliament matter</strong><br>

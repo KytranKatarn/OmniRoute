@@ -123,6 +123,31 @@
   </div>
   {% endif %}
 
+  {# Voting record #}
+  {% if senator.votes %}
+  <div class="wtf-sen-section">
+    <div class="wtf-sen-section-title">🗳 Recent Senate Votes ({{ senator.votes | length }})</div>
+    {% for v in senator.votes %}
+    {% set ballot_colour = '#22c55e' if v.ballot == 'yea' else '#ef4444' if v.ballot == 'nay' else '#f59e0b' if v.ballot == 'abstention' else '#4b5563' %}
+    {% set ballot_icon = '✓' if v.ballot == 'yea' else '✗' if v.ballot == 'nay' else '⇌' if v.ballot == 'abstention' else '—' %}
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid #1a0000;">
+      <div style="flex-shrink:0;width:24px;height:24px;border-radius:50%;background:{{ ballot_colour }}22;border:1px solid {{ ballot_colour }}44;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:{{ ballot_colour }};">{{ ballot_icon }}</div>
+      <div style="flex:1;">
+        <div style="font-size:11px;color:#ccc;line-height:1.4;">
+          {{ v.title[:100] }}{% if v.title|length > 100 %}…{% endif %}
+          {% if v.bill_number %}<span style="font-size:10px;color:#6b7280;margin-left:4px;">{{ v.bill_number }}</span>{% endif %}
+        </div>
+        <div style="font-size:10px;color:#4b5563;margin-top:2px;">
+          {{ v.vote_date.strftime('%b %-d, %Y') if v.vote_date and v.vote_date.strftime is defined else (v.vote_date or '')[:10] }}
+          {% if v.result %} · <span style="color:{% if v.result == 'Adopted' %}#22c55e{% else %}#ef4444{% endif %};">{{ v.result }}</span>{% endif %}
+          {% if v.yea_total is not none %} · {{ v.yea_total }}–{{ v.nay_total }}{% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   {# Biography #}
   {% if senator.biography %}
   <div class="wtf-sen-section">

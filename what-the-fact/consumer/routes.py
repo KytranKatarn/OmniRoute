@@ -1206,6 +1206,18 @@ def senator_profile(slug: str):
             ORDER BY role DESC, committee_name
         """), {"sid": senator["id"]}).mappings().all()
         senator["committees"] = [dict(r) for r in committee_rows]
+        # Fetch recent votes
+        vote_rows = c.execute(text("""
+            SELECT sv.vote_date, sv.title, sv.bill_number, sv.result,
+                   sv.yea_total, sv.nay_total, sv.abstention_total,
+                   snv.ballot
+            FROM parliament.senator_votes snv
+            JOIN parliament.senate_votes sv ON sv.id = snv.vote_id
+            WHERE snv.senator_id = :sid
+            ORDER BY sv.vote_date DESC
+            LIMIT 30
+        """), {"sid": senator["id"]}).mappings().all()
+        senator["votes"] = [dict(r) for r in vote_rows]
 
     senator["caucus_colour"] = _CAUCUS_COLOURS.get(senator.get("caucus") or "", "#888888")
     senator["caucus_label"] = _CAUCUS_LABELS.get(senator.get("caucus") or "", senator.get("caucus") or "")

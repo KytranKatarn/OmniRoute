@@ -535,11 +535,24 @@ def article(article_id: int):
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-            LEFT JOIN {S}.fact_checks fc ON fc.article_id = a.id
+            LEFT JOIN {S}.fact_checks fc
+                ON fc.article_id = a.id AND fc.checker NOT LIKE 'GoogleFCT%%'
             WHERE a.id = :id
         """), {"id": article_id}).mappings().first()
     if not row:
         abort(404)
+    # GoogleFCT partner fact-checks — free to all users (third-party public verdicts)
+    with _db().begin() as c:
+        gfct_rows = c.execute(text(f"""
+            SELECT claim, verdict, evidence, checker
+            FROM {S}.fact_checks
+            WHERE article_id = :id
+              AND checker LIKE 'GoogleFCT%%'
+              AND checker != 'GoogleFCT:none'
+            ORDER BY checked_at DESC
+            LIMIT 5
+        """), {"id": article_id}).mappings().all()
+    google_fact_checks = [dict(r) for r in gfct_rows]
     # Normalise JSONB fields — driver may return str or list
     a = dict(row)
     for field in ("trigger_phrases", "fact_check_claims"):
@@ -578,7 +591,8 @@ def article(article_id: int):
             pass
 
     return render_template("article.html", a=a, wtf_tech_url=wtf_tech_url,
-                           is_subscriber=subscribed)
+                           is_subscriber=subscribed,
+                           google_fact_checks=google_fact_checks)
 
 
 # ───────────────────────────────────────────────────────────────────────────

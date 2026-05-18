@@ -227,6 +227,28 @@
   <!-- Deep Dive result area -->
   <div id="wtf-deep-dive-result" style="display:none;background:#060d14;border:1px solid #0af;border-radius:4px;padding:12px;margin-bottom:14px;font-size:11px;color:#ccc;"></div>
 
+  <!-- GoogleFCT partner fact-checks — free, always visible -->
+  {% if google_fact_checks %}
+  <div style="background:#060b14;border:1px solid #1e3a5f;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
+    <div style="font-size:10px;letter-spacing:1.5px;color:#4a9eff;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x2713; Third-Party Fact-Checks</div>
+    {% for gfc in google_fact_checks %}
+    {% set pub = gfc.checker.replace('GoogleFCT:', '') %}
+    {% set vc = {'true': '#4ade80', 'mostly_true': '#a3e635', 'mixed': '#fbbf24', 'false': '#f87171', 'unverified': '#6b7280'}.get(gfc.verdict, '#6b7280') %}
+    <div style="border-left:2px solid {{ vc }};padding:6px 10px;margin-bottom:6px;background:#0a0f1a;border-radius:2px;">
+      <div style="font-size:10px;color:#9ca3af;margin-bottom:3px;">
+        <span style="color:{{ vc }};font-weight:600;text-transform:uppercase;">{{ gfc.verdict.replace('_', ' ') }}</span>
+        &nbsp;·&nbsp; {{ pub }}
+      </div>
+      <div style="font-size:11px;color:#c0c8d8;line-height:1.5;">{{ gfc.claim[:200] }}</div>
+      {% if gfc.evidence %}
+      <a href="{{ gfc.evidence }}" target="_blank" rel="nofollow noopener" style="font-size:10px;color:#4a9eff;text-decoration:none;">Read fact-check →</a>
+      {% endif %}
+    </div>
+    {% endfor %}
+    <div style="font-size:10px;color:#4b5563;margin-top:4px;">Via Google Fact Check Tools API · PolitiFact, Reuters, AFP, Snopes and others.</div>
+  </div>
+  {% endif %}
+
   <!-- Article Body -->
   {% if a.body %}
   <div class="wtf-art-body">{{ a.body }}</div>

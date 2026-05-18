@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}CRTC Decisions — Broadcasting & Telecom Rulings · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Canadian Radio-television and Telecommunications Commission decisions 2024–2026. Broadcasting licences, telecom rulings, and enforcement actions.">
+{% endblock %}
+{% block content %}
+<style>
+.wtf-crtc-header { padding:20px 0 16px; border-bottom:1px solid #1a3a5a; margin-bottom:20px; }
+.wtf-crtc-title { font-family:'Orbitron',sans-serif; font-size:20px; color:#e5e7eb; margin:0 0 6px; }
+.wtf-crtc-sub { font-size:12px; color:#6b7280; }
+.wtf-crtc-filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+.wtf-crtc-filter { font-size:11px; padding:4px 12px; border-radius:12px; border:1px solid #1a3a5a; background:#060d14; color:#9ca3af; text-decoration:none; }
+.wtf-crtc-filter.active { border-color:#0af; color:#0af; background:#0a1a2a; }
+.wtf-crtc-list { display:flex; flex-direction:column; gap:8px; }
+.wtf-crtc-row { background:#060d14; border:1px solid #1a3a5a; border-radius:4px; padding:12px 14px; }
+.wtf-crtc-num { font-family:'IBM Plex Mono',monospace; font-size:11px; color:#0af; font-weight:600; text-decoration:none; }
+.wtf-crtc-num:hover { text-decoration:underline; }
+.wtf-crtc-type { font-size:10px; padding:1px 7px; border-radius:10px; margin-left:8px; }
+.wtf-crtc-subject { font-size:13px; color:#e5e7eb; margin:4px 0 2px; font-weight:500; }
+.wtf-crtc-desc { font-size:11px; color:#9ca3af; line-height:1.5; }
+.wtf-crtc-scope { font-size:10px; color:#6b7280; margin-top:4px; }
+.wtf-crtc-source-link { font-size:10px; color:#22c55e; margin-left:8px; text-decoration:none; }
+.wtf-crtc-source-link:hover { text-decoration:underline; }
+</style>
+
+<div class="wtf-crtc-header">
+  <h1 class="wtf-crtc-title">📡 CRTC Decisions</h1>
+  <div class="wtf-crtc-sub">
+    {{ decisions|length }} rulings · 2024–2026 · Canadian Radio-television and Telecommunications Commission
+  </div>
+</div>
+
+<div class="wtf-crtc-filters">
+  <a class="wtf-crtc-filter {{ 'active' if dtype == 'all' }}" href="/crtc">All</a>
+  <a class="wtf-crtc-filter {{ 'active' if dtype == 'broadcasting' }}" href="/crtc?type=broadcasting">Broadcasting</a>
+  <a class="wtf-crtc-filter {{ 'active' if dtype == 'telecom' }}" href="/crtc?type=telecom">Telecom</a>
+  <a class="wtf-crtc-filter {{ 'active' if dtype == 'compliance' }}" href="/crtc?type=compliance">Compliance</a>
+</div>
+
+{% set TYPE_COLOURS = {'broadcasting':'#3b82f6','telecom':'#22c55e','compliance':'#ef4444','online_news':'#f59e0b'} %}
+{% set TYPE_LABELS = {'broadcasting':'Broadcasting','telecom':'Telecom','compliance':'Enforcement','online_news':'Online News'} %}
+
+{% if is_subscriber %}
+<div class="wtf-crtc-list">
+{% for d in decisions %}
+{% set tc = TYPE_COLOURS.get(d.decision_type or 'broadcasting', '#6b7280') %}
+<div class="wtf-crtc-row" style="border-left:3px solid {{ tc }};">
+  <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
+    {% if d.decision_url %}
+    <a class="wtf-crtc-num" href="{{ d.decision_url }}" target="_blank" rel="noopener">{{ d.decision_number }}</a>
+    {% else %}
+    <span class="wtf-crtc-num">{{ d.decision_number }}</span>
+    {% endif %}
+    <span class="wtf-crtc-type" style="background:{{ tc }}22;color:{{ tc }};border:1px solid {{ tc }}44;">
+      {{ TYPE_LABELS.get(d.decision_type or '', d.decision_type or '') }}
+    </span>
+    {% if d.wtf_source_slug %}
+    <a class="wtf-crtc-source-link" href="/source/{{ d.wtf_source_slug }}">🔗 WTF source →</a>
+    {% endif %}
+  </div>
+  {% if d.subject %}
+  <div class="wtf-crtc-subject">{{ d.subject }}</div>
+  {% endif %}
+  {% if d.description %}
+  <div class="wtf-crtc-desc">{{ d.description[:200] }}{% if d.description|length > 200 %}…{% endif %}</div>
+  {% endif %}
+  {% if d.scope %}
+  <div class="wtf-crtc-scope">📍 {{ d.scope }}</div>
+  {% endif %}
+</div>
+{% endfor %}
+</div>
+{% else %}
+<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:8px;padding:24px;text-align:center;margin:8px 0;">
+  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 CRTC Decisions — Starter+</div>
+  <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">280 CRTC broadcasting and telecom rulings (2024–2026) with cross-links to WTF outlet profiles.</div>
+  <a href="/login?next=/crtc" style="display:inline-block;background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
+  <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
+</div>
+{% endif %}
+
+<div style="margin-top:24px;padding:12px 14px;background:#060d14;border:1px solid #1a3a5a;border-radius:6px;font-size:12px;color:#6b7280;line-height:1.8;">
+  <strong style="color:#9ca3af;">About CRTC decisions</strong><br>
+  The CRTC regulates Canada's broadcasting system (TV, radio, streaming) and telecommunications (internet, wireless, phone).
+  Its decisions affect every media outlet, telecom provider, and online platform operating in Canada.
+  🔗 items indicate the subject matches a WTF-tracked news outlet.
+  <br><br>
+  <a href="https://crtc.gc.ca/eng/dno.htm" target="_blank" rel="noopener" style="color:#0af;font-size:11px;">Full CRTC index ↗</a>
+  &nbsp;&nbsp;
+  <a href="/owners" style="color:#6b7280;font-size:11px;">Media Owners →</a>
+</div>
+
+{% endblock %}

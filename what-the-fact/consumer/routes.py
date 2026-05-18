@@ -1082,6 +1082,30 @@ def officers_of_parliament():
                            is_subscriber=is_subscriber())
 
 
+@bp.get("/crtc")
+def crtc_decisions():
+    """CRTC rulings — broadcasting, telecom, compliance decisions."""
+    from flask import request as _req
+    dtype = _req.args.get("type", "all")
+    with _db().begin() as c:
+        query = """
+            SELECT decision_number, decision_year, subject, scope,
+                   description, decision_type, decision_url, wtf_source_slug
+            FROM legal_watch.crtc_decisions
+            {}
+            ORDER BY decision_number DESC
+            LIMIT 200
+        """.format("WHERE decision_type = :dtype" if dtype != "all" else "")
+        params = {"dtype": dtype} if dtype != "all" else {}
+        rows = c.execute(text(query), params).mappings().all()
+        source_count = c.execute(text(f"SELECT COUNT(*) FROM {_schema()}.sources")).scalar() or 0
+    return render_template("crtc.html",
+                           decisions=[dict(r) for r in rows],
+                           dtype=dtype,
+                           source_count=source_count,
+                           is_subscriber=is_subscriber())
+
+
 @bp.get("/owners")
 def owners_listing():
     """Media ownership transparency — who owns which outlets and their bias profile."""

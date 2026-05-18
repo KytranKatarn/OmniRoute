@@ -247,4 +247,122 @@
 </div>
 {% endif %}
 
+{% if lobbying_contacts %}
+<div class="wtf-mp-section">
+  <div class="wtf-mp-section-title">🏢 Lobbying contacts — who has met with this MP</div>
+  <div style="overflow-x:auto;">
+  <table style="width:100%;border-collapse:collapse;font-size:11px;">
+    <thead>
+      <tr style="color:#6b7280;text-align:left;border-bottom:1px solid #1a3a5a;">
+        <th style="padding:4px 8px 8px 0;">Date</th>
+        <th style="padding:4px 8px 8px 0;">Lobbyist</th>
+        <th style="padding:4px 8px 8px 0;">Organization</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for lc in lobbying_contacts %}
+      <tr style="border-bottom:1px solid #060d14;">
+        <td style="padding:6px 8px 6px 0;color:#6b7280;white-space:nowrap;">
+          {{ lc.communication_date.strftime('%b %-d, %Y') if lc.communication_date else '—' }}
+        </td>
+        <td style="padding:6px 8px 6px 0;color:#e5e7eb;">
+          {{ lc.lobbyist_first }} {{ lc.lobbyist_last }}
+        </td>
+        <td style="padding:6px 0;color:#9ca3af;">{{ (lc.client_org or '')[:60] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div style="font-size:9px;color:#374151;margin-top:8px;">
+    Source: Office of the Commissioner of Lobbying of Canada · <a href="https://lobbycanada.gc.ca" target="_blank" rel="noopener" style="color:#374151;">lobbycanada.gc.ca</a>
+  </div>
+</div>
+{% endif %}
+
+{% if expense_periods %}
+<div class="wtf-mp-section">
+  <div class="wtf-mp-section-title">💳 Quarterly expenses — public money spent</div>
+  <div style="overflow-x:auto;">
+  <table style="width:100%;border-collapse:collapse;font-size:11px;">
+    <thead>
+      <tr style="color:#6b7280;text-align:left;border-bottom:1px solid #1a3a5a;">
+        <th style="padding:4px 8px 8px 0;">Period</th>
+        <th style="padding:4px 8px 8px 0;text-align:right;">Travel</th>
+        <th style="padding:4px 8px 8px 0;text-align:right;">Hospitality</th>
+        <th style="padding:4px 8px 8px 0;text-align:right;">Contracts</th>
+        <th style="padding:4px 0 8px 0;text-align:right;">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ep in expense_periods %}
+      <tr style="border-bottom:1px solid #060d14;">
+        <td style="padding:6px 8px 6px 0;color:#9ca3af;">{{ ep.period }}</td>
+        <td style="padding:6px 8px 6px 0;color:#e5e7eb;text-align:right;">
+          {% if ep.travel_cad %}${{ '{:,.0f}'.format(ep.travel_cad) }}{% else %}—{% endif %}
+        </td>
+        <td style="padding:6px 8px 6px 0;color:#e5e7eb;text-align:right;">
+          {% if ep.hospitality_cad %}${{ '{:,.0f}'.format(ep.hospitality_cad) }}{% else %}—{% endif %}
+        </td>
+        <td style="padding:6px 8px 6px 0;color:#e5e7eb;text-align:right;">
+          {% if ep.contracts_cad %}${{ '{:,.0f}'.format(ep.contracts_cad) }}{% else %}—{% endif %}
+        </td>
+        <td style="padding:6px 0;color:#0af;text-align:right;font-weight:600;">
+          {% if ep.total_cad %}${{ '{:,.0f}'.format(ep.total_cad) }}{% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div style="font-size:9px;color:#374151;margin-top:8px;">
+    Source: Our Commons proactive disclosure · <a href="https://www.ourcommons.ca/ProactiveDisclosure/en/members" target="_blank" rel="noopener" style="color:#374151;">ourcommons.ca</a>
+  </div>
+</div>
+{% endif %}
+
+{% if disclosures %}
+<div class="wtf-mp-section">
+  <div class="wtf-mp-section-title">⚖️ Ethics Commissioner — disclosure documents</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    {% for d in disclosures %}
+    <a href="{{ d.disclosure_url }}" target="_blank" rel="noopener"
+       style="background:#0a1520;border:1px solid #1a3a5a;border-radius:3px;padding:5px 12px;font-size:11px;color:#9ca3af;text-decoration:none;">
+      {{ d.disclosure_type|capitalize }} {{ d.disclosure_year or '' }}
+      <span style="color:#4b5563;margin-left:4px;">↗</span>
+    </a>
+    {% endfor %}
+  </div>
+  <div style="font-size:9px;color:#374151;margin-top:8px;">
+    Source: Conflict of Interest and Ethics Commissioner · <a href="https://ciec-ccie.parl.gc.ca/en/disclosures/" target="_blank" rel="noopener" style="color:#374151;">ciec-ccie.parl.gc.ca</a>
+  </div>
+</div>
+{% endif %}
+
+{% if promises %}
+<div class="wtf-mp-section">
+  <div class="wtf-mp-section-title">📋 Promise tracker — commitments detected in news</div>
+  <div style="font-size:10px;color:#6b7280;margin-bottom:10px;">Extracted from news articles using keyword detection. V.E.R.I.F.Y. scoring coming soon.</div>
+  {% for p in promises %}
+  <div style="background:#060d14;border-left:3px solid
+    {% if p.status == 'kept' %}#22c55e
+    {% elif p.status == 'broken' %}#ef4444
+    {% elif p.status == 'partial' %}#f59e0b
+    {% else %}#374151{% endif %};
+    padding:10px 12px;margin-bottom:8px;border-radius:0 3px 3px 0;">
+    <div style="font-size:12px;color:#e5e7eb;line-height:1.6;">{{ p.promise_text }}</div>
+    <div style="font-size:10px;color:#4b5563;margin-top:4px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <span style="background:{% if p.status == 'kept' %}#052e16{% elif p.status == 'broken' %}#3b0000{% elif p.status == 'partial' %}#1c1a00{% else %}#111{% endif %};
+            color:{% if p.status == 'kept' %}#22c55e{% elif p.status == 'broken' %}#ef4444{% elif p.status == 'partial' %}#f59e0b{% else %}#6b7280{% endif %};
+            padding:1px 6px;border-radius:3px;font-size:9px;">
+        {{ p.status|upper }}
+      </span>
+      {% if p.published_at %}<span>{{ p.published_at.strftime('%b %-d, %Y') }}</span>{% endif %}
+      {% if p.source_url %}<a href="{{ p.source_url }}" target="_blank" rel="noopener nofollow" style="color:#0af;text-decoration:none;">Source ↗</a>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% endblock %}

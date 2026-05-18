@@ -59,7 +59,7 @@ def _paginate(path: str, params: dict = None) -> list[dict]:
             break
         objects = data.get("objects") or []
         results.extend(objects)
-        if not data.get("next_url"):
+        if not (data.get("pagination") or {}).get("next_url"):
             break
         p["offset"] += p["limit"]
         time.sleep(_PAGE_SLEEP)
@@ -366,6 +366,24 @@ def run_parliament_sync(engine, current_session: str = "45-1") -> dict:
     except Exception as exc:
         logger.exception("ec_contributions sync failed (non-fatal): %s", exc)
         results["ec_contributions"] = {"error": str(exc)}
+
+    # Phase 3: Accountability data — expenses, lobbying, ethics, promises
+    for task_name, module_path, func_name in [
+        ("mp_expenses",       "ingest.parliament.mp_expenses",      "run_expenses_sync"),
+        ("lobbying",          "ingest.parliament.lobbying",          "run_lobbying_sync"),
+        ("ethics_disclosures","ingest.parliament.ethics_disclosures","run_ethics_sync"),
+        ("promise_tracker",   "ingest.parliament.promise_tracker",   "run_promise_tracker"),
+    ]:
+        try:
+            import importlib
+            mod = importlib.import_module(module_path)
+            fn = getattr(mod, func_name)
+            results[task_name] = fn(engine)
+            logger.info("parliament sync %s: %s", task_name, results[task_name])
+        except Exception as exc:
+            logger.exception("%s sync failed (non-fatal): %s", task_name, exc)
+            results[task_name] = {"error": str(exc)}
+        time.sleep(_TASK_SLEEP)
 
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
     logger.info("parliament sync complete in %.1fs: %s", elapsed, results)

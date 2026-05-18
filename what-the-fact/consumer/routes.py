@@ -1152,6 +1152,49 @@ def mp_profile(slug: str):
     stats = {r["ballot"]: r["cnt"] for r in vote_stats}
     total_votes = sum(stats.values())
 
+    # Accountability data — best-effort (tables may not exist on first run)
+    lobbying_contacts = []
+    expense_periods = []
+    disclosures = []
+    promises = []
+    try:
+        with _db().begin() as c:
+            lobbying_contacts = c.execute(text("""
+                SELECT lc.lobbyist_last, lc.lobbyist_first, lc.client_org,
+                       lc.communication_date, lc.comlog_id
+                FROM parliament.lobbyist_contacts lc
+                WHERE lc.mp_id = :mp_id
+                ORDER BY lc.communication_date DESC
+                LIMIT 25
+            """), {"mp_id": mp["id"]}).mappings().all()
+
+            expense_periods = c.execute(text("""
+                SELECT period, travel_cad, hospitality_cad, contracts_cad,
+                       salaries_cad, total_cad
+                FROM parliament.mp_expenses
+                WHERE mp_id = :mp_id
+                ORDER BY period DESC
+                LIMIT 12
+            """), {"mp_id": mp["id"]}).mappings().all()
+
+            disclosures = c.execute(text("""
+                SELECT disclosure_year, disclosure_type, disclosure_url
+                FROM parliament.mp_disclosures
+                WHERE mp_id = :mp_id
+                ORDER BY disclosure_year DESC
+                LIMIT 10
+            """), {"mp_id": mp["id"]}).mappings().all()
+
+            promises = c.execute(text("""
+                SELECT promise_text, source_url, published_at, status
+                FROM parliament.mp_promises
+                WHERE mp_id = :mp_id
+                ORDER BY published_at DESC
+                LIMIT 15
+            """), {"mp_id": mp["id"]}).mappings().all()
+    except Exception:
+        pass  # accountability tables may not exist yet
+
     # Donor data from Elections Canada (parliament.ec_contributions)
     riding_donor_totals = []
     top_named_donors = []
@@ -1200,6 +1243,10 @@ def mp_profile(slug: str):
                            source_count=source_count,
                            riding_donor_totals=[dict(r) for r in riding_donor_totals],
                            top_named_donors=[dict(r) for r in top_named_donors],
+                           lobbying_contacts=[dict(r) for r in lobbying_contacts],
+                           expense_periods=[dict(r) for r in expense_periods],
+                           disclosures=[dict(r) for r in disclosures],
+                           promises=[dict(r) for r in promises],
                            is_subscriber=is_subscriber())
 
 

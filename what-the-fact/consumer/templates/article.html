@@ -1,5 +1,18 @@
 {% extends "base.html" %}
 {% block title %}{{ a.title }} — What The Fact{% endblock %}
+{% block meta %}
+{% set _desc = (a.source_name or '') + ' · ' + (a.bias_band or 'unscored') + ' bias' %}
+<meta name="description" content="{{ a.title | e }}">
+<meta property="og:site_name" content="What The Fact">
+<meta property="og:title" content="{{ a.title | e }}">
+<meta property="og:description" content="{{ _desc }}">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://what-the-fact.com/article/{{ a.id }}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:site" content="@whatthefactca">
+<meta name="twitter:title" content="{{ a.title | e }}">
+<meta name="twitter:description" content="{{ _desc }}">
+{% endblock %}
 {% block content %}
 <style>
 /* Article page — dark theme */

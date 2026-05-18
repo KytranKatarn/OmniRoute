@@ -3,6 +3,18 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}What The Fact{% endblock %}</title>
+  {% block meta %}
+  <meta name="description" content="Canada's AI-powered newsroom. Every article scored for bias. Every claim fact-checked. No spin — just data.">
+  <meta property="og:site_name" content="What The Fact">
+  <meta property="og:title" content="What The Fact — Canadian AI Newsroom">
+  <meta property="og:description" content="Canada's AI-powered newsroom. Every article scored for bias. Every claim fact-checked. No spin — just data.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://what-the-fact.com">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:site" content="@whatthefactca">
+  <meta name="twitter:title" content="What The Fact — Canadian AI Newsroom">
+  <meta name="twitter:description" content="Canada's AI-powered newsroom. Every article scored for bias. Every claim fact-checked.">
+  {% endblock %}
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>

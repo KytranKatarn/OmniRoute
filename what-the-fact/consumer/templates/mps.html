@@ -121,50 +121,65 @@ function wtfTab(name, btn) {
   defs.innerHTML = '<filter id="wtf-leader-glow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
   document.getElementById('wtf-parl-svg').prepend(defs);
 
-  // ── Row arc guides ──────────────────────────────────────────
-  var cx = 350, cy = 315;
+  // ── Chamber floor layout ────────────────────────────────────
+  var cx = 350, cy = 318;
   var ROW_RADII = [65, 110, 155, 200, 245, 290];
+
+  // Row band shading — alternating subtle fills create visible bench rows
+  var SHADE_COLORS = ['#06101e','#070f1c','#060c18','#070f1c','#060c18','#07111f'];
+  var shadeInner = [0].concat(ROW_RADII.slice(0,-1));
+  shadeInner.forEach(function(r1, si) {
+    var r2 = ROW_RADII[si];
+    var band = document.createElementNS(NS, 'path');
+    var d = r1 === 0
+      ? ('M '+(cx-r2)+' '+cy+' A '+r2+' '+r2+' 0 1 1 '+(cx+r2)+' '+cy+' Z')
+      : ('M '+(cx-r2)+' '+cy+' A '+r2+' '+r2+' 0 1 1 '+(cx+r2)+' '+cy+
+         ' L '+(cx+r1)+' '+cy+' A '+r1+' '+r1+' 0 1 0 '+(cx-r1)+' '+cy+' Z');
+    band.setAttribute('d', d);
+    band.setAttribute('fill', SHADE_COLORS[si]);
+    band.setAttribute('stroke', 'none');
+    svgG.appendChild(band);
+  });
+
+  // Row arc guide lines (on top of shading)
   ROW_RADII.forEach(function(r) {
     var arc = document.createElementNS(NS, 'path');
     arc.setAttribute('d', 'M '+(cx-r)+' '+cy+' A '+r+' '+r+' 0 1 1 '+(cx+r)+' '+cy);
-    arc.setAttribute('stroke', '#1a3a5a');
-    arc.setAttribute('stroke-width', '0.8');
+    arc.setAttribute('stroke', '#1e3d5c');
+    arc.setAttribute('stroke-width', '0.6');
     arc.setAttribute('fill', 'none');
-    arc.setAttribute('opacity', '0.6');
     svgG.appendChild(arc);
   });
 
-  // Centre aisle (Speaker chair divider)
+  // Centre aisle
   var aisleEl = document.createElementNS(NS, 'line');
   aisleEl.setAttribute('x1', cx); aisleEl.setAttribute('y1', cy - 298);
   aisleEl.setAttribute('x2', cx); aisleEl.setAttribute('y2', cy + 2);
-  aisleEl.setAttribute('stroke', '#1a3a5a');
-  aisleEl.setAttribute('stroke-width', '1.5');
-  aisleEl.setAttribute('stroke-dasharray', '4 5');
+  aisleEl.setAttribute('stroke', '#2a4a6a');
+  aisleEl.setAttribute('stroke-width', '1');
+  aisleEl.setAttribute('stroke-dasharray', '3 6');
   svgG.appendChild(aisleEl);
 
-  // Base floor line
+  // Floor baseline
   var floorEl = document.createElementNS(NS, 'line');
   floorEl.setAttribute('x1', cx - 295); floorEl.setAttribute('y1', cy + 1);
   floorEl.setAttribute('x2', cx + 295); floorEl.setAttribute('y2', cy + 1);
-  floorEl.setAttribute('stroke', '#1a3a5a');
+  floorEl.setAttribute('stroke', '#1e3d5c');
   floorEl.setAttribute('stroke-width', '1');
   svgG.appendChild(floorEl);
 
-  // Side labels
-  function svgText(x, y, txt, anchor, rotate) {
+  // Labels: horizontal at floor level, not rotated
+  function svgText(x, y, txt, anchor, sz, col) {
     var t = document.createElementNS(NS, 'text');
     t.setAttribute('x', x); t.setAttribute('y', y);
     t.setAttribute('text-anchor', anchor||'middle');
-    t.setAttribute('font-size', '8'); t.setAttribute('fill', '#374151');
+    t.setAttribute('font-size', sz||'8'); t.setAttribute('fill', col||'#4b5563');
     t.setAttribute('font-family', 'monospace'); t.setAttribute('letter-spacing', '2');
-    if (rotate) t.setAttribute('transform', rotate);
-    t.textContent = txt;
-    svgG.appendChild(t);
+    t.textContent = txt; svgG.appendChild(t);
   }
-  svgText(18, cy, 'OPPOSITION', 'middle', 'rotate(-90,18,'+cy+')');
-  svgText(682, cy, 'GOVERNMENT', 'middle', 'rotate(90,682,'+cy+')');
-  svgText(cx, 18, 'SPEAKER', 'middle');
+  svgText(cx, 12, 'SPEAKER', 'middle', '8', '#4b5563');
+  svgText(40, cy + 14, '← OPPOSITION', 'start', '7', '#2a5a8a');
+  svgText(660, cy + 14, 'GOVERNMENT →', 'end', '7', '#2a5a8a');
   // ────────────────────────────────────────────────────────────
 
   ALL_MPS.forEach(function(mp) {
@@ -292,36 +307,52 @@ function wtfTab(name, btn) {
   var svgG=document.getElementById('wtf-senate-seats');
   var tip=document.getElementById('wtf-senate-tip');
 
-  // Draw row arc guides + framing
+  // Row band shading — red-tinted alternating fills (Red Chamber theme)
+  var S_COLORS=['#0e0404','#120505','#0e0404','#120505'];
+  var sInner=[0].concat(ROW_RADII.slice(0,-1));
+  sInner.forEach(function(r1,si){
+    var r2=ROW_RADII[si];
+    var band=document.createElementNS(NS,'path');
+    var d=r1===0
+      ?('M '+(cx-r2)+' '+cy+' A '+r2+' '+r2+' 0 1 1 '+(cx+r2)+' '+cy+' Z')
+      :('M '+(cx-r2)+' '+cy+' A '+r2+' '+r2+' 0 1 1 '+(cx+r2)+' '+cy+
+        ' L '+(cx+r1)+' '+cy+' A '+r1+' '+r1+' 0 1 0 '+(cx-r1)+' '+cy+' Z');
+    band.setAttribute('d',d);
+    band.setAttribute('fill',S_COLORS[si]);
+    band.setAttribute('stroke','none');
+    svgG.appendChild(band);
+  });
+
+  // Draw row arc guides
   ROW_RADII.forEach(function(r){
     var arc=document.createElementNS(NS,'path');
     arc.setAttribute('d','M '+(cx-r)+' '+cy+' A '+r+' '+r+' 0 1 1 '+(cx+r)+' '+cy);
-    arc.setAttribute('stroke','#3b0000'); arc.setAttribute('stroke-width','0.8');
-    arc.setAttribute('fill','none'); arc.setAttribute('opacity','0.7');
+    arc.setAttribute('stroke','#4b1a1a'); arc.setAttribute('stroke-width','0.6');
+    arc.setAttribute('fill','none');
     svgG.appendChild(arc);
   });
+
   // Center aisle
   var al=document.createElementNS(NS,'line');
   al.setAttribute('x1',cx);al.setAttribute('y1',cy-230);al.setAttribute('x2',cx);al.setAttribute('y2',cy+2);
-  al.setAttribute('stroke','#3b0000');al.setAttribute('stroke-width','1.5');al.setAttribute('stroke-dasharray','4 5');
+  al.setAttribute('stroke','#4b1a1a');al.setAttribute('stroke-width','1');al.setAttribute('stroke-dasharray','3 6');
   svgG.appendChild(al);
   // Floor line
   var fl=document.createElementNS(NS,'line');
   fl.setAttribute('x1',cx-230);fl.setAttribute('y1',cy+1);fl.setAttribute('x2',cx+230);fl.setAttribute('y2',cy+1);
-  fl.setAttribute('stroke','#3b0000');fl.setAttribute('stroke-width','1');
+  fl.setAttribute('stroke','#4b1a1a');fl.setAttribute('stroke-width','1');
   svgG.appendChild(fl);
   // Labels
-  function st(x,y,txt,anchor,rot){
+  function st(x,y,txt,anchor,sz,col){
     var t=document.createElementNS(NS,'text');
     t.setAttribute('x',x);t.setAttribute('y',y);t.setAttribute('text-anchor',anchor||'middle');
-    t.setAttribute('font-size','8');t.setAttribute('fill','#4b0000');
+    t.setAttribute('font-size',sz||'8');t.setAttribute('fill',col||'#6b2020');
     t.setAttribute('font-family','monospace');t.setAttribute('letter-spacing','2');
-    if(rot)t.setAttribute('transform',rot);
     t.textContent=txt; svgG.appendChild(t);
   }
-  st(18,cy,'OPPOSITION','middle','rotate(-90,18,'+cy+')');
-  st(682,cy,'GOVERNMENT','middle','rotate(90,682,'+cy+')');
-  st(cx,16,'SPEAKER','middle');
+  st(cx,12,'SPEAKER','middle','8','#6b2020');
+  st(50,cy+14,'← OPPOSITION','start','7','#8b2020');
+  st(650,cy+14,'GOVERNMENT →','end','7','#8b2020');
 
   // Generate positions (left→right sweep)
   var positions=[];

@@ -567,6 +567,19 @@ def proxy_article_analyze(article_id: int):
     return _proxy_tech(f"/api/v1/articles/{article_id}/analyze", method="POST", body=b"{}")
 
 
+@bp.post("/api/proxy/articles/<int:article_id>/flag")
+def proxy_article_flag(article_id: int):
+    import json as _json
+    from flask import request as _req
+    body = _req.get_json(silent=True) or {}
+    payload = _json.dumps({
+        "article_id": article_id,
+        "flag_type": (body.get("flag_type") or "bias_wrong")[:32],
+        "reason": (body.get("reason") or "")[:500],
+    }).encode()
+    return _proxy_tech("/api/v1/flag", method="POST", body=payload)
+
+
 @bp.get("/article/<int:article_id>")
 def article(article_id: int):
     import json as _json
@@ -575,17 +588,25 @@ def article(article_id: int):
     with _db().begin() as c:
         row = c.execute(text(f"""
             SELECT a.id, a.title, a.body, a.url, a.published_at,
-                   a.ai_analyzed, a.province_code, a.cluster_id,
+                   a.ai_analyzed, a.ai_analyzed_at, a.province_code, a.cluster_id,
                    a.analysis_tier, a.tier2_pending,
                    a.bias_v2_score, a.bias_v2_label,
                    a.bias_ensemble_score, a.bias_ensemble_band,
                    s.name AS source_name, s.slug AS source_slug,
+                   s.owner_name, s.owner_type, s.bias_lean AS source_bias_lean,
+                   s.country AS source_country,
                    b.band AS bias_band, b.score AS bias_score,
                    b.rationale AS bias_rationale, b.trigger_phrases,
-                   fc.overall_verdict, fc.claims AS fact_check_claims
+                   b.confidence AS bias_confidence, b.analyzed_by AS bias_analyzed_by,
+                   obs.avg_score AS outlet_avg_score, obs.band AS outlet_rolling_band,
+                   (SELECT COUNT(*) FROM {S}.articles a2
+                    WHERE a2.source_id = a.source_id) AS outlet_article_count,
+                   fc.overall_verdict, fc.claims AS fact_check_claims,
+                   fc.analyzed_by AS fc_analyzed_by
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = a.source_id
             LEFT JOIN {S}.fact_checks fc
                 ON fc.article_id = a.id AND fc.checker NOT LIKE 'GoogleFCT%%'
             WHERE a.id = :id
@@ -644,6 +665,17 @@ def article(article_id: int):
     is_paywalled = (a.get("source_slug") or "") in _PAYWALLED_SOURCES
     is_limited_body = len(a.get("body") or "") < 150
 
+    # Reading time — 200 wpm average
+    word_count = len((a.get("body") or "").split())
+    reading_time_min = max(1, round(word_count / 200))
+
+    # Article type — detect opinion/editorial from title prefix
+    _OPINION_PREFIXES = ("letters:", "opinion:", "editorial:", "comment:",
+                         "commentary:", "analysis:", "column:", "perspective:",
+                         "review:", "op-ed:")
+    title_lower = (a.get("title") or "").lower()
+    article_type = "opinion" if any(title_lower.startswith(p) for p in _OPINION_PREFIXES) else "news"
+
     # Outlet comparison — other articles in the same cluster (#3069)
     cluster_articles = []
     if a.get("cluster_id"):
@@ -661,12 +693,33 @@ def article(article_id: int):
             """), {"cid": a["cluster_id"], "aid": article_id}).mappings().all()
         cluster_articles = [dict(r) for r in siblings]
 
+    # Outlet sparkline — daily avg bias score for the past 7 days
+    sparkline = []
+    try:
+        with _db().begin() as c:
+            sp_rows = c.execute(text(f"""
+                SELECT bs.computed_at::date AS d,
+                       AVG(bs.score)::float AS avg_score,
+                       MODE() WITHIN GROUP (ORDER BY bs.band) AS modal_band
+                FROM {S}.bias_scores bs
+                JOIN {S}.articles a2 ON a2.id = bs.article_id
+                WHERE a2.source_id = (SELECT source_id FROM {S}.articles WHERE id = :aid)
+                  AND bs.computed_at > NOW() - INTERVAL '7 days'
+                GROUP BY 1 ORDER BY 1
+            """), {"aid": article_id}).fetchall()
+        sparkline = [{"score": round(float(r[1]), 3), "band": r[2] or "center"} for r in sp_rows]
+    except Exception:
+        pass
+
     return render_template("article.html", a=a, wtf_tech_url=wtf_tech_url,
                            is_subscriber=subscribed,
                            is_paywalled=is_paywalled,
                            is_limited_body=is_limited_body,
                            google_fact_checks=google_fact_checks,
-                           cluster_articles=cluster_articles)
+                           cluster_articles=cluster_articles,
+                           reading_time_min=reading_time_min,
+                           article_type=article_type,
+                           sparkline=sparkline)
 
 
 # ───────────────────────────────────────────────────────────────────────────

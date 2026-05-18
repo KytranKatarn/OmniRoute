@@ -96,6 +96,13 @@
 .wtf-paywall-cta:hover { background: #0a3a4a; }
 .wtf-paywall-signin { font-size: 11px; color: #555; text-decoration: none; }
 .wtf-paywall-signin:hover { color: #0af; }
+
+/* Flag button */
+.wtf-flag-btn { background: #0a0f1a; border: 1px solid #1f2937; color: #6b7280; font-size: 10px; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-family: inherit; }
+.wtf-flag-btn:hover { border-color: #ef4444; color: #ef4444; }
+
+/* Trigger phrase highlight */
+mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-radius: 2px; padding: 0 2px; text-decoration: underline; text-decoration-color: rgba(245,158,11,0.4); }
 </style>
 
 <div class="wtf-art-container">
@@ -104,8 +111,11 @@
   <div class="wtf-art-header">
     <div class="wtf-art-meta">
       {% if a.source_slug %}<a href="/source/{{ a.source_slug }}" style="color:inherit;text-decoration:none;" title="{{ a.source_name }} bias profile">{{ a.source_name or '' }}</a>{% else %}{{ a.source_name or '' }}{% endif %}
-      {% if a.province_code %}<span>&#x1F4CD; {{ a.province_code }}</span>{% endif %}
-      {% if a.published_at %}<span>{{ a.published_at.strftime('%Y-%m-%d') if a.published_at and a.published_at.strftime is defined else (a.published_at or '')[:10] }}</span>{% endif %}
+      {% if a.owner_name %}<span style="font-size:9px;color:#4b5563;background:#0d1117;border:1px solid #1f2937;border-radius:2px;padding:1px 5px;">{% if a.owner_type == 'corporate' %}🏢{% elif a.owner_type == 'state' %}🏛{% elif a.owner_type == 'independent' %}👤{% else %}📰{% endif %} {{ a.owner_name }}</span>{% endif %}
+      {% if a.province_code %}<span>📍 {{ a.province_code }}</span>{% endif %}
+      {% if a.published_at %}<span>{{ a.published_at.strftime('%b %-d, %Y') if a.published_at and a.published_at.strftime is defined else (a.published_at or '')[:10] }}</span>{% endif %}
+      <span style="color:#4b5563;">· {{ reading_time_min }} min read</span>
+      {% if article_type == 'opinion' %}<span style="font-size:9px;color:#f59e0b;background:#1c1000;border:1px solid #78350f;border-radius:2px;padding:1px 5px;">✍ Opinion</span>{% endif %}
       {% if a.ai_analyzed %}
         <span class="wtf-art-badge wtf-badge-ai">AI Analyzed</span>
       {% else %}
@@ -186,14 +196,82 @@
   </div>
   {% endif %}
 
+  <!-- Source Intelligence Card -->
+  {% if a.source_name %}
+  <div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
+    <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">🏦 Source Intelligence</div>
+    <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:160px;">
+        <div style="font-size:13px;color:#e5e7eb;margin-bottom:4px;">
+          {% if a.source_slug %}<a href="/source/{{ a.source_slug }}" style="color:#e5e7eb;text-decoration:none;">{{ a.source_name }}</a>{% else %}{{ a.source_name }}{% endif %}
+        </div>
+        {% if a.owner_name %}
+        <div style="font-size:11px;color:#6b7280;margin-bottom:2px;">
+          {% if a.owner_type == 'corporate' %}🏢 Corporate{% elif a.owner_type == 'state' %}🏛 State{% elif a.owner_type == 'independent' %}👤 Independent{% elif a.owner_type == 'nonprofit' %}🤝 Non-profit{% else %}📰 Media{% endif %}
+          · {{ a.owner_name }}
+        </div>
+        {% endif %}
+        {% if a.source_country %}<div style="font-size:10px;color:#4b5563;">{{ a.source_country }}</div>{% endif %}
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        {% set ob = a.outlet_rolling_band or a.source_bias_lean or '' %}
+        {% set ob_colour = '#ef4444' if ob == 'right' else '#3b82f6' if ob == 'left' else '#f97316' if ob == 'center-right' else '#f59e0b' if ob == 'center-left' else '#22c55e' %}
+        {% if ob %}
+        <div style="font-size:10px;color:#6b7280;margin-bottom:4px;">Rolling outlet bias</div>
+        <div style="font-size:13px;font-weight:600;color:{{ ob_colour }};">{{ ob.upper().replace('-',' ') }}</div>
+        {% if a.outlet_avg_score is not none %}
+        <div style="font-size:10px;color:#4b5563;font-family:'IBM Plex Mono',monospace;">avg {{ "%.3f"|format(a.outlet_avg_score|float) }}</div>
+        {% endif %}
+        {% endif %}
+        {% if a.outlet_article_count %}
+        <div style="font-size:10px;color:#4b5563;margin-top:4px;">{{ "{:,}".format(a.outlet_article_count|int) }} articles tracked</div>
+        {% endif %}
+      </div>
+    </div>
+    {% if sparkline %}
+    <div style="margin-top:10px;">
+      <div style="font-size:9px;color:#4b5563;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em;">7-day bias trend</div>
+      <svg viewBox="0 0 140 32" style="width:140px;height:32px;display:block;" preserveAspectRatio="none">
+        <line x1="0" y1="16" x2="140" y2="16" stroke="#0d1f2d" stroke-width="1"/>
+        {% set n = sparkline|length %}
+        {% if n > 1 %}
+        <polyline
+          points="{% for pt in sparkline %}{{ loop.index0 * (140/(n-1)) | round(1) }},{{ (16 - pt.score * 14) | round(1) }} {% endfor %}"
+          fill="none"
+          stroke="{% set _b = sparkline[-1].band %}{% if _b == 'right' %}#8b5cf6{% elif _b == 'left' %}#ef4444{% elif _b == 'center-right' %}#3b82f6{% elif _b == 'center-left' %}#f97316{% else %}#22c55e{% endif %}"
+          stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+        {% endif %}
+        {% for pt in sparkline %}
+        <circle cx="{{ loop.index0 * (140/(n-1 if n > 1 else 1)) | round(1) }}" cy="{{ (16 - pt.score * 14) | round(1) }}" r="2"
+          fill="{% if pt.band == 'right' %}#8b5cf6{% elif pt.band == 'left' %}#ef4444{% elif pt.band == 'center-right' %}#3b82f6{% elif pt.band == 'center-left' %}#f97316{% else %}#22c55e{% endif %}"/>
+        {% endfor %}
+      </svg>
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:#374151;margin-top:2px;">
+        <span>L</span><span style="color:#6b7280;">center</span><span>R</span>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
   <!-- Fact-check Panel -->
-  {% if a.fact_check_claims %}
+  {% if a.fact_check_claims or a.overall_verdict %}
     {% if is_subscriber %}
     <div class="wtf-factcheck-panel">
       <div class="wtf-panel-label">V.E.R.I.F.Y. FACT-CHECK</div>
       {% if a.overall_verdict %}
+      {% set verdict_colour = '#22c55e' if a.overall_verdict == 'verified' else '#84cc16' if a.overall_verdict == 'mostly_true' else '#f59e0b' if a.overall_verdict == 'mixed' else '#f97316' if a.overall_verdict == 'disputed' else '#6b7280' %}
       <div style="margin-bottom:8px;font-size:12px;color:#aaa;">
-        Overall: <strong>{{ a.overall_verdict.replace('_',' ').title() }}</strong>
+        Overall: <strong style="color:{{ verdict_colour }};">{{ a.overall_verdict.replace('_',' ').title() }}</strong>
+        {% if a.overall_verdict == 'unverifiable' and article_type == 'opinion' %}
+        <div style="font-size:10px;color:#6b7280;margin-top:4px;line-height:1.5;">
+          This is an opinion/letter piece. V.E.R.I.F.Y. found no specific factual claims to check — this is expected for editorial content, not a sign of dishonesty.
+        </div>
+        {% elif a.overall_verdict == 'unverifiable' %}
+        <div style="font-size:10px;color:#6b7280;margin-top:4px;line-height:1.5;">
+          No independently verifiable claims were detected in this article. This may indicate descriptive reporting without specific assertions.
+        </div>
+        {% endif %}
       </div>
       {% endif %}
       {% for claim in a.fact_check_claims %}
@@ -308,6 +386,42 @@
     <p><a href="https://what-the-fact.tech/transparency/{{ a.id }}" style="color:#a0f;">Full audit trail for this article &#x2192;</a></p>
   </details>
 
+  <!-- Analysis Provenance Footer -->
+  {% if a.ai_analyzed %}
+  <div style="margin-top:16px;padding:10px 14px;background:#040a10;border-top:1px solid #0d1f2d;border-radius:0 0 4px 4px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+    <div style="font-size:10px;color:#4b5563;text-transform:uppercase;letter-spacing:.06em;">Analyzed by</div>
+    <span style="font-size:10px;color:#0af;font-family:'IBM Plex Mono',monospace;">B.I.A.S.</span>
+    <span style="font-size:10px;color:#10b981;font-family:'IBM Plex Mono',monospace;">V.E.R.I.F.Y.</span>
+    <span style="font-size:10px;color:#3b82f6;font-family:'IBM Plex Mono',monospace;">L.O.C.A.L.</span>
+    {% if a.analysis_tier %}
+    <span style="font-size:9px;color:#374151;background:#0a0a0a;border:1px solid #1f2937;border-radius:2px;padding:1px 5px;margin-left:2px;">{{ a.analysis_tier.replace('_',' ').replace('+',' + ') }}</span>
+    {% endif %}
+    {% if a.ai_analyzed_at %}
+    <span style="font-size:10px;color:#374151;margin-left:auto;">
+      {{ a.ai_analyzed_at.strftime('%b %-d, %Y') if a.ai_analyzed_at and a.ai_analyzed_at.strftime is defined else '' }}
+    </span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Flag incorrect analysis -->
+  <div style="margin-top:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <button onclick="wtfToggleFlag()" style="background:none;border:none;color:#374151;font-size:11px;cursor:pointer;padding:0;font-family:inherit;">🚩 Report incorrect analysis</button>
+    {% if is_subscriber %}
+    <a href="/literacy" style="font-size:11px;color:#6b7280;text-decoration:none;">📊 Your media literacy score →</a>
+    {% endif %}
+  </div>
+  <div id="wtf-flag-form" style="display:none;background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px;margin-top:8px;">
+    <div style="font-size:11px;color:#9ca3af;margin-bottom:8px;">What's wrong with this analysis?</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+      <button onclick="wtfSubmitFlag('bias_wrong')" class="wtf-flag-btn">Bias score wrong</button>
+      <button onclick="wtfSubmitFlag('factcheck_wrong')" class="wtf-flag-btn">Fact-check wrong</button>
+      <button onclick="wtfSubmitFlag('geo_wrong')" class="wtf-flag-btn">Wrong location</button>
+      <button onclick="wtfSubmitFlag('other')" class="wtf-flag-btn">Other</button>
+    </div>
+    <div id="wtf-flag-result" style="font-size:11px;color:#6b7280;display:none;"></div>
+  </div>
+
   <!-- Cross-source outlet comparison (#3069) -->
   {% if cluster_articles %}
   <div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px 14px;margin-top:14px;">
@@ -393,5 +507,59 @@ async function upgradeTier2(articleId) {
     if (btn) { btn.disabled = false; btn.textContent = '🔍 Upgrade to Full Analysis — B.I.A.S. + V.E.R.I.F.Y. rationale + verdicts'; }
   }
 }
+
+function wtfToggleFlag() {
+  var f = document.getElementById('wtf-flag-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+async function wtfSubmitFlag(flagType) {
+  var res = document.getElementById('wtf-flag-result');
+  res.style.display = 'block';
+  res.textContent = 'Sending…';
+  try {
+    var resp = await fetch('/api/proxy/articles/{{ a.id }}/flag', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({flag_type: flagType, reason: ''})
+    });
+    var data = await resp.json();
+    res.textContent = data.ok ? '✓ Thanks — your feedback helps improve B.I.A.S. and V.E.R.I.F.Y.' : 'Could not send — try again.';
+  } catch(e) { res.textContent = 'Network error.'; }
+}
+
+// Trigger phrase highlighting — DOM TreeWalker + split, XSS-safe
+(function() {
+  var triggers = {{ (a.trigger_phrases or []) | tojson }};
+  if (!triggers || !triggers.length) return;
+  document.querySelectorAll('.wtf-art-body').forEach(function(root) {
+    triggers.forEach(function(phrase) {
+      if (!phrase || phrase.length < 3) return;
+      var esc = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      var re = new RegExp('(' + esc + ')', 'gi');
+      var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+      var nodes = [];
+      var n;
+      while ((n = walker.nextNode())) nodes.push(n);
+      nodes.forEach(function(node) {
+        if (!re.test(node.nodeValue)) { re.lastIndex = 0; return; }
+        re.lastIndex = 0;
+        var parts = node.nodeValue.split(re);
+        var frag = document.createDocumentFragment();
+        parts.forEach(function(part, i) {
+          if (i % 2 === 0) {
+            frag.appendChild(document.createTextNode(part));
+          } else {
+            var mark = document.createElement('mark');
+            mark.className = 'wtf-trigger-hl';
+            mark.textContent = part;
+            frag.appendChild(mark);
+          }
+        });
+        node.parentNode.replaceChild(frag, node);
+      });
+    });
+  });
+})();
 </script>
 {% endblock %}

@@ -898,6 +898,97 @@ def source_profile(slug: str):
                            recent=[dict(r) for r in recent])
 
 
+@bp.post("/api/clusters/<int:cluster_id>/frame")
+def frame_cluster(cluster_id: int):
+    """Generate + cache an AI framing comparison for a story cluster.
+
+    Builds a synthetic prompt from the cluster's article headlines + excerpts,
+    dispatches to the hub's WTF Hub analyze endpoint (task=summarize), stores
+    the result in story_clusters.framing_summary.
+    """
+    import json as _json
+    from flask import jsonify
+    S = _schema()
+    HUB_URL = os.environ.get("WTF_HUB_URL", "")
+    HUB_TOKEN = os.environ.get("WTF_HUB_TOKEN", "")
+    if not HUB_URL or not HUB_TOKEN:
+        return jsonify({"ok": False, "error": "hub not configured"}), 503
+
+    with _db().begin() as c:
+        cluster = c.execute(text(f"""
+            SELECT id, representative_title, framing_summary, framing_generated_at
+            FROM {S}.story_clusters WHERE id = :id
+        """), {"id": cluster_id}).mappings().first()
+    if not cluster:
+        return jsonify({"ok": False, "error": "cluster not found"}), 404
+    if cluster["framing_summary"]:
+        return jsonify({"ok": True, "summary": cluster["framing_summary"], "cached": True})
+
+    with _db().begin() as c:
+        articles = c.execute(text(f"""
+            SELECT a.title, LEFT(a.body, 350) AS excerpt,
+                   s.name AS source_name, s.bias_lean
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            WHERE a.cluster_id = :cid AND a.title IS NOT NULL
+            ORDER BY a.published_at ASC LIMIT 8
+        """), {"cid": cluster_id}).mappings().all()
+    if not articles:
+        return jsonify({"ok": False, "error": "no articles"}), 404
+
+    lines = [
+        "The following news articles all cover the same story but come from different outlets. "
+        "In 2-3 sentences, describe how different outlets framed this story — note differences "
+        "in emphasis, language, what was highlighted or omitted, and any apparent editorial lean.\n"
+    ]
+    for a in articles:
+        lean = f" [{a['bias_lean']}]" if a.get("bias_lean") else ""
+        lines.append(f"SOURCE: {a['source_name']}{lean}")
+        lines.append(f"HEADLINE: {a['title']}")
+        if a.get("excerpt"):
+            lines.append(f"EXCERPT: {(a['excerpt'] or '')[:250]}")
+        lines.append("")
+    body = "\n".join(lines)
+    title = f"Outlet framing comparison: {cluster['representative_title']}"
+
+    try:
+        payload = _json.dumps({
+            "task": "summarize", "article_id": 0,
+            "title": title, "body": body,
+        }).encode()
+        req_obj = urllib.request.Request(
+            f"{HUB_URL}/tools/wtf-hub/api/analyze",
+            data=payload, method="POST",
+            headers={"Content-Type": "application/json",
+                     "Authorization": f"Bearer {HUB_TOKEN}"},
+        )
+        with urllib.request.urlopen(req_obj, timeout=90) as resp:
+            data = _json.loads(resp.read())
+
+        result = data.get("result") if data.get("ok") else None
+        summary = None
+        if isinstance(result, dict):
+            summary = result.get("summary") or result.get("text") or result.get("brief")
+        elif isinstance(result, str):
+            summary = result
+
+        if not summary:
+            return jsonify({"ok": False, "error": "no summary from hub"}), 500
+
+        summary = summary.strip()[:2000]
+        with _db().begin() as c:
+            c.execute(text(f"""
+                UPDATE {S}.story_clusters
+                SET framing_summary = :s, framing_generated_at = NOW()
+                WHERE id = :id
+            """), {"s": summary, "id": cluster_id})
+
+        return jsonify({"ok": True, "summary": summary, "cached": False})
+
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)[:200]}), 500
+
+
 @bp.get("/cluster/<int:cluster_id>")
 def cluster_comparison(cluster_id: int):
     """Side-by-side outlet comparison for a story cluster (#3069)."""
@@ -905,7 +996,7 @@ def cluster_comparison(cluster_id: int):
     with _db().begin() as c:
         meta = c.execute(text(f"""
             SELECT sc.id, sc.representative_title, sc.article_count,
-                   sc.created_at
+                   sc.created_at, sc.framing_summary, sc.framing_generated_at
             FROM {S}.story_clusters sc
             WHERE sc.id = :cid
         """), {"cid": cluster_id}).mappings().first()
@@ -934,7 +1025,8 @@ def cluster_comparison(cluster_id: int):
                            cluster=dict(meta),
                            articles=[dict(r) for r in articles],
                            source_count=source_count,
-                           is_subscriber=is_subscriber())
+                           is_subscriber=is_subscriber(),
+                           framing_summary=dict(meta).get("framing_summary"))
 
 
 _OPENPARL_BASE = "https://openparliament.ca"

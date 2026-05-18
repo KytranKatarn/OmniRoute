@@ -314,7 +314,7 @@ def main():
         # Google Fact Check Tools API partner signal (#2137)
         try:
             result = factcheck_partner_worker.run_partner_check(engine)
-            if result.get("matched") or result.get("errors"):
+            if result.get("stopped") != "disabled":
                 log.info("factcheck_partner: %s", result)
         except Exception:
             log.exception("factcheck_partner crashed")

@@ -362,6 +362,124 @@ def get_article(article_id: int):
     })
 
 
+_VALID_BANDS = frozenset({"left", "center-left", "center", "center-right", "right"})
+_VERDICT_MAP = {
+    "true": "true", "mostly_true": "mostly_true", "mixed": "mixed",
+    "false": "false", "unverified": "unverified", "unverifiable": "unverified",
+    "disputed": "mixed", "mostly_false": "false",
+}
+_OVERALL_MAP = {
+    "verified": "verified", "mostly_true": "mostly_true", "mixed": "mixed",
+    "disputed": "disputed", "unverifiable": "unverifiable",
+    "true": "verified", "false": "disputed", "unverified": "unverifiable",
+}
+
+
+def _persist_on_demand(article_id: int, results: dict, schema: str) -> None:
+    """Write Deep Dive results to DB so the page reload shows LLM values.
+
+    Handles partial results gracefully — bias only, factcheck only, or both.
+    Non-fatal: any DB error is logged and swallowed so the API response
+    still returns 200 to the browser.
+    """
+    import json as _json
+    try:
+        with _db().begin() as c:
+            # ── bias ──────────────────────────────────────────────────────
+            bias = results.get("bias") or {}
+            band = (bias.get("band") or "center").lower().strip()
+            if band not in _VALID_BANDS:
+                band = "center"
+            score = float(bias.get("score") or 0.0)
+            rationale = (bias.get("rationale") or "").strip()
+            tp = _json.dumps(bias.get("trigger_phrases") or [])
+            confidence = bias.get("confidence")
+            updated = c.execute(
+                text(f"""
+                    UPDATE {schema}.bias_scores
+                    SET band = :band, score = :score, rationale = :rationale,
+                        analyzed_by = 'llm_v1', trigger_phrases = CAST(:tp AS JSONB),
+                        confidence = :confidence, computed_at = NOW()
+                    WHERE article_id = :aid
+                """),
+                {"band": band, "score": score, "rationale": rationale,
+                 "tp": tp, "confidence": confidence, "aid": article_id},
+            )
+            if updated.rowcount == 0:
+                c.execute(
+                    text(f"""
+                        INSERT INTO {schema}.bias_scores
+                            (article_id, band, score, heuristic_version, rationale,
+                             analyzed_by, trigger_phrases, confidence)
+                        VALUES (:aid, :band, :score, 'llm_v1', :rationale,
+                                'llm_v1', CAST(:tp AS JSONB), :confidence)
+                        ON CONFLICT (article_id) DO UPDATE
+                          SET band=EXCLUDED.band, score=EXCLUDED.score,
+                              rationale=EXCLUDED.rationale, analyzed_by=EXCLUDED.analyzed_by,
+                              trigger_phrases=EXCLUDED.trigger_phrases,
+                              confidence=EXCLUDED.confidence, computed_at=NOW()
+                    """),
+                    {"aid": article_id, "band": band, "score": score,
+                     "rationale": rationale, "tp": tp, "confidence": confidence},
+                )
+
+            # ── fact_checks ───────────────────────────────────────────────
+            fc = results.get("factcheck") or {}
+            claims = fc.get("claims") or []
+            overall_raw = (fc.get("overall_verdict") or "unverifiable").lower()
+            overall = _OVERALL_MAP.get(overall_raw, "unverifiable")
+            claims_json = _json.dumps(claims)
+            c.execute(
+                text(f"DELETE FROM {schema}.fact_checks WHERE article_id = :aid"),
+                {"aid": article_id},
+            )
+            if claims:
+                for cl in claims:
+                    ct = (cl.get("text") or "").strip()[:2000]
+                    if not ct:
+                        continue
+                    vr = _VERDICT_MAP.get((cl.get("verdict") or "unverified").lower(), "unverified")
+                    ev = (cl.get("reasoning") or cl.get("evidence") or "").strip()[:4000]
+                    c.execute(
+                        text(f"""
+                            INSERT INTO {schema}.fact_checks
+                                (article_id, claim, verdict, evidence, checker,
+                                 analyzed_by, claims, overall_verdict)
+                            VALUES (:aid, :claim, :verdict, :ev, 'fact_v1',
+                                    'llm_v1', CAST(:claims AS JSONB), :overall)
+                        """),
+                        {"aid": article_id, "claim": ct, "verdict": vr,
+                         "ev": ev, "claims": claims_json, "overall": overall},
+                    )
+            else:
+                c.execute(
+                    text(f"""
+                        INSERT INTO {schema}.fact_checks
+                            (article_id, claim, verdict, evidence, checker,
+                             analyzed_by, claims, overall_verdict)
+                        VALUES (:aid, 'No verifiable claims detected.', 'unverified', '',
+                                'fact_v1', 'llm_v1', '[]'::JSONB, 'unverifiable')
+                    """),
+                    {"aid": article_id},
+                )
+
+            # ── mark article analyzed ─────────────────────────────────────
+            c.execute(
+                text(f"""
+                    UPDATE {schema}.articles
+                    SET ai_analyzed = true, ai_analyzed_at = NOW(),
+                        analysis_tier = 'deep_dive'
+                    WHERE id = :aid
+                """),
+                {"aid": article_id},
+            )
+    except Exception as exc:
+        import logging as _log
+        _log.getLogger("wtf-tech").exception(
+            "[WTF persist_on_demand] article=%s failed: %s", article_id, exc
+        )
+
+
 @bp.post("/api/v1/articles/<int:article_id>/analyze")
 def analyze_article(article_id: int):
     """On-demand AI analysis for an article not yet AI-analyzed."""
@@ -398,6 +516,8 @@ def analyze_article(article_id: int):
                 "[WTF analyze] task=%s article_id=%s failed: %s", task, article_id, exc
             )
 
+    # Persist whatever we got — partial results are better than nothing.
+    _persist_on_demand(article_id, results, S)
     return jsonify({"ok": True, "results": results, "article_id": article_id})
 
 

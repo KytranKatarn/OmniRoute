@@ -1042,7 +1042,7 @@ def cluster_comparison(cluster_id: int):
 
 _OPENPARL_BASE = "https://openparliament.ca"
 _PARTY_COLOURS = {
-    "conservative": "#1a56db",
+    "conservative": "#3b82f6",
     "liberal": "#d71920",
     "ndp": "#f37021",
     "bloc": "#89cff0",

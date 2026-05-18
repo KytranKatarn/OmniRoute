@@ -2,6 +2,25 @@
 {% block title %}{{ a.title }} — What The Fact{% endblock %}
 {% block meta %}
 {% set _desc = (a.source_name or '') + ' · ' + (a.bias_band or 'unscored') + ' bias' %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "NewsArticle",
+  "headline": {{ a.title | tojson }},
+  "url": {{ a.url | tojson }},
+  "datePublished": "{{ a.published_at.isoformat() if a.published_at else '' }}",
+  "publisher": {
+    "@type": "NewsMediaOrganization",
+    "name": {{ a.source_name | tojson }},
+    "url": "https://what-the-fact.com/source/{{ a.source_slug or '' }}"
+  },
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "What The Fact",
+    "url": "https://what-the-fact.com"
+  }
+}
+</script>
 <meta name="description" content="{{ a.title | e }}">
 <meta property="og:site_name" content="What The Fact">
 <meta property="og:title" content="{{ a.title | e }}">

@@ -779,6 +779,51 @@ def source_profile(slug: str):
                            recent=[dict(r) for r in recent])
 
 
+@bp.route("/score", methods=["GET", "POST"])
+def score_url():
+    """Subscriber-gated: paste any article text for instant AI analysis."""
+    from flask import request as _req, redirect
+    subscribed = is_subscriber()
+    if not _user_email():
+        return redirect("/login?next=/score")
+    result = None
+    error = None
+    article_text = ""
+    if _req.method == "POST":
+        if not subscribed:
+            return redirect("/join?gated=score")
+        article_text = (_req.form.get("text") or "").strip()[:5000]
+        article_title = (_req.form.get("title") or "").strip()[:200]
+        if len(article_text) < 100:
+            error = "Please paste at least 100 characters of article text."
+        else:
+            wtf_tech_url = os.environ.get("WTF_TECH_URL", "https://what-the-fact.tech")
+            hub_token = os.environ.get("WTF_HUB_TOKEN", "")
+            try:
+                import json as _json
+                payload = _json.dumps({"text": article_text, "title": article_title}).encode()
+                headers = {"Content-Type": "application/json"}
+                if hub_token:
+                    headers["Authorization"] = f"Bearer {hub_token}"
+                req_obj = urllib.request.Request(
+                    f"{wtf_tech_url}/api/v1/score",
+                    data=payload, method="POST", headers=headers
+                )
+                with urllib.request.urlopen(req_obj, timeout=int(os.environ.get("WTF_HUB_TIMEOUT", "90"))) as resp:
+                    result = _json.loads(resp.read())
+            except Exception as exc:
+                error = f"Analysis failed — try again in a moment. ({str(exc)[:120]})"
+    S = _schema()
+    source_count = 0
+    try:
+        with _db().begin() as c:
+            source_count = c.execute(text(f"SELECT COUNT(*) FROM {S}.sources")).scalar() or 0
+    except Exception:
+        pass
+    return render_template("score.html", subscribed=subscribed, result=result,
+                           error=error, article_text=article_text, source_count=source_count)
+
+
 @bp.get("/search")
 def search():
     """Full-text article search using Postgres tsvector."""

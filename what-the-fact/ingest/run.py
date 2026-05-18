@@ -50,6 +50,7 @@ from ingest import (
     bias_v2_backlog_worker,
     alerts_digest_worker,
     factcheck_partner_worker,
+    weekly_digest_worker,
 )
 from shared.creed_events import emit as creed_emit
 
@@ -318,6 +319,14 @@ def main():
                 log.info("factcheck_partner: %s", result)
         except Exception:
             log.exception("factcheck_partner crashed")
+
+        # Weekly bias digest — Monday only, default OFF
+        try:
+            result = weekly_digest_worker.run_weekly_digest(engine)
+            if result.get("sent") or result.get("errors"):
+                log.info("weekly_digest: %s", result)
+        except Exception:
+            log.exception("weekly_digest crashed")
 
         time.sleep(POLL_SECS)
 

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Score Any Article — What The Fact{% endblock %}
+{% block content %}
+
+{% set BAND_COLOURS = {'left':'#ef4444','center-left':'#f97316','center':'#22c55e','center-right':'#3b82f6','right':'#8b5cf6','unscored':'#4b5563'} %}
+
+<div style="max-width:700px;margin:48px auto;padding:0 16px;">
+
+  <div style="margin-bottom:28px;">
+    <div style="font-size:0.55rem;letter-spacing:3px;color:#4b5563;text-transform:uppercase;margin-bottom:8px;">Starter Feature</div>
+    <h1 style="font-family:Georgia,serif;font-size:1.8rem;color:#f0f0f0;margin:0 0 8px;">Score Any Article</h1>
+    <p style="color:#6b7280;font-size:0.78rem;margin:0;line-height:1.6;">Paste any news article text for instant AI bias analysis + fact-checking by B.I.A.S. and V.E.R.I.F.Y.</p>
+  </div>
+
+  {% if not subscribed %}
+  <div style="background:#0a0f1a;border:1px solid rgba(220,38,38,0.3);border-radius:6px;padding:24px;text-align:center;margin-bottom:24px;">
+    <div style="font-size:1.4rem;margin-bottom:10px;">🔒</div>
+    <div style="font-family:Georgia,serif;font-size:1.1rem;color:#f0f0f0;margin-bottom:8px;">Subscriber Feature</div>
+    <p style="color:#6b7280;font-size:0.75rem;margin:0 0 18px;">Score Any Article is included in the What The Fact Starter subscription.</p>
+    <a href="/billing/checkout/starter"
+       style="background:var(--wtf-accent);color:#fff;padding:11px 28px;border-radius:5px;text-decoration:none;font-size:0.82rem;letter-spacing:0.5px;">
+      Subscribe — $19/mo →
+    </a>
+  </div>
+  {% else %}
+
+  {% if error %}
+  <div style="background:#1a0a0a;border:1px solid #7f1d1d;border-radius:4px;padding:12px 16px;margin-bottom:20px;color:#f87171;font-size:0.78rem;">
+    {{ error }}
+  </div>
+  {% endif %}
+
+  {% if result and result.ok %}
+  {% set bias = result.bias or {} %}
+  {% set band = bias.band or 'unscored' %}
+  {% set colour = BAND_COLOURS.get(band, '#4b5563') %}
+  <div style="background:#060d14;border:1px solid {{ colour }}44;border-radius:6px;padding:20px;margin-bottom:20px;">
+    <div style="font-size:0.55rem;letter-spacing:2px;color:#4b5563;text-transform:uppercase;margin-bottom:12px;">Analysis Results</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
+      <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:5px;padding:14px 18px;text-align:center;">
+        <div style="font-family:Georgia,serif;font-size:1.4rem;color:{{ colour }};font-weight:700;">{{ band.upper() }}</div>
+        <div style="font-size:0.58rem;color:#4b5563;letter-spacing:1px;text-transform:uppercase;margin-top:2px;">Bias Band</div>
+      </div>
+      {% if bias.score is not none %}
+      <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:5px;padding:14px 18px;text-align:center;">
+        <div style="font-family:Georgia,serif;font-size:1.4rem;color:{{ colour }};font-weight:700;">{{ "%.2f"|format(bias.score | float) }}</div>
+        <div style="font-size:0.58rem;color:#4b5563;letter-spacing:1px;text-transform:uppercase;margin-top:2px;">Bias Score</div>
+      </div>
+      {% endif %}
+      {% if result.factcheck %}
+      <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:5px;padding:14px 18px;text-align:center;">
+        <div style="font-family:Georgia,serif;font-size:1.4rem;color:#4a9eff;font-weight:700;">{{ (result.factcheck.claims or []) | length }}</div>
+        <div style="font-size:0.58rem;color:#4b5563;letter-spacing:1px;text-transform:uppercase;margin-top:2px;">Claims Checked</div>
+      </div>
+      {% endif %}
+    </div>
+    {% if bias.rationale %}
+    <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:4px;padding:12px 14px;margin-bottom:12px;">
+      <div style="font-size:0.58rem;color:#4b5563;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Bias Rationale</div>
+      <div style="font-size:0.78rem;color:#c0c8d8;line-height:1.6;">{{ bias.rationale }}</div>
+    </div>
+    {% endif %}
+    {% if bias.trigger_phrases %}
+    <div style="margin-bottom:12px;">
+      <div style="font-size:0.58rem;color:#4b5563;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Trigger Phrases</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;">
+        {% for phrase in bias.trigger_phrases[:10] %}
+        <span style="background:{{ colour }}22;color:{{ colour }};border:1px solid {{ colour }}44;border-radius:3px;padding:2px 8px;font-size:0.68rem;">{{ phrase }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    {% if result.factcheck and result.factcheck.claims %}
+    <div>
+      <div style="font-size:0.58rem;color:#4b5563;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Fact-Check Claims</div>
+      {% for claim in result.factcheck.claims %}
+      {% set vc = {'verified':'#4ade80','mostly_true':'#a3e635','mixed':'#fbbf24','false':'#f87171','unverifiable':'#6b7280'}.get(claim.verdict, '#6b7280') %}
+      <div style="border-left:2px solid {{ vc }};padding:6px 10px;margin-bottom:5px;background:#0a0f1a;border-radius:2px;">
+        <span style="color:{{ vc }};font-size:0.62rem;font-weight:600;text-transform:uppercase;">{{ (claim.verdict or 'unverifiable').replace('_',' ') }}</span>
+        <span style="color:#9ca3af;font-size:0.75rem;margin-left:8px;">{{ (claim.text or '')[:200] }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/score">
+    <div style="margin-bottom:12px;">
+      <label style="font-size:0.65rem;color:#6b7280;letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;">Article Title (optional)</label>
+      <input type="text" name="title" placeholder="CBC: Housing affordability reaches new low..."
+             style="width:100%;box-sizing:border-box;background:#0a0f1a;border:1px solid #1f2937;color:#e0e0e0;padding:10px 14px;border-radius:5px;font-size:0.82rem;outline:none;">
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="font-size:0.65rem;color:#6b7280;letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;">
+        Article Text <span style="color:#4b5563;">(paste 100–5,000 chars)</span>
+      </label>
+      <textarea name="text" rows="12" placeholder="Paste the full article text here..."
+                style="width:100%;box-sizing:border-box;background:#0a0f1a;border:1px solid #1f2937;color:#e0e0e0;padding:12px 14px;border-radius:5px;font-size:0.78rem;line-height:1.6;outline:none;resize:vertical;">{{ article_text | e }}</textarea>
+    </div>
+    <button type="submit"
+            style="background:var(--wtf-accent);color:#fff;border:none;padding:12px 28px;border-radius:5px;font-size:0.85rem;cursor:pointer;letter-spacing:0.5px;">
+      Analyse Article →
+    </button>
+    <span style="font-size:0.65rem;color:#4b5563;margin-left:12px;">Takes 15–90 seconds</span>
+  </form>
+  {% endif %}
+
+</div>
+{% endblock %}

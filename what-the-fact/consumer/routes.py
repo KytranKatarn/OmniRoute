@@ -694,6 +694,52 @@ def account_page():
                            has_stripe=has_stripe)
 
 
+@bp.get("/robots.txt")
+def robots_txt():
+    from flask import Response
+    body = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /account\n"
+        "Disallow: /alerts\n"
+        "Disallow: /literacy\n"
+        "Disallow: /auth/\n"
+        "Disallow: /billing/\n"
+        "Sitemap: https://what-the-fact.com/sitemap.xml\n"
+    )
+    return Response(body, mimetype="text/plain")
+
+
+@bp.get("/sitemap.xml")
+def sitemap_xml():
+    """Dynamic XML sitemap — static pages + most recent 5,000 articles."""
+    from flask import Response
+    S = _schema()
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT id, published_at
+            FROM {S}.articles
+            ORDER BY published_at DESC
+            LIMIT 5000
+        """)).fetchall()
+
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    static_pages = ["/", "/map", "/team", "/join", "/activity", "/news"]
+    for path in static_pages:
+        lines.append(f"  <url><loc>https://what-the-fact.com{path}</loc></url>")
+    for row in rows:
+        art_id = row[0]
+        lastmod = row[1].strftime("%Y-%m-%d") if row[1] else ""
+        lastmod_tag = f"<lastmod>{lastmod}</lastmod>" if lastmod else ""
+        lines.append(
+            f"  <url><loc>https://what-the-fact.com/article/{art_id}</loc>"
+            f"{lastmod_tag}<changefreq>monthly</changefreq></url>"
+        )
+    lines.append("</urlset>")
+    return Response("\n".join(lines), mimetype="application/xml")
+
+
 @bp.route("/api/health")
 def health():
     from datetime import datetime, timezone

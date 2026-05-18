@@ -122,6 +122,7 @@ function wtfTab(name, btn) {
   document.getElementById('wtf-parl-svg').prepend(defs);
 
   // ── Row arc guides ──────────────────────────────────────────
+  var cx = 350, cy = 315;
   var ROW_RADII = [65, 110, 155, 200, 245, 290];
   ROW_RADII.forEach(function(r) {
     var arc = document.createElementNS(NS, 'path');
@@ -240,33 +241,136 @@ function wtfTab(name, btn) {
 
 <!-- Senate Tab -->
 <div id="wtf-tab-senate" style="display:none;">
-  <div style="background:#060d14;border:1px solid #4b0000;border-radius:4px;padding:20px 24px;margin-bottom:20px;">
-    <div style="font-size:10px;color:#ef4444;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">🔴 Senate of Canada — The Red Chamber</div>
-    <div style="font-size:13px;color:#e5e7eb;line-height:1.8;margin-bottom:14px;">
-      The Senate of Canada has <strong>105 senators</strong> appointed by the Governor General on the advice of the Prime Minister.
-      Unlike the House of Commons, senators serve until age 75. The Senate meets in a separate red-upholstered chamber.
+  <div style="background:#060d14;border:1px solid #4b0000;border-radius:4px;padding:14px 16px;margin-bottom:16px;">
+    <div style="font-size:10px;color:#ef4444;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">🔴 Senate of Canada — The Red Chamber</div>
+    <div style="font-size:12px;color:#9ca3af;line-height:1.7;margin-bottom:12px;">
+      105 senators appointed until age 75. Six caucus groups sit in a red-upholstered horseshoe chamber.
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px;">
-      <div style="background:#0a0505;border:1px solid #3b0000;border-radius:3px;padding:10px;text-align:center;">
-        <div style="font-size:22px;font-weight:700;color:#ef4444;">105</div>
-        <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;">Total Seats</div>
-      </div>
-      <div style="background:#0a0505;border:1px solid #3b0000;border-radius:3px;padding:10px;text-align:center;">
-        <div style="font-size:22px;font-weight:700;color:#ef4444;">Age 75</div>
-        <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;">Mandatory Retirement</div>
-      </div>
-      <div style="background:#0a0505;border:1px solid #3b0000;border-radius:3px;padding:10px;text-align:center;">
-        <div style="font-size:22px;font-weight:700;color:#ef4444;">9</div>
-        <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;">Provinces &amp; Territories</div>
-      </div>
-    </div>
-    <div style="font-size:11px;color:#6b7280;border-top:1px solid #1a0000;padding-top:12px;">
-      🔜 <strong style="color:#9ca3af;">Coming soon:</strong> Senator profiles, voting records, and seating map for the Red Chamber.
-      <br>Source: <a href="https://sencanada.ca" target="_blank" rel="noopener" style="color:#ef4444;">Senate of Canada</a> ·
-      <a href="https://api.openparliament.ca/politicians/?senator=true" target="_blank" rel="noopener" style="color:#ef4444;">OpenParliament senators API</a>
+    <!-- Group stat chips -->
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;" id="senate-legend"></div>
+    <!-- Senate seating SVG -->
+    <svg id="wtf-senate-svg" viewBox="0 0 700 300" style="width:100%;max-width:700px;display:block;margin:0 auto;">
+      <g id="wtf-senate-seats"></g>
+      <rect x="333" y="278" width="34" height="14" rx="2" fill="#1a0000"/>
+      <text x="350" y="288" text-anchor="middle" font-size="7" fill="#6b7280" font-family="monospace">SPEAKER</text>
+    </svg>
+    <div id="wtf-senate-tip" style="position:fixed;background:#0a0505;border:1px solid #4b0000;border-radius:3px;padding:5px 9px;font-size:11px;color:#e5e7eb;pointer-events:none;display:none;z-index:9999;max-width:220px;line-height:1.6;"></div>
+    <div style="font-size:9px;color:#374151;margin-top:8px;">
+      Source: <a href="https://sencanada.ca/en/senators/?v=standings" target="_blank" rel="noopener" style="color:#4b0000;">Senate of Canada — Standings</a> · Data as of May 2026 · Senator profiles coming soon
     </div>
   </div>
 </div>
+<script>
+(function(){
+  // Senate caucus groups — scraped from sencanada.ca standings, May 2026
+  var SENATE_GROUPS = [
+    {id:'C',   label:'Conservative',           colour:'#1a56db', count:13},
+    {id:'N',   label:'Non-affiliated',         colour:'#888888', count:4},
+    {id:'PSG', label:'Progressive Senate Group',colour:'#7c3aed', count:18},
+    {id:'ISG', label:'Independent Senators',   colour:'#cc0000', count:40},
+    {id:'CSG', label:'Canadian Senators Group',colour:'#059669', count:19},
+    {id:'GRO', label:'Gov. Representative',    colour:'#b45309', count:8},
+  ];
+  var TOTAL = SENATE_GROUPS.reduce(function(s,g){return s+g.count;},0); // 102
+
+  // Legend chips
+  var legEl = document.getElementById('senate-legend');
+  SENATE_GROUPS.forEach(function(g){
+    var chip = document.createElement('span');
+    chip.style.cssText='display:inline-flex;align-items:center;gap:5px;background:#0a0505;border:1px solid #3b0000;border-radius:12px;padding:3px 10px;font-size:10px;color:#e5e7eb;';
+    var dot = document.createElement('span');
+    dot.style.cssText='width:8px;height:8px;border-radius:50%;background:'+g.colour+';flex-shrink:0;';
+    var txt = document.createTextNode(g.label+' ('+g.count+')');
+    chip.appendChild(dot); chip.appendChild(txt);
+    legEl.appendChild(chip);
+  });
+
+  // Generate horseshoe positions (4 rows, 102 seats)
+  var cx=350, cy=275, NS='http://www.w3.org/2000/svg';
+  var ROW_RADII=[65,118,170,222];
+  var SEATS_PER_ROW=[22,25,28,27]; // total=102
+  var svgG=document.getElementById('wtf-senate-seats');
+  var tip=document.getElementById('wtf-senate-tip');
+
+  // Draw row arc guides + framing
+  ROW_RADII.forEach(function(r){
+    var arc=document.createElementNS(NS,'path');
+    arc.setAttribute('d','M '+(cx-r)+' '+cy+' A '+r+' '+r+' 0 1 1 '+(cx+r)+' '+cy);
+    arc.setAttribute('stroke','#3b0000'); arc.setAttribute('stroke-width','0.8');
+    arc.setAttribute('fill','none'); arc.setAttribute('opacity','0.7');
+    svgG.appendChild(arc);
+  });
+  // Center aisle
+  var al=document.createElementNS(NS,'line');
+  al.setAttribute('x1',cx);al.setAttribute('y1',cy-230);al.setAttribute('x2',cx);al.setAttribute('y2',cy+2);
+  al.setAttribute('stroke','#3b0000');al.setAttribute('stroke-width','1.5');al.setAttribute('stroke-dasharray','4 5');
+  svgG.appendChild(al);
+  // Floor line
+  var fl=document.createElementNS(NS,'line');
+  fl.setAttribute('x1',cx-230);fl.setAttribute('y1',cy+1);fl.setAttribute('x2',cx+230);fl.setAttribute('y2',cy+1);
+  fl.setAttribute('stroke','#3b0000');fl.setAttribute('stroke-width','1');
+  svgG.appendChild(fl);
+  // Labels
+  function st(x,y,txt,anchor,rot){
+    var t=document.createElementNS(NS,'text');
+    t.setAttribute('x',x);t.setAttribute('y',y);t.setAttribute('text-anchor',anchor||'middle');
+    t.setAttribute('font-size','8');t.setAttribute('fill','#4b0000');
+    t.setAttribute('font-family','monospace');t.setAttribute('letter-spacing','2');
+    if(rot)t.setAttribute('transform',rot);
+    t.textContent=txt; svgG.appendChild(t);
+  }
+  st(18,cy,'OPPOSITION','middle','rotate(-90,18,'+cy+')');
+  st(682,cy,'GOVERNMENT','middle','rotate(90,682,'+cy+')');
+  st(cx,16,'SPEAKER','middle');
+
+  // Generate positions (left→right sweep)
+  var positions=[];
+  for(var ri=0;ri<ROW_RADII.length;ri++){
+    var r=ROW_RADII[ri], cnt=SEATS_PER_ROW[ri];
+    for(var i=0;i<cnt;i++){
+      var angle=Math.PI*(1-(i+0.5)/cnt);
+      positions.push({x:cx+r*Math.cos(angle),y:cy-r*Math.sin(angle)});
+    }
+  }
+
+  // Expand groups into flat senator list
+  var senators=[];
+  SENATE_GROUPS.forEach(function(g){
+    for(var i=0;i<g.count;i++) senators.push(g);
+  });
+
+  // Draw dots
+  senators.forEach(function(g,i){
+    var pos=positions[i];
+    if(!pos)return;
+    var c=document.createElementNS(NS,'circle');
+    c.setAttribute('cx',pos.x.toFixed(1));
+    c.setAttribute('cy',pos.y.toFixed(1));
+    c.setAttribute('r','4.5');
+    c.setAttribute('fill',g.colour);
+    c.setAttribute('stroke','#060d14');
+    c.setAttribute('stroke-width','0.8');
+    c.style.cursor='default';
+    (function(grp){
+      c.addEventListener('mousemove',function(e){
+        tip.style.display='block';
+        tip.style.left=(e.clientX+12)+'px';
+        tip.style.top=(e.clientY-10)+'px';
+        while(tip.firstChild)tip.removeChild(tip.firstChild);
+        var strong=document.createElement('strong');
+        strong.textContent=grp.label;
+        var br=document.createElement('br');
+        var note=document.createElement('span');
+        note.style.cssText='color:#6b7280;font-size:9px;';
+        note.textContent='Senator — profile data coming soon';
+        tip.appendChild(strong);tip.appendChild(br);tip.appendChild(note);
+      });
+      c.addEventListener('mouseleave',function(){tip.style.display='none';});
+    })(g);
+    svgG.appendChild(c);
+  });
+})();
+</script>
 
 <!-- By Party Tab -->
 <div id="wtf-tab-parties" style="display:none;">

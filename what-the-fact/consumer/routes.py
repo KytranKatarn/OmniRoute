@@ -1125,6 +1125,35 @@ def ethics_rulings():
                            is_subscriber=is_subscriber())
 
 
+@bp.get("/gic")
+def gic_appointments():
+    """Governor in Council appointments — patronage tracking via Orders-in-Council."""
+    from flask import request as _req
+    dept = _req.args.get("dept", "all")
+    with _db().begin() as c:
+        query = """
+            SELECT pc_number, oic_date, department, subject, precis,
+                   oic_url, appointee_name, organization
+            FROM gov_watch.gic_appointments
+            {}
+            ORDER BY oic_date DESC, pc_number DESC
+            LIMIT 200
+        """.format("WHERE department ILIKE :dept" if dept != "all" else "")
+        params = {"dept": f"%{dept}%"} if dept != "all" else {}
+        rows = c.execute(text(query), params).mappings().all()
+        depts = c.execute(text("""
+            SELECT DISTINCT department FROM gov_watch.gic_appointments
+            WHERE department IS NOT NULL ORDER BY department
+        """)).scalars().all()
+        source_count = c.execute(text(f"SELECT COUNT(*) FROM {_schema()}.sources")).scalar() or 0
+    return render_template("gic.html",
+                           appointments=[dict(r) for r in rows],
+                           depts=list(depts),
+                           dept=dept,
+                           source_count=source_count,
+                           is_subscriber=is_subscriber())
+
+
 @bp.get("/rates")
 def boc_rates():
     """Bank of Canada overnight rate decisions."""

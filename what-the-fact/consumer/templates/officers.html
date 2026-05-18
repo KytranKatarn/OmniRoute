@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Officers of Parliament — Canada's Accountability Watchdogs · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Canada's 8 Officers of Parliament — independent accountability watchdogs including the Auditor General, Ethics Commissioner, and Commissioner of Lobbying.">
+{% endblock %}
+{% block content %}
+<style>
+.wtf-off-header { padding:20px 0 16px; border-bottom:1px solid #1a3a5a; margin-bottom:24px; }
+.wtf-off-title { font-family:'Orbitron',sans-serif; font-size:20px; color:#e5e7eb; margin:0 0 6px; }
+.wtf-off-sub { font-size:12px; color:#6b7280; }
+.wtf-off-grid { display:flex; flex-direction:column; gap:14px; }
+.wtf-off-card { background:#060d14; border:1px solid #1a3a5a; border-left:3px solid #0af; border-radius:6px; padding:16px 18px; }
+.wtf-off-title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:8px; flex-wrap:wrap; }
+.wtf-off-name { font-family:'Orbitron',sans-serif; font-size:13px; color:#e5e7eb; margin:0; }
+.wtf-off-role { font-size:11px; color:#6b7280; margin-top:3px; }
+.wtf-off-holder { font-size:12px; color:#0af; font-weight:600; }
+.wtf-off-mandate { font-size:12px; color:#9ca3af; line-height:1.7; margin:10px 0; }
+.wtf-off-links { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+.wtf-off-link { font-size:11px; color:#6b7280; text-decoration:none; }
+.wtf-off-link:hover { color:#0af; }
+.wtf-off-tag { font-size:10px; padding:2px 7px; border-radius:10px; border:1px solid #1a3a5a; color:#4b5563; }
+.wtf-off-tag.gov { border-color:#059669; color:#059669; }
+.wtf-off-tag.wtf { border-color:#0af; color:#0af; }
+.wtf-off-tag.civic { border-color:#8b5cf6; color:#8b5cf6; }
+.wtf-off-tag.legal { border-color:#f59e0b; color:#f59e0b; }
+.wtf-off-tag.market { border-color:#ef4444; color:#ef4444; }
+</style>
+
+<div class="wtf-off-header">
+  <h1 class="wtf-off-title">⚖️ Officers of Parliament</h1>
+  <div class="wtf-off-sub">
+    {{ officers|length }} independent watchdogs who report directly to Parliament — not to the government of the day.
+    Their findings and rulings are among the most consequential accountability events in Canada.
+  </div>
+</div>
+
+{% set TAG_CLASS = {
+  'gov-watch': 'gov',
+  'wtf': 'wtf',
+  'civic-watch': 'civic',
+  'legal-watch': 'legal',
+  'market-watch': 'market'
+} %}
+{% set TAG_LABEL = {
+  'gov-watch': 'Gov Watch',
+  'wtf': 'WTF',
+  'civic-watch': 'Civic Watch',
+  'legal-watch': 'Legal Watch',
+  'market-watch': 'Market Watch'
+} %}
+
+<div class="wtf-off-grid">
+{% for o in officers %}
+<div class="wtf-off-card">
+  <div class="wtf-off-title-row">
+    <div>
+      <div class="wtf-off-name">{{ o.title }}</div>
+      {% if o.current_holder %}
+      <div class="wtf-off-role">
+        <span class="wtf-off-holder">{{ o.current_holder }}</span>
+        {% if o.appointed_at %}
+        · appointed {{ o.appointed_at.strftime('%B %Y') if o.appointed_at.strftime is defined else o.appointed_at }}
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:flex-start;">
+      {% for link in (o.cross_links or []) %}
+      <span class="wtf-off-tag {{ TAG_CLASS.get(link, '') }}">{{ TAG_LABEL.get(link, link) }}</span>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="wtf-off-mandate">{{ o.mandate_summary }}</div>
+  <div class="wtf-off-links">
+    {% if o.website_url %}
+    <a class="wtf-off-link" href="{{ o.website_url }}" target="_blank" rel="noopener">Official site ↗</a>
+    {% endif %}
+    {% if o.report_url %}
+    <a class="wtf-off-link" href="{{ o.report_url }}" target="_blank" rel="noopener">
+      Latest report{% if o.report_title %}: {{ o.report_title[:40] }}{% if o.report_title|length > 40 %}…{% endif %}{% endif %} ↗
+    </a>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+</div>
+
+<div style="margin-top:28px;padding:14px 16px;background:#060d14;border:1px solid #1a3a5a;border-radius:6px;font-size:12px;color:#6b7280;line-height:1.8;">
+  <strong style="color:#9ca3af;">Why Officers of Parliament matter</strong><br>
+  Unlike ministers or departments, Officers of Parliament serve fixed terms and cannot be removed by the Prime Minister.
+  They report directly to the House of Commons or Senate — creating a firewall between their findings and political interference.
+  When the Auditor General flags waste, or the Ethics Commissioner rules on a conflict of interest, it becomes a formal parliamentary record.
+  <br><br>
+  <a href="/mps" style="color:#0af;text-decoration:none;font-size:11px;">← Members of Parliament</a>
+  &nbsp;&nbsp;
+  <a href="/owners" style="color:#6b7280;text-decoration:none;font-size:11px;">Media Owners →</a>
+</div>
+
+{% endblock %}

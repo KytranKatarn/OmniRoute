@@ -1063,6 +1063,25 @@ def _party_colour(party: str) -> str:
     return "#6b7280"
 
 
+@bp.get("/parliament/officers")
+def officers_of_parliament():
+    """Officers of Parliament — 8 independent accountability watchdogs."""
+    with _db().begin() as c:
+        officers = c.execute(text("""
+            SELECT slug, title, short_title, current_holder, appointed_at,
+                   mandate_summary, website_url, report_url, report_title,
+                   report_date, cross_links
+            FROM parliament.officers
+            WHERE is_active = true
+            ORDER BY id
+        """)).mappings().all()
+        source_count = c.execute(text(f"SELECT COUNT(*) FROM {_schema()}.sources")).scalar() or 0
+    return render_template("officers.html",
+                           officers=[dict(o) for o in officers],
+                           source_count=source_count,
+                           is_subscriber=is_subscriber())
+
+
 @bp.get("/owners")
 def owners_listing():
     """Media ownership transparency — who owns which outlets and their bias profile."""

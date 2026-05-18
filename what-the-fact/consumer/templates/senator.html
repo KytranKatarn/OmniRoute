@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ senator.name }} — Senator Profile · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="{{ senator.name }} ({{ senator.caucus }}, {{ senator.province }}) — Senate of Canada profile on What The Fact.">
+{% endblock %}
+{% block content %}
+<style>
+.wtf-sen-header { display:flex; gap:20px; align-items:flex-start; padding:20px 0 16px; border-bottom:1px solid #4b0000; margin-bottom:20px; flex-wrap:wrap; }
+.wtf-sen-photo { width:96px; height:96px; border-radius:50%; object-fit:cover; background:#0a0505; border:2px solid #4b0000; flex-shrink:0; }
+.wtf-sen-photo-ph { width:96px; height:96px; border-radius:50%; background:#0a0505; border:2px solid #4b0000; display:flex; align-items:center; justify-content:center; font-size:40px; color:#4b0000; flex-shrink:0; }
+.wtf-sen-info { flex:1; min-width:200px; }
+.wtf-sen-name { font-family:'Orbitron',sans-serif; font-size:18px; color:#e5e7eb; margin:0 0 8px; }
+.wtf-sen-badge { font-size:11px; padding:3px 10px; border-radius:10px; font-weight:600; display:inline-block; margin-bottom:8px; }
+.wtf-sen-meta { font-size:12px; color:#9ca3af; line-height:1.8; }
+.wtf-sen-section { margin-bottom:24px; }
+.wtf-sen-section-title { font-size:11px; color:#9ca3af; text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid #1a0000; }
+</style>
+
+<div class="wtf-sen-header">
+  <a href="/mps#senate" style="position:absolute;top:20px;left:0;font-size:11px;color:#6b7280;text-decoration:none;">← Senate</a>
+  {% if senator.photo_url %}
+  <img class="wtf-sen-photo" src="{{ senator.photo_url }}" alt="{{ senator.name }}"
+       style="border-color:{{ senator.caucus_colour }};"
+       onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+  <div class="wtf-sen-photo-ph" style="display:none;border-color:{{ senator.caucus_colour }};">👤</div>
+  {% else %}
+  <div class="wtf-sen-photo-ph" style="border-color:{{ senator.caucus_colour }};">👤</div>
+  {% endif %}
+  <div class="wtf-sen-info">
+    <h1 class="wtf-sen-name">{{ senator.name }}</h1>
+    <span class="wtf-sen-badge" style="background:{{ senator.caucus_colour }}22;color:{{ senator.caucus_colour }};border:1px solid {{ senator.caucus_colour }}44;">
+      {{ senator.caucus or '—' }}
+    </span>
+    <div class="wtf-sen-meta">
+      <strong style="color:#e5e7eb;">{{ senator.province or '—' }}</strong><br>
+      {% if senator.appointed_at %}
+      Appointed {{ senator.appointed_at.strftime('%B %-d, %Y') }}<br>
+      {% endif %}
+      {% if senator.profile_url %}
+      <a href="{{ senator.profile_url }}" target="_blank" rel="noopener" style="color:#ef4444;font-size:11px;">Senate of Canada profile ↗</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="wtf-sen-section">
+  <div class="wtf-sen-section-title">🔴 About the Senate</div>
+  <div style="font-size:12px;color:#9ca3af;line-height:1.8;">
+    Senators are appointed by the Governor General on the advice of the Prime Minister and serve until age 75.
+    The Senate reviews, amends, and votes on legislation passed by the House of Commons.
+    <br><br>
+    <a href="/mps" style="color:#ef4444;text-decoration:none;font-size:11px;">← Back to Parliament →</a>
+    &nbsp;&nbsp;
+    <a href="https://sencanada.ca" target="_blank" rel="noopener" style="color:#6b7280;font-size:11px;">Senate of Canada ↗</a>
+  </div>
+</div>
+
+{% endblock %}

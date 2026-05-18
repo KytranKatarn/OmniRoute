@@ -1090,6 +1090,12 @@ def mps_listing():
             "SELECT DISTINCT province_code FROM parliament.mps WHERE is_current=true AND province_code IS NOT NULL ORDER BY province_code"
         )).scalars().all()
         source_count = c.execute(text(f"SELECT COUNT(*) FROM {S}.sources")).scalar() or 0
+        senators = c.execute(text("""
+            SELECT slug, name, given_name, family_name, caucus, province, photo_url, profile_url, appointed_at
+            FROM parliament.senators WHERE is_current = true ORDER BY caucus, name
+        """)).mappings().all()
+
+    senators_list = [dict(s) for s in senators]
 
     mps = []
     for r in rows:
@@ -1101,7 +1107,34 @@ def mps_listing():
 
     return render_template("mps.html", mps=mps, parties=list(parties),
                            provinces=list(provinces), party_filter=party_filter,
-                           province_filter=province_filter, source_count=source_count)
+                           province_filter=province_filter, source_count=source_count,
+                           senators=senators_list)
+
+
+@bp.get("/senator/<slug>")
+def senator_profile(slug: str):
+    """Individual senator profile — caucus, province, appointment."""
+    if not slug.replace("-", "").replace("_", "").isalnum():
+        abort(404)
+    with _db().begin() as c:
+        row = c.execute(text("""
+            SELECT id, slug, name, given_name, family_name, caucus, province,
+                   photo_url, profile_url, appointed_at
+            FROM parliament.senators WHERE slug = :slug AND is_current = true
+        """), {"slug": slug}).mappings().first()
+    if not row:
+        abort(404)
+    senator = dict(row)
+    _CAUCUS_COLOURS = {
+        "C": "#3b82f6", "ISG": "#cc0000", "CSG": "#059669",
+        "PSG": "#7c3aed", "GRO": "#b45309", "Non-affiliated": "#888888",
+    }
+    senator["caucus_colour"] = _CAUCUS_COLOURS.get(senator.get("caucus") or "", "#888888")
+    source_count = 0
+    with _db().begin() as c:
+        source_count = c.execute(text(f"SELECT COUNT(*) FROM {_schema()}.sources")).scalar() or 0
+    return render_template("senator.html", senator=senator, source_count=source_count,
+                           is_subscriber=is_subscriber())
 
 
 @bp.get("/mp/<slug>")

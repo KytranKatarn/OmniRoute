@@ -17,16 +17,18 @@ Default OFF. Set WTF_LLM_BACKLOG_ENABLED=true to run.
 Env:
     WTF_LLM_BACKLOG_ENABLED            false   master switch
     WTF_LLM_BACKLOG_BATCH_SIZE         25      articles per batch
-    WTF_LLM_BACKLOG_DISPATCH_SLEEP_SEC 5       sleep between articles
+    WTF_LLM_BACKLOG_DISPATCH_SLEEP_SEC 5       sleep between articles (per thread)
     WTF_LLM_BACKLOG_MAX_AGE_DAYS       7       only articles younger than this
     WTF_LLM_BACKLOG_MAX_RUNS_PER_NIGHT 200     hard cap per cycle
     WTF_LLM_BACKLOG_MODEL_LABEL        deep_analysis_v1
     WTF_LLM_BACKLOG_RUN_FACTCHECK      true    run F.A.C.T. scan after bias
+    WTF_LLM_BACKLOG_CONCURRENCY        1       parallel threads (set to node count for max throughput)
 """
 import json
 import logging
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from sqlalchemy import text
 
@@ -42,6 +44,7 @@ _MAX_AGE_DAYS = int(os.environ.get("WTF_LLM_BACKLOG_MAX_AGE_DAYS", "7"))
 _MAX_RUNS_PER_NIGHT = int(os.environ.get("WTF_LLM_BACKLOG_MAX_RUNS_PER_NIGHT", "200"))
 _MODEL_LABEL = os.environ.get("WTF_LLM_BACKLOG_MODEL_LABEL", "deep_analysis_v1")
 _RUN_FACTCHECK = os.environ.get("WTF_LLM_BACKLOG_RUN_FACTCHECK", "true").lower() == "true"
+_CONCURRENCY = int(os.environ.get("WTF_LLM_BACKLOG_CONCURRENCY", "1"))
 
 _ALLOWED_SCHEMAS = frozenset({"wtf"})
 _VALID_BIAS_BANDS = frozenset({"left", "center-left", "center", "center-right", "right"})
@@ -277,12 +280,91 @@ def _persist_factcheck(engine, schema: str, article_id: int, fc_result: dict) ->
             )
 
 
+def _process_article(engine, schema: str, article: dict) -> tuple[str, int]:
+    """Process a single article: bias analysis + optional factcheck.
+
+    Returns (status, article_id) where status is 'ok' | 'rate_limited' | 'failed'.
+    Thread-safe: each article writes to a distinct article_id; engine pool handles
+    concurrent connections.
+    """
+    aid = article["id"]
+
+    # ── Tier-1/2 bias analysis ────────────────────────────────────
+    outcome = tier_router.analyze_tiered(
+        article_id=aid,
+        title=article["title"],
+        body=article["body"],
+        source_slug=article["source_slug"] or "",
+        source_bias_lean=article.get("source_bias_lean") or "",
+        cluster_size=int(article.get("cluster_size") or 0),
+    )
+    status = outcome["status"]
+    tier_meta = outcome.get("tier_meta") or {}
+
+    if status == "rate_limited":
+        return ("rate_limited", aid)
+
+    if status == "failed":
+        logger.warning(
+            "[llm_backlog] article=%s dispatch failed (analysis_tier=%s)",
+            aid, tier_meta.get("analysis_tier", "pending"),
+        )
+        time.sleep(_DISPATCH_SLEEP_SEC)
+        return ("failed", aid)
+
+    try:
+        _persist(engine, schema, aid, outcome["result"], tier_meta)
+        logger.info(
+            "[llm_backlog] article=%s bias persisted tier=%s gate=%s tier2=%s",
+            aid,
+            tier_meta.get("analysis_tier"),
+            tier_meta.get("gate_reason"),
+            tier_meta.get("tier2_status"),
+        )
+    except Exception as exc:
+        logger.exception("[llm_backlog] article=%s bias persist failed: %s", aid, exc)
+        time.sleep(_DISPATCH_SLEEP_SEC)
+        return ("failed", aid)
+
+    # ── F.A.C.T. scan (non-fatal — bias already persisted) ────
+    if _RUN_FACTCHECK:
+        try:
+            fc_outcome = tier_router.analyze_factcheck_tiered(
+                article_id=aid,
+                title=article["title"],
+                body=article["body"],
+                source_slug=article["source_slug"] or "",
+                source_bias_lean=article.get("source_bias_lean") or "",
+                cluster_size=int(article.get("cluster_size") or 0),
+            )
+            if fc_outcome["status"] == "ok" and fc_outcome.get("result"):
+                _persist_factcheck(engine, schema, aid, fc_outcome["result"])
+                logger.info(
+                    "[llm_backlog] article=%s factcheck persisted tier=%s claims=%d",
+                    aid,
+                    fc_outcome.get("tier_meta", {}).get("analysis_tier"),
+                    len((fc_outcome["result"].get("claims") or [])),
+                )
+            else:
+                logger.debug(
+                    "[llm_backlog] article=%s factcheck skipped: status=%s",
+                    aid, fc_outcome["status"],
+                )
+        except Exception as exc:
+            logger.warning(
+                "[llm_backlog] article=%s factcheck non-fatal error: %s", aid, exc,
+            )
+
+    time.sleep(_DISPATCH_SLEEP_SEC)
+    return ("ok", aid)
+
+
 def run_backlog(engine, schema: str = "wtf") -> dict:
     """Process one shift of LLM analysis backlog. Returns {processed, failed, skipped, stopped}.
 
-    Per article:
-      1. analyze_tiered() → bias band/score/rationale → persist to llm_analyses + bias_scores
-      2. If _RUN_FACTCHECK: analyze_factcheck_tiered() → claim verdicts → persist to fact_checks
+    When WTF_LLM_BACKLOG_CONCURRENCY > 1, processes a batch in parallel via
+    ThreadPoolExecutor — one thread per available node. Serial path kept for
+    CONCURRENCY=1 (default, backward compat).
     """
     if not _ENABLED:
         return {"processed": 0, "rate_limited": 0, "failed": 0, "skipped": 0, "stopped": "disabled"}
@@ -291,87 +373,38 @@ def run_backlog(engine, schema: str = "wtf") -> dict:
     rate_limited = 0
     failed = 0
     skipped = 0
+
     while processed + rate_limited + failed < _MAX_RUNS_PER_NIGHT:
         batch = _fetch_batch(engine, schema, _BATCH_SIZE)
         if not batch:
             return {"processed": processed, "rate_limited": rate_limited,
                     "failed": failed, "skipped": skipped, "stopped": "no_backlog"}
 
-        for article in batch:
-            if processed + rate_limited + failed >= _MAX_RUNS_PER_NIGHT:
-                return {"processed": processed, "rate_limited": rate_limited,
-                        "failed": failed, "skipped": skipped, "stopped": "max_runs"}
-
-            aid = article["id"]
-
-            # ── Tier-1/2 bias analysis ────────────────────────────────────
-            outcome = tier_router.analyze_tiered(
-                article_id=aid,
-                title=article["title"],
-                body=article["body"],
-                source_slug=article["source_slug"] or "",
-                source_bias_lean=article.get("source_bias_lean") or "",
-                cluster_size=int(article.get("cluster_size") or 0),
-            )
-            status = outcome["status"]
-            tier_meta = outcome.get("tier_meta") or {}
-
-            if status == "rate_limited":
-                rate_limited += 1
-            elif status == "failed":
-                failed += 1
-                logger.warning(
-                    "[llm_backlog] article=%s dispatch failed (analysis_tier=%s)",
-                    aid,
-                    tier_meta.get("analysis_tier", "pending"),
-                )
-            else:
-                try:
-                    _persist(engine, schema, aid, outcome["result"], tier_meta)
+        if _CONCURRENCY > 1:
+            with ThreadPoolExecutor(max_workers=_CONCURRENCY) as pool:
+                futures = [pool.submit(_process_article, engine, schema, art) for art in batch]
+                for fut in as_completed(futures):
+                    if processed + rate_limited + failed >= _MAX_RUNS_PER_NIGHT:
+                        break
+                    status, _aid = fut.result()
+                    if status == "ok":
+                        processed += 1
+                    elif status == "rate_limited":
+                        rate_limited += 1
+                    else:
+                        failed += 1
+        else:
+            for article in batch:
+                if processed + rate_limited + failed >= _MAX_RUNS_PER_NIGHT:
+                    return {"processed": processed, "rate_limited": rate_limited,
+                            "failed": failed, "skipped": skipped, "stopped": "max_runs"}
+                status, _aid = _process_article(engine, schema, article)
+                if status == "ok":
                     processed += 1
-                    logger.info(
-                        "[llm_backlog] article=%s bias persisted tier=%s gate=%s tier2=%s",
-                        aid,
-                        tier_meta.get("analysis_tier"),
-                        tier_meta.get("gate_reason"),
-                        tier_meta.get("tier2_status"),
-                    )
-                except Exception as exc:
+                elif status == "rate_limited":
+                    rate_limited += 1
+                else:
                     failed += 1
-                    logger.exception("[llm_backlog] article=%s bias persist failed: %s", aid, exc)
-                    time.sleep(_DISPATCH_SLEEP_SEC)
-                    continue
-
-                # ── F.A.C.T. scan (non-fatal — bias already persisted) ────
-                if _RUN_FACTCHECK:
-                    try:
-                        fc_outcome = tier_router.analyze_factcheck_tiered(
-                            article_id=aid,
-                            title=article["title"],
-                            body=article["body"],
-                            source_slug=article["source_slug"] or "",
-                            source_bias_lean=article.get("source_bias_lean") or "",
-                            cluster_size=int(article.get("cluster_size") or 0),
-                        )
-                        if fc_outcome["status"] == "ok" and fc_outcome.get("result"):
-                            _persist_factcheck(engine, schema, aid, fc_outcome["result"])
-                            logger.info(
-                                "[llm_backlog] article=%s factcheck persisted tier=%s claims=%d",
-                                aid,
-                                fc_outcome.get("tier_meta", {}).get("analysis_tier"),
-                                len((fc_outcome["result"].get("claims") or [])),
-                            )
-                        else:
-                            logger.debug(
-                                "[llm_backlog] article=%s factcheck skipped: status=%s",
-                                aid, fc_outcome["status"],
-                            )
-                    except Exception as exc:
-                        logger.warning(
-                            "[llm_backlog] article=%s factcheck non-fatal error: %s", aid, exc,
-                        )
-
-            time.sleep(_DISPATCH_SLEEP_SEC)
 
     return {"processed": processed, "rate_limited": rate_limited,
             "failed": failed, "skipped": skipped, "stopped": "max_runs"}

@@ -1219,4 +1219,482 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered media_generation_reaper job (every 10 min)")
 
+    # =========================================================================
+    # WTF Fleet Orchestration Jobs — Project #350
+    # 4 independent jobs, staggered every 30 min across fleet nodes.
+    # DHQ dispatches to News & Media agents (B.I.A.S., V.E.R.I.F.Y., L.O.C.A.L.,
+    # S.C.O.U.T.) across Starship-246, Starship-245, outpost-us.
+    # VPS backlog workers remain active at low cap as always-on fallback.
+    # =========================================================================
+
+    _WTF_BATCH = 25
+    _WTF_MAX_PER_CYCLE = 200
+    _WTF_FAILBACK_THRESHOLD = 3
+
+    # Job #122: WTF LLM Analysis — bias scoring via B.I.A.S. / V.E.R.I.F.Y.
+    # Runs every 30 min at :00 and :30 (EDT).
+    def _run_wtf_llm_analysis():
+        try:
+            import json as _json
+            from database import get_db_cursor
+            from tools.department_hq.services.department_dispatcher import dispatch
+
+            processed = failed = consecutive_failures = 0
+
+            while processed + failed < _WTF_MAX_PER_CYCLE:
+                with get_db_cursor() as (_, cur):
+                    cur.execute(
+                        """
+                        SELECT a.id, a.title, a.body, s.slug AS source_slug
+                        FROM wtf.articles a
+                        JOIN wtf.sources s ON s.id = a.source_id
+                        WHERE a.ai_analyzed = false
+                          AND a.published_at > NOW() - INTERVAL '90 days'
+                          AND NOT EXISTS (
+                              SELECT 1 FROM wtf.llm_analyses la WHERE la.article_id = a.id
+                          )
+                        ORDER BY a.published_at DESC
+                        LIMIT %s
+                        """,
+                        (_WTF_BATCH,),
+                    )
+                    batch = cur.fetchall() or []
+
+                if not batch:
+                    break
+
+                for row in batch:
+                    if processed + failed >= _WTF_MAX_PER_CYCLE:
+                        break
+                    aid = row["id"]
+                    title = row["title"]
+                    body = (row["body"] or "")[:2000]
+                    source_slug = row["source_slug"] or ""
+                    prompt = (
+                        f"Analyze the bias of this Canadian news article.\n\n"
+                        f"Source: {source_slug}\nTitle: {title}\nBody: {body}\n\n"
+                        'Return ONLY valid JSON: {"score": float -1 to 1, "band": string, '
+                        '"rationale": string, "trigger_phrases": list[str], "confidence": float}'
+                    )
+                    result = dispatch(
+                        capability="bias_analysis",
+                        prompt=prompt,
+                        module_id="wtf_dhq_llm",
+                        json_mode=True,
+                    )
+                    if result.success:
+                        try:
+                            parsed = (
+                                _json.loads(result.response)
+                                if isinstance(result.response, str)
+                                else (result.response or {})
+                            )
+                        except Exception:
+                            parsed = {}
+                        band = (parsed.get("band") or "center").lower().strip()
+                        if band not in ("left", "center-left", "center", "center-right", "right"):
+                            band = "center"
+                        score = float(parsed.get("score") or 0.0)
+                        rationale = str(parsed.get("rationale") or "")[:2000]
+                        trigger_phrases = _json.dumps(parsed.get("trigger_phrases") or [])
+                        confidence = parsed.get("confidence")
+                        try:
+                            with get_db_cursor(commit=True) as (_, cur):
+                                cur.execute(
+                                    """
+                                    INSERT INTO wtf.llm_analyses (article_id, sections_json, model, completed_at)
+                                    VALUES (%s, %s::jsonb, 'dhq_bias_v1', NOW())
+                                    ON CONFLICT (article_id, model) DO UPDATE
+                                      SET sections_json = EXCLUDED.sections_json, completed_at = NOW()
+                                    """,
+                                    (aid, _json.dumps(parsed)),
+                                )
+                                cur.execute(
+                                    "UPDATE wtf.articles SET ai_analyzed = true, ai_analyzed_at = NOW() WHERE id = %s",
+                                    (aid,),
+                                )
+                                cur.execute(
+                                    """
+                                    INSERT INTO wtf.bias_scores
+                                        (article_id, band, score, heuristic_version, rationale,
+                                         analyzed_by, trigger_phrases, confidence, computed_at)
+                                    VALUES (%s, %s, %s, 'dhq_v1', %s, 'dhq_v1', %s::jsonb, %s, NOW())
+                                    ON CONFLICT (article_id) DO UPDATE
+                                      SET band = EXCLUDED.band, score = EXCLUDED.score,
+                                          rationale = EXCLUDED.rationale, analyzed_by = EXCLUDED.analyzed_by,
+                                          trigger_phrases = EXCLUDED.trigger_phrases,
+                                          confidence = EXCLUDED.confidence, computed_at = NOW()
+                                    """,
+                                    (aid, band, score, rationale, trigger_phrases, confidence),
+                                )
+                            processed += 1
+                            consecutive_failures = 0
+                        except Exception as persist_exc:
+                            logger.warning("[WTFLLMJob] persist failed article=%s: %s", aid, persist_exc)
+                            failed += 1
+                    else:
+                        failed += 1
+                        consecutive_failures += 1
+                        if consecutive_failures >= _WTF_FAILBACK_THRESHOLD:
+                            logger.warning(
+                                "[WTFLLMJob] %d consecutive fleet failures — VPS fallback active this cycle",
+                                consecutive_failures,
+                            )
+                            break
+
+            logger.info("[WTFLLMJob] cycle done: processed=%d failed=%d", processed, failed)
+        except Exception as exc:
+            logger.error("[WTFLLMJob] crashed: %s", exc)
+
+    scheduler.add_job(
+        with_ctx(_run_wtf_llm_analysis),
+        trigger=CronTrigger(minute="0,30", timezone="America/Toronto"),
+        id="wtf_llm_analysis",
+        name="WTF: LLM Bias Analysis — B.I.A.S./V.E.R.I.F.Y. fleet (Project #350)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered wtf_llm_analysis job (every 30 min at :00/:30)")
+
+    # Job #123: WTF Geo Extraction — location mapping via L.O.C.A.L.
+    # Runs every 30 min at :05 and :35 (staggered from LLM).
+    def _run_wtf_geo():
+        try:
+            import json as _json
+            from database import get_db_cursor
+            from tools.department_hq.services.department_dispatcher import dispatch
+
+            processed = failed = consecutive_failures = 0
+
+            while processed + failed < _WTF_MAX_PER_CYCLE:
+                with get_db_cursor() as (_, cur):
+                    cur.execute(
+                        """
+                        SELECT a.id, a.title, a.body
+                        FROM wtf.articles a
+                        WHERE a.province_code IS NULL
+                          AND a.city IS NULL
+                          AND a.published_at > NOW() - INTERVAL '90 days'
+                        ORDER BY a.published_at DESC
+                        LIMIT %s
+                        """,
+                        (_WTF_BATCH,),
+                    )
+                    batch = cur.fetchall() or []
+
+                if not batch:
+                    break
+
+                for row in batch:
+                    if processed + failed >= _WTF_MAX_PER_CYCLE:
+                        break
+                    aid = row["id"]
+                    title = row["title"]
+                    body = (row["body"] or "")[:1000]
+                    prompt = (
+                        f"Extract the primary geographic location this news article is about.\n\n"
+                        f"Title: {title}\nBody: {body}\n\n"
+                        'Return ONLY valid JSON: {"province_code": "ON" or null, "country_code": "CA"|"US"|... or null, '
+                        '"city": "Toronto" or null, "lat": float or null, "lng": float or null, '
+                        '"geo_scope": "national|provincial|municipal|international", "geo_confidence": 0.0-1.0}'
+                    )
+                    result = dispatch(
+                        capability="geo_extraction",
+                        prompt=prompt,
+                        module_id="wtf_dhq_geo",
+                        json_mode=True,
+                    )
+                    if result.success:
+                        try:
+                            parsed = (
+                                _json.loads(result.response)
+                                if isinstance(result.response, str)
+                                else (result.response or {})
+                            )
+                        except Exception:
+                            parsed = {}
+                        try:
+                            with get_db_cursor(commit=True) as (_, cur):
+                                cur.execute(
+                                    """
+                                    UPDATE wtf.articles
+                                    SET province_code = %s, city = %s, lat = %s, lng = %s,
+                                        geo_scope = %s
+                                    WHERE id = %s AND province_code IS NULL
+                                    """,
+                                    (
+                                        parsed.get("province_code"),
+                                        parsed.get("city"),
+                                        parsed.get("lat"),
+                                        parsed.get("lng"),
+                                        parsed.get("geo_scope") or "national",
+                                        aid,
+                                    ),
+                                )
+                            processed += 1
+                            consecutive_failures = 0
+                        except Exception as persist_exc:
+                            logger.warning("[WTFGeoJob] persist failed article=%s: %s", aid, persist_exc)
+                            failed += 1
+                    else:
+                        failed += 1
+                        consecutive_failures += 1
+                        if consecutive_failures >= _WTF_FAILBACK_THRESHOLD:
+                            logger.warning(
+                                "[WTFGeoJob] %d consecutive fleet failures — VPS fallback active this cycle",
+                                consecutive_failures,
+                            )
+                            break
+
+            logger.info("[WTFGeoJob] cycle done: processed=%d failed=%d", processed, failed)
+        except Exception as exc:
+            logger.error("[WTFGeoJob] crashed: %s", exc)
+
+    scheduler.add_job(
+        with_ctx(_run_wtf_geo),
+        trigger=CronTrigger(minute="5,35", timezone="America/Toronto"),
+        id="wtf_geo",
+        name="WTF: Geo Extraction — L.O.C.A.L. fleet (Project #350)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered wtf_geo job (every 30 min at :05/:35)")
+
+    # Job #124: WTF Factcheck — claim verification via V.E.R.I.F.Y.
+    # Runs every 30 min at :10 and :40.
+    def _run_wtf_factcheck():
+        try:
+            import json as _json
+            from database import get_db_cursor
+            from tools.department_hq.services.department_dispatcher import dispatch
+
+            processed = failed = consecutive_failures = 0
+            _VERDICT_MAP = {
+                "verified": "true",
+                "true": "true",
+                "mostly_true": "mostly_true",
+                "mixed": "mixed",
+                "disputed": "false",
+                "false": "false",
+                "unverifiable": "unverified",
+                "unverified": "unverified",
+            }
+            _OVERALL_MAP = {
+                "verified": "verified",
+                "true": "verified",
+                "mostly_true": "mostly_true",
+                "mixed": "mixed",
+                "disputed": "disputed",
+                "false": "disputed",
+                "unverifiable": "unverifiable",
+                "unverified": "unverifiable",
+            }
+
+            while processed + failed < _WTF_MAX_PER_CYCLE:
+                with get_db_cursor() as (_, cur):
+                    cur.execute(
+                        """
+                        SELECT a.id, a.title, a.body
+                        FROM wtf.articles a
+                        WHERE a.published_at > NOW() - INTERVAL '90 days'
+                          AND NOT EXISTS (
+                              SELECT 1 FROM wtf.fact_checks fc
+                              WHERE fc.article_id = a.id AND fc.analyzed_by = 'dhq_v1'
+                          )
+                        ORDER BY a.published_at DESC
+                        LIMIT %s
+                        """,
+                        (_WTF_BATCH,),
+                    )
+                    batch = cur.fetchall() or []
+
+                if not batch:
+                    break
+
+                for row in batch:
+                    if processed + failed >= _WTF_MAX_PER_CYCLE:
+                        break
+                    aid = row["id"]
+                    title = row["title"]
+                    body = (row["body"] or "")[:2000]
+                    prompt = (
+                        f"Fact-check the claims in this Canadian news article.\n\n"
+                        f"Title: {title}\nBody: {body}\n\n"
+                        'Return ONLY valid JSON: {"claims": [{"text": str, "verdict": str, "reasoning": str}], '
+                        '"overall_verdict": string, "confidence": float}. '
+                        "Verdicts: verified | mixed | disputed | unverifiable"
+                    )
+                    result = dispatch(
+                        capability="fact_check",
+                        prompt=prompt,
+                        module_id="wtf_dhq_factcheck",
+                        json_mode=True,
+                    )
+                    if result.success:
+                        try:
+                            parsed = (
+                                _json.loads(result.response)
+                                if isinstance(result.response, str)
+                                else (result.response or {})
+                            )
+                        except Exception:
+                            parsed = {}
+                        claims = parsed.get("claims") or []
+                        overall_raw = (parsed.get("overall_verdict") or "unverifiable").lower()
+                        overall = _OVERALL_MAP.get(overall_raw, "unverifiable")
+                        claims_json = _json.dumps(claims)
+                        try:
+                            with get_db_cursor(commit=True) as (_, cur):
+                                cur.execute(
+                                    "DELETE FROM wtf.fact_checks WHERE article_id = %s AND analyzed_by = 'dhq_v1'",
+                                    (aid,),
+                                )
+                                if claims:
+                                    for claim_item in claims:
+                                        claim_text = str(claim_item.get("text") or "")[:2000]
+                                        if not claim_text:
+                                            continue
+                                        verdict = _VERDICT_MAP.get(
+                                            str(claim_item.get("verdict") or "unverified").lower().strip(),
+                                            "unverified",
+                                        )
+                                        evidence = str(claim_item.get("reasoning") or claim_item.get("evidence") or "")[
+                                            :4000
+                                        ]
+                                        cur.execute(
+                                            """
+                                            INSERT INTO wtf.fact_checks
+                                                (article_id, claim, verdict, evidence, checker,
+                                                 analyzed_by, claims, overall_verdict)
+                                            VALUES (%s, %s, %s, %s, 'fact_v1', 'dhq_v1', %s::jsonb, %s)
+                                            """,
+                                            (aid, claim_text, verdict, evidence, claims_json, overall),
+                                        )
+                                else:
+                                    cur.execute(
+                                        """
+                                        INSERT INTO wtf.fact_checks
+                                            (article_id, claim, verdict, evidence, checker,
+                                             analyzed_by, claims, overall_verdict)
+                                        VALUES (%s, 'No verifiable claims detected.', 'unverified', '',
+                                                'fact_v1', 'dhq_v1', '[]'::jsonb, 'unverifiable')
+                                        """,
+                                        (aid,),
+                                    )
+                            processed += 1
+                            consecutive_failures = 0
+                        except Exception as persist_exc:
+                            logger.warning("[WTFFactcheckJob] persist failed article=%s: %s", aid, persist_exc)
+                            failed += 1
+                    else:
+                        failed += 1
+                        consecutive_failures += 1
+                        if consecutive_failures >= _WTF_FAILBACK_THRESHOLD:
+                            logger.warning(
+                                "[WTFFactcheckJob] %d consecutive fleet failures — VPS fallback active this cycle",
+                                consecutive_failures,
+                            )
+                            break
+
+            logger.info("[WTFFactcheckJob] cycle done: processed=%d failed=%d", processed, failed)
+        except Exception as exc:
+            logger.error("[WTFFactcheckJob] crashed: %s", exc)
+
+    scheduler.add_job(
+        with_ctx(_run_wtf_factcheck),
+        trigger=CronTrigger(minute="10,40", timezone="America/Toronto"),
+        id="wtf_factcheck",
+        name="WTF: Factcheck — V.E.R.I.F.Y. fleet (Project #350)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered wtf_factcheck job (every 30 min at :10/:40)")
+
+    # Job #125: WTF Scout — full body fetch for short articles via S.C.O.U.T.
+    # Runs every 30 min at :15 and :45. Only processes articles <7 days old.
+    def _run_wtf_scout():
+        try:
+            from database import get_db_cursor
+            from tools.department_hq.services.department_dispatcher import dispatch
+
+            processed = failed = consecutive_failures = 0
+
+            while processed + failed < _WTF_MAX_PER_CYCLE:
+                with get_db_cursor() as (_, cur):
+                    cur.execute(
+                        """
+                        SELECT a.id, a.title, a.url
+                        FROM wtf.articles a
+                        WHERE LENGTH(a.body) < 300
+                          AND a.url IS NOT NULL
+                          AND a.published_at > NOW() - INTERVAL '7 days'
+                        ORDER BY a.published_at DESC
+                        LIMIT %s
+                        """,
+                        (_WTF_BATCH,),
+                    )
+                    batch = cur.fetchall() or []
+
+                if not batch:
+                    break
+
+                for row in batch:
+                    if processed + failed >= _WTF_MAX_PER_CYCLE:
+                        break
+                    aid = row["id"]
+                    title = row["title"]
+                    url = row["url"]
+                    prompt = (
+                        f"Scrape and return the full article text from this URL.\n\n"
+                        f"URL: {url}\nTitle: {title}\n\n"
+                        "Return ONLY the plain article body text. No HTML, no JSON, no metadata."
+                    )
+                    result = dispatch(
+                        capability="web_scraping",
+                        prompt=prompt,
+                        module_id="wtf_dhq_scout",
+                        json_mode=False,
+                    )
+                    if result.success and result.response and len(result.response.strip()) > 200:
+                        try:
+                            with get_db_cursor(commit=True) as (_, cur):
+                                cur.execute(
+                                    "UPDATE wtf.articles SET body = %s WHERE id = %s AND LENGTH(body) < 300",
+                                    (result.response.strip()[:8000], aid),
+                                )
+                            processed += 1
+                            consecutive_failures = 0
+                        except Exception as persist_exc:
+                            logger.warning("[WTFScoutJob] persist failed article=%s: %s", aid, persist_exc)
+                            failed += 1
+                    else:
+                        failed += 1
+                        consecutive_failures += 1
+                        if consecutive_failures >= _WTF_FAILBACK_THRESHOLD:
+                            logger.warning(
+                                "[WTFScoutJob] %d consecutive fleet failures — VPS fallback active this cycle",
+                                consecutive_failures,
+                            )
+                            break
+
+            logger.info("[WTFScoutJob] cycle done: processed=%d failed=%d", processed, failed)
+        except Exception as exc:
+            logger.error("[WTFScoutJob] crashed: %s", exc)
+
+    scheduler.add_job(
+        with_ctx(_run_wtf_scout),
+        trigger=CronTrigger(minute="15,45", timezone="America/Toronto"),
+        id="wtf_scout",
+        name="WTF: Scout Body Fetch — S.C.O.U.T. fleet (Project #350)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered wtf_scout job (every 30 min at :15/:45)")
+
+    logger.info("[DeptHQ] Registered 4 WTF fleet orchestration jobs (Project #350)")
+
     logger.info("[DeptHQ] Registered 12 code health/audit jobs")

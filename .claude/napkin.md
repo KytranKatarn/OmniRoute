@@ -80,6 +80,13 @@
 4. **[2026-05-08] Per-module chat = dedicated JS file, not inline configure()**
    Do instead: Create `static/js/{module}-chat.js` with config baked in. No inline configure() in template.
 
+## WTF / Parliament Scraping
+1. **[2026-05-18] sencanada.ca is fully JS-rendered — requests/BS4 returns skeleton only**
+   Do instead: Always use Playwright MCP for sencanada.ca. Scrape the standings/contact list views (`?v=list`, `?v=contact`) for all 96 senators in one page load — far faster than 96 individual profile pages.
+
+2. **[2026-05-18] merge-pr skill Step 7 resets whichever branch is checked out**
+   Do instead: `git checkout main` BEFORE invoking /merge-pr. Recovery: `git reflog` → `git cherry-pick <hash>` → new branch + PR.
+
 ## User Directives
 1. **[2026-05-11] PR review → Repair Bay F.O.R.G.E., not Claude tokens**
    Do instead: After `gh pr create`, trigger Repair Bay review (Decision #587). Read summary before merging. Claude does NOT do inline code review — F.O.R.G.E. does it for free on Ollama.

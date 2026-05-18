@@ -1082,6 +1082,7 @@ def officers_of_parliament():
                            is_subscriber=is_subscriber())
 
 
+<<<<<<< Updated upstream
 @bp.get("/crtc")
 def crtc_decisions():
     """CRTC rulings — broadcasting, telecom, compliance decisions."""
@@ -1102,6 +1103,23 @@ def crtc_decisions():
     return render_template("crtc.html",
                            decisions=[dict(r) for r in rows],
                            dtype=dtype,
+=======
+@bp.get("/ethics")
+def ethics_rulings():
+    """Ethics Commissioner investigation reports."""
+    with _db().begin() as c:
+        rows = c.execute(text("""
+            SELECT e.report_name, e.subject_name, e.ruling_date,
+                   e.report_type, e.report_url, e.mp_slug,
+                   m.name AS mp_name
+            FROM legal_watch.ethics_rulings e
+            LEFT JOIN parliament.mps m ON m.slug = e.mp_slug
+            ORDER BY e.ruling_date DESC
+        """)).mappings().all()
+        source_count = c.execute(text(f"SELECT COUNT(*) FROM {_schema()}.sources")).scalar() or 0
+    return render_template("ethics.html",
+                           rulings=[dict(r) for r in rows],
+>>>>>>> Stashed changes
                            source_count=source_count,
                            is_subscriber=is_subscriber())
 

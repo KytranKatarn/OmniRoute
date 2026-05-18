@@ -98,25 +98,35 @@ body { background: var(--wtf-bg); color: #e0e0e0; font-family: 'IBM Plex Mono', 
       <div class="wtf-article-card wtf-article-card--{{ band }}">
         <div class="wtf-card-meta">
           <span>{{ a.source or '' }}{% if a.province_code %} &middot; {{ a.province_code }}{% endif %}</span>
-          <span class="wtf-bias-pill wtf-bias-{{ band }}">{{ band.upper() }}</span>
+          {% if is_subscriber %}<span class="wtf-bias-pill wtf-bias-{{ band }}">{{ band.upper() }}</span>{% endif %}
         </div>
         <a class="wtf-card-title" href="/article/{{ a.id }}">{{ a.title }}</a>
         <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
-          {% if a.ai_analyzed and is_subscriber %}
-          <span class="wtf-card-badge wtf-badge-ai">AI Analyzed</span>
-          {% else %}
-          <span class="wtf-card-badge wtf-badge-quick">Quick Score</span>
-          {% endif %}
+          {% if is_subscriber %}
+          {% if a.ai_analyzed %}<span class="wtf-card-badge wtf-badge-ai">AI Analyzed</span>{% endif %}
           {% if a.cluster_size and a.cluster_size > 1 %}
           <a href="/cluster/{{ a.cluster_id }}" class="wtf-card-badge" style="background:#0a2a3a;color:#0af;border:1px solid #0af3;text-decoration:none;">📰 {{ a.cluster_size }} outlets</a>
           {% endif %}
-          {% if a.mp_mentions and is_subscriber %}
+          {% if a.mp_mentions %}
           <span class="wtf-card-badge" style="background:#0a1a2a;color:#a78bfa;border:1px solid #4c1d9544;font-size:9px;" title="{{ a.mp_mentions }}">🏛 {{ a.mp_mentions[:40] }}{% if a.mp_mentions|length > 40 %}…{% endif %}</span>
+          {% endif %}
+          {% else %}
+          {% if a.cluster_size and a.cluster_size > 1 %}
+          <a href="/cluster/{{ a.cluster_id }}" class="wtf-card-badge" style="background:#0a2a3a;color:#0af;border:1px solid #0af3;text-decoration:none;">📰 {{ a.cluster_size }} outlets</a>
+          {% endif %}
           {% endif %}
         </div>
       </div>
       {% endfor %}
     </div>
+    {% if not is_subscriber %}
+    <div style="margin-top:12px;padding:14px 16px;background:#060d14;border:1px solid #2a1a00;border-radius:6px;text-align:center;">
+      <div style="font-family:'Orbitron',sans-serif;font-size:11px;color:#f59e0b;margin-bottom:6px;">Unlock AI Analysis</div>
+      <div style="font-size:11px;color:#9ca3af;margin-bottom:10px;">Bias scoring · Fact-check · MP mentions · Source deep-dive</div>
+      <a href="/join" style="display:inline-block;background:#f59e0b;color:#000;font-size:11px;font-weight:700;padding:8px 20px;border-radius:4px;text-decoration:none;">Start with Starter →</a>
+      <span style="margin-left:10px;"><a href="/login" style="font-size:10px;color:#6b7280;text-decoration:none;">Sign in</a></span>
+    </div>
+    {% endif %}
   </div>
 
 </div>

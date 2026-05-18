@@ -65,9 +65,19 @@
 <script>
 (function(){
   var ALL_MPS = {{ mps | tojson }};
-  var PARTY_ORDER = {'NDP':0,'Green':1,'Bloc Québécois':2,'Liberal':3,'Conservative':4,"People's Party":5,'Independent':6};
+  // Seating order matches actual House of Commons layout:
+  // LEFT arc (opposition): Green → NDP → Bloc → Conservative
+  // RIGHT arc (government): Liberal → Independent → PPC
+  var PARTY_ORDER = {
+    'Green':0, 'NDP':1, 'Bloc Québécois':2,
+    'Conservative':3,
+    'Liberal':4,
+    'Independent':5, "People's Party":6
+  };
   var sorted = ALL_MPS.slice().sort(function(a,b){
-    return (PARTY_ORDER[a.party]!=null?PARTY_ORDER[a.party]:99) - (PARTY_ORDER[b.party]!=null?PARTY_ORDER[b.party]:99);
+    var ao = PARTY_ORDER[a.party]!=null?PARTY_ORDER[a.party]:99;
+    var bo = PARTY_ORDER[b.party]!=null?PARTY_ORDER[b.party]:99;
+    return ao !== bo ? ao - bo : (a.name||'').localeCompare(b.name||'');
   });
 
   var svgG = document.getElementById('wtf-seats');

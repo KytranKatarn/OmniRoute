@@ -64,7 +64,7 @@ def upsert_article(engine, source_id: int, article: dict, bias: dict, source_slu
     # Geo extraction for every article
     try:
         from ingest.geocoder import extract_geo
-        geo = extract_geo(aid, article.get("title", ""), article.get("body", ""))
+        geo = extract_geo(aid, article.get("title", ""), article.get("body", ""), source_slug=source_slug)
         save_geo(engine, aid, S, geo)
     except Exception:
         pass  # geo is non-fatal

@@ -64,6 +64,34 @@ _COUNTRY_CENTROIDS = {
     "ZA": (-30.5595, 22.9375),
 }
 
+# Option A: national broadcasters — when content analysis finds no location,
+# these outlets produce national Canadian stories, not truly unmappable ones.
+_SOURCE_NATIONAL_OUTLETS = frozenset({
+    "aptn_news", "bnn_bloomberg", "cbc_english", "cbc_north", "canadaland",
+    "ctv_news", "financial_post", "global_news", "globe_mail", "ipolitics",
+    "national_post", "press_progress", "the_conversation_canada",
+    "the_hub_canada", "the_narwhal", "true_north",
+})
+
+# Option B: regional outlets with a known home province — low-confidence
+# provincial fallback when content analysis finds no location signal.
+_SOURCE_PROVINCE_MAP = {
+    "calgary_herald": "AB", "edmonton_journal": "AB", "windspeaker": "AB",
+    "journal_de_montreal": "QC", "la_presse": "QC", "lactualite": "QC",
+    "le_devoir": "QC", "le_quotidien": "QC", "le_soleil": "QC",
+    "montreal_gazette": "QC", "ricochet_media": "QC",
+    "ottawa_citizen": "ON", "toronto_star": "ON", "turtle_island_news": "ON",
+    "indiginews": "BC", "the_tyee": "BC", "vancouver_sun": "BC",
+    "winnipeg_free_press": "MB",
+    "regina_leaderpost": "SK", "saskatoon_starphoenix": "SK",
+    "halifax_examiner": "NS", "kukukwes_news": "NS",
+    "saltwire_news": "NS", "the_coast_halifax": "NS",
+    "nb_media_coop": "NB",
+    "nunatsiaq_news": "NU",
+    "cabin_radio": "NT",
+    "yukon_news": "YT",
+}
+
 # Heuristic country patterns — only fire when no LLM result and no Canadian
 # province match. Keep narrow so we don't false-positive on Canadian articles
 # that mention foreign countries in passing.
@@ -82,7 +110,7 @@ _COUNTRY_PATTERNS = {
 }
 
 
-def extract_geo(article_id: int, title: str, body: str) -> dict:
+def extract_geo(article_id, title, body, source_slug=None):
     """Extract geo info via L.O.C.A.L. agent. Falls back to heuristic if agent unavailable.
 
     Always returns a dict with a terminal geo_scope so the backlog worker won't
@@ -139,6 +167,34 @@ def extract_geo(article_id: int, title: str, body: str) -> dict:
                 "geo_scope": "international",
                 "geo_confidence": 0.3,  # lower — keyword match only
             }
+    slug = (source_slug or "").strip()
+
+    # Option B: regional outlet → province fallback (low confidence, beats unmappable).
+    if slug in _SOURCE_PROVINCE_MAP:
+        pc = _SOURCE_PROVINCE_MAP[slug]
+        lat, lng = PROVINCE_CENTROIDS[pc]
+        return {
+            "province_code": pc,
+            "city": None,
+            "lat": lat,
+            "lng": lng,
+            "country_code": "CA",
+            "geo_scope": "provincial",
+            "geo_confidence": 0.35,
+        }
+
+    # Option A: national broadcaster → national (not unmappable).
+    if slug in _SOURCE_NATIONAL_OUTLETS:
+        return {
+            "province_code": None,
+            "city": None,
+            "lat": None,
+            "lng": None,
+            "country_code": "CA",
+            "geo_scope": "national",
+            "geo_confidence": 0.2,
+        }
+
     # Nothing matched — terminal state, prevents re-fetch loop (#2959).
     return {
         "province_code": None,

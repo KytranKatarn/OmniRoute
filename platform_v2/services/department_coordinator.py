@@ -317,6 +317,8 @@ CAPABILITY_DEPARTMENT_MAP = {
     "content_classification": "News & Media",
     "metadata_enrichment": "News & Media",
     "duplicate_triage": "News & Media",
+    # I.N.K. — story clustering for WTF pipeline (DHQ job, Project #350)
+    "clustering": "News & Media",
 }
 
 

@@ -197,49 +197,54 @@ def check_mesh_health():
 
 
 def warmup_fleet_models():
-    """Job: Keep the fleet warm-model set loaded across all nodes (every 8 min).
+    """Job: Keep the fleet warm-model set loaded across all nodes (every 20 min).
 
     Dispatches minimal "ping" requests through the DHQ dispatcher (ADR-013) so
-    Ollama's KEEP_ALIVE timer resets before the 10m expiry. Small-model
-    capabilities (bias_analysis, geo_extraction) are dispatched first so they
-    claim GPU VRAM; large-model capabilities (fact_check, documentation, etc.)
-    then CPU-offload automatically when VRAM is full.
-
-    High-frequency agents (B.I.A.S. 200+/hr, L.O.C.A.L. 100+/hr, V.E.R.I.F.Y.
-    100+/hr) stay warm naturally from the WTF backlog jobs — only the lower-
-    frequency capabilities that would otherwise cold-load are pinged here.
+    Ollama's KEEP_ALIVE timer resets before the 30m expiry. Dispatches fire in
+    parallel (max 3 workers, 90s timeout) so the total cycle completes in ~1-2
+    minutes regardless of cold-load latency.
 
     Entries are tagged module_id='fleet_warmup' in task_execution_log.
-    Each capability is independently try/except — one failure never blocks others.
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    warmup_capabilities = [
+        ("bias_analysis", "Classify bias: 'ping'"),  # B.I.A.S. qwen2.5:1.5b GPU
+        ("geo_extraction", "Location: 'Ottawa'"),  # L.O.C.A.L. llama3.2:3b GPU
+        ("fact_check", "Verify: 'ping'"),  # V.E.R.I.F.Y. qwen2.5:7b → CPU
+        ("documentation", "Summarize: 'ping'"),  # C.O.D.E.X. mistral:7b → CPU
+        ("workforce_planning", "Status: 'ping'"),  # K.I.N. gemma3:12b → CPU
+        ("security", "Check: 'ping'"),  # V.I.G.I.L. gemma3:12b → CPU
+        ("conversation", "Hi"),  # D.R.A.F.T./A.C.C.O.R.D. dolphin3 → CPU
+    ]
+
     try:
-        from tools.department_hq.services.department_dispatcher import dispatch
+        from flask import current_app
 
-        # Order matters: small GPU models first, large CPU-offloaded models last.
-        # High-frequency WTF agents (bias_analysis, geo_extraction, fact_check)
-        # are omitted — their backlog jobs keep them warm.
-        warmup_capabilities = [
-            ("bias_analysis", "Classify bias: 'ping'"),  # B.I.A.S. qwen2.5:1.5b GPU
-            ("geo_extraction", "Location: 'Ottawa'"),  # L.O.C.A.L. llama3.2:3b GPU
-            ("fact_check", "Verify: 'ping'"),  # V.E.R.I.F.Y. qwen2.5:7b → CPU
-            ("documentation", "Summarize: 'ping'"),  # C.O.D.E.X. mistral:7b → CPU
-            ("workforce_planning", "Status: 'ping'"),  # K.I.N. gemma3:12b → CPU
-            ("security", "Check: 'ping'"),  # V.I.G.I.L. gemma3:12b → CPU
-            ("conversation", "Hi"),  # D.R.A.F.T./A.C.C.O.R.D. dolphin3 → CPU
-        ]
+        app = current_app._get_current_object()
 
-        warmed = 0
-        for capability, prompt in warmup_capabilities:
-            try:
+        def _dispatch_one(capability, prompt):
+            with app.app_context():
+                from tools.department_hq.services.department_dispatcher import dispatch
+
                 result = dispatch(
                     capability=capability,
                     prompt=prompt,
                     module_id="fleet_warmup",
                 )
-                if result.success:
-                    warmed += 1
-            except Exception as exc:
-                logger.debug("[warmup_fleet] %s skipped: %s", capability, exc)
+                return capability, result.success
+
+        warmed = 0
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {executor.submit(_dispatch_one, cap, prompt): cap for cap, prompt in warmup_capabilities}
+            for future in as_completed(futures, timeout=90):
+                cap = futures[future]
+                try:
+                    _, success = future.result()
+                    if success:
+                        warmed += 1
+                except Exception as exc:
+                    logger.debug("[warmup_fleet] %s skipped: %s", cap, exc)
 
         logger.debug("[warmup_fleet] cycle done — %d/%d warmed", warmed, len(warmup_capabilities))
     except Exception as e:
@@ -835,7 +840,7 @@ def register_fleet_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(warmup_fleet_models),
-        trigger=IntervalTrigger(minutes=8),
+        trigger=IntervalTrigger(minutes=20),
         id="fleet_model_warmup",
         name="Fleet Model Warmup — keep GPU+CPU sets loaded across all nodes",
         replace_existing=True,

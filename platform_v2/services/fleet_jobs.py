@@ -81,10 +81,7 @@ def check_fleet_health():
         from database import get_db_cursor
 
         with get_db_cursor(commit=True) as (_, cur):
-            cur.execute(
-                "UPDATE remote_nodes SET last_heartbeat = NOW() "
-                "WHERE hostname = '100.64.0.4' AND deployment_mode = 'starbase'"
-            )
+            cur.execute("UPDATE remote_nodes SET last_heartbeat = NOW() WHERE deployment_mode = 'starbase'")
     except Exception as _hb_exc:
         logger.warning("Hub self-heartbeat failed: %s", _hb_exc)
 

@@ -1720,3 +1720,109 @@ def register_dashboard_routes(bp, auth_decorator):
         except Exception as exc:
             logger.error("api_fleet_cluster_activity: %s", exc)
             return jsonify(success=False, error=str(exc)[:200]), 500
+
+    @bp.route("/api/fleet/wtf-status")
+    @admin_required
+    def api_fleet_wtf_status():
+        """WTF pipeline agent status — live dispatch stats per News & Media agent.
+
+        Returns per-agent call counts, avg response time, last seen, and node.
+        Also returns backlog_pct from wtf.articles ai_analyzed coverage.
+        Used by Fleet tab WTF AGENT STATUS panel (Project #350).
+        """
+        try:
+            from database import get_db_cursor
+            from datetime import datetime, timezone
+
+            now_utc = datetime.now(timezone.utc)
+
+            with get_db_cursor() as (_, cur):
+                # Per-agent dispatch stats from last 1 hour (WTF module sources)
+                cur.execute(
+                    """
+                    SELECT
+                        agent_name,
+                        COUNT(*) AS calls_1h,
+                        ROUND(AVG(duration_ms) / 1000.0, 1) AS avg_sec,
+                        MAX(created_at) AS last_seen,
+                        mode() WITHIN GROUP (ORDER BY last_node) AS node
+                    FROM task_execution_log
+                    WHERE created_at > NOW() - INTERVAL '1 hour'
+                      AND module_source IN ('wtf_hub', 'wtf_hub_quick',
+                                            'wtf_dhq_llm', 'wtf_dhq_geo',
+                                            'wtf_dhq_factcheck', 'wtf_dhq_scout')
+                      AND agent_name IS NOT NULL
+                    GROUP BY agent_name
+                    ORDER BY calls_1h DESC
+                    """
+                )
+                agent_rows = cur.fetchall() or []
+
+                # Backlog percentage — ai_analyzed coverage
+                cur.execute(
+                    """
+                    SELECT
+                        COUNT(*) AS total,
+                        COUNT(*) FILTER (WHERE ai_analyzed = true) AS done
+                    FROM wtf.articles
+                    """
+                )
+                counts = cur.fetchone() or {}
+                total = counts.get("total") or 0
+                done = counts.get("done") or 0
+                backlog_pct = round(done / total * 100, 1) if total else 0
+
+                # Node heartbeat status — flag stale nodes
+                cur.execute(
+                    """
+                    SELECT node_name, last_heartbeat
+                    FROM remote_nodes
+                    WHERE status = 'online'
+                    """
+                )
+                node_rows = {r["node_name"]: r["last_heartbeat"] for r in (cur.fetchall() or [])}
+
+            agents = []
+            for row in agent_rows:
+                last_seen = row["last_seen"]
+                if last_seen and last_seen.tzinfo is None:
+                    last_seen = last_seen.replace(tzinfo=timezone.utc)
+                ago_sec = int((now_utc - last_seen).total_seconds()) if last_seen else None
+                if ago_sec is None:
+                    last_seen_label = "never"
+                elif ago_sec < 60:
+                    last_seen_label = f"{ago_sec}s ago"
+                elif ago_sec < 3600:
+                    last_seen_label = f"{ago_sec // 60}min ago"
+                else:
+                    last_seen_label = f"{ago_sec // 3600}h ago"
+
+                node_name = row["node"] or "hub"
+                node_hb = node_rows.get(node_name)
+                node_stale = False
+                if node_hb:
+                    if node_hb.tzinfo is None:
+                        node_hb = node_hb.replace(tzinfo=timezone.utc)
+                    node_stale = (now_utc - node_hb).total_seconds() > 120
+
+                agents.append(
+                    {
+                        "name": row["agent_name"],
+                        "calls_1h": row["calls_1h"],
+                        "avg_sec": float(row["avg_sec"] or 0),
+                        "last_seen": last_seen_label,
+                        "node": node_name,
+                        "node_stale": node_stale,
+                    }
+                )
+
+            return jsonify(
+                success=True,
+                agents=agents,
+                backlog_pct=backlog_pct,
+                total_articles=total,
+                analyzed_articles=done,
+            )
+        except Exception as exc:
+            logger.error("api_fleet_wtf_status: %s", exc)
+            return jsonify(success=False, error=str(exc)[:200]), 500

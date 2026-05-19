@@ -4760,4 +4760,72 @@ document.addEventListener('DOMContentLoaded', function() {
             } catch (_) {}
         }
     } catch (_) {}
-});
+})();
+
+// WTF Agent Status panel — Project #350
+// escWtf: sanitize values before DOM insertion
+function _escWtf(v) {
+    return String(v == null ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+async function loadWtfAgentStatus() {
+    var panel = document.getElementById('wtfAgentPanel');
+    var badge = document.getElementById('wtfBacklogBadge');
+    var bar   = document.getElementById('wtfBacklogBar');
+    var lbl   = document.getElementById('wtfBacklogLabel');
+    if (!panel) return;
+
+    try {
+        var resp = await fetch('/tools/department-hq/api/fleet/wtf-status');
+        var data = await resp.json();
+        if (!data.success) {
+            panel.textContent = 'Error loading WTF status';
+            return;
+        }
+
+        var pct = data.backlog_pct || 0;
+        if (badge) badge.textContent = pct + '% analyzed';
+        if (bar)   bar.style.width   = pct + '%';
+        if (lbl)   lbl.textContent   =
+            (data.analyzed_articles || 0).toLocaleString() + ' / ' +
+            (data.total_articles || 0).toLocaleString() + ' articles analyzed';
+
+        if (!data.agents || !data.agents.length) {
+            panel.textContent = 'No dispatches in last hour — waiting for first DHQ job run.';
+            return;
+        }
+
+        panel.innerHTML = data.agents.map(function(a) {
+            var staleColor = a.node_stale ? '#f59e0b' : '#00ffff';
+            var failback   = a.node_stale
+                ? ' <span style="color:#f59e0b;font-size:0.65rem;">→ failback</span>' : '';
+            return '<div style="display:flex;align-items:center;gap:12px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.06);">' +
+                '<span style="width:8px;height:8px;border-radius:50%;background:' + staleColor + ';flex-shrink:0;"></span>' +
+                '<span style="flex:1;font-weight:600;">' + _escWtf(a.name) + '</span>' +
+                '<span style="color:' + staleColor + ';font-size:0.7rem;">' + _escWtf(a.node) + failback + '</span>' +
+                '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;color:var(--dhq-text-dim);">' +
+                    _escWtf(a.calls_1h) + ' calls &middot; ' + _escWtf(a.avg_sec) + 's avg</span>' +
+                '<span style="font-size:0.65rem;color:var(--dhq-text-dim);">' + _escWtf(a.last_seen) + '</span>' +
+                '</div>';
+        }).join('');
+    } catch (e) {
+        panel.textContent = 'Failed to load WTF status';
+    }
+}
+
+// Auto-refresh WTF status every 30s when fleet tab is active
+(function () {
+    var _wtfTimer = null;
+    var _orig = window.switchTab;
+    window.switchTab = function (tab) {
+        if (typeof _orig === 'function') _orig(tab);
+        if (tab === 'fleet') {
+            loadWtfAgentStatus();
+            if (!_wtfTimer) _wtfTimer = setInterval(loadWtfAgentStatus, 30000);
+        } else {
+            if (_wtfTimer) { clearInterval(_wtfTimer); _wtfTimer = null; }
+        }
+    };
+}());

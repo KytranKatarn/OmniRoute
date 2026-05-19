@@ -1371,18 +1371,27 @@ def _register_own_jobs(scheduler, flask_app):
 
                 with ThreadPoolExecutor(max_workers=4) as executor:
                     futures = {executor.submit(_analyze_one, app, row): row["id"] for row in batch}
-                    for future in as_completed(futures, timeout=120):
-                        aid = futures[future]
-                        tried_ids.add(aid)
-                        try:
-                            _, success = future.result()
-                            if success:
-                                processed += 1
-                            else:
+                    try:
+                        for future in as_completed(futures, timeout=300):
+                            aid = futures[future]
+                            tried_ids.add(aid)
+                            try:
+                                _, success = future.result()
+                                if success:
+                                    processed += 1
+                                else:
+                                    failed += 1
+                            except Exception as exc:
+                                logger.debug("[WTFLLMJob] article %s error: %s", aid, exc)
                                 failed += 1
-                        except Exception as exc:
-                            logger.debug("[WTFLLMJob] article %s error: %s", aid, exc)
-                            failed += 1
+                    except Exception:
+                        # TimeoutError: some futures didn't complete in 300s — mark unfinished as tried
+                        unfinished = {aid for fut, aid in futures.items() if not fut.done()}
+                        tried_ids.update(unfinished)
+                        failed += len(unfinished)
+                        logger.warning(
+                            "[WTFLLMJob] batch timeout — %d articles unfinished, continuing", len(unfinished)
+                        )
 
                 if failed > 0 and processed == 0:
                     logger.warning("[WTFLLMJob] full batch failed — stopping cycle")

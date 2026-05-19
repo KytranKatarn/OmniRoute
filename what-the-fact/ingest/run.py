@@ -319,6 +319,16 @@ def main():
         except Exception:
             log.exception("run_once crashed — sleeping and retrying")
 
+        # Tag new articles with MP mentions after every ingest cycle.
+        # Full parliament sync (MPs + votes) stays weekly on Sundays.
+        try:
+            from ingest.parliament.openparl import tag_articles
+            result = tag_articles(engine, days_back=1)
+            if result.get("tagged"):
+                log.info("mp_tagging: %s", result)
+        except Exception:
+            log.exception("mp_tagging crashed — skipping this cycle")
+
         # Backlog workers — all run in PARALLEL. Each is fully independent:
         # different DB tables, different agents, different fleet nodes.
         # One slow worker (geo, llm) no longer starves the others.

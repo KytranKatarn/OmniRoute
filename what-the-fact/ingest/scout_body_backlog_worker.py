@@ -55,6 +55,17 @@ _WORKERS = max(1, int(os.environ.get("WTF_SCOUT_BODY_WORKERS", "4")))
 
 _ALLOWED_SCHEMAS = frozenset({"wtf"})
 
+# Sources where S.C.O.U.T. body rescue consistently fails (≥0% success from data).
+# Root cause: Google's redirect infrastructure returns HTTP 400 for these publishers
+# because their articles block automated access. Playwright gets chrome-error or a
+# 400 error page with 0 useful chars. Excluding them eliminates ~65% of failures
+# and saves scout slots for sources that actually work.
+# Add new slugs here as failures accumulate — check scout_body_jobs WHERE status='failed'.
+_SKIP_SLUGS = frozenset({
+    "cbc_north",    # 0% success — CBC bot detection, Google 400 for all articles
+    "radio_canada", # 0% success — same bot detection pattern
+})
+
 # Sources that route through Google News RSS — bodies are snippets, not full text.
 # Keep aligned with what's in ingest/sources/*.py using news.google.com/rss/search.
 # LEGACY hardcoded list — kept for backward compat but no longer the source of
@@ -105,6 +116,7 @@ def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
                 FROM {schema}.articles a
                 JOIN {schema}.sources s ON s.id = a.source_id
                 WHERE LENGTH(a.body) < :min_chars
+                  AND s.slug NOT IN :skip_slugs
                   AND NOT EXISTS (
                       SELECT 1 FROM {schema}.scout_body_jobs j WHERE j.article_id = a.id
                   )
@@ -113,6 +125,7 @@ def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
             """),
             {
                 "min_chars": _MIN_BODY_CHARS,
+                "skip_slugs": tuple(_SKIP_SLUGS),
                 "limit": limit,
             },
         ).mappings().all()

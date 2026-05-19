@@ -46,7 +46,7 @@ _HUB_URL = os.environ.get("WTF_HUB_URL", "http://100.64.0.4:3000").rstrip("/")
 _SCOUT_KEY = os.environ.get("CLUSTER_PROXY_KEY", "")
 _BATCH_SIZE = int(os.environ.get("WTF_SCOUT_BODY_BATCH_SIZE", "10"))
 _MAX_RUNS_PER_NIGHT = int(os.environ.get("WTF_SCOUT_BODY_MAX_RUNS_PER_NIGHT", "50"))
-_POLL_MAX_SEC = int(os.environ.get("WTF_SCOUT_BODY_POLL_MAX_SEC", "90"))
+_POLL_MAX_SEC = int(os.environ.get("WTF_SCOUT_BODY_POLL_MAX_SEC", "180"))
 _POLL_INTERVAL_SEC = int(os.environ.get("WTF_SCOUT_BODY_POLL_INTERVAL_SEC", "5"))
 _MIN_BODY_CHARS = int(os.environ.get("WTF_SCOUT_BODY_MIN_BODY_CHARS", "300"))
 _MIN_RESCUE_CHARS = int(os.environ.get("WTF_SCOUT_BODY_MIN_RESCUE_CHARS", "400"))
@@ -62,8 +62,10 @@ _ALLOWED_SCHEMAS = frozenset({"wtf"})
 # and saves scout slots for sources that actually work.
 # Add new slugs here as failures accumulate — check scout_body_jobs WHERE status='failed'.
 _SKIP_SLUGS = frozenset({
-    "cbc_north",    # 0% success — CBC bot detection, Google 400 for all articles
-    "radio_canada", # 0% success — same bot detection pattern
+    "cbc_north",      # 0% success — CBC bot detection, Google 400 for all articles
+    "radio_canada",   # 0% success — same bot detection pattern
+    "true_north",     # 0% success (0/6 over 7 days) — confirmed bot block
+    "financial_post", # 0% success (0/4 over 7 days) — Postmedia paywall blocks Playwright
 })
 
 # Sources that route through Google News RSS — bodies are snippets, not full text.

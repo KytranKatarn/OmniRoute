@@ -453,10 +453,12 @@ def run_ethics_monitoring():
         alerts = getattr(result, "alerts_created", 0) if result else 0
         if issues > 0 or alerts > 0:
             logger.info(f"C.R.E.E.D. ethics: {checked} checked, " f"{issues} issues, {alerts} alerts")
+        # Pass issues in details only — not as items_failed, which would
+        # surface C.R.E.E.D. welfare flags as system errors in the ops header.
         _log_cycle(
             "ethics_monitoring",
             checked,
-            issues,
+            0,
             duration_ms,
             details={"issues": issues, "alerts": alerts},
         )

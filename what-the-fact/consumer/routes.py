@@ -576,7 +576,13 @@ def proxy_articles_geo():
 
 @bp.post("/api/proxy/articles/<int:article_id>/analyze")
 def proxy_article_analyze(article_id: int):
-    return _proxy_tech(f"/api/v1/articles/{article_id}/analyze", method="POST", body=b"{}", timeout=100)
+    # Returns instantly (queued=true) — background thread handles the hub call
+    return _proxy_tech(f"/api/v1/articles/{article_id}/analyze", method="POST", body=b"{}", timeout=10)
+
+
+@bp.get("/api/proxy/articles/<int:article_id>/analyze/status")
+def proxy_article_analyze_status(article_id: int):
+    return _proxy_tech(f"/api/v1/articles/{article_id}/analyze/status")
 
 
 @bp.post("/api/proxy/articles/<int:article_id>/flag")

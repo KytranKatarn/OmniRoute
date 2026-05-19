@@ -466,56 +466,88 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
 </div>
 
 <script>
+function _pollAnalyzeStatus(articleId, btn, result, pollInterval) {
+  var attempts = 0;
+  var maxAttempts = 48; // 48 * 5s = 4 min max
+  var startLabel = btn ? btn.textContent : 'Analyzing…';
+  function poll() {
+    attempts++;
+    if (attempts > maxAttempts) {
+      if (result) result.textContent = 'Analysis is taking longer than expected — refresh the page in a minute.';
+      if (btn) { btn.disabled = false; btn.textContent = startLabel; }
+      return;
+    }
+    fetch('/api/proxy/articles/' + articleId + '/analyze/status')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.done) {
+          if (result) result.textContent = '✓ Analysis complete — reloading…';
+          setTimeout(function() { location.reload(); }, 1200);
+        } else {
+          if (result) result.textContent = 'Analyzing… (' + (attempts * 5) + 's)';
+          setTimeout(poll, pollInterval || 5000);
+        }
+      })
+      .catch(function() { setTimeout(poll, pollInterval || 5000); });
+  }
+  setTimeout(poll, pollInterval || 5000);
+}
+
 async function deepDive(articleId) {
   var btn = document.getElementById('wtf-dive-btn');
   var result = document.getElementById('wtf-deep-dive-result');
   if (btn) { btn.disabled = true; btn.textContent = 'Analyzing…'; }
   result.style.display = 'block';
-  result.textContent = 'Dispatching to B.I.A.S. + V.E.R.I.F.Y. + L.O.C.A.L. — this may take up to 90 seconds…';
+  result.textContent = 'Dispatching to V.E.R.I.F.Y. — queuing analysis…';
   try {
     var resp = await fetch('/api/proxy/articles/' + articleId + '/analyze', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'}
+      method: 'POST', headers: {'Content-Type': 'application/json'}
     });
     var data = await resp.json();
-    if (data.ok) {
-      result.textContent = '✓ Analysis complete — reloading page…';
-      setTimeout(function() { location.reload(); }, 2000);
-    } else {
+    if (!data.ok) {
       result.textContent = 'Analysis failed: ' + (data.error || 'unknown error');
       if (btn) { btn.disabled = false; btn.textContent = '🔍 Deep Dive — Full AI Analysis'; }
+      return;
     }
+    if (data.done || data.cached) {
+      result.textContent = '✓ Analysis complete — reloading…';
+      setTimeout(function() { location.reload(); }, 1200);
+      return;
+    }
+    result.textContent = 'Queued — V.E.R.I.F.Y. is analyzing (checks every 5s)…';
+    _pollAnalyzeStatus(articleId, btn, result);
   } catch(e) {
     result.textContent = 'Network error: ' + e.message;
     if (btn) { btn.disabled = false; btn.textContent = '🔍 Deep Dive — Full AI Analysis'; }
   }
 }
 
-// Phase D (#2943): force a Tier-2 upgrade on a Tier-1-only article.
-// Hits the local consumer endpoint /api/upgrade-tier2/<id> which dispatches
-// 'deep_analysis' via hub WTF Hub and updates bias_scores + fact_checks.
 async function upgradeTier2(articleId) {
   var btn = document.getElementById('wtf-dive-btn');
   var result = document.getElementById('wtf-deep-dive-result');
   if (btn) { btn.disabled = true; btn.textContent = 'Upgrading…'; }
   result.style.display = 'block';
-  result.textContent = 'Upgrading to full analysis — qwen2.5:7b on hub. Up to 90 seconds for cold model…';
+  result.textContent = 'Queuing full analysis upgrade…';
   try {
-    var resp = await fetch('/api/upgrade-tier2/' + articleId, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'}
+    var resp = await fetch('/api/proxy/articles/' + articleId + '/analyze', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}
     });
     var data = await resp.json();
-    if (data.ok) {
-      result.textContent = '✓ Upgraded to ' + (data.analysis_tier || 'full') + ' — ' + (data.claims_count || 0) + ' verdicts. Reloading…';
-      setTimeout(function() { location.reload(); }, 2000);
-    } else {
+    if (!data.ok) {
       result.textContent = 'Upgrade failed: ' + (data.error || 'unknown error');
-      if (btn) { btn.disabled = false; btn.textContent = '🔍 Upgrade to Full Analysis — B.I.A.S. + V.E.R.I.F.Y. rationale + verdicts'; }
+      if (btn) { btn.disabled = false; btn.textContent = '🔍 Upgrade to Full Analysis'; }
+      return;
     }
+    if (data.done || data.cached) {
+      result.textContent = '✓ Upgrade complete — reloading…';
+      setTimeout(function() { location.reload(); }, 1200);
+      return;
+    }
+    result.textContent = 'Queued — upgrading to full analysis (checks every 5s)…';
+    _pollAnalyzeStatus(articleId, btn, result);
   } catch(e) {
     result.textContent = 'Network error: ' + e.message;
-    if (btn) { btn.disabled = false; btn.textContent = '🔍 Upgrade to Full Analysis — B.I.A.S. + V.E.R.I.F.Y. rationale + verdicts'; }
+    if (btn) { btn.disabled = false; btn.textContent = '🔍 Upgrade to Full Analysis'; }
   }
 }
 

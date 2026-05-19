@@ -492,9 +492,54 @@ def _persist_on_demand(article_id: int, results: dict, schema: str) -> None:
         )
 
 
+def _analyze_bg(article_id: int, title: str, body: str, schema: str,
+                hub_url: str, hub_token: str) -> None:
+    """Background thread: dispatch bias+factcheck+geo to hub and persist results.
+    Safe to call from a daemon thread — uses only module-level objects.
+    """
+    import logging as _logging
+    _bg_logger = _logging.getLogger("wtf-tech")
+    results = {}
+    for task in ("bias", "factcheck", "geo"):
+        try:
+            resp = requests.post(
+                f"{hub_url}/tools/wtf-hub/api/analyze",
+                json={"task": task, "article_id": article_id,
+                      "title": title, "body": body},
+                headers={"Authorization": f"Bearer {hub_token}"},
+                timeout=120,
+            )
+            data = resp.json()
+            if data.get("ok"):
+                results[task] = data.get("result")
+        except Exception as exc:
+            _bg_logger.warning("[WTF analyze] task=%s article_id=%s failed: %s",
+                               task, article_id, exc)
+    _persist_on_demand(article_id, results, schema)
+
+
+@bp.get("/api/v1/articles/<int:article_id>/analyze/status")
+def analyze_status(article_id: int):
+    """Poll endpoint — returns done=true once ai_analyzed is set."""
+    from flask import jsonify
+    S = _schema()
+    with _db().connect() as c:
+        done = c.execute(
+            text(f"SELECT ai_analyzed FROM {S}.articles WHERE id = :id"),
+            {"id": article_id},
+        ).scalar()
+    return jsonify({"ok": True, "done": bool(done)})
+
+
 @bp.post("/api/v1/articles/<int:article_id>/analyze")
 def analyze_article(article_id: int):
-    """On-demand AI analysis for an article not yet AI-analyzed."""
+    """On-demand AI analysis — async. Spawns background thread, returns immediately.
+
+    Cache hit (ai_analyzed=true): returns done=true instantly.
+    Cache miss: starts background dispatch thread, returns queued=true.
+    Browser polls GET /api/v1/articles/<id>/analyze/status until done=true.
+    """
+    import threading
     from flask import jsonify
     HUB_URL = os.environ.get("WTF_HUB_URL", "")
     HUB_TOKEN = os.environ.get("WTF_HUB_TOKEN", "")
@@ -511,35 +556,18 @@ def analyze_article(article_id: int):
     if not article:
         return jsonify({"ok": False, "error": "article not found"}), 404
 
-    # Idempotency: already fully analyzed — skip dispatch, mark done in case
-    # a previous persist attempt only partially succeeded.
     if article.ai_analyzed:
-        _persist_on_demand(article_id, {}, S)
-        return jsonify({"ok": True, "results": {}, "article_id": article_id,
-                        "cached": True, "tier": article.analysis_tier})
+        return jsonify({"ok": True, "done": True, "cached": True,
+                        "article_id": article_id, "tier": article.analysis_tier})
 
-    results = {}
-    for task in ("bias", "factcheck", "geo"):
-        try:
-            resp = requests.post(
-                f"{HUB_URL}/tools/wtf-hub/api/analyze",
-                json={"task": task, "article_id": article_id,
-                      "title": article.title or "", "body": article.body or ""},
-                headers={"Authorization": f"Bearer {HUB_TOKEN}"},
-                timeout=90,
-            )
-            data = resp.json()
-            if data.get("ok"):
-                results[task] = data.get("result")
-        except Exception as exc:
-            current_app.logger.warning(
-                "[WTF analyze] task=%s article_id=%s failed: %s", task, article_id, exc
-            )
+    threading.Thread(
+        target=_analyze_bg,
+        args=(article_id, article.title or "", article.body or "",
+              S, HUB_URL, HUB_TOKEN),
+        daemon=True,
+    ).start()
 
-    # Persist whatever we got — partial results are better than nothing.
-    # Phase 2 (mark_analyzed) always commits even if phase 1 fails.
-    _persist_on_demand(article_id, results, S)
-    return jsonify({"ok": True, "results": results, "article_id": article_id})
+    return jsonify({"ok": True, "queued": True, "done": False, "article_id": article_id})
 
 
 # ---------------------------------------------------------------------------

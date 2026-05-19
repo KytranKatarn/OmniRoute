@@ -1974,6 +1974,39 @@ def _register_own_jobs(scheduler, flask_app):
             except Exception as _wtf_geo_exc:
                 logger.warning("[orchestration] geo backlog inject failed: %s", _wtf_geo_exc)
 
+            # Synthetic bias backlog — same pattern as geo: WTF articles without
+            # a bias_score row live in the wtf DB, invisible to dispatch_pending_queue.
+            try:
+                import os as _os2
+                import psycopg2 as _psycopg2_b
+                import psycopg2.extras as _extras_b
+
+                _wtf_conn_b = _psycopg2_b.connect(
+                    host="archie_database",
+                    port=5432,
+                    dbname="wtf",
+                    user="wtfuser",
+                    password=_os2.getenv("WTF_DB_PASSWORD", ""),
+                    options="-c search_path=wtf",
+                )
+                with _wtf_conn_b:
+                    with _wtf_conn_b.cursor(cursor_factory=_extras_b.RealDictCursor) as _wc_b:
+                        _wc_b.execute(
+                            """
+                            SELECT COUNT(*) AS cnt FROM wtf.articles a
+                            WHERE NOT EXISTS (
+                                SELECT 1 FROM wtf.bias_scores b WHERE b.article_id = a.id
+                            ) AND a.published_at > NOW() - INTERVAL '90 days'
+                        """
+                        )
+                        _wtf_bias_row = _wc_b.fetchone()
+                _wtf_conn_b.close()
+                if _wtf_bias_row and _wtf_bias_row["cnt"]:
+                    queue_depths["bias_analysis"] = queue_depths.get("bias_analysis", 0) + int(_wtf_bias_row["cnt"])
+                    queue_depths["bias_quick"] = queue_depths.get("bias_quick", 0) + int(_wtf_bias_row["cnt"])
+            except Exception as _wtf_bias_exc:
+                logger.warning("[orchestration] bias backlog inject failed: %s", _wtf_bias_exc)
+
             # Pass 4 — load all config rows once
             with get_db_cursor() as (_, cur):
                 cur.execute("SELECT * FROM cluster_orchestration_config")

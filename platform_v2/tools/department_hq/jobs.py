@@ -1639,6 +1639,150 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered wtf_factcheck job (every 30 min at :10/:40)")
 
+    # Job #126: WTF Factcheck Backlog — clears historical gap via V.E.R.I.F.Y.-B on hub.
+    # Fires at :05/:35 — interleaved with production job (:10/:40), never overlapping.
+    # Selects OLDEST articles first (production selects newest) so both ends drain together.
+    # Auto-scalable: register any agent with fact_check_backlog skill on any node and
+    # DHQ routes to the whole pool automatically — no changes needed here ever.
+    def _run_wtf_factcheck_backlog():
+        try:
+            import json as _json
+            from tools.department_hq.services.department_dispatcher import dispatch
+
+            processed = failed = consecutive_failures = 0
+            _VERDICT_MAP = {
+                "verified": "true",
+                "true": "true",
+                "mostly_true": "mostly_true",
+                "mixed": "mixed",
+                "disputed": "false",
+                "false": "false",
+                "unverifiable": "unverified",
+                "unverified": "unverified",
+            }
+            _OVERALL_MAP = {
+                "verified": "verified",
+                "true": "verified",
+                "mostly_true": "mostly_true",
+                "mixed": "mixed",
+                "disputed": "disputed",
+                "false": "disputed",
+                "unverifiable": "unverifiable",
+                "unverified": "unverifiable",
+            }
+
+            while processed + failed < _WTF_MAX_PER_CYCLE:
+                with _wtf_cur() as cur:
+                    cur.execute(
+                        """
+                        SELECT a.id, a.title, a.body
+                        FROM wtf.articles a
+                        WHERE a.published_at > NOW() - INTERVAL '90 days'
+                          AND NOT EXISTS (
+                              SELECT 1 FROM wtf.fact_checks fc WHERE fc.article_id = a.id
+                          )
+                        ORDER BY a.published_at ASC
+                        LIMIT %s
+                        """,
+                        (_WTF_BATCH,),
+                    )
+                    batch = cur.fetchall() or []
+
+                if not batch:
+                    logger.info("[WTFFactcheckBacklog] backlog clear — nothing to process")
+                    break
+
+                for row in batch:
+                    if processed + failed >= _WTF_MAX_PER_CYCLE:
+                        break
+                    aid = row["id"]
+                    title = row["title"]
+                    body = (row["body"] or "")[:2000]
+                    prompt = (
+                        f"Fact-check the claims in this Canadian news article.\n\n"
+                        f"Title: {title}\nBody: {body}\n\n"
+                        'Return ONLY valid JSON: {"claims": [{"text": str, "verdict": str, "reasoning": str}], '
+                        '"overall_verdict": string, "confidence": float}. '
+                        "Verdicts: verified | mixed | disputed | unverifiable"
+                    )
+                    result = dispatch(
+                        capability="fact_check_backlog",
+                        prompt=prompt,
+                        module_id="wtf_dhq_factcheck_backlog",
+                        json_mode=True,
+                    )
+                    if result.success:
+                        try:
+                            parsed = (
+                                _json.loads(result.response) if isinstance(result.response, str) else result.response
+                            )
+                            claims = parsed.get("claims") or []
+                            overall_raw = (parsed.get("overall_verdict") or "unverifiable").lower().strip()
+                            overall = _OVERALL_MAP.get(overall_raw, "unverifiable")
+                            claims_json = _json.dumps(claims)
+                            with _wtf_cur(commit=True) as cur:
+                                cur.execute(
+                                    "DELETE FROM wtf.fact_checks WHERE article_id = %s AND analyzed_by = 'dhq_backlog_v1'",
+                                    (aid,),
+                                )
+                                if claims:
+                                    for claim_item in claims:
+                                        claim_text = (claim_item.get("text") or "")[:500]
+                                        verdict = _VERDICT_MAP.get(
+                                            (claim_item.get("verdict") or "unverified").lower().strip(),
+                                            "unverified",
+                                        )
+                                        evidence = (claim_item.get("reasoning") or "")[:4000]
+                                        cur.execute(
+                                            """
+                                            INSERT INTO wtf.fact_checks
+                                                (article_id, claim, verdict, evidence, checker,
+                                                 analyzed_by, claims, overall_verdict)
+                                            VALUES (%s, %s, %s, %s, 'fact_v1', 'dhq_backlog_v1', %s::jsonb, %s)
+                                            """,
+                                            (aid, claim_text, verdict, evidence, claims_json, overall),
+                                        )
+                                else:
+                                    cur.execute(
+                                        """
+                                        INSERT INTO wtf.fact_checks
+                                            (article_id, claim, verdict, evidence, checker,
+                                             analyzed_by, claims, overall_verdict)
+                                        VALUES (%s, 'No verifiable claims detected.', 'unverified', '',
+                                                'fact_v1', 'dhq_backlog_v1', '[]'::jsonb, 'unverifiable')
+                                        """,
+                                        (aid,),
+                                    )
+                            processed += 1
+                            consecutive_failures = 0
+                        except Exception:
+                            logger.exception("[WTFFactcheckBacklog] persist failed aid=%s", aid)
+                            failed += 1
+                            consecutive_failures += 1
+                    else:
+                        failed += 1
+                        consecutive_failures += 1
+                        logger.warning("[WTFFactcheckBacklog] dispatch failed aid=%s: %s", aid, result.error)
+
+                    if consecutive_failures >= _WTF_FAILBACK_THRESHOLD:
+                        logger.error("[WTFFactcheckBacklog] %d consecutive failures — aborting", consecutive_failures)
+                        break
+
+            logger.info("[WTFFactcheckBacklog] cycle done: processed=%d failed=%d", processed, failed)
+        except Exception as exc:
+            logger.error("[WTFFactcheckBacklog] crashed: %s", exc)
+
+    scheduler.add_job(
+        with_ctx(_run_wtf_factcheck_backlog),
+        trigger=CronTrigger(minute="5,35", timezone="America/Toronto"),
+        id="wtf_factcheck_backlog",
+        name="WTF: Factcheck Backlog — V.E.R.I.F.Y.-B hub pool (Job #126)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered wtf_factcheck_backlog job (every 30 min at :05/:35)")
+
     # Job #125: WTF Scout — full body fetch for short articles via S.C.O.U.T.
     # Runs every 30 min at :15 and :45. Only processes articles <7 days old.
     def _run_wtf_scout():

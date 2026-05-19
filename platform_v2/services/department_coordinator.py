@@ -246,6 +246,9 @@ CAPABILITY_DEPARTMENT_MAP = {
     "bias_quick": "News & Media",
     "factcheck_quick": "News & Media",
     "geo_quick": "News & Media",
+    # Backlog pool — auto-scales: any agent with fact_check_backlog skill on any node
+    # joins automatically via DHQ dispatcher scoring. No job changes needed to add capacity.
+    "fact_check_backlog": "News & Media",
     "web_scraping": "News & Media",
     "data_collection": "News & Media",
     "browser_automation": "News & Media",

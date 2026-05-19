@@ -44,6 +44,7 @@ TRUSTED_SUBNETS = [
     ipaddress.ip_network("192.168.48.0/24"),  # Docker internal — containers generate false positives
     ipaddress.ip_network("192.168.16.0/24"),  # Docker — kytran-server-manager network (KSO + postgres)
     ipaddress.ip_network("172.16.0.0/12"),  # Docker default bridge ranges
+    ipaddress.ip_network("100.64.0.0/24"),  # Headscale mesh — fleet nodes (hub, starships, outpost)
 ]
 
 # Known legitimate domains with long names or many subdomains — NOT tunneling
@@ -404,11 +405,14 @@ def _get_hub_ips() -> set:
     exempted from exfiltration or bandwidth_spikes — actual exfil from
     the platform host would still be a real concern.
 
-    Source: comma-separated ANOMALY_HUB_IPS env var, defaulting to
-    {'192.168.1.200'}.
+    Source: comma-separated ANOMALY_HUB_IPS env var (hub LAN IPs) plus
+    ANOMALY_FLEET_IPS (Starship/fleet node LAN IPs). Defaults cover the
+    hub and both Starship nodes which generate identical DNS patterns.
     """
-    raw = os.getenv("ANOMALY_HUB_IPS", "192.168.1.200")
-    return {ip.strip() for ip in raw.split(",") if ip.strip()}
+    raw_hub = os.getenv("ANOMALY_HUB_IPS", "192.168.1.200")
+    raw_fleet = os.getenv("ANOMALY_FLEET_IPS", "192.168.1.245,192.168.1.246")
+    combined = raw_hub + "," + raw_fleet
+    return {ip.strip() for ip in combined.split(",") if ip.strip()}
 
 
 def _is_trusted(ip: str, trusted: set) -> bool:

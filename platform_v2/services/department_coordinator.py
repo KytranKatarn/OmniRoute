@@ -551,6 +551,10 @@ class DepartmentCoordinator:
             if _cap_slug in _model_tokens:
                 score += 1.0
 
+        from services.cluster_orchestration_service import get_overflow_bonus
+
+        score += get_overflow_bonus(agent_id, capability)
+
         return (max(score, 0.01), None)
 
     def resolve_department(self, capability: str) -> str:

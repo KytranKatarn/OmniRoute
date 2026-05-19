@@ -1872,4 +1872,225 @@ def _register_own_jobs(scheduler, flask_app):
 
     logger.info("[DeptHQ] Registered 4 WTF fleet orchestration jobs (Project #350)")
 
+    # Cluster Orchestration Worker (Project #352) — every 60s.
+    # Scores all active AI agents across all capabilities and fleet nodes.
+    # Writes agent_overflow_state; refreshes the dispatcher's in-memory overflow cache.
+    def _run_cluster_orchestration_worker():
+        try:
+            import json as _json
+            import time as _time
+            from database import get_db_cursor
+            from services.cluster_orchestration_service import (
+                compute_overflow_score,
+                resolve_config,
+                update_overflow_cache,
+            )
+            from services.fleet_resource_router import utilization_pct
+
+            cycle_start = _time.monotonic()
+            newly_activated = 0
+
+            # Pass 1 — node utilization
+            node_util: dict = {}
+            with get_db_cursor() as (_, cur):
+                cur.execute(
+                    """
+                    SELECT id, current_load, max_concurrent, gpu_available,
+                           gpu_vram_gb, ram_gb, last_heartbeat
+                    FROM remote_nodes
+                    WHERE last_heartbeat > NOW() - INTERVAL '2 minutes'
+                """
+                )
+                for row in cur.fetchall() or []:
+                    node_util[row["id"]] = utilization_pct(dict(row))
+
+            # Pass 2 — agent idle minutes (time since last dispatch)
+            agent_idle: dict = {}
+            with get_db_cursor() as (_, cur):
+                cur.execute(
+                    """
+                    SELECT a.id,
+                           COALESCE(
+                               EXTRACT(EPOCH FROM NOW() - MAX(tel.created_at)) / 60,
+                               999
+                           ) AS idle_minutes
+                    FROM agents a
+                    LEFT JOIN task_execution_log tel
+                        ON tel.agent_name = a.name
+                       AND tel.created_at > NOW() - INTERVAL '60 minutes'
+                    WHERE a.shift_state IN ('active', 'deployed')
+                      AND a.worker_type = 'ai'
+                    GROUP BY a.id
+                """
+                )
+                for row in cur.fetchall() or []:
+                    agent_idle[row["id"]] = float(row["idle_minutes"] if row["idle_minutes"] is not None else 999)
+
+            # Pass 3 — queue depths per capability in dispatch_pending_queue
+            queue_depths: dict = {}
+            with get_db_cursor() as (_, cur):
+                cur.execute(
+                    """
+                    SELECT capability, COUNT(*) AS depth
+                    FROM dispatch_pending_queue
+                    WHERE status = 'pending'
+                    GROUP BY capability
+                """
+                )
+                for row in cur.fetchall() or []:
+                    queue_depths[row["capability"]] = row["depth"]
+
+            # Pass 4 — load all config rows once
+            with get_db_cursor() as (_, cur):
+                cur.execute("SELECT * FROM cluster_orchestration_config")
+                all_configs = [dict(r) for r in (cur.fetchall() or [])]
+
+            # Pass 5 — score each (agent, node, capability) assignment
+            with get_db_cursor() as (_, cur):
+                cur.execute(
+                    """
+                    SELECT na.hub_agent_id AS agent_id,
+                           na.node_id,
+                           sk.skill_name   AS capability,
+                           a.name          AS agent_name
+                    FROM node_agents na
+                    JOIN agents a ON a.id = na.hub_agent_id
+                    JOIN agent_skills sk ON sk.agent_id = na.hub_agent_id
+                    WHERE a.shift_state IN ('active', 'deployed')
+                      AND a.worker_type = 'ai'
+                      AND na.node_id IN (
+                          SELECT id FROM remote_nodes
+                          WHERE last_heartbeat > NOW() - INTERVAL '2 minutes'
+                      )
+                """
+                )
+                assignments = cur.fetchall() or []
+
+            upsert_rows = []
+            for row in assignments:
+                agent_id = row["agent_id"]
+                node_id = row["node_id"]
+                capability = row["capability"]
+
+                cfg = resolve_config(all_configs, agent_id, capability, node_id)
+                # Cast any Decimal DB values to float so arithmetic doesn't crash
+                cfg = {
+                    k: float(v) if hasattr(v, "__float__") and not isinstance(v, (bool, int)) else v
+                    for k, v in cfg.items()
+                }
+                if not cfg.get("overflow_enabled", True):
+                    continue
+
+                score = compute_overflow_score(
+                    idle_minutes=agent_idle.get(agent_id, 999),
+                    util_pct=node_util.get(node_id, 100.0),
+                    queue_depth=queue_depths.get(capability, 0),
+                    config=cfg,
+                )
+                paused = cfg.get("overflow_paused", False)
+                is_active = (score >= 0.5) and not paused
+
+                upsert_rows.append(
+                    {
+                        "agent_id": agent_id,
+                        "capability": capability,
+                        "overflow_score": score,
+                        "is_active": is_active,
+                        "node_id": node_id,
+                        "reason": {
+                            "idle_mins": round(agent_idle.get(agent_id, 999), 1),
+                            "util_pct": round(node_util.get(node_id, 100), 1),
+                            "queue_depth": queue_depths.get(capability, 0),
+                            "paused": paused,
+                        },
+                    }
+                )
+
+            if upsert_rows:
+                with get_db_cursor(commit=True) as (_, cur):
+                    for r in upsert_rows:
+                        cur.execute(
+                            "SELECT is_active FROM agent_overflow_state " "WHERE agent_id=%s AND capability=%s",
+                            (r["agent_id"], r["capability"]),
+                        )
+                        prev = cur.fetchone()
+                        was_active = prev["is_active"] if prev else False
+
+                        cur.execute(
+                            """
+                            INSERT INTO agent_overflow_state
+                                (agent_id, capability, overflow_score, is_active,
+                                 activated_at, expires_at, node_id, reason, updated_at)
+                            VALUES (%s, %s, %s, %s,
+                                CASE WHEN %s THEN NOW() ELSE NULL END,
+                                NOW() + INTERVAL '90 seconds',
+                                %s, %s::jsonb, NOW())
+                            ON CONFLICT (agent_id, capability) DO UPDATE SET
+                                overflow_score = EXCLUDED.overflow_score,
+                                is_active      = EXCLUDED.is_active,
+                                activated_at   = CASE
+                                    WHEN EXCLUDED.is_active
+                                     AND NOT agent_overflow_state.is_active
+                                    THEN NOW()
+                                    ELSE agent_overflow_state.activated_at END,
+                                expires_at     = EXCLUDED.expires_at,
+                                node_id        = EXCLUDED.node_id,
+                                reason         = EXCLUDED.reason,
+                                updated_at     = NOW()
+                        """,
+                            (
+                                r["agent_id"],
+                                r["capability"],
+                                r["overflow_score"],
+                                r["is_active"],
+                                r["is_active"],
+                                r["node_id"],
+                                _json.dumps(r["reason"]),
+                            ),
+                        )
+                        if r["is_active"] and not was_active:
+                            newly_activated += 1
+
+            # Always clean up expired rows, even on empty cycles
+            with get_db_cursor(commit=True) as (_, cur):
+                cur.execute("DELETE FROM agent_overflow_state WHERE expires_at < NOW()")
+
+            update_overflow_cache(upsert_rows)
+
+            elapsed_ms = int((_time.monotonic() - cycle_start) * 1000)
+            active_count = sum(1 for r in upsert_rows if r["is_active"])
+            logger.info(
+                "[ClusterOrchestration] scored=%d active=%d activated=%d elapsed=%dms",
+                len(upsert_rows),
+                active_count,
+                newly_activated,
+                elapsed_ms,
+            )
+
+            if newly_activated >= 5:
+                try:
+                    from services.telegram_service import send_info
+
+                    caps = len({r["capability"] for r in upsert_rows if r["is_active"]})
+                    send_info(f"Cluster overflow activated: {newly_activated} agents " f"across {caps} capabilities")
+                except Exception:
+                    pass
+
+        except Exception as exc:
+            logger.error("[ClusterOrchestration] crashed: %s", exc)
+
+    # Expose for manual /trigger endpoint (used by fleet_orchestration_routes.py)
+    _run_cluster_orchestration_worker_fn = _run_cluster_orchestration_worker
+
+    scheduler.add_job(
+        with_ctx(_run_cluster_orchestration_worker),
+        trigger=CronTrigger(second="0", timezone="America/Toronto"),
+        id="cluster_orchestration_worker",
+        name="Cluster Orchestration — elastic agent dispatch (Project #352)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered cluster_orchestration_worker (every 60s)")
+
     logger.info("[DeptHQ] Registered 12 code health/audit jobs")

@@ -58,6 +58,7 @@ from .fleet_provider_routes import register_fleet_routes as register_fleet_provi
 from .fleet_dispatch_routes import register_dispatch_routes as register_fleet_dispatch  # noqa: E402
 from .fleet_mission_routes import register_mission_routes as register_fleet_missions  # noqa: E402
 from .fleet_ota_routes import register_ota_routes as register_fleet_ota  # noqa: E402
+from .fleet_orchestration_routes import register_orchestration_routes as register_fleet_orchestration  # noqa: E402
 
 # Register all route groups on the blueprint
 register_routes(department_hq_bp)
@@ -91,3 +92,4 @@ register_fleet_providers(department_hq_bp, login_required)
 register_fleet_dispatch(department_hq_bp, login_required)
 register_fleet_missions(department_hq_bp, login_required)
 register_fleet_ota(department_hq_bp, admin_required)
+register_fleet_orchestration(department_hq_bp, admin_required)

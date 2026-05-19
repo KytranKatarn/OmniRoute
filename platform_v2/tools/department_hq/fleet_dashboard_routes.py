@@ -1741,36 +1741,29 @@ def register_dashboard_routes(bp, auth_decorator):
                 cur.execute(
                     """
                     SELECT
-                        agent_name,
+                        t.agent_name,
                         COUNT(*) AS calls_1h,
-                        ROUND(AVG(duration_ms) / 1000.0, 1) AS avg_sec,
-                        MAX(created_at) AS last_seen,
-                        mode() WITHIN GROUP (ORDER BY last_node) AS node
-                    FROM task_execution_log
-                    WHERE created_at > NOW() - INTERVAL '1 hour'
-                      AND module_source IN ('wtf_hub', 'wtf_hub_quick',
-                                            'wtf_dhq_llm', 'wtf_dhq_geo',
-                                            'wtf_dhq_factcheck', 'wtf_dhq_scout')
-                      AND agent_name IS NOT NULL
-                    GROUP BY agent_name
+                        ROUND(AVG(t.duration_ms) / 1000.0, 1) AS avg_sec,
+                        MAX(t.created_at) AS last_seen,
+                        (SELECT rn.node_name FROM remote_nodes rn
+                         WHERE rn.id = mode() WITHIN GROUP (ORDER BY t.node_used_id)
+                         LIMIT 1) AS node
+                    FROM task_execution_log t
+                    WHERE t.created_at > NOW() - INTERVAL '1 hour'
+                      AND t.module_source IN ('wtf_hub', 'wtf_hub_quick',
+                                              'wtf_dhq_llm', 'wtf_dhq_geo',
+                                              'wtf_dhq_factcheck', 'wtf_dhq_scout')
+                      AND t.agent_name IS NOT NULL
+                    GROUP BY t.agent_name
                     ORDER BY calls_1h DESC
                     """
                 )
                 agent_rows = cur.fetchall() or []
 
-                # Backlog percentage — ai_analyzed coverage
-                cur.execute(
-                    """
-                    SELECT
-                        COUNT(*) AS total,
-                        COUNT(*) FILTER (WHERE ai_analyzed = true) AS done
-                    FROM wtf.articles
-                    """
-                )
-                counts = cur.fetchone() or {}
-                total = counts.get("total") or 0
-                done = counts.get("done") or 0
-                backlog_pct = round(done / total * 100, 1) if total else 0
+                # WTF articles live in a separate DB on the VPS — not queryable
+                # from the hub. Backlog % is shown on what-the-fact.com/activity.
+                total = done = 0
+                backlog_pct = None
 
                 # Node heartbeat status — flag stale nodes
                 cur.execute(

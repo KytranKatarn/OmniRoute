@@ -1263,11 +1263,88 @@ def _register_own_jobs(scheduler, flask_app):
     # Job #122: WTF LLM Analysis — bias scoring via B.I.A.S. / V.E.R.I.F.Y.
     # Runs every 30 min at :00 and :30 (EDT).
     def _run_wtf_llm_analysis():
-        try:
-            import json as _json
-            from tools.department_hq.services.department_dispatcher import dispatch
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import json as _json
 
-            processed = failed = consecutive_failures = 0
+        def _analyze_one(app, row):
+            """Dispatch bias analysis + persist results. Each call owns its DB connection."""
+            with app.app_context():
+                from tools.department_hq.services.department_dispatcher import dispatch
+
+                aid = row["id"]
+                title = row["title"]
+                body = (row["body"] or "")[:2000]
+                source_slug = row["source_slug"] or ""
+                prompt = (
+                    f"Analyze the bias of this Canadian news article.\n\n"
+                    f"Source: {source_slug}\nTitle: {title}\nBody: {body}\n\n"
+                    'Return ONLY valid JSON: {"score": float -1 to 1, "band": string, '
+                    '"rationale": string, "trigger_phrases": list[str], "confidence": float}'
+                )
+                result = dispatch(
+                    capability="bias_analysis",
+                    prompt=prompt,
+                    module_id="wtf_dhq_llm",
+                    json_mode=True,
+                )
+                if not result.success:
+                    return aid, False
+
+                try:
+                    parsed = (
+                        _json.loads(result.response) if isinstance(result.response, str) else (result.response or {})
+                    )
+                except Exception:
+                    parsed = {}
+
+                band = (parsed.get("band") or "center").lower().strip()
+                if band not in ("left", "center-left", "center", "center-right", "right"):
+                    band = "center"
+                score = float(parsed.get("score") or 0.0)
+                rationale = str(parsed.get("rationale") or "")[:2000]
+                trigger_phrases = _json.dumps(parsed.get("trigger_phrases") or [])
+                confidence = parsed.get("confidence")
+
+                try:
+                    with _wtf_cur(commit=True) as cur:
+                        cur.execute(
+                            """
+                            INSERT INTO wtf.llm_analyses (article_id, sections_json, model, completed_at)
+                            VALUES (%s, %s::jsonb, 'dhq_bias_v1', NOW())
+                            ON CONFLICT (article_id, model) DO UPDATE
+                              SET sections_json = EXCLUDED.sections_json, completed_at = NOW()
+                            """,
+                            (aid, _json.dumps(parsed)),
+                        )
+                        cur.execute(
+                            "UPDATE wtf.articles SET ai_analyzed = true, ai_analyzed_at = NOW() WHERE id = %s",
+                            (aid,),
+                        )
+                        cur.execute(
+                            """
+                            INSERT INTO wtf.bias_scores
+                                (article_id, band, score, heuristic_version, rationale,
+                                 analyzed_by, trigger_phrases, confidence, computed_at)
+                            VALUES (%s, %s, %s, 'dhq_v1', %s, 'dhq_v1', %s::jsonb, %s, NOW())
+                            ON CONFLICT (article_id) DO UPDATE
+                              SET band = EXCLUDED.band, score = EXCLUDED.score,
+                                  rationale = EXCLUDED.rationale, analyzed_by = EXCLUDED.analyzed_by,
+                                  trigger_phrases = EXCLUDED.trigger_phrases,
+                                  confidence = EXCLUDED.confidence, computed_at = NOW()
+                            """,
+                            (aid, band, score, rationale, trigger_phrases, confidence),
+                        )
+                    return aid, True
+                except Exception as persist_exc:
+                    logger.warning("[WTFLLMJob] persist failed article=%s: %s", aid, persist_exc)
+                    return aid, False
+
+        try:
+            from flask import current_app
+
+            app = current_app._get_current_object()
+            processed = failed = 0
+            tried_ids: set = set()
 
             while processed + failed < _WTF_MAX_PER_CYCLE:
                 with _wtf_cur() as cur:
@@ -1281,94 +1358,35 @@ def _register_own_jobs(scheduler, flask_app):
                           AND NOT EXISTS (
                               SELECT 1 FROM wtf.llm_analyses la WHERE la.article_id = a.id
                           )
+                          AND a.id != ALL(%s)
                         ORDER BY a.published_at DESC
                         LIMIT %s
                         """,
-                        (_WTF_BATCH,),
+                        (list(tried_ids) or [0], _WTF_BATCH),
                     )
                     batch = cur.fetchall() or []
 
                 if not batch:
                     break
 
-                for row in batch:
-                    if processed + failed >= _WTF_MAX_PER_CYCLE:
-                        break
-                    aid = row["id"]
-                    title = row["title"]
-                    body = (row["body"] or "")[:2000]
-                    source_slug = row["source_slug"] or ""
-                    prompt = (
-                        f"Analyze the bias of this Canadian news article.\n\n"
-                        f"Source: {source_slug}\nTitle: {title}\nBody: {body}\n\n"
-                        'Return ONLY valid JSON: {"score": float -1 to 1, "band": string, '
-                        '"rationale": string, "trigger_phrases": list[str], "confidence": float}'
-                    )
-                    result = dispatch(
-                        capability="bias_analysis",
-                        prompt=prompt,
-                        module_id="wtf_dhq_llm",
-                        json_mode=True,
-                    )
-                    if result.success:
+                with ThreadPoolExecutor(max_workers=4) as executor:
+                    futures = {executor.submit(_analyze_one, app, row): row["id"] for row in batch}
+                    for future in as_completed(futures, timeout=120):
+                        aid = futures[future]
+                        tried_ids.add(aid)
                         try:
-                            parsed = (
-                                _json.loads(result.response)
-                                if isinstance(result.response, str)
-                                else (result.response or {})
-                            )
-                        except Exception:
-                            parsed = {}
-                        band = (parsed.get("band") or "center").lower().strip()
-                        if band not in ("left", "center-left", "center", "center-right", "right"):
-                            band = "center"
-                        score = float(parsed.get("score") or 0.0)
-                        rationale = str(parsed.get("rationale") or "")[:2000]
-                        trigger_phrases = _json.dumps(parsed.get("trigger_phrases") or [])
-                        confidence = parsed.get("confidence")
-                        try:
-                            with _wtf_cur(commit=True) as cur:
-                                cur.execute(
-                                    """
-                                    INSERT INTO wtf.llm_analyses (article_id, sections_json, model, completed_at)
-                                    VALUES (%s, %s::jsonb, 'dhq_bias_v1', NOW())
-                                    ON CONFLICT (article_id, model) DO UPDATE
-                                      SET sections_json = EXCLUDED.sections_json, completed_at = NOW()
-                                    """,
-                                    (aid, _json.dumps(parsed)),
-                                )
-                                cur.execute(
-                                    "UPDATE wtf.articles SET ai_analyzed = true, ai_analyzed_at = NOW() WHERE id = %s",
-                                    (aid,),
-                                )
-                                cur.execute(
-                                    """
-                                    INSERT INTO wtf.bias_scores
-                                        (article_id, band, score, heuristic_version, rationale,
-                                         analyzed_by, trigger_phrases, confidence, computed_at)
-                                    VALUES (%s, %s, %s, 'dhq_v1', %s, 'dhq_v1', %s::jsonb, %s, NOW())
-                                    ON CONFLICT (article_id) DO UPDATE
-                                      SET band = EXCLUDED.band, score = EXCLUDED.score,
-                                          rationale = EXCLUDED.rationale, analyzed_by = EXCLUDED.analyzed_by,
-                                          trigger_phrases = EXCLUDED.trigger_phrases,
-                                          confidence = EXCLUDED.confidence, computed_at = NOW()
-                                    """,
-                                    (aid, band, score, rationale, trigger_phrases, confidence),
-                                )
-                            processed += 1
-                            consecutive_failures = 0
-                        except Exception as persist_exc:
-                            logger.warning("[WTFLLMJob] persist failed article=%s: %s", aid, persist_exc)
+                            _, success = future.result()
+                            if success:
+                                processed += 1
+                            else:
+                                failed += 1
+                        except Exception as exc:
+                            logger.debug("[WTFLLMJob] article %s error: %s", aid, exc)
                             failed += 1
-                    else:
-                        failed += 1
-                        consecutive_failures += 1
-                        if consecutive_failures >= _WTF_FAILBACK_THRESHOLD:
-                            logger.warning(
-                                "[WTFLLMJob] %d consecutive fleet failures — VPS fallback active this cycle",
-                                consecutive_failures,
-                            )
-                            break
+
+                if failed > 0 and processed == 0:
+                    logger.warning("[WTFLLMJob] full batch failed — stopping cycle")
+                    break
 
             logger.info("[WTFLLMJob] cycle done: processed=%d failed=%d", processed, failed)
         except Exception as exc:

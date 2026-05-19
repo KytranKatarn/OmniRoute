@@ -1713,9 +1713,14 @@ def _register_own_jobs(scheduler, flask_app):
                     )
                     if result.success:
                         try:
-                            parsed = (
-                                _json.loads(result.response) if isinstance(result.response, str) else result.response
-                            )
+                            try:
+                                parsed = (
+                                    _json.loads(result.response)
+                                    if isinstance(result.response, str)
+                                    else result.response
+                                )
+                            except (_json.JSONDecodeError, TypeError, ValueError):
+                                parsed = {}
                             claims = parsed.get("claims") or []
                             overall_raw = (parsed.get("overall_verdict") or "unverifiable").lower().strip()
                             overall = _OVERALL_MAP.get(overall_raw, "unverifiable")

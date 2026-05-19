@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -11,10 +12,14 @@ logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint("auth", __name__)
 
+# Browser-facing: users' browsers navigate here for the authorize page.
 _PLATFORM = os.environ.get("WTF_PLATFORM_URL", "https://platform.kytranempowerment.com")
+# Server-side only: VPS→hub token exchange uses mesh (never CDN — 60s cap, bypasses queue).
+_TOKEN_PLATFORM = os.environ.get("WTF_TOKEN_PLATFORM_URL", "http://100.64.0.4:3000")
 _CLIENT_ID = os.environ.get("WTF_CLIENT_ID", "wtf-consumer")
 _CLIENT_SECRET = os.environ.get("WTF_CLIENT_SECRET", "")
-_CALLBACK_URL = os.environ.get("WTF_CALLBACK_URL", "")
+# Explicit default prevents http:// mismatches when Flask runs behind Caddy proxy.
+_CALLBACK_URL = os.environ.get("WTF_CALLBACK_URL", "https://what-the-fact.com/auth/callback")
 _SUBSCRIBED_TIERS = {"starter", "professional", "enterprise", "vip", "pro", "business", "kytran", "owner", "admin"}
 
 
@@ -72,13 +77,17 @@ def callback():
             }
         ).encode()
         req = urllib.request.Request(
-            f"{_PLATFORM}/oauth/token",
+            f"{_TOKEN_PLATFORM}/oauth/token",
             data=payload,
             method="POST",
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:
             token_data = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        logger.error("WTF OAuth token exchange HTTP %s: %s", e.code, body)
+        return redirect("/")
     except Exception:
         logger.exception("WTF OAuth token exchange failed")
         return redirect("/")

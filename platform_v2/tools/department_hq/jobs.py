@@ -1231,18 +1231,46 @@ def _register_own_jobs(scheduler, flask_app):
     _WTF_MAX_PER_CYCLE = 200
     _WTF_FAILBACK_THRESHOLD = 3
 
+    # Context manager: connects to the wtf database (separate from archie DB).
+    # wtf tables live in the wtf schema of archie_database container, dbname=wtf.
+    from contextlib import contextmanager as _cm
+
+    @_cm
+    def _wtf_cur(commit=False):
+        import os
+        import psycopg2
+        import psycopg2.extras
+
+        conn = psycopg2.connect(
+            host="archie_database",
+            port=5432,
+            dbname="wtf",
+            user="wtfuser",
+            password=os.getenv("WTF_DB_PASSWORD", ""),
+            options="-c search_path=wtf",
+        )
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            yield cur
+            if commit:
+                conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
     # Job #122: WTF LLM Analysis — bias scoring via B.I.A.S. / V.E.R.I.F.Y.
     # Runs every 30 min at :00 and :30 (EDT).
     def _run_wtf_llm_analysis():
         try:
             import json as _json
-            from database import get_db_cursor
             from tools.department_hq.services.department_dispatcher import dispatch
 
             processed = failed = consecutive_failures = 0
 
             while processed + failed < _WTF_MAX_PER_CYCLE:
-                with get_db_cursor() as (_, cur):
+                with _wtf_cur() as cur:
                     cur.execute(
                         """
                         SELECT a.id, a.title, a.body, s.slug AS source_slug
@@ -1299,7 +1327,7 @@ def _register_own_jobs(scheduler, flask_app):
                         trigger_phrases = _json.dumps(parsed.get("trigger_phrases") or [])
                         confidence = parsed.get("confidence")
                         try:
-                            with get_db_cursor(commit=True) as (_, cur):
+                            with _wtf_cur(commit=True) as cur:
                                 cur.execute(
                                     """
                                     INSERT INTO wtf.llm_analyses (article_id, sections_json, model, completed_at)
@@ -1362,13 +1390,12 @@ def _register_own_jobs(scheduler, flask_app):
     def _run_wtf_geo():
         try:
             import json as _json
-            from database import get_db_cursor
             from tools.department_hq.services.department_dispatcher import dispatch
 
             processed = failed = consecutive_failures = 0
 
             while processed + failed < _WTF_MAX_PER_CYCLE:
-                with get_db_cursor() as (_, cur):
+                with _wtf_cur() as cur:
                     cur.execute(
                         """
                         SELECT a.id, a.title, a.body
@@ -1415,7 +1442,7 @@ def _register_own_jobs(scheduler, flask_app):
                         except Exception:
                             parsed = {}
                         try:
-                            with get_db_cursor(commit=True) as (_, cur):
+                            with _wtf_cur(commit=True) as cur:
                                 cur.execute(
                                     """
                                     UPDATE wtf.articles
@@ -1467,7 +1494,6 @@ def _register_own_jobs(scheduler, flask_app):
     def _run_wtf_factcheck():
         try:
             import json as _json
-            from database import get_db_cursor
             from tools.department_hq.services.department_dispatcher import dispatch
 
             processed = failed = consecutive_failures = 0
@@ -1493,7 +1519,7 @@ def _register_own_jobs(scheduler, flask_app):
             }
 
             while processed + failed < _WTF_MAX_PER_CYCLE:
-                with get_db_cursor() as (_, cur):
+                with _wtf_cur() as cur:
                     cur.execute(
                         """
                         SELECT a.id, a.title, a.body
@@ -1546,7 +1572,7 @@ def _register_own_jobs(scheduler, flask_app):
                         overall = _OVERALL_MAP.get(overall_raw, "unverifiable")
                         claims_json = _json.dumps(claims)
                         try:
-                            with get_db_cursor(commit=True) as (_, cur):
+                            with _wtf_cur(commit=True) as cur:
                                 cur.execute(
                                     "DELETE FROM wtf.fact_checks WHERE article_id = %s AND analyzed_by = 'dhq_v1'",
                                     (aid,),
@@ -1623,7 +1649,7 @@ def _register_own_jobs(scheduler, flask_app):
             processed = failed = consecutive_failures = 0
 
             while processed + failed < _WTF_MAX_PER_CYCLE:
-                with get_db_cursor() as (_, cur):
+                with _wtf_cur() as cur:
                     cur.execute(
                         """
                         SELECT a.id, a.title, a.url
@@ -1660,7 +1686,7 @@ def _register_own_jobs(scheduler, flask_app):
                     )
                     if result.success and result.response and len(result.response.strip()) > 200:
                         try:
-                            with get_db_cursor(commit=True) as (_, cur):
+                            with _wtf_cur(commit=True) as cur:
                                 cur.execute(
                                     "UPDATE wtf.articles SET body = %s WHERE id = %s AND LENGTH(body) < 300",
                                     (result.response.strip()[:8000], aid),

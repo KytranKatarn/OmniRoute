@@ -15,31 +15,34 @@ def register_orchestration_routes(bp, admin_required):
     @bp.route("/api/orchestration/status")
     @admin_required
     def get_orchestration_status():
-        """Live overview: agent overflow scores, queue depths, global pause state."""
+        """Live overview: agent overflow scores, queue depths, global pause state.
+
+        Reads agent_overflow_state directly from DB — not the in-memory cache,
+        which is per-gunicorn-worker and inconsistent across a 4-worker setup.
+        """
         try:
-            from services.cluster_orchestration_service import get_full_cache_snapshot
-
-            states = get_full_cache_snapshot()
-
             enriched = []
-            if states:
-                agent_ids = list({s["agent_id"] for s in states})
-                with get_db_cursor() as (_, cur):
-                    cur.execute(
-                        "SELECT id, name, department FROM agents WHERE id = ANY(%s)",
-                        (agent_ids,),
-                    )
-                    agent_map = {r["id"]: dict(r) for r in (cur.fetchall() or [])}
-                for s in states:
-                    info = agent_map.get(s["agent_id"], {})
+            with get_db_cursor() as (_, cur):
+                cur.execute(
+                    """
+                    SELECT aos.agent_id, aos.capability,
+                           aos.overflow_score::float AS score, aos.is_active,
+                           a.name AS agent_name, a.department
+                    FROM agent_overflow_state aos
+                    JOIN agents a ON a.id = aos.agent_id
+                    WHERE aos.expires_at > NOW()
+                    ORDER BY aos.overflow_score DESC
+                    """
+                )
+                for r in cur.fetchall() or []:
                     enriched.append(
                         {
-                            "agent_id": s["agent_id"],
-                            "agent_name": info.get("name", "unknown"),
-                            "department": info.get("department", ""),
-                            "capability": s["capability"],
-                            "score": round(float(s["score"]), 3),
-                            "is_active": s["is_active"],
+                            "agent_id": r["agent_id"],
+                            "agent_name": r["agent_name"],
+                            "department": r["department"],
+                            "capability": r["capability"],
+                            "score": round(float(r["score"]), 3),
+                            "is_active": r["is_active"],
                         }
                     )
 
@@ -125,31 +128,38 @@ def register_orchestration_routes(bp, admin_required):
             }
         )
 
-        with get_db_cursor(commit=True) as (_, cur):
-            cur.execute(
-                """
-                INSERT INTO cluster_orchestration_config
-                    (scope, agent_id, capability, node_id,
-                     idle_threshold_minutes, utilization_threshold_pct,
-                     queue_pressure_threshold, idle_weight, utilization_weight,
-                     queue_pressure_weight, overflow_enabled, overflow_paused,
-                     priority_boost, max_overflow_concurrent)
-                VALUES (%(scope)s, %(agent_id)s, %(capability)s, %(node_id)s,
-                        5, 60.0, 10, 0.3, 0.3, 0.4, true, false, 0, 3)
-                ON CONFLICT DO NOTHING
-                """,
-                updates,
-            )
-            cur.execute(
-                f"UPDATE cluster_orchestration_config "
-                f"SET {set_clause}, updated_at=NOW() "
-                f"WHERE scope=%(scope)s "
-                f"AND (agent_id IS NOT DISTINCT FROM %(agent_id)s) "
-                f"AND (capability IS NOT DISTINCT FROM %(capability)s) "
-                f"AND (node_id IS NOT DISTINCT FROM %(node_id)s)",
-                updates,
-            )
-        return jsonify({"ok": True})
+        try:
+            with get_db_cursor(commit=True) as (_, cur):
+                # UPDATE first — avoids duplicate rows from INSERT+ON CONFLICT DO NOTHING
+                # (ON CONFLICT DO NOTHING only fires on PK conflict, never on scope/agent/etc.)
+                cur.execute(
+                    f"UPDATE cluster_orchestration_config "
+                    f"SET {set_clause}, updated_at=NOW() "
+                    f"WHERE scope=%(scope)s "
+                    f"AND (agent_id IS NOT DISTINCT FROM %(agent_id)s) "
+                    f"AND (capability IS NOT DISTINCT FROM %(capability)s) "
+                    f"AND (node_id IS NOT DISTINCT FROM %(node_id)s)",
+                    updates,
+                )
+                if cur.rowcount == 0:
+                    # No existing row — insert defaults then apply the requested fields
+                    cur.execute(
+                        """
+                        INSERT INTO cluster_orchestration_config
+                            (scope, agent_id, capability, node_id,
+                             idle_threshold_minutes, utilization_threshold_pct,
+                             queue_pressure_threshold, idle_weight, utilization_weight,
+                             queue_pressure_weight, overflow_enabled, overflow_paused,
+                             priority_boost, max_overflow_concurrent)
+                        VALUES (%(scope)s, %(agent_id)s, %(capability)s, %(node_id)s,
+                                5, 60.0, 10, 0.3, 0.3, 0.4, true, false, 0, 3)
+                        """,
+                        updates,
+                    )
+            return jsonify({"ok": True})
+        except Exception as e:
+            logger.exception("orchestration/config POST failed")
+            return jsonify({"error": str(e)}), 500
 
     @bp.route("/api/orchestration/pause", methods=["POST"])
     @admin_required
@@ -164,15 +174,6 @@ def register_orchestration_routes(bp, admin_required):
 
             with get_db_cursor(commit=True) as (_, cur):
                 cur.execute(
-                    """
-                    INSERT INTO cluster_orchestration_config
-                        (scope, agent_id, capability, overflow_paused)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT DO NOTHING
-                    """,
-                    (scope, agent_id, capability, paused),
-                )
-                cur.execute(
                     "UPDATE cluster_orchestration_config "
                     "SET overflow_paused=%s, updated_at=NOW() "
                     "WHERE scope=%s "
@@ -180,6 +181,15 @@ def register_orchestration_routes(bp, admin_required):
                     "AND (capability IS NOT DISTINCT FROM %s)",
                     (paused, scope, agent_id, capability),
                 )
+                if cur.rowcount == 0:
+                    cur.execute(
+                        """
+                        INSERT INTO cluster_orchestration_config
+                            (scope, agent_id, capability, overflow_paused)
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        (scope, agent_id, capability, paused),
+                    )
             return jsonify({"ok": True, "paused": paused})
         except Exception as e:
             logger.exception("orchestration/pause failed")
@@ -198,20 +208,20 @@ def register_orchestration_routes(bp, admin_required):
 
             with get_db_cursor(commit=True) as (_, cur):
                 cur.execute(
-                    """
-                    INSERT INTO cluster_orchestration_config
-                        (scope, capability, priority_boost)
-                    VALUES ('capability', %s, %s)
-                    ON CONFLICT DO NOTHING
-                    """,
-                    (capability, boost),
-                )
-                cur.execute(
                     "UPDATE cluster_orchestration_config "
                     "SET priority_boost=%s, updated_at=NOW() "
                     "WHERE scope='capability' AND capability=%s",
                     (boost, capability),
                 )
+                if cur.rowcount == 0:
+                    cur.execute(
+                        """
+                        INSERT INTO cluster_orchestration_config
+                            (scope, capability, priority_boost)
+                        VALUES ('capability', %s, %s)
+                        """,
+                        (capability, boost),
+                    )
             return jsonify({"ok": True, "capability": capability, "boost": boost})
         except Exception as e:
             logger.exception("orchestration/boost failed")
@@ -237,8 +247,7 @@ def register_orchestration_routes(bp, admin_required):
             with get_db_cursor() as (_, cur):
                 cur.execute(
                     """
-                    SELECT id, cpu_usage, gpu_vram_used_gb, gpu_vram_total_gb,
-                           ram_used_gb, ram_total_gb, last_heartbeat
+                    SELECT id, gpu_vram_gb, ram_gb, last_heartbeat
                     FROM remote_nodes
                     WHERE last_heartbeat > NOW() - INTERVAL '2 minutes'
                 """
@@ -252,13 +261,13 @@ def register_orchestration_routes(bp, admin_required):
                     """
                     SELECT a.id,
                            COALESCE(
-                               EXTRACT(EPOCH FROM NOW() - MAX(tel.started_at)) / 60,
+                               EXTRACT(EPOCH FROM NOW() - MAX(tel.created_at)) / 60,
                                999
                            ) AS idle_minutes
                     FROM agents a
                     LEFT JOIN task_execution_log tel
                         ON tel.agent_name = a.name
-                       AND tel.started_at > NOW() - INTERVAL '60 minutes'
+                       AND tel.created_at > NOW() - INTERVAL '60 minutes'
                     WHERE a.shift_state IN ('active', 'deployed')
                       AND a.worker_type = 'ai'
                     GROUP BY a.id

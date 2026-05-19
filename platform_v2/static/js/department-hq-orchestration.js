@@ -150,21 +150,42 @@ function _coRenderStatus(d) {
 }
 
 async function coTriggerScan() {
+  const btn = document.getElementById('co-trigger-btn');
+  const orig = btn ? btn.textContent : null;
+  if (btn) { btn.textContent = '⟳ SCANNING…'; btn.disabled = true; }
   try {
-    await fetch('/tools/department-hq/api/orchestration/trigger', {method: 'POST'});
-    setTimeout(coRefresh, 1500);
-  } catch (_) {}
+    const r = await fetch('/tools/department-hq/api/orchestration/trigger', {method: 'POST'});
+    const d = await r.json();
+    if (btn) {
+      btn.textContent = d.ok ? ('✓ ' + (d.scored || 0) + ' scored') : '✗ ERROR';
+      btn.disabled = false;
+      setTimeout(() => { if (btn) btn.textContent = orig || '▶ TRIGGER'; }, 3000);
+    }
+    if (d.ok) setTimeout(coRefresh, 500);
+  } catch (e) {
+    if (btn) { btn.textContent = '✗ FAILED'; btn.disabled = false;
+      setTimeout(() => { if (btn) btn.textContent = orig || '▶ TRIGGER'; }, 3000); }
+    console.warn('[orchestration] trigger failed:', e);
+  }
 }
 
 async function coToggleGlobalPause() {
+  const btn = document.getElementById('co-pause-btn');
+  if (btn) { btn.disabled = true; }
   try {
-    await fetch('/tools/department-hq/api/orchestration/pause', {
+    const r = await fetch('/tools/department-hq/api/orchestration/pause', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({scope: 'global', paused: !_coGlobalPaused}),
     });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'pause failed');
     await coRefresh();
-  } catch (_) {}
+  } catch (e) {
+    console.warn('[orchestration] global pause failed:', e);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function coPauseAgent(agentId, capability) {
@@ -282,15 +303,34 @@ async function coSaveConfig() {
     overflow_enabled: document.getElementById('co-field-overflow_enabled') ?
                       document.getElementById('co-field-overflow_enabled').checked : true,
   });
+  const saveBtn = document.querySelector('#co-drawer-content button');
+  if (saveBtn) { saveBtn.textContent = 'SAVING…'; saveBtn.disabled = true; }
   try {
-    await fetch('/tools/department-hq/api/orchestration/config', {
+    const r = await fetch('/tools/department-hq/api/orchestration/config', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(body),
     });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'save failed');
     coCloseDrawer();
     await coRefresh();
-  } catch (_) {}
+  } catch (e) {
+    if (saveBtn) {
+      saveBtn.textContent = 'SAVE FAILED';
+      saveBtn.style.borderColor = '#ef4444';
+      saveBtn.style.color = '#ef4444';
+      saveBtn.disabled = false;
+      setTimeout(() => {
+        if (saveBtn) {
+          saveBtn.textContent = 'SAVE CONFIG';
+          saveBtn.style.borderColor = '';
+          saveBtn.style.color = '';
+        }
+      }, 3000);
+    }
+    console.warn('[orchestration] save config failed:', e);
+  }
 }
 
 /* Initial load after DOM ready */

@@ -25,18 +25,19 @@ def compute_overflow_score(
     config: dict,
 ) -> float:
     """Return 0.0-1.0 overflow score from three normalised signals."""
-    idle_thresh = max(1, config["idle_threshold_minutes"])
-    util_thresh = max(1.0, config["utilization_threshold_pct"])
-    queue_thresh = max(1, config["queue_pressure_threshold"])
+    # Cast to float — NUMERIC columns return decimal.Decimal from psycopg2
+    idle_thresh = max(1, float(config["idle_threshold_minutes"]))
+    util_thresh = max(1.0, float(config["utilization_threshold_pct"]))
+    queue_thresh = max(1, float(config["queue_pressure_threshold"]))
 
     idle_score = min(1.0, idle_minutes / idle_thresh)
     util_score = max(0.0, 1.0 - util_pct / util_thresh)
     queue_score = min(1.0, queue_depth / queue_thresh)
 
     return (
-        config["idle_weight"] * idle_score
-        + config["utilization_weight"] * util_score
-        + config["queue_pressure_weight"] * queue_score
+        float(config["idle_weight"]) * idle_score
+        + float(config["utilization_weight"]) * util_score
+        + float(config["queue_pressure_weight"]) * queue_score
     )
 
 

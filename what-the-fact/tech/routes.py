@@ -532,7 +532,7 @@ def analyze_article(article_id: int):
             if data.get("ok"):
                 results[task] = data.get("result")
         except Exception as exc:
-            bp.logger.warning(
+            current_app.logger.warning(
                 "[WTF analyze] task=%s article_id=%s failed: %s", task, article_id, exc
             )
 

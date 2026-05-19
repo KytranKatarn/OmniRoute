@@ -548,12 +548,12 @@ def index():
 # Server-side proxy routes — browser JS must never call wtf-tech directly
 # (mixed content: page is HTTPS, wtf-tech is an internal Docker hostname)
 # ───────────────────────────────────────────────────────────────────────────
-def _proxy_tech(path: str, method: str = "GET", body: bytes = None) -> Response:
+def _proxy_tech(path: str, method: str = "GET", body: bytes = None, timeout: int = 30) -> Response:
     url = os.environ.get("WTF_TECH_URL", "https://what-the-fact.tech") + path
     req = urllib.request.Request(url, data=body, method=method)
     req.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             return Response(resp.read(), content_type="application/json")
     except Exception as exc:
         return Response(json.dumps({"error": str(exc)}), status=502, content_type="application/json")
@@ -576,7 +576,7 @@ def proxy_articles_geo():
 
 @bp.post("/api/proxy/articles/<int:article_id>/analyze")
 def proxy_article_analyze(article_id: int):
-    return _proxy_tech(f"/api/v1/articles/{article_id}/analyze", method="POST", body=b"{}")
+    return _proxy_tech(f"/api/v1/articles/{article_id}/analyze", method="POST", body=b"{}", timeout=100)
 
 
 @bp.post("/api/proxy/articles/<int:article_id>/flag")

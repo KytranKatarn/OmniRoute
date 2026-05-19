@@ -256,3 +256,25 @@ def linkedin_analytics(mode: str = "profile", agent_id: int = DEFAULT_AGENT_ID) 
 
 def linkedin_reply(reply_to: str, message: str, agent_id: int = DEFAULT_AGENT_ID) -> dict:
     return run_skill_sync("linkedin_reply", {"reply_to": reply_to, "message": message}, agent_id)
+
+
+# ---------------------------------------------------------------------------
+# Web scraping
+# ---------------------------------------------------------------------------
+
+# No agent session needed for scraping — use agent_id=1 (system placeholder).
+_SCRAPE_AGENT_ID = int(os.getenv("BROWSER_SCRAPE_AGENT_ID", "1"))
+
+
+def scrape_article(url: str, timeout_s: int = 30) -> dict:
+    """Fetch full article body text from a URL via Playwright.
+
+    Returns {"success": True, "body": str, "chars": int} or
+            {"success": False, "error": str}.
+    """
+    return run_skill_sync(
+        "scrape_article",
+        {"url": url},
+        agent_id=_SCRAPE_AGENT_ID,
+        timeout_s=timeout_s,
+    )

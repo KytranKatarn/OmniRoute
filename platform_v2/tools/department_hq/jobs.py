@@ -1788,28 +1788,32 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered wtf_factcheck_backlog job (every 30 min at :05/:35)")
 
-    # Job #125: WTF Scout — full body fetch for short articles via S.C.O.U.T.
+    # Job #125: WTF Scout — full body fetch for short articles via archie_browser Playwright.
     # Runs every 30 min at :15 and :45. Only processes articles <7 days old.
+    # Rate-limited to 25/cycle (archie_browser max 60/hr, job runs 2×/hr).
+    _WTF_SCOUT_PER_CYCLE = 25
+
     def _run_wtf_scout():
         try:
-            from database import get_db_cursor
-            from tools.department_hq.services.department_dispatcher import dispatch
+            from services.browser_service import scrape_article
 
             processed = failed = consecutive_failures = 0
+            tried_ids: set = set()
 
-            while processed + failed < _WTF_MAX_PER_CYCLE:
+            while processed + failed < _WTF_SCOUT_PER_CYCLE:
                 with _wtf_cur() as cur:
                     cur.execute(
                         """
-                        SELECT a.id, a.title, a.url
+                        SELECT a.id, a.url
                         FROM wtf.articles a
-                        WHERE LENGTH(a.body) < 300
+                        WHERE LENGTH(COALESCE(a.body, '')) < 300
                           AND a.url IS NOT NULL
                           AND a.published_at > NOW() - INTERVAL '7 days'
+                          AND a.id != ALL(%s)
                         ORDER BY a.published_at DESC
                         LIMIT %s
                         """,
-                        (_WTF_BATCH,),
+                        (list(tried_ids) or [0], _WTF_BATCH),
                     )
                     batch = cur.fetchall() or []
 
@@ -1817,28 +1821,20 @@ def _register_own_jobs(scheduler, flask_app):
                     break
 
                 for row in batch:
-                    if processed + failed >= _WTF_MAX_PER_CYCLE:
+                    if processed + failed >= _WTF_SCOUT_PER_CYCLE:
                         break
                     aid = row["id"]
-                    title = row["title"]
                     url = row["url"]
-                    prompt = (
-                        f"Scrape and return the full article text from this URL.\n\n"
-                        f"URL: {url}\nTitle: {title}\n\n"
-                        "Return ONLY the plain article body text. No HTML, no JSON, no metadata."
-                    )
-                    result = dispatch(
-                        capability="web_scraping",
-                        prompt=prompt,
-                        module_id="wtf_dhq_scout",
-                        json_mode=False,
-                    )
-                    if result.success and result.response and len(result.response.strip()) > 200:
+                    tried_ids.add(aid)
+
+                    result = scrape_article(url, timeout_s=30)
+                    body = result.get("body", "") if result.get("success") else ""
+                    if body and len(body) > 200:
                         try:
                             with _wtf_cur(commit=True) as cur:
                                 cur.execute(
-                                    "UPDATE wtf.articles SET body = %s WHERE id = %s AND LENGTH(body) < 300",
-                                    (result.response.strip()[:8000], aid),
+                                    "UPDATE wtf.articles SET body = %s WHERE id = %s AND LENGTH(COALESCE(body,'')) < 300",
+                                    (body, aid),
                                 )
                             processed += 1
                             consecutive_failures = 0
@@ -1850,7 +1846,7 @@ def _register_own_jobs(scheduler, flask_app):
                         consecutive_failures += 1
                         if consecutive_failures >= _WTF_FAILBACK_THRESHOLD:
                             logger.warning(
-                                "[WTFScoutJob] %d consecutive fleet failures — VPS fallback active this cycle",
+                                "[WTFScoutJob] %d consecutive browser failures — pausing cycle",
                                 consecutive_failures,
                             )
                             break

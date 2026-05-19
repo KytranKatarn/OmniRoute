@@ -75,6 +75,19 @@ def _log_cycle(
 
 def check_fleet_health():
     """Job #45: Monitor fleet node heartbeats -- return agents to barracks if offline."""
+    # Hub self-heartbeat — the hub doesn't run a heartbeat.sh against itself,
+    # so stamp last_heartbeat directly before the fleet health check runs.
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (_, cur):
+            cur.execute(
+                "UPDATE remote_nodes SET last_heartbeat = NOW() "
+                "WHERE hostname = '100.64.0.4' AND deployment_mode = 'starbase'"
+            )
+    except Exception as _hb_exc:
+        logger.warning("Hub self-heartbeat failed: %s", _hb_exc)
+
     try:
         from tools.department_hq.services.department_dispatcher import get_dispatcher
 

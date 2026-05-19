@@ -1940,6 +1940,40 @@ def _register_own_jobs(scheduler, flask_app):
                 for row in cur.fetchall() or []:
                     queue_depths[row["capability"]] = row["depth"]
 
+            # Synthetic geo backlog — WTF articles awaiting geo live in the wtf DB,
+            # not dispatch_pending_queue, so the orchestration score would always see
+            # depth=0 for geo_extraction. Inject the real backlog count so L.O.C.A.L.
+            # overflow activates correctly when there is a large pending queue.
+            try:
+                import os as _os
+                import psycopg2
+                import psycopg2.extras
+
+                _wtf_conn = psycopg2.connect(
+                    host="archie_database",
+                    port=5432,
+                    dbname="wtf",
+                    user="wtfuser",
+                    password=_os.getenv("WTF_DB_PASSWORD", ""),
+                    options="-c search_path=wtf",
+                )
+                with _wtf_conn:
+                    with _wtf_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as _wc:
+                        _wc.execute(
+                            """
+                            SELECT COUNT(*) AS cnt FROM wtf.articles
+                            WHERE province_code IS NULL AND city IS NULL
+                              AND published_at > NOW() - INTERVAL '90 days'
+                        """
+                        )
+                        _wtf_geo_row = _wc.fetchone()
+                _wtf_conn.close()
+                if _wtf_geo_row and _wtf_geo_row["cnt"]:
+                    queue_depths["geo_extraction"] = queue_depths.get("geo_extraction", 0) + int(_wtf_geo_row["cnt"])
+                    queue_depths["geo_quick"] = queue_depths.get("geo_quick", 0) + int(_wtf_geo_row["cnt"])
+            except Exception as _wtf_geo_exc:
+                logger.warning("[orchestration] geo backlog inject failed: %s", _wtf_geo_exc)
+
             # Pass 4 — load all config rows once
             with get_db_cursor() as (_, cur):
                 cur.execute("SELECT * FROM cluster_orchestration_config")

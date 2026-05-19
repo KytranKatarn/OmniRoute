@@ -378,14 +378,19 @@ _OVERALL_MAP = {
 def _persist_on_demand(article_id: int, results: dict, schema: str) -> None:
     """Write Deep Dive results to DB so the page reload shows LLM values.
 
-    Handles partial results gracefully — bias only, factcheck only, or both.
-    Non-fatal: any DB error is logged and swallowed so the API response
-    still returns 200 to the browser.
+    Two independent transactions:
+    - Phase 1 (best-effort): persist bias_scores + fact_checks from LLM results.
+    - Phase 2 (always): mark ai_analyzed=true so the button disappears on reload.
+      Runs even if phase 1 fails — prevents infinite re-run loops.
     """
     import json as _json
+    import logging as _log
+
+    _logger = _log.getLogger("wtf-tech")
+
+    # ── Phase 1: bias + fact_checks (best-effort) ────────────────────────
     try:
         with _db().begin() as c:
-            # ── bias ──────────────────────────────────────────────────────
             bias = results.get("bias") or {}
             band = (bias.get("band") or "center").lower().strip()
             if band not in _VALID_BANDS:
@@ -423,7 +428,6 @@ def _persist_on_demand(article_id: int, results: dict, schema: str) -> None:
                      "rationale": rationale, "tp": tp, "confidence": confidence},
                 )
 
-            # ── fact_checks ───────────────────────────────────────────────
             fc = results.get("factcheck") or {}
             claims = fc.get("claims") or []
             overall_raw = (fc.get("overall_verdict") or "unverifiable").lower()
@@ -462,21 +466,29 @@ def _persist_on_demand(article_id: int, results: dict, schema: str) -> None:
                     """),
                     {"aid": article_id},
                 )
+    except Exception as exc:
+        _logger.exception(
+            "[WTF persist_on_demand] phase1 bias/factcheck article=%s failed: %s",
+            article_id, exc,
+        )
 
-            # ── mark article analyzed ─────────────────────────────────────
+    # ── Phase 2: mark analyzed — always commits independently ─────────────
+    # analysis_tier='quick_v1+full' triggers the full-byline template branch.
+    try:
+        with _db().begin() as c:
             c.execute(
                 text(f"""
                     UPDATE {schema}.articles
                     SET ai_analyzed = true, ai_analyzed_at = NOW(),
-                        analysis_tier = 'deep_dive'
+                        analysis_tier = 'quick_v1+full'
                     WHERE id = :aid
                 """),
                 {"aid": article_id},
             )
     except Exception as exc:
-        import logging as _log
-        _log.getLogger("wtf-tech").exception(
-            "[WTF persist_on_demand] article=%s failed: %s", article_id, exc
+        _logger.exception(
+            "[WTF persist_on_demand] phase2 mark_analyzed article=%s failed: %s",
+            article_id, exc,
         )
 
 
@@ -492,11 +504,19 @@ def analyze_article(article_id: int):
     S = _schema()
     with _db().connect() as c:
         article = c.execute(text(f"""
-            SELECT id, title, body FROM {S}.articles WHERE id = :id
+            SELECT id, title, body, ai_analyzed, analysis_tier
+            FROM {S}.articles WHERE id = :id
         """), {"id": article_id}).fetchone()
 
     if not article:
         return jsonify({"ok": False, "error": "article not found"}), 404
+
+    # Idempotency: already fully analyzed — skip dispatch, mark done in case
+    # a previous persist attempt only partially succeeded.
+    if article.ai_analyzed:
+        _persist_on_demand(article_id, {}, S)
+        return jsonify({"ok": True, "results": {}, "article_id": article_id,
+                        "cached": True, "tier": article.analysis_tier})
 
     results = {}
     for task in ("bias", "factcheck", "geo"):
@@ -517,6 +537,7 @@ def analyze_article(article_id: int):
             )
 
     # Persist whatever we got — partial results are better than nothing.
+    # Phase 2 (mark_analyzed) always commits even if phase 1 fails.
     _persist_on_demand(article_id, results, S)
     return jsonify({"ok": True, "results": results, "article_id": article_id})
 

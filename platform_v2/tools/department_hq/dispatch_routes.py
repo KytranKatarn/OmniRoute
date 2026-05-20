@@ -413,7 +413,8 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     )
                 task_cte = """
                     SELECT 'task'::text AS source,
-                           tel.agent_name, tel.capability,
+                           COALESCE(a.name, tel.agent_name) AS agent_name,
+                           tel.capability,
                            tel.module_source AS module,
                            tel.model_used,
                            tel.duration_ms,
@@ -421,8 +422,14 @@ def register_dispatch_routes(bp, admin_required_decorator):
                            tel.error_message,
                            tel.created_at,
                            tel.tokens_used,
-                           COALESCE(tel.cost, 0)::float AS cost
+                           COALESCE(tel.cost, 0)::float AS cost,
+                           COALESCE(rn.node_name, 'Hub') AS node_name
                     FROM task_execution_log tel
+                    LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
+                    LEFT JOIN agents a ON (
+                        tel.agent_name ~ '^fleet-agent-[0-9]+$'
+                        AND a.id::text = substring(tel.agent_name FROM 13)
+                    )
                     WHERE {task_where}
                 """.format(
                     task_where=" AND ".join(task_filters)
@@ -451,7 +458,8 @@ def register_dispatch_routes(bp, admin_required_decorator):
                            bj.error_message,
                            bj.created_at,
                            NULL::int AS tokens_used,
-                           0::float AS cost
+                           0::float AS cost,
+                           COALESCE(bj.metadata->>'node_name', 'Hub') AS node_name
                     FROM bridge_jobs bj
                     WHERE {job_where}
                 """.format(
@@ -529,6 +537,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                         "created_at": r["created_at"].isoformat() if r["created_at"] else None,
                         "tokens_used": r["tokens_used"],
                         "cost": r["cost"],
+                        "node_name": r.get("node_name", "Hub"),
                     }
                     for r in cur.fetchall()
                 ]
@@ -955,11 +964,18 @@ def register_dispatch_routes(bp, admin_required_decorator):
         try:
             with get_db_cursor() as (conn, cur):
                 cur.execute(
-                    """SELECT agent_name, capability, model_used, module_source,
-                              success, duration_ms, created_at
-                       FROM task_execution_log
-                       WHERE created_at > NOW() - INTERVAL '%s hours'
-                       ORDER BY created_at DESC LIMIT %s""",
+                    """SELECT COALESCE(a.name, tel.agent_name) AS agent_name,
+                              tel.capability, tel.model_used, tel.module_source,
+                              tel.success, tel.duration_ms, tel.created_at,
+                              COALESCE(rn.node_name, 'Hub') AS node_name
+                       FROM task_execution_log tel
+                       LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
+                       LEFT JOIN agents a ON (
+                           tel.agent_name ~ '^fleet-agent-[0-9]+$'
+                           AND a.id::text = substring(tel.agent_name FROM 13)
+                       )
+                       WHERE tel.created_at > NOW() - INTERVAL '%s hours'
+                       ORDER BY tel.created_at DESC LIMIT %s""",
                     (hours, limit),
                 )
                 feed = []
@@ -971,6 +987,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                             "capability": r.get("capability") or "—",
                             "model": r.get("model_used") or "—",
                             "source": r.get("module_source") or "—",
+                            "node": r.get("node_name") or "Hub",
                             "success": r.get("success"),
                             "duration_ms": r.get("duration_ms"),
                             "ts": r["created_at"].isoformat() if r.get("created_at") else None,

@@ -1710,7 +1710,7 @@ def register_dashboard_routes(bp, auth_decorator):
                     LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
                     LEFT JOIN agents a ON (
                         tel.agent_name ~ '^fleet-agent-[0-9]+$'
-                        AND a.id = CAST(NULLIF(substring(tel.agent_name FROM 13), '') AS INTEGER)
+                        AND a.id::text = substring(tel.agent_name FROM 13)
                     )
                     WHERE tel.created_at > NOW() - INTERVAL '30 minutes'
                     ORDER BY tel.created_at DESC

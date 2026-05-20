@@ -120,7 +120,7 @@
     if (!rows.length) {
       var emptyTr = document.createElement('tr');
       var emptyTd = document.createElement('td');
-      emptyTd.colSpan = 8;
+      emptyTd.colSpan = 9;
       emptyTd.style.cssText = 'text-align:center;opacity:0.5;';
       emptyTd.textContent = 'No records found';
       emptyTr.appendChild(emptyTd);
@@ -163,6 +163,16 @@
       _appendTd(tr, r.agent_name);
       _appendTd(tr, r.capability);
       _appendTd(tr, r.module);
+      // Node column — shows which fleet node handled the request
+      var nodeTd = document.createElement('td');
+      var nodeVal = r.node_name || 'Hub';
+      // Short labels for fleet nodes
+      nodeVal = nodeVal.replace('Archie Starbase', 'Hub').replace('Starship-', '.').replace('outpost-us', 'outpost');
+      nodeTd.textContent = nodeVal;
+      nodeTd.style.color = nodeVal === 'Hub' ? 'var(--dhq-text-dim)' : '#00bcd4';
+      nodeTd.style.fontFamily = '\'IBM Plex Mono\',monospace';
+      nodeTd.style.fontSize = '0.68rem';
+      tr.appendChild(nodeTd);
       _appendTd(tr, r.model_used ? r.model_used.split(':')[0] : '—');
 
       /* Duration — colour-coded */
@@ -184,7 +194,7 @@
       detailTr.id = 'dh-detail-' + i;
       detailTr.style.display = 'none';
       var detailTd = document.createElement('td');
-      detailTd.colSpan = 8;
+      detailTd.colSpan = 9;
       var div = document.createElement('div');
       div.className = 'dh-expand-details';
 

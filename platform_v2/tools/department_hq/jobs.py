@@ -1415,11 +1415,66 @@ def _register_own_jobs(scheduler, flask_app):
     # Job #123: WTF Geo Extraction — location mapping via L.O.C.A.L.
     # Runs every 30 min at :05 and :35 (staggered from LLM).
     def _run_wtf_geo():
-        try:
-            import json as _json
-            from tools.department_hq.services.department_dispatcher import dispatch
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import json as _json
 
-            processed = failed = consecutive_failures = 0
+        def _geo_one(app, row):
+            with app.app_context():
+                from tools.department_hq.services.department_dispatcher import dispatch
+
+                aid = row["id"]
+                title = row["title"]
+                body = (row["body"] or "")[:1000]
+                prompt = (
+                    f"Extract the primary geographic location this news article is about.\n\n"
+                    f"Title: {title}\nBody: {body}\n\n"
+                    'Return ONLY valid JSON: {"province_code": "ON" or null, "country_code": "CA"|"US"|... or null, '
+                    '"city": "Toronto" or null, "lat": float or null, "lng": float or null, '
+                    '"geo_scope": "national|provincial|municipal|international", "geo_confidence": 0.0-1.0}'
+                )
+                result = dispatch(
+                    capability="geo_extraction",
+                    prompt=prompt,
+                    module_id="wtf_dhq_geo",
+                    json_mode=True,
+                )
+                if not result.success:
+                    return aid, False
+                try:
+                    parsed = (
+                        _json.loads(result.response) if isinstance(result.response, str) else (result.response or {})
+                    )
+                except Exception:
+                    parsed = {}
+                try:
+                    with _wtf_cur(commit=True) as cur:
+                        cur.execute(
+                            """
+                            UPDATE wtf.articles
+                            SET province_code = %s, city = %s, lat = %s, lng = %s,
+                                geo_scope = %s
+                            WHERE id = %s AND province_code IS NULL
+                            """,
+                            (
+                                parsed.get("province_code"),
+                                parsed.get("city"),
+                                parsed.get("lat"),
+                                parsed.get("lng"),
+                                parsed.get("geo_scope") or "national",
+                                aid,
+                            ),
+                        )
+                    return aid, True
+                except Exception as persist_exc:
+                    logger.warning("[WTFGeoJob] persist failed article=%s: %s", aid, persist_exc)
+                    return aid, False
+
+        try:
+            from flask import current_app
+
+            app = current_app._get_current_object()
+            processed = failed = 0
+            tried_ids: set = set()
 
             while processed + failed < _WTF_MAX_PER_CYCLE:
                 with _wtf_cur() as cur:
@@ -1430,76 +1485,41 @@ def _register_own_jobs(scheduler, flask_app):
                         WHERE a.province_code IS NULL
                           AND a.city IS NULL
                           AND a.published_at > NOW() - INTERVAL '90 days'
+                          AND a.id != ALL(%s)
                         ORDER BY a.published_at DESC
                         LIMIT %s
                         """,
-                        (_WTF_BATCH,),
+                        (list(tried_ids) or [0], _WTF_BATCH),
                     )
                     batch = cur.fetchall() or []
 
                 if not batch:
                     break
 
-                for row in batch:
-                    if processed + failed >= _WTF_MAX_PER_CYCLE:
-                        break
-                    aid = row["id"]
-                    title = row["title"]
-                    body = (row["body"] or "")[:1000]
-                    prompt = (
-                        f"Extract the primary geographic location this news article is about.\n\n"
-                        f"Title: {title}\nBody: {body}\n\n"
-                        'Return ONLY valid JSON: {"province_code": "ON" or null, "country_code": "CA"|"US"|... or null, '
-                        '"city": "Toronto" or null, "lat": float or null, "lng": float or null, '
-                        '"geo_scope": "national|provincial|municipal|international", "geo_confidence": 0.0-1.0}'
-                    )
-                    result = dispatch(
-                        capability="geo_extraction",
-                        prompt=prompt,
-                        module_id="wtf_dhq_geo",
-                        json_mode=True,
-                    )
-                    if result.success:
-                        try:
-                            parsed = (
-                                _json.loads(result.response)
-                                if isinstance(result.response, str)
-                                else (result.response or {})
-                            )
-                        except Exception:
-                            parsed = {}
-                        try:
-                            with _wtf_cur(commit=True) as cur:
-                                cur.execute(
-                                    """
-                                    UPDATE wtf.articles
-                                    SET province_code = %s, city = %s, lat = %s, lng = %s,
-                                        geo_scope = %s
-                                    WHERE id = %s AND province_code IS NULL
-                                    """,
-                                    (
-                                        parsed.get("province_code"),
-                                        parsed.get("city"),
-                                        parsed.get("lat"),
-                                        parsed.get("lng"),
-                                        parsed.get("geo_scope") or "national",
-                                        aid,
-                                    ),
-                                )
-                            processed += 1
-                            consecutive_failures = 0
-                        except Exception as persist_exc:
-                            logger.warning("[WTFGeoJob] persist failed article=%s: %s", aid, persist_exc)
-                            failed += 1
-                    else:
-                        failed += 1
-                        consecutive_failures += 1
-                        if consecutive_failures >= _WTF_FAILBACK_THRESHOLD:
-                            logger.warning(
-                                "[WTFGeoJob] %d consecutive fleet failures — VPS fallback active this cycle",
-                                consecutive_failures,
-                            )
-                            break
+                with ThreadPoolExecutor(max_workers=4) as executor:
+                    futures = {executor.submit(_geo_one, app, row): row["id"] for row in batch}
+                    try:
+                        for future in as_completed(futures, timeout=300):
+                            aid = futures[future]
+                            tried_ids.add(aid)
+                            try:
+                                _, success = future.result()
+                                if success:
+                                    processed += 1
+                                else:
+                                    failed += 1
+                            except Exception as exc:
+                                logger.debug("[WTFGeoJob] article %s error: %s", aid, exc)
+                                failed += 1
+                    except Exception:
+                        unfinished = {aid for fut, aid in futures.items() if not fut.done()}
+                        tried_ids.update(unfinished)
+                        failed += len(unfinished)
+                        logger.warning("[WTFGeoJob] batch timeout — %d unfinished, continuing", len(unfinished))
+
+                if failed > 0 and processed == 0:
+                    logger.warning("[WTFGeoJob] full batch failed — stopping cycle")
+                    break
 
             logger.info("[WTFGeoJob] cycle done: processed=%d failed=%d", processed, failed)
         except Exception as exc:
@@ -1519,31 +1539,109 @@ def _register_own_jobs(scheduler, flask_app):
     # Job #124: WTF Factcheck — claim verification via V.E.R.I.F.Y.
     # Runs every 30 min at :10 and :40.
     def _run_wtf_factcheck():
-        try:
-            import json as _json
-            from tools.department_hq.services.department_dispatcher import dispatch
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import json as _json
 
-            processed = failed = consecutive_failures = 0
-            _VERDICT_MAP = {
-                "verified": "true",
-                "true": "true",
-                "mostly_true": "mostly_true",
-                "mixed": "mixed",
-                "disputed": "false",
-                "false": "false",
-                "unverifiable": "unverified",
-                "unverified": "unverified",
-            }
-            _OVERALL_MAP = {
-                "verified": "verified",
-                "true": "verified",
-                "mostly_true": "mostly_true",
-                "mixed": "mixed",
-                "disputed": "disputed",
-                "false": "disputed",
-                "unverifiable": "unverifiable",
-                "unverified": "unverifiable",
-            }
+        _VERDICT_MAP = {
+            "verified": "true",
+            "true": "true",
+            "mostly_true": "mostly_true",
+            "mixed": "mixed",
+            "disputed": "false",
+            "false": "false",
+            "unverifiable": "unverified",
+            "unverified": "unverified",
+        }
+        _OVERALL_MAP = {
+            "verified": "verified",
+            "true": "verified",
+            "mostly_true": "mostly_true",
+            "mixed": "mixed",
+            "disputed": "disputed",
+            "false": "disputed",
+            "unverifiable": "unverifiable",
+            "unverified": "unverifiable",
+        }
+
+        def _check_one(app, row):
+            with app.app_context():
+                from tools.department_hq.services.department_dispatcher import dispatch
+
+                aid = row["id"]
+                title = row["title"]
+                body = (row["body"] or "")[:2000]
+                prompt = (
+                    f"Fact-check the claims in this Canadian news article.\n\n"
+                    f"Title: {title}\nBody: {body}\n\n"
+                    'Return ONLY valid JSON: {"claims": [{"text": str, "verdict": str, "reasoning": str}], '
+                    '"overall_verdict": string, "confidence": float}. '
+                    "Verdicts: verified | mixed | disputed | unverifiable"
+                )
+                result = dispatch(
+                    capability="fact_check",
+                    prompt=prompt,
+                    module_id="wtf_dhq_factcheck",
+                    json_mode=True,
+                )
+                if not result.success:
+                    return aid, False
+                try:
+                    parsed = (
+                        _json.loads(result.response) if isinstance(result.response, str) else (result.response or {})
+                    )
+                except Exception:
+                    parsed = {}
+                claims = parsed.get("claims") or []
+                overall_raw = (parsed.get("overall_verdict") or "unverifiable").lower()
+                overall = _OVERALL_MAP.get(overall_raw, "unverifiable")
+                claims_json = _json.dumps(claims)
+                try:
+                    with _wtf_cur(commit=True) as cur:
+                        cur.execute(
+                            "DELETE FROM wtf.fact_checks WHERE article_id = %s AND analyzed_by = 'dhq_v1'",
+                            (aid,),
+                        )
+                        if claims:
+                            for claim_item in claims:
+                                claim_text = str(claim_item.get("text") or "")[:2000]
+                                if not claim_text:
+                                    continue
+                                verdict = _VERDICT_MAP.get(
+                                    str(claim_item.get("verdict") or "unverified").lower().strip(),
+                                    "unverified",
+                                )
+                                evidence = str(claim_item.get("reasoning") or claim_item.get("evidence") or "")[:4000]
+                                cur.execute(
+                                    """
+                                    INSERT INTO wtf.fact_checks
+                                        (article_id, claim, verdict, evidence, checker,
+                                         analyzed_by, claims, overall_verdict)
+                                    VALUES (%s, %s, %s, %s, 'fact_v1', 'dhq_v1', %s::jsonb, %s)
+                                    """,
+                                    (aid, claim_text, verdict, evidence, claims_json, overall),
+                                )
+                        else:
+                            cur.execute(
+                                """
+                                INSERT INTO wtf.fact_checks
+                                    (article_id, claim, verdict, evidence, checker,
+                                     analyzed_by, claims, overall_verdict)
+                                VALUES (%s, 'No verifiable claims detected.', 'unverified', '',
+                                        'fact_v1', 'dhq_v1', '[]'::jsonb, 'unverifiable')
+                                """,
+                                (aid,),
+                            )
+                    return aid, True
+                except Exception as persist_exc:
+                    logger.warning("[WTFFactcheckJob] persist failed article=%s: %s", aid, persist_exc)
+                    return aid, False
+
+        try:
+            from flask import current_app
+
+            app = current_app._get_current_object()
+            processed = failed = 0
+            tried_ids: set = set()
 
             while processed + failed < _WTF_MAX_PER_CYCLE:
                 with _wtf_cur() as cur:
@@ -1556,100 +1654,41 @@ def _register_own_jobs(scheduler, flask_app):
                               SELECT 1 FROM wtf.fact_checks fc
                               WHERE fc.article_id = a.id AND fc.analyzed_by = 'dhq_v1'
                           )
+                          AND a.id != ALL(%s)
                         ORDER BY a.published_at DESC
                         LIMIT %s
                         """,
-                        (_WTF_BATCH,),
+                        (list(tried_ids) or [0], _WTF_BATCH),
                     )
                     batch = cur.fetchall() or []
 
                 if not batch:
                     break
 
-                for row in batch:
-                    if processed + failed >= _WTF_MAX_PER_CYCLE:
-                        break
-                    aid = row["id"]
-                    title = row["title"]
-                    body = (row["body"] or "")[:2000]
-                    prompt = (
-                        f"Fact-check the claims in this Canadian news article.\n\n"
-                        f"Title: {title}\nBody: {body}\n\n"
-                        'Return ONLY valid JSON: {"claims": [{"text": str, "verdict": str, "reasoning": str}], '
-                        '"overall_verdict": string, "confidence": float}. '
-                        "Verdicts: verified | mixed | disputed | unverifiable"
-                    )
-                    result = dispatch(
-                        capability="fact_check",
-                        prompt=prompt,
-                        module_id="wtf_dhq_factcheck",
-                        json_mode=True,
-                    )
-                    if result.success:
-                        try:
-                            parsed = (
-                                _json.loads(result.response)
-                                if isinstance(result.response, str)
-                                else (result.response or {})
-                            )
-                        except Exception:
-                            parsed = {}
-                        claims = parsed.get("claims") or []
-                        overall_raw = (parsed.get("overall_verdict") or "unverifiable").lower()
-                        overall = _OVERALL_MAP.get(overall_raw, "unverifiable")
-                        claims_json = _json.dumps(claims)
-                        try:
-                            with _wtf_cur(commit=True) as cur:
-                                cur.execute(
-                                    "DELETE FROM wtf.fact_checks WHERE article_id = %s AND analyzed_by = 'dhq_v1'",
-                                    (aid,),
-                                )
-                                if claims:
-                                    for claim_item in claims:
-                                        claim_text = str(claim_item.get("text") or "")[:2000]
-                                        if not claim_text:
-                                            continue
-                                        verdict = _VERDICT_MAP.get(
-                                            str(claim_item.get("verdict") or "unverified").lower().strip(),
-                                            "unverified",
-                                        )
-                                        evidence = str(claim_item.get("reasoning") or claim_item.get("evidence") or "")[
-                                            :4000
-                                        ]
-                                        cur.execute(
-                                            """
-                                            INSERT INTO wtf.fact_checks
-                                                (article_id, claim, verdict, evidence, checker,
-                                                 analyzed_by, claims, overall_verdict)
-                                            VALUES (%s, %s, %s, %s, 'fact_v1', 'dhq_v1', %s::jsonb, %s)
-                                            """,
-                                            (aid, claim_text, verdict, evidence, claims_json, overall),
-                                        )
+                with ThreadPoolExecutor(max_workers=4) as executor:
+                    futures = {executor.submit(_check_one, app, row): row["id"] for row in batch}
+                    try:
+                        for future in as_completed(futures, timeout=300):
+                            aid = futures[future]
+                            tried_ids.add(aid)
+                            try:
+                                _, success = future.result()
+                                if success:
+                                    processed += 1
                                 else:
-                                    cur.execute(
-                                        """
-                                        INSERT INTO wtf.fact_checks
-                                            (article_id, claim, verdict, evidence, checker,
-                                             analyzed_by, claims, overall_verdict)
-                                        VALUES (%s, 'No verifiable claims detected.', 'unverified', '',
-                                                'fact_v1', 'dhq_v1', '[]'::jsonb, 'unverifiable')
-                                        """,
-                                        (aid,),
-                                    )
-                            processed += 1
-                            consecutive_failures = 0
-                        except Exception as persist_exc:
-                            logger.warning("[WTFFactcheckJob] persist failed article=%s: %s", aid, persist_exc)
-                            failed += 1
-                    else:
-                        failed += 1
-                        consecutive_failures += 1
-                        if consecutive_failures >= _WTF_FAILBACK_THRESHOLD:
-                            logger.warning(
-                                "[WTFFactcheckJob] %d consecutive fleet failures — VPS fallback active this cycle",
-                                consecutive_failures,
-                            )
-                            break
+                                    failed += 1
+                            except Exception as exc:
+                                logger.debug("[WTFFactcheckJob] article %s error: %s", aid, exc)
+                                failed += 1
+                    except Exception:
+                        unfinished = {aid for fut, aid in futures.items() if not fut.done()}
+                        tried_ids.update(unfinished)
+                        failed += len(unfinished)
+                        logger.warning("[WTFFactcheckJob] batch timeout — %d unfinished, continuing", len(unfinished))
+
+                if failed > 0 and processed == 0:
+                    logger.warning("[WTFFactcheckJob] full batch failed — stopping cycle")
+                    break
 
             logger.info("[WTFFactcheckJob] cycle done: processed=%d failed=%d", processed, failed)
         except Exception as exc:

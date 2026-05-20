@@ -1505,7 +1505,7 @@ def register_dashboard_routes(bp, auth_decorator):
                     """
                     SELECT model_needed, capability, status, COUNT(*) AS cnt,
                            MIN(queued_at) AS oldest,
-                           MODE() WITHIN GROUP (ORDER BY module_source) AS top_module
+                           MODE() WITHIN GROUP (ORDER BY module_id) AS top_module
                     FROM dispatch_pending_queue
                     WHERE status IN ('queued', 'running')
                     GROUP BY model_needed, capability, status
@@ -1533,13 +1533,41 @@ def register_dashboard_routes(bp, auth_decorator):
                 )
                 totals = {r["status"]: r["cnt"] for r in cur.fetchall()}
 
+            # --- fleet node model state from DB (job #46 saves every 5m) ---
+            fleet_loaded = []
+            try:
+                with get_db_cursor(commit=False) as (_, cur2):
+                    cur2.execute(
+                        """
+                        SELECT mls.model_name, mls.size_gb, rn.node_name
+                        FROM model_load_state mls
+                        JOIN remote_nodes rn ON rn.id = mls.node_db_id
+                        WHERE mls.host_type = 'node'
+                        ORDER BY rn.node_name, mls.model_name
+                        """
+                    )
+                    for row in cur2.fetchall():
+                        n = row["node_name"] or ""
+                        short = n.replace("Starship-", ".").replace("Archie Starbase", "Hub").strip() or n
+                        fleet_loaded.append(
+                            {
+                                "name": row["model_name"],
+                                "vram_gb": float(row["size_gb"] or 0),
+                                "node": short,
+                            }
+                        )
+            except Exception:
+                pass
+
             loaded = []
             try:
                 resp = _ureq.urlopen("http://192.168.1.200:11434/api/ps", timeout=3)
                 for m in _json.loads(resp.read()).get("models", []):
-                    loaded.append({"name": m["name"], "vram_gb": round(m.get("size_vram", 0) / 1e9, 1)})
+                    loaded.append({"name": m["name"], "vram_gb": round(m.get("size_vram", 0) / 1e9, 1), "node": "Hub"})
             except Exception:
                 pass
+
+            loaded.extend(fleet_loaded)
 
             return jsonify(
                 success=True,

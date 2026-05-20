@@ -3375,17 +3375,21 @@ function loadQueueStatus() {
                     lp.appendChild(none);
                 } else {
                     data.loaded.forEach(function(m) {
+                        var isFleet = m.node && m.node !== 'Hub';
                         var row = document.createElement('div');
                         row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);';
                         var dot = document.createElement('span');
-                        dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#10b981;flex-shrink:0;';
+                        dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + (isFleet ? '#00bcd4' : '#10b981') + ';';
                         var name = document.createElement('span');
                         name.style.cssText = 'color:var(--dhq-text-main);font-family:"IBM Plex Mono",monospace;font-size:0.75rem;';
                         name.textContent = m.name;
+                        var nodeBadge = document.createElement('span');
+                        nodeBadge.style.cssText = 'font-size:0.67rem;font-family:"IBM Plex Mono",monospace;color:' + (isFleet ? '#00bcd4' : 'var(--dhq-text-dim)') + ';';
+                        nodeBadge.textContent = m.node || 'Hub';
                         var vram = document.createElement('span');
                         vram.style.cssText = 'margin-left:auto;color:var(--dhq-text-dim);font-size:0.72rem;';
-                        vram.textContent = m.vram_gb + ' GB VRAM';
-                        row.appendChild(dot); row.appendChild(name); row.appendChild(vram);
+                        vram.textContent = m.vram_gb > 0 ? m.vram_gb + ' GB' : 'CPU';
+                        row.appendChild(dot); row.appendChild(name); row.appendChild(nodeBadge); row.appendChild(vram);
                         lp.appendChild(row);
                     });
                 }

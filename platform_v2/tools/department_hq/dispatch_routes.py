@@ -1197,8 +1197,8 @@ def register_dispatch_routes(bp, admin_required_decorator):
         now = now_utc()
         default_from = (now - timedelta(days=7)).strftime("%Y-%m-%d")
         default_to = now.strftime("%Y-%m-%d")
-        from_date = request.args.get("from_date", default_from)
-        to_date = request.args.get("to_date", default_to)
+        from_date = (request.args.get("from_date", "") or "").strip() or default_from
+        to_date = (request.args.get("to_date", "") or "").strip() or default_to
         type_filter = request.args.get("type", "all").strip()
         priority_filter = request.args.get("priority", "all").strip()
         status_filter = request.args.get("status", "all").strip()
@@ -1212,8 +1212,9 @@ def register_dispatch_routes(bp, admin_required_decorator):
 
         try:
             with get_db_cursor() as (conn, cur):
+                # History view shows all alerts (including archived/processed).
+                # Active-only filter available via status_filter='active'.
                 conditions = [
-                    "is_archived = false",
                     "created_at >= %(from_date)s::date",
                     "created_at < %(to_date)s::date + interval '1 day'",
                 ]
@@ -1229,6 +1230,10 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     conditions.append("is_read = false")
                 elif status_filter == "read":
                     conditions.append("is_read = true")
+                elif status_filter == "active":
+                    conditions.append("is_archived = false")
+                elif status_filter == "archived":
+                    conditions.append("is_archived = true")
                 if q:
                     conditions.append(
                         "(title ILIKE %(q_like)s OR message ILIKE %(q_like)s" " OR source ILIKE %(q_like)s)"

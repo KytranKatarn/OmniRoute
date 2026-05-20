@@ -1035,12 +1035,15 @@ class DepartmentDispatcher:
                     "mood": r["current_mood"] or "neutral",
                 }
 
-            # --- Active rest cycles (ended_at IS NULL) ---
+            # --- Active rest cycles (open-ended OR scheduled end in future) ---
+            # Old cycles: ended_at IS NULL (no duration set — reaper closes after 30m)
+            # New cycles: ended_at = started_at + 30min (set at INSERT time)
             cur.execute(
                 """
-                SELECT agent_id, rest_type
+                SELECT DISTINCT ON (agent_id) agent_id, rest_type
                 FROM agent_rest_cycles
-                WHERE ended_at IS NULL
+                WHERE ended_at IS NULL OR ended_at > NOW()
+                ORDER BY agent_id, started_at DESC
             """
             )
             resting_map = {}  # agent_id → rest_type

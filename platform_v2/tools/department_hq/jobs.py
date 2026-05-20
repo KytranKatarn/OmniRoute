@@ -1157,6 +1157,26 @@ def _register_own_jobs(scheduler, flask_app):
                         len(stale_queued),
                     )
 
+                # Close open rest cycles older than 30 minutes — rest period is 30 min max.
+                # agent_rest_cycles has no auto-close logic; without this the cycles
+                # accumulate every hour and K.I.N. enforcement blocks all dispatches.
+                cur.execute(
+                    """
+                    UPDATE agent_rest_cycles
+                       SET ended_at = started_at + INTERVAL '30 minutes',
+                           notes = COALESCE(notes,'') || ' [auto-closed by reaper: 30min rest period]'
+                     WHERE ended_at IS NULL
+                       AND started_at < NOW() - INTERVAL '30 minutes'
+                    RETURNING agent_id
+                    """
+                )
+                closed_rests = cur.fetchall() or []
+                if closed_rests:
+                    logger.info(
+                        "[DeptHQ] Rest reaper: auto-closed %d expired rest cycles",
+                        len(closed_rests),
+                    )
+
             if reaped:
                 summary = ", ".join(f"{r['agent_name']}/{r['capability']}" for r in reaped[:5])
                 if len(reaped) > 5:

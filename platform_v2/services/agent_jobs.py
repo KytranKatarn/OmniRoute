@@ -360,16 +360,20 @@ def track_agent_hr():
                 {"work_hours": hours},
             )
 
-            # Auto-initiate rest cycle for overworked agents
+            # Auto-initiate rest cycle for overworked agents (30-min rest period)
+            # ended_at set at INSERT so K.I.N. enforcement unblocks automatically
+            # even if the reaper hasn't run yet.
             cur.execute(
                 """
                 INSERT INTO agent_rest_cycles
-                (agent_id, rest_type, reason, started_at)
-                SELECT %s, 'automatic', 'Automatic rest: exceeded 8h work threshold', NOW()
+                (agent_id, rest_type, reason, started_at, ended_at)
+                SELECT %s, 'automatic', 'Automatic rest: exceeded 8h work threshold',
+                       NOW(), NOW() + INTERVAL '30 minutes'
                 WHERE NOT EXISTS (
                     SELECT 1 FROM agent_rest_cycles
                     WHERE agent_id = %s
                       AND started_at > NOW() - INTERVAL '1 hour'
+                      AND (ended_at IS NULL OR ended_at > NOW())
                 )
             """,
                 (row["agent_id"], row["agent_id"]),

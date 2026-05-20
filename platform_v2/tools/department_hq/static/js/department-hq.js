@@ -3403,21 +3403,23 @@ function switchArmadaSection(s) {
         loadClaudeFeed();
     }
 
-    // CONTROL: show scheduler/config/jobs sections + alerts history
+    // CONTROL: alerts history + link to Autonomy tab for scheduler/config
+    // NOTE: dispatchSchedContent/dispatchConfigContent/jobMonitorContent live in
+    // panel-autonomy — do NOT move them here (would break the Autonomy tab).
     if (s === 'control' && !_armadaMounted.control) {
         _armadaMounted.control = true;
         var ctrlTarget = document.getElementById('armadaSection-control');
         if (ctrlTarget) {
-            // Move scheduler, config, jobs by dept sections
-            ['dispatchSchedContent','dispatchConfigContent','jobMonitorContent'].forEach(function(id) {
-                var el = document.getElementById(id);
-                if (el && el.parentNode && el.parentNode !== ctrlTarget) ctrlTarget.appendChild(el.parentNode);
-            });
-            // Move alerts history into control (it has its own section wrapper)
+            // Move alerts history into control
             var ahSec = document.getElementById('alerts-history-section');
             if (ahSec) { ahSec.style.display = ''; ctrlTarget.appendChild(ahSec); }
+            // Add a shortcut to Autonomy tab for scheduler/config
+            var link = document.createElement('div');
+            link.style.cssText = 'padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;font-size:0.75rem;color:var(--dhq-text-dim);margin-bottom:12px;';
+            link.innerHTML = '<span style="color:var(--dhq-text-dim);">Scheduler Jobs, Autonomy Config, and Jobs By Department live in the </span>'
+                + '<button onclick="switchTab(\'autonomy\')" style="background:none;border:none;color:#00bcd4;cursor:pointer;font-size:0.75rem;text-decoration:underline;padding:0;">AUTONOMY tab →</button>';
+            ctrlTarget.insertBefore(link, ctrlTarget.firstChild);
         }
-        loadDispatchScheduler(); loadDispatchConfig();
         if (typeof window.ahFetch === 'function') window.ahFetch(true);
     }
 

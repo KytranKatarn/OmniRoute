@@ -1761,12 +1761,24 @@ class DepartmentDispatcher:
             logger.warning(f"[BridgeDispatcher] Fleet agent lookup failed: {e}")
             return None
 
-    def _find_fleet_agent_for_hub_agent(self, hub_agent_id: int) -> Optional[Dict]:
+    def _find_fleet_agent_for_hub_agent(self, hub_agent_id: int, prefer_hub: bool = False) -> Optional[Dict]:
         """Check if a hub agent is stationed on an online fleet node.
 
         Returns the same agent_info dict shape as _find_fleet_agent() so the
         caller can pass it directly to _dispatch_to_node(), or None if no
         active node assignment exists.
+
+        Fleet-first routing (ADR-fleet-cluster-2026-05-20):
+          By default, prefers fleet Starship/outpost nodes over the hub node so
+          that all platform agents distribute across the cluster.  Pass
+          prefer_hub=True for jobs that must stay on hub (local_only, oversized
+          models, platform-critical tasks).
+
+        Node selection order:
+          1. Fleet nodes (bridge_priority < 100) that have the agent's model
+             listed in extra_capabilities->ollama_models — highest bridge_priority
+             first (Starship-246 > outpost-us).
+          2. Hub (bridge_priority = 100) as fallback when no fleet node fits.
         """
         try:
             from psycopg2.extras import RealDictCursor
@@ -1777,7 +1789,8 @@ class DepartmentDispatcher:
                 """
                 SELECT na.model, na.display_name,
                        rn.id as node_id, rn.node_name,
-                       rn.hostname, rn.port, rn.vpn_ip
+                       rn.hostname, rn.port, rn.vpn_ip,
+                       rn.bridge_priority
                 FROM node_agents na
                 JOIN remote_nodes rn ON rn.id = na.node_id
                 WHERE na.hub_agent_id = %s
@@ -1785,10 +1798,25 @@ class DepartmentDispatcher:
                   AND rn.status = 'online'
                   AND rn.approval_status = 'approved'
                   AND rn.last_heartbeat > NOW() - INTERVAL '2 minutes'
-                ORDER BY rn.last_heartbeat DESC
+                  AND (
+                      na.model IS NULL
+                      OR rn.extra_capabilities IS NULL
+                      OR rn.extra_capabilities->'ollama_models' IS NULL
+                      OR na.model = ANY(
+                          SELECT jsonb_array_elements_text(
+                              rn.extra_capabilities->'ollama_models'
+                          )
+                      )
+                  )
+                ORDER BY
+                    CASE WHEN %s THEN (100 - rn.bridge_priority)
+                         ELSE CASE WHEN rn.bridge_priority < 100 THEN 0 ELSE 1 END
+                    END ASC,
+                    rn.bridge_priority DESC,
+                    rn.last_heartbeat DESC
                 LIMIT 1
                 """,
-                (hub_agent_id,),
+                (hub_agent_id, prefer_hub),
             )
             row = cur.fetchone()
             conn.close()
@@ -4829,7 +4857,7 @@ class DepartmentDispatcher:
         if agent:
             _hub_agent_id = agent.get("id") if isinstance(agent, dict) else getattr(agent, "id", None)
             if _hub_agent_id:
-                _node_assign = self._find_fleet_agent_for_hub_agent(_hub_agent_id)
+                _node_assign = self._find_fleet_agent_for_hub_agent(_hub_agent_id, prefer_hub=local_only)
                 if _node_assign:
                     logger.info(
                         "[BridgeDispatcher] Node-preference: %s@%s for '%s' (agent %s stationed on fleet)",

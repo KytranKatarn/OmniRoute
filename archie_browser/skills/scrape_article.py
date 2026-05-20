@@ -25,6 +25,17 @@ def execute(page, params: dict) -> dict:
     except Exception as exc:
         return {"success": False, "error": f"Navigation failed: {exc}", "url": url}
 
+    # Google News RSS URLs (news.google.com/rss/articles/CBM...) redirect to the
+    # actual article via JS. Wait up to 8s for the redirect to complete.
+    if "news.google.com" in page.url:
+        try:
+            page.wait_for_url(
+                lambda u: "news.google.com" not in u and "google.com" not in u,
+                timeout=8000,
+            )
+        except Exception:
+            return {"success": False, "error": "Google News redirect did not complete", "url": url}
+
     # Brief wait for JS-rendered content
     page.wait_for_timeout(1500)
 

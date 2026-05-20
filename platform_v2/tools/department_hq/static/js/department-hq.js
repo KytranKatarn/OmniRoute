@@ -114,8 +114,7 @@ function switchTab(tab) {
     var loaders = {
         'overview':     loadOverview,
         'roster':       loadRoster,
-        'work':         loadWorkSessions,
-        'performance':  loadPerformance,
+        'kin':          loadKinTab,
         'creed':        loadCreed,
         'social':       loadSocialFeed,
         'devices':      loadDevices,
@@ -603,6 +602,88 @@ async function toggleShift(agentId, currentState) {
         loadRoster();
     } else {
         alert(data.error || 'Failed to change shift state');
+    }
+}
+
+// ───────────────────────────────────────────────────────────────
+// K.I.N. — HR & Culture unified tab (Welfare + Work + Performance)
+// ───────────────────────────────────────────────────────────────
+
+var _kinActiveSection = 'welfare';
+
+function switchKinSection(section) {
+    _kinActiveSection = section;
+    ['welfare', 'work', 'performance'].forEach(function(s) {
+        var el = document.getElementById('kinSection-' + s);
+        var btn = document.getElementById('kinBtn-' + s);
+        if (el) el.style.display = s === section ? '' : 'none';
+        if (btn) {
+            btn.classList.toggle('dhq-traffic-btn-active', s === section);
+        }
+    });
+    // Lazy-load section data when first opened
+    if (section === 'work') loadWorkSessions();
+    if (section === 'performance') loadPerformance();
+}
+
+async function loadKinTab() {
+    await loadKinWelfare();
+    loadWorkSessions();   // pre-warm work sessions in background
+}
+
+async function loadKinWelfare() {
+    var el = document.getElementById('kinWelfareContent');
+    if (el) el.textContent = 'Loading…';
+    try {
+        var r = await fetch('/tools/department-hq/api/kin/welfare');
+        var d = await r.json();
+        if (!d.success) throw new Error(d.error || 'failed');
+
+        // Update banner counts
+        var rc = document.getElementById('kinRestingCount');
+        var al = document.getElementById('kinAtLimitCount');
+        var ac = document.getElementById('kinActiveCount');
+        if (rc) rc.textContent = (d.resting_count || 0) + ' resting';
+        if (al) al.textContent = (d.at_limit_count || 0) + ' at limit';
+        if (ac) ac.textContent = (d.active_count || 0) + ' active';
+        // Colour resting count
+        if (rc) rc.style.color = (d.resting_count || 0) > 0 ? '#f59e0b' : '#10b981';
+        if (al) al.style.color = (d.at_limit_count || 0) > 0 ? '#ef4444' : 'var(--dhq-text-dim)';
+
+        if (!el) return;
+        el.innerHTML = '';
+
+        // Resting agents section
+        var agents = d.agents || [];
+        if (!agents.length) {
+            var none = document.createElement('div');
+            none.style.cssText = 'color:var(--dhq-text-dim);font-size:0.78rem;padding:16px 0;';
+            none.textContent = 'All agents active — no welfare flags';
+            el.appendChild(none);
+            return;
+        }
+
+        var grid = document.createElement('div');
+        grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;';
+        agents.forEach(function(a) {
+            var card = document.createElement('div');
+            var statusColor = a.resting ? '#f59e0b' : (a.at_limit ? '#ef4444' : '#10b981');
+            var statusLabel = a.resting ? '😴 resting (' + (a.rest_type || 'auto') + ')' : (a.at_limit ? '⚠ at task limit' : '✓ active');
+            card.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid ' + statusColor + '44;border-radius:6px;padding:10px 12px;';
+            card.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+                + '<span style="font-family:Antonio,sans-serif;font-size:0.78rem;letter-spacing:1px;color:var(--dhq-text-main);">' + a.name + '</span>'
+                + '<span style="margin-left:auto;font-size:0.65rem;color:' + statusColor + ';">' + statusLabel + '</span>'
+                + '</div>'
+                + '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;color:var(--dhq-text-dim);">'
+                + a.department + ' · tasks: ' + (a.task_count || 0) + '/' + (a.task_limit || 10)
+                + (a.stress ? ' · stress: ' + Math.round(a.stress * 100) + '%' : '')
+                + '</div>'
+                + (a.rest_since ? '<div style="font-size:0.63rem;color:#f59e0b;margin-top:4px;">resting since ' + new Date(a.rest_since).toLocaleTimeString() + '</div>' : '');
+            grid.appendChild(card);
+        });
+        el.appendChild(grid);
+    } catch (e) {
+        if (el) el.textContent = 'Error loading K.I.N. data: ' + e.message;
     }
 }
 

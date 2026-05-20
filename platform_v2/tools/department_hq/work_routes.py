@@ -18,6 +18,99 @@ def register_work_routes(bp, admin_required):
     """Register work tracking, performance, and C.R.E.E.D. routes."""
 
     # ------------------------------------------------------------------
+    # K.I.N. Welfare Overview — resting agents, budget limits, welfare flags
+    # ------------------------------------------------------------------
+    @bp.route("/api/kin/welfare")
+    @admin_required
+    def api_kin_welfare():
+        """K.I.N. welfare summary: resting agents, task limits, stress flags."""
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT
+                        a.id, a.name, a.department, a.shift_state,
+                        a.worker_type,
+                        ae.stress_level     AS stress,
+                        ae.energy_level     AS energy,
+                        ae.current_mood     AS mood,
+                        ab.current_task_count AS task_count,
+                        ab.task_queue_limit   AS task_limit,
+                        rc.rest_type,
+                        rc.started_at AS rest_since
+                    FROM agents a
+                    LEFT JOIN LATERAL (
+                        SELECT stress_level, energy_level, current_mood
+                        FROM agent_emotional_state
+                        WHERE agent_id = a.id
+                        ORDER BY timestamp DESC LIMIT 1
+                    ) ae ON TRUE
+                    LEFT JOIN agent_budgets ab ON ab.agent_id = a.id
+                    LEFT JOIN LATERAL (
+                        SELECT rest_type, started_at FROM agent_rest_cycles
+                        WHERE agent_id = a.id AND ended_at IS NULL
+                        ORDER BY started_at DESC LIMIT 1
+                    ) rc ON TRUE
+                    WHERE a.worker_type = 'ai'
+                      AND a.shift_state != 'decommissioned'
+                    ORDER BY
+                        (rc.rest_type IS NOT NULL) DESC,
+                        (ab.current_task_count >= ab.task_queue_limit) DESC,
+                        ae.stress_level DESC NULLS LAST
+                    """
+                )
+                rows = cur.fetchall() or []
+
+            agents = []
+            resting_count = 0
+            at_limit_count = 0
+            active_count = 0
+
+            for r in rows:
+                is_resting = r["rest_type"] is not None
+                task_count = r["task_count"] or 0
+                task_limit = r["task_limit"] or 10
+                at_limit = task_count >= task_limit
+
+                if is_resting:
+                    resting_count += 1
+                elif at_limit:
+                    at_limit_count += 1
+                else:
+                    active_count += 1
+
+                # Only include flagged agents in the welfare cards
+                if is_resting or at_limit or (r["stress"] or 0) > 0.7:
+                    agents.append(
+                        {
+                            "id": r["id"],
+                            "name": r["name"],
+                            "department": r["department"],
+                            "shift_state": r["shift_state"],
+                            "resting": is_resting,
+                            "rest_type": r["rest_type"],
+                            "rest_since": (r["rest_since"].isoformat() if r["rest_since"] else None),
+                            "at_limit": at_limit,
+                            "task_count": task_count,
+                            "task_limit": task_limit,
+                            "stress": float(r["stress"]) if r["stress"] else 0.0,
+                            "energy": float(r["energy"]) if r["energy"] else 0.8,
+                            "mood": r["mood"],
+                        }
+                    )
+
+            return jsonify(
+                success=True,
+                agents=agents,
+                resting_count=resting_count,
+                at_limit_count=at_limit_count,
+                active_count=active_count,
+                total_ai_agents=resting_count + at_limit_count + active_count,
+            )
+        except Exception as e:
+            return jsonify(success=False, error=str(e)[:200]), 500
+
+    # ------------------------------------------------------------------
     # Work Sessions
     # ------------------------------------------------------------------
     @bp.route("/api/work-sessions")

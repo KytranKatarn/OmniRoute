@@ -480,10 +480,23 @@ class DepartmentCoordinator:
 
         self._refresh_caches()
         welfare = self._welfare_cache.get(agent_id, {})
+
+        # K.I.N. welfare enforcement — respect active rest cycles
+        # agent_rest_cycles.ended_at IS NULL = agent is resting (K.I.N. decision)
+        if welfare.get("resting"):
+            rest_type = welfare.get("rest_type", "automatic")
+            return (0.0, f"{agent_name} is in active rest cycle ({rest_type}) — K.I.N. enforced")
+
         budget = welfare.get("budget", {})
         util_pct = budget.get("utilization_pct", 0.0)
         if util_pct >= 0.95:
             return (0.0, f"{agent_name} budget exhausted ({util_pct:.0%})")
+
+        # K.I.N. task queue limit enforcement
+        task_count = budget.get("current_task_count", 0)
+        task_limit = budget.get("task_queue_limit", 10)
+        if task_count >= task_limit:
+            return (0.0, f"{agent_name} at task queue limit ({task_count}/{task_limit}) — K.I.N. enforced")
 
         score = 1.0
         stress = welfare.get("stress", 0.0)

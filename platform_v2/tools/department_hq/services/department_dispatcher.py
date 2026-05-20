@@ -4872,7 +4872,20 @@ class DepartmentDispatcher:
         #     the warm-model call there via mesh_ip. Fails open — any error
         #     falls through to normal hub execution. Gated by agent-mobility
         #     toggle (fleet_node_routing_enabled in system_config).
-        if agent and _fleet_routing_enabled():
+        #     Shift-state guard: don't route to fleet nodes if the agent is
+        #     resting, in cooldown, or barracked — hub-local fallback only.
+        _BLOCKED_SHIFT_STATES = {"resting", "cooldown", "barracked"}
+        _agent_shift_state = (
+            agent.get("shift_state") if isinstance(agent, dict) else getattr(agent, "shift_state", None)
+        ) or "active"
+        _agent_shift_blocked = _agent_shift_state in _BLOCKED_SHIFT_STATES
+        if _agent_shift_blocked:
+            logger.info(
+                "[BridgeDispatcher] Warm-path fleet routing skipped — agent shift_state=%s (cap=%s)",
+                _agent_shift_state,
+                capability,
+            )
+        if agent and _fleet_routing_enabled() and not _agent_shift_blocked:
             # Resolve the agent's model once — `model` is not yet a local
             # variable at this point in request_work() (it's assigned later
             # in the hub-execute branch). Without this derivation, any

@@ -28,8 +28,7 @@
     ("overview", "Overview", "layout-dashboard"),
     ("org-chart", "Org Chart", "network"),
     ("roster", "Roster", "users"),
-    ("work", "Work Tracking", "clipboard-list"),
-    ("performance", "Performance", "bar-chart-3"),
+    ("kin", "K.I.N.", "heart-pulse"),
     ("creed", "C.R.E.E.D.", "shield-check"),
     ("social", "S.I.G.N.A.L.", "heart"),
     ("scout", "S.C.O.U.T.", "radar"),
@@ -124,39 +123,57 @@
       </div>
     </div>
 
-    <!-- WORK TRACKING -->
-    <div class="dhq-panel" id="panel-work">
+    <!-- K.I.N. — Human Resources, Welfare, Work Tracking & Performance -->
+    <div class="dhq-panel" id="panel-kin">
       <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
         <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;"><div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div><div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div><div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div></div>
         <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
-          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;"><span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">WORK TRACKING</span><div style="flex:1"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">SESSIONS</span><div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div></div>
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;"><span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">K.I.N. — HR &amp; CULTURE</span><div style="flex:1"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">WELFARE · WORK · PERFORMANCE</span><div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div></div>
           <div style="flex:1 !important;padding:16px !important;">
-      <div class="dhq-work-controls">
-        <select id="workDept" class="dhq-select" onchange="loadWorkSessions()">
-          <option value="">All Departments</option>
-        </select>
-        <select id="workStatus" class="dhq-select" onchange="loadWorkSessions()">
-          <option value="">All Statuses</option>
-          <option value="active">Active</option>
-          <option value="completed">Completed</option>
-          <option value="failed">Failed</option>
-        </select>
-      </div>
-      <div id="workContent" class="dhq-loading">Loading work sessions...</div>
-          </div>
-          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
-        </div>
-      </div>
-    </div>
 
-    <!-- PERFORMANCE -->
-    <div class="dhq-panel" id="panel-performance">
-      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
-        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;"><div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div><div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div><div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div></div>
-        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
-          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;"><span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">PERFORMANCE</span><div style="flex:1"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">METRICS</span><div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div></div>
-          <div style="flex:1 !important;padding:16px !important;">
-      <div id="perfContent" class="dhq-loading">Loading performance data...</div>
+        <!-- K.I.N. Welfare Status Banner -->
+        <div id="kinWelfareBanner" style="margin-bottom:16px;padding:10px 14px;background:rgba(0,0,0,0.3);border:1px solid rgba(0,255,255,0.15);border-radius:6px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
+          <span style="font-family:'Antonio',sans-serif;font-size:0.75rem;letter-spacing:2px;color:var(--cat-accent,#00ffff);">K.I.N. STATUS</span>
+          <span id="kinRestingCount" style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--dhq-text-dim);">— resting</span>
+          <span id="kinAtLimitCount" style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--dhq-text-dim);">— at limit</span>
+          <span id="kinActiveCount" style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:#10b981;">— active</span>
+          <span style="flex:1"></span>
+          <button onclick="loadKinTab()" style="background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;">↻</button>
+        </div>
+
+        <!-- K.I.N. Sub-tab nav -->
+        <div style="display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap;">
+          <button onclick="switchKinSection('welfare')" id="kinBtn-welfare" class="dhq-traffic-btn dhq-traffic-btn-active">WELFARE</button>
+          <button onclick="switchKinSection('work')" id="kinBtn-work" class="dhq-traffic-btn">WORK SESSIONS</button>
+          <button onclick="switchKinSection('performance')" id="kinBtn-performance" class="dhq-traffic-btn">PERFORMANCE</button>
+        </div>
+
+        <!-- WELFARE section -->
+        <div id="kinSection-welfare">
+          <div id="kinWelfareContent" class="dhq-loading">Loading K.I.N. welfare data...</div>
+        </div>
+
+        <!-- WORK SESSIONS section -->
+        <div id="kinSection-work" style="display:none;">
+          <div class="dhq-work-controls">
+            <select id="workDept" class="dhq-select" onchange="loadWorkSessions()">
+              <option value="">All Departments</option>
+            </select>
+            <select id="workStatus" class="dhq-select" onchange="loadWorkSessions()">
+              <option value="">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="completed">Completed</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+          <div id="workContent" class="dhq-loading">Loading work sessions...</div>
+        </div>
+
+        <!-- PERFORMANCE section -->
+        <div id="kinSection-performance" style="display:none;">
+          <div id="perfContent" class="dhq-loading">Loading performance data...</div>
+        </div>
+
           </div>
           <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
         </div>

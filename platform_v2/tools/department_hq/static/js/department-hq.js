@@ -3338,6 +3338,7 @@ function loadFleet() {
         loadQueueStatus();
         loadClusterActivity();
         loadDispatchComponents();
+        loadDispatchMode();
         if (typeof window.ahFetch === 'function') window.ahFetch(true);
         startFleetRefresh();
     }, 200);
@@ -3739,6 +3740,44 @@ function toggleFleetRouting(enabled) {
         if (!d.success) { _applyRoutingToggle(!enabled); } // revert on error
     })
     .catch(function() { _applyRoutingToggle(!enabled); });
+}
+
+function _applyDispatchMode(mode) {
+    ['auto', 'news', 'platform'].forEach(function(m) {
+        var btn = document.getElementById('fleetMode' + m.charAt(0).toUpperCase() + m.slice(1));
+        if (!btn) return;
+        var active = m === mode;
+        btn.style.background = active ? 'rgba(0,188,212,0.2)' : 'none';
+        btn.style.borderColor = active ? '#00bcd4' : 'rgba(255,255,255,0.2)';
+        btn.style.color = active ? '#00bcd4' : 'var(--dhq-text-dim)';
+    });
+}
+
+function loadDispatchMode() {
+    fetch('/tools/department-hq/api/fleet/dispatch-mode')
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if (d.success) _applyDispatchMode(d.mode || 'auto'); })
+        .catch(function() {});
+}
+
+function setFleetDispatchMode(mode) {
+    _applyDispatchMode(mode);  // optimistic UI
+    fetch('/tools/department-hq/api/fleet/dispatch-mode', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({mode: mode})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.success) {
+            _applyDispatchMode(d.mode);
+            var label = mode === 'news' ? '📰 NEWS MODE — WTF agents → outpost-us, platform → Starship'
+                      : mode === 'platform' ? '🖥 PLATFORM MODE — platform agents → Starship-246 only'
+                      : '✓ AUTO — balanced fleet-first routing';
+            console.log('[Fleet] Dispatch profile:', label);
+        }
+    })
+    .catch(function() {});
 }
 
 function initFleetMap() {

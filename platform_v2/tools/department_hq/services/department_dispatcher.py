@@ -1761,32 +1761,66 @@ class DepartmentDispatcher:
             logger.warning(f"[BridgeDispatcher] Fleet agent lookup failed: {e}")
             return None
 
-    def _find_fleet_agent_for_hub_agent(self, hub_agent_id: int, prefer_hub: bool = False) -> Optional[Dict]:
-        """Check if a hub agent is stationed on an online fleet node.
-
-        Returns the same agent_info dict shape as _find_fleet_agent() so the
-        caller can pass it directly to _dispatch_to_node(), or None if no
-        active node assignment exists.
-
-        Fleet-first routing (ADR-fleet-cluster-2026-05-20):
-          By default, prefers fleet Starship/outpost nodes over the hub node so
-          that all platform agents distribute across the cluster.  Pass
-          prefer_hub=True for jobs that must stay on hub (local_only, oversized
-          models, platform-critical tasks).
-
-        Node selection order:
-          1. Fleet nodes (bridge_priority < 100) that have the agent's model
-             listed in extra_capabilities->ollama_models — highest bridge_priority
-             first (Starship-246 > outpost-us).
-          2. Hub (bridge_priority = 100) as fallback when no fleet node fits.
-        """
+    def _get_fleet_dispatch_mode(self) -> str:
+        """Read current dispatch profile from system_config (auto/news/platform). Fail-safe → auto."""
         try:
             from psycopg2.extras import RealDictCursor
 
             conn = self._get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("SELECT value FROM system_config WHERE key='fleet_dispatch_mode'")
+            row = cur.fetchone()
+            conn.close()
+            return (row["value"] if row else "auto").lower()
+        except Exception:
+            return "auto"
+
+    def _find_fleet_agent_for_hub_agent(
+        self,
+        hub_agent_id: int,
+        prefer_hub: bool = False,
+        department: Optional[str] = None,
+    ) -> Optional[Dict]:
+        """Check if a hub agent is stationed on an online fleet node.
+
+        Dispatch profiles (fleet_dispatch_mode in system_config):
+          auto     — fleet-first: Starship-246 (50) > outpost-us (30) > hub (100)
+          news     — News & Media → outpost-us first; other depts → Starship first
+          platform — platform agents → Starship only; News & Media → outpost/hub only
+          prefer_hub=True always routes to hub (local_only dispatches).
+        """
+        try:
+            from psycopg2.extras import RealDictCursor
+
+            mode = "hub" if prefer_hub else self._get_fleet_dispatch_mode()
+            is_news = "News" in str(department or "")
+
+            # Node eligibility: platform mode restricts departments to specific nodes
+            if mode == "platform":
+                if is_news:
+                    node_filter = "AND rn.bridge_priority IN (30, 100)"  # outpost or hub
+                else:
+                    node_filter = "AND rn.bridge_priority IN (50, 100)"  # Starship or hub
+            else:
+                node_filter = ""
+
+            # ORDER BY — built from controlled values (not user input), no SQL injection risk
+            if mode == "hub":
+                order_by = "(100 - rn.bridge_priority) ASC, rn.last_heartbeat DESC"
+            elif mode == "news" and is_news:
+                # News agents in news mode: prefer outpost-us (30 sorts first ASC)
+                order_by = "rn.bridge_priority ASC, rn.last_heartbeat DESC"
+            else:
+                # auto + platform (non-news): Starship-246 (50) > outpost (30) > hub (100)
+                order_by = (
+                    "CASE WHEN rn.bridge_priority < 100 THEN 0 ELSE 1 END ASC,"
+                    " rn.bridge_priority DESC, rn.last_heartbeat DESC"
+                )
+
+            conn = self._get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(
-                """
+                f"""
                 SELECT na.model, na.display_name,
                        rn.id as node_id, rn.node_name,
                        rn.hostname, rn.port, rn.vpn_ip,
@@ -1808,15 +1842,11 @@ class DepartmentDispatcher:
                           )
                       )
                   )
-                ORDER BY
-                    CASE WHEN %s THEN (100 - rn.bridge_priority)
-                         ELSE CASE WHEN rn.bridge_priority < 100 THEN 0 ELSE 1 END
-                    END ASC,
-                    rn.bridge_priority DESC,
-                    rn.last_heartbeat DESC
+                  {node_filter}
+                ORDER BY {order_by}
                 LIMIT 1
                 """,
-                (hub_agent_id, prefer_hub),
+                (hub_agent_id,),
             )
             row = cur.fetchone()
             conn.close()
@@ -4857,7 +4887,11 @@ class DepartmentDispatcher:
         if agent:
             _hub_agent_id = agent.get("id") if isinstance(agent, dict) else getattr(agent, "id", None)
             if _hub_agent_id:
-                _node_assign = self._find_fleet_agent_for_hub_agent(_hub_agent_id, prefer_hub=local_only)
+                _node_assign = self._find_fleet_agent_for_hub_agent(
+                    _hub_agent_id,
+                    prefer_hub=local_only,
+                    department=agent.get("department") if isinstance(agent, dict) else None,
+                )
                 if _node_assign:
                     logger.info(
                         "[BridgeDispatcher] Node-preference: %s@%s for '%s' (agent %s stationed on fleet)",

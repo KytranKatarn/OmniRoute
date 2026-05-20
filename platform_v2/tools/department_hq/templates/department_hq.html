@@ -630,12 +630,18 @@
           CLUSTER ACTIVITY
           <span id="clusterActivityBadge" style="margin-left:8px;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--dhq-text-dim);">--</span>
           <span style="display:inline-flex;align-items:center;gap:6px;margin-left:16px;font-size:0.65rem;letter-spacing:1px;color:var(--dhq-text-dim);">
-            AGENT MOBILITY
+            <span title="Fleet routing on/off. When OFF all agents stay on Hub. When ON agents distribute across Starship-246, outpost-us, and Hub based on dispatch profile.">AGENT MOBILITY</span>
             <label style="position:relative;display:inline-block;width:34px;height:18px;cursor:pointer;">
               <input type="checkbox" id="fleetRoutingToggle" onchange="toggleFleetRouting(this.checked)" style="opacity:0;width:0;height:0;">
               <span id="fleetRoutingSlider" style="position:absolute;inset:0;border-radius:18px;background:#444;transition:background 0.2s;"></span>
               <span id="fleetRoutingThumb" style="position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left 0.2s;"></span>
             </label>
+          </span>
+          <span style="display:inline-flex;align-items:center;gap:4px;margin-left:12px;font-size:0.63rem;letter-spacing:1px;color:var(--dhq-text-dim);">
+            PROFILE
+            <button id="fleetModeAuto" onclick="setFleetDispatchMode('auto')" title="Balanced: Starship-246 → outpost-us → Hub for all agents" style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">AUTO</button>
+            <button id="fleetModeNews" onclick="setFleetDispatchMode('news')" title="News mode: WTF/News agents → outpost-us first; platform agents → Starship-246" style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">📰 NEWS</button>
+            <button id="fleetModePlatform" onclick="setFleetDispatchMode('platform')" title="Platform mode: F.O.R.G.E./K.I.N./S.H.I.E.L.D. get Starship-246; News agents use outpost-us" style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">🖥 PLATFORM</button>
           </span>
           <span id="fleetLiveIndicator" style="float:right;display:inline-flex;align-items:center;gap:5px;font-size:0.65rem;color:#10b981;">
             <span class="sc-live" style="font-size:0.5rem;">●</span> LIVE

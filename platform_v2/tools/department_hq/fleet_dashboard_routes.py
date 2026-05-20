@@ -1614,6 +1614,36 @@ def register_dashboard_routes(bp, auth_decorator):
             logger.error("api_fleet_routing_toggle: %s", exc)
             return jsonify({"success": False, "error": str(exc)}), 500
 
+    @bp.route("/api/fleet/dispatch-mode", methods=["GET", "POST"])
+    @auth_decorator
+    def api_fleet_dispatch_mode():
+        """Get or set fleet dispatch profile (auto / news / platform)."""
+        VALID_MODES = ("auto", "news", "platform")
+        try:
+            if request.method == "POST":
+                data = request.get_json(silent=True) or {}
+                mode = str(data.get("mode", "auto")).lower()
+                if mode not in VALID_MODES:
+                    return jsonify({"success": False, "error": f"Invalid mode '{mode}'"}), 400
+                with get_db_cursor(commit=True) as (_, cur):
+                    cur.execute(
+                        """INSERT INTO system_config (key, value, updated_at)
+                           VALUES ('fleet_dispatch_mode', %s, NOW())
+                           ON CONFLICT (key) DO UPDATE
+                             SET value=EXCLUDED.value, updated_at=NOW()""",
+                        (mode,),
+                    )
+                return jsonify({"success": True, "mode": mode})
+            else:
+                with get_db_cursor(commit=False) as (_, cur):
+                    cur.execute("SELECT value FROM system_config WHERE key='fleet_dispatch_mode'")
+                    row = cur.fetchone()
+                    mode = (row["value"] if row else "auto").lower()
+                return jsonify({"success": True, "mode": mode})
+        except Exception as exc:
+            logger.error("api_fleet_dispatch_mode: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
     @bp.route("/api/fleet/cluster-activity")
     @auth_decorator
     def api_fleet_cluster_activity():

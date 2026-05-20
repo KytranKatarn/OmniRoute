@@ -19,19 +19,59 @@ def _schema():
 
 @api.get("/articles")
 def list_articles():
+    """#3005 — Articles with optional riding-level geo and source filters.
+
+    Query params:
+      limit     int   default 50, max 200
+      province  str   e.g. ON, QC — filters by province_code from L.O.C.A.L.
+      city      str   e.g. Ottawa — case-insensitive substring on city field
+      geo_scope str   national | provincial | municipal | international
+      source    str   source slug
+    """
     limit = min(int(request.args.get("limit", 50)), 200)
+    province   = request.args.get("province", "").upper().strip() or None
+    city       = request.args.get("city", "").strip() or None
+    geo_scope  = request.args.get("geo_scope", "").strip() or None
+    source_slug = request.args.get("source", "").strip() or None
+
+    geo_filters = []
+    params: dict = {"n": limit}
+    if province:
+        geo_filters.append("a.province_code = :province")
+        params["province"] = province
+    if city:
+        geo_filters.append("a.city ILIKE :city")
+        params["city"] = f"%{city}%"
+    if geo_scope:
+        geo_filters.append("a.geo_scope = :geo_scope")
+        params["geo_scope"] = geo_scope
+    if source_slug:
+        geo_filters.append("s.slug = :source_slug")
+        params["source_slug"] = source_slug
+    where_extra = ("AND " + " AND ".join(geo_filters)) if geo_filters else ""
+
     S = _schema()
     with _db().begin() as c:
         rows = c.execute(text(f"""
-            SELECT a.id, a.title, a.url, a.published_at, s.name AS source,
+            SELECT a.id, a.title, a.url, a.published_at,
+                   s.name AS source, s.slug AS source_slug,
+                   a.province_code, a.city, a.geo_scope,
                    b.band, b.score
-            FROM {S}.articles a JOIN {S}.sources s ON s.id = a.source_id
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE 1=1 {where_extra}
             ORDER BY a.published_at DESC LIMIT :n
-        """), {"n": limit}).mappings().all()
+        """), params).mappings().all()
     return jsonify({"articles": [{
         "id": r["id"], "title": r["title"], "url": r["url"],
-        "published_at": r["published_at"].isoformat(), "source": r["source"],
+        "published_at": r["published_at"].isoformat(),
+        "source": r["source"], "source_slug": r["source_slug"],
+        "geo": {
+            "province_code": r["province_code"],
+            "city": r["city"],
+            "geo_scope": r["geo_scope"],
+        } if r["province_code"] or r["city"] else None,
         "bias": {"band": r["band"], "score": r["score"]} if r["band"] else None,
     } for r in rows]})
 
@@ -83,6 +123,7 @@ def list_clusters():
         rows = c.execute(text(f"""
             SELECT sc.id, sc.representative_title, sc.article_count,
                    sc.earliest_published_at, sc.latest_published_at,
+                   sc.source_count, sc.coverage_gap_score, sc.certainty_label,
                    sm.headline, sm.brief
             FROM {S}.story_clusters sc
             LEFT JOIN {S}.summaries sm ON sm.cluster_id = sc.id
@@ -92,6 +133,9 @@ def list_clusters():
         "id": r["id"],
         "representative_title": r["representative_title"],
         "article_count": r["article_count"],
+        "source_count": r["source_count"],
+        "coverage_gap_score": r["coverage_gap_score"],
+        "certainty_label": r["certainty_label"],
         "earliest_published_at": r["earliest_published_at"].isoformat(),
         "latest_published_at": r["latest_published_at"].isoformat(),
         "summary": {"headline": r["headline"], "brief": r["brief"]} if r["headline"] else None,
@@ -106,6 +150,7 @@ def get_cluster(cluster_id: int):
         sc = c.execute(text(f"""
             SELECT sc.id, sc.representative_title, sc.article_count,
                    sc.earliest_published_at, sc.latest_published_at,
+                   sc.source_count, sc.coverage_gap_score, sc.certainty_label,
                    sm.headline, sm.brief, sm.full_text, sm.summarizer, sm.article_ids
             FROM {S}.story_clusters sc
             LEFT JOIN {S}.summaries sm ON sm.cluster_id = sc.id
@@ -125,6 +170,9 @@ def get_cluster(cluster_id: int):
         "id": sc["id"],
         "representative_title": sc["representative_title"],
         "article_count": sc["article_count"],
+        "source_count": sc["source_count"],
+        "coverage_gap_score": sc["coverage_gap_score"],
+        "certainty_label": sc["certainty_label"],
         "earliest_published_at": sc["earliest_published_at"].isoformat(),
         "latest_published_at": sc["latest_published_at"].isoformat(),
         "summary": {
@@ -144,21 +192,42 @@ def get_cluster(cluster_id: int):
 
 @api.get("/sources")
 def list_sources():
-    """List all registered sources with rolling outlet bias scores."""
+    """#3127 — Sources with CRTC ownership + rolling bias scores.
+
+    Query params:
+      owner_type  str  filter by: public | corporate | independent | non_profit
+      language    str  filter by: en | fr
+    """
     S = _schema()
+    owner_type = request.args.get("owner_type")
+    language = request.args.get("language")
+    filters = []
+    params: dict = {}
+    if owner_type:
+        filters.append("s.owner_type = :owner_type")
+        params["owner_type"] = owner_type
+    if language:
+        filters.append("s.language = :language")
+        params["language"] = language
+    where = ("WHERE " + " AND ".join(filters)) if filters else ""
     with _db().begin() as c:
         rows = c.execute(text(f"""
             SELECT s.id, s.slug, s.name, s.url, s.rss_feed, s.bias_lean,
-                   s.country, s.language,
+                   s.country, s.language, s.owner_name, s.owner_type,
                    ob.avg_score, ob.band AS computed_band, ob.article_count,
                    ob.computed_at
             FROM {S}.sources s
             LEFT JOIN {S}.outlet_bias_scores ob ON ob.source_id = s.id
-            ORDER BY s.name
-        """)).mappings().all()
+            {where}
+            ORDER BY s.owner_type, s.name
+        """), params).mappings().all()
     return jsonify({"sources": [{
         "id": r["id"], "slug": r["slug"], "name": r["name"],
-        "url": r["url"], "rss_feed": r["rss_feed"],
+        "url": r["url"], "language": r["language"],
+        "ownership": {
+            "owner_name": r["owner_name"],
+            "owner_type": r["owner_type"],
+        },
         "seeded_bias_lean": r["bias_lean"],
         "computed_bias": {
             "band": r["computed_band"],
@@ -167,6 +236,166 @@ def list_sources():
             "computed_at": r["computed_at"].isoformat() if r["computed_at"] else None,
         } if r["computed_band"] else None,
     } for r in rows]})
+
+
+@api.get("/blindspots")
+def blindspot_feed():
+    """#3006 — Stories covered by very few outlets (underreported / ignored).
+
+    A blindspot is a cluster with low coverage_gap_score and >= 2 articles,
+    published within the look-back window.
+
+    Query params:
+      limit         int   default 20   max 100
+      days          int   default 7    look-back window
+      max_gap_score float default 0.15 coverage threshold (0.15 = <15% of outlets)
+    """
+    limit = min(int(request.args.get("limit", 20)), 100)
+    days = min(int(request.args.get("days", 7)), 90)
+    max_gap = float(request.args.get("max_gap_score", 0.15))
+    S = _schema()
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT sc.id, sc.representative_title, sc.article_count,
+                   sc.source_count, sc.coverage_gap_score, sc.certainty_label,
+                   sc.earliest_published_at, sc.latest_published_at,
+                   sm.headline, sm.brief
+            FROM {S}.story_clusters sc
+            LEFT JOIN {S}.summaries sm ON sm.cluster_id = sc.id
+            WHERE sc.coverage_gap_score > 0
+              AND sc.coverage_gap_score <= :max_gap
+              AND sc.article_count >= 2
+              AND sc.latest_published_at >= NOW() - INTERVAL '1 day' * :days
+            ORDER BY sc.coverage_gap_score ASC, sc.latest_published_at DESC
+            LIMIT :n
+        """), {"max_gap": max_gap, "days": days, "n": limit}).mappings().all()
+    return jsonify({
+        "days": days,
+        "max_gap_score": max_gap,
+        "blindspots": [{
+            "id": r["id"],
+            "representative_title": r["representative_title"],
+            "article_count": r["article_count"],
+            "source_count": r["source_count"],
+            "coverage_gap_score": r["coverage_gap_score"],
+            "certainty_label": r["certainty_label"],
+            "earliest_published_at": r["earliest_published_at"].isoformat(),
+            "latest_published_at": r["latest_published_at"].isoformat(),
+            "summary": {"headline": r["headline"], "brief": r["brief"]} if r["headline"] else None,
+        } for r in rows],
+    })
+
+
+@api.get("/divergence")
+def coverage_divergence():
+    """#3003 — French vs English coverage divergence per story cluster.
+
+    Returns clusters where French and English outlets tell a different story —
+    either by bias score gap or by one language not covering the story at all.
+
+    Query params:
+      limit          int   default 20
+      days           int   default 30  look-back window
+      min_divergence float default 0.1 minimum |en_avg_score - fr_avg_score|
+    """
+    limit = min(int(request.args.get("limit", 20)), 100)
+    days = min(int(request.args.get("days", 30)), 90)
+    min_div = float(request.args.get("min_divergence", 0.1))
+    S = _schema()
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            WITH cluster_lang AS (
+                SELECT
+                    a.cluster_id,
+                    COUNT(*)             FILTER (WHERE s.language = 'en') AS en_count,
+                    COUNT(*)             FILTER (WHERE s.language = 'fr') AS fr_count,
+                    AVG(b.score)         FILTER (WHERE s.language = 'en') AS en_avg_score,
+                    AVG(b.score)         FILTER (WHERE s.language = 'fr') AS fr_avg_score
+                FROM {S}.articles a
+                JOIN {S}.sources s ON s.id = a.source_id
+                LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+                WHERE a.cluster_id IS NOT NULL
+                  AND a.published_at >= NOW() - INTERVAL '1 day' * :days
+                GROUP BY a.cluster_id
+            )
+            SELECT
+                cl.cluster_id        AS id,
+                sc.representative_title,
+                sc.article_count,
+                sc.certainty_label,
+                sc.latest_published_at,
+                cl.en_count,
+                cl.fr_count,
+                ROUND(cl.en_avg_score::numeric, 3) AS en_avg_score,
+                ROUND(cl.fr_avg_score::numeric, 3) AS fr_avg_score,
+                ROUND(ABS(
+                    COALESCE(cl.en_avg_score, 0) - COALESCE(cl.fr_avg_score, 0)
+                )::numeric, 3)       AS divergence_score,
+                (cl.fr_count = 0)    AS en_only,
+                (cl.en_count = 0)    AS fr_only
+            FROM cluster_lang cl
+            JOIN {S}.story_clusters sc ON sc.id = cl.cluster_id
+            WHERE (cl.en_count > 0 OR cl.fr_count > 0)
+              AND ABS(COALESCE(cl.en_avg_score, 0) - COALESCE(cl.fr_avg_score, 0)) >= :min_div
+            ORDER BY divergence_score DESC, sc.latest_published_at DESC
+            LIMIT :n
+        """), {"days": days, "min_div": min_div, "n": limit}).mappings().all()
+    return jsonify({
+        "days": days,
+        "min_divergence": min_div,
+        "divergence": [{
+            "id": r["id"],
+            "representative_title": r["representative_title"],
+            "article_count": r["article_count"],
+            "certainty_label": r["certainty_label"],
+            "latest_published_at": r["latest_published_at"].isoformat(),
+            "en_count": r["en_count"],
+            "fr_count": r["fr_count"],
+            "en_avg_score": float(r["en_avg_score"]) if r["en_avg_score"] is not None else None,
+            "fr_avg_score": float(r["fr_avg_score"]) if r["fr_avg_score"] is not None else None,
+            "divergence_score": float(r["divergence_score"]),
+            "en_only": bool(r["en_only"]),
+            "fr_only": bool(r["fr_only"]),
+        } for r in rows],
+    })
+
+
+@api.get("/sources/<slug>/bias-drift")
+def source_bias_drift(slug: str):
+    """Bias drift history for a source — daily snapshots over the last N days.
+
+    Query params:
+      days  (int, default 90) — look-back window
+    """
+    days = min(int(request.args.get("days", 90)), 365)
+    S = _schema()
+    with _db().begin() as c:
+        source = c.execute(
+            text(f"SELECT id, name, slug FROM {S}.sources WHERE slug = :slug"),
+            {"slug": slug},
+        ).mappings().first()
+        if not source:
+            return jsonify({"error": "source not found"}), 404
+
+        rows = c.execute(text(f"""
+            SELECT snapshot_date, avg_score, band, article_count, window_days
+            FROM {S}.outlet_bias_history
+            WHERE source_id = :sid
+              AND snapshot_date >= CURRENT_DATE - :days
+            ORDER BY snapshot_date ASC
+        """), {"sid": source["id"], "days": days}).mappings().all()
+
+    return jsonify({
+        "source": {"id": source["id"], "slug": source["slug"], "name": source["name"]},
+        "days_requested": days,
+        "snapshots": [{
+            "date": r["snapshot_date"].isoformat(),
+            "avg_score": r["avg_score"],
+            "band": r["band"],
+            "article_count": r["article_count"],
+            "window_days": r["window_days"],
+        } for r in rows],
+    })
 
 
 @api.get("/articles/<int:article_id>/fact-checks")

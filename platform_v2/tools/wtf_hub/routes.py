@@ -402,3 +402,129 @@ def analyze_quick():
     except Exception as exc:
         logger.exception("[WTFHub] quick dispatch failed for task=%s", task)
         return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@wtf_hub_bp.route("/api/cross-watch/search", methods=["GET"])
+def cross_watch_search():
+    """#3128 — Unified search across WTF articles + Gov Watch tenders.
+
+    Query params:
+      q      str  required, min 3 chars
+      limit  int  default 10, max 50 — per product (not total)
+      days   int  default 90 — WTF article look-back window
+
+    Returns combined results sorted by date desc, each tagged with
+    product (wtf | gov_watch) and type (article | tender).
+    No auth required — read-only public data.
+    """
+    import os
+    import psycopg2
+    import psycopg2.extras
+
+    q = request.args.get("q", "").strip()
+    limit = min(int(request.args.get("limit", 10)), 50)
+    days = min(int(request.args.get("days", 90)), 365)
+
+    if len(q) < 3:
+        return jsonify({"ok": False, "error": "q must be at least 3 characters"}), 400
+
+    pattern = f"%{q}%"
+    results = []
+
+    # ── Gov Watch tenders (archie DB, gov_watch schema) ──────────────────────
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, title, department, deadline, status, url,
+                       value_min, value_max, LEFT(description, 300) AS snippet
+                FROM gov_watch.tenders
+                WHERE (title ILIKE %s OR description ILIKE %s)
+                ORDER BY posted_at DESC NULLS LAST
+                LIMIT %s
+                """,
+                (pattern, pattern, limit),
+            )
+            for row in cur.fetchall():
+                results.append(
+                    {
+                        "product": "gov_watch",
+                        "type": "tender",
+                        "id": row["id"],
+                        "title": row["title"],
+                        "date": row["deadline"].isoformat() if row["deadline"] else None,
+                        "url": row["url"],
+                        "meta": {
+                            "department": row["department"],
+                            "status": row["status"],
+                            "value_min": float(row["value_min"]) if row["value_min"] else None,
+                            "value_max": float(row["value_max"]) if row["value_max"] else None,
+                            "snippet": row["snippet"],
+                        },
+                    }
+                )
+    except Exception as exc:
+        logger.warning("[CrossWatch] gov_watch query failed: %s", exc)
+
+    # ── WTF articles (separate wtf DB) ────────────────────────────────────────
+    try:
+        wtf_conn = psycopg2.connect(
+            host="archie_database",
+            port=5432,
+            dbname="wtf",
+            user="wtfuser",
+            password=os.getenv("WTF_DB_PASSWORD", ""),
+            options="-c search_path=wtf",
+        )
+        try:
+            with wtf_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT a.id, a.title, a.url, a.published_at,
+                           s.name AS source_name, s.slug AS source_slug,
+                           b.band AS bias_band, LEFT(a.body, 300) AS snippet
+                    FROM wtf.articles a
+                    JOIN wtf.sources s ON s.id = a.source_id
+                    LEFT JOIN wtf.bias_scores b ON b.article_id = a.id
+                    WHERE (a.title ILIKE %s OR a.body ILIKE %s)
+                      AND a.published_at > NOW() - INTERVAL '1 day' * %s
+                    ORDER BY a.published_at DESC
+                    LIMIT %s
+                    """,
+                    (pattern, pattern, days, limit),
+                )
+                for row in cur.fetchall():
+                    results.append(
+                        {
+                            "product": "wtf",
+                            "type": "article",
+                            "id": row["id"],
+                            "title": row["title"],
+                            "date": row["published_at"].isoformat() if row["published_at"] else None,
+                            "url": row["url"],
+                            "meta": {
+                                "source": row["source_name"],
+                                "source_slug": row["source_slug"],
+                                "bias_band": row["bias_band"],
+                                "snippet": row["snippet"],
+                            },
+                        }
+                    )
+        finally:
+            wtf_conn.close()
+    except Exception as exc:
+        logger.warning("[CrossWatch] wtf query failed: %s", exc)
+
+    results.sort(key=lambda r: r.get("date") or "", reverse=True)
+
+    return jsonify(
+        {
+            "ok": True,
+            "query": q,
+            "total": len(results),
+            "products_searched": ["wtf", "gov_watch"],
+            "results": results[:limit],
+        }
+    )

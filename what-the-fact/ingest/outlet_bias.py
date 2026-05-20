@@ -46,6 +46,18 @@ def recompute_outlet_bias(engine) -> dict:
 
             for row in rows:
                 sid, n, avg = row[0], int(row[1]), float(row[2])
+                band = _band(avg)
+                avg_r = round(avg, 3)
+                # Snapshot today's value for drift tracking — one row per source per day
+                c.execute(
+                    text(f"""
+                        INSERT INTO {S}.outlet_bias_history
+                            (source_id, avg_score, band, article_count, window_days)
+                        VALUES (:sid, :avg, :band, :n, :wd)
+                        ON CONFLICT (source_id, snapshot_date) DO NOTHING
+                    """),
+                    {"sid": sid, "avg": avg_r, "band": band, "n": n, "wd": WINDOW_DAYS},
+                )
                 c.execute(
                     text(f"""
                         INSERT INTO {S}.outlet_bias_scores
@@ -57,7 +69,7 @@ def recompute_outlet_bias(engine) -> dict:
                             band          = EXCLUDED.band,
                             computed_at   = EXCLUDED.computed_at
                     """),
-                    {"sid": sid, "n": n, "avg": round(avg, 3), "band": _band(avg), "wd": WINDOW_DAYS},
+                    {"sid": sid, "n": n, "avg": avg_r, "band": band, "wd": WINDOW_DAYS},
                 )
                 updated += 1
         logger.info("outlet_bias: updated %d sources", updated)

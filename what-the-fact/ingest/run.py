@@ -179,6 +179,13 @@ def run_once(engine) -> dict:
     except Exception as exc:
         log.warning("outlet_bias recompute failed: %s", exc)
 
+    # Recompute cluster-level metrics: coverage gap score + certainty label
+    try:
+        from ingest.cluster_metrics import compute_cluster_metrics
+        compute_cluster_metrics(engine)
+    except Exception as exc:
+        log.warning("cluster_metrics recompute failed: %s", exc)
+
     # F.A.C.T. orchestrator: AI deep-analysis for priority articles
     try:
         from sqlalchemy import text as _text

@@ -33,7 +33,6 @@
     ("social", "S.I.G.N.A.L.", "heart"),
     ("scout", "S.C.O.U.T.", "radar"),
     ("devices", "API Access", "monitor"),
-    ("dispatch", "Dispatch", "send"),
     ("autonomy", "Autonomy", "cpu"),
     ("fleet", "A.R.M.A.D.A.", "rocket"),
     ("contractors", "Contractors", "hard-hat"),
@@ -578,6 +577,18 @@
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+      <!-- A.R.M.A.D.A. Sub-tab navigation -->
+      <div style="display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap;" id="armadaSubNav">
+        <button onclick="switchArmadaSection('cluster')" id="armadaBtn-cluster" class="dhq-traffic-btn dhq-traffic-btn-active">CLUSTER</button>
+        <button onclick="switchArmadaSection('dispatch')" id="armadaBtn-dispatch" class="dhq-traffic-btn">DISPATCH</button>
+        <button onclick="switchArmadaSection('traffic')" id="armadaBtn-traffic" class="dhq-traffic-btn">TRAFFIC</button>
+        <button onclick="switchArmadaSection('control')" id="armadaBtn-control" class="dhq-traffic-btn">CONTROL</button>
+        <button onclick="switchArmadaSection('network')" id="armadaBtn-network" class="dhq-traffic-btn">NETWORK</button>
+      </div>
+
+      <!-- CLUSTER SECTION: Cluster Activity + Queue/Models + WTF Status -->
+      <div id="armadaSection-cluster">
+
       <!-- Fleet Map -->
       <div class="dhq-dispatch-section">
         <div class="dhq-section-title">A.R.M.A.D.A. FLEET NETWORK
@@ -726,6 +737,21 @@
         <div class="dhq-section-title">SYSTEM COMPONENTS</div>
         <div id="dispatchComponentsContent" class="dhq-loading">Loading components...</div>
       </div>
+
+      </div><!-- end armadaSection-cluster -->
+
+      <!-- DISPATCH SECTION: populated via JS from panel-dispatch on first open -->
+      <div id="armadaSection-dispatch" style="display:none;"></div>
+
+      <!-- TRAFFIC SECTION: Dispatch Traffic + Claude Requests + Metrics -->
+      <div id="armadaSection-traffic" style="display:none;"></div>
+
+      <!-- CONTROL SECTION: Scheduler Jobs + Autonomy Config + Jobs By Dept + Alerts History -->
+      <div id="armadaSection-control" style="display:none;"></div>
+
+      <!-- NETWORK SECTION: Fleet Map + Fleet Usage + Providers -->
+      <div id="armadaSection-network" style="display:none;"></div>
+
           </div>
           <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
         </div>

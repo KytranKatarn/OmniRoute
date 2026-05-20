@@ -101,6 +101,12 @@ function setHtml(el, html) {
 // ───────────────────────────────────────────────────────────────
 
 function switchTab(tab) {
+    // Dispatch tab merged into A.R.M.A.D.A. — redirect to fleet + DISPATCH sub-tab
+    if (tab === 'dispatch') {
+        switchTab('fleet');
+        setTimeout(function() { switchArmadaSection('dispatch'); }, 250);
+        return;
+    }
     document.querySelectorAll('.dhq-tab').forEach(function(b) {
         b.classList.toggle('active', b.dataset.tab === tab);
     });
@@ -3350,10 +3356,86 @@ document.addEventListener('click', function(e) {
 });
 
 // ───────────────────────────────────────────────────────────────
+/* ============================================================
+   A.R.M.A.D.A. Sub-tabs — CLUSTER / DISPATCH / TRAFFIC / CONTROL / NETWORK
+   Dispatch content is lazy-mounted from panel-dispatch on first open.
+   ============================================================ */
+var _armadaSection = 'cluster';
+var _armadaMounted = {};
+
+function switchArmadaSection(s) {
+    _armadaSection = s;
+    var sections = ['cluster', 'dispatch', 'traffic', 'control', 'network'];
+    sections.forEach(function(name) {
+        var sec = document.getElementById('armadaSection-' + name);
+        var btn = document.getElementById('armadaBtn-' + name);
+        if (sec) sec.style.display = name === s ? '' : 'none';
+        if (btn) btn.classList.toggle('dhq-traffic-btn-active', name === s);
+    });
+
+    // DISPATCH: move panel-dispatch inner content into armadaSection-dispatch on first open
+    if (s === 'dispatch' && !_armadaMounted.dispatch) {
+        _armadaMounted.dispatch = true;
+        var target = document.getElementById('armadaSection-dispatch');
+        var source = document.getElementById('panel-dispatch');
+        if (target && source) {
+            // Move all children (skipping the LCARS frame wrappers — grab the inner content div)
+            var inner = source.querySelector('[style*="padding:16px"]');
+            if (inner) {
+                while (inner.firstChild) target.appendChild(inner.firstChild);
+            } else {
+                while (source.firstChild) target.appendChild(source.firstChild);
+            }
+        }
+        if (!loaded['dispatch']) { loaded['dispatch'] = true; loadDispatch(); }
+    }
+
+    // TRAFFIC: move traffic panel from dispatch content
+    if (s === 'traffic' && !_armadaMounted.traffic) {
+        _armadaMounted.traffic = true;
+        var trafficTarget = document.getElementById('armadaSection-traffic');
+        var trafficSrc = document.getElementById('trafficPanelSection');
+        var claudeSrc = document.getElementById('dispatchClaudeContent');
+        var metricsSrc = document.getElementById('dispatchMetricsContent');
+        if (trafficTarget) {
+            if (trafficSrc) trafficTarget.appendChild(trafficSrc);
+        }
+        loadDispatchTraffic();
+        loadClaudeFeed();
+    }
+
+    // CONTROL: move scheduler/config/jobs sections
+    if (s === 'control' && !_armadaMounted.control) {
+        _armadaMounted.control = true;
+        var ctrlTarget = document.getElementById('armadaSection-control');
+        if (ctrlTarget) {
+            var schedSrc = document.getElementById('dispatchSchedContent');
+            var configSrc = document.getElementById('dispatchConfigContent');
+            var jobsSrc = document.getElementById('jobMonitorContent');
+            if (schedSrc && schedSrc.parentNode) ctrlTarget.appendChild(schedSrc.parentNode);
+            else if (schedSrc) ctrlTarget.appendChild(schedSrc);
+        }
+        loadDispatchScheduler(); loadDispatchConfig();
+    }
+
+    // NETWORK: move fleet map section
+    if (s === 'network' && !_armadaMounted.network) {
+        _armadaMounted.network = true;
+        loadFleetData(); initFleetMap(); loadFleetUsage();
+    }
+
+    // CLUSTER: refresh live data
+    if (s === 'cluster') {
+        loadQueueStatus(); loadClusterActivity();
+    }
+}
+
 function loadFleet() {
     loaded["fleet"] = true;
     var ah = document.getElementById('alerts-history-section');
     if (ah) ah.style.display = 'none';
+    // Ensure cluster is the default visible section
+    switchArmadaSection('cluster');
     setTimeout(function() {
         initFleetMap();
         loadFleetData();

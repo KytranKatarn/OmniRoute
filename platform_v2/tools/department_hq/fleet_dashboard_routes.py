@@ -294,9 +294,57 @@ def register_dashboard_routes(bp, auth_decorator):
     @bp.route("/api/models/live")
     @auth_decorator
     def get_live_models():
-        """Get actual model count from live Ollama API"""
-        models, count = _get_cached_ollama_tags()
-        return jsonify({"success": True, "count": count, "models": [m["name"] for m in models]})
+        """Models active across hub + fleet nodes.
+
+        Hub: live from cached Ollama tags (existing behaviour).
+        Fleet nodes: recent models from task_execution_log (last 2h) per node —
+        no direct Ollama calls needed, uses existing logged data.
+        """
+        # Hub models — existing cached path
+        hub_models, hub_count = _get_cached_ollama_tags()
+        hub_detail = [{"name": m["name"], "node": "Hub", "loaded": True} for m in hub_models]
+        all_models = list(hub_detail)
+        by_node: dict = {"Hub": hub_detail}
+
+        # Fleet nodes — recent model usage from task_execution_log
+        try:
+            with get_db_cursor(commit=False) as (_, cur):
+                cur.execute(
+                    """
+                    SELECT rn.node_name,
+                           tel.model_used,
+                           MAX(tel.created_at) AS last_used
+                    FROM task_execution_log tel
+                    JOIN remote_nodes rn ON rn.id = tel.node_used_id
+                    WHERE tel.created_at > NOW() - INTERVAL '2 hours'
+                      AND tel.model_used IS NOT NULL
+                      AND tel.node_used_id IS NOT NULL
+                    GROUP BY rn.node_name, tel.model_used
+                    ORDER BY rn.node_name, last_used DESC
+                    """
+                )
+                for r in cur.fetchall() or []:
+                    node = r["node_name"]
+                    entry = {
+                        "name": r["model_used"],
+                        "node": node,
+                        "loaded": True,
+                        "last_used": r["last_used"].isoformat() if r["last_used"] else None,
+                    }
+                    all_models.append(entry)
+                    by_node.setdefault(node, []).append(entry)
+        except Exception:
+            pass  # Fallback gracefully to hub-only
+
+        return jsonify(
+            {
+                "success": True,
+                "count": len(all_models),
+                "models": [m["name"] for m in all_models],  # backward compat flat list
+                "models_detail": all_models,  # node-attributed list
+                "by_node": by_node,  # grouped by node
+            }
+        )
 
     @bp.route("/api/creed/overview")
     @auth_decorator
@@ -1456,7 +1504,8 @@ def register_dashboard_routes(bp, auth_decorator):
                 cur.execute(
                     """
                     SELECT model_needed, capability, status, COUNT(*) AS cnt,
-                           MIN(queued_at) AS oldest
+                           MIN(queued_at) AS oldest,
+                           MODE() WITHIN GROUP (ORDER BY module_source) AS top_module
                     FROM dispatch_pending_queue
                     WHERE status IN ('queued', 'running')
                     GROUP BY model_needed, capability, status
@@ -1470,6 +1519,7 @@ def register_dashboard_routes(bp, auth_decorator):
                         "status": r["status"],
                         "count": r["cnt"],
                         "oldest": r["oldest"].isoformat() if r["oldest"] else None,
+                        "module": r["top_module"] or "",
                     }
                     for r in cur.fetchall()
                 ]
@@ -1542,16 +1592,23 @@ def register_dashboard_routes(bp, auth_decorator):
         """Live cluster activity — tasks per node + recent dispatch log."""
         try:
             with get_db_cursor(commit=False) as (_, cur):
-                # Per-node active task breakdown
+                # Resolve the hub (starbase) node ID so we can merge null-routed tasks
+                cur.execute(
+                    "SELECT id, node_id, node_name FROM remote_nodes " "WHERE deployment_mode = 'starbase' LIMIT 1"
+                )
+                hub_row = cur.fetchone()
+                hub_db_id = hub_row["id"] if hub_row else None
+                hub_node_id = hub_row["node_id"] if hub_row else "hub"
+                hub_node_name = hub_row["node_name"] if hub_row else "Hub"
+
+                # Queue backlog per node (CPU pre-queue — separate from warm-path dispatch)
+                # NULL preferred_node_id = unrouted tasks, attributed to the hub node
                 cur.execute(
                     """
                     SELECT
-                        COALESCE(rn.node_name, 'Hub')   AS node_name,
-                        COALESCE(rn.node_id, 'hub')     AS node_id,
-                        COALESCE(rn.status, 'online')   AS node_status,
-                        COALESCE(rn.mesh_ip, '')        AS mesh_ip,
-                        rn.gpu_available,
-                        COUNT(*) FILTER (WHERE dpq.status = 'queued')  AS queued,
+                        COALESCE(rn.node_name, %s)  AS node_name,
+                        COALESCE(rn.node_id, %s)    AS node_id,
+                        COUNT(*) FILTER (WHERE dpq.status = 'queued')  AS backlog,
                         COUNT(*) FILTER (WHERE dpq.status = 'running') AS running,
                         json_agg(
                             json_build_object(
@@ -1568,35 +1625,73 @@ def register_dashboard_routes(bp, auth_decorator):
                     LEFT JOIN remote_nodes rn ON rn.id = dpq.preferred_node_id
                     WHERE dpq.status IN ('queued', 'running')
                       AND (dpq.expires_at IS NULL OR dpq.expires_at > NOW())
-                    GROUP BY rn.node_name, rn.node_id, rn.status, rn.mesh_ip, rn.gpu_available
-                    ORDER BY running DESC, queued DESC
-                    """
+                    GROUP BY rn.node_name, rn.node_id
+                    ORDER BY running DESC, backlog DESC
+                    """,
+                    (hub_node_name, hub_node_id),
                 )
-                nodes_with_work = []
+                backlog_by_node = {}
                 for r in cur.fetchall():
-                    tasks = r["tasks"] or []
-                    nodes_with_work.append(
-                        {
-                            "node_name": r["node_name"],
-                            "node_id": r["node_id"],
-                            "status": r["node_status"],
-                            "mesh_ip": r["mesh_ip"],
-                            "gpu": bool(r["gpu_available"]),
-                            "queued": r["queued"],
-                            "running": r["running"],
-                            "tasks": [t for t in tasks if t],
-                        }
-                    )
+                    backlog_by_node[r["node_id"]] = {
+                        "backlog": r["backlog"],
+                        "running": r["running"],
+                        "tasks": [t for t in (r["tasks"] or []) if t],
+                    }
 
-                # All online nodes (include idle ones)
+                # Real-time dispatch counts from task_execution_log (5-min window)
+                # This is the authoritative source — covers warm-path GPU dispatches
                 cur.execute(
                     """
-                    SELECT node_id, node_name, status, mesh_ip, gpu_available,
-                           current_load, last_heartbeat
-                    FROM remote_nodes
-                    WHERE is_active = TRUE AND status = 'online'
-                      AND last_heartbeat > NOW() - INTERVAL '3 minutes'
-                    ORDER BY node_name
+                    SELECT
+                        COALESCE(rn.node_id, %s)    AS node_id,
+                        COUNT(*) FILTER (WHERE tel.created_at > NOW() - INTERVAL '60 seconds')  AS active_60s,
+                        COUNT(*) AS dispatches_5m,
+                        SUM(CASE WHEN tel.success THEN 1 ELSE 0 END)::float
+                            / NULLIF(COUNT(*), 0) AS success_rate,
+                        STRING_AGG(DISTINCT tel.agent_name, ', ') FILTER (
+                            WHERE tel.created_at > NOW() - INTERVAL '60 seconds'
+                        ) AS active_agents
+                    FROM task_execution_log tel
+                    LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
+                    WHERE tel.created_at > NOW() - INTERVAL '5 minutes'
+                    GROUP BY 1
+                    """,
+                    (hub_node_id,),
+                )
+                activity_by_node = {}
+                for r in cur.fetchall():
+                    activity_by_node[r["node_id"]] = {
+                        "active_60s": int(r["active_60s"] or 0),
+                        "dispatches_5m": int(r["dispatches_5m"] or 0),
+                        "success_rate": round(float(r["success_rate"] or 0), 3),
+                        "active_agents": r["active_agents"] or "",
+                    }
+
+                # All online nodes with hardware info + roster agents
+                cur.execute(
+                    """
+                    SELECT rn.id, rn.node_id, rn.node_name, rn.status, rn.mesh_ip,
+                           rn.gpu_available, rn.current_load, rn.last_heartbeat,
+                           rn.cpu_model, rn.gpu_model, rn.gpu_vram_gb, rn.ram_gb,
+                           rn.deployment_mode,
+                           json_agg(
+                               json_build_object(
+                                   'name', a.name, 'display_name', a.display_name,
+                                   'shift_state', a.shift_state, 'department', a.department
+                               )
+                           ) FILTER (WHERE a.id IS NOT NULL) AS roster_agents
+                    FROM remote_nodes rn
+                    LEFT JOIN node_agents na ON na.node_id = rn.id
+                        AND na.status = 'active'
+                    LEFT JOIN agents a ON a.id = na.hub_agent_id
+                        AND a.worker_type = 'ai' AND a.shift_state != 'decommissioned'
+                    WHERE rn.is_active = TRUE AND rn.status = 'online'
+                      AND rn.last_heartbeat > NOW() - INTERVAL '3 minutes'
+                    GROUP BY rn.id, rn.node_id, rn.node_name, rn.status, rn.mesh_ip,
+                             rn.gpu_available, rn.current_load, rn.last_heartbeat,
+                             rn.cpu_model, rn.gpu_model, rn.gpu_vram_gb, rn.ram_gb,
+                             rn.deployment_mode
+                    ORDER BY rn.node_name
                     """
                 )
                 online_nodes = [dict(r) for r in cur.fetchall()]
@@ -1697,21 +1792,48 @@ def register_dashboard_routes(bp, auth_decorator):
                     "rate_per_sec": round(total_rows_5m / 300.0, 3),
                 }
 
-            return jsonify(
-                success=True,
-                nodes_with_work=nodes_with_work,
-                online_nodes=[
+            # Build unified node list: merge backlog + activity + roster
+            nodes_out = []
+            for n in online_nodes:
+                nid = n["node_id"]
+                bl = backlog_by_node.get(nid, {"backlog": 0, "running": 0, "tasks": []})
+                act = activity_by_node.get(
+                    nid, {"active_60s": 0, "dispatches_5m": 0, "success_rate": 0, "active_agents": ""}
+                )
+                nodes_out.append(
                     {
-                        "node_id": n["node_id"],
+                        "node_id": nid,
                         "node_name": n["node_name"],
                         "status": n["status"],
                         "mesh_ip": str(n["mesh_ip"] or ""),
                         "gpu": bool(n["gpu_available"]),
+                        "has_cpu": True,  # all nodes can run CPU inference
                         "load": n["current_load"] or 0,
                         "last_heartbeat": n["last_heartbeat"].isoformat() if n["last_heartbeat"] else None,
+                        "cpu_model": n["cpu_model"] or "",
+                        "gpu_model": n["gpu_model"] or "",
+                        "gpu_vram_gb": float(n["gpu_vram_gb"]) if n["gpu_vram_gb"] else 0,
+                        "ram_gb": float(n["ram_gb"]) if n["ram_gb"] else 0,
+                        "deployment_mode": n["deployment_mode"] or "",
+                        # Queue backlog (CPU pre-queue — may accumulate if drain worker is behind)
+                        "backlog": bl["backlog"],
+                        "running": bl["running"],
+                        "tasks": bl["tasks"],
+                        # Real-time dispatch activity (task_execution_log — authoritative)
+                        "active_60s": act["active_60s"],
+                        "dispatches_5m": act["dispatches_5m"],
+                        "success_rate": act["success_rate"],
+                        "active_agents": act["active_agents"],
+                        # Roster agents assigned to this node
+                        "roster_agents": n["roster_agents"] or [],
                     }
-                    for n in online_nodes
-                ],
+                )
+
+            return jsonify(
+                success=True,
+                nodes_with_work=nodes_out,  # kept for JS compat
+                online_nodes=nodes_out,
+                hub_node_id=hub_node_id,
                 dispatch_log=log,
                 last_run_by_node=last_run_by_node,
                 throughput_by_node=throughput_by_node,

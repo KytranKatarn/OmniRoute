@@ -3200,6 +3200,18 @@ function startFleetRefresh() {
         loadProviderManagement();
         loadQueueStatus();
         loadClusterActivity();
+        // Tick the live indicator so user sees data is current
+        var ts = document.getElementById('fleetLastRefresh');
+        if (ts) ts.textContent = 'just now';
+        // Fade to "Xs ago" over subsequent ticks
+        var secs = 0;
+        var ticker = setInterval(function() {
+            secs += 10;
+            if (secs >= 60 && ts) { ts.textContent = Math.floor(secs / 60) + 'm ago'; }
+            else if (ts) { ts.textContent = secs + 's ago'; }
+        }, 10000);
+        // Clear old ticker on next cycle (new one created each interval)
+        setTimeout(function() { clearInterval(ticker); }, 9500);
     }, 10000);
 }
 
@@ -3248,13 +3260,21 @@ function loadQueueStatus() {
                         var cap = document.createElement('span');
                         cap.style.cssText = 'color:var(--dhq-text-dim);font-size:0.72rem;';
                         cap.textContent = item.capability;
+                        // Module badge — shows which platform feature triggered this cold-load
+                        if (item.module) {
+                            var mod = document.createElement('span');
+                            mod.style.cssText = 'color:#555;font-size:0.67rem;font-family:"IBM Plex Mono",monospace;';
+                            mod.textContent = '[' + item.module + ']';
+                            row.appendChild(dot); row.appendChild(model); row.appendChild(cap); row.appendChild(mod);
+                        } else {
+                            row.appendChild(dot); row.appendChild(model); row.appendChild(cap);
+                        }
                         var cnt = document.createElement('span');
                         cnt.style.cssText = 'margin-left:auto;font-weight:600;color:' + (item.status === 'running' ? '#10b981' : '#f59e0b') + ';';
                         cnt.textContent = item.count + '×';
                         var st = document.createElement('span');
                         st.style.cssText = 'color:var(--dhq-text-dim);font-size:0.68rem;text-transform:uppercase;';
                         st.textContent = item.status;
-                        row.appendChild(dot); row.appendChild(model); row.appendChild(cap);
                         row.appendChild(cnt); row.appendChild(st);
                         qp.appendChild(row);
                     });
@@ -3315,18 +3335,10 @@ function loadClusterActivity() {
             var badge = document.getElementById('clusterActivityBadge');
             if (!grid) return;
 
-            // Merge online nodes + nodes with active work into one map
+            // online_nodes is now the single source of truth (backend merged hub + backlog + activity)
             var nodeMap = {};
             (data.online_nodes || []).forEach(function(n) {
-                nodeMap[n.node_id] = { name: n.node_name, status: n.status, gpu: n.gpu, load: n.load, mesh_ip: n.mesh_ip, queued: 0, running: 0, tasks: [] };
-            });
-            // Hub always shown
-            if (!nodeMap['hub']) nodeMap['hub'] = { name: 'Hub', status: 'online', gpu: true, load: 0, queued: 0, running: 0, tasks: [] };
-            (data.nodes_with_work || []).forEach(function(n) {
-                if (!nodeMap[n.node_id]) nodeMap[n.node_id] = { name: n.node_name, status: n.status, gpu: n.gpu };
-                nodeMap[n.node_id].queued = n.queued;
-                nodeMap[n.node_id].running = n.running;
-                nodeMap[n.node_id].tasks = n.tasks || [];
+                nodeMap[n.node_id] = n;
             });
 
             // last_run_by_node from backend (bridge_jobs — covers all fleet history)
@@ -3348,39 +3360,67 @@ function loadClusterActivity() {
             grid.innerHTML = '';
             Object.keys(nodeMap).forEach(function(nid) {
                 var n = nodeMap[nid];
-                totalActive += (n.running || 0);
+                var nodeName = n.node_name || n.name || nid;
+                // Real-time activity (task_execution_log, authoritative)
+                var active60s = n.active_60s || 0;
+                var dispatches5m = n.dispatches_5m || 0;
+                var successRate = n.success_rate || 0;
+                // CPU pre-queue backlog (may be stale if drain worker is behind)
+                var backlog = n.backlog || 0;
+                var isActive = active60s > 0;
+                totalActive += active60s;
+
                 var card = document.createElement('div');
-                var isActive = (n.running || 0) > 0;
-                var hasPending = (n.queued || 0) > 0;
                 card.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid ' + (isActive ? '#10b981' : 'rgba(255,255,255,0.1)') + ';border-radius:6px;padding:10px 12px;';
-                var header = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+
+                // Hardware label: GPU+CPU for GPU nodes, CPU-only for pure-CPU nodes
+                var hwLabel = n.gpu
+                    ? '<span style="margin-left:auto;font-size:0.6rem;color:#a78bfa;letter-spacing:1px;">GPU</span>'
+                      + '<span style="font-size:0.6rem;color:var(--dhq-text-dim);letter-spacing:1px;">+CPU</span>'
+                    : '<span style="margin-left:auto;font-size:0.6rem;color:var(--dhq-text-dim);letter-spacing:1px;">CPU</span>';
+                var header = '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">'
                     + '<span style="width:8px;height:8px;border-radius:50%;background:' + (n.status === 'online' ? (isActive ? '#10b981' : '#00bcd4') : '#ef4444') + ';flex-shrink:0;' + (isActive ? 'box-shadow:0 0 6px #10b981;' : '') + '"></span>'
-                    + '<span style="font-family:Antonio,sans-serif;font-size:0.8rem;letter-spacing:1px;color:var(--dhq-text-main);">' + esc(n.name) + '</span>'
-                    + (n.gpu ? '<span style="margin-left:auto;font-size:0.6rem;color:#a78bfa;letter-spacing:1px;">GPU</span>' : '<span style="margin-left:auto;font-size:0.6rem;color:var(--dhq-text-dim);letter-spacing:1px;">CPU</span>')
+                    + '<span style="font-family:Antonio,sans-serif;font-size:0.8rem;letter-spacing:1px;color:var(--dhq-text-main);">' + esc(nodeName) + '</span>'
+                    + hwLabel
                     + '</div>';
-                var counts = '<div style="display:flex;gap:12px;font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;margin-bottom:6px;">'
-                    + '<span style="color:' + (isActive ? '#10b981' : 'var(--dhq-text-dim)') + ';">▶ ' + (n.running || 0) + ' running</span>'
-                    + '<span style="color:' + (hasPending ? '#f59e0b' : 'var(--dhq-text-dim)') + ';">⏳ ' + (n.queued || 0) + ' queued</span>'
-                    + '</div>';
-                // Throughput line — disp/min (5-min window) + success% from task_execution_log
-                var tp = throughputByNode[n.name] || { rows_5m: 0, rows_60s: 0, rate_per_min: 0, success_rate: 0 };
-                var tpActive = (tp.rows_5m || 0) > 0;
-                var rateLabel = (tp.rate_per_min || 0).toFixed(1) + ' disp/min';
-                var spike = (tp.rows_60s || 0) > 0 ? ' <span style="color:#10b981;">●</span>' : '';
-                var okPct = tp.rows_5m ? Math.round((tp.success_rate || 0) * 100) : null;
+
+                // Activity counts: real dispatch rate (primary) + queue backlog (secondary)
+                var okPct = dispatches5m > 0 ? Math.round(successRate * 100) : null;
                 var okBadge = okPct !== null
                     ? ' <span style="color:' + (okPct >= 90 ? '#10b981' : (okPct >= 70 ? '#f59e0b' : '#ef4444')) + ';">' + okPct + '% ok</span>'
                     : '';
-                var throughputLine = '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;margin-bottom:6px;color:' + (tpActive ? '#00bcd4' : 'var(--dhq-text-dim)') + ';">'
-                    + '▲ ' + rateLabel + spike + okBadge
+                var counts = '<div style="display:flex;gap:10px;font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;margin-bottom:5px;flex-wrap:wrap;">'
+                    + '<span style="color:' + (active60s > 0 ? '#10b981' : 'var(--dhq-text-dim)') + ';">▶ ' + active60s + ' active</span>'
+                    + '<span style="color:' + (dispatches5m > 0 ? '#00bcd4' : 'var(--dhq-text-dim)') + ';">⚡ ' + dispatches5m + '/5m</span>'
+                    + (backlog > 0 ? '<span style="color:#f59e0b;" title="CPU pre-queue backlog">⏳ ' + backlog + ' backlog</span>' : '')
+                    + okBadge
                     + '</div>';
+
+                // Throughput rate
+                var ratePerMin = dispatches5m > 0 ? (dispatches5m / 5).toFixed(1) : '0.0';
+                var spike = active60s > 0 ? ' <span style="color:#10b981;">●</span>' : '';
+                var throughputLine = '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;margin-bottom:5px;color:' + (dispatches5m > 0 ? '#00bcd4' : 'var(--dhq-text-dim)') + ';">'
+                    + '▲ ' + ratePerMin + ' disp/min' + spike
+                    + '</div>';
+
+                // Active agents (last 60s from task_execution_log)
                 var taskList = '';
-                (n.tasks || []).slice(0, 3).forEach(function(t) {
-                    taskList += '<div style="font-size:0.68rem;color:' + (t.status === 'running' ? '#10b981' : '#f59e0b') + ';padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
-                        + '→ ' + esc(t.agent || '?') + ' · ' + esc(t.capability || '') + '</div>';
-                });
+                if (n.active_agents) {
+                    n.active_agents.split(', ').slice(0, 3).forEach(function(agentName) {
+                        taskList += '<div style="font-size:0.68rem;color:#10b981;padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
+                            + '→ ' + esc(agentName.trim()) + '</div>';
+                    });
+                }
+                // Tasks from queue backlog (secondary — may be stale)
                 if (!taskList) {
-                    var last = lastRunByNode[n.name];
+                    (n.tasks || []).slice(0, 2).forEach(function(t) {
+                        taskList += '<div style="font-size:0.68rem;color:#f59e0b;padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
+                            + '→ ' + esc(t.agent || '?') + ' · ' + esc(t.capability || '') + '</div>';
+                    });
+                }
+                // Fallback: last run from bridge_jobs
+                if (!taskList) {
+                    var last = lastRunByNode[nodeName];
                     if (last && last.agent) {
                         var ago = '';
                         if (last.ts) {
@@ -3389,13 +3429,26 @@ function loadClusterActivity() {
                         }
                         taskList = '<div style="font-size:0.67rem;color:var(--dhq-text-dim);">'
                             + '<span style="color:#00bcd4;">' + esc(last.agent) + '</span>'
-                            + ' · ' + esc(last.capability || '') + ago
-                            + '</div>';
+                            + ' · ' + esc(last.capability || '') + ago + '</div>';
                     } else {
                         taskList = '<span style="font-size:0.68rem;color:var(--dhq-text-dim);font-style:italic;">idle</span>';
                     }
                 }
-                card.innerHTML = header + counts + throughputLine + taskList;
+
+                // Roster agents assigned to this node (from node_agents + agents tables)
+                var rosterHtml = '';
+                var roster = n.roster_agents || [];
+                if (roster.length > 0) {
+                    rosterHtml = '<div style="margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,0.05);font-size:0.63rem;color:var(--dhq-text-dim);">';
+                    roster.slice(0, 4).forEach(function(a) {
+                        var dot = a.shift_state === 'active' ? '<span style="color:#10b981;">●</span>' : '<span style="color:#555;">○</span>';
+                        rosterHtml += dot + ' ' + esc(a.name || a.display_name || '') + ' ';
+                    });
+                    if (roster.length > 4) rosterHtml += '<span style="color:#555;">+' + (roster.length - 4) + '</span>';
+                    rosterHtml += '</div>';
+                }
+
+                card.innerHTML = header + counts + throughputLine + taskList + rosterHtml;
                 grid.appendChild(card);
             });
 
@@ -3416,24 +3469,74 @@ function loadClusterActivity() {
                 }
             }
 
-            // Dispatch log
+            // Dispatch log — consecutive failures for same agent+capability are grouped
             if (logEl) {
-                logEl.innerHTML = '';
-                (data.dispatch_log || []).slice(0, 15).forEach(function(e) {
-                    var row = document.createElement('div');
-                    row.style.cssText = 'padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;gap:8px;align-items:center;';
-                    var ts = e.ts ? new Date(e.ts).toLocaleTimeString('en-CA', {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '';
-                    var ok = e.success !== false;
-                    row.innerHTML = '<span style="color:var(--dhq-text-dim);font-size:0.65rem;flex-shrink:0;">' + esc(ts) + '</span>'
-                        + '<span style="color:' + (ok ? '#10b981' : '#ef4444') + ';font-size:0.68rem;flex-shrink:0;">' + (ok ? '✓' : '✗') + '</span>'
-                        + '<span style="color:var(--dhq-text-main);font-size:0.7rem;">' + esc(e.agent || '?') + '</span>'
-                        + '<span style="color:var(--dhq-text-dim);font-size:0.68rem;">→</span>'
-                        + '<span style="color:#00bcd4;font-size:0.68rem;">' + esc(e.node || 'Hub') + '</span>'
-                        + '<span style="color:var(--dhq-text-dim);font-size:0.65rem;margin-left:auto;">' + esc(e.capability || '') + '</span>';
-                    logEl.appendChild(row);
-                });
-                if (!data.dispatch_log || !data.dispatch_log.length) {
-                    logEl.innerHTML = '<span style="color:var(--dhq-text-dim);font-style:italic;font-size:0.72rem;">No recent dispatches</span>';
+                logEl.textContent = '';
+                var log = data.dispatch_log || [];
+                if (!log.length) {
+                    var noLog = document.createElement('span');
+                    noLog.style.cssText = 'color:var(--dhq-text-dim);font-style:italic;font-size:0.72rem;';
+                    noLog.textContent = 'No recent dispatches';
+                    logEl.appendChild(noLog);
+                } else {
+                    var displayed = 0;
+                    var idx = 0;
+                    while (idx < log.length && displayed < 15) {
+                        var e = log[idx];
+                        var ok = e.success !== false;
+                        var ts = e.ts ? new Date(e.ts).toLocaleTimeString('en-CA', {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '';
+                        var row = document.createElement('div');
+                        row.style.cssText = 'padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;gap:8px;align-items:center;';
+
+                        var tsEl = document.createElement('span');
+                        tsEl.style.cssText = 'color:var(--dhq-text-dim);font-size:0.65rem;flex-shrink:0;';
+                        tsEl.textContent = ts;
+
+                        var iconEl = document.createElement('span');
+                        iconEl.style.cssText = 'font-size:0.68rem;flex-shrink:0;color:' + (ok ? '#10b981' : '#ef4444') + ';';
+                        iconEl.textContent = ok ? '✓' : '✗';
+
+                        if (!ok) {
+                            // Count consecutive failures for same agent+capability
+                            var failKey = (e.agent || '') + '|' + (e.capability || '');
+                            var failCount = 1;
+                            while (idx + failCount < log.length) {
+                                var nx = log[idx + failCount];
+                                if (nx.success === false && ((nx.agent || '') + '|' + (nx.capability || '')) === failKey) {
+                                    failCount++;
+                                } else { break; }
+                            }
+                            var agentCapEl = document.createElement('span');
+                            agentCapEl.style.cssText = 'color:#ef4444;font-size:0.7rem;';
+                            agentCapEl.textContent = (e.agent || '?') + ' · ' + (e.capability || '');
+                            row.appendChild(tsEl); row.appendChild(iconEl); row.appendChild(agentCapEl);
+                            if (failCount > 1) {
+                                var badge = document.createElement('span');
+                                badge.style.cssText = 'background:#ef444433;color:#ef4444;font-size:0.65rem;padding:1px 5px;border-radius:3px;';
+                                badge.textContent = '×' + failCount + ' failures';
+                                row.appendChild(badge);
+                            }
+                            idx += failCount;
+                        } else {
+                            var agentEl = document.createElement('span');
+                            agentEl.style.cssText = 'color:var(--dhq-text-main);font-size:0.7rem;';
+                            agentEl.textContent = e.agent || '?';
+                            var arrEl = document.createElement('span');
+                            arrEl.style.cssText = 'color:var(--dhq-text-dim);font-size:0.68rem;';
+                            arrEl.textContent = '→';
+                            var nodeEl = document.createElement('span');
+                            nodeEl.style.cssText = 'color:#00bcd4;font-size:0.68rem;';
+                            nodeEl.textContent = e.node || 'Hub';
+                            var capEl = document.createElement('span');
+                            capEl.style.cssText = 'color:var(--dhq-text-dim);font-size:0.65rem;margin-left:auto;';
+                            capEl.textContent = e.capability || '';
+                            row.appendChild(tsEl); row.appendChild(iconEl); row.appendChild(agentEl);
+                            row.appendChild(arrEl); row.appendChild(nodeEl); row.appendChild(capEl);
+                            idx++;
+                        }
+                        logEl.appendChild(row);
+                        displayed++;
+                    }
                 }
             }
         })
@@ -4091,8 +4194,20 @@ async function loadFleetUsage() {
         const provEl = document.getElementById('fleetUsageProviders');
         const callEl = document.getElementById('fleetUsageCalls');
         if (costEl) costEl.textContent = '$' + (usage.total_cost || 0).toFixed(2);
-        if (provEl) provEl.textContent = (map.providers || []).filter(p => p.is_active).length;
-        if (callEl) callEl.textContent = (usage.total_calls || 0).toLocaleString();
+        if (provEl) {
+            // Show "N cloud used / M registered" — distinct providers actually called (excl. local fleet)
+            var distinctUsed = usage.distinct_providers || 0;
+            var registeredCount = usage.registered_providers || 0;
+            provEl.textContent = distinctUsed + ' cloud / ' + registeredCount + ' reg';
+            provEl.title = distinctUsed + ' cloud provider(s) called in the last 30 days out of ' + registeredCount + ' registered';
+        }
+        if (callEl) {
+            // Separate fleet (local Ollama) calls from cloud API calls
+            var fleetCalls = usage.fleet_calls || 0;
+            var cloudCalls = (usage.total_calls || 0) - fleetCalls;
+            callEl.textContent = (usage.total_calls || 0).toLocaleString();
+            callEl.title = cloudCalls + ' cloud · ' + fleetCalls + ' fleet (local Ollama)';
+        }
 
         // Provider budget table
         const tbody = document.getElementById('fleetBudgetTableBody');

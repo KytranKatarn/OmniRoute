@@ -1126,16 +1126,36 @@ def _register_own_jobs(scheduler, flask_app):
             from services.telegram_service import send_system
 
             with get_db_cursor(commit=True) as (_, cur):
+                # Expire stuck 'running' items (platform restart orphans, >30 min)
                 cur.execute(
                     """
                     UPDATE dispatch_pending_queue
-                       SET status = 'failed'
+                       SET status = 'failed', error = 'zombie: stuck running >30 min'
                      WHERE status = 'running'
                        AND queued_at < NOW() - INTERVAL '30 minutes'
                     RETURNING id, agent_name, capability
                     """
                 )
                 reaped = cur.fetchall() or []
+
+                # Expire stuck 'queued' items (no drain worker available, >2 hours)
+                # These are CPU-model pre-queue entries that accumulate when model_dispatch_worker
+                # is behind or offline. Expire them so the cluster activity display stays accurate.
+                cur.execute(
+                    """
+                    UPDATE dispatch_pending_queue
+                       SET status = 'failed', error = 'expired: no drain worker, stuck queued >2h'
+                     WHERE status = 'queued'
+                       AND queued_at < NOW() - INTERVAL '2 hours'
+                    RETURNING id, agent_name, capability
+                    """
+                )
+                stale_queued = cur.fetchall() or []
+                if stale_queued:
+                    logger.warning(
+                        "[DeptHQ] Queue reaper: expired %d stale queued tasks (no drain worker >2h)",
+                        len(stale_queued),
+                    )
 
             if reaped:
                 summary = ", ".join(f"{r['agent_name']}/{r['capability']}" for r in reaped[:5])

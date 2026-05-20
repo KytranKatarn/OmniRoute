@@ -258,6 +258,24 @@ def get_usage_summary(provider_key=None, days=30):
             for r in cur.fetchall()
         ]
 
+        # Distinct providers actually used (exclude local fleet labels)
+        cur.execute(
+            f"""
+            SELECT COUNT(DISTINCT provider) AS cnt
+            FROM cloud_model_usage
+            {where_clause}
+            AND provider NOT IN ('ollama_cloud', 'ollama_local')
+            """,
+            params,
+        )
+        row2 = cur.fetchone()
+        result["distinct_providers"] = int(row2["cnt"]) if row2 else 0
+
+        # Total registered providers
+        cur.execute("SELECT COUNT(*) AS cnt FROM contractor_providers")
+        row3 = cur.fetchone()
+        result["registered_providers"] = int(row3["cnt"]) if row3 else 0
+
         return result
 
 

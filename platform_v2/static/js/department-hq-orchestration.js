@@ -79,7 +79,7 @@ function _coRenderStatus(d) {
     }
   }
 
-  /* Agent overflow grid */
+  /* Agent overflow grid — only expand active overflow agents; collapse the rest */
   const ag = document.getElementById('co-agent-grid');
   if (ag) {
     ag.textContent = '';
@@ -89,64 +89,109 @@ function _coRenderStatus(d) {
       msg.textContent = 'no agents scored yet — waiting for next cycle';
       ag.appendChild(msg);
     } else {
-      agents.forEach(function(a) {
-        const scoreColor  = a.score >= 0.5 ? '#00ffff' : '#555';
-        const borderColor = a.is_active ? '#00ffff44' : '#1a1a2e';
+      const activeAgents   = agents.filter(function(a) { return a.is_active; });
+      const inactiveAgents = agents.filter(function(a) { return !a.is_active; });
 
-        const card = document.createElement('div');
-        card.style.cssText = 'background:#0a0a1a;border:1px solid ' + borderColor + ';border-radius:4px;padding:8px;font-size:10px;';
+      /* Summary line */
+      const summary = document.createElement('div');
+      summary.style.cssText = 'font-size:10px;color:#555;margin-bottom:8px;';
+      summary.textContent = agents.length + ' agents scored · ' + activeAgents.length + ' in overflow';
+      ag.appendChild(summary);
 
-        const head = document.createElement('div');
-        head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
+      /* Active overflow agents — full cards (usually 0 or a handful) */
+      if (activeAgents.length) {
+        const activeGrid = document.createElement('div');
+        activeGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;margin-bottom:8px;';
+        activeAgents.forEach(function(a) { activeGrid.appendChild(_coMakeAgentCard(a)); });
+        ag.appendChild(activeGrid);
+      } else {
+        const idle = document.createElement('div');
+        idle.style.cssText = 'color:#555;font-size:10px;font-style:italic;margin-bottom:8px;padding:6px;background:#0a0a1a;border-radius:3px;';
+        idle.textContent = '● No agents in overflow — cluster load is normal';
+        ag.appendChild(idle);
+      }
 
-        const nameEl = document.createElement('span');
-        nameEl.style.color = a.is_active ? '#00ffff' : '#888';
-        nameEl.textContent = a.agent_name;
+      /* Inactive agents — collapsed toggle */
+      if (inactiveAgents.length) {
+        const toggle = document.createElement('button');
+        toggle.style.cssText = 'font-size:9px;padding:3px 10px;background:#0a0a1a;border:1px solid #333;color:#555;cursor:pointer;border-radius:2px;width:100%;text-align:left;';
+        toggle.textContent = '▶ Show all ' + inactiveAgents.length + ' scored agents (not in overflow)';
+        let expanded = false;
 
-        const modeEl = document.createElement('span');
-        modeEl.style.cssText = 'font-size:9px;color:#00ffff;';
-        modeEl.textContent = a.is_active ? '⟳ overflow' : '';
+        const collapsible = document.createElement('div');
+        collapsible.style.cssText = 'display:none;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;margin-top:8px;max-height:320px;overflow-y:auto;';
+        inactiveAgents.forEach(function(a) { collapsible.appendChild(_coMakeAgentCard(a)); });
 
-        head.append(nameEl, modeEl);
-
-        const deptEl = document.createElement('div');
-        deptEl.style.cssText = 'color:#555;font-size:9px;margin-top:2px;';
-        deptEl.textContent = a.department;
-
-        const capRow = document.createElement('div');
-        capRow.style.cssText = 'color:#666;font-size:9px;margin-top:4px;';
-        const capVal = document.createElement('span');
-        capVal.style.color = '#aaa';
-        capVal.textContent = a.capability;
-        capRow.append(document.createTextNode('cap: '), capVal);
-
-        const barRow = document.createElement('div');
-        barRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-top:4px;';
-        const scoreLbl = document.createElement('span');
-        scoreLbl.style.cssText = 'font-size:9px;color:#555;';
-        scoreLbl.textContent = 'score';
-        const bw2 = document.createElement('div');
-        bw2.style.cssText = 'flex:1;height:4px;background:#1a1a2e;border-radius:2px;';
-        const bf2 = document.createElement('div');
-        bf2.style.cssText = 'height:100%;border-radius:2px;background:' + scoreColor + ';width:' + Math.round(a.score * 100) + '%;';
-        bw2.appendChild(bf2);
-        const scoreNum = document.createElement('span');
-        scoreNum.style.cssText = 'font-size:9px;color:' + scoreColor + ';';
-        scoreNum.textContent = a.score.toFixed(2);
-        barRow.append(scoreLbl, bw2, scoreNum);
-
-        const pauseBtn = document.createElement('button');
-        pauseBtn.textContent = '⏸ PAUSE';
-        pauseBtn.style.cssText = 'margin-top:6px;width:100%;font-size:9px;padding:2px;background:#1a1a2e;border:1px solid #333;color:#aaa;cursor:pointer;border-radius:2px;';
-        const aid = a.agent_id;
-        const cap2 = a.capability;
-        pauseBtn.addEventListener('click', function() { coPauseAgent(aid, cap2); });
-
-        card.append(head, deptEl, capRow, barRow, pauseBtn);
-        ag.appendChild(card);
-      });
+        toggle.addEventListener('click', function() {
+          expanded = !expanded;
+          collapsible.style.display = expanded ? 'grid' : 'none';
+          toggle.textContent = expanded
+            ? ('▼ Hide scored agents')
+            : ('▶ Show all ' + inactiveAgents.length + ' scored agents (not in overflow)');
+        });
+        ag.appendChild(toggle);
+        ag.appendChild(collapsible);
+      }
     }
   }
+}
+
+/* Build a single agent card — used for both active and collapsed lists */
+function _coMakeAgentCard(a) {
+  const scoreColor  = a.score >= 0.5 ? '#00ffff' : '#555';
+  const borderColor = a.is_active ? '#00ffff44' : '#1a1a2e';
+
+  const card = document.createElement('div');
+  card.style.cssText = 'background:#0a0a1a;border:1px solid ' + borderColor + ';border-radius:4px;padding:8px;font-size:10px;';
+
+  const head = document.createElement('div');
+  head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
+
+  const nameEl = document.createElement('span');
+  nameEl.style.color = a.is_active ? '#00ffff' : '#888';
+  nameEl.textContent = a.agent_name;
+
+  const modeEl = document.createElement('span');
+  modeEl.style.cssText = 'font-size:9px;color:#00ffff;';
+  modeEl.textContent = a.is_active ? '⟳ overflow' : '';
+
+  head.append(nameEl, modeEl);
+
+  const deptEl = document.createElement('div');
+  deptEl.style.cssText = 'color:#555;font-size:9px;margin-top:2px;';
+  deptEl.textContent = a.department;
+
+  const capRow = document.createElement('div');
+  capRow.style.cssText = 'color:#666;font-size:9px;margin-top:4px;';
+  const capVal = document.createElement('span');
+  capVal.style.color = '#aaa';
+  capVal.textContent = a.capability;
+  capRow.append(document.createTextNode('cap: '), capVal);
+
+  const barRow = document.createElement('div');
+  barRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-top:4px;';
+  const scoreLbl = document.createElement('span');
+  scoreLbl.style.cssText = 'font-size:9px;color:#555;';
+  scoreLbl.textContent = 'score';
+  const bw2 = document.createElement('div');
+  bw2.style.cssText = 'flex:1;height:4px;background:#1a1a2e;border-radius:2px;';
+  const bf2 = document.createElement('div');
+  bf2.style.cssText = 'height:100%;border-radius:2px;background:' + scoreColor + ';width:' + Math.round(a.score * 100) + '%;';
+  bw2.appendChild(bf2);
+  const scoreNum = document.createElement('span');
+  scoreNum.style.cssText = 'font-size:9px;color:' + scoreColor + ';';
+  scoreNum.textContent = a.score.toFixed(2);
+  barRow.append(scoreLbl, bw2, scoreNum);
+
+  const pauseBtn = document.createElement('button');
+  pauseBtn.textContent = '⏸ PAUSE';
+  pauseBtn.style.cssText = 'margin-top:6px;width:100%;font-size:9px;padding:2px;background:#1a1a2e;border:1px solid #333;color:#aaa;cursor:pointer;border-radius:2px;';
+  const aid = a.agent_id;
+  const cap2 = a.capability;
+  pauseBtn.addEventListener('click', function() { coPauseAgent(aid, cap2); });
+
+  card.append(head, deptEl, capRow, barRow, pauseBtn);
+  return card;
 }
 
 async function coTriggerScan() {

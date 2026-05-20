@@ -1353,13 +1353,14 @@ def _register_own_jobs(scheduler, flask_app):
                         SELECT a.id, a.title, a.body, s.slug AS source_slug
                         FROM wtf.articles a
                         JOIN wtf.sources s ON s.id = a.source_id
+                        LEFT JOIN wtf.story_clusters sc ON sc.id = a.cluster_id
                         WHERE a.ai_analyzed = false
                           AND a.published_at > NOW() - INTERVAL '90 days'
                           AND NOT EXISTS (
                               SELECT 1 FROM wtf.llm_analyses la WHERE la.article_id = a.id
                           )
                           AND a.id != ALL(%s)
-                        ORDER BY a.published_at DESC
+                        ORDER BY COALESCE(sc.article_count, 1) DESC, a.published_at DESC
                         LIMIT %s
                         """,
                         (list(tried_ids) or [0], _WTF_BATCH),
@@ -1899,7 +1900,7 @@ def _register_own_jobs(scheduler, flask_app):
                         try:
                             with _wtf_cur(commit=True) as cur:
                                 cur.execute(
-                                    "UPDATE wtf.articles SET body = %s WHERE id = %s AND LENGTH(COALESCE(body,'')) < 300",
+                                    "UPDATE wtf.articles SET body = %s, body_source = 'playwright' WHERE id = %s AND LENGTH(COALESCE(body,'')) < 300",
                                     (body, aid),
                                 )
                             processed += 1

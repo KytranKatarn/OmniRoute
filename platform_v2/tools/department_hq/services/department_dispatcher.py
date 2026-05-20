@@ -756,6 +756,11 @@ class DepartmentDispatcher:
                 for row in fleet_agents:
                     cache_key = f"fleet:{row['node_str_id']}:{row['name']}"
                     _dept = row.get("department") or "Engineering & Technology"
+                    # Inherit skills from the hub agent so fleet agents score
+                    # correctly against capability requirements.  Without this,
+                    # every fleet agent gets the -1.0 "unskilled" penalty and
+                    # hub agents always win — causing severe node underutilisation.
+                    _hub_skills = skills_by_agent.get(row.get("source_agent_id"), {})
                     self._agent_cache[cache_key] = {
                         "id": row["node_agent_id"],
                         "source_agent_id": row["source_agent_id"],
@@ -775,7 +780,7 @@ class DepartmentDispatcher:
                         "energy": 1.0,
                         "task_count": 0,
                         "task_limit": 10,
-                        "skills": {},
+                        "skills": _hub_skills,
                     }
                     fleet_count += 1
 

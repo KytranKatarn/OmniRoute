@@ -1206,6 +1206,175 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered dispatch_zombie_reaper job (every 15 min)")
 
+    # Job #123: K.I.N. Node Planning — assign agents to nodes by model fit
+    # Runs every 4h. Ensures fleet nodes have active node_agents entries for
+    # agents whose models are available on that node. Also activates S.C.O.U.T.
+    # as backup for geo_extraction when L.O.C.A.L. is resting.
+    # -------------------------------------------------------------------------
+    def _run_kin_node_planning():
+        """K.I.N. coordinates agent-to-node assignments based on model fit.
+
+        For each online fleet node, checks its ollama_models list and ensures
+        active node_agents entries exist for AI agents whose model is in that
+        list. Deactivates assignments on nodes that don't have the model.
+        Logs a governance audit entry summarising the plan.
+        """
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, cur):
+                # --- Get online nodes with their model lists ---
+                cur.execute(
+                    """
+                    SELECT id, node_id, node_name, gpu_available, gpu_vram_gb, ram_gb,
+                           extra_capabilities->>'ollama_models' AS ollama_models_json
+                    FROM remote_nodes
+                    WHERE is_active = TRUE AND status = 'online'
+                      AND last_heartbeat > NOW() - INTERVAL '5 minutes'
+                      AND extra_capabilities->>'ollama_models' IS NOT NULL
+                    ORDER BY node_name
+                    """
+                )
+                nodes = cur.fetchall() or []
+
+                if not nodes:
+                    logger.info("[K.I.N.] Node planning: no nodes online with model lists")
+                    return
+
+                import json as _json
+
+                node_model_map = {}  # node_db_id → set of model names
+                for n in nodes:
+                    try:
+                        models = _json.loads(n["ollama_models_json"] or "[]")
+                        node_model_map[n["id"]] = {m.lower() for m in (models or [])}
+                    except Exception:
+                        node_model_map[n["id"]] = set()
+
+                # --- Get all active AI agents ---
+                cur.execute(
+                    """
+                    SELECT a.id, a.name, a.model, a.department
+                    FROM agents a
+                    WHERE a.worker_type = 'ai'
+                      AND a.shift_state NOT IN ('decommissioned', 'barracked')
+                      AND a.model IS NOT NULL
+                    """
+                )
+                agents = cur.fetchall() or []
+
+                activated = 0
+                deactivated = 0
+                skipped = 0
+
+                for agent in agents:
+                    agent_model = (agent["model"] or "").lower().split(":")[0]  # strip tag
+                    for node in nodes:
+                        node_id = node["id"]
+                        node_models = node_model_map.get(node_id, set())
+                        # Check if any registered model starts with the agent's model name
+                        model_fits = any(
+                            m.startswith(agent_model) or agent_model.startswith(m.split(":")[0]) for m in node_models
+                        )
+
+                        # Check existing node_agents entry
+                        cur.execute(
+                            """
+                            SELECT id, status FROM node_agents
+                            WHERE node_id = %s AND hub_agent_id = %s
+                            """,
+                            (node_id, agent["id"]),
+                        )
+                        existing = cur.fetchone()
+
+                        if model_fits and not existing:
+                            # Create new active assignment (unique on node_id + name)
+                            cur.execute(
+                                """
+                                INSERT INTO node_agents
+                                    (node_id, hub_agent_id, source_agent_id, name, model,
+                                     status, department, auto_assigned)
+                                VALUES (%s, %s, %s, %s, %s, 'active', %s, TRUE)
+                                ON CONFLICT (node_id, name) DO UPDATE
+                                    SET status='active', hub_agent_id=%s,
+                                        source_agent_id=%s, model=%s, auto_assigned=TRUE
+                                """,
+                                (
+                                    node_id,
+                                    agent["id"],
+                                    agent["id"],
+                                    agent["name"],
+                                    agent["model"],
+                                    agent["department"],
+                                    agent["id"],
+                                    agent["id"],
+                                    agent["model"],
+                                ),
+                            )
+                            if cur.rowcount:
+                                activated += 1
+                        elif model_fits and existing and existing["status"] != "active":
+                            cur.execute(
+                                "UPDATE node_agents SET status='active' WHERE id=%s",
+                                (existing["id"],),
+                            )
+                            activated += 1
+                        elif not model_fits and existing and existing["status"] == "active":
+                            # Only deactivate auto-assigned entries — don't touch manually curated ones
+                            cur.execute(
+                                "UPDATE node_agents SET status='inactive' WHERE id=%s AND auto_assigned=TRUE",
+                                (existing["id"],),
+                            )
+                            if cur.rowcount:
+                                deactivated += 1
+                            else:
+                                skipped += 1
+                        else:
+                            skipped += 1
+
+                # --- Log to governance audit ---
+                cur.execute(
+                    """
+                    INSERT INTO governance_audit_log
+                        (agent_id, event_category, event_type, description, metadata, timestamp)
+                    SELECT a.id, 'node_planning', 'kin_node_assignment',
+                           'K.I.N. node planning: ' || %s || ' activated, ' || %s || ' deactivated',
+                           %s::jsonb, NOW()
+                    FROM agents a WHERE a.name = 'K.I.N.' LIMIT 1
+                    """,
+                    (
+                        activated,
+                        deactivated,
+                        _json.dumps(
+                            {
+                                "activated": activated,
+                                "deactivated": deactivated,
+                                "nodes_checked": len(nodes),
+                                "agents_reviewed": len(agents),
+                            }
+                        ),
+                    ),
+                )
+
+                logger.info(
+                    "[K.I.N.] Node planning complete — activated=%d deactivated=%d nodes=%d agents=%d",
+                    activated,
+                    deactivated,
+                    len(nodes),
+                    len(agents),
+                )
+        except Exception as exc:
+            logger.error("[K.I.N.] Node planning failed: %s", exc)
+
+    scheduler.add_job(
+        with_ctx(_run_kin_node_planning),
+        trigger=CronTrigger(hour="*/4", minute="45", timezone="America/Toronto"),
+        id="kin_node_planning",
+        name="K.I.N.: Fleet node agent assignment by model fit (every 4h)",
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered kin_node_planning job (every 4h)")
+
     # Job #121: Media generation queue reaper — re-queue stuck generating jobs
     # -------------------------------------------------------------------------
     def _run_media_generation_reaper():

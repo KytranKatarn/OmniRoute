@@ -144,6 +144,7 @@
         <!-- K.I.N. Sub-tab nav -->
         <div style="display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap;">
           <button onclick="switchKinSection('welfare')" id="kinBtn-welfare" class="dhq-traffic-btn dhq-traffic-btn-active">WELFARE</button>
+          <button onclick="switchKinSection('workload')" id="kinBtn-workload" class="dhq-traffic-btn">WORKLOAD</button>
           <button onclick="switchKinSection('work')" id="kinBtn-work" class="dhq-traffic-btn">WORK SESSIONS</button>
           <button onclick="switchKinSection('performance')" id="kinBtn-performance" class="dhq-traffic-btn">PERFORMANCE</button>
         </div>
@@ -151,6 +152,11 @@
         <!-- WELFARE section -->
         <div id="kinSection-welfare">
           <div id="kinWelfareContent" class="dhq-loading">Loading K.I.N. welfare data...</div>
+        </div>
+
+        <!-- WORKLOAD section -->
+        <div id="kinSection-workload" style="display:none;">
+          <div id="kinWorkloadContent" class="dhq-loading">Loading workload data...</div>
         </div>
 
         <!-- WORK SESSIONS section -->

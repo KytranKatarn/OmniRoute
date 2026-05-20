@@ -893,7 +893,9 @@ def register_dispatch_routes(bp, admin_required_decorator):
                 cur.execute(
                     """SELECT COUNT(*) AS cnt FROM bridge_jobs
                        WHERE status = 'failed'
-                       AND completed_at >= NOW() - INTERVAL '1 hour'"""
+                       AND completed_at >= NOW() - INTERVAL '1 hour'
+                       AND (metadata->>'reap_reason' IS NULL
+                            OR metadata->>'reap_reason' NOT LIKE '%platform restarted%')"""
                 )
                 bridge_failed = cur.fetchone()["cnt"] or 0
 

@@ -613,22 +613,20 @@ var _kinActiveSection = 'welfare';
 
 function switchKinSection(section) {
     _kinActiveSection = section;
-    ['welfare', 'work', 'performance'].forEach(function(s) {
+    ['welfare', 'workload', 'work', 'performance'].forEach(function(s) {
         var el = document.getElementById('kinSection-' + s);
         var btn = document.getElementById('kinBtn-' + s);
         if (el) el.style.display = s === section ? '' : 'none';
-        if (btn) {
-            btn.classList.toggle('dhq-traffic-btn-active', s === section);
-        }
+        if (btn) btn.classList.toggle('dhq-traffic-btn-active', s === section);
     });
-    // Lazy-load section data when first opened
     if (section === 'work') loadWorkSessions();
     if (section === 'performance') loadPerformance();
+    if (section === 'workload') loadKinWorkload();
 }
 
 async function loadKinTab() {
     await loadKinWelfare();
-    loadWorkSessions();   // pre-warm work sessions in background
+    loadWorkSessions();
 }
 
 async function loadKinWelfare() {
@@ -639,21 +637,31 @@ async function loadKinWelfare() {
         var d = await r.json();
         if (!d.success) throw new Error(d.error || 'failed');
 
-        // Update banner counts
+        // Banner counts
         var rc = document.getElementById('kinRestingCount');
         var al = document.getElementById('kinAtLimitCount');
         var ac = document.getElementById('kinActiveCount');
-        if (rc) rc.textContent = (d.resting_count || 0) + ' resting';
-        if (al) al.textContent = (d.at_limit_count || 0) + ' at limit';
+        if (rc) { rc.textContent = (d.resting_count || 0) + ' resting'; rc.style.color = (d.resting_count || 0) > 0 ? '#f59e0b' : '#10b981'; }
+        if (al) { al.textContent = (d.at_limit_count || 0) + ' at limit'; al.style.color = (d.at_limit_count || 0) > 0 ? '#ef4444' : 'var(--dhq-text-dim)'; }
         if (ac) ac.textContent = (d.active_count || 0) + ' active';
-        // Colour resting count
-        if (rc) rc.style.color = (d.resting_count || 0) > 0 ? '#f59e0b' : '#10b981';
-        if (al) al.style.color = (d.at_limit_count || 0) > 0 ? '#ef4444' : 'var(--dhq-text-dim)';
 
         if (!el) return;
         el.innerHTML = '';
 
-        // Resting agents section
+        // Last reset banner
+        if (d.last_reset && d.last_reset.at) {
+            var resetBanner = document.createElement('div');
+            resetBanner.style.cssText = 'background:rgba(139,92,246,0.1);border:1px solid #7c3aed44;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.72rem;';
+            var resetAt = new Date(d.last_reset.at);
+            resetBanner.innerHTML = '<span style="color:#a78bfa;font-family:Antonio,sans-serif;letter-spacing:1px;">⟳ LAST BUDGET RESET</span>'
+                + ' <span style="color:var(--dhq-text-dim);">' + resetAt.toLocaleDateString() + ' ' + resetAt.toLocaleTimeString() + '</span>'
+                + ' · <span style="color:var(--dhq-text-dim);">by ' + (d.last_reset.by || 'system') + '</span>'
+                + ' · <span style="color:#10b981;">limit set to ' + (d.last_reset.limit_set || 1000) + '</span>'
+                + (d.last_reset.reason ? '<div style="color:var(--dhq-text-dim);margin-top:3px;opacity:0.7;">' + d.last_reset.reason.substring(0, 120) + '…</div>' : '');
+            el.appendChild(resetBanner);
+        }
+
+        // Welfare flags
         var agents = d.agents || [];
         if (!agents.length) {
             var none = document.createElement('div');
@@ -666,16 +674,17 @@ async function loadKinWelfare() {
         var grid = document.createElement('div');
         grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;';
         agents.forEach(function(a) {
-            var card = document.createElement('div');
             var statusColor = a.resting ? '#f59e0b' : (a.at_limit ? '#ef4444' : '#10b981');
-            var statusLabel = a.resting ? '😴 resting (' + (a.rest_type || 'auto') + ')' : (a.at_limit ? '⚠ at task limit' : '✓ active');
+            var statusLabel = a.resting ? '😴 ' + (a.rest_type || 'resting') : (a.at_limit ? '⚠ at limit' : '✓ active');
+            var card = document.createElement('div');
             card.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid ' + statusColor + '44;border-radius:6px;padding:10px 12px;';
             card.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
                 + '<span style="font-family:Antonio,sans-serif;font-size:0.78rem;letter-spacing:1px;color:var(--dhq-text-main);">' + a.name + '</span>'
                 + '<span style="margin-left:auto;font-size:0.65rem;color:' + statusColor + ';">' + statusLabel + '</span>'
                 + '</div>'
                 + '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;color:var(--dhq-text-dim);">'
-                + a.department + ' · tasks: ' + (a.task_count || 0) + '/' + (a.task_limit || 10)
+                + a.department + ' · ' + (a.task_count || 0) + '/' + (a.task_limit || 1000)
+                + (a.dispatches_1h ? ' · <span style="color:#00bcd4;">' + a.dispatches_1h + '/h</span>' : '')
                 + (a.stress ? ' · stress: ' + Math.round(a.stress * 100) + '%' : '')
                 + '</div>'
                 + (a.rest_since ? '<div style="font-size:0.63rem;color:#f59e0b;margin-top:4px;">resting since ' + new Date(a.rest_since).toLocaleTimeString() + '</div>' : '');
@@ -683,7 +692,77 @@ async function loadKinWelfare() {
         });
         el.appendChild(grid);
     } catch (e) {
-        if (el) el.textContent = 'Error loading K.I.N. data: ' + e.message;
+        if (el) el.textContent = 'Error: ' + e.message;
+    }
+}
+
+async function loadKinWorkload() {
+    var el = document.getElementById('kinWorkloadContent');
+    if (!el) return;
+    el.innerHTML = '<span style="color:var(--dhq-text-dim)">Loading workload…</span>';
+    try {
+        var r = await fetch('/tools/department-hq/api/kin/welfare');
+        var d = await r.json();
+        if (!d.success) throw new Error(d.error || 'failed');
+
+        el.innerHTML = '';
+
+        // Reset summary bar
+        if (d.last_reset && d.last_reset.at) {
+            var rb = document.createElement('div');
+            rb.style.cssText = 'background:rgba(139,92,246,0.1);border:1px solid #7c3aed44;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.72rem;display:flex;gap:16px;flex-wrap:wrap;';
+            var resetAt = new Date(d.last_reset.at);
+            rb.innerHTML = '<span style="color:#a78bfa;font-family:Antonio,sans-serif;letter-spacing:1px;">⟳ LAST RESET</span>'
+                + '<span style="color:var(--dhq-text-dim);">' + resetAt.toLocaleDateString() + ' ' + resetAt.toLocaleTimeString() + '</span>'
+                + '<span style="color:#10b981;">all agents · limit=' + (d.last_reset.limit_set || 1000) + '</span>'
+                + '<span style="color:var(--dhq-text-dim);margin-left:auto;">aligned with C.R.E.E.D. welfare ethics</span>';
+            el.appendChild(rb);
+        }
+
+        // Workload velocity table
+        var wl = d.workload || [];
+        if (!wl.length) {
+            el.innerHTML += '<div style="color:var(--dhq-text-dim);padding:16px 0;">No dispatch activity in last 24h</div>';
+            return;
+        }
+
+        var table = document.createElement('table');
+        table.style.cssText = 'width:100%;border-collapse:collapse;font-size:0.72rem;';
+        table.innerHTML = '<thead><tr style="color:var(--dhq-text-dim);border-bottom:1px solid rgba(255,255,255,0.1);">'
+            + '<th style="text-align:left;padding:4px 8px;font-family:Antonio,sans-serif;letter-spacing:1px;">AGENT</th>'
+            + '<th style="text-align:right;padding:4px 8px;">DEPT</th>'
+            + '<th style="text-align:right;padding:4px 8px;">1H RATE</th>'
+            + '<th style="text-align:right;padding:4px 8px;">24H TOTAL</th>'
+            + '<th style="text-align:right;padding:4px 8px;">COUNT/LIMIT</th>'
+            + '<th style="text-align:right;padding:4px 8px;">ETA TO 1K</th>'
+            + '</tr></thead>';
+        var tbody = document.createElement('tbody');
+        wl.forEach(function(a) {
+            var pct = Math.min(100, Math.round((a.task_count || 0) / (a.task_limit || 1000) * 100));
+            var eta = a.hours_to_limit != null
+                ? (a.hours_to_limit < 1 ? Math.round(a.hours_to_limit * 60) + 'm' : a.hours_to_limit + 'h')
+                : '—';
+            var etaColor = a.hours_to_limit != null && a.hours_to_limit < 4 ? '#f59e0b' : 'var(--dhq-text-dim)';
+            var tr = document.createElement('tr');
+            tr.style.cssText = 'border-bottom:1px solid rgba(255,255,255,0.04);';
+            tr.innerHTML = '<td style="padding:5px 8px;color:var(--dhq-text-main);font-family:Antonio,sans-serif;letter-spacing:0.5px;">' + a.name + '</td>'
+                + '<td style="padding:5px 8px;text-align:right;color:var(--dhq-text-dim);font-size:0.67rem;">' + (a.department || '').split(' & ')[0] + '</td>'
+                + '<td style="padding:5px 8px;text-align:right;color:#00bcd4;font-family:\'IBM Plex Mono\',monospace;">' + (a.dispatches_1h || 0) + '/h</td>'
+                + '<td style="padding:5px 8px;text-align:right;color:var(--dhq-text-main);">' + (a.dispatches_24h || 0).toLocaleString() + '</td>'
+                + '<td style="padding:5px 8px;text-align:right;">'
+                    + '<div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;">'
+                    + '<div style="width:60px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;">'
+                    + '<div style="width:' + pct + '%;height:100%;background:' + (pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#10b981') + ';"></div>'
+                    + '</div>'
+                    + '<span style="color:var(--dhq-text-dim);min-width:60px;text-align:right;">' + (a.task_count || 0) + '/' + (a.task_limit || 1000) + '</span>'
+                    + '</div></td>'
+                + '<td style="padding:5px 8px;text-align:right;color:' + etaColor + ';font-family:\'IBM Plex Mono\',monospace;">' + eta + '</td>';
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        el.appendChild(table);
+    } catch (e) {
+        el.textContent = 'Error: ' + e.message;
     }
 }
 

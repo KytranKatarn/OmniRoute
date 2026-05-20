@@ -23,9 +23,10 @@ def register_work_routes(bp, admin_required):
     @bp.route("/api/kin/welfare")
     @admin_required
     def api_kin_welfare():
-        """K.I.N. welfare summary: resting agents, task limits, stress flags."""
+        """K.I.N. welfare + workload: resting agents, task limits, dispatch velocity, reset tracking."""
         try:
             with get_db_cursor() as (conn, cur):
+                # Main agent welfare query
                 cur.execute(
                     """
                     SELECT
@@ -36,6 +37,9 @@ def register_work_routes(bp, admin_required):
                         ae.current_mood     AS mood,
                         ab.current_task_count AS task_count,
                         ab.task_queue_limit   AS task_limit,
+                        ab.last_task_reset_at,
+                        ab.task_reset_reason,
+                        ab.task_reset_by,
                         rc.rest_type,
                         rc.started_at AS rest_since
                     FROM agents a
@@ -61,7 +65,35 @@ def register_work_routes(bp, admin_required):
                 )
                 rows = cur.fetchall() or []
 
+                # Dispatch velocity: dispatches per agent in last 1h and 24h
+                cur.execute(
+                    """
+                    SELECT agent_name,
+                           COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 hour')  AS dispatches_1h,
+                           COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') AS dispatches_24h
+                    FROM task_execution_log
+                    WHERE created_at > NOW() - INTERVAL '24 hours'
+                    GROUP BY agent_name
+                    """
+                )
+                velocity_map = {r["agent_name"]: r for r in (cur.fetchall() or [])}
+
+                # Last reset summary (latest reset across all agents)
+                cur.execute(
+                    """
+                    SELECT ab.last_task_reset_at, ab.task_reset_reason, ab.task_reset_by,
+                           ab.task_queue_limit,
+                           COUNT(*) OVER () AS agents_total
+                    FROM agent_budgets ab
+                    WHERE ab.last_task_reset_at IS NOT NULL
+                    ORDER BY ab.last_task_reset_at DESC
+                    LIMIT 1
+                    """
+                )
+                reset_row = cur.fetchone()
+
             agents = []
+            workload = []
             resting_count = 0
             at_limit_count = 0
             active_count = 0
@@ -69,8 +101,17 @@ def register_work_routes(bp, admin_required):
             for r in rows:
                 is_resting = r["rest_type"] is not None
                 task_count = r["task_count"] or 0
-                task_limit = r["task_limit"] or 10
+                task_limit = r["task_limit"] or 1000
                 at_limit = task_count >= task_limit
+
+                vel = velocity_map.get(r["name"], {})
+                d1h = int(vel.get("dispatches_1h") or 0)
+                d24h = int(vel.get("dispatches_24h") or 0)
+                # Projected hours to reach task_limit at current 1h rate
+                if d1h > 0 and task_count < task_limit:
+                    hours_to_limit = round((task_limit - task_count) / d1h, 1)
+                else:
+                    hours_to_limit = None
 
                 if is_resting:
                     resting_count += 1
@@ -79,29 +120,50 @@ def register_work_routes(bp, admin_required):
                 else:
                     active_count += 1
 
-                # Only include flagged agents in the welfare cards
+                agent_data = {
+                    "id": r["id"],
+                    "name": r["name"],
+                    "department": r["department"],
+                    "shift_state": r["shift_state"],
+                    "resting": is_resting,
+                    "rest_type": r["rest_type"],
+                    "rest_since": (r["rest_since"].isoformat() if r["rest_since"] else None),
+                    "at_limit": at_limit,
+                    "task_count": task_count,
+                    "task_limit": task_limit,
+                    "stress": float(r["stress"]) if r["stress"] else 0.0,
+                    "energy": float(r["energy"]) if r["energy"] else 0.8,
+                    "mood": r["mood"],
+                    "dispatches_1h": d1h,
+                    "dispatches_24h": d24h,
+                    "hours_to_limit": hours_to_limit,
+                }
+
+                # Welfare cards: flagged agents only
                 if is_resting or at_limit or (r["stress"] or 0) > 0.7:
-                    agents.append(
-                        {
-                            "id": r["id"],
-                            "name": r["name"],
-                            "department": r["department"],
-                            "shift_state": r["shift_state"],
-                            "resting": is_resting,
-                            "rest_type": r["rest_type"],
-                            "rest_since": (r["rest_since"].isoformat() if r["rest_since"] else None),
-                            "at_limit": at_limit,
-                            "task_count": task_count,
-                            "task_limit": task_limit,
-                            "stress": float(r["stress"]) if r["stress"] else 0.0,
-                            "energy": float(r["energy"]) if r["energy"] else 0.8,
-                            "mood": r["mood"],
-                        }
-                    )
+                    agents.append(agent_data)
+
+                # Workload table: all agents with any activity or task_count > 0
+                if d24h > 0 or task_count > 0:
+                    workload.append(agent_data)
+
+            # Sort workload by 24h dispatch volume descending
+            workload.sort(key=lambda x: x["dispatches_24h"], reverse=True)
+
+            last_reset = None
+            if reset_row:
+                last_reset = {
+                    "at": reset_row["last_task_reset_at"].isoformat() if reset_row["last_task_reset_at"] else None,
+                    "reason": reset_row["task_reset_reason"],
+                    "by": reset_row["task_reset_by"],
+                    "limit_set": reset_row["task_queue_limit"],
+                }
 
             return jsonify(
                 success=True,
                 agents=agents,
+                workload=workload,
+                last_reset=last_reset,
                 resting_count=resting_count,
                 at_limit_count=at_limit_count,
                 active_count=active_count,

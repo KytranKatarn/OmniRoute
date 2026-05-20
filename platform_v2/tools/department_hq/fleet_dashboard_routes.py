@@ -1667,7 +1667,7 @@ def register_dashboard_routes(bp, auth_decorator):
                     }
 
                 # Real-time dispatch counts from task_execution_log (5-min window)
-                # This is the authoritative source — covers warm-path GPU dispatches
+                # Resolves fleet-agent-{id} names so node cards show agent names.
                 cur.execute(
                     """
                     SELECT
@@ -1676,11 +1676,15 @@ def register_dashboard_routes(bp, auth_decorator):
                         COUNT(*) AS dispatches_5m,
                         SUM(CASE WHEN tel.success THEN 1 ELSE 0 END)::float
                             / NULLIF(COUNT(*), 0) AS success_rate,
-                        STRING_AGG(DISTINCT tel.agent_name, ', ') FILTER (
+                        STRING_AGG(DISTINCT COALESCE(a.name, tel.agent_name), ', ') FILTER (
                             WHERE tel.created_at > NOW() - INTERVAL '60 seconds'
                         ) AS active_agents
                     FROM task_execution_log tel
                     LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
+                    LEFT JOIN agents a ON (
+                        tel.agent_name ~ '^fleet-agent-[0-9]+$'
+                        AND a.id::text = substring(tel.agent_name FROM 13)
+                    )
                     WHERE tel.created_at > NOW() - INTERVAL '5 minutes'
                     GROUP BY 1
                     """,
@@ -1724,24 +1728,33 @@ def register_dashboard_routes(bp, auth_decorator):
                 )
                 online_nodes = [dict(r) for r in cur.fetchall()]
 
-                # Recent dispatch log from task_execution_log — authoritative source
-                # with real fleet node attribution (node_used_id → node_name).
-                # Resolves fleet-agent-{id} display names via agents table lookup.
+                # Recent dispatch log — shows diverse agents, not just WTF.
+                # Caps each unique agent at 3 entries so high-volume agents (V.E.R.I.F.Y.,
+                # L.O.C.A.L.) don't crowd out platform agents (F.O.R.G.E., S.H.I.E.L.D.).
+                # Extends window to 2h so infrequent platform agents are visible.
                 cur.execute(
                     """
-                    SELECT
-                        COALESCE(a.name, tel.agent_name) AS agent_name,
-                        tel.capability, tel.module_source,
-                        tel.success, tel.duration_ms, tel.created_at,
-                        COALESCE(rn.node_name, %s) AS node_name
-                    FROM task_execution_log tel
-                    LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
-                    LEFT JOIN agents a ON (
-                        tel.agent_name ~ '^fleet-agent-[0-9]+$'
-                        AND a.id::text = substring(tel.agent_name FROM 13)
-                    )
-                    WHERE tel.created_at > NOW() - INTERVAL '30 minutes'
-                    ORDER BY tel.created_at DESC
+                    SELECT agent_name, capability, module_source, success, duration_ms, created_at, node_name
+                    FROM (
+                        SELECT
+                            COALESCE(a.name, tel.agent_name) AS agent_name,
+                            tel.capability, tel.module_source,
+                            tel.success, tel.duration_ms, tel.created_at,
+                            COALESCE(rn.node_name, %s) AS node_name,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY COALESCE(a.name, tel.agent_name)
+                                ORDER BY tel.created_at DESC
+                            ) AS rn
+                        FROM task_execution_log tel
+                        LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
+                        LEFT JOIN agents a ON (
+                            tel.agent_name ~ '^fleet-agent-[0-9]+$'
+                            AND a.id::text = substring(tel.agent_name FROM 13)
+                        )
+                        WHERE tel.created_at > NOW() - INTERVAL '2 hours'
+                    ) ranked
+                    WHERE rn <= 3
+                    ORDER BY created_at DESC
                     LIMIT 30
                     """,
                     (hub_node_name,),

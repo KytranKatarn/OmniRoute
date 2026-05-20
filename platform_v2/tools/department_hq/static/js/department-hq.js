@@ -2725,8 +2725,7 @@ function copyDeviceKey() {
 
 async function loadDispatch() {
     loaded['dispatch'] = true;
-    var ah = document.getElementById('alerts-history-section');
-    if (ah) { ah.style.display = 'block'; if (typeof window.ahFetch === 'function') window.ahFetch(true); }
+    // alerts-history-section kept hidden in A.R.M.A.D.A. DISPATCH sub-tab (moved to CONTROL)
     try {
         var data = await api('/api/dispatch/overview');
         renderOllamaHud(data.ollama || {});
@@ -3404,18 +3403,22 @@ function switchArmadaSection(s) {
         loadClaudeFeed();
     }
 
-    // CONTROL: move scheduler/config/jobs sections
+    // CONTROL: show scheduler/config/jobs sections + alerts history
     if (s === 'control' && !_armadaMounted.control) {
         _armadaMounted.control = true;
         var ctrlTarget = document.getElementById('armadaSection-control');
         if (ctrlTarget) {
-            var schedSrc = document.getElementById('dispatchSchedContent');
-            var configSrc = document.getElementById('dispatchConfigContent');
-            var jobsSrc = document.getElementById('jobMonitorContent');
-            if (schedSrc && schedSrc.parentNode) ctrlTarget.appendChild(schedSrc.parentNode);
-            else if (schedSrc) ctrlTarget.appendChild(schedSrc);
+            // Move scheduler, config, jobs by dept sections
+            ['dispatchSchedContent','dispatchConfigContent','jobMonitorContent'].forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el && el.parentNode && el.parentNode !== ctrlTarget) ctrlTarget.appendChild(el.parentNode);
+            });
+            // Move alerts history into control (it has its own section wrapper)
+            var ahSec = document.getElementById('alerts-history-section');
+            if (ahSec) { ahSec.style.display = ''; ctrlTarget.appendChild(ahSec); }
         }
         loadDispatchScheduler(); loadDispatchConfig();
+        if (typeof window.ahFetch === 'function') window.ahFetch(true);
     }
 
     // NETWORK: move fleet map section

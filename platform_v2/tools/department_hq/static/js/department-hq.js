@@ -624,9 +624,17 @@ function switchKinSection(section) {
     if (section === 'workload') loadKinWorkload();
 }
 
+var _kinRefreshInterval = null;
+
 async function loadKinTab() {
     await loadKinWelfare();
     loadWorkSessions();
+    // Auto-refresh welfare + workload every 60s
+    if (_kinRefreshInterval) clearInterval(_kinRefreshInterval);
+    _kinRefreshInterval = setInterval(function() {
+        if (_kinActiveSection === 'welfare') loadKinWelfare();
+        if (_kinActiveSection === 'workload') loadKinWorkload();
+    }, 60000);
 }
 
 async function loadKinWelfare() {
@@ -738,7 +746,9 @@ async function loadKinWorkload() {
             + '</tr></thead>';
         var tbody = document.createElement('tbody');
         wl.forEach(function(a) {
-            var pct = Math.min(100, Math.round((a.task_count || 0) / (a.task_limit || 1000) * 100));
+            var sinceReset = a.dispatches_since_reset || 0;
+            var limit = a.task_limit || 1000;
+            var pct = Math.min(100, Math.round(sinceReset / limit * 100));
             var eta = a.hours_to_limit != null
                 ? (a.hours_to_limit < 1 ? Math.round(a.hours_to_limit * 60) + 'm' : a.hours_to_limit + 'h')
                 : '—';
@@ -754,7 +764,7 @@ async function loadKinWorkload() {
                     + '<div style="width:60px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;">'
                     + '<div style="width:' + pct + '%;height:100%;background:' + (pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#10b981') + ';"></div>'
                     + '</div>'
-                    + '<span style="color:var(--dhq-text-dim);min-width:60px;text-align:right;">' + (a.task_count || 0) + '/' + (a.task_limit || 1000) + '</span>'
+                    + '<span style="color:var(--dhq-text-dim);min-width:70px;text-align:right;">' + sinceReset.toLocaleString() + '/' + limit.toLocaleString() + '</span>'
                     + '</div></td>'
                 + '<td style="padding:5px 8px;text-align:right;color:' + etaColor + ';font-family:\'IBM Plex Mono\',monospace;">' + eta + '</td>';
             tbody.appendChild(tr);

@@ -65,15 +65,19 @@ def register_work_routes(bp, admin_required):
                 )
                 rows = cur.fetchall() or []
 
-                # Dispatch velocity: dispatches per agent in last 1h and 24h
+                # Dispatch velocity + dispatches since last budget reset
                 cur.execute(
                     """
-                    SELECT agent_name,
-                           COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 hour')  AS dispatches_1h,
-                           COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') AS dispatches_24h
-                    FROM task_execution_log
-                    WHERE created_at > NOW() - INTERVAL '24 hours'
-                    GROUP BY agent_name
+                    SELECT tel.agent_name,
+                           COUNT(*) FILTER (WHERE tel.created_at > NOW() - INTERVAL '1 hour')  AS dispatches_1h,
+                           COUNT(*) FILTER (WHERE tel.created_at > NOW() - INTERVAL '24 hours') AS dispatches_24h,
+                           COUNT(*) FILTER (WHERE tel.created_at > COALESCE(ab.last_task_reset_at, NOW() - INTERVAL '24 hours'))
+                               AS dispatches_since_reset
+                    FROM task_execution_log tel
+                    LEFT JOIN agents a ON a.name = tel.agent_name
+                    LEFT JOIN agent_budgets ab ON ab.agent_id = a.id
+                    WHERE tel.created_at > NOW() - INTERVAL '24 hours'
+                    GROUP BY tel.agent_name
                     """
                 )
                 velocity_map = {r["agent_name"]: r for r in (cur.fetchall() or [])}
@@ -107,9 +111,10 @@ def register_work_routes(bp, admin_required):
                 vel = velocity_map.get(r["name"], {})
                 d1h = int(vel.get("dispatches_1h") or 0)
                 d24h = int(vel.get("dispatches_24h") or 0)
-                # Projected hours to reach task_limit at current 1h rate
-                if d1h > 0 and task_count < task_limit:
-                    hours_to_limit = round((task_limit - task_count) / d1h, 1)
+                d_reset = int(vel.get("dispatches_since_reset") or 0)
+                # ETA to limit based on dispatches since last reset (counter that goes up)
+                if d1h > 0 and d_reset < task_limit:
+                    hours_to_limit = round((task_limit - d_reset) / d1h, 1)
                 else:
                     hours_to_limit = None
 
@@ -136,6 +141,7 @@ def register_work_routes(bp, admin_required):
                     "mood": r["mood"],
                     "dispatches_1h": d1h,
                     "dispatches_24h": d24h,
+                    "dispatches_since_reset": d_reset,
                     "hours_to_limit": hours_to_limit,
                 }
 

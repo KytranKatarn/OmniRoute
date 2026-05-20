@@ -31,7 +31,7 @@ globs: ["ai_bridge/**"]
 
 ### Starship-246 (100.64.0.3 / RTX 3070 8GB / 32GB RAM)
 - Container: `archie_node_ollama` port 11434
-- **MAX_LOADED_MODELS=3 | KEEP_ALIVE=10m | NUM_PARALLEL=2** (set via OTA 2026-05-19)
+- **MAX_LOADED_MODELS=3 | KEEP_ALIVE=10m | NUM_PARALLEL=3** (updated via OTA 2026-05-20)
 - Warm model set: `qwen2.5:1.5b` GPU + `llama3.2:3b` GPU + `qwen2.5:7b` CPU
 - Available: qwen2.5:7b, qwen2.5:1.5b, llama3.2:3b, mistral:7b, dolphin3:latest, gemma3:12b
 

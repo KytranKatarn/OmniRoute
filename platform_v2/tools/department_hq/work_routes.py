@@ -184,47 +184,72 @@ def register_work_routes(bp, admin_required):
     @bp.route("/api/work-sessions")
     @admin_required
     def api_work_sessions():
-        """Recent work sessions with optional filters."""
+        """Agent activity summary from task_execution_log (last 24h).
+
+        Replaces the old dept_work_sessions source which only tracked Repair Bay
+        automated fix sessions. Now shows real agent dispatches grouped per agent.
+        """
         department = request.args.get("department")
-        status = request.args.get("status")
         limit = min(int(request.args.get("limit", 50)), 200)
 
         try:
-            conditions = ["1=1"]
-            params = []
-
-            if department:
-                conditions.append("ws.department = %s")
-                params.append(department)
-            if status:
-                conditions.append("ws.status = %s")
-                params.append(status)
-
-            where = " AND ".join(conditions)
+            dept_filter = "AND a.department = %s" if department else ""
+            params = [department] if department else []
 
             with get_db_cursor(commit=False) as (conn, cur):
                 cur.execute(
                     f"""
-                    SELECT ws.id, ws.agent_id, ws.department, ws.session_type,
-                           ws.title, ws.status, ws.started_at, ws.ended_at,
-                           ws.jobs_completed, ws.jobs_failed, ws.tokens_used,
-                           a.name AS agent_name, a.display_name AS agent_display_name
-                    FROM dept_work_sessions ws
-                    LEFT JOIN agents a ON a.id = ws.agent_id
-                    WHERE {where}
-                    ORDER BY ws.started_at DESC
+                    SELECT
+                        COALESCE(a.name, tel.agent_name)        AS agent_name,
+                        COALESCE(a.display_name, a.name, tel.agent_name) AS agent_display_name,
+                        a.department,
+                        COUNT(*)                                 AS total_dispatches,
+                        COUNT(*) FILTER (WHERE tel.success)     AS jobs_completed,
+                        COUNT(*) FILTER (WHERE NOT tel.success) AS jobs_failed,
+                        ROUND(AVG(tel.duration_ms)::numeric, 0) AS avg_duration_ms,
+                        SUM(tel.tokens_used)                    AS tokens_used,
+                        MODE() WITHIN GROUP (ORDER BY tel.capability) AS top_capability,
+                        MAX(tel.created_at)                     AS last_active,
+                        MIN(tel.created_at)                     AS first_active
+                    FROM task_execution_log tel
+                    LEFT JOIN agents a ON a.name = tel.agent_name AND a.worker_type = 'ai'
+                    WHERE tel.created_at > NOW() - INTERVAL '24 hours'
+                    {dept_filter}
+                    GROUP BY COALESCE(a.name, tel.agent_name),
+                             COALESCE(a.display_name, a.name, tel.agent_name),
+                             a.department
+                    ORDER BY total_dispatches DESC
                     LIMIT %s
                     """,
                     params + [limit],
                 )
-                sessions = cur.fetchall()
+                rows = cur.fetchall()
 
-            return jsonify(
-                {
-                    "sessions": [dict(s) for s in sessions],
-                    "count": len(sessions),
-                }
-            )
+            sessions = []
+            for r in rows:
+                success_rate = (
+                    round(r["jobs_completed"] / r["total_dispatches"] * 100, 1) if r["total_dispatches"] > 0 else 0.0
+                )
+                status = "active" if success_rate >= 80 else "degraded" if success_rate >= 50 else "failed"
+                sessions.append(
+                    {
+                        "agent_name": r["agent_name"],
+                        "agent_display_name": r["agent_display_name"],
+                        "department": r["department"] or "—",
+                        "session_type": "dispatch",
+                        "title": f"{r['top_capability']} · {r['total_dispatches']} dispatches/24h",
+                        "status": status,
+                        "jobs_completed": r["jobs_completed"],
+                        "jobs_failed": r["jobs_failed"],
+                        "tokens_used": r["tokens_used"] or 0,
+                        "avg_duration_ms": float(r["avg_duration_ms"] or 0),
+                        "success_rate": success_rate,
+                        "started_at": r["first_active"].isoformat() if r["first_active"] else None,
+                        "last_active": r["last_active"].isoformat() if r["last_active"] else None,
+                    }
+                )
+
+            return jsonify({"sessions": sessions, "count": len(sessions)})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -251,15 +276,25 @@ def register_work_routes(bp, admin_required):
                 )
                 metrics = cur.fetchall()
 
-                # Also get live counts from bridge_jobs (last 7 days)
+                # Live counts from bridge_jobs (last 7 days)
+                # Excludes restart-orphaned jobs (reap_reason='orphaned — platform restarted')
+                # so failure rates reflect real dispatch failures, not restart casualties.
                 cur.execute(
                     """
                     SELECT a.department,
                            COUNT(*) AS total_jobs,
                            COUNT(*) FILTER (WHERE bj.status = 'completed') AS completed,
-                           COUNT(*) FILTER (WHERE bj.status = 'failed') AS failed,
+                           COUNT(*) FILTER (
+                               WHERE bj.status = 'failed'
+                               AND (bj.metadata->>'reap_reason' IS NULL
+                                    OR bj.metadata->>'reap_reason' NOT LIKE '%%platform restarted%%')
+                           ) AS failed,
+                           COUNT(*) FILTER (
+                               WHERE bj.status = 'failed'
+                               AND bj.metadata->>'reap_reason' LIKE '%%platform restarted%%'
+                           ) AS orphaned,
                            AVG(EXTRACT(EPOCH FROM (bj.completed_at - bj.created_at)) * 1000)
-                               FILTER (WHERE bj.completed_at IS NOT NULL) AS avg_ms
+                               FILTER (WHERE bj.status = 'completed') AS avg_ms
                     FROM bridge_jobs bj
                     JOIN agents a ON a.name = bj.agent_name
                     WHERE bj.created_at >= NOW() - INTERVAL '7 days'

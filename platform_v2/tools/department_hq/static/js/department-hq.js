@@ -783,38 +783,53 @@ async function loadKinWorkload() {
 async function loadWorkSessions() {
     var el = document.getElementById('workContent');
     var dept = document.getElementById('workDept').value;
-    var status = document.getElementById('workStatus').value;
 
     var params = new URLSearchParams();
     if (dept) params.set('department', dept);
-    if (status) params.set('status', status);
 
     try {
         var data = await api('/api/work-sessions?' + params.toString());
         loaded['work'] = true;
 
-        if (data.sessions.length === 0) {
-            setHtml(el, '<div class="dhq-empty">No work sessions found.</div>');
+        if (!data.sessions || data.sessions.length === 0) {
+            setHtml(el, '<div class="dhq-empty">No agent activity in last 24h.</div>');
             return;
         }
 
-        var html = '<div class="dhq-session-list">';
+        var html = '<div style="font-size:0.68rem;color:var(--dhq-text-dim);margin-bottom:8px;">AGENT ACTIVITY \u2014 last 24h \u00b7 ' + data.sessions.length + ' active agents</div>';
+        html += '<div class="dhq-session-list">';
         for (var i = 0; i < data.sessions.length; i++) {
             var s = data.sessions[i];
-            html += '<div class="dhq-session-card">'
+            var sr = s.success_rate || 0;
+            var srColor = sr >= 95 ? '#10b981' : sr >= 80 ? '#f59e0b' : '#ef4444';
+            var avgSec = s.avg_duration_ms ? (s.avg_duration_ms / 1000).toFixed(1) + 's' : '\u2014';
+            var lastActive = s.last_active ? fmtTime(s.last_active) : '\u2014';
+            html += '<div class="dhq-session-card" style="cursor:default;">'
                 + '<div>'
-                + '<div class="dhq-session-title">' + esc(s.title || s.session_type || 'Untitled') + '</div>'
-                + '<div class="dhq-session-agent">' + esc(s.agent_display_name || s.agent_name || '\u2014') + ' &middot; ' + esc(s.department) + '</div>'
+                + '<div style="font-family:Antonio,sans-serif;font-size:0.82rem;letter-spacing:1px;color:var(--dhq-text-main);">' + esc(s.agent_display_name || s.agent_name || '\u2014') + '</div>'
+                + '<div style="font-size:0.67rem;color:var(--dhq-text-dim);margin-top:2px;">' + esc(s.department || '\u2014') + '</div>'
                 + '</div>'
-                + '<div class="dhq-session-status dhq-status-' + esc(s.status) + '">' + esc(s.status).toUpperCase() + '</div>'
-                + '<div><div style="font-size:0.7rem;color:var(--dhq-text-dim)">Jobs</div><div>' + (s.jobs_completed || 0) + ' done / ' + (s.jobs_failed || 0) + ' fail</div></div>'
-                + '<div><div style="font-size:0.7rem;color:var(--dhq-text-dim)">Started</div><div>' + fmtTime(s.started_at) + '</div></div>'
+                + '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">'
+                + '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:0.67rem;background:rgba(0,188,212,0.15);color:#00bcd4;padding:1px 6px;border-radius:3px;">' + esc(s.title ? s.title.split(' \u00b7 ')[0] : '\u2014') + '</span>'
+                + '</div>'
+                + '<div style="text-align:center;">'
+                + '<div style="font-size:1rem;font-weight:600;color:' + srColor + ';">' + sr.toFixed(0) + '%</div>'
+                + '<div style="font-size:0.65rem;color:var(--dhq-text-dim);">success</div>'
+                + '</div>'
+                + '<div style="text-align:center;">'
+                + '<div style="font-size:0.85rem;font-weight:600;color:var(--dhq-text-main);">' + (s.jobs_completed + s.jobs_failed).toLocaleString() + '</div>'
+                + '<div style="font-size:0.65rem;color:var(--dhq-text-dim);">dispatches</div>'
+                + '</div>'
+                + '<div style="text-align:right;font-size:0.72rem;">'
+                + '<div style="color:var(--dhq-text-dim);">' + avgSec + ' avg</div>'
+                + '<div style="color:var(--dhq-text-dim);font-size:0.65rem;">active ' + lastActive + '</div>'
+                + '</div>'
                 + '</div>';
         }
         html += '</div>';
         setHtml(el, html);
     } catch (err) {
-        setHtml(el, '<div class="dhq-empty">Error loading work sessions: ' + esc(err.message) + '</div>');
+        setHtml(el, '<div class="dhq-empty">Error loading agent activity: ' + esc(err.message) + '</div>');
     }
 }
 

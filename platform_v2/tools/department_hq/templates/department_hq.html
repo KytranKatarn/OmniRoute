@@ -35,7 +35,7 @@
     ("devices", "API Access", "monitor"),
     ("dispatch", "Dispatch", "send"),
     ("autonomy", "Autonomy", "cpu"),
-    ("fleet", "Fleet", "rocket"),
+    ("fleet", "A.R.M.A.D.A.", "rocket"),
     ("contractors", "Contractors", "hard-hat"),
     ("coms", "COMs", "message-circle"),
     ("online-presence", "Online Presence", "globe"),
@@ -165,14 +165,8 @@
             <select id="workDept" class="dhq-select" onchange="loadWorkSessions()">
               <option value="">All Departments</option>
             </select>
-            <select id="workStatus" class="dhq-select" onchange="loadWorkSessions()">
-              <option value="">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="completed">Completed</option>
-              <option value="failed">Failed</option>
-            </select>
           </div>
-          <div id="workContent" class="dhq-loading">Loading work sessions...</div>
+          <div id="workContent" class="dhq-loading">Loading agent activity...</div>
         </div>
 
         <!-- PERFORMANCE section -->

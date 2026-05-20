@@ -493,7 +493,7 @@ def _persist_on_demand(article_id: int, results: dict, schema: str) -> None:
 
 
 def _analyze_bg(article_id: int, title: str, body: str, schema: str,
-                hub_url: str, hub_token: str) -> None:
+                hub_url: str, hub_token: str, source_slug: str = "") -> None:
     """Background thread: dispatch bias+factcheck+geo to hub and persist results.
     Safe to call from a daemon thread — uses only module-level objects.
     """
@@ -505,16 +505,29 @@ def _analyze_bg(article_id: int, title: str, body: str, schema: str,
             resp = requests.post(
                 f"{hub_url}/tools/wtf-hub/api/analyze",
                 json={"task": task, "article_id": article_id,
-                      "title": title, "body": body},
+                      "title": title, "body": body, "source_slug": source_slug},
                 headers={"Authorization": f"Bearer {hub_token}"},
                 timeout=120,
             )
             data = resp.json()
-            if data.get("ok"):
-                results[task] = data.get("result")
+            if data.get("ok") and data.get("result"):
+                results[task] = data["result"]
+            else:
+                _bg_logger.warning(
+                    "[WTF analyze] task=%s article_id=%s hub returned not-ok: %s",
+                    task, article_id, data.get("error", "no result"),
+                )
         except Exception as exc:
             _bg_logger.warning("[WTF analyze] task=%s article_id=%s failed: %s",
                                task, article_id, exc)
+    if not results:
+        # All hub tasks failed (models cold or hub unreachable).
+        # Skip persist entirely so ai_analyzed stays false — user can retry.
+        _bg_logger.warning(
+            "[WTF analyze] article=%s — all tasks failed, skipping persist (will retry on next Deep Dive click)",
+            article_id,
+        )
+        return
     _persist_on_demand(article_id, results, schema)
 
 
@@ -549,8 +562,11 @@ def analyze_article(article_id: int):
     S = _schema()
     with _db().connect() as c:
         article = c.execute(text(f"""
-            SELECT id, title, body, ai_analyzed, analysis_tier
-            FROM {S}.articles WHERE id = :id
+            SELECT a.id, a.title, a.body, a.ai_analyzed, a.analysis_tier,
+                   COALESCE(s.slug, '') AS source_slug
+            FROM {S}.articles a
+            LEFT JOIN {S}.sources s ON s.id = a.source_id
+            WHERE a.id = :id
         """), {"id": article_id}).fetchone()
 
     if not article:
@@ -564,6 +580,7 @@ def analyze_article(article_id: int):
         target=_analyze_bg,
         args=(article_id, article.title or "", article.body or "",
               S, HUB_URL, HUB_TOKEN),
+        kwargs={"source_slug": article.source_slug or ""},
         daemon=True,
     ).start()
 

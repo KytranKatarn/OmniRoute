@@ -1260,6 +1260,46 @@ def _register_own_jobs(scheduler, flask_app):
         finally:
             conn.close()
 
+    def _wtf_cluster_slots():
+        """Query dispatch_pending_queue for per-model backlog depth.
+
+        Returns (recommended_workers, total_queued, by_model) where by_model is a
+        dict of {model_name: {"queued": N, "running": N}}.  WTF batch jobs use this
+        to avoid firing dispatches into a queue that is already saturated for their
+        target model — which causes the dispatcher to return success=False immediately
+        and the job to count every article as a failure.
+        """
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT model_needed, status, COUNT(*) AS n "
+                    "FROM dispatch_pending_queue "
+                    "WHERE status IN ('queued','running') "
+                    "GROUP BY model_needed, status"
+                )
+                rows = cur.fetchall() or []
+            by_model: dict = {}
+            total_queued = 0
+            for row in rows:
+                model = row["model_needed"]
+                status = row["status"]
+                count = int(row["n"])
+                entry = by_model.setdefault(model, {"queued": 0, "running": 0})
+                entry[status] = count
+                if status == "queued":
+                    total_queued += count
+        except Exception:
+            return 4, 0, {}
+        _FLEET_SLOTS = 6  # hub=1, .246=3, .245=1, outpost=1
+        total_running = sum(v.get("running", 0) for v in by_model.values())
+        free = max(0, _FLEET_SLOTS - total_running)
+        # Heavy overall backlog — cap new batches at 2 workers
+        if total_queued > 40:
+            return max(1, min(2, free)), total_queued, by_model
+        return max(1, min(4, free)), total_queued, by_model
+
     # Job #122: WTF LLM Analysis — bias scoring via B.I.A.S. / V.E.R.I.F.Y.
     # Runs every 30 min at :00 and :30 (EDT).
     def _run_wtf_llm_analysis():
@@ -1370,7 +1410,18 @@ def _register_own_jobs(scheduler, flask_app):
                 if not batch:
                     break
 
-                with ThreadPoolExecutor(max_workers=4) as executor:
+                _workers, _qdepth, _by_model = _wtf_cluster_slots()
+                _llm_queued = _by_model.get("qwen2.5:1.5b", {}).get("queued", 0)
+                if _llm_queued > 10:
+                    logger.warning(
+                        "[WTFLLMJob] B.I.A.S. model cold (%d items already queued for qwen2.5:1.5b)"
+                        " — skipping batch, will retry next cycle",
+                        _llm_queued,
+                    )
+                    break
+                if _workers < 4:
+                    logger.info("[WTFLLMJob] cluster backlog=%d, throttling to %d workers", _qdepth, _workers)
+                with ThreadPoolExecutor(max_workers=_workers) as executor:
                     futures = {executor.submit(_analyze_one, app, row): row["id"] for row in batch}
                     try:
                         for future in as_completed(futures, timeout=300):
@@ -1447,6 +1498,8 @@ def _register_own_jobs(scheduler, flask_app):
                     )
                 except Exception:
                     parsed = {}
+                if not isinstance(parsed, dict):
+                    parsed = {}
                 try:
                     with _wtf_cur(commit=True) as cur:
                         cur.execute(
@@ -1497,7 +1550,20 @@ def _register_own_jobs(scheduler, flask_app):
                 if not batch:
                     break
 
-                with ThreadPoolExecutor(max_workers=4) as executor:
+                _workers, _qdepth, _by_model = _wtf_cluster_slots()
+                _geo_queued = _by_model.get("llama3.2:3b", {}).get("queued", 0)
+                if _geo_queued > 10:
+                    # L.O.C.A.L.'s model is cold — adding more dispatches just grows the backlog.
+                    # The model_dispatch_worker will drain the existing queue; retry next cycle.
+                    logger.warning(
+                        "[WTFGeoJob] L.O.C.A.L. model cold (%d items already queued for llama3.2:3b)"
+                        " — skipping batch, will retry next cycle",
+                        _geo_queued,
+                    )
+                    break
+                if _workers < 4:
+                    logger.info("[WTFGeoJob] cluster backlog=%d, throttling to %d workers", _qdepth, _workers)
+                with ThreadPoolExecutor(max_workers=_workers) as executor:
                     futures = {executor.submit(_geo_one, app, row): row["id"] for row in batch}
                     try:
                         for future in as_completed(futures, timeout=300):
@@ -1716,6 +1782,18 @@ def _register_own_jobs(scheduler, flask_app):
             import json as _json
             from tools.department_hq.services.department_dispatcher import dispatch
 
+            _workers, _qdepth, _by_model = _wtf_cluster_slots()
+            _fc_queued = _by_model.get("gemma3:12b", {}).get("queued", 0)
+            if _fc_queued > 10:
+                # F.A.C.T.'s model is cold and backlogged — serial dispatches will all fail immediately.
+                # Defer to the next scheduled cycle rather than burning the failback threshold.
+                logger.info(
+                    "[WTFFactcheckBacklog] F.A.C.T. model cold (%d items queued for gemma3:12b)"
+                    " — deferring this cycle",
+                    _fc_queued,
+                )
+                return
+
             processed = failed = consecutive_failures = 0
             _VERDICT_MAP = {
                 "verified": "true",
@@ -1846,7 +1924,7 @@ def _register_own_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(_run_wtf_factcheck_backlog),
-        trigger=CronTrigger(minute="5,35", timezone="America/Toronto"),
+        trigger=CronTrigger(minute="20,50", timezone="America/Toronto"),
         id="wtf_factcheck_backlog",
         name="WTF: Factcheck Backlog — V.E.R.I.F.Y.-B hub pool (Job #126)",
         max_instances=1,
@@ -1859,6 +1937,9 @@ def _register_own_jobs(scheduler, flask_app):
     # Runs every 30 min at :15 and :45. Only processes articles <7 days old.
     # Rate-limited to 25/cycle (archie_browser max 60/hr, job runs 2×/hr).
     _WTF_SCOUT_PER_CYCLE = 25
+    # Body length below which an article is considered a stub worth re-scraping.
+    # Covers RSS snippets (<300) and short descriptions (300-500).
+    _WTF_SCOUT_STUB_THRESHOLD = 500
 
     def _run_wtf_scout():
         try:
@@ -1873,14 +1954,14 @@ def _register_own_jobs(scheduler, flask_app):
                         """
                         SELECT a.id, a.url
                         FROM wtf.articles a
-                        WHERE LENGTH(COALESCE(a.body, '')) < 300
+                        WHERE LENGTH(COALESCE(a.body, '')) < %s
                           AND a.url IS NOT NULL
-                          AND a.published_at > NOW() - INTERVAL '7 days'
+                          AND a.published_at > NOW() - INTERVAL '90 days'
                           AND a.id != ALL(%s)
                         ORDER BY a.published_at DESC
                         LIMIT %s
                         """,
-                        (list(tried_ids) or [0], _WTF_BATCH),
+                        (_WTF_SCOUT_STUB_THRESHOLD, list(tried_ids) or [0], _WTF_BATCH),
                     )
                     batch = cur.fetchall() or []
 
@@ -1900,8 +1981,9 @@ def _register_own_jobs(scheduler, flask_app):
                         try:
                             with _wtf_cur(commit=True) as cur:
                                 cur.execute(
-                                    "UPDATE wtf.articles SET body = %s, body_source = 'playwright' WHERE id = %s AND LENGTH(COALESCE(body,'')) < 300",
-                                    (body, aid),
+                                    "UPDATE wtf.articles SET body = %s, body_source = 'playwright'"
+                                    " WHERE id = %s AND LENGTH(COALESCE(body,'')) < %s",
+                                    (body, aid, _WTF_SCOUT_STUB_THRESHOLD),
                                 )
                             processed += 1
                             consecutive_failures = 0

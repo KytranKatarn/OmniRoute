@@ -3367,8 +3367,8 @@ function loadClusterActivity() {
                 var successRate = n.success_rate || 0;
                 // CPU pre-queue backlog (may be stale if drain worker is behind)
                 var backlog = n.backlog || 0;
-                var isActive = active60s > 0;
-                totalActive += active60s;
+                var isActive = dispatches5m > 0;
+                totalActive += active60s > 0 ? 1 : 0; // count nodes with work in last 60s
 
                 var card = document.createElement('div');
                 card.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid ' + (isActive ? '#10b981' : 'rgba(255,255,255,0.1)') + ';border-radius:6px;padding:10px 12px;';
@@ -3384,23 +3384,22 @@ function loadClusterActivity() {
                     + hwLabel
                     + '</div>';
 
-                // Activity counts: real dispatch rate (primary) + queue backlog (secondary)
+                // Activity counts: 5-min window is primary (60s is too narrow — tasks take 15-30s each)
                 var okPct = dispatches5m > 0 ? Math.round(successRate * 100) : null;
                 var okBadge = okPct !== null
                     ? ' <span style="color:' + (okPct >= 90 ? '#10b981' : (okPct >= 70 ? '#f59e0b' : '#ef4444')) + ';">' + okPct + '% ok</span>'
                     : '';
+                var hotDot = active60s > 0 ? ' <span style="color:#10b981;" title="active in last 60s">●</span>' : '';
                 var counts = '<div style="display:flex;gap:10px;font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;margin-bottom:5px;flex-wrap:wrap;">'
-                    + '<span style="color:' + (active60s > 0 ? '#10b981' : 'var(--dhq-text-dim)') + ';">▶ ' + active60s + ' active</span>'
-                    + '<span style="color:' + (dispatches5m > 0 ? '#00bcd4' : 'var(--dhq-text-dim)') + ';">⚡ ' + dispatches5m + '/5m</span>'
-                    + (backlog > 0 ? '<span style="color:#f59e0b;" title="CPU pre-queue backlog">⏳ ' + backlog + ' backlog</span>' : '')
+                    + '<span style="color:' + (dispatches5m > 0 ? '#00bcd4' : 'var(--dhq-text-dim)') + ';">⚡ ' + dispatches5m + '/5m' + hotDot + '</span>'
+                    + (backlog > 0 ? '<span style="color:#f59e0b;" title="staged in CPU pre-queue">⏳ ' + backlog + ' staged</span>' : '')
                     + okBadge
                     + '</div>';
 
                 // Throughput rate
                 var ratePerMin = dispatches5m > 0 ? (dispatches5m / 5).toFixed(1) : '0.0';
-                var spike = active60s > 0 ? ' <span style="color:#10b981;">●</span>' : '';
                 var throughputLine = '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;margin-bottom:5px;color:' + (dispatches5m > 0 ? '#00bcd4' : 'var(--dhq-text-dim)') + ';">'
-                    + '▲ ' + ratePerMin + ' disp/min' + spike
+                    + '▲ ' + ratePerMin + ' disp/min'
                     + '</div>';
 
                 // Active agents (last 60s from task_execution_log)

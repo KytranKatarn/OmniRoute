@@ -209,13 +209,13 @@ def warmup_fleet_models():
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     warmup_capabilities = [
-        ("bias_analysis", "Classify bias: 'ping'"),  # B.I.A.S. qwen2.5:1.5b GPU
-        ("geo_extraction", "Location: 'Ottawa'"),  # L.O.C.A.L. llama3.2:3b GPU
-        ("fact_check", "Verify: 'ping'"),  # V.E.R.I.F.Y. qwen2.5:7b → CPU
-        ("documentation", "Summarize: 'ping'"),  # C.O.D.E.X. mistral:7b → CPU
-        ("workforce_planning", "Status: 'ping'"),  # K.I.N. gemma3:12b → CPU
-        ("security", "Check: 'ping'"),  # V.I.G.I.L. gemma3:12b → CPU
-        ("conversation", "Hi"),  # D.R.A.F.T./A.C.C.O.R.D. dolphin3 → CPU
+        ("bias_analysis", "Classify bias: 'ping'"),  # B.I.A.S. qwen2.5:1.5b — GPU fleet dispatch
+        ("geo_extraction", "Location: 'Ottawa'"),  # L.O.C.A.L. llama3.2:3b — GPU fleet dispatch
+        ("fact_check", "Verify: 'ping'"),  # V.E.R.I.F.Y. qwen2.5:7b — fleet dispatch
+        ("documentation", "Summarize: 'ping'"),  # C.O.D.E.X. mistral:7b — fleet dispatch
+        ("workforce_planning", "Status: 'ping'"),  # K.I.N. gemma3:12b — fleet dispatch
+        ("security", "Check: 'ping'"),  # S.H.I.E.L.D. qwen2.5:7b — fleet dispatch (was gemma2-cpu)
+        ("conversation", "Hi"),  # D.R.A.F.T./A.C.C.O.R.D. dolphin3 — fleet dispatch
     ]
 
     try:

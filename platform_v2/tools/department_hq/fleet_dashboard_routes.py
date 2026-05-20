@@ -1696,19 +1696,27 @@ def register_dashboard_routes(bp, auth_decorator):
                 )
                 online_nodes = [dict(r) for r in cur.fetchall()]
 
-                # Recent dispatch log from dispatch_pending_queue (has node routing info)
+                # Recent dispatch log from task_execution_log — authoritative source
+                # with real fleet node attribution (node_used_id → node_name).
+                # Resolves fleet-agent-{id} display names via agents table lookup.
                 cur.execute(
                     """
-                    SELECT dpq.agent_name, dpq.capability, dpq.source_product,
-                           dpq.status, dpq.queued_at, dpq.completed_at,
-                           COALESCE(rn.node_name, 'Hub') AS node_name
-                    FROM dispatch_pending_queue dpq
-                    LEFT JOIN remote_nodes rn ON rn.id = dpq.preferred_node_id
-                    WHERE dpq.status IN ('done', 'completed', 'failed')
-                      AND COALESCE(dpq.completed_at, dpq.queued_at) > NOW() - INTERVAL '30 minutes'
-                    ORDER BY COALESCE(dpq.completed_at, dpq.queued_at) DESC
-                    LIMIT 20
-                    """
+                    SELECT
+                        COALESCE(a.name, tel.agent_name) AS agent_name,
+                        tel.capability, tel.module_source,
+                        tel.success, tel.duration_ms, tel.created_at,
+                        COALESCE(rn.node_name, %s) AS node_name
+                    FROM task_execution_log tel
+                    LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
+                    LEFT JOIN agents a ON (
+                        tel.agent_name ~ '^fleet-agent-[0-9]+$'
+                        AND a.id = CAST(NULLIF(substring(tel.agent_name FROM 13), '') AS INTEGER)
+                    )
+                    WHERE tel.created_at > NOW() - INTERVAL '30 minutes'
+                    ORDER BY tel.created_at DESC
+                    LIMIT 30
+                    """,
+                    (hub_node_name,),
                 )
                 log = []
                 for r in cur.fetchall():
@@ -1716,15 +1724,11 @@ def register_dashboard_routes(bp, auth_decorator):
                         {
                             "agent": r["agent_name"],
                             "capability": r["capability"],
-                            "source": r["source_product"],
+                            "source": r["module_source"],
                             "node": r["node_name"],
-                            "success": r["status"] != "failed",
-                            "duration_ms": None,
-                            "ts": (
-                                (r["completed_at"] or r["queued_at"]).isoformat()
-                                if (r["completed_at"] or r["queued_at"])
-                                else None
-                            ),
+                            "success": bool(r["success"]),
+                            "duration_ms": r["duration_ms"],
+                            "ts": r["created_at"].isoformat() if r["created_at"] else None,
                         }
                     )
 

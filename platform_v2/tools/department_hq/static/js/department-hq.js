@@ -3610,8 +3610,14 @@ function loadClusterActivity() {
                             var capEl = document.createElement('span');
                             capEl.style.cssText = 'color:var(--dhq-text-dim);font-size:0.65rem;margin-left:auto;';
                             capEl.textContent = e.capability || '';
+                            // Module source badge — dim, small, right-aligned
+                            var srcEl = document.createElement('span');
+                            var srcShort = (e.source || '').replace(/^(wtf_dhq_|wtf_|platform_|archie_)/,'').split('_')[0];
+                            srcEl.style.cssText = 'color:#555;font-size:0.6rem;font-family:"IBM Plex Mono",monospace;';
+                            if (srcShort) srcEl.textContent = '[' + srcShort + ']';
                             row.appendChild(tsEl); row.appendChild(iconEl); row.appendChild(agentEl);
                             row.appendChild(arrEl); row.appendChild(nodeEl); row.appendChild(capEl);
+                            if (srcShort) row.appendChild(srcEl);
                             idx++;
                         }
                         logEl.appendChild(row);

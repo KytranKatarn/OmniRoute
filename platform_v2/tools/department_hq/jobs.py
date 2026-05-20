@@ -1206,6 +1206,94 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered dispatch_zombie_reaper job (every 15 min)")
 
+    # Job #124: Dispatch Backfill Worker — re-dispatch stuck queue items to backup agents
+    # Runs every 5 min. Converts the dead-letter queue into active gap-filling:
+    # items stuck >10 min are re-dispatched via the DHQ dispatcher (which now
+    # picks backup agents since primary may be resting). Max 5 items/cycle.
+    # -------------------------------------------------------------------------
+    def _run_dispatch_backfill():
+        """Re-dispatch stuck dispatch_pending_queue items to backup agents.
+
+        When a primary agent rests, dispatches go to dispatch_pending_queue instead
+        of running. This job picks those up and re-dispatches them — the dispatcher
+        now selects backup agents (since primaries score 0 when resting).
+        """
+        try:
+            from database import get_db_cursor
+            from tools.department_hq.services.department_dispatcher import dispatch
+
+            with get_db_cursor(commit=False) as (_, cur):
+                cur.execute(
+                    """
+                    SELECT id, capability, prompt, system_prompt, json_mode,
+                           module_id, source_product, priority
+                    FROM dispatch_pending_queue
+                    WHERE status = 'queued'
+                      AND queued_at < NOW() - INTERVAL '10 minutes'
+                      AND queued_at > NOW() - INTERVAL '2 hours'
+                    ORDER BY priority DESC, queued_at ASC
+                    LIMIT 5
+                    """
+                )
+                stuck_items = cur.fetchall() or []
+
+            if not stuck_items:
+                return
+
+            logger.info("[Backfill] Found %d stuck queue items to re-dispatch", len(stuck_items))
+
+            for item in stuck_items:
+                try:
+                    result = dispatch(
+                        capability=item["capability"],
+                        prompt=item["prompt"] or "",
+                        system_prompt=item["system_prompt"],
+                        json_mode=bool(item["json_mode"]),
+                        module_id=item["module_id"] or "backfill_worker",
+                        priority="high",
+                    )
+                    if result.success:
+                        with get_db_cursor(commit=True) as (_, cur2):
+                            cur2.execute(
+                                """
+                                UPDATE dispatch_pending_queue
+                                   SET status = 'completed',
+                                       completed_at = NOW(),
+                                       result_response = %s,
+                                       error = 'backfill: re-dispatched to backup agent'
+                                 WHERE id = %s AND status = 'queued'
+                                """,
+                                (
+                                    (result.response or "")[:500],
+                                    item["id"],
+                                ),
+                            )
+                        logger.info(
+                            "[Backfill] Item #%d (%s) completed via backup agent",
+                            item["id"],
+                            item["capability"],
+                        )
+                    else:
+                        logger.debug(
+                            "[Backfill] Item #%d (%s) still blocked: %s",
+                            item["id"],
+                            item["capability"],
+                            (result.error or "")[:80],
+                        )
+                except Exception as item_exc:
+                    logger.debug("[Backfill] Item #%d error: %s", item["id"], item_exc)
+        except Exception as exc:
+            logger.error("[DeptHQ] Dispatch backfill failed: %s", exc)
+
+    scheduler.add_job(
+        with_ctx(_run_dispatch_backfill),
+        trigger=CronTrigger(minute="*/5", timezone="America/Toronto"),
+        id="dispatch_backfill_worker",
+        name="Backfill: re-dispatch stuck queue items to backup agents (every 5 min)",
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered dispatch_backfill_worker job (every 5 min)")
+
     # Job #123: K.I.N. Node Planning — assign agents to nodes by model fit
     # Runs every 4h. Ensures fleet nodes have active node_agents entries for
     # agents whose models are available on that node. Also activates S.C.O.U.T.

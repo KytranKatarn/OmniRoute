@@ -3714,7 +3714,10 @@ function loadClusterActivity() {
 
             if (badge) {
                 while (badge.firstChild) badge.removeChild(badge.firstChild);
-                badge.appendChild(document.createTextNode(totalActive > 0 ? totalActive + ' active' : 'all idle'));
+                var totalOnline = Object.keys(nodeMap).length;
+                var badgeText = totalOnline + ' online';
+                if (totalActive > 0) badgeText += ' · ' + totalActive + ' dispatching';
+                badge.appendChild(document.createTextNode(badgeText));
                 if ((throughputTotal.rows_5m || 0) > 0) {
                     badge.appendChild(document.createTextNode(' · '));
                     var rateSpan = document.createElement('span');

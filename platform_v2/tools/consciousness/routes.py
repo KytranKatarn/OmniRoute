@@ -25,7 +25,8 @@ from flask_login import login_required, current_user
 from functools import wraps
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime
+from datetime import datetime, date
+import decimal
 import base64
 import json
 import logging
@@ -37,6 +38,33 @@ import sys
 import requests
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_dict(row):
+    """Convert a psycopg2 RealDictRow to a plain dict with JSON-serializable types.
+
+    Converts:
+    - decimal.Decimal → float
+    - datetime / date → ISO 8601 string
+    - bytes → None (not serializable anyway)
+    """
+    if row is None:
+        return None
+    result = {}
+    for k, v in row.items():
+        if isinstance(v, decimal.Decimal):
+            result[k] = float(v)
+        elif isinstance(v, (datetime, date)):
+            result[k] = v.isoformat()
+        else:
+            result[k] = v
+    return result
+
+
+def _safe_list(rows):
+    """Apply _safe_dict to a list of rows."""
+    return [_safe_dict(r) for r in rows]
+
 
 # Add platform root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -205,7 +233,7 @@ def get_memories(view_type):
             return jsonify({"error": f"Unknown view_type: {view_type}. Valid: recent, important, accessed, types"}), 400
 
         memories = cur.fetchall()
-        return jsonify({"memories": memories, "view_type": view_type})
+        return jsonify({"memories": _safe_list(memories), "view_type": view_type})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
@@ -969,12 +997,12 @@ def get_complete_brain_state():
         current_emotion = cur.fetchone()
         return jsonify(
             {
-                "overall_stats": overall_stats,
-                "knowledge_by_type": knowledge_by_type,
-                "sessions_summary": sessions_summary,
-                "recent_activity": recent_activity,
-                "top_memories": top_memories,
-                "current_emotion": current_emotion or {"mood": "neutral", "energy": 0.5, "confidence": 0.5},
+                "overall_stats": _safe_dict(overall_stats),
+                "knowledge_by_type": _safe_list(knowledge_by_type),
+                "sessions_summary": _safe_dict(sessions_summary),
+                "recent_activity": _safe_dict(recent_activity),
+                "top_memories": _safe_list(top_memories),
+                "current_emotion": _safe_dict(current_emotion) or {"mood": "neutral", "energy": 0.5, "confidence": 0.5},
             }
         )
     except Exception as e:
@@ -2847,7 +2875,7 @@ def get_bridge_analytics():
                 COUNT(*) FILTER (WHERE request_metadata->>'escalation' IS NOT NULL) as claude_escalations,
                 COALESCE(SUM(tokens_used), 0) as total_tokens,
                 COALESCE(SUM(cost), 0)::numeric::float as total_cost,
-                ROUND(AVG(duration_ms)::numeric, 0) as avg_execution_ms
+                ROUND(AVG(duration_ms)::numeric, 0)::float as avg_execution_ms
             FROM task_execution_log
             WHERE created_at > NOW() - INTERVAL '30 days'
         """
@@ -2861,7 +2889,7 @@ def get_bridge_analytics():
                 COALESCE(task_type, 'unknown') as intent_type,
                 COALESCE(module_source, 'unknown') as module_name,
                 COUNT(*) as escalation_count,
-                ROUND(AVG(duration_ms)::numeric, 0) as avg_time_ms,
+                ROUND(AVG(duration_ms)::numeric, 0)::float as avg_time_ms,
                 COALESCE(SUM(cost), 0)::numeric::float as total_cost
             FROM task_execution_log
             WHERE request_metadata->>'escalation' IS NOT NULL
@@ -2886,7 +2914,7 @@ def get_bridge_analytics():
                 success,
                 (request_metadata->>'escalation' IS NOT NULL) as escalated_to_claude,
                 LEFT(task_description, 100) as prompt_preview,
-                created_at
+                TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS') as created_at
             FROM task_execution_log
             ORDER BY created_at DESC
             LIMIT 20
@@ -2898,7 +2926,7 @@ def get_bridge_analytics():
         cur.execute(
             """
             SELECT
-                DATE(created_at) as date,
+                TO_CHAR(DATE(created_at), 'YYYY-MM-DD') as date,
                 COUNT(*) as calls,
                 COUNT(*) FILTER (WHERE request_metadata->>'escalation' IS NOT NULL) as escalations
             FROM task_execution_log

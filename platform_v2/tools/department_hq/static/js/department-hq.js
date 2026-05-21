@@ -86,7 +86,9 @@ function stressClass(level) {
 function fmtTime(iso) {
     if (!iso) return '\u2014';
     try {
-        const d = new Date(iso);
+        // Force UTC: DB returns naive timestamps \u2014 append Z so browser converts to local EDT
+        const s = (typeof iso === 'string' && !iso.endsWith('Z') && !iso.includes('+')) ? iso + 'Z' : iso;
+        const d = new Date(s);
         return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     } catch (_) { return iso; }
 }
@@ -2684,7 +2686,9 @@ const DEVICE_STATUS_COLORS = {
 
 function formatDeviceTime(ts) {
     if (!ts) return '—';
-    var d = new Date(ts);
+    // Force UTC: naive server timestamps have no tz info — append Z for correct EDT display
+    var s = (typeof ts === 'string' && !ts.endsWith('Z') && !ts.includes('+')) ? ts + 'Z' : ts;
+    var d = new Date(s);
     return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
 }
 
@@ -4352,7 +4356,7 @@ function showNodeDetail(node) {
         ]},
         { title: 'Status', rows: [
             ['Status', node.status || '--'],
-            ['Last Heartbeat', node.last_heartbeat ? new Date(node.last_heartbeat).toLocaleString() : '--']
+            ['Last Heartbeat', node.last_heartbeat ? new Date((node.last_heartbeat.endsWith('Z') || node.last_heartbeat.includes('+')) ? node.last_heartbeat : node.last_heartbeat + 'Z').toLocaleString() : '--']
         ]}
     ];
     sections.forEach(function(sec) {

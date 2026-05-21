@@ -34,16 +34,31 @@ from config import Config
 from services import nav_service
 
 
-# Custom JSON encoder for datetime objects
-class DateTimeEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, datetime):
-            # Append 'Z' for naive (UTC) datetimes so browsers parse correctly
-            iso = obj.isoformat()
-            if obj.tzinfo is None:
-                iso += "Z"
-            return iso
-        return super().default(obj)
+# Flask 3.x JSON provider — replaces the deprecated app.json_encoder (Flask 1.x)
+# Serializes naive datetimes as ISO-8601 + "Z" so browsers parse them as UTC
+# and automatically convert to the user's local timezone (EDT/Montreal).
+from datetime import date as _date
+from flask.json.provider import DefaultJSONProvider as _DefaultJSONProvider
+
+
+class UTCAwareDatetimeProvider(_DefaultJSONProvider):
+    """Proper Flask 3.x JSON provider.
+
+    All naive datetime objects from psycopg2 are assumed UTC (storage
+    convention). Appending 'Z' ensures JavaScript's Date constructor
+    treats them as UTC and converts to local time (EDT) correctly.
+    """
+
+    def dumps(self, obj, **kwargs):
+        def _utc_default(o):
+            if isinstance(o, datetime):
+                return (o.isoformat() + "Z") if o.tzinfo is None else o.isoformat()
+            if isinstance(o, _date):
+                return o.isoformat()
+            return _DefaultJSONProvider._default(o)
+
+        kwargs.setdefault("default", _utc_default)
+        return json.dumps(obj, **kwargs)
 
 
 # Initialize Flask app
@@ -63,7 +78,7 @@ if app.config["SANDBOX_MODE"]:
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
-app.json_encoder = DateTimeEncoder
+app.json = UTCAwareDatetimeProvider(app)
 
 # ============================================================================
 # CSRF PROTECTION (task #2066, phased rollout)

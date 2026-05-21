@@ -1700,6 +1700,111 @@ def _register_own_jobs(scheduler, flask_app):
                         (ag["id"],),
                     )
 
+                    # Reassign queued items to a qualified backup agent:
+                    # Priority: 1) fleet copy of same agent on another node
+                    #           2) agent with matching skill in same/any dept
+                    #           3) department director as fallback
+                    cur.execute(
+                        """
+                        SELECT dpq.id, dpq.capability
+                        FROM dispatch_pending_queue dpq
+                        WHERE dpq.agent_name = %s AND dpq.status = 'queued'
+                        """,
+                        (agent["name"],),
+                    )
+                    queued_items = cur.fetchall() or []
+
+                    for item in queued_items:
+                        cap = item["capability"] or ""
+
+                        # 1. Fleet copy: same hub agent active on a different node
+                        cur.execute(
+                            """
+                            SELECT a.name, a.id
+                            FROM node_agents na
+                            JOIN agents a ON a.id = na.hub_agent_id
+                            JOIN remote_nodes rn ON rn.id = na.node_id
+                            WHERE na.hub_agent_id = %s
+                              AND na.status = 'active'
+                              AND rn.status = 'online'
+                              AND rn.last_heartbeat > NOW() - INTERVAL '2 minutes'
+                              AND a.shift_state NOT IN ('winding_down','cooldown','barracked','off_duty')
+                            ORDER BY rn.bridge_priority ASC
+                            LIMIT 1
+                            """,
+                            (ag["id"],),
+                        )
+                        backup = cur.fetchone()
+
+                        # 2. Agent with matching skill, active, not resting
+                        if not backup and cap:
+                            cur.execute(
+                                """
+                                SELECT a.name, a.id
+                                FROM agent_skills sk
+                                JOIN agents a ON a.id = sk.agent_id
+                                WHERE sk.skill_name = %s
+                                  AND a.id != %s
+                                  AND a.shift_state NOT IN ('winding_down','cooldown','barracked','off_duty')
+                                  AND a.worker_type = 'ai'
+                                ORDER BY sk.proficiency_level DESC
+                                LIMIT 1
+                                """,
+                                (cap, ag["id"]),
+                            )
+                            backup = cur.fetchone()
+
+                        # 3. Department director as last resort
+                        if not backup:
+                            cur.execute(
+                                """
+                                SELECT a.name, a.id FROM agents a
+                                WHERE a.department = %s
+                                  AND a.is_department_ai = TRUE
+                                  AND a.shift_state = 'active'
+                                LIMIT 1
+                                """,
+                                (agent["department"],),
+                            )
+                            backup = cur.fetchone()
+
+                        if backup:
+                            cur.execute(
+                                """
+                                UPDATE dispatch_pending_queue
+                                   SET agent_name  = %s,
+                                       agent_id    = %s,
+                                       queued_at   = NOW(),
+                                       error       = %s
+                                 WHERE id = %s
+                                """,
+                                (
+                                    backup["name"],
+                                    backup["id"],
+                                    f"K.I.N. reassigned from {agent['name']} (resting) → {backup['name']}",
+                                    item["id"],
+                                ),
+                            )
+                        else:
+                            # No qualified backup found — release to open pool
+                            cur.execute(
+                                """
+                                UPDATE dispatch_pending_queue
+                                   SET agent_name = NULL, agent_id = NULL,
+                                       local_only = FALSE, queued_at = NOW(),
+                                       error = %s
+                                 WHERE id = %s
+                                """,
+                                (f"K.I.N. released from {agent['name']} (resting) — open pool", item["id"]),
+                            )
+
+                    if queued_items:
+                        logger.info(
+                            "[K.I.N.] Reassigned %d queued items from resting %s",
+                            len(queued_items),
+                            agent["name"],
+                        )
+
                     rested += 1
                     logger.info(
                         "[K.I.N.] Auto-rest scheduled for %s (utilisation=%.0f%%, state→winding_down)",

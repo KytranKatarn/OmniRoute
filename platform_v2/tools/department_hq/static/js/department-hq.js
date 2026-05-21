@@ -747,7 +747,7 @@ async function loadKinWelfare() {
         // Live countdown: updates every second — progress bar fill + "recovers in Xm Ys"
         if (window._kinRestTimer) clearInterval(window._kinRestTimer);
         window._kinRestTimer = setInterval(function () {
-            var REST_MS = 30 * 60 * 1000;
+            var REST_MS = 60 * 60 * 1000; // 1 hour rest period
             document.querySelectorAll('.kinw-countdown').forEach(function (span) {
                 var restAt = parseInt(span.dataset.restAt, 10);
                 var remaining = restAt + REST_MS - Date.now();
@@ -3716,7 +3716,7 @@ function loadClusterActivity() {
                     while (idx < log.length && displayed < 15) {
                         var e = log[idx];
                         var ok = e.success !== false;
-                        var ts = e.ts ? new Date(e.ts).toLocaleTimeString('en-CA', {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '';
+                        var ts = e.ts ? new Date((e.ts.endsWith('Z')||e.ts.includes('+'))?e.ts:e.ts+'Z').toLocaleTimeString('en-CA', {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '';
                         var row = document.createElement('div');
                         row.style.cssText = 'padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;gap:8px;align-items:center;';
 

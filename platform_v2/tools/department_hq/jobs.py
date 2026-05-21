@@ -1157,16 +1157,16 @@ def _register_own_jobs(scheduler, flask_app):
                         len(stale_queued),
                     )
 
-                # Close open rest cycles older than 30 minutes — rest period is 30 min max.
+                # Close open rest cycles older than 60 minutes — rest period is 1 hour max.
                 # agent_rest_cycles has no auto-close logic; without this the cycles
-                # accumulate every hour and K.I.N. enforcement blocks all dispatches.
+                # accumulate and K.I.N. enforcement blocks all dispatches.
                 cur.execute(
                     """
                     UPDATE agent_rest_cycles
-                       SET ended_at = started_at + INTERVAL '30 minutes',
-                           notes = COALESCE(notes,'') || ' [auto-closed by reaper: 30min rest period]'
+                       SET ended_at = started_at + INTERVAL '60 minutes',
+                           notes = COALESCE(notes,'') || ' [auto-closed by reaper: 60min rest period]'
                      WHERE ended_at IS NULL
-                       AND started_at < NOW() - INTERVAL '30 minutes'
+                       AND started_at < NOW() - INTERVAL '60 minutes'
                     RETURNING agent_id
                     """
                 )
@@ -1814,7 +1814,7 @@ def _register_own_jobs(scheduler, flask_app):
                     rested_names = [a["name"] for a in overloaded if float(a["utilisation_pct"] or 0) >= 80]
                     rest_msg = (
                         f"K.I.N. scheduled rest for {rested} overloaded agent(s). "
-                        "They will recover in 30 min via cooldown_recovery."
+                        "They will recover in 1 hour via cooldown_recovery."
                     )
                     cur.execute(
                         """

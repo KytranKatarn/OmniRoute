@@ -1741,7 +1741,12 @@ def _register_own_jobs(scheduler, flask_app):
                         (
                             ag["id"],
                             agent["utilisation_pct"],
-                            agent["current_task_count"],
+                            _json.dumps(
+                                {
+                                    "tasks": int(agent["current_task_count"] or 0),
+                                    "util_pct": float(agent["utilisation_pct"] or 0),
+                                }
+                            ),
                             ag["current_stress"] or 0,
                             ag["current_energy"] or 1,
                         ),

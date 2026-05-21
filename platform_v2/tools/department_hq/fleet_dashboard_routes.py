@@ -1862,6 +1862,37 @@ def register_dashboard_routes(bp, auth_decorator):
                         }
                     )
 
+                # Cloud dispatch approvals — include pending + executed so they're
+                # visible in the dispatch log, not just on Telegram
+                cur.execute(
+                    """
+                    SELECT
+                        action_data->>'original_agent'   AS agent_name,
+                        action_data->>'capability'       AS capability,
+                        action_data->>'escalated_model'  AS model,
+                        action_data->>'module_id'        AS module_id,
+                        status, reason, created_at
+                    FROM autonomy_approval_queue
+                    WHERE action_type = 'cloud_throughput_escalation'
+                      AND created_at > NOW() - INTERVAL '24 hours'
+                    ORDER BY created_at DESC
+                    LIMIT 20
+                    """
+                )
+                cloud_log = []
+                for r in cur.fetchall():
+                    cloud_log.append(
+                        {
+                            "agent": r["agent_name"] or "?",
+                            "capability": r["capability"] or "?",
+                            "model": r["model"] or "cloud",
+                            "source": r["module_id"] or "cloud_approval",
+                            "status": r["status"],
+                            "reason": (r["reason"] or "")[:120],
+                            "ts": r["created_at"].isoformat() if r["created_at"] else None,
+                        }
+                    )
+
                 # Last fleet dispatch per node from bridge_jobs metadata
                 cur.execute(
                     """
@@ -1969,6 +2000,7 @@ def register_dashboard_routes(bp, auth_decorator):
                 online_nodes=nodes_out,
                 hub_node_id=hub_node_id,
                 dispatch_log=log,
+                cloud_approvals=cloud_log,
                 last_run_by_node=last_run_by_node,
                 throughput_by_node=throughput_by_node,
                 throughput_total=throughput_total,

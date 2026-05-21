@@ -744,6 +744,18 @@ def _run_embedding_job(item_ids_and_data, job_id):
             conn.close()
         if job_id:
             dispatcher.complete_job(job_id)
+        # Log to task_execution_log so embedding is visible in dispatch log
+        # and agent welfare (stress/energy) is tracked properly
+        try:
+            dispatcher.log_external_call(
+                capability="embedding",
+                module_id="consciousness_embed",
+                model_used="arctic-embed-cpu",
+                duration_ms=0,
+                success=(processed > 0),
+            )
+        except Exception:
+            pass
         logger.info(f"[Embedding] Job #{job_id} finished: {processed} ok, {failed} failed")
 
 

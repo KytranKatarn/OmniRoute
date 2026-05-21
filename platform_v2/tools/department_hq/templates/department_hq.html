@@ -540,8 +540,10 @@
             <span style="color:#a3e635;margin-left:8px;">&bull;</span> nodes
             <span style="color:#f59e0b;margin-left:8px;">&bull;</span> Contractors
           </span>
-          <button onclick="openRepairNodeModal()" style="float:right;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#ef4444;padding:3px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;margin-right:6px;">⚙ REPAIR NODE</button>
-          <button onclick="openAddNodeModal()" style="float:right;background:rgba(0,255,255,0.12);border:1px solid rgba(0,255,255,0.4);color:#00ffff;padding:3px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;">+ ADD NODE</button>
+          <span style="float:right;display:flex;gap:4px;align-items:center;">
+            <button onclick="openRepairNodeModal()" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#ef4444;padding:3px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;">⚙ REPAIR NODE</button>
+            <button onclick="openAddNodeModal()" style="background:rgba(0,255,255,0.12);border:1px solid rgba(0,255,255,0.4);color:#00ffff;padding:3px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;">+ ADD NODE</button>
+          </span>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:8px;font-size:0.75rem;">
           <span id="fleetStatNodes" style="color:var(--dhq-text-dim);">-- nodes</span>

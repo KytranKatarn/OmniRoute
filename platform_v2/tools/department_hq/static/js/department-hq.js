@@ -3338,6 +3338,7 @@ var _armadaMounted = {};
 
 function switchArmadaSection(s) {
     _armadaSection = s;
+    try { localStorage.setItem('dhq_armada_section', s); } catch (_) {}
     var sections = ['cluster', 'dispatch', 'traffic', 'network', 'orchestration'];
     sections.forEach(function(name) {
         var sec = document.getElementById('armadaSection-' + name);
@@ -3401,8 +3402,10 @@ function switchArmadaSection(s) {
 function loadFleet() {
     loaded["fleet"] = true;
     // alerts-history-section is now in panel-alerts — do not hide it here
-    // Ensure cluster is the default visible section
-    switchArmadaSection('cluster');
+    // Restore last armada subtab (cluster is default)
+    var _savedArmadaSection = 'cluster';
+    try { _savedArmadaSection = localStorage.getItem('dhq_armada_section') || 'cluster'; } catch (_) {}
+    switchArmadaSection(_savedArmadaSection);
     setTimeout(function() {
         initFleetMap();
         loadFleetData();
@@ -5160,14 +5163,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, 400);
             }
         } else {
-            // No URL param — restore last active tab from localStorage on refresh.
-            // URL param always takes priority over saved tab.
-            try {
-                var savedTab = localStorage.getItem('dhq_active_tab');
-                if (savedTab && savedTab !== 'overview' && typeof switchTab === 'function') {
-                    switchTab(savedTab);
-                }
-            } catch (_) {}
+            // No URL param — try hash first, then localStorage, then default overview.
+            var _hashTabMap = {
+                'armada': 'fleet', 'fleet': 'fleet',
+                'kin': 'kin', 'creed': 'creed', 'social': 'social',
+                'dispatch': 'dispatch', 'roster': 'roster',
+                'autonomy': 'autonomy', 'coms': 'coms',
+                'approvals': 'approvals', 'scout': 'scout',
+                'contractors': 'contractors', 'alerts': 'alerts',
+            };
+            var _hash = (window.location.hash || '').substring(1);
+            var _hashTab = _hashTabMap[_hash];
+            if (_hashTab && typeof switchTab === 'function') {
+                switchTab(_hashTab);
+            } else {
+                // Restore last active tab from localStorage on refresh.
+                try {
+                    var savedTab = localStorage.getItem('dhq_active_tab');
+                    if (savedTab && savedTab !== 'overview' && typeof switchTab === 'function') {
+                        switchTab(savedTab);
+                    }
+                } catch (_) {}
+            }
         }
     } catch (_) {}
 })();

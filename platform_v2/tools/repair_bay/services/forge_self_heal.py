@@ -487,9 +487,11 @@ Generate ONLY a corrected unified diff patch that addresses ALL review comments.
 
 
 def run_regression_check(proposal_id: int) -> Dict:
-    """Run full test suite to check for regressions before merge.
+    """Run QA suites for the module affected by this proposal to check for regressions.
 
-    Returns pass/fail with details.
+    Looks up improvement_proposals.module_name → runs all mapped QA suites via
+    qa_service.run_suite_for_module(). Returns pass if all suites pass or if
+    no suites are mapped (no coverage ≠ regression).
     """
     _log_autonomy_action(
         "regression_check",
@@ -499,23 +501,99 @@ def run_regression_check(proposal_id: int) -> Dict:
         success=True,
     )
 
-    # For now, return a pass — full test runner integration depends on
-    # sandbox_test_runner being wired to the actual test suite
-    # TODO: Wire to sandbox_test_runner.run_full_suite()
-    logger.info(f"[FORGE] Regression check for proposal #{proposal_id} — placeholder pass")
+    # Resolve module_name from the proposal
+    module_name = None
+    try:
+        from database import get_db_cursor
 
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                "SELECT module_name FROM improvement_proposals WHERE id = %s",
+                (proposal_id,),
+            )
+            row = cur.fetchone()
+            if row:
+                module_name = row["module_name"]
+    except Exception as db_err:
+        logger.warning("[FORGE] regression_check: could not fetch module_name: %s", db_err)
+
+    if not module_name:
+        logger.info("[FORGE] Regression check for proposal #%d — no module_name, skipping suites", proposal_id)
+        _log_autonomy_action(
+            "regression_check",
+            proposal_id,
+            0,
+            {"status": "skipped", "reason": "no module_name on proposal"},
+            success=True,
+        )
+        return {"success": True, "passed": True, "message": "No module mapped — skipping regression check"}
+
+    # Run all QA suites for the module
+    logger.info("[FORGE] Regression check for proposal #%d — running QA suites for '%s'", proposal_id, module_name)
+    try:
+        from services.qa_service import run_suite_for_module
+
+        results = run_suite_for_module(module_name, triggered_by="regression_check")
+    except Exception as qa_err:
+        logger.error("[FORGE] regression_check: QA runner failed: %s", qa_err)
+        _log_autonomy_action(
+            "regression_check",
+            proposal_id,
+            0,
+            {"status": "error", "error": str(qa_err)},
+            success=False,
+        )
+        return {"success": False, "passed": False, "message": f"QA runner error: {qa_err}"}
+
+    if not results:
+        logger.info("[FORGE] Regression check for proposal #%d — no suites mapped for '%s'", proposal_id, module_name)
+        _log_autonomy_action(
+            "regression_check",
+            proposal_id,
+            0,
+            {"status": "skipped", "reason": f"no suites mapped for {module_name}"},
+            success=True,
+        )
+        return {"success": True, "passed": True, "message": f"No QA suites mapped for {module_name}"}
+
+    # Tally results
+    total_passed = sum(r.get("passed", 0) or 0 for r in results)
+    total_failed = sum(r.get("failed", 0) or 0 for r in results)
+    suites_run = len(results)
+    all_passed = total_failed == 0
+
+    status = "passed" if all_passed else "failed"
     _log_autonomy_action(
         "regression_check",
         proposal_id,
         0,
-        {"status": "passed", "note": "placeholder — wire to test runner"},
-        success=True,
+        {
+            "status": status,
+            "module": module_name,
+            "suites_run": suites_run,
+            "total_passed": total_passed,
+            "total_failed": total_failed,
+        },
+        success=all_passed,
+    )
+
+    logger.info(
+        "[FORGE] Regression check for proposal #%d (%s): %d suites, %d passed, %d failed",
+        proposal_id,
+        module_name,
+        suites_run,
+        total_passed,
+        total_failed,
     )
 
     return {
         "success": True,
-        "passed": True,
-        "message": "Regression check placeholder — wire to sandbox_test_runner",
+        "passed": all_passed,
+        "module": module_name,
+        "suites_run": suites_run,
+        "total_passed": total_passed,
+        "total_failed": total_failed,
+        "message": f"{'All suites passed' if all_passed else f'{total_failed} test(s) failed'} for {module_name}",
     }
 
 

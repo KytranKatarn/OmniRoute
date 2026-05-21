@@ -58,12 +58,13 @@ def register_dashboard_routes(bp, admin_required):
             )
             knowledge = cur.fetchone()
 
-            # Agent fleet
+            # Agent fleet — agents is the canonical table (agent_profiles is obsolete)
             cur.execute(
                 """
                 SELECT count(*) as total,
-                       count(*) FILTER (WHERE status = 'active') as active
-                FROM agent_profiles
+                       count(*) FILTER (WHERE shift_state = 'active') as active
+                FROM agents
+                WHERE shift_state != 'decommissioned'
             """
             )
             agents = cur.fetchone()

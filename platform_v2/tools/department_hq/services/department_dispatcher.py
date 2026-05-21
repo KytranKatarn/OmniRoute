@@ -1805,15 +1805,17 @@ class DepartmentDispatcher:
                 node_filter = ""
 
             # ORDER BY — built from controlled values (not user input), no SQL injection risk
+            # load_5m.task_count added as secondary sort: least-loaded node wins among ties.
             if mode == "hub":
                 order_by = "(100 - rn.bridge_priority) ASC, rn.last_heartbeat DESC"
             elif mode == "news" and is_news:
                 # News agents in news mode: prefer outpost-us (30 sorts first ASC)
-                order_by = "rn.bridge_priority ASC, rn.last_heartbeat DESC"
+                order_by = "rn.bridge_priority ASC," " COALESCE(load_5m.task_count, 0) ASC," " rn.last_heartbeat DESC"
             else:
-                # auto + platform (non-news): Starship-246 (50) > outpost (30) > hub (100)
+                # auto + platform (non-news): fleet first, then least-loaded, then priority
                 order_by = (
                     "CASE WHEN rn.bridge_priority < 100 THEN 0 ELSE 1 END ASC,"
+                    " COALESCE(load_5m.task_count, 0) ASC,"
                     " rn.bridge_priority DESC, rn.last_heartbeat DESC"
                 )
 
@@ -1824,9 +1826,17 @@ class DepartmentDispatcher:
                 SELECT na.model, na.display_name,
                        rn.id as node_id, rn.node_name,
                        rn.hostname, rn.port, rn.vpn_ip,
-                       rn.bridge_priority
+                       rn.bridge_priority,
+                       COALESCE(load_5m.task_count, 0) AS recent_load
                 FROM node_agents na
                 JOIN remote_nodes rn ON rn.id = na.node_id
+                LEFT JOIN (
+                    SELECT node_used_id, COUNT(*) AS task_count
+                    FROM task_execution_log
+                    WHERE created_at > NOW() - INTERVAL '5 minutes'
+                      AND node_used_id IS NOT NULL
+                    GROUP BY node_used_id
+                ) AS load_5m ON load_5m.node_used_id = rn.id
                 WHERE na.hub_agent_id = %s
                   AND na.status = 'active'
                   AND rn.status = 'online'

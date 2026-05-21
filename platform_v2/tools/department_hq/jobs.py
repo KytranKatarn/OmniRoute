@@ -1456,12 +1456,146 @@ def _register_own_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(_run_kin_node_planning),
-        trigger=CronTrigger(hour="*/4", minute="45", timezone="America/Toronto"),
+        trigger=CronTrigger(minute="*/30", timezone="America/Toronto"),
         id="kin_node_planning",
-        name="K.I.N.: Fleet node agent assignment by model fit (every 4h)",
+        name="K.I.N.: Fleet node agent assignment by model fit (every 30 min)",
         replace_existing=True,
     )
-    logger.info("[DeptHQ] Registered kin_node_planning job (every 4h)")
+    logger.info("[DeptHQ] Registered kin_node_planning job (every 30 min)")
+
+    # Job #125: K.I.N. Workload Monitor — detect overloaded agents, rebalance across nodes
+    # Runs every 10 min. Checks per-node dispatch counts and budget utilisation.
+    # Logs imbalance to governance_audit_log and fires a V.I.G.I.L. alert when
+    # the busiest node handles >3× more work than the least-busy active node.
+    # -------------------------------------------------------------------------
+    def _run_kin_workload_monitor():
+        """K.I.N. monitors fleet workload balance and flags overloaded agents.
+
+        Checks task_execution_log (last 10 min) per node and agent_budgets for
+        agents approaching their task_queue_limit. Emits governance audit entries
+        and system_notifications when imbalance is detected.
+        """
+        try:
+            import json as _json
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, cur):
+                # --- Per-node dispatch counts (last 10 min) ---
+                cur.execute(
+                    """
+                    SELECT rn.node_name, COUNT(*) AS dispatches
+                    FROM task_execution_log tel
+                    JOIN remote_nodes rn ON rn.id = tel.node_used_id
+                    WHERE tel.created_at > NOW() - INTERVAL '10 minutes'
+                      AND tel.node_used_id IS NOT NULL
+                    GROUP BY rn.node_name
+                    ORDER BY dispatches DESC
+                    """
+                )
+                node_loads = cur.fetchall() or []
+
+                # --- Agents approaching budget limit (>70% of task_queue_limit) ---
+                cur.execute(
+                    """
+                    SELECT a.name, a.department,
+                           ab.current_task_count, ab.task_queue_limit,
+                           ROUND(100.0 * ab.current_task_count /
+                               NULLIF(ab.task_queue_limit, 0), 1) AS utilisation_pct
+                    FROM agent_budgets ab
+                    JOIN agents a ON a.id = ab.agent_id
+                    WHERE ab.task_queue_limit > 0
+                      AND ab.current_task_count::float / ab.task_queue_limit > 0.7
+                    ORDER BY utilisation_pct DESC
+                    LIMIT 10
+                    """
+                )
+                overloaded = cur.fetchall() or []
+
+                if not node_loads and not overloaded:
+                    return  # nothing to report
+
+                # --- Calculate imbalance ratio ---
+                loads = [int(r["dispatches"]) for r in node_loads]
+                max_load = max(loads) if loads else 0
+                min_load = min(loads) if loads else 0
+                imbalance = max_load / max(min_load, 1)
+
+                summary = {
+                    "node_loads": {r["node_name"]: int(r["dispatches"]) for r in node_loads},
+                    "overloaded_agents": [
+                        {
+                            "name": r["name"],
+                            "utilisation_pct": float(r["utilisation_pct"] or 0),
+                            "current": int(r["current_task_count"]),
+                            "limit": int(r["task_queue_limit"]),
+                        }
+                        for r in overloaded
+                    ],
+                    "imbalance_ratio": round(imbalance, 2),
+                }
+
+                # --- Governance log ---
+                cur.execute(
+                    """
+                    INSERT INTO governance_audit_log
+                        (agent_id, event_category, event_type, description, metadata, timestamp)
+                    SELECT a.id, 'workload_balance', 'kin_workload_check',
+                           'K.I.N. workload monitor: imbalance=' || %s || 'x, overloaded=' || %s,
+                           %s::jsonb, NOW()
+                    FROM agents a WHERE a.name = 'K.I.N.' LIMIT 1
+                    """,
+                    (
+                        round(imbalance, 2),
+                        len(overloaded),
+                        _json.dumps(summary),
+                    ),
+                )
+
+                # --- Alert if imbalance >3× or any agent >90% utilisation ---
+                critical = any(float(r["utilisation_pct"] or 0) > 90 for r in overloaded)
+                if imbalance > 3.0 or critical:
+                    busiest = node_loads[0]["node_name"] if node_loads else "?"
+                    quietest = node_loads[-1]["node_name"] if len(node_loads) > 1 else "?"
+                    lines = [f"🔄 Fleet imbalance: {imbalance:.1f}× ({busiest} vs {quietest})"]
+                    for r in overloaded[:3]:
+                        lines.append(
+                            f"⚠ {r['name']} ({r['department']}) "
+                            f"{r['current_task_count']}/{r['task_queue_limit']} "
+                            f"({r['utilisation_pct']}%)"
+                        )
+                    cur.execute(
+                        """
+                        INSERT INTO system_notifications
+                            (title, message, notification_type, severity, source, is_read)
+                        VALUES ('K.I.N. — Fleet Workload Imbalance', %s,
+                                'alert', 'warning', 'kin_workload_monitor', FALSE)
+                        """,
+                        ("\n".join(lines),),
+                    )
+                    logger.warning(
+                        "[K.I.N.] Workload imbalance detected: %.1fx — %s",
+                        imbalance,
+                        ", ".join(f"{r['node_name']}:{r['dispatches']}" for r in node_loads),
+                    )
+                else:
+                    logger.debug(
+                        "[K.I.N.] Workload OK: imbalance=%.1fx nodes=%d overloaded=%d",
+                        imbalance,
+                        len(node_loads),
+                        len(overloaded),
+                    )
+
+        except Exception as exc:
+            logger.error("[K.I.N.] Workload monitor failed: %s", exc)
+
+    scheduler.add_job(
+        with_ctx(_run_kin_workload_monitor),
+        trigger=CronTrigger(minute="*/10", timezone="America/Toronto"),
+        id="kin_workload_monitor",
+        name="K.I.N.: Fleet workload balance monitor (every 10 min)",
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered kin_workload_monitor job (every 10 min)")
 
     # Job #124: Fleet Agent Sync — activate/deactivate node_agents on node state change
     # Runs every 3 min. Lightweight complement to K.I.N. planning (4h).

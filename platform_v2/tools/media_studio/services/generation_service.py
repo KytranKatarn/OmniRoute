@@ -663,7 +663,12 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
     # instead of ComfyUI. Local checkpoint flow continues unchanged below when no provider set.
     contractor_key = params.get("provider")
     if contractor_key and contractor_key not in ("comfyui", "ollama_diffuser"):
-        return _generate_via_contractor(queue_id, queue_row, params, contractor_key)
+        # Validate against known providers before passing to adapter
+        if contractor_key not in PROVIDER_DEFAULT_MODEL:
+            logger.warning("[MediaStudio] Unknown provider '%s' — falling back to ComfyUI", contractor_key)
+            # fall through to comfyui path
+        else:
+            return _generate_via_contractor(queue_id, queue_row, params, contractor_key)
 
     # Update status
     with get_db_cursor(commit=True) as (conn, cur):

@@ -116,24 +116,12 @@ def submit_edit(
     )
 
     try:
-        from ai_bridge.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import dispatch_json
 
-        dispatcher = get_dispatcher()
-        dispatcher.request_work(
+        dispatch_json(
             capability="image_edit",
             prompt=bridge_prompt,
             module_id="media_studio",
-            context={
-                "edit_id": edit_id,
-                "edit_type": edit_type,
-                "source_path": source_abs,
-                "mask_path": mask_path,
-                "params": params,
-            },
-            user_id=owner_id,
-            priority="normal",
-            prefer_gpu=True,
-            prefer_agent="Pixel",
         )
 
         with get_db_cursor(commit=True) as (conn, cur):

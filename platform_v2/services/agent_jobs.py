@@ -182,13 +182,14 @@ def _send_hr_telegram_alerts(cur, conn, flask_app):
             )
             try:
                 # Route via inbox → shows in DHQ Approvals tab; A.R.C.H.I.E. relays to Telegram
+                # cooldown_hours=2 prevents repeated alerts for the same persistent condition
                 _hr_send(
                     title=f"HR Alert: {alert['title']}",
                     message=message,
                     source_agent="K.I.N.",
                     source_department="Human Resources & Culture",
                     source_module="agent_jobs",
-                    cooldown_hours=0,
+                    cooldown_hours=2.0,
                 )
                 cur.execute(
                     "UPDATE agent_alerts SET notified_telegram = TRUE WHERE id = %s",

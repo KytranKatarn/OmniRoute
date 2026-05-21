@@ -656,10 +656,9 @@ def dispatch_proposal_fix(proposal_id):
         f"--- SOURCE EXCERPT ---\n{source_excerpt}"
     )
 
-    # Dispatch to Bridge
+    # Dispatch via DHQ — canonical dispatcher (ADR-013 compliant, routes to cluster)
     try:
-        sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-        from bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
         result = dispatcher.request_work(

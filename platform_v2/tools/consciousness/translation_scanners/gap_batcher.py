@@ -25,7 +25,7 @@ except ImportError:  # outside Flask context (e.g. direct python invocation)
     delegate_task = None  # type: ignore[assignment]
 
 BATCH_SIZE = 20
-NIGHTLY_ROUTE_CAP = 200  # max gaps to delegate per nightly run
+NIGHTLY_ROUTE_CAP = 500  # max gaps to delegate per nightly run (raised from 200 — 905 open gaps)
 
 
 def _load_unrouted_domain_gaps(limit: int = NIGHTLY_ROUTE_CAP) -> list[dict]:

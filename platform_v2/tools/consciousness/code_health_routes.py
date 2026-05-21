@@ -468,7 +468,7 @@ def register_code_health_routes(bp, admin_required):
                     status=status,
                     audit_profile=profile,
                     trigger_reason="manual",
-                    dispatched_via="F.O.R.G.E.",
+                    dispatched_via="local_static_analysis",
                 )
 
                 # Auto-submit findings to Repair Bay (deduped — won't create duplicates)

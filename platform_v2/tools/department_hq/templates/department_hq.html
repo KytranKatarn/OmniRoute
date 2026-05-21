@@ -633,31 +633,7 @@
         <div id="wtfBacklogLabel" style="font-size:0.65rem;color:var(--dhq-text-dim);margin-top:4px;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;"></div>
       </div>
 
-      <!-- CLUSTER ORCHESTRATION PANEL (Project #352) -->
-      <div class="dhq-dispatch-section" id="cluster-orchestration-panel" style="margin-top:20px;padding:12px;background:#08081a;border:1px solid #00ffff22;border-radius:4px;">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-          <span style="color:#00ffff;letter-spacing:2px;font-size:11px;font-family:'Antonio',sans-serif;font-weight:bold;">
-            CLUSTER ORCHESTRATION
-          </span>
-          <span id="co-status-badge" class="sc-static" style="font-size:10px;color:#888;">&#9679; STANDBY</span>
-          <span style="margin-left:auto;display:flex;gap:8px;">
-            <button class="lcars-btn" id="co-trigger-btn" style="font-size:10px;padding:3px 8px;">&#9654; TRIGGER</button>
-            <button class="lcars-btn" id="co-pause-btn" style="font-size:10px;padding:3px 8px;">&#9208; PAUSE</button>
-          </span>
-        </div>
-
-        <div style="margin-bottom:14px;">
-          <div style="font-size:9px;color:#555;letter-spacing:1px;margin-bottom:6px;text-transform:uppercase;">Queue Pressure</div>
-          <div id="co-queue-grid"></div>
-        </div>
-
-        <div>
-          <div style="font-size:9px;color:#555;letter-spacing:1px;margin-bottom:6px;text-transform:uppercase;">Agent Overflow Status</div>
-          <div id="co-agent-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;"></div>
-        </div>
-      </div>
-
-      <!-- Config Drawer -->
+      <!-- Config Drawer (fixed-position overlay, accessible from any subtab) -->
       <div id="co-config-drawer"
            style="position:fixed;top:0;right:-360px;width:340px;height:100vh;
                   background:#080818;border-left:1px solid #00ffff33;z-index:9999;
@@ -696,7 +672,29 @@
       <div id="armadaSection-network" style="display:none;"></div>
 
       <!-- ORCHESTRATION SECTION: Cluster Orchestration panel (populated via JS on first open) -->
-      <div id="armadaSection-orchestration" style="display:none;"></div>
+      <div id="armadaSection-orchestration" style="display:none;">
+        <!-- CLUSTER ORCHESTRATION PANEL -->
+        <div class="dhq-dispatch-section" id="cluster-orchestration-panel" style="margin-top:20px;padding:12px;background:#08081a;border:1px solid #00ffff22;border-radius:4px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+            <span style="color:#00ffff;letter-spacing:2px;font-size:11px;font-family:'Antonio',sans-serif;font-weight:bold;">
+              CLUSTER ORCHESTRATION
+            </span>
+            <span id="co-status-badge" class="sc-static" style="font-size:10px;color:#888;">&#9679; STANDBY</span>
+            <span style="margin-left:auto;display:flex;gap:8px;">
+              <button class="lcars-btn" id="co-trigger-btn" style="font-size:10px;padding:3px 8px;">&#9654; TRIGGER</button>
+              <button class="lcars-btn" id="co-pause-btn" style="font-size:10px;padding:3px 8px;">&#9208; PAUSE</button>
+            </span>
+          </div>
+          <div style="margin-bottom:14px;">
+            <div style="font-size:9px;color:#555;letter-spacing:1px;margin-bottom:6px;text-transform:uppercase;">Queue Pressure</div>
+            <div id="co-queue-grid"></div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:#555;letter-spacing:1px;margin-bottom:6px;text-transform:uppercase;">Agent Overflow Status</div>
+            <div id="co-agent-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;"></div>
+          </div>
+        </div>
+      </div>
 
           </div>
           <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>

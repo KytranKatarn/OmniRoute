@@ -64,6 +64,46 @@
     window.ahFetch(true);
   };
 
+  window.ahMarkOneRead = function (id) {
+    fetch('/api/notifications/mark-read/' + id, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function () {
+        // Remove the unread blue dot from the row (no full refresh needed)
+        var row = document.getElementById('ah-row-' + id);
+        if (row) {
+          var title = row.querySelector('td:nth-child(5)');
+          if (title) {
+            var dot = title.querySelector('span[style*="border-radius:50%"]');
+            if (dot) dot.remove();
+          }
+          row.style.opacity = '0.75';
+        }
+        // Hide the mark-as-read button in the detail row
+        var detail = document.getElementById('ah-detail-' + id);
+        if (detail) {
+          var btn = detail.querySelector('button[onclick*="ahMarkOneRead"]');
+          if (btn) btn.style.display = 'none';
+        }
+      })
+      .catch(function (e) { console.error('Mark read failed', e); });
+  };
+
+  window.ahArchiveOne = function (id) {
+    fetch('/api/notifications/' + id + '/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function () {
+        // Remove the row pair from the table
+        var row = document.getElementById('ah-row-' + id);
+        var detail = document.getElementById('ah-detail-' + id);
+        if (row) row.remove();
+        if (detail) detail.remove();
+      })
+      .catch(function () {
+        // Fallback: full refresh if dismiss endpoint not found
+        window.ahFetch(true);
+      });
+  };
+
   window.ahMarkAllRead = function () {
     fetch('/api/notifications/mark-all-read', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
       .then(function (r) { return r.json(); })
@@ -179,6 +219,19 @@
         'white-space:pre-wrap;word-break:break-all;">' +
         _esc(JSON.stringify(r.metadata, null, 2)) + '</pre>');
     }
+    // Action bar: mark as read (only for unread), archive
+    var actions = '<div style="display:flex;gap:8px;margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.07);">';
+    if (!r.is_read) {
+      actions += '<button onclick="ahMarkOneRead(' + Number(r.id) + ');event.stopPropagation();" ' +
+        'style="background:none;border:1px solid rgba(0,229,255,0.4);color:#00e5ff;padding:2px 10px;' +
+        'border-radius:4px;font-size:0.68rem;cursor:pointer;letter-spacing:0.5px;">✓ Mark as Read</button>';
+    }
+    actions += '<button onclick="ahArchiveOne(' + Number(r.id) + ');event.stopPropagation();" ' +
+      'style="background:none;border:1px solid rgba(239,68,68,0.3);color:#ef4444;padding:2px 10px;' +
+      'border-radius:4px;font-size:0.68rem;cursor:pointer;letter-spacing:0.5px;">🗑 Archive</button>';
+    actions += '</div>';
+    parts.push(actions);
+
     return parts.length
       ? parts.join('')
       : '<span style="color:var(--dhq-text-dim);font-size:0.75rem;">No additional details</span>';

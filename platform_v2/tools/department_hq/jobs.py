@@ -1547,7 +1547,7 @@ def _register_own_jobs(scheduler, flask_app):
                 department="Human Resources & Culture",
                 session_type="welfare_monitoring",
                 title="K.I.N. Workload Monitor — Fleet Balance Check",
-                metadata={"interval": "10min", "model": "gemma3:12b"},
+                metadata={"interval": "5min", "model": "gemma3:12b"},
             )
         except Exception as _wt_err:
             logger.warning("[K.I.N.] Work session (monitor) create failed: %s", _wt_err)
@@ -1927,12 +1927,12 @@ def _register_own_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(_run_kin_workload_monitor),
-        trigger=CronTrigger(minute="*/10", timezone="America/Toronto"),
+        trigger=CronTrigger(minute="*/5", timezone="America/Toronto"),
         id="kin_workload_monitor",
-        name="K.I.N.: Fleet workload balance monitor (every 10 min)",
+        name="K.I.N.: Fleet workload balance monitor (every 5 min)",
         replace_existing=True,
     )
-    logger.info("[DeptHQ] Registered kin_workload_monitor job (every 10 min)")
+    logger.info("[DeptHQ] Registered kin_workload_monitor job (every 5 min)")
 
     # Job #124: Fleet Agent Sync — activate/deactivate node_agents on node state change
     # Runs every 3 min. Lightweight complement to K.I.N. planning (4h).

@@ -136,7 +136,7 @@ def register_work_routes(bp, admin_required):
                     "shift_state": r["shift_state"],
                     "resting": is_resting,
                     "rest_type": r["rest_type"],
-                    "rest_since": (r["rest_since"].isoformat() if r["rest_since"] else None),
+                    "rest_since": (r["rest_since"].isoformat() + "Z" if r["rest_since"] else None),
                     "at_limit": at_limit,
                     "task_count": task_count,
                     "task_limit": task_limit,

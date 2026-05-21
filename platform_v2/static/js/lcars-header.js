@@ -354,9 +354,9 @@
 
       // Dashboard link
       var link = document.createElement("a");
-      link.href = "/dashboard#mission-briefing";
+      link.href = "/tools/department-hq/?tab=alerts";
       link.style.cssText = "display:block;font-size:0.65rem;color:var(--cat-accent,#00ffff);font-family:'Antonio',sans-serif;letter-spacing:0.8px;padding:10px 12px;text-align:center;border-top:1px solid rgba(var(--cat-accent-rgb,0,255,255),0.15);margin-top:4px;text-decoration:none;";
-      link.textContent = "VIEW FULL DASHBOARD \u25B8";
+      link.textContent = "VIEW V.I.G.I.L. \u25B8";
       body.appendChild(link);
     };
 

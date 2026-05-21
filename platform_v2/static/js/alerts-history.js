@@ -64,6 +64,25 @@
     window.ahFetch(true);
   };
 
+  window.ahMarkAllRead = function () {
+    fetch('/api/notifications/mark-all-read', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function () { window.ahFetch(true); })
+      .catch(function (e) { console.error('Mark all read failed', e); });
+  };
+
+  window.ahClearArchived = function () {
+    if (!confirm('Archive all read alerts older than 7 days? This cannot be undone.')) return;
+    fetch('/api/notifications/archive-old', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var msg = d.archived ? ('Archived ' + d.archived + ' old alerts.') : 'Done.';
+        alert(msg);
+        window.ahFetch(true);
+      })
+      .catch(function (e) { console.error('Clear failed', e); });
+  };
+
   /* Private */
 
   function _params() {

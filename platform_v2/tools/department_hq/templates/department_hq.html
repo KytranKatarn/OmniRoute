@@ -38,7 +38,7 @@
     ("contractors", "Contractors", "hard-hat"),
     ("coms", "COMs", "message-circle"),
     ("online-presence", "Online Presence", "globe"),
-    ("alerts", "Alerts", "bell"),
+    ("alerts", "V.I.G.I.L.", "shield-check"),
     ("approvals", "Approvals", "check-circle")
 ] %}
 {% include 'includes/lcars-header.html' %}
@@ -526,7 +526,11 @@
         <div class="dhq-section-title">
           SYSTEM ALERTS HISTORY
           <span id="ahTotalBadge" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem;margin-left:8px;"></span>
-          <button onclick="ahFetch(true)" style="float:right;background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">&#8635; REFRESH</button>
+          <span style="float:right;display:inline-flex;gap:6px;">
+            <button onclick="ahMarkAllRead()" title="Mark all visible alerts as read" style="background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">✓ MARK ALL READ</button>
+            <button onclick="ahClearArchived()" title="Archive all read alerts older than 7 days" style="background:none;border:1px solid rgba(239,68,68,0.3);color:#ef4444;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">🗑 CLEAR OLD</button>
+            <button onclick="ahFetch(true)" style="background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">&#8635; REFRESH</button>
+          </span>
         </div>
         <div id="ahStats" style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 0;"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">

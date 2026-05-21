@@ -468,8 +468,8 @@
             approvals + " approval" + (approvals > 1 ? "s" : "") + " require your review",
             "warning",
             {
-              href: "/tools/department-hq/?tab=dispatch",
-              actionLabel: "OPEN DISPATCH HUB \u25B8",
+              href: "/tools/department-hq/#approvals",
+              actionLabel: "REVIEW APPROVALS \u25B8",
               onDismiss: function () { _dismissOps("approvals"); }
             }
           );

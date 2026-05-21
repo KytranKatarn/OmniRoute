@@ -1440,8 +1440,8 @@ def _register_own_jobs(scheduler, flask_app):
                 cur.execute(
                     """
                     INSERT INTO governance_audit_log
-                        (agent_id, event_category, event_type, description, metadata, timestamp)
-                    SELECT a.id, 'node_planning', 'kin_node_assignment',
+                        (agent_id, event_category, event_type, action, reason, details, timestamp)
+                    SELECT a.id, 'node_planning', 'kin_node_assignment', 'node_management',
                            'K.I.N. node planning: ' || %s || ' activated, ' || %s || ' deactivated',
                            %s::jsonb, NOW()
                     FROM agents a WHERE a.name = 'K.I.N.' LIMIT 1
@@ -1494,6 +1494,7 @@ def _register_own_jobs(scheduler, flask_app):
         try:
             import json as _json
             from database import get_db_cursor
+            from services import agent_service as _agent_svc
 
             with get_db_cursor(commit=True) as (_, cur):
                 # --- Per-node dispatch counts (last 10 min) ---
@@ -1578,8 +1579,8 @@ def _register_own_jobs(scheduler, flask_app):
                 cur.execute(
                     """
                     INSERT INTO governance_audit_log
-                        (agent_id, event_category, event_type, description, metadata, timestamp)
-                    SELECT a.id, 'workload_balance', 'kin_workload_check',
+                        (agent_id, event_category, event_type, action, reason, details, timestamp)
+                    SELECT a.id, 'workload_balance', 'kin_workload_check', 'workload_monitor',
                            'K.I.N. workload monitor: imbalance=' || %s || 'x, overloaded=' || %s,
                            %s::jsonb, NOW()
                     FROM agents a WHERE a.name = 'K.I.N.' LIMIT 1
@@ -1606,9 +1607,9 @@ def _register_own_jobs(scheduler, flask_app):
                     cur.execute(
                         """
                         INSERT INTO system_notifications
-                            (title, message, notification_type, severity, source, is_read)
+                            (title, message, type, source, is_read)
                         VALUES ('K.I.N. — Fleet Workload Imbalance', %s,
-                                'alert', 'warning', 'kin_workload_monitor', FALSE)
+                                'warning', 'kin_workload_monitor', FALSE)
                         """,
                         ("\n".join(lines),),
                     )
@@ -1679,11 +1680,8 @@ def _register_own_jobs(scheduler, flask_app):
                         ),
                     )
 
-                    # Transition to winding_down (lets active tasks finish, blocks new dispatch)
-                    cur.execute(
-                        "UPDATE agents SET shift_state='winding_down', updated_at=NOW() WHERE id=%s",
-                        (ag["id"],),
-                    )
+                    # Transition to winding_down via agent_service (single canonical writer)
+                    _agent_svc.update_agent(ag["id"], shift_state="winding_down")
 
                     # Reset counters so agent wakes with full action points
                     # last_task_reset_at = NOW() resets dispatches_since_reset to 0
@@ -1813,11 +1811,7 @@ def _register_own_jobs(scheduler, flask_app):
                     )
 
                 if rested:
-                    rested_names = [
-                        a["name"]
-                        for a in overloaded
-                        if float(a["utilisation_pct"] or 0) >= 80
-                    ]
+                    rested_names = [a["name"] for a in overloaded if float(a["utilisation_pct"] or 0) >= 80]
                     rest_msg = (
                         f"K.I.N. scheduled rest for {rested} overloaded agent(s). "
                         "They will recover in 30 min via cooldown_recovery."
@@ -1825,9 +1819,9 @@ def _register_own_jobs(scheduler, flask_app):
                     cur.execute(
                         """
                         INSERT INTO system_notifications
-                            (title, message, notification_type, severity, source, is_read)
+                            (title, message, type, source, is_read)
                         VALUES ('K.I.N. — Agent Rest Scheduled', %s,
-                                'info', 'info', 'kin_workload_monitor', FALSE)
+                                'info', 'kin_workload_monitor', FALSE)
                         """,
                         (rest_msg,),
                     )

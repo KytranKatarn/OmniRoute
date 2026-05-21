@@ -696,19 +696,76 @@ async function loadKinWelfare() {
             var statusLabel = a.resting ? '😴 ' + (a.rest_type || 'resting') : (a.at_limit ? '⚠ at limit' : '✓ active');
             var card = document.createElement('div');
             card.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid ' + statusColor + '44;border-radius:6px;padding:10px 12px;';
-            card.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
-                + '<span style="font-family:Antonio,sans-serif;font-size:0.78rem;letter-spacing:1px;color:var(--dhq-text-main);">' + a.name + '</span>'
-                + '<span style="margin-left:auto;font-size:0.65rem;color:' + statusColor + ';">' + statusLabel + '</span>'
+            card.innerHTML = '<div class="kinw-hdr" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+                + '<div style="min-width:0;flex:1;">'
+                + '<div style="font-family:Antonio,sans-serif;font-size:0.78rem;letter-spacing:1px;color:var(--dhq-text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(a.name) + '</div>'
+                + '<div style="font-size:0.6rem;color:var(--dhq-text-dim);margin-top:1px;">' + esc(a.department) + '</div>'
+                + '</div>'
+                + '<span style="flex-shrink:0;font-size:0.65rem;color:' + statusColor + ';">' + statusLabel + '</span>'
                 + '</div>'
                 + '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;color:var(--dhq-text-dim);">'
-                + a.department + ' · ' + (a.task_count || 0) + '/' + (a.task_limit || 1000)
+                + (a.dispatches_since_reset || 0) + '/' + (a.task_limit || 1000) + ' dispatched'
                 + (a.dispatches_1h ? ' · <span style="color:#00bcd4;">' + a.dispatches_1h + '/h</span>' : '')
                 + (a.stress ? ' · stress: ' + Math.round(a.stress * 100) + '%' : '')
                 + '</div>'
-                + (a.rest_since ? '<div style="font-size:0.63rem;color:#f59e0b;margin-top:4px;">resting since ' + new Date(a.rest_since).toLocaleTimeString() + '</div>' : '');
+                + (a.rest_since
+                    ? '<div style="margin-top:6px;">'
+                      + '<div style="background:rgba(255,255,255,0.08);border-radius:3px;height:3px;overflow:hidden;margin-bottom:4px;">'
+                      + '<div class="kinw-bar-fill" data-rest-at="' + new Date(a.rest_since).getTime() + '" style="height:100%;background:#f59e0b;border-radius:3px;width:0%;transition:width 0.5s linear;"></div>'
+                      + '</div>'
+                      + '<div style="display:flex;justify-content:space-between;font-size:0.63rem;color:#f59e0b;">'
+                      + '<span>resting since ' + new Date(a.rest_since).toLocaleTimeString() + '</span>'
+                      + '<span class="kinw-countdown" data-rest-at="' + new Date(a.rest_since).getTime() + '">…</span>'
+                      + '</div>'
+                      + '</div>'
+                    : (a.at_limit
+                        ? '<div style="font-size:0.62rem;color:#f59e0b;margin-top:4px;opacity:0.8;">K.I.N. monitoring · next check ≤10 min</div>'
+                        : ''));
+            // Portrait injected via DOM (not innerHTML) to keep avatar_url out of HTML string
+            var kinHdr = card.querySelector('.kinw-hdr');
+            if (kinHdr) {
+                var kinAvatar;
+                if (a.avatar_url) {
+                    kinAvatar = document.createElement('img');
+                    kinAvatar.src = a.avatar_url;
+                    kinAvatar.alt = '';
+                    kinAvatar.loading = 'lazy';
+                    kinAvatar.style.cssText = 'width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid ' + statusColor + '66;';
+                } else {
+                    kinAvatar = document.createElement('div');
+                    kinAvatar.textContent = '🤖';
+                    kinAvatar.style.cssText = 'width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;';
+                }
+                kinHdr.insertBefore(kinAvatar, kinHdr.firstChild);
+            }
             grid.appendChild(card);
         });
         el.appendChild(grid);
+
+        // Live countdown: updates every second — progress bar fill + "recovers in Xm Ys"
+        if (window._kinRestTimer) clearInterval(window._kinRestTimer);
+        window._kinRestTimer = setInterval(function () {
+            var REST_MS = 30 * 60 * 1000;
+            document.querySelectorAll('.kinw-countdown').forEach(function (span) {
+                var restAt = parseInt(span.dataset.restAt, 10);
+                var remaining = restAt + REST_MS - Date.now();
+                if (remaining <= 0) { span.textContent = 'recovery due'; return; }
+                var m = Math.floor(remaining / 60000);
+                var s = Math.floor((remaining % 60000) / 1000);
+                span.textContent = 'recovers in ' + m + 'm ' + (s < 10 ? '0' : '') + s + 's';
+            });
+            document.querySelectorAll('.kinw-bar-fill').forEach(function (bar) {
+                var restAt = parseInt(bar.dataset.restAt, 10);
+                var pct = Math.min(100, ((Date.now() - restAt) / REST_MS) * 100).toFixed(1);
+                bar.style.width = pct + '%';
+            });
+        }, 1000);
+
+        // Auto-refresh welfare data every 30 s so dispatch count updates live
+        // when K.I.N. fires and resets dispatches_since_reset → 0
+        if (window._kinWelfareRefresh) clearInterval(window._kinWelfareRefresh);
+        window._kinWelfareRefresh = setInterval(loadKinWelfare, 30000);
+
     } catch (e) {
         if (el) el.textContent = 'Error: ' + e.message;
     }

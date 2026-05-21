@@ -41,7 +41,8 @@ def register_work_routes(bp, admin_required):
                         ab.task_reset_reason,
                         ab.task_reset_by,
                         rc.rest_type,
-                        rc.started_at AS rest_since
+                        rc.started_at AS rest_since,
+                        ap.canonical_image_path AS avatar_path
                     FROM agents a
                     LEFT JOIN LATERAL (
                         SELECT stress_level, energy_level, current_mood
@@ -55,6 +56,7 @@ def register_work_routes(bp, admin_required):
                         WHERE agent_id = a.id AND ended_at IS NULL
                         ORDER BY started_at DESC LIMIT 1
                     ) rc ON TRUE
+                    LEFT JOIN agent_portraits ap ON ap.agent_id = a.id
                     WHERE a.worker_type = 'ai'
                       AND a.shift_state != 'decommissioned'
                     ORDER BY
@@ -145,6 +147,7 @@ def register_work_routes(bp, admin_required):
                     "dispatches_24h": d24h,
                     "dispatches_since_reset": d_reset,
                     "hours_to_limit": hours_to_limit,
+                    "avatar_url": ("/" + r["avatar_path"].lstrip("/") if r.get("avatar_path") else None),
                 }
 
                 # Welfare cards: flagged agents only (resting, at limit, high stress)

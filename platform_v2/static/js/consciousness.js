@@ -300,6 +300,16 @@ function loadDashboard() {
     loadInsights();
     loadIntegration();
     loadSystemHealth();
+
+    // Auto-refresh dashboard every 60 seconds while on this tab
+    if (!window._dashboardRefreshTimer) {
+      window._dashboardRefreshTimer = setInterval(function() {
+        var panel = document.getElementById("panel-dashboard");
+        if (panel && (panel.style.display !== "none" && panel.offsetParent !== null)) {
+          loadDashboard();
+        }
+      }, 60000);
+    }
   }).catch(function (err) {
     console.error("loadDashboard error:", err);
   });
@@ -1131,6 +1141,7 @@ function loadInsights() {
     var avgSec = Math.round((data.bridge_stats.avg_time_ms || 0) / 1000);
     var avgEl = document.getElementById("insightsAvgTime");
     if (avgEl) { avgEl.textContent = avgSec + "s"; }
+    countUp("insightsTokens", data.bridge_stats.total_tokens || 0);
     countUp("insightsModels", data.bridge_stats.models_used || 0);
     countUp("insightsGrowth", data.knowledge_growth || 0);
     refreshIcons();

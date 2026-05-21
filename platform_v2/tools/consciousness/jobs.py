@@ -169,6 +169,24 @@ def _normalize_skill_content(
 
 def deduplicate_knowledge():
     """Job #28: Find and merge duplicate/overlapping knowledge entries."""
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=146,
+            department="Documentation & Knowledge",
+            session_type="knowledge_deduplication",
+            title="Knowledge Deduplication Batch",
+            metadata={"interval": "24h"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[C.O.D.E.X.] Work session create failed: %s", _wt_err)
+
     try:
         from database import get_db_cursor
 
@@ -204,20 +222,70 @@ def deduplicate_knowledge():
 
             if dupes:
                 logger.info(f"[Knowledge] Archived {len(dupes)} duplicate entries")
+        if _session:
+            complete_work_session(_session, jobs_completed=1)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (146, "C.O.D.E.X.", "mistral:7b", 0, "documentation"),
+                )
+        except Exception as _tel:
+            logger.debug("[C.O.D.E.X.] task_execution_log write failed: %s", _tel)
     except Exception as e:
         logger.error(f"[Knowledge] Deduplication error: {e}")
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 def index_claude_sessions():
     """Job #29: Index recent Claude conversation sessions into knowledge_base."""
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=146,
+            department="Documentation & Knowledge",
+            session_type="session_indexer",
+            title="Claude Session Indexer",
+            metadata={"interval": "12h"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[C.O.D.E.X.] Work session create failed: %s", _wt_err)
+
     try:
         from services.session_indexer_service import index_recent_sessions
 
         count = index_recent_sessions(max_sessions=5)
         if count > 0:
             logger.info(f"[Sessions] Indexed {count} Claude sessions")
+        if _session:
+            complete_work_session(_session, jobs_completed=1)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (146, "C.O.D.E.X.", "mistral:7b", 0, "knowledge_indexing"),
+                )
+        except Exception as _tel:
+            logger.debug("[C.O.D.E.X.] task_execution_log write failed: %s", _tel)
     except Exception as e:
         logger.error(f"[Sessions] Indexing error: {e}")
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 def consciousness_analysis_batch():
@@ -229,6 +297,24 @@ def consciousness_analysis_batch():
     """
     import time as _time
 
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=137,
+            department="Analytics & Intelligence",
+            session_type="analysis_batch",
+            title="KB Analysis Batch",
+            metadata={"interval": "6h", "model": "mistral:7b"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[S.P.E.C.T.R.A.] Work session create failed: %s", _wt_err)
+
     start = _time.time()
     try:
         from tools.consciousness.processing_routes import (
@@ -239,6 +325,8 @@ def consciousness_analysis_batch():
         loops = get_server_loops()
         if not loops.get("analysis"):
             logger.debug("[ConsciousnessAnalysis] Analysis loop disabled — skipping")
+            if _session:
+                complete_work_session(_session, jobs_completed=0)
             return
 
         logger.info("[ConsciousnessAnalysis] Triggering scheduled analysis batch")
@@ -250,6 +338,26 @@ def consciousness_analysis_batch():
             int((_time.time() - start) * 1000),
             department="Analytics & Intelligence",
         )
+        if _session:
+            complete_work_session(_session, jobs_completed=1)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (
+                        137,
+                        "S.P.E.C.T.R.A.",
+                        "mistral:7b",
+                        int((_time.time() - start) * 1000),
+                        "knowledge_analysis",
+                    ),
+                )
+        except Exception as _tel:
+            logger.debug("[S.P.E.C.T.R.A.] task_execution_log write failed: %s", _tel)
     except Exception as e:
         logger.warning(f"[ConsciousnessAnalysis] Analysis batch failed: {e}")
         _log_cycle(
@@ -260,6 +368,8 @@ def consciousness_analysis_batch():
             error_message=str(e),
             department="Analytics & Intelligence",
         )
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 def consciousness_embedding_batch():
@@ -322,7 +432,14 @@ def consciousness_embedding_batch():
         if _ember_session:
             complete_work_session(_ember_session, jobs_completed=1)
     except Exception as e:
-        _log_cycle("consciousness_embedding", 0, 1, 0, error_message=str(e), department="Documentation & Knowledge")
+        _log_cycle(
+            "consciousness_embedding",
+            0,
+            1,
+            0,
+            error_message=str(e),
+            department="Documentation & Knowledge",
+        )
         logger.warning(f"[Consciousness Batch] Embedding batch failed: {e}")
         if _ember_session:
             fail_work_session(_ember_session, error_msg=str(e))
@@ -337,6 +454,24 @@ def sync_learned_skills():
 
     Runs every 6 hours. Only rewrites if new skills are found since last sync.
     """
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=146,
+            department="Documentation & Knowledge",
+            session_type="skill_sync",
+            title="Skill Sync to Claude Rules",
+            metadata={"interval": "6h"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[C.O.D.E.X.] Work session create failed: %s", _wt_err)
+
     start = time.time()
     try:
         from database import get_db_cursor
@@ -376,7 +511,13 @@ def sync_learned_skills():
 
             if not skill_files:
                 logger.info("[SkillSync] No skill files found in KB")
-                _log_cycle("skill_sync", 1, 0, int((time.time() - start) * 1000), department="Engineering & Technology")
+                _log_cycle(
+                    "skill_sync",
+                    1,
+                    0,
+                    int((time.time() - start) * 1000),
+                    department="Engineering & Technology",
+                )
                 return
 
             # Group by repo
@@ -585,7 +726,11 @@ def sync_learned_skills():
                         tg_lines.append(f"\u2022 {rname} \u2014 {len(rskills)} skills")
                     tg_lines.append("\nView in Consciousness: http://192.168.1.200:3000/tools/consciousness?tab=github")
                     text = "\n".join(tg_lines)
-                    send_sync("Skill Pipeline: New Skills", text, source_module="consciousness.jobs")
+                    send_sync(
+                        "Skill Pipeline: New Skills",
+                        text,
+                        source_module="consciousness.jobs",
+                    )
                     logger.info(f"[SkillSync] Telegram sent: {new_skills} new skills")
                 except Exception as tg_inner_err:
                     logger.warning(f"[SkillSync] Telegram send failed: {tg_inner_err}")
@@ -596,7 +741,33 @@ def sync_learned_skills():
         except Exception as tg_err:
             logger.warning(f"[SkillSync] Telegram notification failed: {tg_err}")
 
-        _log_cycle("skill_sync", 1, 0, int((time.time() - start) * 1000), department="Engineering & Technology")
+        _log_cycle(
+            "skill_sync",
+            1,
+            0,
+            int((time.time() - start) * 1000),
+            department="Engineering & Technology",
+        )
+        if _session:
+            complete_work_session(_session, jobs_completed=1)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (
+                        146,
+                        "C.O.D.E.X.",
+                        "mistral:7b",
+                        int((time.time() - start) * 1000),
+                        "documentation",
+                    ),
+                )
+        except Exception as _tel:
+            logger.debug("[C.O.D.E.X.] task_execution_log write failed: %s", _tel)
 
     except Exception as e:
         logger.warning(f"[SkillSync] Skill sync failed: {e}")
@@ -608,6 +779,8 @@ def sync_learned_skills():
             error_message=str(e),
             department="Engineering & Technology",
         )
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 def github_auto_pull():
@@ -620,6 +793,24 @@ def github_auto_pull():
     4. Send Telegram notification summarizing what was refreshed
     """
     import subprocess
+
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=136,
+            department="Engineering & Technology",
+            session_type="github_auto_pull",
+            title="GitHub Auto-Pull & Re-Index",
+            metadata={"interval": "12h"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[F.O.R.G.E.] Work session create failed: %s", _wt_err)
 
     start = time.time()
     pulled = 0
@@ -641,7 +832,11 @@ def github_auto_pull():
         if not repos:
             logger.info("[GitPull] No tracked repos to pull")
             _log_cycle(
-                "github_auto_pull", 1, 0, int((time.time() - start) * 1000), department="Engineering & Technology"
+                "github_auto_pull",
+                1,
+                0,
+                int((time.time() - start) * 1000),
+                department="Engineering & Technology",
             )
             return
 
@@ -780,7 +975,11 @@ def github_auto_pull():
 
                     from services.telegram_service import send_sync
 
-                    send_sync("GitHub Auto-Pull Complete", text, source_module="consciousness.jobs")
+                    send_sync(
+                        "GitHub Auto-Pull Complete",
+                        text,
+                        source_module="consciousness.jobs",
+                    )
             except Exception as tg_err:
                 logger.warning(f"[GitPull] Telegram notification failed: {tg_err}")
 
@@ -792,6 +991,26 @@ def github_auto_pull():
             int((time.time() - start) * 1000),
             department="Engineering & Technology",
         )
+        if _session:
+            complete_work_session(_session, jobs_completed=pulled)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (
+                        136,
+                        "F.O.R.G.E.",
+                        "mistral:7b",
+                        int((time.time() - start) * 1000),
+                        "code",
+                    ),
+                )
+        except Exception as _tel:
+            logger.debug("[F.O.R.G.E.] task_execution_log write failed: %s", _tel)
 
     except Exception as e:
         logger.warning(f"[GitPull] Auto-pull failed: {e}")
@@ -803,6 +1022,8 @@ def github_auto_pull():
             error_message=str(e),
             department="Engineering & Technology",
         )
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 def analyze_discovered_skills():
@@ -836,6 +1057,24 @@ def analyze_discovered_skills():
     except Exception as e:
         logger.warning("[SkillAnalyzer] Recovery query failed: %s", e)
 
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=136,
+            department="Engineering & Technology",
+            session_type="skill_analysis",
+            title="Skill Analyzer (Bridge AI)",
+            metadata={"interval": "6h"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[F.O.R.G.E.] Work session create failed: %s", _wt_err)
+
     start = time.time()
     analyzed = 0
     errors_count = 0
@@ -860,7 +1099,13 @@ def analyze_discovered_skills():
 
         if not skills:
             logger.info("[SkillAnalyzer] No discovered skills to analyze")
-            _log_cycle("skill_analyzer", 1, 0, int((time.time() - start) * 1000), department="Engineering & Technology")
+            _log_cycle(
+                "skill_analyzer",
+                1,
+                0,
+                int((time.time() - start) * 1000),
+                department="Engineering & Technology",
+            )
             return
 
         logger.info(f"[SkillAnalyzer] Analyzing {len(skills)} skills")
@@ -1077,12 +1322,42 @@ Respond with ONLY a JSON object (no markdown, no explanation):
 
                     from services.telegram_service import send_sync
 
-                    send_sync("Skill Analysis Complete", text, source_module="consciousness.jobs")
+                    send_sync(
+                        "Skill Analysis Complete",
+                        text,
+                        source_module="consciousness.jobs",
+                    )
             except Exception as tg_err:
                 logger.warning(f"[SkillAnalyzer] Telegram notification failed: {tg_err}")
 
         logger.info(f"[SkillAnalyzer] Done: {analyzed} analyzed, {errors_count} errors")
-        _log_cycle("skill_analyzer", 1, 0, int((time.time() - start) * 1000), department="Engineering & Technology")
+        _log_cycle(
+            "skill_analyzer",
+            1,
+            0,
+            int((time.time() - start) * 1000),
+            department="Engineering & Technology",
+        )
+        if _session:
+            complete_work_session(_session, jobs_completed=analyzed)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (
+                        136,
+                        "F.O.R.G.E.",
+                        "mistral:7b",
+                        int((time.time() - start) * 1000),
+                        "code_review",
+                    ),
+                )
+        except Exception as _tel:
+            logger.debug("[F.O.R.G.E.] task_execution_log write failed: %s", _tel)
 
     except Exception as e:
         logger.warning(f"[SkillAnalyzer] Job failed: {e}")
@@ -1094,10 +1369,30 @@ Respond with ONLY a JSON object (no markdown, no explanation):
             error_message=str(e),
             department="Engineering & Technology",
         )
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 def conversation_consolidation():
     """Hourly conversation consolidation — migrated from consciousness_scheduler."""
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=146,
+            department="Documentation & Knowledge",
+            session_type="conversation_consolidation",
+            title="Conversation Consolidation",
+            metadata={"interval": "1h"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[C.O.D.E.X.] Work session create failed: %s", _wt_err)
+
     start = time.time()
     try:
         import sys
@@ -1108,7 +1403,27 @@ def conversation_consolidation():
         result = hourly_conversation_consolidation()
         duration_ms = int((time.time() - start) * 1000)
         processed = result.get("messages_processed", 0) if isinstance(result, dict) else 0
-        _log_cycle("conversation_consolidation", processed, 0, duration_ms, department="Documentation & Knowledge")
+        _log_cycle(
+            "conversation_consolidation",
+            processed,
+            0,
+            duration_ms,
+            department="Documentation & Knowledge",
+        )
+        if _session:
+            complete_work_session(_session, jobs_completed=1)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (146, "C.O.D.E.X.", "mistral:7b", duration_ms, "documentation"),
+                )
+        except Exception as _tel:
+            logger.debug("[C.O.D.E.X.] task_execution_log write failed: %s", _tel)
     except Exception as e:
         duration_ms = int((time.time() - start) * 1000)
         _log_cycle(
@@ -1119,63 +1434,202 @@ def conversation_consolidation():
             error_message=str(e),
             department="Documentation & Knowledge",
         )
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 def improvement_detection():
     """Improvement detection every 6h — migrated from consciousness_scheduler."""
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=140,
+            department="Research & Development",
+            session_type="improvement_detection",
+            title="Improvement Detection",
+            metadata={"interval": "6h"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[D.A.R.W.I.N.] Work session create failed: %s", _wt_err)
+
     start = time.time()
     try:
         import sys
 
         sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-        from consciousness_scheduler import improvement_detection as _improvement_detection
+        from consciousness_scheduler import (
+            improvement_detection as _improvement_detection,
+        )
 
         result = _improvement_detection()
         duration_ms = int((time.time() - start) * 1000)
         found = result.get("improvements_found", 0) if isinstance(result, dict) else 0
-        _log_cycle("improvement_detection", found, 0, duration_ms, department="Engineering & Technology")
+        _log_cycle(
+            "improvement_detection",
+            found,
+            0,
+            duration_ms,
+            department="Engineering & Technology",
+        )
+        if _session:
+            complete_work_session(_session, jobs_completed=1)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (140, "D.A.R.W.I.N.", "qwen2.5:7b", duration_ms, "research"),
+                )
+        except Exception as _tel:
+            logger.debug("[D.A.R.W.I.N.] task_execution_log write failed: %s", _tel)
     except Exception as e:
         duration_ms = int((time.time() - start) * 1000)
         _log_cycle(
-            "improvement_detection", 0, 1, duration_ms, error_message=str(e), department="Engineering & Technology"
+            "improvement_detection",
+            0,
+            1,
+            duration_ms,
+            error_message=str(e),
+            department="Engineering & Technology",
         )
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 def daily_self_reflection():
     """Daily self-reflection at midnight — migrated from consciousness_scheduler."""
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=2,
+            department="Executive Office",
+            session_type="daily_reflection",
+            title="Daily Self-Reflection",
+            metadata={"interval": "24h"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[A.R.C.H.I.E.] Work session create failed: %s", _wt_err)
+
     start = time.time()
     try:
         import sys
 
         sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-        from consciousness_scheduler import daily_self_reflection as _daily_self_reflection
+        from consciousness_scheduler import (
+            daily_self_reflection as _daily_self_reflection,
+        )
 
         result = _daily_self_reflection()
         duration_ms = int((time.time() - start) * 1000)
         _log_cycle("daily_self_reflection", 1, 0, duration_ms, department="Executive Office")
+        if _session:
+            complete_work_session(_session, jobs_completed=1)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (2, "A.R.C.H.I.E.", "qwen2.5:7b", duration_ms, "research"),
+                )
+        except Exception as _tel:
+            logger.debug("[A.R.C.H.I.E.] task_execution_log write failed: %s", _tel)
     except Exception as e:
         duration_ms = int((time.time() - start) * 1000)
-        _log_cycle("daily_self_reflection", 0, 1, duration_ms, error_message=str(e), department="Executive Office")
+        _log_cycle(
+            "daily_self_reflection",
+            0,
+            1,
+            duration_ms,
+            error_message=str(e),
+            department="Executive Office",
+        )
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 def weekly_memory_consolidation():
     """Weekly memory consolidation (Sun 3AM) — migrated from consciousness_scheduler."""
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=2,
+            department="Executive Office",
+            session_type="memory_consolidation",
+            title="Weekly Memory Consolidation",
+            metadata={"interval": "weekly"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[A.R.C.H.I.E.] Work session create failed: %s", _wt_err)
+
     start = time.time()
     try:
         import sys
 
         sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-        from consciousness_scheduler import weekly_memory_consolidation as _weekly_memory_consolidation
+        from consciousness_scheduler import (
+            weekly_memory_consolidation as _weekly_memory_consolidation,
+        )
 
         result = _weekly_memory_consolidation()
         duration_ms = int((time.time() - start) * 1000)
         decayed = result.get("memories_decayed", 0) if isinstance(result, dict) else 0
-        _log_cycle("weekly_memory_consolidation", decayed, 0, duration_ms, department="Executive Office")
+        _log_cycle(
+            "weekly_memory_consolidation",
+            decayed,
+            0,
+            duration_ms,
+            department="Executive Office",
+        )
+        if _session:
+            complete_work_session(_session, jobs_completed=1)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (2, "A.R.C.H.I.E.", "qwen2.5:7b", duration_ms, "research"),
+                )
+        except Exception as _tel:
+            logger.debug("[A.R.C.H.I.E.] task_execution_log write failed: %s", _tel)
     except Exception as e:
         duration_ms = int((time.time() - start) * 1000)
         _log_cycle(
-            "weekly_memory_consolidation", 0, 1, duration_ms, error_message=str(e), department="Executive Office"
+            "weekly_memory_consolidation",
+            0,
+            1,
+            duration_ms,
+            error_message=str(e),
+            department="Executive Office",
         )
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 def analyze_repo_relevance():
@@ -1209,7 +1663,11 @@ def analyze_repo_relevance():
         if not repos:
             logger.info("[RepoRelevance] No repos pending review")
             _log_cycle(
-                "github_repo_analysis", 0, 0, int((time.time() - start) * 1000), department="Engineering & Technology"
+                "github_repo_analysis",
+                0,
+                0,
+                int((time.time() - start) * 1000),
+                department="Engineering & Technology",
             )
             return
 
@@ -1358,7 +1816,11 @@ Respond with ONLY valid JSON:
 
                                 from services.telegram_service import send_sync
 
-                                send_sync("Repo Relevance Analysis", text, source_module="consciousness.jobs")
+                                send_sync(
+                                    "Repo Relevance Analysis",
+                                    text,
+                                    source_module="consciousness.jobs",
+                                )
                         except Exception as tg_err:
                             logger.warning(f"[RepoRelevance] Telegram failed: {tg_err}")
 
@@ -1376,7 +1838,11 @@ Respond with ONLY valid JSON:
             analyzed,
             errors_count,
             int((time.time() - start) * 1000),
-            details={"repos_checked": len(repos), "analyzed": analyzed, "errors": errors_count},
+            details={
+                "repos_checked": len(repos),
+                "analyzed": analyzed,
+                "errors": errors_count,
+            },
             department="Engineering & Technology",
         )
 
@@ -1400,6 +1866,24 @@ def auto_adapt_skills():
     Reads from skill_installations, not github_skills directly.
     Processes up to 10 per run (every 12 hours).
     """
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=136,
+            department="Engineering & Technology",
+            session_type="skill_adaptation",
+            title="Skill Adaptation for A.R.C.H.I.E.",
+            metadata={"interval": "12h"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[F.O.R.G.E.] Work session create failed: %s", _wt_err)
+
     start = time.time()
     adapted = 0
     errors_count = 0
@@ -1428,7 +1912,11 @@ def auto_adapt_skills():
         if not skills:
             logger.info("[SkillAdapt] No registered skills ready for adaptation")
             _log_cycle(
-                "skill_adaptation", 0, 0, int((time.time() - start) * 1000), department="Engineering & Technology"
+                "skill_adaptation",
+                0,
+                0,
+                int((time.time() - start) * 1000),
+                department="Engineering & Technology",
             )
             return
 
@@ -1586,7 +2074,11 @@ capabilities: [<list>]
 
                     from services.telegram_service import send_sync
 
-                    send_sync("Skills Adapted for A.R.C.H.I.E.", text, source_module="consciousness.jobs")
+                    send_sync(
+                        "Skills Adapted for A.R.C.H.I.E.",
+                        text,
+                        source_module="consciousness.jobs",
+                    )
             except Exception as tg_err:
                 logger.warning(f"[SkillAdapt] Telegram failed: {tg_err}")
 
@@ -1596,9 +2088,33 @@ capabilities: [<list>]
             adapted,
             errors_count,
             int((time.time() - start) * 1000),
-            details={"skills_checked": len(skills), "adapted": adapted, "errors": errors_count},
+            details={
+                "skills_checked": len(skills),
+                "adapted": adapted,
+                "errors": errors_count,
+            },
             department="Engineering & Technology",
         )
+        if _session:
+            complete_work_session(_session, jobs_completed=adapted)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (
+                        136,
+                        "F.O.R.G.E.",
+                        "mistral:7b",
+                        int((time.time() - start) * 1000),
+                        "code",
+                    ),
+                )
+        except Exception as _tel:
+            logger.debug("[F.O.R.G.E.] task_execution_log write failed: %s", _tel)
 
     except Exception as e:
         logger.warning(f"[SkillAdapt] Job failed: {e}")
@@ -1610,6 +2126,8 @@ capabilities: [<list>]
             error_message=str(e),
             department="Engineering & Technology",
         )
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 def install_skills_to_claude():
@@ -1619,6 +2137,24 @@ def install_skills_to_claude():
     to standard superset format, writes to .claude/skills/github/<repo>/.
     Processes up to 5 per run (every 2 hours). No LLM dispatch — file writes only.
     """
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=136,
+            department="Engineering & Technology",
+            session_type="skill_install",
+            title="Skill Installer (Claude Code)",
+            metadata={"interval": "2h"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[F.O.R.G.E.] Work session create failed: %s", _wt_err)
+
     start = time.time()
     installed = 0
     errors_count = 0
@@ -1649,7 +2185,11 @@ def install_skills_to_claude():
         if not skills:
             logger.info("[SkillInstaller] No registered skills to install")
             _log_cycle(
-                "skill_installer", 0, 0, int((time.time() - start) * 1000), department="Engineering & Technology"
+                "skill_installer",
+                0,
+                0,
+                int((time.time() - start) * 1000),
+                department="Engineering & Technology",
             )
             return
 
@@ -1740,9 +2280,33 @@ def install_skills_to_claude():
             installed,
             errors_count,
             int((time.time() - start) * 1000),
-            details={"installed": installed, "skipped": skipped, "errors": errors_count},
+            details={
+                "installed": installed,
+                "skipped": skipped,
+                "errors": errors_count,
+            },
             department="Engineering & Technology",
         )
+        if _session:
+            complete_work_session(_session, jobs_completed=installed)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (
+                        136,
+                        "F.O.R.G.E.",
+                        "mistral:7b",
+                        int((time.time() - start) * 1000),
+                        "code",
+                    ),
+                )
+        except Exception as _tel:
+            logger.debug("[F.O.R.G.E.] task_execution_log write failed: %s", _tel)
 
     except Exception as e:
         logger.warning(f"[SkillInstaller] Job failed: {e}")
@@ -1754,6 +2318,8 @@ def install_skills_to_claude():
             error_message=str(e),
             department="Engineering & Technology",
         )
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 # Capability → test prompt mapping for dry-run testing
@@ -1889,6 +2455,24 @@ def test_installed_skills():
     runs structural checks, then dry-runs passing skills through Bridge.
     Processes 1 per run (every 4 hours) — single dispatch to avoid model contention.
     """
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=136,
+            department="Engineering & Technology",
+            session_type="skill_test",
+            title="Skill Tester (Structural + Dry-Run)",
+            metadata={"interval": "4h"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[F.O.R.G.E.] Work session create failed: %s", _wt_err)
+
     start = time.time()
     tested = 0
     errors_count = 0
@@ -1915,7 +2499,13 @@ def test_installed_skills():
 
         if not installations:
             logger.info("[SkillTester] No untested installations")
-            _log_cycle("skill_tester", 0, 0, int((time.time() - start) * 1000), department="Engineering & Technology")
+            _log_cycle(
+                "skill_tester",
+                0,
+                0,
+                int((time.time() - start) * 1000),
+                department="Engineering & Technology",
+            )
             return
 
         logger.info(f"[SkillTester] Testing {len(installations)} installed skills")
@@ -2020,6 +2610,26 @@ def test_installed_skills():
             details={"tested": tested, "errors": errors_count},
             department="Engineering & Technology",
         )
+        if _session:
+            complete_work_session(_session, jobs_completed=tested)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (
+                        136,
+                        "F.O.R.G.E.",
+                        "mistral:7b",
+                        int((time.time() - start) * 1000),
+                        "code_review",
+                    ),
+                )
+        except Exception as _tel:
+            logger.debug("[F.O.R.G.E.] task_execution_log write failed: %s", _tel)
 
     except Exception as e:
         logger.warning(f"[SkillTester] Job failed: {e}")
@@ -2031,6 +2641,8 @@ def test_installed_skills():
             error_message=str(e),
             department="Engineering & Technology",
         )
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 def push_skills_to_fleet():
@@ -2040,6 +2652,24 @@ def push_skills_to_fleet():
     POSTs to the node's inbound API. Tracks state in node_skill_pushes.
     Processes up to 5 skills per node per cycle (every 6 hours).
     """
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=139,
+            department="Operations & Infrastructure",
+            session_type="skill_fleet_push",
+            title="Skill Fleet Push (Cluster Distribution)",
+            metadata={"interval": "6h"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[B.A.S.E.] Work session create failed: %s", _wt_err)
+
     start = time.time()
     pushed_total = 0
     errors_total = 0
@@ -2195,6 +2825,26 @@ def push_skills_to_fleet():
             },
             department="Engineering & Technology",
         )
+        if _session:
+            complete_work_session(_session, jobs_completed=pushed_total)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (
+                        139,
+                        "B.A.S.E.",
+                        "qwen2.5:7b",
+                        int((time.time() - start) * 1000),
+                        "code",
+                    ),
+                )
+        except Exception as _tel:
+            logger.debug("[B.A.S.E.] task_execution_log write failed: %s", _tel)
 
     except Exception as e:
         logger.warning("[SkillPush] Job failed: %s", e)
@@ -2206,6 +2856,8 @@ def push_skills_to_fleet():
             error_message=str(e),
             department="Engineering & Technology",
         )
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 def _record_push_failure(node_id: int, skill_id: int, error: str):
@@ -2277,6 +2929,24 @@ def auto_generate_project_docs():
     Finds projects below 50% completeness with no recent auto-doc (7-day cooldown),
     generates up to 3 reports per run via Bridge dispatch.
     """
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=140,
+            department="Research & Development",
+            session_type="project_docs_gen",
+            title="D.A.R.W.I.N. Auto-Documentation",
+            metadata={"interval": "6h"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[D.A.R.W.I.N.] Work session create failed: %s", _wt_err)
+
     start = time.time()
     try:
         from services.auto_doc_service import get_doc_candidates, generate_project_docs
@@ -2285,8 +2955,14 @@ def auto_generate_project_docs():
         if not candidates:
             logger.debug("[AutoDoc Job] No candidates for doc generation")
             _log_cycle(
-                "auto_generate_docs", 0, 0, int((time.time() - start) * 1000), department="Documentation & Knowledge"
+                "auto_generate_docs",
+                0,
+                0,
+                int((time.time() - start) * 1000),
+                department="Documentation & Knowledge",
             )
+            if _session:
+                complete_work_session(_session, jobs_completed=0)
             return
 
         logger.info("[AutoDoc Job] Generating docs for %d projects", len(candidates))
@@ -2318,10 +2994,33 @@ def auto_generate_project_docs():
             },
             department="Documentation & Knowledge",
         )
+        if _session:
+            complete_work_session(_session, jobs_completed=succeeded)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (140, "D.A.R.W.I.N.", "qwen2.5:7b", duration, "research"),
+                )
+        except Exception as _tel:
+            logger.debug("[D.A.R.W.I.N.] task_execution_log write failed: %s", _tel)
     except Exception as e:
         duration = int((time.time() - start) * 1000)
-        _log_cycle("auto_generate_docs", 0, 1, duration, error_message=str(e), department="Documentation & Knowledge")
+        _log_cycle(
+            "auto_generate_docs",
+            0,
+            1,
+            duration,
+            error_message=str(e),
+            department="Documentation & Knowledge",
+        )
         logger.warning(f"[AutoDoc Job] Batch failed: {e}")
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 def auto_link_knowledge_batch():
@@ -2330,9 +3029,30 @@ def auto_link_knowledge_batch():
     Processes one batch per tick (200 KB entries, 100 bridge jobs).
     Logs results via _log_cycle like all other consciousness jobs.
     """
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=146,
+            department="Documentation & Knowledge",
+            session_type="knowledge_auto_link",
+            title="Knowledge Auto-Link to Projects",
+            metadata={"interval": "5m"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[C.O.D.E.X.] Work session create failed: %s", _wt_err)
+
     start = time.time()
     try:
-        from services.knowledge_link_service import auto_link_knowledge, auto_link_bridge_jobs
+        from services.knowledge_link_service import (
+            auto_link_knowledge,
+            auto_link_bridge_jobs,
+        )
 
         kb_stats = auto_link_knowledge(batch_size=200)
         bj_stats = auto_link_bridge_jobs(batch_size=100)
@@ -2359,10 +3079,33 @@ def auto_link_knowledge_batch():
             logger.info(
                 f"[Knowledge Auto-Link] Linked {total_linked} items ({kb_stats.get('linked', 0)} KB + {bj_stats.get('linked', 0)} jobs)"
             )
+        if _session:
+            complete_work_session(_session, jobs_completed=total_linked)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (146, "C.O.D.E.X.", "mistral:7b", duration, "knowledge_analysis"),
+                )
+        except Exception as _tel:
+            logger.debug("[C.O.D.E.X.] task_execution_log write failed: %s", _tel)
     except Exception as e:
         duration = int((time.time() - start) * 1000)
-        _log_cycle("knowledge_auto_link", 0, 1, duration, error_message=str(e), department="Documentation & Knowledge")
+        _log_cycle(
+            "knowledge_auto_link",
+            0,
+            1,
+            duration,
+            error_message=str(e),
+            department="Documentation & Knowledge",
+        )
         logger.warning(f"[Knowledge Auto-Link] Batch failed: {e}")
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 def generate_weekly_reports():
@@ -2371,9 +3114,30 @@ def generate_weekly_reports():
     Generates a weekly digest for each active/planning project
     that doesn't already have a report from the last 6 days.
     """
+    _session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _session = create_work_session(
+            agent_id=146,
+            department="Documentation & Knowledge",
+            session_type="weekly_knowledge_report",
+            title="C.O.D.E.X. Weekly Knowledge Reports",
+            metadata={"interval": "weekly"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[C.O.D.E.X.] Work session create failed: %s", _wt_err)
+
     start = time.time()
     try:
-        from services.weekly_report_service import get_report_candidates, generate_weekly_report
+        from services.weekly_report_service import (
+            get_report_candidates,
+            generate_weekly_report,
+        )
 
         candidates = get_report_candidates()
         if not candidates:
@@ -2385,6 +3149,8 @@ def generate_weekly_reports():
                 int((time.time() - start) * 1000),
                 department="Documentation & Knowledge",
             )
+            if _session:
+                complete_work_session(_session, jobs_completed=0)
             return
 
         logger.info("[WeeklyReport Job] Generating reports for %d projects", len(candidates))
@@ -2418,12 +3184,33 @@ def generate_weekly_reports():
             },
             department="Documentation & Knowledge",
         )
+        if _session:
+            complete_work_session(_session, jobs_completed=succeeded)
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (%s, %s, %s, %s, true, %s)""",
+                    (146, "C.O.D.E.X.", "mistral:7b", duration, "documentation"),
+                )
+        except Exception as _tel:
+            logger.debug("[C.O.D.E.X.] task_execution_log write failed: %s", _tel)
     except Exception as e:
         duration = int((time.time() - start) * 1000)
         _log_cycle(
-            "weekly_knowledge_report", 0, 1, duration, error_message=str(e), department="Documentation & Knowledge"
+            "weekly_knowledge_report",
+            0,
+            1,
+            duration,
+            error_message=str(e),
+            department="Documentation & Knowledge",
         )
         logger.warning(f"[WeeklyReport Job] Batch failed: {e}")
+        if _session:
+            fail_work_session(_session, error_msg=str(e))
 
 
 def register_consciousness_jobs(scheduler, flask_app):

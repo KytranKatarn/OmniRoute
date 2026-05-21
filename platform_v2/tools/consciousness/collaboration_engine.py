@@ -104,19 +104,11 @@ class CollaborationEngine:
     def __init__(self):
         # In-memory cache for active sessions (fast access during collaboration)
         self.sessions: Dict[str, CollabSession] = {}
-        self._archie = None
         self._claude = None
 
     def _get_archie(self):
-        """Get ARCHIE analyzer (lazy load)"""
-        if self._archie is None:
-            try:
-                from ai_bridge.knowledge_analyzer import get_knowledge_analyzer
-
-                self._archie = get_knowledge_analyzer()
-            except ImportError:
-                logger.error("Could not import knowledge_analyzer")
-        return self._archie
+        """Return truthy value when dispatcher is available (replaces legacy knowledge_analyzer)."""
+        return _dispatcher if _dispatcher is not None else None
 
     def _get_claude(self):
         """Get Claude bridge (lazy load)"""
@@ -311,8 +303,8 @@ If you think the topic is fully addressed, say "I think we've covered this well.
 """
 
         try:
-            result = archie._call_llm(prompt, max_tokens=1000)
-            return result[0] if result else "I need more time to think about this."
+            dr = archie.request_work(capability="conversation", prompt=prompt)
+            return dr.response if dr and dr.success else "I need more time to think about this."
         except Exception as e:
             logger.error(f"A.R.C.H.I.E. response error: {e}")
             return f"I encountered an issue while formulating my response: {str(e)}"
@@ -403,9 +395,9 @@ Discussion:
 Summary (bullet points only):"""
 
         try:
-            result = archie._call_llm(prompt, max_tokens=500)
-            if result and result[0]:
-                return result[0]
+            dr = archie.request_work(capability="conversation", prompt=prompt)
+            if dr and dr.success and dr.response:
+                return dr.response
         except Exception as e:
             logger.warning(f"Context summarization failed: {e}")
 
@@ -879,9 +871,11 @@ Format as numbered steps (3-6 steps). Each step should be:
 Keep it brief — just the steps, no preamble."""
 
         try:
-            result = archie._call_llm(prompt, max_tokens=800)
+            dr = archie.request_work(capability="conversation", prompt=prompt)
             return (
-                result[0] if result else "1. Analyze the request\n2. Research relevant context\n3. Produce deliverables"
+                dr.response
+                if dr and dr.success and dr.response
+                else "1. Analyze the request\n2. Research relevant context\n3. Produce deliverables"
             )
         except Exception as e:
             logger.error(f"Plan creation error: {e}")
@@ -927,8 +921,8 @@ Recent context:
 Execute this step and provide the result. Be thorough but concise."""
 
         try:
-            result = archie._call_llm(prompt, max_tokens=1200)
-            return result[0] if result else f"Analysis complete for: {step}"
+            dr = archie.request_work(capability="conversation", prompt=prompt)
+            return dr.response if dr and dr.success and dr.response else f"Analysis complete for: {step}"
         except Exception as e:
             return f"Step execution encountered an issue: {e}"
 
@@ -980,8 +974,12 @@ Keep concise (2-3 paragraphs)."""
 
         if archie:
             try:
-                result = archie._call_llm(prompt, max_tokens=1000)
-                return result[0] if result else "Collaboration complete. See work products for detailed outputs."
+                dr = archie.request_work(capability="conversation", prompt=prompt)
+                return (
+                    dr.response
+                    if dr and dr.success and dr.response
+                    else "Collaboration complete. See work products for detailed outputs."
+                )
             except Exception:
                 pass
         return "Collaboration complete. See work products for detailed outputs."

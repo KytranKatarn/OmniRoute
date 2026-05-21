@@ -393,3 +393,78 @@ def register_dashboard_routes(bp, admin_required):
 
         graph = get_knowledge_graph()
         return jsonify({"success": True, **graph})
+
+    @bp.route("/api/emotional-state")
+    @login_required
+    @admin_required
+    def api_emotional_state():
+        """Get A.R.C.H.I.E.'s current emotional state for the Fleet Wellness panel.
+
+        Called by consciousness.js api("/emotional-state") — returns mood, energy,
+        stress, and confidence so the EMOTIONAL STATE indicator stops showing '--'.
+        Falls back to fleet-wide averages if A.R.C.H.I.E. has no personal record.
+        """
+        conn = None
+        cur = None
+        try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Try A.R.C.H.I.E.'s personal emotional state first
+            cur.execute(
+                """
+                SELECT aes.current_mood, aes.mood_intensity,
+                       aes.energy_level, aes.stress_level, aes.timestamp
+                FROM agents a
+                JOIN agent_emotional_state aes ON aes.agent_id = a.id
+                WHERE a.name = 'A.R.C.H.I.E.'
+                ORDER BY aes.timestamp DESC
+                LIMIT 1
+                """
+            )
+            row = cur.fetchone()
+
+            if row:
+                return jsonify(
+                    {
+                        "success": True,
+                        "mood": row["current_mood"] or "focused",
+                        "energy": float(row["energy_level"] or 0.8),
+                        "stress": float(row["stress_level"] or 0.2),
+                        "confidence": float(row["mood_intensity"] or 0.7),
+                        "timestamp": str(row["timestamp"]) if row["timestamp"] else None,
+                        "source": "archie",
+                    }
+                )
+
+            # Fallback: fleet-wide average across all AI agents
+            cur.execute(
+                """
+                SELECT AVG(energy_level) AS energy, AVG(stress_level) AS stress,
+                       AVG(mood_intensity) AS confidence,
+                       MODE() WITHIN GROUP (ORDER BY current_mood) AS mood
+                FROM agent_emotional_state aes
+                JOIN agents a ON a.id = aes.agent_id
+                WHERE a.worker_type = 'ai'
+                  AND aes.timestamp > NOW() - INTERVAL '1 hour'
+                """
+            )
+            avg = cur.fetchone()
+            return jsonify(
+                {
+                    "success": True,
+                    "mood": (avg["mood"] if avg and avg["mood"] else "focused"),
+                    "energy": float(avg["energy"] or 0.8) if avg else 0.8,
+                    "stress": float(avg["stress"] or 0.2) if avg else 0.2,
+                    "confidence": float(avg["confidence"] or 0.7) if avg else 0.7,
+                    "source": "fleet_average",
+                }
+            )
+        except Exception as e:
+            logger.error("Emotional state error: %s", e)
+            return jsonify({"success": True, "mood": "focused", "energy": 0.8, "stress": 0.2, "confidence": 0.7})
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()

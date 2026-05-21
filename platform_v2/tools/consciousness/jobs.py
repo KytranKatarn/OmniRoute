@@ -1200,6 +1200,66 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                             ),
                         )
 
+                        # Create Repair Bay proposal for low-quality skills
+                        if quality < 3:
+                            try:
+                                adaptation_notes = result.get("adaptation_notes", "")
+                                skill_title = (
+                                    f"Low-quality external skill: "
+                                    f"{skill.get('skill_name', 'unknown')} "
+                                    f"from {skill.get('repo_name', 'unknown repo')}"
+                                )
+                                skill_description = (
+                                    f"GitHub skill analysis found quality_score={quality}/5 "
+                                    f"(below threshold of 3). "
+                                    f"Adaptation notes: {adaptation_notes or 'None provided.'}\n\n"
+                                    f"Summary: {summary[:300] if summary else 'N/A'}"
+                                )
+                                cur2.execute(
+                                    """
+                                    INSERT INTO improvement_proposals
+                                    (title, category, description, code_changes,
+                                     rationale, priority, risk_level, status,
+                                     metadata, collaboration_enabled)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s,
+                                            'proposed', %s::jsonb, false)
+                                    """,
+                                    (
+                                        skill_title,
+                                        "low_quality_skill",
+                                        skill_description,
+                                        "",
+                                        (
+                                            f"Auto-detected by GitHub skill analyzer: "
+                                            f"quality={quality}/5 for skill #{skill_id}"
+                                        ),
+                                        "low",
+                                        "low",
+                                        json.dumps(
+                                            {
+                                                "skill_id": skill_id,
+                                                "skill_name": skill.get("skill_name"),
+                                                "repo_name": skill.get("repo_name"),
+                                                "quality_score": quality,
+                                                "capabilities": capabilities,
+                                                "adaptation_notes": adaptation_notes,
+                                                "source": "github_skill_analyzer",
+                                            }
+                                        ),
+                                    ),
+                                )
+                                logger.info(
+                                    f"[SkillAnalyzer] Created Repair Bay proposal "
+                                    f"for low-quality skill #{skill_id} "
+                                    f"(quality={quality})"
+                                )
+                            except Exception as proposal_err:
+                                logger.warning(
+                                    f"[SkillAnalyzer] Failed to create proposal "
+                                    f"for skill #{skill_id}: "
+                                    f"{str(proposal_err)[:120]}"
+                                )
+
                         # Auto-assign to agents if quality >= 3
                         if quality >= 3 and target_departments:
                             # Map department names to skill_category values

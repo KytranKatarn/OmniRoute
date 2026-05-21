@@ -5190,15 +5190,9 @@ document.addEventListener('DOMContentLoaded', function() {
             var _hashTab = _hashTabMap[_hash];
             if (_hashTab && typeof switchTab === 'function') {
                 switchTab(_hashTab);
-            } else {
-                // Restore last active tab from localStorage on refresh.
-                try {
-                    var savedTab = localStorage.getItem('dhq_active_tab');
-                    if (savedTab && savedTab !== 'overview' && typeof switchTab === 'function') {
-                        switchTab(savedTab);
-                    }
-                } catch (_) {}
             }
+            // No hash = fresh navigation to DHQ = show OVERVIEW (the default).
+            // localStorage fallback removed: replaceState now keeps hash in sync.
         }
     } catch (_) {}
 })();

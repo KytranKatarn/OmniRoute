@@ -728,9 +728,11 @@ def _register_own_jobs(scheduler, flask_app):
     # Job #60 — Daily Backup Retention Cleanup (7:00 AM — after 06:00 shell cron backup)
     def _run_backup_retention_cleanup():
         # Reference pattern for job governance: audit_log + Telegram notification
+        import time as _brc_t
         from database import get_db_cursor
         from services.telegram_service import send_info
 
+        _brc_start = _brc_t.time()
         job_name = "backup_retention_cleanup"
 
         def _audit(event_type: str, details: str):
@@ -759,6 +761,19 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as e:
             logger.error("[BackupRetention] Auto-cleanup failed: %s", e)
             _audit(f"{job_name}.failed", str(e)[:500])
+        try:
+            from database import get_db_cursor as _brc_db
+
+            with _brc_db(commit=True) as (_, _brc_cur):
+                _brc_cur.execute(
+                    """INSERT INTO task_execution_log
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
+                               %s, 'internal', %s, true, %s, 68)""",
+                    ("W.A.R.D.E.N.", "W.A.R.D.E.N.", int((_brc_t.time() - _brc_start) * 1000), "backup_governance"),
+                )
+        except Exception as _tel:
+            logger.debug("[BackupRetention] task_execution_log write failed: %s", _tel)
 
     scheduler.add_job(
         with_ctx(_run_backup_retention_cleanup),
@@ -772,6 +787,9 @@ def _register_own_jobs(scheduler, flask_app):
 
     # Job #61 — F.O.R.G.E. PR Poll (every 4h) — sync open PRs from GitHub into pr_reviews
     def _run_forge_pr_poll():
+        import time as _fpp_t
+
+        _fpp_start = _fpp_t.time()
         from database import get_db_cursor
         from tools.repair_bay.services.pr_review_service import (
             get_tracked_repos,
@@ -801,6 +819,19 @@ def _register_own_jobs(scheduler, flask_app):
         detail = f"repos={len(repos)} inserted={total_inserted} updated={total_updated} errors={total_errors}"
         logger.info("[ForgePRPoll] %s", detail)
         _audit("forge_pr_poll.completed", detail)
+        try:
+            from database import get_db_cursor as _fpp_db
+
+            with _fpp_db(commit=True) as (_, _fpp_cur):
+                _fpp_cur.execute(
+                    """INSERT INTO task_execution_log
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
+                               %s, 'internal', %s, true, %s, 68)""",
+                    ("F.O.R.G.E.", "F.O.R.G.E.", int((_fpp_t.time() - _fpp_start) * 1000), "code_review"),
+                )
+        except Exception as _tel:
+            logger.debug("[ForgePRPoll] task_execution_log write failed: %s", _tel)
 
     scheduler.add_job(
         with_ctx(_run_forge_pr_poll),
@@ -814,6 +845,9 @@ def _register_own_jobs(scheduler, flask_app):
 
     # Job #62 — F.O.R.G.E. PR Analyze (every 4h at +20min offset) — AI review pending PRs
     def _run_forge_pr_analyze():
+        import time as _fpa_t
+
+        _fpa_start = _fpa_t.time()
         from database import get_db_cursor
         from services.telegram_service import send_info
         from tools.repair_bay.services.pr_diff_analyzer import analyze_pending_prs
@@ -842,6 +876,19 @@ def _register_own_jobs(scheduler, flask_app):
             send_info(f"⚙️ F.O.R.G.E. reviewed {processed} PR(s). " f"Check Repair Bay → PR Review for summaries.")
         if failed > 0:
             logger.warning("[ForgePRAnalyze] %d PR(s) failed analysis", failed)
+        try:
+            from database import get_db_cursor as _fpa_db
+
+            with _fpa_db(commit=True) as (_, _fpa_cur):
+                _fpa_cur.execute(
+                    """INSERT INTO task_execution_log
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
+                               %s, 'internal', %s, true, %s, 68)""",
+                    ("F.O.R.G.E.", "F.O.R.G.E.", int((_fpa_t.time() - _fpa_start) * 1000), "code_review"),
+                )
+        except Exception as _tel:
+            logger.debug("[ForgePRAnalyze] task_execution_log write failed: %s", _tel)
 
     scheduler.add_job(
         with_ctx(_run_forge_pr_analyze),
@@ -1026,6 +1073,20 @@ def _register_own_jobs(scheduler, flask_app):
             if unlock_hints:
                 logger.info("[ModelQueuePlanner] Potential unlocks: %s", unlock_hints)
 
+            try:
+                from database import get_db_cursor as _mqp_db
+
+                with _mqp_db(commit=True) as (_, _mqp_cur):
+                    _mqp_cur.execute(
+                        """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                           VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
+                                   %s, 'internal', %s, true, %s, 68)""",
+                        ("K.I.N.", "K.I.N.", duration_ms, "workforce_planning"),
+                    )
+            except Exception as _tel:
+                logger.debug("[ModelQueuePlanner] task_execution_log write failed: %s", _tel)
+
         except Exception as exc:
             logger.error("[ModelQueuePlanner] failed: %s", exc)
 
@@ -1121,6 +1182,9 @@ def _register_own_jobs(scheduler, flask_app):
         this reaper they accumulate indefinitely, making the CLUSTER ACTIVITY
         panel show false counts and blocking queue health checks.
         """
+        import time as _dzr_t
+
+        _dzr_start = _dzr_t.time()
         try:
             from database import get_db_cursor
             from services.telegram_service import send_system
@@ -1239,6 +1303,19 @@ def _register_own_jobs(scheduler, flask_app):
                 logger.debug("[DeptHQ] Zombie reaper: queue clean")
         except Exception as exc:
             logger.error("[DeptHQ] Zombie reaper failed: %s", exc)
+        try:
+            from database import get_db_cursor as _dzr_db
+
+            with _dzr_db(commit=True) as (_, _dzr_cur):
+                _dzr_cur.execute(
+                    """INSERT INTO task_execution_log
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
+                               %s, 'internal', %s, true, %s, 68)""",
+                    ("K.I.N.", "K.I.N.", int((_dzr_t.time() - _dzr_start) * 1000), "welfare_monitoring"),
+                )
+        except Exception as _tel:
+            logger.debug("[ZombieReaper] task_execution_log write failed: %s", _tel)
 
     scheduler.add_job(
         with_ctx(_run_dispatch_zombie_reaper),
@@ -1261,6 +1338,9 @@ def _register_own_jobs(scheduler, flask_app):
         of running. This job picks those up and re-dispatches them — the dispatcher
         now selects backup agents (since primaries score 0 when resting).
         """
+        import time as _db_t
+
+        _db_start = _db_t.time()
         try:
             from database import get_db_cursor
             from tools.department_hq.services.department_dispatcher import dispatch
@@ -1327,6 +1407,19 @@ def _register_own_jobs(scheduler, flask_app):
                     logger.debug("[Backfill] Item #%d error: %s", item["id"], item_exc)
         except Exception as exc:
             logger.error("[DeptHQ] Dispatch backfill failed: %s", exc)
+        try:
+            from database import get_db_cursor as _dbf_db
+
+            with _dbf_db(commit=True) as (_, _dbf_cur):
+                _dbf_cur.execute(
+                    """INSERT INTO task_execution_log
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
+                               %s, 'internal', %s, true, %s, 68)""",
+                    ("K.I.N.", "K.I.N.", int((_db_t.time() - _db_start) * 1000), "welfare_monitoring"),
+                )
+        except Exception as _tel:
+            logger.debug("[Backfill] task_execution_log write failed: %s", _tel)
 
     scheduler.add_job(
         with_ctx(_run_dispatch_backfill),
@@ -1985,6 +2078,9 @@ def _register_own_jobs(scheduler, flask_app):
         For each OFFLINE/STALE node (heartbeat > 2 min): deactivates active node_agents.
         Does NOT create new assignments — that remains K.I.N.'s job (every 4h).
         """
+        import time as _fas_t
+
+        _fas_start = _fas_t.time()
         try:
             import json as _json
             from database import get_db_cursor
@@ -2077,6 +2173,19 @@ def _register_own_jobs(scheduler, flask_app):
 
         except Exception as exc:
             logger.error("[Fleet] fleet_agent_sync failed: %s", exc)
+        try:
+            from database import get_db_cursor as _fas_db
+
+            with _fas_db(commit=True) as (_, _fas_cur):
+                _fas_cur.execute(
+                    """INSERT INTO task_execution_log
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
+                               %s, 'internal', %s, true, %s, 68)""",
+                    ("K.I.N.", "K.I.N.", int((_fas_t.time() - _fas_start) * 1000), "workforce_planning"),
+                )
+        except Exception as _tel:
+            logger.debug("[FleetAgentSync] task_execution_log write failed: %s", _tel)
 
     scheduler.add_job(
         with_ctx(_run_fleet_agent_sync),
@@ -2224,6 +2333,9 @@ def _register_own_jobs(scheduler, flask_app):
     # Job #122: WTF LLM Analysis — bias scoring via B.I.A.S. / V.E.R.I.F.Y.
     # Runs every 30 min at :00 and :30 (EDT).
     def _run_wtf_llm_analysis():
+        import time as _wll_t
+
+        _wll_start = _wll_t.time()
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import json as _json
 
@@ -2373,6 +2485,19 @@ def _register_own_jobs(scheduler, flask_app):
             logger.info("[WTFLLMJob] cycle done: processed=%d failed=%d", processed, failed)
         except Exception as exc:
             logger.error("[WTFLLMJob] crashed: %s", exc)
+        try:
+            from database import get_db_cursor as _wll_db
+
+            with _wll_db(commit=True) as (_, _wll_cur):
+                _wll_cur.execute(
+                    """INSERT INTO task_execution_log
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
+                               %s, 'internal', %s, true, %s, 68)""",
+                    ("F.A.C.T.", "F.A.C.T.", int((_wll_t.time() - _wll_start) * 1000), "analysis"),
+                )
+        except Exception as _tel:
+            logger.debug("[WTFLLMJob] task_execution_log write failed: %s", _tel)
 
     scheduler.add_job(
         with_ctx(_run_wtf_llm_analysis),
@@ -2388,6 +2513,9 @@ def _register_own_jobs(scheduler, flask_app):
     # Job #123: WTF Geo Extraction — location mapping via L.O.C.A.L.
     # Runs every 30 min at :05 and :35 (staggered from LLM).
     def _run_wtf_geo():
+        import time as _wgeo_t
+
+        _wgeo_start = _wgeo_t.time()
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import json as _json
 
@@ -2512,6 +2640,19 @@ def _register_own_jobs(scheduler, flask_app):
             logger.info("[WTFGeoJob] cycle done: processed=%d failed=%d", processed, failed)
         except Exception as exc:
             logger.error("[WTFGeoJob] crashed: %s", exc)
+        try:
+            from database import get_db_cursor as _wgeo_db
+
+            with _wgeo_db(commit=True) as (_, _wgeo_cur):
+                _wgeo_cur.execute(
+                    """INSERT INTO task_execution_log
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
+                               %s, 'internal', %s, true, %s, 68)""",
+                    ("F.A.C.T.", "F.A.C.T.", int((_wgeo_t.time() - _wgeo_start) * 1000), "analysis"),
+                )
+        except Exception as _tel:
+            logger.debug("[WTFGeoJob] task_execution_log write failed: %s", _tel)
 
     scheduler.add_job(
         with_ctx(_run_wtf_geo),
@@ -2527,6 +2668,9 @@ def _register_own_jobs(scheduler, flask_app):
     # Job #124: WTF Factcheck — claim verification via V.E.R.I.F.Y.
     # Runs every 30 min at :10 and :40.
     def _run_wtf_factcheck():
+        import time as _wfc_t
+
+        _wfc_start = _wfc_t.time()
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import json as _json
 
@@ -2681,6 +2825,19 @@ def _register_own_jobs(scheduler, flask_app):
             logger.info("[WTFFactcheckJob] cycle done: processed=%d failed=%d", processed, failed)
         except Exception as exc:
             logger.error("[WTFFactcheckJob] crashed: %s", exc)
+        try:
+            from database import get_db_cursor as _wfc_db
+
+            with _wfc_db(commit=True) as (_, _wfc_cur):
+                _wfc_cur.execute(
+                    """INSERT INTO task_execution_log
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
+                               %s, 'internal', %s, true, %s, 68)""",
+                    ("F.A.C.T.", "F.A.C.T.", int((_wfc_t.time() - _wfc_start) * 1000), "analysis"),
+                )
+        except Exception as _tel:
+            logger.debug("[WTFFactcheckJob] task_execution_log write failed: %s", _tel)
 
     scheduler.add_job(
         with_ctx(_run_wtf_factcheck),
@@ -2699,6 +2856,9 @@ def _register_own_jobs(scheduler, flask_app):
     # Auto-scalable: register any agent with fact_check_backlog skill on any node and
     # DHQ routes to the whole pool automatically — no changes needed here ever.
     def _run_wtf_factcheck_backlog():
+        import time as _wfcb_t
+
+        _wfcb_start = _wfcb_t.time()
         try:
             import json as _json
             from tools.department_hq.services.department_dispatcher import dispatch
@@ -2842,6 +3002,19 @@ def _register_own_jobs(scheduler, flask_app):
             logger.info("[WTFFactcheckBacklog] cycle done: processed=%d failed=%d", processed, failed)
         except Exception as exc:
             logger.error("[WTFFactcheckBacklog] crashed: %s", exc)
+        try:
+            from database import get_db_cursor as _wfcb_db
+
+            with _wfcb_db(commit=True) as (_, _wfcb_cur):
+                _wfcb_cur.execute(
+                    """INSERT INTO task_execution_log
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
+                               %s, 'internal', %s, true, %s, 68)""",
+                    ("F.A.C.T.", "F.A.C.T.", int((_wfcb_t.time() - _wfcb_start) * 1000), "analysis"),
+                )
+        except Exception as _tel:
+            logger.debug("[WTFFactcheckBacklog] task_execution_log write failed: %s", _tel)
 
     scheduler.add_job(
         with_ctx(_run_wtf_factcheck_backlog),
@@ -2863,6 +3036,9 @@ def _register_own_jobs(scheduler, flask_app):
     _WTF_SCOUT_STUB_THRESHOLD = 500
 
     def _run_wtf_scout():
+        import time as _wsc_t
+
+        _wsc_start = _wsc_t.time()
         try:
             from services.browser_service import scrape_article
 
@@ -2924,6 +3100,19 @@ def _register_own_jobs(scheduler, flask_app):
             logger.info("[WTFScoutJob] cycle done: processed=%d failed=%d", processed, failed)
         except Exception as exc:
             logger.error("[WTFScoutJob] crashed: %s", exc)
+        try:
+            from database import get_db_cursor as _wsc_db
+
+            with _wsc_db(commit=True) as (_, _wsc_cur):
+                _wsc_cur.execute(
+                    """INSERT INTO task_execution_log
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
+                               %s, 'internal', %s, true, %s, 68)""",
+                    ("F.A.C.T.", "F.A.C.T.", int((_wsc_t.time() - _wsc_start) * 1000), "analysis"),
+                )
+        except Exception as _tel:
+            logger.debug("[WTFScoutJob] task_execution_log write failed: %s", _tel)
 
     scheduler.add_job(
         with_ctx(_run_wtf_scout),
@@ -3208,6 +3397,20 @@ def _register_own_jobs(scheduler, flask_app):
                     send_info(f"Cluster overflow activated: {newly_activated} agents " f"across {caps} capabilities")
                 except Exception:
                     pass
+
+            try:
+                from database import get_db_cursor as _cow_db
+
+                with _cow_db(commit=True) as (_, _cow_cur):
+                    _cow_cur.execute(
+                        """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                           VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
+                                   %s, 'internal', %s, true, %s, 68)""",
+                        ("A.R.C.H.I.E.", "A.R.C.H.I.E.", elapsed_ms, "knowledge_analysis"),
+                    )
+            except Exception as _tel:
+                logger.debug("[ClusterOrchestration] task_execution_log write failed: %s", _tel)
 
         except Exception as exc:
             logger.error("[ClusterOrchestration] crashed: %s", exc)

@@ -303,8 +303,22 @@ def consciousness_embedding_batch():
             return
 
         logger.info("[Consciousness Batch] Triggering scheduled embedding batch")
+        _start_ts = time.time()
         _trigger_loop_op("embedding")
         _log_cycle("consciousness_embedding", 1, 0, 0, department="Documentation & Knowledge")
+        # Log to task_execution_log so E.M.B.E.R. appears in DHQ Dispatch Traffic + History
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability)
+                       VALUES (126, 'E.M.B.E.R.', 'arctic-embed-cpu', %s, true, 'embedding')""",
+                    (int((time.time() - _start_ts) * 1000),),
+                )
+        except Exception as _tel:
+            logger.debug("[E.M.B.E.R.] task_execution_log write failed: %s", _tel)
         if _ember_session:
             complete_work_session(_ember_session, jobs_completed=1)
     except Exception as e:

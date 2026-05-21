@@ -328,6 +328,26 @@ def register_module_review_routes(bp, admin_required):
                 if len(open_proposals) < 2:
                     return jsonify({"success": False, "error": "Need at least 2 open proposals to bundle"}), 400
 
+                # Dedup: don't create a new bundle if one is already open for this module
+                cur.execute(
+                    """SELECT 1 FROM improvement_proposals
+                       WHERE module_name = %s
+                         AND proposal_source = 'bundled'
+                         AND status NOT IN ('implemented', 'rejected', 'deployed', 'superseded')
+                       LIMIT 1""",
+                    (module_key,),
+                )
+                if cur.fetchone():
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": f"An open bundle already exists for {module_key}. Implement or reject it first.",
+                            }
+                        ),
+                        409,
+                    )
+
                 titles = [r["title"] for r in open_proposals]
                 descriptions = "\n\n".join(f"— {r['title']}: {r['description'] or ''}" for r in open_proposals)
                 priorities = [r["priority"] for r in open_proposals]

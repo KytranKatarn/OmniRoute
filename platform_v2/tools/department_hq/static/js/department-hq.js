@@ -3361,7 +3361,7 @@ document.addEventListener('click', function(e) {
 
 // ───────────────────────────────────────────────────────────────
 /* ============================================================
-   A.R.M.A.D.A. Sub-tabs — CLUSTER / DISPATCH / TRAFFIC / CONTROL / NETWORK
+   A.R.M.A.D.A. Sub-tabs — CLUSTER / DISPATCH / TRAFFIC / NETWORK
    Dispatch content is lazy-mounted from panel-dispatch on first open.
    ============================================================ */
 var _armadaSection = 'cluster';
@@ -3369,7 +3369,7 @@ var _armadaMounted = {};
 
 function switchArmadaSection(s) {
     _armadaSection = s;
-    var sections = ['cluster', 'dispatch', 'traffic', 'control', 'network'];
+    var sections = ['cluster', 'dispatch', 'traffic', 'network'];
     sections.forEach(function(name) {
         var sec = document.getElementById('armadaSection-' + name);
         var btn = document.getElementById('armadaBtn-' + name);
@@ -3406,23 +3406,6 @@ function switchArmadaSection(s) {
         }
         loadDispatchTraffic();
         loadClaudeFeed();
-    }
-
-    // CONTROL: Scheduler/Config/Jobs are in Autonomy tab — show a link
-    // Alerts History is now in the dedicated Alerts tab (panel-alerts)
-    if (s === 'control' && !_armadaMounted.control) {
-        _armadaMounted.control = true;
-        var ctrlTarget = document.getElementById('armadaSection-control');
-        if (ctrlTarget && !ctrlTarget.firstChild) {
-            var link = document.createElement('div');
-            link.style.cssText = 'padding:16px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;font-size:0.75rem;color:var(--dhq-text-dim);';
-            link.innerHTML = '<div style="margin-bottom:8px;color:var(--dhq-text-main);font-family:Antonio,sans-serif;letter-spacing:1px;">OPERATIONAL CONTROLS</div>'
-                + '<div style="margin-bottom:6px;">Scheduler Jobs · Autonomy Config · Jobs By Department → '
-                + '<button onclick="switchTab(\'autonomy\')" style="background:none;border:none;color:#00bcd4;cursor:pointer;font-size:0.75rem;text-decoration:underline;padding:0;">AUTONOMY tab ↗</button></div>'
-                + '<div>System Alerts History → '
-                + '<button onclick="switchTab(\'alerts\')" style="background:none;border:none;color:#00bcd4;cursor:pointer;font-size:0.75rem;text-decoration:underline;padding:0;">ALERTS tab ↗</button></div>';
-            ctrlTarget.appendChild(link);
-        }
     }
 
     // NETWORK: move fleet map section

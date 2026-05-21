@@ -205,6 +205,7 @@ def register_work_routes(bp, admin_required):
                         COALESCE(a.name, tel.agent_name)        AS agent_name,
                         COALESCE(a.display_name, a.name, tel.agent_name) AS agent_display_name,
                         a.department,
+                        MAX(ap.canonical_image_path)            AS portrait_path,
                         COUNT(*)                                 AS total_dispatches,
                         COUNT(*) FILTER (WHERE tel.success)     AS jobs_completed,
                         COUNT(*) FILTER (WHERE NOT tel.success) AS jobs_failed,
@@ -215,6 +216,7 @@ def register_work_routes(bp, admin_required):
                         MIN(tel.created_at)                     AS first_active
                     FROM task_execution_log tel
                     LEFT JOIN agents a ON a.name = tel.agent_name AND a.worker_type = 'ai'
+                    LEFT JOIN agent_portraits ap ON ap.agent_id = a.id
                     WHERE tel.created_at > NOW() - INTERVAL '24 hours'
                     {dept_filter}
                     GROUP BY COALESCE(a.name, tel.agent_name),
@@ -238,6 +240,7 @@ def register_work_routes(bp, admin_required):
                         "agent_name": r["agent_name"],
                         "agent_display_name": r["agent_display_name"],
                         "department": r["department"] or "—",
+                        "portrait_path": r["portrait_path"] or None,
                         "session_type": "dispatch",
                         "title": f"{r['top_capability']} · {r['total_dispatches']} dispatches/24h",
                         "status": status,

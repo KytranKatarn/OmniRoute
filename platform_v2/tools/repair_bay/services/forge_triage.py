@@ -79,7 +79,7 @@ def determine_fix_strategy(alert: Dict) -> Dict:
 def _dispatch_fix(alert: Dict, strategy: Dict) -> Dict:
     """Dispatch fix to an Engineering staff agent via Bridge."""
     try:
-        from bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         prompt = (
             f"Fix vulnerability in {strategy['package']}: "

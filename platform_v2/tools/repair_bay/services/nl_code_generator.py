@@ -178,7 +178,7 @@ class {class_name}:
 
     def __init__(self):
         try:
-            from bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             model = get_dispatcher().get_model_for_capability("code")
             self.model = model or "qwen3-coder-cpu:latest"

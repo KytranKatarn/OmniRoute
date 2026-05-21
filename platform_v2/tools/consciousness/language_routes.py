@@ -1581,9 +1581,11 @@ def register_language_routes(bp, admin_required):
                     UPDATE translations
                     SET status = 'approved', reviewed_by = %s, updated_at = NOW()
                     WHERE id = %s
+                    RETURNING source_label
                     """,
                     (current_user.id, translation_id),
                 )
+                approved_row = cur.fetchone()
             elif action == "reject":
                 cur.execute(
                     """
@@ -1637,6 +1639,34 @@ def register_language_routes(bp, admin_required):
                         )
 
             conn.commit()
+
+            # After commit, trigger async bundle export for the affected domain.
+            # Determines source_label from the updated row (approve path) or the
+            # RETURNING clause already captured by the edit path.
+            _source_label = None
+            if action == "approve" and approved_row:
+                _source_label = approved_row.get("source_label")
+            elif action == "edit" and updated:
+                _source_label = updated.get("source_label")
+
+            if _source_label:
+                _bundle_lookup = {label: bpath for label, _dir, bpath in EXTERNAL_SCAN_SOURCES if bpath is not None}
+                _bundle_path = _bundle_lookup.get(_source_label)
+                if _bundle_path:
+
+                    def _bg_export(src=_source_label, path=_bundle_path):
+                        try:
+                            from tools.consciousness.translation_scanners.orchestrator import (
+                                _export_bundle,
+                            )
+
+                            count = _export_bundle(src, path)
+                            logger.info(f"Post-approve bundle export: {src} → {path} ({count} keys)")
+                        except Exception as ex:
+                            logger.error(f"Post-approve bundle export failed [{src}]: {ex}")
+
+                    threading.Thread(target=_bg_export, daemon=True).start()
+
             return jsonify({"success": True, "action": action, "id": translation_id})
         except Exception as e:
             logger.error(f"Translation approve error: {e}")

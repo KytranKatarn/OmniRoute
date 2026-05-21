@@ -214,7 +214,7 @@ def generate_fix_from_scan(proposal_id: int) -> Dict:
             return {"success": False, "error": f"Cannot read {file_path}"}
 
         # Dispatch to Bridge
-        from bridge_dispatcher import dispatch_json
+        from tools.department_hq.services.department_dispatcher import dispatch_json
 
         prompt = f"""Fix the following issue in this code:
 
@@ -305,7 +305,7 @@ def retry_after_test_failure(proposal_id: int, test_output: str, current_patch: 
         if not proposal:
             return {"success": False, "error": "Proposal not found"}
 
-        from bridge_dispatcher import dispatch_json
+        from tools.department_hq.services.department_dispatcher import dispatch_json
 
         prompt = f"""The previous patch for this issue failed tests. Fix it.
 
@@ -403,7 +403,7 @@ def retry_after_review_feedback(proposal_id: int, pr_number: int, review_comment
             f"- [{c.get('file', '?')}:{c.get('line', '?')}] {c.get('body', '')[:200]}" for c in review_comments[:10]
         )
 
-        from bridge_dispatcher import dispatch_json
+        from tools.department_hq.services.department_dispatcher import dispatch_json
 
         prompt = f"""CodeRabbit requested changes on this PR. Fix the issues.
 

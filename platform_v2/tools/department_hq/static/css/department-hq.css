@@ -2127,12 +2127,34 @@
     grid-column: 1 / -1;
 }
 
-/* Fleet Network sidebar — hide on mobile so radar is visible without scrolling */
+/* Fleet Network sidebar — horizontal strip above radar on mobile */
 @media (max-width: 767px) {
+    /* Become a full-width horizontal flex row above the map */
     #fleetNodeIndex {
+        width: 100% !important;
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        gap: 4px !important;
+        padding-top: 0 !important;
+        align-items: center !important;
+    }
+    /* NODES label: full width row header */
+    #fleetNodeIndex > div:first-child {
+        flex-basis: 100%;
+        margin-bottom: 0 !important;
+    }
+    /* Node items: 2 per row, compact */
+    #fleetNodeIndex > div:not(:first-child):not(#fleetContractorSection) {
+        flex: 1 1 calc(50% - 4px);
+        min-width: 120px;
+        max-width: calc(50% - 4px);
+        margin-bottom: 0 !important;
+    }
+    /* Hide 25 contractor items on mobile — count shown in fleetStatProviders */
+    #fleetContractorSection {
         display: none !important;
     }
-    /* Map takes full available width when sidebar is hidden */
+    /* Map takes full available width */
     #fleetMapContainer {
         width: min(500px, calc(100vw - 40px)) !important;
         height: min(500px, calc(100vw - 40px)) !important;

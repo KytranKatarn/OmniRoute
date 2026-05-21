@@ -4101,17 +4101,20 @@ function renderFleetIndex(data) {
         panel.appendChild(buildIndexItem(i + 1, e.label, e.lat, e.lon, e.online, '#00dcaa'));
     });
 
-    // CONTRACTORS section
+    // CONTRACTORS section — wrapped so CSS can hide on mobile
     var contractors = (data.providers || []).filter(function(p) { return p.lat && p.lon; });
     if (contractors.length) {
+        var contractorSection = document.createElement('div');
+        contractorSection.id = 'fleetContractorSection';
         var chdr = document.createElement('div');
         chdr.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.6rem;letter-spacing:2px;color:rgba(249,115,22,0.5);margin-top:10px;margin-bottom:4px;';
         chdr.textContent = 'CONTRACTORS';
-        panel.appendChild(chdr);
+        contractorSection.appendChild(chdr);
         contractors.forEach(function(p, i) {
             var label = (p.provider_key || 'Unknown').toUpperCase();
-            panel.appendChild(buildIndexItem(i + 1, label, p.lat, p.lon, p.is_active, '#f97316'));
+            contractorSection.appendChild(buildIndexItem(i + 1, label, p.lat, p.lon, p.is_active, '#f97316'));
         });
+        panel.appendChild(contractorSection);
     }
 }
 

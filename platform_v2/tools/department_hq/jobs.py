@@ -1192,6 +1192,23 @@ def _register_own_jobs(scheduler, flask_app):
                             "[DeptHQ] Rest reaper: restored %d agent(s) to active after rest",
                             cur.rowcount,
                         )
+                        # Telegram — notify when agent(s) return to active duty after rest
+                        try:
+                            cur.execute(
+                                "SELECT name FROM agents WHERE id = ANY(%s)",
+                                (recovered_ids,),
+                            )
+                            recovered_names = [r["name"] for r in cur.fetchall() or []]
+                            label = " & ".join(recovered_names) or f"{len(recovered_ids)} agent(s)"
+                            verb = "has" if len(recovered_names) == 1 else "have"
+                            from services.telegram_service import send_info
+
+                            send_info(
+                                f"✅ {label} {verb} returned to active duty after mandatory rest — "
+                                f"back to full capacity and accepting dispatches.",
+                            )
+                        except Exception as _tg_err:
+                            logger.warning("[DeptHQ] Rest recovery Telegram notify failed: %s", _tg_err)
 
             if reaped:
                 summary = ", ".join(f"{r['agent_name']}/{r['capability']}" for r in reaped[:5])
@@ -1694,8 +1711,14 @@ def _register_own_jobs(scheduler, flask_app):
                     # Skip if shift_state already winding_down / cooldown / barracked
                     cur.execute(
                         """
-                        SELECT id, shift_state, current_stress, current_energy
-                        FROM agents WHERE name = %s LIMIT 1
+                        SELECT a.id, a.shift_state,
+                               COALESCE(aes.stress_level, 0) AS current_stress,
+                               COALESCE(aes.energy_level, 0.8) AS current_energy
+                        FROM agents a
+                        LEFT JOIN agent_emotional_state aes ON aes.agent_id = a.id
+                        WHERE a.name = %s
+                        ORDER BY aes.timestamp DESC NULLS LAST
+                        LIMIT 1
                         """,
                         (agent["name"],),
                     )

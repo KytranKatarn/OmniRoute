@@ -53,7 +53,7 @@ def _run_shield_analysis(app, scan_target, scan_data, db_scan_id):
     """Run S.H.I.E.L.D. AI compliance analysis in a background thread."""
     try:
         with app.app_context():
-            from ai_bridge.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             # Fetch previous scan score for trend comparison
             prev_score = None

@@ -247,7 +247,7 @@ def gateway_chat():
             get_conversation_context,
             get_conversation_messages,
         )
-        from ai_bridge.orchestration_engine import OrchestrationEngine
+        from tools.department_hq.services.orchestration_engine import OrchestrationEngine
 
         # Use a synthetic gateway user_id (admin user id 1, or derive from API key)
         gateway_user_id = 1

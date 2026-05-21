@@ -22,12 +22,12 @@ logger = logging.getLogger(__name__)
 
 # Bridge availability flag
 try:
-    from archie_bridge import archie_bridge
+    from tools.department_hq.services.department_dispatcher import dispatch_json
 
     BRIDGE_AVAILABLE = True
 except ImportError:
     BRIDGE_AVAILABLE = False
-    logger.warning("archie_bridge not available, AI captions will use fallback")
+    logger.warning("Department HQ dispatcher not available, AI captions will use fallback")
 
 
 def generate_caption(media_library_id):
@@ -72,7 +72,7 @@ def generate_caption(media_library_id):
 
     if BRIDGE_AVAILABLE:
         try:
-            result = archie_bridge.chat(ai_prompt, action="suggest_content")
+            result = dispatch_json(capability="creative", prompt=ai_prompt, module_id="social_media")
             caption = ""
             if isinstance(result, dict):
                 caption = result.get("response") or result.get("content") or ""

@@ -3947,6 +3947,72 @@ class AgentLoop:
                     from services.scan_pipeline import process_scan_results
 
                     process_scan_results(scan_id, issues, file_path)
+
+                    # Wire findings into Repair Bay proposal pipeline
+                    try:
+                        from services.audit_pipeline import process_audit_findings
+
+                        # Map scan issue format → audit finding format
+                        # scan: {type, severity(high/medium/low), message, suggestion, line}
+                        # audit: {code, severity(red/yellow/info), file, detail}
+                        _severity_map = {
+                            "high": "red",
+                            "critical": "red",
+                            "medium": "yellow",
+                            "low": "info",
+                        }
+                        audit_issues = []
+                        for _issue in issues:
+                            _sev = _severity_map.get(
+                                str(_issue.get("severity", "")).lower(), "info"
+                            )
+                            audit_issues.append(
+                                {
+                                    "code": _issue.get("type", "quality"),
+                                    "severity": _sev,
+                                    "file": file_path,
+                                    "detail": _issue.get("message", "")
+                                    + (
+                                        f" (line {_issue['line']})"
+                                        if _issue.get("line")
+                                        else ""
+                                    )
+                                    + (
+                                        f" — Suggestion: {_issue['suggestion']}"
+                                        if _issue.get("suggestion")
+                                        else ""
+                                    ),
+                                }
+                            )
+
+                        # Derive module name from file path
+                        # e.g. platform_v2/tools/foo/bar.py → foo
+                        # e.g. ai_bridge/agent_loop.py → [ai_bridge]
+                        _parts = file_path.replace("\\", "/").split("/")
+                        if "tools" in _parts:
+                            _tidx = _parts.index("tools")
+                            _module = (
+                                _parts[_tidx + 1] if len(_parts) > _tidx + 1 else "unknown"
+                            )
+                        elif len(_parts) >= 2:
+                            _module = f"[{_parts[0]}]"
+                        else:
+                            _module = file_path
+
+                        result = process_audit_findings(_module, audit_issues)
+                        if result.get("proposals_created", 0) > 0:
+                            logger.info(
+                                "Proactive scan → audit pipeline: %d proposals created for %s",
+                                result["proposals_created"],
+                                file_path,
+                            )
+                    except Exception as _pipe_err:
+                        logger.warning(
+                            "Proactive scan audit pipeline failed for %s: %s",
+                            file_path,
+                            _pipe_err,
+                        )
+
                     scanned += 1
 
                 except Exception as scan_err:

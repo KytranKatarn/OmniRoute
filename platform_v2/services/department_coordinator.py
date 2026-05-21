@@ -294,11 +294,12 @@ CAPABILITY_DEPARTMENT_MAP = {
     "nutrition": "Medical & Wellness",
     "mental_health_support": "Medical & Wellness",
     "patient_care": "Medical & Wellness",
-    # Human Resources & Culture — K.I.N. skills missing from map
+    # Human Resources & Culture — K.I.N.
     "welfare": "Human Resources & Culture",
     "hr": "Human Resources & Culture",
     "training": "Human Resources & Culture",
     "workforce_welfare": "Human Resources & Culture",
+    "workforce_planning": "Human Resources & Culture",
     # Diplomatic & External Relations — A.C.C.O.R.D.
     "diplomacy": "Diplomatic & External Relations",
     "negotiation": "Diplomatic & External Relations",

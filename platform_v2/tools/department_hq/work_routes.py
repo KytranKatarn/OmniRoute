@@ -88,7 +88,9 @@ def register_work_routes(bp, admin_required):
                 cur.execute(
                     """
                     SELECT a.name AS agent_name,
-                           ROUND(ads.total_duration_ms / 3600000.0, 1) AS hours_worked_today,
+                           ROUND(LEAST(ads.total_duration_ms,
+                               EXTRACT(EPOCH FROM (NOW() - DATE_TRUNC('day', NOW()))) * 1000
+                           ) / 3600000.0, 1) AS hours_worked_today,
                            CASE
                              WHEN ads.total_duration_ms > 43200000 THEN 'critical'  -- >12h
                              WHEN ads.total_duration_ms > 28800000 THEN 'warning'   -- >8h

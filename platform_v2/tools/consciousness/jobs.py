@@ -230,8 +230,8 @@ def deduplicate_knowledge():
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (146, "C.O.D.E.X.", "mistral:7b", 0, "documentation"),
                 )
         except Exception as _tel:
@@ -276,8 +276,8 @@ def index_claude_sessions():
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (146, "C.O.D.E.X.", "mistral:7b", 0, "knowledge_indexing"),
                 )
         except Exception as _tel:
@@ -346,8 +346,8 @@ def consciousness_analysis_batch():
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (
                         137,
                         "S.P.E.C.T.R.A.",
@@ -423,8 +423,8 @@ def consciousness_embedding_batch():
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (126, 'E.M.B.E.R.', 'arctic-embed-cpu', %s, true, 'embedding')""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (126, 'E.M.B.E.R.', 'arctic-embed-cpu', %s, true, 'embedding', 68)""",
                     (int((time.time() - _start_ts) * 1000),),
                 )
         except Exception as _tel:
@@ -756,8 +756,8 @@ def sync_learned_skills():
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (
                         146,
                         "C.O.D.E.X.",
@@ -999,8 +999,8 @@ def github_auto_pull():
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (
                         136,
                         "F.O.R.G.E.",
@@ -1406,8 +1406,8 @@ Respond with ONLY a JSON object (no markdown, no explanation):
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (
                         136,
                         "F.O.R.G.E.",
@@ -1478,8 +1478,8 @@ def conversation_consolidation():
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (146, "C.O.D.E.X.", "mistral:7b", duration_ms, "documentation"),
                 )
         except Exception as _tel:
@@ -1545,8 +1545,8 @@ def improvement_detection():
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (140, "D.A.R.W.I.N.", "qwen2.5:7b", duration_ms, "research"),
                 )
         except Exception as _tel:
@@ -1605,8 +1605,8 @@ def daily_self_reflection():
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (2, "A.R.C.H.I.E.", "qwen2.5:7b", duration_ms, "research"),
                 )
         except Exception as _tel:
@@ -1672,8 +1672,8 @@ def weekly_memory_consolidation():
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (2, "A.R.C.H.I.E.", "qwen2.5:7b", duration_ms, "research"),
                 )
         except Exception as _tel:
@@ -2163,8 +2163,8 @@ capabilities: [<list>]
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (
                         136,
                         "F.O.R.G.E.",
@@ -2355,8 +2355,8 @@ def install_skills_to_claude():
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (
                         136,
                         "F.O.R.G.E.",
@@ -2678,8 +2678,8 @@ def test_installed_skills():
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (
                         136,
                         "F.O.R.G.E.",
@@ -2893,8 +2893,8 @@ def push_skills_to_fleet():
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (
                         139,
                         "B.A.S.E.",
@@ -3062,8 +3062,8 @@ def auto_generate_project_docs():
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (140, "D.A.R.W.I.N.", "qwen2.5:7b", duration, "research"),
                 )
         except Exception as _tel:
@@ -3147,8 +3147,8 @@ def auto_link_knowledge_batch():
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (146, "C.O.D.E.X.", "mistral:7b", duration, "knowledge_analysis"),
                 )
         except Exception as _tel:
@@ -3252,8 +3252,8 @@ def generate_weekly_reports():
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability)
-                       VALUES (%s, %s, %s, %s, true, %s)""",
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
                     (146, "C.O.D.E.X.", "mistral:7b", duration, "documentation"),
                 )
         except Exception as _tel:

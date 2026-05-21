@@ -32,7 +32,6 @@
     ("creed", "C.R.E.E.D.", "shield-check"),
     ("social", "S.I.G.N.A.L.", "heart"),
     ("scout", "S.C.O.U.T.", "radar"),
-    ("devices", "API Access", "monitor"),
     ("autonomy", "Autonomy", "cpu"),
     ("fleet", "A.R.M.A.D.A.", "rocket"),
     ("contractors", "Contractors", "hard-hat"),
@@ -249,81 +248,6 @@
             </div>
           </div>
           <div style="height:6px !important;background:#38bdf8 !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- DEVICES -->
-    <div class="dhq-panel" id="panel-devices">
-      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
-        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;"><div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div><div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div><div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div></div>
-        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
-          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;"><span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">API ACCESS</span><div style="flex:1"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">TOKENS</span><div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div></div>
-          <div style="flex:1 !important;padding:16px !important;">
-      <div class="dhq-work-controls">
-        <select id="deviceStatusFilter" class="dhq-select" onchange="loadDevices()">
-          <option value="">All Statuses</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="denied">Denied</option>
-          <option value="revoked">Revoked</option>
-        </select>
-        <span class="dhq-roster-count" id="deviceCount"></span>
-      </div>
-      <div id="devicesContent" class="dhq-loading">Loading devices...</div>
-      <!-- Device Deny Confirm Modal -->
-      <div class="bm-overlay" id="deviceDenyModal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
-        <div class="bm-shell" style="--bm-accent:#ef4444;">
-          <div class="bm-frame"></div>
-          <div class="bm-content">
-            <div class="bm-header"><span class="bm-header-title">DENY DEVICE</span></div>
-            <div class="bm-body">
-              <p id="deviceDenyName" style="font-family:'IBM Plex Mono',monospace;font-size:0.9rem;margin-bottom:8px;"></p>
-              <p style="color:var(--dhq-text-dim);font-size:0.85rem;">This device will be denied access and cannot be re-approved.</p>
-            </div>
-            <div class="bm-footer">
-              <button onclick="confirmDenyDevice()" style="background:#ef4444;color:#fff;border:none;padding:6px 18px;border-radius:4px;cursor:pointer;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;font-size:0.8rem;">CONFIRM</button>
-              <button onclick="document.getElementById('deviceDenyModal').style.display='none'" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text);padding:6px 18px;border-radius:4px;cursor:pointer;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;font-size:0.8rem;">CANCEL</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <!-- Device Revoke Confirm Modal -->
-      <div class="bm-overlay" id="deviceRevokeModal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
-        <div class="bm-shell" style="--bm-accent:#ef4444;">
-          <div class="bm-frame"></div>
-          <div class="bm-content">
-            <div class="bm-header"><span class="bm-header-title">REVOKE ACCESS</span></div>
-            <div class="bm-body">
-              <p id="deviceRevokeName" style="font-family:'IBM Plex Mono',monospace;font-size:0.9rem;margin-bottom:8px;"></p>
-              <p style="color:var(--dhq-text-dim);font-size:0.85rem;">This device will lose all access immediately.</p>
-            </div>
-            <div class="bm-footer">
-              <button onclick="confirmRevokeDevice()" style="background:#ef4444;color:#fff;border:none;padding:6px 18px;border-radius:4px;cursor:pointer;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;font-size:0.8rem;">CONFIRM</button>
-              <button onclick="document.getElementById('deviceRevokeModal').style.display='none'" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text);padding:6px 18px;border-radius:4px;cursor:pointer;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;font-size:0.8rem;">CANCEL</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <!-- Device API Key Display Modal -->
-      <div class="bm-overlay" id="deviceKeyModal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
-        <div class="bm-shell" style="--bm-accent:#00e5ff;">
-          <div class="bm-frame"></div>
-          <div class="bm-content">
-            <div class="bm-header"><span class="bm-header-title">API KEY ISSUED</span></div>
-            <div class="bm-body">
-              <p style="color:#f59e0b;font-size:0.8rem;margin-bottom:12px;">&#9888; This key will not be shown again. Copy it now.</p>
-              <pre id="deviceKeyValue" style="font-family:'IBM Plex Mono',monospace;font-size:0.75rem;background:rgba(0,0,0,0.4);border:1px solid rgba(0,229,255,0.3);border-radius:4px;padding:10px;word-break:break-all;white-space:pre-wrap;color:#00e5ff;margin:0;"></pre>
-            </div>
-            <div class="bm-footer">
-              <button id="deviceKeyCopyBtn" onclick="copyDeviceKey()" style="background:#00e5ff;color:#010409;border:none;padding:6px 18px;border-radius:4px;cursor:pointer;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;font-size:0.8rem;font-weight:600;">COPY KEY</button>
-              <button onclick="document.getElementById('deviceKeyModal').style.display='none'" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text);padding:6px 18px;border-radius:4px;cursor:pointer;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;font-size:0.8rem;">CLOSE</button>
-            </div>
-          </div>
-        </div>
-      </div>
-          </div>
-          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
         </div>
       </div>
     </div>

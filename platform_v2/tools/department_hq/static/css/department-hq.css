@@ -2122,3 +2122,19 @@
     min-width: 0;
     overflow: hidden;
 }
+/* Last card alone on a row spans both columns — no ugly empty right half */
+#clusterNodesGrid > *:last-child:nth-child(2n+1) {
+    grid-column: 1 / -1;
+}
+
+/* Fleet Network sidebar — hide on mobile so radar is visible without scrolling */
+@media (max-width: 767px) {
+    #fleetNodeIndex {
+        display: none !important;
+    }
+    /* Map takes full available width when sidebar is hidden */
+    #fleetMapContainer {
+        width: min(500px, calc(100vw - 40px)) !important;
+        height: min(500px, calc(100vw - 40px)) !important;
+    }
+}

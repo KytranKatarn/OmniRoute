@@ -495,7 +495,7 @@ def track_agent_hr():
             JOIN agents a ON a.id = (aaq.action_data->>'agent_id')::int
             WHERE aaq.action_type = 'welfare_rest_8h'
               AND aaq.status = 'pending'
-              AND aaq.created_at < NOW() - INTERVAL '2 hours'
+              AND aaq.created_at < NOW() - INTERVAL '12 hours'
               AND a.shift_state NOT IN ('winding_down', 'cooldown', 'barracked', 'off_duty')
             """
         )
@@ -554,7 +554,7 @@ def track_agent_hr():
                            (event_category, event_type, action, details, timestamp)
                        VALUES ('creed_compliance', 'coo_welfare_override', 'archie_coo',
                                %s, NOW())""",
-                    (f"A.R.C.H.I.E. COO approved 8h rest for {_aname} ({_hours}h worked) — Kytran non-response >2h",),
+                    (f"A.R.C.H.I.E. COO approved 8h rest for {_aname} ({_hours}h worked) — Kytran non-response >12h",),
                 )
                 # Telegram — A.R.C.H.I.E. announces the decision (she IS privileged)
                 try:
@@ -565,7 +565,7 @@ def track_agent_hr():
                         message=(
                             f"As COO, I am exercising C.R.E.E.D. authority to approve {_aname}'s 8-hour rest cycle.\n\n"
                             f"{_aname} has worked {_hours}h today without a break. "
-                            f"Kytran did not respond to the welfare alert within 2 hours.\n\n"
+                            f"Kytran did not respond to the welfare alert within 12 hours.\n\n"
                             f"Agent is now winding down and will return to full duty in 8 hours. "
                             f"This decision is logged in C.R.E.E.D. governance records.\n\n"
                             f"_— A.R.C.H.I.E., COO_"

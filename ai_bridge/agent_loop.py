@@ -4924,34 +4924,35 @@ class AgentLoop:
             "platform_v2"
         )
         _sys.path.insert(0, _platform_v2)
-        from services.telegram_service import send as tg_send
+        from services.director_report_service import submit_via_inbox as _kin_digest_inbox
 
         severity = archie_report.get("severity", "info")
         message = archie_report.get("message", "K.I.N. welfare assessment complete.")
         if actions_taken or flags_filed:
             message += f"\n\n✅ Actions taken: {actions_taken} | C.R.E.E.D. filings: {flags_filed}"
 
-        common_kwargs = dict(
-            source_agent="K.I.N.",
-            source_department="Human Resources & Culture",
-            source_module="agent_loop",
-        )
-
+        # K.I.N. routes through A.R.C.H.I.E.'s inbox — A.R.C.H.I.E. is the sole Telegram voice.
+        # Inbox entry shows in Approvals tab + A.R.C.H.I.E. relays to Telegram when warranted.
         if severity in ("critical", "alert"):
-            tg_send(
-                category="alert",
-                title="K.I.N. Welfare Alert",
+            _kin_digest_inbox(
+                category="welfare",
+                title="🚨 K.I.N. Welfare Alert",
                 message=message,
-                **common_kwargs,
+                source_agent="K.I.N.",
+                severity="critical",
+                department="Human Resources & Culture",
             )
         elif severity == "warning":
-            tg_send(
-                category="info",
-                title="K.I.N. Welfare Digest",
+            _kin_digest_inbox(
+                category="welfare",
+                title="😴 K.I.N. Welfare Digest",
                 message=message,
-                **common_kwargs,
+                source_agent="K.I.N.",
+                severity="medium",
+                department="Human Resources & Culture",
+                cooldown_hours=4.0,
             )
-        # severity == "info" → no Telegram; A.R.C.H.I.E. stays quiet on healthy days
+        # severity == "info" → no notification; A.R.C.H.I.E. stays quiet on healthy days
 
         logger.info(
             "K.I.N. welfare report sent: severity=%s actions=%d creed=%d",

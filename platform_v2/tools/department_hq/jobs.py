@@ -1201,11 +1201,21 @@ def _register_own_jobs(scheduler, flask_app):
                             recovered_names = [r["name"] for r in cur.fetchall() or []]
                             label = " & ".join(recovered_names) or f"{len(recovered_ids)} agent(s)"
                             verb = "has" if len(recovered_names) == 1 else "have"
-                            from services.telegram_service import send_info
+                            # K.I.N. routes welfare news via A.R.C.H.I.E.'s inbox
+                            # (A.R.C.H.I.E. is the sole Telegram voice — ADR unified-voice)
+                            from services.director_report_service import submit_via_inbox as _kin_inbox
 
-                            send_info(
-                                f"✅ {label} {verb} returned to active duty after mandatory rest — "
-                                f"back to full capacity and accepting dispatches.",
+                            _kin_inbox(
+                                category="welfare",
+                                title=f"✅ {label} returned to active duty",
+                                message=(
+                                    f"{label} {verb} returned to active duty after mandatory rest — "
+                                    f"back to full capacity and accepting dispatches."
+                                ),
+                                source_agent="K.I.N.",
+                                severity="low",
+                                department="Human Resources & Culture",
+                                cooldown_hours=0.5,
                             )
                         except Exception as _tg_err:
                             logger.warning("[DeptHQ] Rest recovery Telegram notify failed: %s", _tg_err)
@@ -1535,6 +1545,13 @@ def _register_own_jobs(scheduler, flask_app):
         """
         # K.I.N. (id=145) work session — surfaces in DHQ Work Tracking + dispatch
         _kin_wm_session = None
+        _kin_wm_t0 = None
+        try:
+            import time as _kin_time
+
+            _kin_wm_t0 = _kin_time.time()
+        except Exception:
+            pass
         try:
             from services.work_tracking_service import (
                 create_work_session,
@@ -1897,9 +1914,9 @@ def _register_own_jobs(scheduler, flask_app):
                         """,
                         (rest_msg,),
                     )
-                    # Notify A.R.C.H.I.E. → Telegram → Kytran + COMs tab
+                    # Report to A.R.C.H.I.E. inbox → Approvals tab + Telegram relay
                     try:
-                        from services.telegram_service import send_info
+                        from services.director_report_service import submit_via_inbox as _kin_rest_inbox
 
                         agent_lines = "\n".join(
                             f"  • {a['name']} ({a['department']}) — "
@@ -1908,18 +1925,39 @@ def _register_own_jobs(scheduler, flask_app):
                             for a in overloaded
                             if float(a["utilisation_pct"] or 0) >= 80
                         )
-                        send_info(
-                            f"😴 K.I.N. Fleet Welfare Report\n\n"
-                            f"{rested} agent(s) scheduled for mandatory rest "
-                            f"(>80% workload capacity):\n{agent_lines}\n\n"
-                            f"Agents are winding down active tasks and will resume "
-                            f"full duty in ~30 minutes once recovered.",
-                            source_module="kin_workload_monitor",
+                        _kin_rest_inbox(
+                            category="welfare",
+                            title=f"😴 K.I.N.: {rested} agent(s) scheduled for mandatory rest",
+                            message=(
+                                f"{rested} agent(s) scheduled for mandatory rest "
+                                f"(>80% workload capacity):\n{agent_lines}\n\n"
+                                f"Agents are winding down active tasks and will resume "
+                                f"full duty in ~30 minutes once recovered."
+                            ),
+                            source_agent="K.I.N.",
+                            severity="medium",
+                            department="Human Resources & Culture",
+                            cooldown_hours=1.0,
                         )
                     except Exception as tg_err:
-                        logger.warning("[K.I.N.] Telegram notify failed: %s", tg_err)
+                        logger.warning("[K.I.N.] Inbox notify failed: %s", tg_err)
             if _kin_wm_session:
                 complete_work_session(_kin_wm_session, jobs_completed=1)
+            # Log to task_execution_log → K.I.N. appears in ARMADA Dispatch Traffic + History
+            try:
+                from database import get_db_cursor as _kin_db
+
+                _dur = int((_kin_time.time() - _kin_wm_t0) * 1000) if _kin_wm_t0 else 0
+                with _kin_db(commit=True) as (_conn, _cur):
+                    _cur.execute(
+                        """INSERT INTO task_execution_log
+                               (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                               VALUES ((SELECT id FROM agents WHERE name='K.I.N.' LIMIT 1),
+                                       'K.I.N.', 'internal', %s, true, 'welfare_monitoring', 68)""",
+                        (_dur,),
+                    )
+            except Exception as _tel:
+                logger.debug("[K.I.N.] task_execution_log write failed: %s", _tel)
         except Exception as exc:
             logger.error("[K.I.N.] Workload monitor failed: %s", exc)
             if _kin_wm_session:

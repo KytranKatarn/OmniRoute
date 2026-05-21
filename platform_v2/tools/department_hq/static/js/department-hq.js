@@ -814,6 +814,10 @@ async function loadWorkSessions() {
             var srColor = sr >= 95 ? '#10b981' : sr >= 80 ? '#f59e0b' : '#ef4444';
             var avgSec = s.avg_duration_ms ? (s.avg_duration_ms / 1000).toFixed(1) + 's' : '\u2014';
             var lastActive = s.last_active ? fmtTime(s.last_active) : '\u2014';
+            // Friendly display: resolve unresolvable fleet-agent-NNN refs
+            var displayName = s.agent_display_name || s.agent_name || '—';
+            if (/^fleet-agent-\d+$/.test(displayName)) displayName = 'Fleet Agent';
+            var displayDept = s.department || '—';
             var portraitHtml = '';
             if (s.portrait_path) {
                 var pUrl = '/' + s.portrait_path.replace(/^\//, '');
@@ -824,18 +828,18 @@ async function loadWorkSessions() {
                     + '<span style="display:none;width:36px;height:36px;border-radius:50%;'
                     + 'background:rgba(0,229,255,0.15);color:#00e5ff;font-family:Antonio,sans-serif;'
                     + 'font-size:0.8rem;align-items:center;justify-content:center;flex-shrink:0;">'
-                    + esc((s.agent_display_name || s.agent_name || '?')[0].toUpperCase()) + '</span>';
+                    + esc(displayName[0].toUpperCase()) + '</span>';
             } else {
                 portraitHtml = '<span style="display:flex;width:36px;height:36px;border-radius:50%;'
                     + 'background:rgba(0,229,255,0.12);color:#00e5ff;font-family:Antonio,sans-serif;'
                     + 'font-size:0.85rem;align-items:center;justify-content:center;flex-shrink:0;">'
-                    + esc((s.agent_display_name || s.agent_name || '?')[0].toUpperCase()) + '</span>';
+                    + esc(displayName[0].toUpperCase()) + '</span>';
             }
             html += '<div class="dhq-session-card" style="cursor:default;">'
                 + portraitHtml
                 + '<div>'
-                + '<div style="font-family:Antonio,sans-serif;font-size:0.82rem;letter-spacing:1px;color:var(--dhq-text-main);">' + esc(s.agent_display_name || s.agent_name || '\u2014') + '</div>'
-                + '<div style="font-size:0.67rem;color:var(--dhq-text-dim);margin-top:2px;">' + esc(s.department || '\u2014') + '</div>'
+                + '<div style="font-family:Antonio,sans-serif;font-size:0.82rem;letter-spacing:1px;color:var(--dhq-text-main);">' + esc(displayName) + '</div>'
+                + '<div style="font-size:0.67rem;color:var(--dhq-text-dim);margin-top:2px;">' + esc(displayDept) + '</div>'
                 + '</div>'
                 + '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">'
                 + '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:0.67rem;background:rgba(0,188,212,0.15);color:#00bcd4;padding:1px 6px;border-radius:3px;">' + esc(s.title ? s.title.split(' \u00b7 ')[0] : '\u2014') + '</span>'

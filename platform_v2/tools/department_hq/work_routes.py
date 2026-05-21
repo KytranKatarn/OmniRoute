@@ -215,7 +215,20 @@ def register_work_routes(bp, admin_required):
                         MAX(tel.created_at)                     AS last_active,
                         MIN(tel.created_at)                     AS first_active
                     FROM task_execution_log tel
-                    LEFT JOIN agents a ON a.name = tel.agent_name AND a.worker_type = 'ai'
+                    LEFT JOIN LATERAL (
+                        -- Direct match (hub agents)
+                        SELECT ha.id, ha.name, ha.display_name, ha.department
+                        FROM agents ha
+                        WHERE ha.name = tel.agent_name AND ha.worker_type = 'ai'
+                        UNION ALL
+                        -- Fleet agent resolution: fleet-agent-<node_agents.id> → hub agent
+                        SELECT ha.id, ha.name, ha.display_name, ha.department
+                        FROM node_agents na
+                        JOIN agents ha ON ha.id = na.hub_agent_id AND ha.worker_type = 'ai'
+                        WHERE tel.agent_name ~ '^fleet-agent-[0-9]+$'
+                          AND na.id::text = substring(tel.agent_name FROM 13)
+                        LIMIT 1
+                    ) a ON TRUE
                     LEFT JOIN agent_portraits ap ON ap.agent_id = a.id
                     WHERE tel.created_at > NOW() - INTERVAL '24 hours'
                     {dept_filter}

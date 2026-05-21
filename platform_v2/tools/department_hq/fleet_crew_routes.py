@@ -41,7 +41,7 @@ def register_crew_routes(bp, auth_decorator):
         # Try to get real dispatcher manifest for enrichment
         manifest_lookup = {}
         try:
-            from ai_bridge.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             hub_manifest = dispatcher.get_crew_manifest()
@@ -652,7 +652,7 @@ def register_crew_routes(bp, auth_decorator):
             max_agents = request.json.get("max_agents", 5) if request.is_json else 5
             max_agents = min(int(max_agents), 10)  # cap at 10
 
-            from ai_bridge.bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             assigned = dispatcher.assign_agents_to_node(node_id, max_agents=max_agents)

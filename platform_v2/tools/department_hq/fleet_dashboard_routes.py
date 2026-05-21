@@ -2010,7 +2010,7 @@ def register_dashboard_routes(bp, auth_decorator):
             return jsonify(success=False, error=str(exc)[:200]), 500
 
     @bp.route("/api/fleet/wtf-status")
-    @login_required
+    @auth_decorator
     def api_fleet_wtf_status():
         """WTF pipeline agent status — live dispatch stats per News & Media agent.
 

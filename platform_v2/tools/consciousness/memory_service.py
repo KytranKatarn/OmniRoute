@@ -128,9 +128,12 @@ def semantic_search(
     limit: int = 10,
     min_similarity: float = 0.3,
 ) -> List[Dict]:
-    """Search knowledge base by semantic similarity using embeddings.
+    """Search knowledge base by semantic similarity using pgvector IVFFlat index.
 
-    Searches the knowledge_base table directly (20K+ entries with embeddings).
+    Uses the idx_kb_embedding IVFFlat index (cosine ops) to search ALL embedded
+    entries (29,000+) in a single indexed query. Previously fetched only the 500
+    most-recent rows and scored in Python — this fix removes that 98% blindspot.
+
     Falls back to text search if embedding generation fails.
     """
 
@@ -140,72 +143,72 @@ def semantic_search(
         logger.warning("Could not generate query embedding, falling back to text search")
         return text_search(query, source_types, limit)
 
+    # Format embedding for pgvector <=> operator
+    query_vec = "[" + ",".join(str(f) for f in query_embedding) + "]"
+    # Fetch extra rows so min_similarity filtering still returns `limit` results
+    fetch_limit = max(limit * 5, 50)
+
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        # Search knowledge_base directly — the actual source of truth
+        # pgvector native similarity search — uses IVFFlat index (idx_kb_embedding)
+        # 1 - (embedding <=> query) converts cosine distance → cosine similarity
         if source_types:
             cur.execute(
                 """
-                SELECT id, title, content, knowledge_type, category, tags, embedding,
-                       quality_score, review_status
+                SELECT id, title, content, knowledge_type, category, tags,
+                       quality_score, review_status,
+                       1 - (embedding <=> %s::vector) AS similarity
                 FROM knowledge_base
                 WHERE embedding IS NOT NULL
-                AND knowledge_type = ANY(%s)
-                AND (review_status IS NULL OR review_status != 'rejected')
-                ORDER BY created_at DESC
-                LIMIT 500
-            """,
-                (source_types,),
+                  AND knowledge_type = ANY(%s)
+                  AND (review_status IS NULL OR review_status != 'rejected')
+                ORDER BY embedding <=> %s::vector
+                LIMIT %s
+                """,
+                (query_vec, source_types, query_vec, fetch_limit),
             )
         else:
             cur.execute(
                 """
-                SELECT id, title, content, knowledge_type, category, tags, embedding,
-                       quality_score, review_status
+                SELECT id, title, content, knowledge_type, category, tags,
+                       quality_score, review_status,
+                       1 - (embedding <=> %s::vector) AS similarity
                 FROM knowledge_base
                 WHERE embedding IS NOT NULL
-                AND (review_status IS NULL OR review_status != 'rejected')
-                ORDER BY created_at DESC
-                LIMIT 500
-            """
+                  AND (review_status IS NULL OR review_status != 'rejected')
+                ORDER BY embedding <=> %s::vector
+                LIMIT %s
+                """,
+                (query_vec, query_vec, fetch_limit),
             )
 
         rows = cur.fetchall()
 
-        # Calculate similarities
         results = []
         for row in rows:
-            if row["embedding"]:
-                emb = row["embedding"]
-                if isinstance(emb, str):
-                    try:
-                        emb = json.loads(emb)
-                    except (json.JSONDecodeError, TypeError):
-                        continue
-                similarity = cosine_similarity(query_embedding, emb)
-                if similarity >= min_similarity:
-                    results.append(
-                        {
-                            "id": row["id"],
-                            "title": row["title"],
-                            "content": (row["content"] or "")[:500],
-                            "knowledge_type": row["knowledge_type"],
-                            "category": row["category"],
-                            "tags": row["tags"],
-                            "similarity": round(similarity, 4),
-                            "quality_score": row["quality_score"],
-                            "review_status": row["review_status"],
-                            # Compatibility fields for callers expecting old format
-                            "source_type": row["knowledge_type"],
-                            "source_id": row["id"],
-                        }
-                    )
+            similarity = float(row["similarity"] or 0)
+            if similarity >= min_similarity:
+                results.append(
+                    {
+                        "id": row["id"],
+                        "title": row["title"],
+                        "content": (row["content"] or "")[:500],
+                        "knowledge_type": row["knowledge_type"],
+                        "category": row["category"],
+                        "tags": row["tags"],
+                        "similarity": round(similarity, 4),
+                        "quality_score": row["quality_score"],
+                        "review_status": row["review_status"],
+                        # Compatibility fields for callers expecting old format
+                        "source_type": row["knowledge_type"],
+                        "source_id": row["id"],
+                    }
+                )
 
-        # Sort by similarity
-        results.sort(key=lambda x: x["similarity"], reverse=True)
-
+        # pgvector ORDER BY <=> already sorted by similarity ascending (distance),
+        # so results are in correct order (most similar first after 1-distance)
         return results[:limit]
 
     except Exception as e:

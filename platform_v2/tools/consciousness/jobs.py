@@ -268,7 +268,27 @@ def consciousness_embedding_batch():
     Only runs if the embedding server loop is enabled in system_config.
     Uses _trigger_loop_op() from processing_routes which handles
     item selection, job creation, and background threading.
+    E.M.B.E.R. (id=126) owns this job — work session surfaces her in DHQ dispatch.
     """
+    # E.M.B.E.R. (id=126) work session — surfaces in DHQ Work Tracking + dispatch
+    _ember_session = None
+    try:
+        from services.work_tracking_service import (
+            create_work_session,
+            complete_work_session,
+            fail_work_session,
+        )
+
+        _ember_session = create_work_session(
+            agent_id=126,
+            department="Documentation & Knowledge",
+            session_type="embedding_batch",
+            title="KB Embedding Batch — arctic-embed-cpu",
+            metadata={"model": "arctic-embed-cpu", "triggered_by": "scheduler"},
+        )
+    except Exception as _wt_err:
+        logger.warning("[E.M.B.E.R.] Work session create failed: %s", _wt_err)
+
     try:
         from tools.consciousness.processing_routes import (
             get_server_loops,
@@ -278,14 +298,20 @@ def consciousness_embedding_batch():
         loops = get_server_loops()
         if not loops.get("embedding"):
             logger.debug("[Consciousness Batch] Embedding loop disabled — skipping")
+            if _ember_session:
+                complete_work_session(_ember_session, jobs_completed=0)
             return
 
         logger.info("[Consciousness Batch] Triggering scheduled embedding batch")
         _trigger_loop_op("embedding")
         _log_cycle("consciousness_embedding", 1, 0, 0, department="Documentation & Knowledge")
+        if _ember_session:
+            complete_work_session(_ember_session, jobs_completed=1)
     except Exception as e:
         _log_cycle("consciousness_embedding", 0, 1, 0, error_message=str(e), department="Documentation & Knowledge")
         logger.warning(f"[Consciousness Batch] Embedding batch failed: {e}")
+        if _ember_session:
+            fail_work_session(_ember_session, error_msg=str(e))
 
 
 def sync_learned_skills():

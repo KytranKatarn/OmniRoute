@@ -1322,7 +1322,27 @@ def _register_own_jobs(scheduler, flask_app):
         active node_agents entries exist for AI agents whose model is in that
         list. Deactivates assignments on nodes that don't have the model.
         Logs a governance audit entry summarising the plan.
+        K.I.N. (id=145) work session surfaces this in DHQ Work Tracking + dispatch.
         """
+        # K.I.N. (id=145) work session — surfaces in DHQ Work Tracking + dispatch
+        _kin_session = None
+        try:
+            from services.work_tracking_service import (
+                create_work_session,
+                complete_work_session,
+                fail_work_session,
+            )
+
+            _kin_session = create_work_session(
+                agent_id=145,
+                department="Human Resources & Culture",
+                session_type="node_planning",
+                title="K.I.N. Node Planning — Agent-to-Fleet Assignment",
+                metadata={"interval": "30min", "model": "gemma3:12b"},
+            )
+        except Exception as _wt_err:
+            logger.warning("[K.I.N.] Work session create failed: %s", _wt_err)
+
         try:
             from database import get_db_cursor
 
@@ -1467,8 +1487,12 @@ def _register_own_jobs(scheduler, flask_app):
                     len(nodes),
                     len(agents),
                 )
+            if _kin_session:
+                complete_work_session(_kin_session, jobs_completed=activated + deactivated)
         except Exception as exc:
             logger.error("[K.I.N.] Node planning failed: %s", exc)
+            if _kin_session:
+                fail_work_session(_kin_session, error_msg=str(exc))
 
     scheduler.add_job(
         with_ctx(_run_kin_node_planning),
@@ -1490,7 +1514,27 @@ def _register_own_jobs(scheduler, flask_app):
         Checks task_execution_log (last 10 min) per node and agent_budgets for
         agents approaching their task_queue_limit. Emits governance audit entries
         and system_notifications when imbalance is detected.
+        K.I.N. (id=145) work session surfaces this in DHQ Work Tracking + dispatch.
         """
+        # K.I.N. (id=145) work session — surfaces in DHQ Work Tracking + dispatch
+        _kin_wm_session = None
+        try:
+            from services.work_tracking_service import (
+                create_work_session,
+                complete_work_session,
+                fail_work_session,
+            )
+
+            _kin_wm_session = create_work_session(
+                agent_id=145,
+                department="Human Resources & Culture",
+                session_type="welfare_monitoring",
+                title="K.I.N. Workload Monitor — Fleet Balance Check",
+                metadata={"interval": "10min", "model": "gemma3:12b"},
+            )
+        except Exception as _wt_err:
+            logger.warning("[K.I.N.] Work session (monitor) create failed: %s", _wt_err)
+
         try:
             import json as _json
             from database import get_db_cursor
@@ -1846,9 +1890,12 @@ def _register_own_jobs(scheduler, flask_app):
                         )
                     except Exception as tg_err:
                         logger.warning("[K.I.N.] Telegram notify failed: %s", tg_err)
-
+            if _kin_wm_session:
+                complete_work_session(_kin_wm_session, jobs_completed=1)
         except Exception as exc:
             logger.error("[K.I.N.] Workload monitor failed: %s", exc)
+            if _kin_wm_session:
+                fail_work_session(_kin_wm_session, error_msg=str(exc))
 
     scheduler.add_job(
         with_ctx(_run_kin_workload_monitor),

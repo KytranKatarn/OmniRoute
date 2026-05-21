@@ -112,6 +112,15 @@ function switchTab(tab) {
     document.querySelectorAll('.dhq-tab').forEach(function(b) {
         b.classList.toggle('active', b.dataset.tab === tab);
     });
+    // Sync the lcars-header-tab nav indicator (uses different class from dhq-tab)
+    document.querySelectorAll('.lcars-header-tab[data-tab]').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.tab === tab);
+    });
+    // Scroll the active tab button into view (important on mobile where nav overflows)
+    try {
+        var _activeNavBtn = document.querySelector('.lcars-header-tab.active');
+        if (_activeNavBtn) _activeNavBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    } catch (_) {}
     document.querySelectorAll('.dhq-panel').forEach(function(p) {
         var isActive = p.id === 'panel-' + tab;
         p.classList.toggle('active', isActive);

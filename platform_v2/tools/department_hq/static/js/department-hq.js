@@ -822,6 +822,7 @@ async function loadKinWorkload() {
             + '<th style="text-align:right;padding:4px 8px;">1H RATE</th>'
             + '<th style="text-align:right;padding:4px 8px;">24H TOTAL</th>'
             + '<th style="text-align:right;padding:4px 8px;">COUNT/LIMIT</th>'
+            + '<th style="text-align:right;padding:4px 8px;">HRS TODAY</th>'
             + '<th style="text-align:right;padding:4px 8px;">ETA TO 1K</th>'
             + '</tr></thead>';
         var tbody = document.createElement('tbody');
@@ -846,7 +847,14 @@ async function loadKinWorkload() {
                     + '</div>'
                     + '<span style="color:var(--dhq-text-dim);min-width:70px;text-align:right;">' + sinceReset.toLocaleString() + '/' + limit.toLocaleString() + '</span>'
                     + '</div></td>'
-                + '<td style="padding:5px 8px;text-align:right;color:' + etaColor + ';font-family:\'IBM Plex Mono\',monospace;">' + eta + '</td>';
+                + (function() {
+                var hw = a.hours_worked_today || 0;
+                if (!hw) return '<td style="padding:5px 8px;text-align:right;color:var(--dhq-text-dim);">—</td>';
+                var hwColor = a.overwork_level === 'critical' ? '#ef4444' : a.overwork_level === 'warning' ? '#f59e0b' : 'var(--dhq-text-dim)';
+                var hwSuffix = a.overwork_level !== 'normal' ? ' ⚠' : '';
+                return '<td style="padding:5px 8px;text-align:right;font-family:\'IBM Plex Mono\',monospace;color:' + hwColor + ';">' + hw.toFixed(1) + 'h' + hwSuffix + '</td>';
+            })()
+            + '<td style="padding:5px 8px;text-align:right;color:' + etaColor + ';font-family:\'IBM Plex Mono\',monospace;">' + eta + '</td>';
             tbody.appendChild(tr);
         });
         table.appendChild(tbody);

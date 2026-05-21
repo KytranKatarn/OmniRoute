@@ -84,6 +84,23 @@ def register_work_routes(bp, admin_required):
                 )
                 velocity_map = {r["agent_name"]: r for r in (cur.fetchall() or [])}
 
+                # Hours worked straight today (from agent_daily_summary)
+                cur.execute(
+                    """
+                    SELECT a.name AS agent_name,
+                           ROUND(ads.total_duration_ms / 3600000.0, 1) AS hours_worked_today,
+                           CASE
+                             WHEN ads.total_duration_ms > 43200000 THEN 'critical'  -- >12h
+                             WHEN ads.total_duration_ms > 28800000 THEN 'warning'   -- >8h
+                             ELSE 'normal'
+                           END AS overwork_level
+                    FROM agent_daily_summary ads
+                    JOIN agents a ON a.id = ads.agent_id
+                    WHERE ads.summary_date = CURRENT_DATE
+                    """
+                )
+                hours_map = {r["agent_name"]: r for r in (cur.fetchall() or [])}
+
                 # Last reset summary (latest reset across all agents)
                 cur.execute(
                     """
@@ -129,6 +146,10 @@ def register_work_routes(bp, admin_required):
                 else:
                     active_count += 1
 
+                hrs_row = hours_map.get(r["name"], {})
+                hours_worked_today = float(hrs_row.get("hours_worked_today") or 0)
+                overwork_level = hrs_row.get("overwork_level", "normal")
+
                 agent_data = {
                     "id": r["id"],
                     "name": r["name"],
@@ -147,6 +168,8 @@ def register_work_routes(bp, admin_required):
                     "dispatches_24h": d24h,
                     "dispatches_since_reset": d_reset,
                     "hours_to_limit": hours_to_limit,
+                    "hours_worked_today": hours_worked_today,
+                    "overwork_level": overwork_level,
                     "avatar_url": ("/" + r["avatar_path"].lstrip("/") if r.get("avatar_path") else None),
                 }
 

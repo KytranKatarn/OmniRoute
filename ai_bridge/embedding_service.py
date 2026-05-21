@@ -42,7 +42,7 @@ if not _embedding_host.startswith("http"):
 OLLAMA_HOST = _embedding_host
 EMBEDDING_MODEL = os.getenv("OLLAMA_EMBEDDING_MODEL", "arctic-embed-cpu")
 EMBEDDING_DIMENSIONS = 768
-REQUEST_TIMEOUT = 30  # seconds
+REQUEST_TIMEOUT = 60  # seconds — bumped from 30s to handle cold-start load time
 
 
 @dataclass
@@ -69,8 +69,8 @@ class EmbeddingService:
             # Test with a simple embedding
             response = requests.post(
                 self.endpoint,
-                json={"model": self.model, "input": "health check"},
-                timeout=10,
+                json={"model": self.model, "input": "health check", "keep_alive": "35m"},
+                timeout=60,
             )
             if response.status_code == 200:
                 data = response.json()
@@ -118,7 +118,7 @@ class EmbeddingService:
         try:
             response = requests.post(
                 self.endpoint,
-                json={"model": self.model, "input": text},
+                json={"model": self.model, "input": text, "keep_alive": "35m"},
                 timeout=REQUEST_TIMEOUT,
             )
             response.raise_for_status()

@@ -2660,7 +2660,7 @@ def _warmup_ollama_models():
             if endpoint == "embed":
                 for attempt in range(3):
                     try:
-                        data = {"model": model_name, "input": "warmup", "keep_alive": "5m"}
+                        data = {"model": model_name, "input": "warmup", "keep_alive": "35m"}
                         resp = req.post(
                             f"{ollama_host}/api/embed",
                             json=data,

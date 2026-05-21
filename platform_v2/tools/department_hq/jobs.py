@@ -1510,17 +1510,41 @@ def _register_own_jobs(scheduler, flask_app):
                 )
                 node_loads = cur.fetchall() or []
 
-                # --- Agents approaching budget limit (>70% of task_queue_limit) ---
+                # --- Agents approaching budget limit ---
+                # Catches BOTH concurrent-queue overload AND lifetime dispatch overload
+                # (dispatches_since_reset >= 80% of task_queue_limit since last reset)
                 cur.execute(
                     """
-                    SELECT a.name, a.department,
+                    SELECT a.name, a.department, a.id AS agent_id,
                            ab.current_task_count, ab.task_queue_limit,
-                           ROUND(100.0 * ab.current_task_count /
-                               NULLIF(ab.task_queue_limit, 0), 1) AS utilisation_pct
+                           ab.last_task_reset_at,
+                           (SELECT COUNT(*) FROM task_execution_log tel
+                            WHERE tel.agent_name = a.name
+                              AND tel.created_at >= COALESCE(ab.last_task_reset_at,
+                                                             NOW() - INTERVAL '7 days')
+                           ) AS dispatches_since_reset,
+                           GREATEST(
+                               ROUND(100.0 * ab.current_task_count /
+                                   NULLIF(ab.task_queue_limit, 0), 1),
+                               ROUND(100.0 *
+                                   (SELECT COUNT(*) FROM task_execution_log tel
+                                    WHERE tel.agent_name = a.name
+                                      AND tel.created_at >= COALESCE(ab.last_task_reset_at,
+                                                                     NOW() - INTERVAL '7 days')
+                                   ) / NULLIF(ab.task_queue_limit, 0), 1)
+                           ) AS utilisation_pct
                     FROM agent_budgets ab
                     JOIN agents a ON a.id = ab.agent_id
                     WHERE ab.task_queue_limit > 0
-                      AND ab.current_task_count::float / ab.task_queue_limit > 0.7
+                      AND (
+                          ab.current_task_count::float / ab.task_queue_limit > 0.7
+                          OR (
+                              SELECT COUNT(*) FROM task_execution_log tel
+                              WHERE tel.agent_name = a.name
+                                AND tel.created_at >= COALESCE(ab.last_task_reset_at,
+                                                               NOW() - INTERVAL '7 days')
+                          )::float / ab.task_queue_limit > 0.7
+                      )
                     ORDER BY utilisation_pct DESC
                     LIMIT 10
                     """
@@ -1661,9 +1685,18 @@ def _register_own_jobs(scheduler, flask_app):
                         (ag["id"],),
                     )
 
-                    # Reset task counter so agent can resume cleanly after rest
+                    # Reset counters so agent wakes with full action points
+                    # last_task_reset_at = NOW() resets dispatches_since_reset to 0
                     cur.execute(
-                        "UPDATE agent_budgets SET current_task_count=0 WHERE agent_id=%s",
+                        """
+                        UPDATE agent_budgets
+                           SET current_task_count = 0,
+                               last_task_reset_at = NOW(),
+                               task_reset_reason  = 'K.I.N. auto-rest: action points refreshed',
+                               task_reset_by      = 'kin_workload_monitor',
+                               updated_at         = NOW()
+                         WHERE agent_id = %s
+                        """,
                         (ag["id"],),
                     )
 

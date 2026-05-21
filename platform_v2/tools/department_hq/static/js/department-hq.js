@@ -128,6 +128,11 @@ function switchTab(tab) {
         'fleet':        loadFleet,
         'contractors':  loadContractors,
         'autonomy':     loadAutonomy,
+        'alerts':       function() {
+            var ah = document.getElementById('alerts-history-section');
+            if (ah) ah.style.display = '';
+            if (typeof ahInit === 'function') ahInit();
+        },
         'approvals':    function() { if (typeof loadDhqApprovals === 'function') loadDhqApprovals(); },
         'coms':         function() { if (typeof window._comsLoad === 'function') window._comsLoad(); },
         'scout':        function() { if (typeof loadScoutTab === 'function') loadScoutTab(); },
@@ -3403,24 +3408,21 @@ function switchArmadaSection(s) {
         loadClaudeFeed();
     }
 
-    // CONTROL: alerts history + link to Autonomy tab for scheduler/config
-    // NOTE: dispatchSchedContent/dispatchConfigContent/jobMonitorContent live in
-    // panel-autonomy — do NOT move them here (would break the Autonomy tab).
+    // CONTROL: Scheduler/Config/Jobs are in Autonomy tab — show a link
+    // Alerts History is now in the dedicated Alerts tab (panel-alerts)
     if (s === 'control' && !_armadaMounted.control) {
         _armadaMounted.control = true;
         var ctrlTarget = document.getElementById('armadaSection-control');
-        if (ctrlTarget) {
-            // Move alerts history into control
-            var ahSec = document.getElementById('alerts-history-section');
-            if (ahSec) { ahSec.style.display = ''; ctrlTarget.appendChild(ahSec); }
-            // Add a shortcut to Autonomy tab for scheduler/config
+        if (ctrlTarget && !ctrlTarget.firstChild) {
             var link = document.createElement('div');
-            link.style.cssText = 'padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;font-size:0.75rem;color:var(--dhq-text-dim);margin-bottom:12px;';
-            link.innerHTML = '<span style="color:var(--dhq-text-dim);">Scheduler Jobs, Autonomy Config, and Jobs By Department live in the </span>'
-                + '<button onclick="switchTab(\'autonomy\')" style="background:none;border:none;color:#00bcd4;cursor:pointer;font-size:0.75rem;text-decoration:underline;padding:0;">AUTONOMY tab →</button>';
-            ctrlTarget.insertBefore(link, ctrlTarget.firstChild);
+            link.style.cssText = 'padding:16px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;font-size:0.75rem;color:var(--dhq-text-dim);';
+            link.innerHTML = '<div style="margin-bottom:8px;color:var(--dhq-text-main);font-family:Antonio,sans-serif;letter-spacing:1px;">OPERATIONAL CONTROLS</div>'
+                + '<div style="margin-bottom:6px;">Scheduler Jobs · Autonomy Config · Jobs By Department → '
+                + '<button onclick="switchTab(\'autonomy\')" style="background:none;border:none;color:#00bcd4;cursor:pointer;font-size:0.75rem;text-decoration:underline;padding:0;">AUTONOMY tab ↗</button></div>'
+                + '<div>System Alerts History → '
+                + '<button onclick="switchTab(\'alerts\')" style="background:none;border:none;color:#00bcd4;cursor:pointer;font-size:0.75rem;text-decoration:underline;padding:0;">ALERTS tab ↗</button></div>';
+            ctrlTarget.appendChild(link);
         }
-        if (typeof window.ahFetch === 'function') window.ahFetch(true);
     }
 
     // NETWORK: move fleet map section
@@ -3437,8 +3439,7 @@ function switchArmadaSection(s) {
 
 function loadFleet() {
     loaded["fleet"] = true;
-    var ah = document.getElementById('alerts-history-section');
-    if (ah) ah.style.display = 'none';
+    // alerts-history-section is now in panel-alerts — do not hide it here
     // Ensure cluster is the default visible section
     switchArmadaSection('cluster');
     setTimeout(function() {

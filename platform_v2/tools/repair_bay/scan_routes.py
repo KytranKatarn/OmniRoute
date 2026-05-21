@@ -12,6 +12,27 @@ from flask_login import login_required
 logger = logging.getLogger(__name__)
 
 
+def _has_open_proposal(file_path: str, category: str) -> bool:
+    """Return True if a pending/open proposal already exists for this file+category.
+    Used to prevent duplicate proposals on repeated scans.
+    """
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT 1 FROM improvement_proposals
+                   WHERE file_path = %s
+                     AND category = %s
+                     AND status IN ('proposed', 'in_review', 'approved')
+                   LIMIT 1""",
+                (file_path, category),
+            )
+            return cur.fetchone() is not None
+    except Exception:
+        return False  # fail open — let proposal through if DB unavailable
+
+
 def register_scan_routes(bp, admin_required):
     """Register scan-related routes on the repair_bay blueprint."""
 
@@ -319,6 +340,11 @@ def register_scan_routes(bp, admin_required):
                     }
                 )
 
+                # Skip if a proposal for this file+category is already open (dedup guard)
+                if _has_open_proposal(file_path, category):
+                    logger.debug("Skipping duplicate proposal for %s / %s", file_path, category)
+                    continue
+
                 cur.execute(
                     """INSERT INTO improvement_proposals
                        (title, description, file_path, category, priority, status, proposed_at, proposed_by, metadata)
@@ -380,9 +406,9 @@ def register_scan_routes(bp, admin_required):
                                 body=gh_body,
                                 severity=max_severity,
                             )
-                            logger.info(f"[FORGE] GitHub issue created for {file_path} ({max_severity})")
+                            logger.info(f"[FORGE] GitHub issue created for %s (%s)", file_path, max_severity)
                     except Exception as gh_err:
-                        logger.warning(f"[FORGE] GitHub issue creation failed: {gh_err}")
+                        logger.warning(f"[FORGE] GitHub issue creation failed: %s", gh_err)
 
                 created += 1
 

@@ -41,7 +41,7 @@ class SandboxAIIntegration:
     """AI-powered sandbox analysis and learning system"""
 
     def __init__(self):
-        self.ollama_host = os.getenv("OLLAMA_PRIMARY", "http://192.168.1.246:11434")
+        pass
 
     def analyze_test_failure(
         self,
@@ -201,12 +201,6 @@ class SandboxAIIntegration:
     ) -> Dict[str, Any]:
         """Use AI to analyze the error"""
         try:
-            # Try to use AI Bridge
-            sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-            from archie_bridge import ArchieBridge
-
-            bridge = ArchieBridge()
-
             # Build context from similar issues
             context_text = ""
             if similar_issues:
@@ -233,10 +227,17 @@ EXPLANATION: [Brief explanation of why this fix works]
 CONFIDENCE: [high/medium/low]
 """
 
-            response = bridge.query(prompt=prompt, context="sandbox_error_analysis", prefer_local=True)
+            from tools.department_hq.services.department_dispatcher import dispatch_json
+
+            result = dispatch_json(
+                capability="debug",
+                prompt=prompt,
+                module_id="repair_bay",
+            )
+            response = result.get("response", "") if isinstance(result, dict) else str(result)
 
             # Parse the response
-            return self._parse_ai_response(response.get("response", ""))
+            return self._parse_ai_response(response)
 
         except Exception as e:
             logger.error(f"AI analysis failed: {e}")

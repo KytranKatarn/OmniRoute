@@ -21,11 +21,8 @@ import re
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
-sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-sys.path.insert(0, "/mnt/archie_brain/platform_v2")
-
 try:
-    from archie_bridge import archie_bridge
+    from tools.department_hq.services.department_dispatcher import dispatch_json as _dispatch_json
 
     AI_AVAILABLE = True
 except ImportError:
@@ -386,8 +383,12 @@ class {class_name}:
         else:
             prompt = self._build_generic_prompt(natural_language, language)
 
-        # Call AI
-        result = archie_bridge(prompt=prompt, user_id=1, enable_memory=True, force_model=self.model)
+        # Call AI via DHQ dispatcher (ADR-013)
+        result = _dispatch_json(
+            capability="code",
+            prompt=prompt,
+            module_id="repair_bay",
+        )
 
         if not result.get("success"):
             return {

@@ -551,14 +551,13 @@ def analyze_proposal_with_agents(proposal) -> Dict:
     )
 
     try:
-        sys.path.insert(0, "/mnt/archie_brain/platform_v2")
-        from archie_bridge import archie_bridge as ai_bridge
+        from tools.department_hq.services.department_dispatcher import dispatch_json
 
-        result = ai_bridge(
+        result = dispatch_json(
+            capability="research",
             prompt=f"{prompt_text}\n\n{context}",
+            module_id="repair_bay",
             system_prompt="You are a senior software engineer reviewing a code improvement proposal. Provide a brief assessment: approve/reject/needs_revision, key concerns, and estimated effort (small/medium/large).",
-            user_id=None,
-            enable_memory=False,
         )
         response = result.get("response", "") if isinstance(result, dict) else str(result)
         perspectives[category] = response

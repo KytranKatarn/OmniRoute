@@ -49,9 +49,16 @@
     var container = document.getElementById("lcarsToastContainer");
     if (!container) return;
 
+    // Dedup: if a toast with the same title is already visible, skip
+    var existingToasts = container.querySelectorAll(".lcars-toast[data-toast-title]");
+    for (var i = 0; i < existingToasts.length; i++) {
+      if (existingToasts[i].dataset.toastTitle === title) return;
+    }
+
     var toast = document.createElement("div");
     toast.className = "lcars-toast";
     toast.dataset.severity = severity;
+    toast.dataset.toastTitle = title;
     toast.id = "lcarsToast" + (++_toastId);
 
     // Store dismiss callback on the element

@@ -112,6 +112,8 @@ def register_work_routes(bp, admin_required):
                 d1h = int(vel.get("dispatches_1h") or 0)
                 d24h = int(vel.get("dispatches_24h") or 0)
                 d_reset = int(vel.get("dispatches_since_reset") or 0)
+                # at_limit: concurrent queue full OR lifetime dispatches since reset hit the limit
+                at_limit = at_limit or (d_reset >= task_limit)
                 # ETA to limit based on dispatches since last reset (counter that goes up)
                 if d1h > 0 and d_reset < task_limit:
                     hours_to_limit = round((task_limit - d_reset) / d1h, 1)
@@ -145,7 +147,7 @@ def register_work_routes(bp, admin_required):
                     "hours_to_limit": hours_to_limit,
                 }
 
-                # Welfare cards: flagged agents only
+                # Welfare cards: flagged agents only (resting, at limit, high stress)
                 if is_resting or at_limit or (r["stress"] or 0) > 0.7:
                     agents.append(agent_data)
 

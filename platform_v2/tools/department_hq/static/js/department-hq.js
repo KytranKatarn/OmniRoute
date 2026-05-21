@@ -692,7 +692,7 @@ async function loadKinWelfare() {
         }
 
         var grid = document.createElement('div');
-        grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;';
+        grid.style.cssText = 'display:grid;grid-template-columns:repeat(2,1fr);gap:10px;';
         agents.forEach(function(a) {
             var statusColor = a.resting ? '#f59e0b' : (a.at_limit ? '#ef4444' : '#10b981');
             var statusLabel = a.resting ? '😴 ' + (a.rest_type || 'resting') : (a.at_limit ? '⚠ at limit' : '✓ active');
@@ -3338,7 +3338,7 @@ var _armadaMounted = {};
 
 function switchArmadaSection(s) {
     _armadaSection = s;
-    var sections = ['cluster', 'dispatch', 'traffic', 'network'];
+    var sections = ['cluster', 'dispatch', 'traffic', 'network', 'orchestration'];
     sections.forEach(function(name) {
         var sec = document.getElementById('armadaSection-' + name);
         var btn = document.getElementById('armadaBtn-' + name);
@@ -3386,6 +3386,15 @@ function switchArmadaSection(s) {
     // CLUSTER: refresh live data
     if (s === 'cluster') {
         loadQueueStatus(); loadClusterActivity();
+    }
+
+    // ORCHESTRATION: move cluster-orchestration-panel into its section on first open
+    if (s === 'orchestration' && !_armadaMounted.orchestration) {
+        _armadaMounted.orchestration = true;
+        var orchTarget = document.getElementById('armadaSection-orchestration');
+        var orchSrc = document.getElementById('cluster-orchestration-panel');
+        if (orchTarget && orchSrc) orchTarget.appendChild(orchSrc);
+        orchSrc && (orchSrc.style.display = '');
     }
 }
 
@@ -3464,42 +3473,52 @@ function loadQueueStatus() {
                 }
             }
 
-            // Queue items
+            // Unified platform queue — Dispatch + Media Studio + F.O.R.G.E. + Bridge
             var qp = document.getElementById('queueItemsPanel');
             if (qp) {
-                if (!data.items || data.items.length === 0) {
-                    qp.textContent = '';
+                qp.textContent = '';
+                var pq = (data.platform_queues && data.platform_queues.length) ? data.platform_queues : (data.items || []);
+                if (pq.length === 0) {
                     var idle = document.createElement('span');
                     idle.style.cssText = 'color:var(--dhq-text-dim);font-style:italic;';
-                    idle.textContent = 'No pending dispatches';
+                    idle.textContent = 'All queues idle';
                     qp.appendChild(idle);
                 } else {
-                    qp.textContent = '';
-                    data.items.forEach(function(item) {
+                    var _srcColor = { dispatch:'#f59e0b', media:'#00bcd4', forge:'#8b5cf6', bridge:'#10b981' };
+                    var _srcIcon  = { dispatch:'🤖', media:'🎨', forge:'⚖', bridge:'🔗' };
+                    var _active = function(s) { return s==='running'||s==='in_progress'||s==='generating'; };
+                    // Running items first
+                    pq.slice().sort(function(a,b){ return (_active(a.status)?0:1) - (_active(b.status)?0:1); })
+                    .forEach(function(item) {
+                        var sc = _srcColor[item.source_key] || '#888';
+                        var active = _active(item.status);
+                        var statusCol = active ? '#10b981' : sc;
                         var row = document.createElement('div');
-                        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);';
+                        row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);';
+                        // Status dot
                         var dot = document.createElement('span');
-                        dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + (item.status === 'running' ? '#10b981' : '#f59e0b') + ';';
-                        var model = document.createElement('span');
-                        model.style.cssText = 'color:var(--dhq-text-main);font-family:"IBM Plex Mono",monospace;font-size:0.75rem;';
-                        model.textContent = item.model;
+                        dot.style.cssText = 'width:7px;height:7px;border-radius:50%;flex-shrink:0;background:'+statusCol+';'+(active?'box-shadow:0 0 4px '+statusCol+';':'');
+                        // Source badge
+                        var src = document.createElement('span');
+                        src.style.cssText = 'font-size:0.62rem;padding:1px 5px;border-radius:3px;background:'+sc+'22;color:'+sc+';flex-shrink:0;white-space:nowrap;';
+                        src.textContent = (_srcIcon[item.source_key]||'') + ' ' + item.source;
+                        // Capability / model
                         var cap = document.createElement('span');
-                        cap.style.cssText = 'color:var(--dhq-text-dim);font-size:0.72rem;';
-                        cap.textContent = item.capability;
-                        // Module badge — shows which platform feature triggered this cold-load
+                        cap.style.cssText = 'color:var(--dhq-text-main);font-size:0.72rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;';
+                        cap.textContent = item.model ? item.model + ' · ' + item.capability : item.capability;
+                        row.appendChild(dot); row.appendChild(src); row.appendChild(cap);
                         if (item.module) {
                             var mod = document.createElement('span');
-                            mod.style.cssText = 'color:#555;font-size:0.67rem;font-family:"IBM Plex Mono",monospace;';
-                            mod.textContent = '[' + item.module + ']';
-                            row.appendChild(dot); row.appendChild(model); row.appendChild(cap); row.appendChild(mod);
-                        } else {
-                            row.appendChild(dot); row.appendChild(model); row.appendChild(cap);
+                            mod.style.cssText = 'color:#555;font-size:0.62rem;font-family:"IBM Plex Mono",monospace;flex-shrink:0;';
+                            mod.textContent = '['+item.module+']';
+                            row.appendChild(mod);
                         }
+                        // Count + status
                         var cnt = document.createElement('span');
-                        cnt.style.cssText = 'margin-left:auto;font-weight:600;color:' + (item.status === 'running' ? '#10b981' : '#f59e0b') + ';';
+                        cnt.style.cssText = 'font-weight:600;font-size:0.68rem;color:'+statusCol+';flex-shrink:0;';
                         cnt.textContent = item.count + '×';
                         var st = document.createElement('span');
-                        st.style.cssText = 'color:var(--dhq-text-dim);font-size:0.68rem;text-transform:uppercase;';
+                        st.style.cssText = 'font-size:0.62rem;color:var(--dhq-text-dim);text-transform:uppercase;flex-shrink:0;';
                         st.textContent = item.status;
                         row.appendChild(cnt); row.appendChild(st);
                         qp.appendChild(row);

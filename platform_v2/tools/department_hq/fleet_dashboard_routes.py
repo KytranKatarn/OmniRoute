@@ -1533,6 +1533,64 @@ def register_dashboard_routes(bp, auth_decorator):
                 )
                 totals = {r["status"]: r["cnt"] for r in cur.fetchall()}
 
+                # Unified platform queue — aggregates all module queues into one feed
+                platform_queues = [
+                    {
+                        "source": "Dispatch",
+                        "source_key": "dispatch",
+                        "capability": it["capability"],
+                        "status": it["status"],
+                        "count": it["count"],
+                        "oldest": it["oldest"],
+                        "model": it.get("model"),
+                        "module": it.get("module"),
+                    }
+                    for it in items
+                ]
+                for _src, _key, _sql in [
+                    (
+                        "Media Studio",
+                        "media",
+                        """SELECT COALESCE(params->>'media_type','image') AS cap,
+                                  status, COUNT(*) AS cnt, MIN(queued_at) AS oldest
+                           FROM media_generation_queue
+                           WHERE status IN ('pending','dispatched','generating')
+                           GROUP BY 1, 2 ORDER BY cnt DESC""",
+                    ),
+                    (
+                        "Bridge",
+                        "bridge",
+                        """SELECT COALESCE(action_type,'workflow') AS cap,
+                                  status, COUNT(*) AS cnt, MIN(created_at) AS oldest
+                           FROM bridge_jobs WHERE status = 'running'
+                           GROUP BY 1, 2 ORDER BY cnt DESC LIMIT 10""",
+                    ),
+                    (
+                        "F.O.R.G.E.",
+                        "forge",
+                        """SELECT 'code_review' AS cap, review_status AS status,
+                                  COUNT(*) AS cnt, MIN(created_at) AS oldest
+                           FROM pr_reviews
+                           WHERE review_status IN ('pending','in_progress')
+                           GROUP BY 2""",
+                    ),
+                ]:
+                    try:
+                        cur.execute(_sql)
+                        for r in cur.fetchall() or []:
+                            platform_queues.append(
+                                {
+                                    "source": _src,
+                                    "source_key": _key,
+                                    "capability": r["cap"],
+                                    "status": r["status"],
+                                    "count": int(r["cnt"]),
+                                    "oldest": (r["oldest"].isoformat() if r.get("oldest") else None),
+                                }
+                            )
+                    except Exception:
+                        pass
+
             # --- fleet node model state from DB (job #46 saves every 5m) ---
             fleet_loaded = []
             try:
@@ -1575,6 +1633,7 @@ def register_dashboard_routes(bp, auth_decorator):
                 running=totals.get("running", 0),
                 items=items,
                 loaded=loaded,
+                platform_queues=platform_queues,
             )
         except Exception as exc:
             logger.error("api_fleet_queue_status: %s", exc)

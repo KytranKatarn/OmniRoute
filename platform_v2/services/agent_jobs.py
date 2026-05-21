@@ -153,7 +153,7 @@ def _create_hr_alert(cur, agent_id, alert_type, severity, title, message, detail
 def _send_hr_telegram_alerts(cur, conn, flask_app):
     """Submit unnotified critical/warning alerts to A.R.C.H.I.E. director report inbox."""
     try:
-        from services.telegram_service import send as _tg_send
+        from services.telegram_service import send_system as _hr_send
     except ImportError:
         return
 
@@ -181,13 +181,14 @@ def _send_hr_telegram_alerts(cur, conn, flask_app):
                 f"{alert['message']}\n\n" f"Type: {alert['alert_type']} | Agent: {alert['agent_name'] or 'System'}"
             )
             try:
-                _tg_send(
-                    category="system",
+                # Route via inbox → shows in DHQ Approvals tab; A.R.C.H.I.E. relays to Telegram
+                _hr_send(
                     title=f"HR Alert: {alert['title']}",
                     message=message,
                     source_agent="K.I.N.",
                     source_department="Human Resources & Culture",
                     source_module="agent_jobs",
+                    cooldown_hours=0,
                 )
                 cur.execute(
                     "UPDATE agent_alerts SET notified_telegram = TRUE WHERE id = %s",
@@ -569,12 +570,11 @@ def process_training_tick():
 
             # Route training completions to A.R.C.H.I.E. director report inbox
             try:
-                from services.telegram_service import send as _tg_send
+                from services.telegram_service import send_agent as _training_send
 
                 for t in ready:
                     dn = t["display_name"] or t["agent_name"]
-                    _tg_send(
-                        category="info",
+                    _training_send(
                         title=f"Training Complete: {dn}",
                         message=(f"{dn} finished {t['skill_name']} training, " f"now at Lv{t['target_proficiency']}."),
                         source_agent="K.I.N.",

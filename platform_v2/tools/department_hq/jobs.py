@@ -1463,6 +1463,121 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered kin_node_planning job (every 4h)")
 
+    # Job #124: Fleet Agent Sync — activate/deactivate node_agents on node state change
+    # Runs every 3 min. Lightweight complement to K.I.N. planning (4h).
+    # When a node comes online or a new node registers, agents become active within 3min
+    # instead of waiting up to 4 hours for K.I.N. to run.
+    # -------------------------------------------------------------------------
+    def _run_fleet_agent_sync():
+        """Quickly sync node_agent status to match fleet node online/offline state.
+
+        For each ONLINE node (heartbeat < 2 min): activates inactive node_agents
+        whose model is available on that node.
+        For each OFFLINE/STALE node (heartbeat > 2 min): deactivates active node_agents.
+        Does NOT create new assignments — that remains K.I.N.'s job (every 4h).
+        """
+        try:
+            import json as _json
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, cur):
+                # --- Activate agents for freshly-online nodes ---
+                cur.execute(
+                    """
+                    SELECT rn.id, rn.node_name,
+                           rn.extra_capabilities->>'ollama_models' AS ollama_models_json
+                    FROM remote_nodes rn
+                    WHERE rn.is_active = TRUE
+                      AND rn.status = 'online'
+                      AND rn.last_heartbeat > NOW() - INTERVAL '2 minutes'
+                      AND rn.extra_capabilities->>'ollama_models' IS NOT NULL
+                    """
+                )
+                online_nodes = cur.fetchall() or []
+
+                activated = 0
+                for node in online_nodes:
+                    try:
+                        node_models = {m.lower() for m in (_json.loads(node["ollama_models_json"] or "[]") or [])}
+                    except Exception:
+                        continue
+
+                    if not node_models:
+                        continue
+
+                    # Find inactive node_agents on this node whose model is available
+                    cur.execute(
+                        """
+                        SELECT na.id, na.model
+                        FROM node_agents na
+                        WHERE na.node_id = %s
+                          AND na.status = 'inactive'
+                          AND na.is_allowed = TRUE
+                        """,
+                        (node["id"],),
+                    )
+                    inactive = cur.fetchall() or []
+
+                    for na in inactive:
+                        agent_base = (na["model"] or "").lower().split(":")[0]
+                        model_fits = any(
+                            m.startswith(agent_base) or agent_base.startswith(m.split(":")[0]) for m in node_models
+                        )
+                        if model_fits:
+                            cur.execute(
+                                "UPDATE node_agents SET status='active', updated_at=NOW() WHERE id=%s",
+                                (na["id"],),
+                            )
+                            activated += cur.rowcount
+
+                # --- Deactivate agents for offline/stale nodes ---
+                cur.execute(
+                    """
+                    SELECT rn.id, rn.node_name
+                    FROM remote_nodes rn
+                    WHERE rn.is_active = TRUE
+                      AND (
+                          rn.status = 'offline'
+                          OR rn.last_heartbeat IS NULL
+                          OR rn.last_heartbeat < NOW() - INTERVAL '2 minutes'
+                      )
+                    """
+                )
+                offline_nodes = cur.fetchall() or []
+
+                deactivated = 0
+                for node in offline_nodes:
+                    cur.execute(
+                        """
+                        UPDATE node_agents
+                        SET status='inactive', updated_at=NOW()
+                        WHERE node_id = %s AND status = 'active'
+                        """,
+                        (node["id"],),
+                    )
+                    deactivated += cur.rowcount
+
+                if activated or deactivated:
+                    logger.info(
+                        "[Fleet] Agent sync: activated=%d deactivated=%d (online=%d offline=%d)",
+                        activated,
+                        deactivated,
+                        len(online_nodes),
+                        len(offline_nodes),
+                    )
+
+        except Exception as exc:
+            logger.error("[Fleet] fleet_agent_sync failed: %s", exc)
+
+    scheduler.add_job(
+        with_ctx(_run_fleet_agent_sync),
+        trigger=CronTrigger(minute="*/3", timezone="America/Toronto"),
+        id="fleet_agent_sync",
+        name="Fleet: Sync node_agent active/inactive on node state change (every 3 min)",
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered fleet_agent_sync job (every 3 min)")
+
     # Job #121: Media generation queue reaper — re-queue stuck generating jobs
     # -------------------------------------------------------------------------
     def _run_media_generation_reaper():

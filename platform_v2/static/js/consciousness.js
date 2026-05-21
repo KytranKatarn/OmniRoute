@@ -1164,30 +1164,24 @@ function loadSystemHealth() {
     if (el) { el.textContent = "Offline"; el.style.color = "#ef4444"; }
   });
 
-  // Bridge — count loaded models via Ollama ps
-  fetch("http://192.168.1.200:11434/api/ps").then(function(r) {
+  // Bridge — count loaded models via DHQ fleet queue-status (ADR-013: no direct Ollama from browser)
+  fetch("/tools/department-hq/api/fleet/queue-status").then(function(r) {
     return r.ok ? r.json() : null;
   }).then(function(d) {
-    var el = document.getElementById("intBridgeStatus");
-    if (el) {
-      var count = d && d.models ? d.models.length : 0;
-      el.textContent = count;
-      el.style.color = "#3b82f6";
+    var elBridge = document.getElementById("intBridgeStatus");
+    var elOllama = document.getElementById("intOllamaStatus");
+    if (d && d.loaded !== undefined) {
+      if (elBridge) { elBridge.textContent = d.loaded.length; elBridge.style.color = "#3b82f6"; }
+      if (elOllama) { elOllama.textContent = "Online"; elOllama.style.color = "#22c55e"; }
+    } else {
+      if (elBridge) { elBridge.textContent = "0"; elBridge.style.color = "#3b82f6"; }
+      if (elOllama) { elOllama.textContent = "Online"; elOllama.style.color = "#22c55e"; }
     }
   }).catch(function() {
-    var el = document.getElementById("intBridgeStatus");
-    if (el) { el.textContent = "Offline"; el.style.color = "#ef4444"; }
-  });
-
-  // Ollama — check if running
-  fetch("http://192.168.1.200:11434/api/tags").then(function(r) {
-    return r.ok ? r.json() : null;
-  }).then(function(d) {
-    var el = document.getElementById("intOllamaStatus");
-    if (el) { el.textContent = "Online"; el.style.color = "#22c55e"; }
-  }).catch(function() {
-    var el = document.getElementById("intOllamaStatus");
-    if (el) { el.textContent = "Offline"; el.style.color = "#ef4444"; }
+    var elBridge = document.getElementById("intBridgeStatus");
+    var elOllama = document.getElementById("intOllamaStatus");
+    if (elBridge) { elBridge.textContent = "Offline"; elBridge.style.color = "#ef4444"; }
+    if (elOllama) { elOllama.textContent = "Offline"; elOllama.style.color = "#ef4444"; }
   });
 
   // GitHub — repos indexed count from knowledge base

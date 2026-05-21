@@ -395,6 +395,7 @@ def register_dashboard_routes(bp, admin_required):
         return jsonify({"success": True, **graph})
 
     @bp.route("/api/emotional-state")
+    @bp.route("/emotional-state")
     @login_required
     @admin_required
     def api_emotional_state():

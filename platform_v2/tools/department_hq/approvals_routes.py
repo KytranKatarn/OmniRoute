@@ -39,7 +39,14 @@ def _build_escalation_chain(agent_display, department, agent_cache):
 
 
 def _approve_autonomy(source_id: int, user_id: int):
-    """Approve an autonomy_approval_queue row. Returns (ok, action_type)."""
+    """Approve an autonomy_approval_queue row. Returns (ok, action_type).
+
+    For welfare_rest_8h: also opens the 8h rest cycle on the agent
+    so approving from DHQ web UI has the same effect as tapping
+    the Telegram action button.
+    """
+    import json as _json
+
     from database import get_db_cursor
 
     with get_db_cursor(commit=True) as (conn, cur):
@@ -48,13 +55,58 @@ def _approve_autonomy(source_id: int, user_id: int):
                SET status = 'approved', approved_by = %s,
                    approved_at = NOW(), updated_at = NOW()
                WHERE id = %s AND status = 'pending'
-               RETURNING action_type""",
+               RETURNING action_type, action_data""",
             (user_id, source_id),
         )
         row = cur.fetchone()
-    if not row:
-        return (False, None)
-    return (True, row["action_type"] if isinstance(row, dict) else row[0])
+        if not row:
+            return (False, None)
+
+        action_type = row["action_type"] if isinstance(row, dict) else row[0]
+        action_data = row["action_data"] if isinstance(row, dict) else row[1]
+
+        # welfare_rest_8h: enforce the rest cycle on approval (mirror of Telegram callback)
+        if action_type == "welfare_rest_8h":
+            try:
+                _ad = action_data if isinstance(action_data, dict) else _json.loads(action_data or "{}")
+                _agent_id = _ad.get("agent_id")
+                if _agent_id:
+                    # Open 8h rest cycle
+                    cur.execute(
+                        """
+                        INSERT INTO agent_rest_cycles
+                            (agent_id, rest_type, reason, started_at, ended_at, initiated_by)
+                        SELECT %s, 'approved_rest',
+                               'Kytran approved 8h rest via DHQ Approvals tab',
+                               NOW(), NOW() + INTERVAL '8 hours', 'dhq_approval'
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM agent_rest_cycles
+                            WHERE agent_id = %s
+                              AND started_at > NOW() - INTERVAL '30 minutes'
+                              AND (ended_at IS NULL OR ended_at > NOW())
+                        )
+                        """,
+                        (_agent_id, _agent_id),
+                    )
+                    # Transition to winding_down + reset task counters
+                    cur.execute(
+                        """UPDATE agents SET shift_state='winding_down', updated_at=NOW()
+                            WHERE id=%s AND shift_state NOT IN
+                                ('winding_down','cooldown','barracked','off_duty')""",
+                        (_agent_id,),
+                    )
+                    cur.execute(
+                        """UPDATE agent_budgets
+                              SET current_task_count=0, last_task_reset_at=NOW(),
+                                  task_reset_reason='DHQ-approved 8h rest',
+                                  task_reset_by='dhq_approval', updated_at=NOW()
+                            WHERE agent_id=%s""",
+                        (_agent_id,),
+                    )
+            except Exception as _we:
+                logger.warning("welfare_rest_8h DHQ approval execution failed: %s", _we)
+
+    return (True, action_type)
 
 
 def _approve_contractor(source_id: int, user_id: int):

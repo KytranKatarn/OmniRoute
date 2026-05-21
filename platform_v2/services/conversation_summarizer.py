@@ -12,9 +12,6 @@ Author: A.R.C.H.I.E. Platform
 """
 
 import sys
-
-sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-
 import json
 import logging
 from typing import Dict, List, Optional, Any
@@ -52,14 +49,10 @@ class ConversationSummarizer:
 
     def __init__(self):
         """Initialize summarizer"""
-        try:
-            from archie_bridge import archie_bridge
+        from tools.department_hq.services.department_dispatcher import dispatch_json
 
-            self.archie_bridge = archie_bridge
-            self.available = True
-        except ImportError:
-            logger.warning("[Conversation Summarizer] archie_bridge not available")
-            self.available = False
+        self._dispatch_json = dispatch_json
+        self.available = True
 
     def _select_summary_tier(self, transcript_len: int) -> tuple:
         """
@@ -67,13 +60,7 @@ class ConversationSummarizer:
         Returns (model_name, max_context_chars, tier_name).
         """
         if transcript_len <= self.TIER_LOCAL_MAX:
-            try:
-                from ai_bridge.bridge_dispatcher import get_dispatcher
-
-                local_model = get_dispatcher().get_model_for_capability("conversation") or "dolphin3-8k:latest"
-            except Exception:
-                local_model = "dolphin3-8k:latest"
-            return local_model, 6000, "local"
+            return "local", 6000, "local"
         elif transcript_len <= self.TIER_HAIKU_MAX:
             return "claude-haiku-4-5", 16000, "haiku"
         else:
@@ -119,17 +106,15 @@ class ConversationSummarizer:
             # Build summarization prompt
             prompt = self._build_summarization_prompt(truncated, session_metadata)
 
-            # Call via archie_bridge
-            result = self.archie_bridge(
+            # Call via DHQ dispatcher (ADR-013)
+            result = self._dispatch_json(
+                capability="summarization",
                 prompt=prompt,
-                context="",
-                user_id=2,
-                force_model=model,
-                enable_memory=False,
+                module_id="platform",
             )
 
-            if not result.get("success"):
-                logger.error(f"[Conversation Summarizer] {model} call failed: {result.get('error')}")
+            if not result or not result.get("response"):
+                logger.error(f"[Conversation Summarizer] {model} tier call returned empty response")
                 return self._fallback_summary(transcript)
 
             response = result.get("response", "")

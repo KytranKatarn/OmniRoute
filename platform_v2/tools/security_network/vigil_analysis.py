@@ -40,14 +40,14 @@ def _extract_json(text):
 
 
 def _dispatch_to_vigil(prompt):
-    """Send a prompt to V.I.G.I.L. via Bridge dispatch and return parsed JSON or raw text."""
-    from ai_bridge.bridge_dispatcher import get_dispatcher
+    """Send a prompt to V.I.G.I.L. via DHQ dispatcher and return parsed JSON or raw text."""
+    from tools.department_hq.services.department_dispatcher import dispatch_json
 
-    dispatcher = get_dispatcher()
-    result = dispatcher.dispatch(
+    result = dispatch_json(
+        capability="security",
         prompt=prompt,
+        module_id="security_network",
         system_prompt=VIGIL_SYSTEM_PROMPT,
-        capability="security_analysis",
     )
     response_text = result.get("response", "") if isinstance(result, dict) else str(result)
     parsed = _extract_json(response_text)

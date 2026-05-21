@@ -28,29 +28,14 @@ from .services.fitness_service import (
 import sys
 import logging
 
-# Add ai_bridge to path for archie_bridge import
-sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-try:
-    from archie_bridge import archie_bridge
+from tools.department_hq.services.department_dispatcher import dispatch_json
 
-    BRIDGE_AVAILABLE = True
-except ImportError:
-    BRIDGE_AVAILABLE = False
-
-try:
-    from ai_bridge.bridge_dispatcher import get_dispatcher
-
-    _dispatcher = get_dispatcher()
-except Exception:
-    _dispatcher = None
+BRIDGE_AVAILABLE = True
 
 logger = logging.getLogger(__name__)
 
 # Wellness Coach agent ID
 FITNESS_AGENT_ID = 73
-
-# Bridge dispatcher for fallback LLM calls
-from bridge_dispatcher import dispatch as bridge_dispatch
 
 # System prompt for fitness AI
 FITNESS_SYSTEM_PROMPT = """You are FLEX, an energetic AI fitness coach. You provide workout guidance, nutrition tips, and motivation for fitness goals.
@@ -91,13 +76,9 @@ def status():
             "status": "active",
             "healthy": True,
             "bridge_available": BRIDGE_AVAILABLE,
-            "dispatcher_available": _dispatcher is not None,
-            "agent": "Wellness Coach" if BRIDGE_AVAILABLE else "Bridge Dispatcher",
-            "message": (
-                "FLEX Fitness Coach is ready via A.R.C.H.I.E. Bridge"
-                if BRIDGE_AVAILABLE
-                else "FLEX Fitness Coach is ready (bridge dispatch fallback)"
-            ),
+            "dispatcher_available": True,
+            "agent": "Wellness Coach",
+            "message": "FLEX Fitness Coach is ready via A.R.C.H.I.E. Bridge",
         }
     )
 
@@ -121,84 +102,34 @@ def chat():
     context_message = f"[User fitness level: {fitness_level}]\n\n{message}"
 
     try:
-        if BRIDGE_AVAILABLE:
-            # Use archie_bridge with Wellness Coach
-            result = archie_bridge(
-                prompt=context_message,
-                user_id=user_id,
-                agent_id=FITNESS_AGENT_ID,
-                system_prompt=enriched_system_prompt,
-                enable_memory=True,
-                try_local_first=True,
-                task_type="fitness_coaching",
-            )
-
-            if _dispatcher:
-                try:
-                    _dispatcher.log_external_call(
-                        capability="conversation",
-                        module_id="fitness",
-                        model_used=result.get("model_used", ""),
-                        success=bool(result.get("response")),
-                    )
-                except Exception:
-                    pass
-
-            if result.get("success"):
-                ai_response = result.get("response", "").strip()
-
-                # Add safety reminder if workout advice given
-                if any(word in message.lower() for word in ["workout", "exercise", "routine", "train"]):
-                    if "consult" not in ai_response.lower() and "doctor" not in ai_response.lower():
-                        ai_response += "\n\n*Remember: Always warm up properly and consult a healthcare professional before starting any new exercise program.*"
-
-                return jsonify(
-                    {
-                        "success": True,
-                        "response": ai_response,
-                        "model": result.get("model_used", "archie_bridge"),
-                        "agent": "Wellness Coach",
-                        "source": result.get("source", "ai_bridge"),
-                        "tokens_used": result.get("tokens_used", 0),
-                    }
-                )
-            else:
-                logger.warning("archie_bridge returned error, falling back to direct Ollama")
-
-        # Fallback: Bridge dispatcher
-        model = data.get("model") or ""
-        context = f"\n[User fitness level: {fitness_level}]\n"
-        result = bridge_dispatch(
-            capability="chat",
-            prompt=f"{FITNESS_SYSTEM_PROMPT}{context}\n\nUser: {message}\n\nFLEX:",
-            model=model,
+        result = dispatch_json(
+            capability="support",
+            prompt=context_message,
             module_id="fitness",
-            timeout=90,
+            system_prompt=enriched_system_prompt,
         )
+        ai_response = result.get("response", "") if isinstance(result, dict) else str(result or "")
+        ai_response = ai_response.strip()
 
-        if result and result.success:
-            ai_response = (result.response or "").strip()
+        if not ai_response:
+            logger.error("Fitness dispatch_json returned empty response")
+            return jsonify({"success": False, "error": "AI service temporarily unavailable"}), 503
 
-            # Add safety reminder if workout advice given
-            if any(word in message.lower() for word in ["workout", "exercise", "routine", "train"]):
-                if "consult" not in ai_response.lower() and "doctor" not in ai_response.lower():
-                    ai_response += "\n\n*Remember: Always warm up properly and consult a healthcare professional before starting any new exercise program.*"
+        # Add safety reminder if workout advice given
+        if any(word in message.lower() for word in ["workout", "exercise", "routine", "train"]):
+            if "consult" not in ai_response.lower() and "doctor" not in ai_response.lower():
+                ai_response += "\n\n*Remember: Always warm up properly and consult a healthcare professional before starting any new exercise program.*"
 
-            return jsonify(
-                {
-                    "success": True,
-                    "response": ai_response,
-                    "model": "bridge_dispatch",
-                    "agent": "Bridge Dispatcher (fallback)",
-                    "source": "bridge_dispatch",
-                }
-            )
-        else:
-            logger.error("Bridge dispatch failed for fitness chat fallback")
-            return (
-                jsonify({"success": False, "error": "AI service temporarily unavailable"}),
-                503,
-            )
+        return jsonify(
+            {
+                "success": True,
+                "response": ai_response,
+                "model": result.get("model_used", "dhq") if isinstance(result, dict) else "dhq",
+                "agent": "Wellness Coach",
+                "source": "dhq_dispatcher",
+                "tokens_used": result.get("tokens_used", 0) if isinstance(result, dict) else 0,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Fitness chat error: {str(e)}")
@@ -234,32 +165,26 @@ Format each exercise as:
 Include form tips for complex exercises."""
 
     try:
-        result = bridge_dispatch(
-            capability="chat",
-            prompt=f"{FITNESS_SYSTEM_PROMPT}\n\n{prompt}\n\nFLEX:",
+        result = dispatch_json(
+            capability="support",
+            prompt=prompt,
             module_id="fitness",
-            timeout=120,
+            system_prompt=FITNESS_SYSTEM_PROMPT,
         )
+        workout_text = result.get("response", "") if isinstance(result, dict) else str(result or "")
+        workout_text = workout_text.strip()
 
-        if result and result.success:
-            return jsonify(
-                {
-                    "success": True,
-                    "workout": (result.response or "").strip(),
-                    "type": workout_type,
-                    "duration": duration,
-                }
-            )
-        else:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "Workout generation service unavailable",
-                    }
-                ),
-                503,
-            )
+        if not workout_text:
+            return jsonify({"success": False, "error": "Workout generation service unavailable"}), 503
+
+        return jsonify(
+            {
+                "success": True,
+                "workout": workout_text,
+                "type": workout_type,
+                "duration": duration,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Workout generation error: {str(e)}")

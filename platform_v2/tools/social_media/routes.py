@@ -40,15 +40,9 @@ except ImportError:
         return getattr(current_user, "is_admin", False)
 
 
-# Import archie_bridge for AI routing with contractor approval and task logging
-try:
-    from archie_bridge import archie_bridge
-    from ai_bridge.archie_bridge import log_task_execution
+from tools.department_hq.services.department_dispatcher import dispatch_json
 
-    BRIDGE_AVAILABLE = True
-except ImportError:
-    BRIDGE_AVAILABLE = False
-    logger.warning("archie_bridge not available, using fallback")
+BRIDGE_AVAILABLE = True
 
 # Create blueprint
 social_media_bp = Blueprint(
@@ -2469,72 +2463,39 @@ For each suggestion, provide:
 
 Format as JSON array with objects containing: content, hashtags (array), type"""
 
-        # Call archie_bridge directly for proper routing and logging
-        start_time = time.time()
-        if BRIDGE_AVAILABLE:
-            try:
-                result = archie_bridge(
-                    prompt=prompt,
-                    system_prompt=f"You are a social media expert. Create engaging {platform} posts. Return only valid JSON array.",
-                    task_type="social_content_generation",
-                    user_id=current_user.id,
-                    try_local_first=True,
-                    use_smart_routing=True,
-                    context={
-                        "module": "social_media",
-                        "action": "suggest_content",
-                        "platform": platform,
-                        "tone": tone,
-                    },
+        # Call DHQ dispatcher (ADR-013)
+        try:
+            result = dispatch_json(
+                capability="creative",
+                prompt=prompt,
+                module_id="social_media",
+                system_prompt=f"You are a social media expert. Create engaging {platform} posts. Return only valid JSON array.",
+            )
+            ai_response = result.get("response", "") if isinstance(result, dict) else str(result or "")
+            if ai_response:
+                try:
+                    import re
+
+                    json_match = re.search(r"\[.*\]", ai_response, re.DOTALL)
+                    if json_match:
+                        suggestions = json.loads(json_match.group())
+                        return jsonify({"success": True, "suggestions": suggestions})
+                except json.JSONDecodeError:
+                    logger.warning("Could not parse AI response as JSON, returning raw")
+                return jsonify(
+                    {
+                        "success": True,
+                        "suggestions": [
+                            {
+                                "content": ai_response,
+                                "hashtags": [topic.replace(" ", "")],
+                                "type": "general",
+                            }
+                        ],
+                    }
                 )
-                duration_ms = int((time.time() - start_time) * 1000)
-
-                if result.get("success"):
-                    # Log task execution for HR/C.R.E.E.D. tracking
-                    try:
-                        log_task_execution(
-                            agent_id=result.get("agent_id"),
-                            task_type="social_content_generation",
-                            module_source="social_media",
-                            model_used=result.get("model_used", "unknown"),
-                            provider=result.get("provider", "ollama"),
-                            tokens_used=result.get("tokens_used", 0),
-                            cost=result.get("cost", 0),
-                            duration_ms=duration_ms,
-                            success=True,
-                            user_id=current_user.id,
-                        )
-                    except Exception as log_err:
-                        logger.warning(f"Failed to log task execution: {log_err}")
-
-                    # Parse AI response
-                    ai_response = result.get("response", result.get("content", ""))
-                    try:
-                        import re
-
-                        # Try to extract JSON from response
-                        json_match = re.search(r"\[.*\]", ai_response, re.DOTALL)
-                        if json_match:
-                            suggestions = json.loads(json_match.group())
-                            return jsonify({"success": True, "suggestions": suggestions})
-                    except json.JSONDecodeError:
-                        logger.warning("Could not parse AI response as JSON, returning raw")
-
-                    # Return raw response if JSON parsing fails
-                    return jsonify(
-                        {
-                            "success": True,
-                            "suggestions": [
-                                {
-                                    "content": ai_response,
-                                    "hashtags": [topic.replace(" ", "")],
-                                    "type": "general",
-                                }
-                            ],
-                        }
-                    )
-            except Exception as ai_error:
-                logger.warning(f"archie_bridge call failed: {ai_error}")
+        except Exception as ai_error:
+            logger.warning(f"dispatch_json call failed: {ai_error}")
 
         # Fallback suggestions when AI not available
         suggestions = [
@@ -2582,58 +2543,27 @@ Platform: {platform}
 
 Return only a JSON array of hashtag strings (without # symbol). Example: ["Marketing", "Business", "Growth"]"""
 
-        # Call archie_bridge directly for proper routing and logging
-        start_time = time.time()
-        if BRIDGE_AVAILABLE:
-            try:
-                result = archie_bridge(
-                    prompt=prompt,
-                    system_prompt="You are a social media expert. Suggest relevant, trending hashtags. Return only valid JSON array.",
-                    task_type="hashtag_generation",
-                    user_id=current_user.id,
-                    try_local_first=True,
-                    use_smart_routing=True,
-                    context={
-                        "module": "social_media",
-                        "action": "suggest_hashtags",
-                        "platform": platform,
-                    },
-                )
-                duration_ms = int((time.time() - start_time) * 1000)
+        # Call DHQ dispatcher (ADR-013)
+        try:
+            result = dispatch_json(
+                capability="creative",
+                prompt=prompt,
+                module_id="social_media",
+                system_prompt="You are a social media expert. Suggest relevant, trending hashtags. Return only valid JSON array.",
+            )
+            ai_response = result.get("response", "") if isinstance(result, dict) else str(result or "")
+            if ai_response:
+                try:
+                    import re
 
-                if result.get("success"):
-                    # Log task execution for HR/C.R.E.E.D. tracking
-                    try:
-                        log_task_execution(
-                            agent_id=result.get("agent_id"),
-                            task_type="hashtag_generation",
-                            module_source="social_media",
-                            model_used=result.get("model_used", "unknown"),
-                            provider=result.get("provider", "ollama"),
-                            tokens_used=result.get("tokens_used", 0),
-                            cost=result.get("cost", 0),
-                            duration_ms=duration_ms,
-                            success=True,
-                            user_id=current_user.id,
-                        )
-                    except Exception as log_err:
-                        logger.warning(f"Failed to log task execution: {log_err}")
-
-                    # Parse AI response
-                    ai_response = result.get("response", result.get("content", ""))
-                    try:
-                        import re
-
-                        # Try to extract JSON array from response
-                        json_match = re.search(r"\[.*\]", ai_response, re.DOTALL)
-                        if json_match:
-                            hashtags = json.loads(json_match.group())
-                            return jsonify({"success": True, "hashtags": hashtags[:10]})
-                    except json.JSONDecodeError:
-                        logger.warning("Could not parse AI response as JSON")
-
-            except Exception as ai_error:
-                logger.warning(f"archie_bridge call failed: {ai_error}")
+                    json_match = re.search(r"\[.*\]", ai_response, re.DOTALL)
+                    if json_match:
+                        hashtags = json.loads(json_match.group())
+                        return jsonify({"success": True, "hashtags": hashtags[:10]})
+                except json.JSONDecodeError:
+                    logger.warning("Could not parse AI response as JSON")
+        except Exception as ai_error:
+            logger.warning(f"dispatch_json call failed: {ai_error}")
 
         # Fallback: Extract keywords and suggest relevant hashtags
         words = content.lower().split()

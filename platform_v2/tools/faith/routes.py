@@ -10,20 +10,9 @@ from flask_login import current_user, login_required
 
 from . import faith_bp
 
-sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-try:
-    from archie_bridge import archie_bridge
+from tools.department_hq.services.department_dispatcher import dispatch_json
 
-    BRIDGE_AVAILABLE = True
-except ImportError:
-    BRIDGE_AVAILABLE = False
-
-try:
-    from tools.department_hq.services.department_dispatcher import get_dispatcher
-
-    _dispatcher = get_dispatcher()
-except Exception:
-    _dispatcher = None
+BRIDGE_AVAILABLE = True
 
 from database import get_db_cursor
 
@@ -116,45 +105,27 @@ def chat():
     crisis = _detect_crisis(message)
     _save_message(user_id, "user", message)
 
-    if BRIDGE_AVAILABLE:
-        result = archie_bridge(
+    try:
+        result = dispatch_json(
+            capability="support",
             prompt=message,
-            user_id=user_id,
-            agent_id=FAITH_AGENT_ID,
+            module_id="faith",
             system_prompt=FAITH_SYSTEM_PROMPT,
-            enable_memory=True,
-            try_local_first=True,
-            task_type="faith_companion",
         )
-    else:
-        result = {
-            "success": False,
-            "response": "F.A.I.T.H. is unavailable right now.",
-            "model_used": "none",
-            "agent": "none",
-        }
+        response_text = result.get("response", "") if isinstance(result, dict) else str(result or "")
+        response_text = response_text.strip()
+    except Exception as e:
+        logger.error(f"[Faith] dispatch_json failed: {e}")
+        response_text = "F.A.I.T.H. is unavailable right now."
 
-    response_text = result.get("response", "")
     _save_message(user_id, "assistant", response_text)
-
-    if _dispatcher:
-        try:
-            _dispatcher.log_external_call(
-                capability="conversation",
-                module_id="faith",
-                model_used=result.get("model_used", ""),
-                agent_id=FAITH_AGENT_ID,
-                tokens_used=0,
-            )
-        except Exception:
-            pass
 
     return jsonify(
         {
-            "success": result.get("success", False),
+            "success": bool(response_text),
             "response": response_text,
-            "model": result.get("model_used", ""),
-            "agent": result.get("agent", ""),
+            "model": result.get("model_used", "dhq") if isinstance(result, dict) else "dhq",
+            "agent": "F.A.I.T.H.",
             "crisis_detected": crisis,
         }
     )

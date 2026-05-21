@@ -2840,11 +2840,11 @@ def _update_service_status():
                         (str(e)[:200],),
                     )
 
-                # Check AI Bridge
+                # Check AI Bridge (DHQ dispatcher)
                 try:
-                    from ai_bridge.archie_bridge import archie_bridge as _ab
+                    from tools.department_hq.services.department_dispatcher import get_dispatcher as _get_disp
 
-                    status = "online" if _ab else "unknown"
+                    status = "online" if _get_disp() else "unknown"
                     cur.execute(
                         "UPDATE service_status SET status = %s, last_checked = NOW(), error_message = NULL WHERE service_name = 'ai_bridge'",
                         (status,),

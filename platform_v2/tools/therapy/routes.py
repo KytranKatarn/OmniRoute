@@ -28,29 +28,14 @@ import sys
 import logging
 import re
 
-# Add ai_bridge to path for archie_bridge import
-sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-try:
-    from archie_bridge import archie_bridge
+from tools.department_hq.services.department_dispatcher import dispatch_json
 
-    BRIDGE_AVAILABLE = True
-except ImportError:
-    BRIDGE_AVAILABLE = False
-
-try:
-    from ai_bridge.bridge_dispatcher import get_dispatcher
-
-    _dispatcher = get_dispatcher()
-except Exception:
-    _dispatcher = None
+BRIDGE_AVAILABLE = True
 
 logger = logging.getLogger(__name__)
 
 # River - Wellness Therapist agent ID
 THERAPY_AGENT_ID = 37
-
-# Bridge dispatcher for fallback LLM calls
-from bridge_dispatcher import dispatch as bridge_dispatch
 
 # Crisis detection keywords
 CRISIS_KEYWORDS = [
@@ -135,13 +120,9 @@ def status():
             "status": "active",
             "healthy": True,
             "bridge_available": BRIDGE_AVAILABLE,
-            "dispatcher_available": _dispatcher is not None,
-            "agent": ("River - Wellness Therapist" if BRIDGE_AVAILABLE else "Bridge Dispatcher"),
-            "message": (
-                "SERENE Mental Health AI is ready via A.R.C.H.I.E. Bridge"
-                if BRIDGE_AVAILABLE
-                else "SERENE Mental Health AI is ready (bridge dispatch fallback)"
-            ),
+            "dispatcher_available": True,
+            "agent": "River - Wellness Therapist",
+            "message": "SERENE Mental Health AI is ready via A.R.C.H.I.E. Bridge",
         }
     )
 
@@ -173,73 +154,30 @@ def chat():
     enriched_system_prompt = THERAPY_SYSTEM_PROMPT + (f"\n\n{ai_ctx}" if ai_ctx else "")
 
     try:
-        if BRIDGE_AVAILABLE:
-            # Use archie_bridge with River (Wellness Therapist)
-            result = archie_bridge(
-                prompt=message,
-                user_id=user_id,
-                agent_id=THERAPY_AGENT_ID,
-                system_prompt=enriched_system_prompt,
-                enable_memory=True,
-                try_local_first=True,
-                task_type="therapy_session",
-            )
-
-            if _dispatcher:
-                try:
-                    _dispatcher.log_external_call(
-                        capability="conversation",
-                        module_id="therapy",
-                        model_used=result.get("model_used", ""),
-                        success=bool(result.get("response")),
-                    )
-                except Exception:
-                    pass
-
-            if result.get("success"):
-                ai_response = result.get("response", "").strip()
-                return jsonify(
-                    {
-                        "success": True,
-                        "response": ai_response,
-                        "model": result.get("model_used", "archie_bridge"),
-                        "agent": "River - Wellness Therapist",
-                        "source": result.get("source", "ai_bridge"),
-                        "is_crisis": False,
-                        "tokens_used": result.get("tokens_used", 0),
-                    }
-                )
-            else:
-                logger.warning("archie_bridge returned error, falling back to direct Ollama")
-
-        # Fallback: Bridge dispatcher
-        model = data.get("model") or ""
-        result = bridge_dispatch(
-            capability="chat",
-            prompt=f"{THERAPY_SYSTEM_PROMPT}\n\nUser: {message}\n\nSERENE:",
-            model=model,
+        result = dispatch_json(
+            capability="support",
+            prompt=message,
             module_id="therapy",
-            timeout=90,
+            system_prompt=enriched_system_prompt,
         )
+        ai_response = result.get("response", "") if isinstance(result, dict) else str(result or "")
+        ai_response = ai_response.strip()
 
-        if result and result.success:
-            ai_response = (result.response or "").strip()
-            return jsonify(
-                {
-                    "success": True,
-                    "response": ai_response,
-                    "model": "bridge_dispatch",
-                    "agent": "Bridge Dispatcher (fallback)",
-                    "source": "bridge_dispatch",
-                    "is_crisis": False,
-                }
-            )
-        else:
-            logger.error("Bridge dispatch failed for therapy chat fallback")
-            return (
-                jsonify({"success": False, "error": "AI service temporarily unavailable"}),
-                503,
-            )
+        if not ai_response:
+            logger.error("Therapy dispatch_json returned empty response")
+            return jsonify({"success": False, "error": "AI service temporarily unavailable"}), 503
+
+        return jsonify(
+            {
+                "success": True,
+                "response": ai_response,
+                "model": result.get("model_used", "dhq") if isinstance(result, dict) else "dhq",
+                "agent": "River - Wellness Therapist",
+                "source": "dhq_dispatcher",
+                "is_crisis": False,
+                "tokens_used": result.get("tokens_used", 0) if isinstance(result, dict) else 0,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Therapy chat error: {str(e)}")

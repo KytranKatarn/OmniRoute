@@ -28,29 +28,14 @@ from .services.doc_service import (
 import sys
 import logging
 
-# Add ai_bridge to path for archie_bridge import
-sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-try:
-    from archie_bridge import archie_bridge
+from tools.department_hq.services.department_dispatcher import dispatch_json
 
-    BRIDGE_AVAILABLE = True
-except ImportError:
-    BRIDGE_AVAILABLE = False
-
-try:
-    from ai_bridge.bridge_dispatcher import get_dispatcher
-
-    _dispatcher = get_dispatcher()
-except Exception:
-    _dispatcher = None
+BRIDGE_AVAILABLE = True
 
 logger = logging.getLogger(__name__)
 
 # Dr. Amara - Medical Advisor agent ID
 MEDICAL_AGENT_ID = 36
-
-# Bridge dispatcher for fallback LLM calls
-from bridge_dispatcher import dispatch as bridge_dispatch
 
 # System prompt for medical AI
 MEDICAL_SYSTEM_PROMPT = """You are DOC, a helpful medical AI assistant. You provide general health information and guidance.
@@ -90,13 +75,9 @@ def status():
             "status": "active",
             "healthy": True,
             "bridge_available": BRIDGE_AVAILABLE,
-            "dispatcher_available": _dispatcher is not None,
-            "agent": ("Dr. Amara - Medical Advisor" if BRIDGE_AVAILABLE else "Bridge Dispatcher"),
-            "message": (
-                "DOC Medical AI is operational via A.R.C.H.I.E. Bridge"
-                if BRIDGE_AVAILABLE
-                else "DOC Medical AI is operational (bridge dispatch fallback)"
-            ),
+            "dispatcher_available": True,
+            "agent": "Dr. Amara - Medical Advisor",
+            "message": "DOC Medical AI is operational via A.R.C.H.I.E. Bridge",
         }
     )
 
@@ -116,82 +97,33 @@ def chat():
     enriched_system_prompt = MEDICAL_SYSTEM_PROMPT + (f"\n\n{ai_ctx}" if ai_ctx else "")
 
     try:
-        if BRIDGE_AVAILABLE:
-            # Use archie_bridge with Dr. Amara (Medical Advisor)
-            result = archie_bridge(
-                prompt=message,
-                user_id=user_id,
-                agent_id=MEDICAL_AGENT_ID,
-                system_prompt=enriched_system_prompt,
-                enable_memory=True,
-                try_local_first=True,  # Check knowledge base first
-                task_type="medical_consultation",
-            )
-
-            if _dispatcher:
-                try:
-                    _dispatcher.log_external_call(
-                        capability="conversation",
-                        module_id="doc",
-                        model_used=result.get("model_used", ""),
-                        success=bool(result.get("response")),
-                    )
-                except Exception:
-                    pass
-
-            if result.get("success"):
-                ai_response = result.get("response", "").strip()
-
-                # Add disclaimer if not present
-                if "consult" not in ai_response.lower() and "healthcare" not in ai_response.lower():
-                    ai_response += "\n\n*Remember: This is general information only. Please consult a healthcare professional for personal medical advice.*"
-
-                return jsonify(
-                    {
-                        "success": True,
-                        "response": ai_response,
-                        "model": result.get("model_used", "archie_bridge"),
-                        "agent": "Dr. Amara - Medical Advisor",
-                        "source": result.get("source", "ai_bridge"),
-                        "tokens_used": result.get("tokens_used", 0),
-                    }
-                )
-            else:
-                logger.warning(f"archie_bridge returned error, falling back to direct Ollama")
-                # Fall through to direct Ollama call
-
-        # Fallback: Bridge dispatcher
-        model = data.get("model") or ""
-        result = bridge_dispatch(
-            capability="chat",
-            prompt=f"{MEDICAL_SYSTEM_PROMPT}\n\nUser: {message}\n\nDOC:",
-            model=model,
+        result = dispatch_json(
+            capability="support",
+            prompt=message,
             module_id="doc",
-            timeout=60,
+            system_prompt=enriched_system_prompt,
         )
+        ai_response = result.get("response", "") if isinstance(result, dict) else str(result or "")
+        ai_response = ai_response.strip()
 
-        if result and result.success:
-            ai_response = (result.response or "").strip()
+        if not ai_response:
+            logger.error("DOC dispatch_json returned empty response")
+            return jsonify({"success": False, "error": "AI service temporarily unavailable"}), 503
 
-            # Add disclaimer if not present
-            if "consult" not in ai_response.lower() and "healthcare" not in ai_response.lower():
-                ai_response += "\n\n*Remember: This is general information only. Please consult a healthcare professional for personal medical advice.*"
+        # Add disclaimer if not present
+        if "consult" not in ai_response.lower() and "healthcare" not in ai_response.lower():
+            ai_response += "\n\n*Remember: This is general information only. Please consult a healthcare professional for personal medical advice.*"
 
-            return jsonify(
-                {
-                    "success": True,
-                    "response": ai_response,
-                    "model": "bridge_dispatch",
-                    "agent": "Bridge Dispatcher (fallback)",
-                    "source": "bridge_dispatch",
-                }
-            )
-        else:
-            logger.error("Bridge dispatch failed for DOC chat fallback")
-            return (
-                jsonify({"success": False, "error": "AI service temporarily unavailable"}),
-                503,
-            )
+        return jsonify(
+            {
+                "success": True,
+                "response": ai_response,
+                "model": result.get("model_used", "dhq") if isinstance(result, dict) else "dhq",
+                "agent": "Dr. Amara - Medical Advisor",
+                "source": "dhq_dispatcher",
+                "tokens_used": result.get("tokens_used", 0) if isinstance(result, dict) else 0,
+            }
+        )
 
     except Exception as e:
         logger.error(f"DOC chat error: {str(e)}")
@@ -241,50 +173,26 @@ Please provide:
 Remember to emphasize consulting a healthcare professional."""
 
     try:
-        if BRIDGE_AVAILABLE:
-            # Use archie_bridge with Dr. Amara
-            result = archie_bridge(
-                prompt=prompt,
-                user_id=user_id,
-                agent_id=MEDICAL_AGENT_ID,
-                system_prompt=MEDICAL_SYSTEM_PROMPT,
-                enable_memory=True,
-                try_local_first=True,
-                task_type="symptom_analysis",
-            )
-
-            if result.get("success"):
-                return jsonify(
-                    {
-                        "success": True,
-                        "analysis": result.get("response", "").strip(),
-                        "agent": "Dr. Amara - Medical Advisor",
-                        "source": result.get("source", "ai_bridge"),
-                    }
-                )
-
-        # Fallback: Bridge dispatcher
-        result = bridge_dispatch(
-            capability="chat",
-            prompt=f"{MEDICAL_SYSTEM_PROMPT}\n\n{prompt}\n\nDOC:",
+        result = dispatch_json(
+            capability="support",
+            prompt=prompt,
             module_id="doc",
-            timeout=90,
+            system_prompt=MEDICAL_SYSTEM_PROMPT,
         )
+        analysis = result.get("response", "") if isinstance(result, dict) else str(result or "")
+        analysis = analysis.strip()
 
-        if result and result.success:
-            return jsonify(
-                {
-                    "success": True,
-                    "analysis": (result.response or "").strip(),
-                    "agent": "Bridge Dispatcher (fallback)",
-                    "source": "bridge_dispatch",
-                }
-            )
-        else:
-            return (
-                jsonify({"success": False, "error": "Analysis service unavailable"}),
-                503,
-            )
+        if not analysis:
+            return jsonify({"success": False, "error": "Analysis service unavailable"}), 503
+
+        return jsonify(
+            {
+                "success": True,
+                "analysis": analysis,
+                "agent": "Dr. Amara - Medical Advisor",
+                "source": "dhq_dispatcher",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Symptom analysis error: {str(e)}")
@@ -293,23 +201,8 @@ Remember to emphasize consulting a healthcare professional."""
 
 @doc_bp.route("/api/models", methods=["GET"])
 def get_available_models():
-    """Get available AI models via BridgeDispatcher"""
-    # Models come from the bridge dispatcher
-    models = []
-    if _dispatcher:
-        try:
-            status = _dispatcher.get_dispatch_status()
-            seen = set()
-            for station_info in status.get("stations", {}).values():
-                for agent in station_info.get("agents", []):
-                    m = agent.get("model", "")
-                    if m and m not in seen:
-                        models.append({"name": m, "size": 0, "modified": ""})
-                        seen.add(m)
-        except Exception:
-            pass
-    if not models:
-        models = [{"name": "default", "size": 0, "modified": ""}]
+    """Get available AI models via DHQ dispatcher"""
+    models = [{"name": "default", "size": 0, "modified": ""}]
     return jsonify({"success": True, "models": models})
 
 

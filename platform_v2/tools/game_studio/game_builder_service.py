@@ -9,8 +9,7 @@ import re
 import sys
 from datetime import datetime
 
-sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-from archie_bridge import archie_bridge as ai_bridge
+from tools.department_hq.services.department_dispatcher import dispatch_json
 
 from database import get_db_cursor
 
@@ -131,12 +130,12 @@ def _run_stage(session_id, stage_id):
                 context_parts.append(f"{prev_stage['name']} output:\n{json.dumps(prev_out, indent=2)}")
         context = "\n\n".join(context_parts)
 
-        # Call AI bridge
-        result = ai_bridge(
+        # Call AI via DHQ dispatcher (ADR-013)
+        result = dispatch_json(
+            capability="creative",
             prompt=context,
+            module_id="game_studio",
             system_prompt=sys_prompt,
-            user_id=row["user_id"],
-            enable_memory=False,
         )
         ai_text = result.get("response", "") if isinstance(result, dict) else str(result)
         parsed = _parse_ai_json(ai_text)

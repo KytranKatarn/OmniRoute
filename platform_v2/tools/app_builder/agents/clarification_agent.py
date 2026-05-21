@@ -18,16 +18,9 @@ from typing import List, Dict, Optional, Any
 import json
 import re
 
-# Add paths
-sys.path.insert(0, "/mnt/archie_brain")
-sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+from tools.department_hq.services.department_dispatcher import dispatch_json
 
-try:
-    from archie_bridge import archie_bridge
-
-    AI_AVAILABLE = True
-except ImportError:
-    AI_AVAILABLE = False
+AI_AVAILABLE = True
 
 
 # ============================================================================
@@ -371,8 +364,8 @@ Format as JSON array:
     }}
 ]"""
 
-            # Call AI
-            result = archie_bridge(prompt=ai_prompt, context=context, user_id=self.user_id)
+            # Call AI via DHQ dispatcher (ADR-013)
+            result = dispatch_json(capability="research", prompt=ai_prompt, module_id="app_builder")
 
             if result.get("success") and result.get("response"):
                 # Parse JSON response

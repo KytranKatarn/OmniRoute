@@ -20,8 +20,7 @@ from . import game_studio_bp
 
 import sys
 
-sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-from archie_bridge import archie_bridge as ai_bridge
+from tools.department_hq.services.department_dispatcher import dispatch_json
 
 logger = logging.getLogger(__name__)
 
@@ -1002,11 +1001,11 @@ def ai_chat():
         elif any(k in msg_lower for k in MECHANICS_KW):
             system_prompt += '\nFocus on game mechanics. When appropriate, return behaviors JSON: {"behaviors": [{"name": "...", "code": "function(entity, engine, dt) {...}"}]}'
 
-        result = ai_bridge(
+        result = dispatch_json(
+            capability="creative",
             prompt=message,
+            module_id="game_studio",
             system_prompt=system_prompt,
-            user_id=current_user.id if current_user.is_authenticated else None,
-            enable_memory=False,
         )
         response_text = result.get("response", "") if isinstance(result, dict) else str(result)
 

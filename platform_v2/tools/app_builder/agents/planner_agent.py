@@ -20,17 +20,9 @@ from typing import Dict, List, Optional, Any
 import json
 import re
 
-# Add paths
-sys.path.insert(0, "/mnt/archie_brain")
-sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+from tools.department_hq.services.department_dispatcher import dispatch_json
 
-try:
-    from archie_bridge import archie_bridge
-
-    AI_AVAILABLE = True
-except ImportError:
-    AI_AVAILABLE = False
-    print("[PlannerAgent] Warning: AI bridge not available")
+AI_AVAILABLE = True
 
 
 # ============================================================================
@@ -370,7 +362,7 @@ Format as JSON array:
 
 Keep it simple and normalized. Include appropriate indexes and foreign keys."""
 
-            result = archie_bridge(prompt=ai_prompt, context={"task": "database_design"}, user_id=1)
+            result = dispatch_json(capability="research", prompt=ai_prompt, module_id="app_builder")
 
             if result.get("success") and result.get("response"):
                 # Extract JSON from response
@@ -899,7 +891,7 @@ Format as JSON:
     "best_practices": ["practice 1", "practice 2", ...]
 }}"""
 
-            result = archie_bridge(prompt=ai_prompt, context={"task": "plan_enhancement"}, user_id=1)
+            result = dispatch_json(capability="research", prompt=ai_prompt, module_id="app_builder")
 
             if result.get("success") and result.get("response"):
                 response = result["response"]

@@ -461,8 +461,7 @@ def _execute_rule_action(account_id, gmail_id, rule):
 def _dispatch_to_bridge(account_id, email_row, owner_id, permission_level):
     """Ask Bridge AI to analyse an email and optionally auto-reply."""
     try:
-        sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-        from archie_bridge import archie_bridge as ai_bridge  # noqa: PLC0415
+        from tools.department_hq.services.department_dispatcher import dispatch_json as _dhq_dispatch  # noqa: PLC0415
 
         gmail_id = email_row["gmail_id"]
         subject = email_row.get("subject", "")
@@ -500,22 +499,19 @@ def _dispatch_to_bridge(account_id, email_row, owner_id, permission_level):
         )
         prompt = f"From: {sender}\nSubject: {subject}\n\n{body[:2000]}"
 
-        raw = ai_bridge(
+        raw = _dhq_dispatch(
+            capability="summarization",
             prompt=prompt,
+            module_id="google_work_suite",
             system_prompt=system_prompt,
-            user_id=owner_id,
-            enable_memory=False,
         )
 
         import json  # noqa: PLC0415
 
-        # ai_bridge may return a string or dict
-        if isinstance(raw, str):
-            # Strip markdown code fences if present
-            clean = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-            result = json.loads(clean)
-        else:
-            result = raw
+        # dispatch_json returns a dict; extract response text and parse
+        response_text = raw.get("response", "") if isinstance(raw, dict) else str(raw or "")
+        clean = response_text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        result = json.loads(clean) if clean else {}
 
         _execute_email_action(account_id, gmail_id, sender, subject, result)
 
@@ -587,10 +583,10 @@ def analyze_email(account_id, gmail_id):
             f"From: {sender}\nSubject: {subject}\n\n{body[:2000]}"
         )
 
-        from ai_bridge.bridge_dispatcher import dispatch_json
+        from tools.department_hq.services.department_dispatcher import dispatch_json
 
         analysis = dispatch_json(
-            capability="email",
+            capability="summarization",
             prompt=prompt,
             module_id="google_work_suite",
             system_prompt="You are an email analysis assistant. Return ONLY valid JSON, no markdown.",

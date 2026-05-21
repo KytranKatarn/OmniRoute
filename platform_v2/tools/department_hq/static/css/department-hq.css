@@ -2107,3 +2107,18 @@
 .dhq-perf-val-warn { color: #fbbf24 !important; }
 .dhq-perf-val-bad  { color: #f87171 !important; }
 .dhq-perf-val-failed { color: #f87171 !important; }
+
+/* Cluster nodes grid — responsive 2-col on mobile/tablet, auto-fill on desktop */
+#clusterNodesGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 1024px) {
+    #clusterNodesGrid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
+}
+/* Prevent card content from blowing out column width */
+#clusterNodesGrid > * {
+    min-width: 0;
+    overflow: hidden;
+}

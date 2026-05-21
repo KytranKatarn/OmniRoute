@@ -692,12 +692,12 @@ async function loadKinWelfare() {
         }
 
         var grid = document.createElement('div');
-        grid.style.cssText = 'display:grid;grid-template-columns:repeat(2,1fr);gap:10px;';
+        grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;';
         agents.forEach(function(a) {
             var statusColor = a.resting ? '#f59e0b' : (a.at_limit ? '#ef4444' : '#10b981');
             var statusLabel = a.resting ? '😴 ' + (a.rest_type || 'resting') : (a.at_limit ? '⚠ at limit' : '✓ active');
             var card = document.createElement('div');
-            card.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid ' + statusColor + '44;border-radius:6px;padding:10px 12px;';
+            card.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid ' + statusColor + '44;border-radius:6px;padding:10px 12px;min-width:0;overflow:hidden;';
             card.innerHTML = '<div class="kinw-hdr" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
                 + '<div style="min-width:0;flex:1;">'
                 + '<div style="font-family:Antonio,sans-serif;font-size:0.78rem;letter-spacing:1px;color:var(--dhq-text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(a.name) + '</div>'
@@ -3623,7 +3623,7 @@ function loadClusterActivity() {
                 totalActive += active60s > 0 ? 1 : 0; // count nodes with work in last 60s
 
                 var card = document.createElement('div');
-                card.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid ' + (isActive ? '#10b981' : 'rgba(255,255,255,0.1)') + ';border-radius:6px;padding:10px 12px;';
+                card.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid ' + (isActive ? '#10b981' : 'rgba(255,255,255,0.1)') + ';border-radius:6px;padding:10px 12px;min-width:0;overflow:hidden;';
 
                 // Hardware label: GPU+CPU for GPU nodes, CPU-only for pure-CPU nodes
                 var hwLabel = n.gpu

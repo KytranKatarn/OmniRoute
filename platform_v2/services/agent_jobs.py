@@ -250,7 +250,9 @@ def track_agent_hr():
                    ARRAY_AGG(DISTINCT module_source) FILTER (WHERE module_source IS NOT NULL) as modules,
                    ARRAY_AGG(DISTINCT capability) FILTER (WHERE capability IS NOT NULL) as capabilities
             FROM task_execution_log
-            WHERE created_at::date = %s AND agent_id IS NOT NULL
+            WHERE created_at::date = %s
+              AND agent_id IS NOT NULL
+              AND COALESCE(module_source, '') != 'fleet_warmup'
             GROUP BY agent_id
         """,
             (today,),
@@ -339,7 +341,9 @@ def track_agent_hr():
                 },
             )
 
-        # 2b. Overwork: >8h continuous work (total_duration_ms > 28800000)
+        # 2b. Overwork: tiered thresholds
+        #   >8h  → auto 30-min rest (recovery buffer, no approval needed)
+        #   >12h → request Kytran approval for 8h rest via Telegram action buttons
         cur.execute(
             """
             SELECT ads.agent_id, a.name, ads.total_duration_ms
@@ -347,39 +351,67 @@ def track_agent_hr():
             JOIN agents a ON a.id = ads.agent_id
             WHERE ads.summary_date = %s
               AND ads.total_duration_ms > 28800000
+              AND a.shift_state NOT IN ('winding_down', 'cooldown', 'barracked', 'off_duty')
         """,
             (today,),
         )
         for row in cur.fetchall():
             hours = round(row["total_duration_ms"] / 3_600_000, 1)
+            is_critical = hours >= 12.0
+
             alerts_created += _create_hr_alert(
                 cur,
                 row["agent_id"],
                 "overwork",
-                "critical",
+                "critical" if is_critical else "warning",
                 f"{row['name']}: {hours}h continuous work",
-                f"Agent {row['name']} has worked {hours} hours today. " f"Consider initiating a rest cycle.",
-                {"work_hours": hours},
+                f"Agent {row['name']} has worked {hours} hours today. "
+                + ("Kytran approval required for 8h rest." if is_critical else "Consider initiating a rest cycle."),
+                {"work_hours": hours, "requires_approval": is_critical},
             )
 
-            # Auto-initiate rest cycle for overworked agents (30-min rest period)
-            # ended_at set at INSERT so K.I.N. enforcement unblocks automatically
-            # even if the reaper hasn't run yet.
-            cur.execute(
-                """
-                INSERT INTO agent_rest_cycles
-                (agent_id, rest_type, reason, started_at, ended_at)
-                SELECT %s, 'automatic', 'Automatic rest: exceeded 8h work threshold',
-                       NOW(), NOW() + INTERVAL '30 minutes'
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM agent_rest_cycles
-                    WHERE agent_id = %s
-                      AND started_at > NOW() - INTERVAL '1 hour'
-                      AND (ended_at IS NULL OR ended_at > NOW())
+            if is_critical:
+                # 12h+: send Telegram with action buttons for Kytran approval
+                # [✅ Grant 8h Rest] [⏰ Snooze] [🔕 Dismiss]
+                try:
+                    from services.telegram_service import send_with_buttons as _welfare_buttons
+
+                    _welfare_buttons(
+                        category="agent",
+                        title=f"🚨 K.I.N. Welfare Alert — {row['name']}",
+                        message=(
+                            f"*{row['name']}* has worked *{hours} hours* straight today.\n\n"
+                            f"K.I.N. recommends an 8-hour rest cycle to prevent burnout. "
+                            f"While resting, queued tasks will be reassigned to backup agents.\n\n"
+                            f"_Tap below to approve or dismiss._"
+                        ),
+                        buttons=[
+                            {"text": "✅ Grant 8h Rest", "callback_data": f"welfare_rest8h_{row['agent_id']}"},
+                            {"text": "⏰ Snooze 4h", "callback_data": f"welfare_snooze_{row['agent_id']}"},
+                            {"text": "🔕 Dismiss", "callback_data": f"welfare_dismiss_{row['agent_id']}"},
+                        ],
+                        source_agent="K.I.N.",
+                        source_department="Human Resources & Culture",
+                    )
+                except Exception as _ow_err:
+                    logger.warning("[K.I.N.] Welfare action buttons failed: %s", _ow_err)
+            else:
+                # 8h-12h: Auto-initiate 30-min recovery rest (no approval needed)
+                cur.execute(
+                    """
+                    INSERT INTO agent_rest_cycles
+                    (agent_id, rest_type, reason, started_at, ended_at)
+                    SELECT %s, 'automatic', 'Automatic rest: exceeded 8h work threshold',
+                           NOW(), NOW() + INTERVAL '30 minutes'
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM agent_rest_cycles
+                        WHERE agent_id = %s
+                          AND started_at > NOW() - INTERVAL '1 hour'
+                          AND (ended_at IS NULL OR ended_at > NOW())
+                    )
+                """,
+                    (row["agent_id"], row["agent_id"]),
                 )
-            """,
-                (row["agent_id"], row["agent_id"]),
-            )
 
         # 2c. Update emotional state based on workload
         cur.execute(

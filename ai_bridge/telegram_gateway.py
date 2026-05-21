@@ -128,6 +128,9 @@ class TelegramGateway:
             app.add_handler(
                 CallbackQueryHandler(self._pr_merge_callback, pattern=r"^pr_merge_")
             )
+            app.add_handler(
+                CallbackQueryHandler(self._welfare_callback, pattern=r"^welfare_")
+            )
             app.add_handler(CallbackQueryHandler(self._callback_handler))
             app.add_handler(
                 MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message)
@@ -781,6 +784,128 @@ class TelegramGateway:
         except Exception as e:
             logger.error(f"[TelegramGateway] Node callback error: {e}")
             await query.edit_message_text(f"Error processing node action")
+
+    async def _welfare_callback(self, update, context):
+        """Handle K.I.N. welfare action buttons from Telegram.
+
+        Callback data formats:
+          welfare_rest8h_{agent_id}   — grant approved 8h rest cycle
+          welfare_snooze_{agent_id}   — snooze alert (K.I.N. will re-alert in 4h)
+          welfare_dismiss_{agent_id}  — dismiss alert, no action taken
+        """
+        query = update.callback_query
+        await query.answer()
+
+        user_info = self._get_authorized_user(query.from_user.id)
+        if not user_info:
+            await query.edit_message_text("Unauthorized.")
+            return
+
+        data = query.data  # e.g. "welfare_rest8h_42"
+        try:
+            # data format: "welfare_{action}_{agent_id}"
+            parts = data.split("_", 2)  # ["welfare", "rest8h", "42"]
+            action = parts[1] if len(parts) > 1 else ""
+            agent_id = int(parts[2]) if len(parts) > 2 else 0
+            approved_by = user_info.get("display_name", "Kytran")
+
+            if action == "rest8h":
+                import psycopg2
+                from psycopg2.extras import RealDictCursor
+
+                conn = psycopg2.connect(
+                    host=os.getenv("DB_HOST", "192.168.1.200"),
+                    port=int(os.getenv("DB_PORT", "5432")),
+                    dbname=os.getenv("DB_NAME", "archie"),
+                    user=os.getenv("DB_USER", "archie"),
+                    password=_get_db_password(),
+                    cursor_factory=RealDictCursor,
+                )
+                try:
+                    cur = conn.cursor()
+                    # Get agent name
+                    cur.execute("SELECT name, department FROM agents WHERE id = %s", (agent_id,))
+                    agent_row = cur.fetchone()
+                    agent_name = agent_row["name"] if agent_row else f"Agent #{agent_id}"
+
+                    # Open 8h approved rest cycle
+                    cur.execute(
+                        """
+                        INSERT INTO agent_rest_cycles
+                            (agent_id, rest_type, reason, started_at, ended_at,
+                             initiated_by, workload_before, stress_at_start, energy_at_start)
+                        SELECT %s, 'approved_rest',
+                               'Kytran approved 8h rest via Telegram (overwork >12h)',
+                               NOW(), NOW() + INTERVAL '8 hours',
+                               'telegram_approval',
+                               '{"approved_by": "%s"}'::jsonb, 0.9, 0.2
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM agent_rest_cycles
+                            WHERE agent_id = %s
+                              AND started_at > NOW() - INTERVAL '30 minutes'
+                              AND (ended_at IS NULL OR ended_at > NOW())
+                        )
+                        """,
+                        (agent_id, approved_by, agent_id),
+                    )
+
+                    # Transition agent to winding_down (completes current tasks, then rests)
+                    cur.execute(
+                        """
+                        UPDATE agents
+                           SET shift_state = 'winding_down', updated_at = NOW()
+                         WHERE id = %s
+                           AND shift_state NOT IN ('winding_down', 'cooldown', 'barracked', 'off_duty')
+                        """,
+                        (agent_id,),
+                    )
+
+                    # Reset task counters so agent wakes with full capacity
+                    cur.execute(
+                        """
+                        UPDATE agent_budgets
+                           SET current_task_count = 0,
+                               last_task_reset_at = NOW(),
+                               task_reset_reason  = 'Kytran-approved 8h rest: counters reset',
+                               task_reset_by      = 'telegram_approval',
+                               updated_at         = NOW()
+                         WHERE agent_id = %s
+                        """,
+                        (agent_id,),
+                    )
+
+                    conn.commit()
+                    logger.info(
+                        "[Welfare] %s granted 8h rest for agent %s (id=%d)",
+                        approved_by, agent_name, agent_id
+                    )
+                    await query.edit_message_text(
+                        f"😴 *{agent_name}* granted 8h rest.\n\n"
+                        f"Agent is winding down current tasks and will be restored "
+                        f"automatically at {(datetime.now() + timedelta(hours=8)).strftime('%I:%M %p')}.\n\n"
+                        f"_Approved by {approved_by}_"
+                    )
+                finally:
+                    conn.close()
+
+            elif action == "snooze":
+                # No action — K.I.N. cooldown_hours=4 on the inbox submission
+                # means the next alert arrives in ~4h automatically.
+                await query.edit_message_text(
+                    f"⏰ Snoozed — K.I.N. will re-alert in ~4 hours if the agent is still overloaded."
+                )
+
+            elif action == "dismiss":
+                await query.edit_message_text(
+                    f"🔕 Welfare alert dismissed. No rest scheduled."
+                )
+
+            else:
+                await query.edit_message_text(f"Unknown welfare action: {action}")
+
+        except Exception as e:
+            logger.error(f"[TelegramGateway] Welfare callback error: {e}")
+            await query.edit_message_text("Error processing welfare action.")
 
     async def _escalation_callback(self, update, context):
         """Handle escalation buttons (advisory ack, cloud/paid escalate, approval approve/deny/defer)."""

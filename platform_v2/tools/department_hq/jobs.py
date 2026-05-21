@@ -1176,6 +1176,22 @@ def _register_own_jobs(scheduler, flask_app):
                         "[DeptHQ] Rest reaper: auto-closed %d expired rest cycles",
                         len(closed_rests),
                     )
+                    # Restore agents from winding_down/cooldown → active after rest completes
+                    recovered_ids = [r["agent_id"] for r in closed_rests]
+                    cur.execute(
+                        """
+                        UPDATE agents
+                           SET shift_state = 'active', updated_at = NOW()
+                         WHERE id = ANY(%s)
+                           AND shift_state IN ('winding_down', 'cooldown')
+                        """,
+                        (recovered_ids,),
+                    )
+                    if cur.rowcount:
+                        logger.info(
+                            "[DeptHQ] Rest reaper: restored %d agent(s) to active after rest",
+                            cur.rowcount,
+                        )
 
             if reaped:
                 summary = ", ".join(f"{r['agent_name']}/{r['capability']}" for r in reaped[:5])
@@ -1584,6 +1600,120 @@ def _register_own_jobs(scheduler, flask_app):
                         len(node_loads),
                         len(overloaded),
                     )
+
+                # --- Auto-rest: schedule rest for agents >80% capacity with no open cycle ---
+                # K.I.N. transitions them to winding_down so current tasks finish,
+                # then cooldown_recovery closes the cycle after 30 min and restores them.
+                rested = 0
+                for agent in overloaded:
+                    if float(agent["utilisation_pct"] or 0) < 80:
+                        continue
+
+                    # Skip if already resting (open rest cycle exists)
+                    cur.execute(
+                        """
+                        SELECT 1 FROM agent_rest_cycles arc
+                        JOIN agents a ON a.id = arc.agent_id
+                        WHERE a.name = %s AND arc.ended_at IS NULL
+                        LIMIT 1
+                        """,
+                        (agent["name"],),
+                    )
+                    if cur.fetchone():
+                        continue
+
+                    # Skip if shift_state already winding_down / cooldown / barracked
+                    cur.execute(
+                        """
+                        SELECT id, shift_state, current_stress, current_energy
+                        FROM agents WHERE name = %s LIMIT 1
+                        """,
+                        (agent["name"],),
+                    )
+                    ag = cur.fetchone()
+                    if not ag or ag["shift_state"] in ("winding_down", "cooldown", "barracked", "off_duty"):
+                        continue
+
+                    # Open rest cycle
+                    cur.execute(
+                        """
+                        INSERT INTO agent_rest_cycles
+                            (agent_id, rest_type, started_at, reason,
+                             workload_before, initiated_by,
+                             stress_at_start, energy_at_start)
+                        VALUES (%s, 'workload_rest', NOW(),
+                                'K.I.N. auto-rest: budget utilisation ' || %s || '%%',
+                                %s, 'kin_workload_monitor',
+                                %s, %s)
+                        """,
+                        (
+                            ag["id"],
+                            agent["utilisation_pct"],
+                            agent["current_task_count"],
+                            ag["current_stress"] or 0,
+                            ag["current_energy"] or 1,
+                        ),
+                    )
+
+                    # Transition to winding_down (lets active tasks finish, blocks new dispatch)
+                    cur.execute(
+                        "UPDATE agents SET shift_state='winding_down', updated_at=NOW() WHERE id=%s",
+                        (ag["id"],),
+                    )
+
+                    # Reset task counter so agent can resume cleanly after rest
+                    cur.execute(
+                        "UPDATE agent_budgets SET current_task_count=0 WHERE agent_id=%s",
+                        (ag["id"],),
+                    )
+
+                    rested += 1
+                    logger.info(
+                        "[K.I.N.] Auto-rest scheduled for %s (utilisation=%.0f%%, state→winding_down)",
+                        agent["name"],
+                        float(agent["utilisation_pct"] or 0),
+                    )
+
+                if rested:
+                    rested_names = [
+                        a["name"]
+                        for a in overloaded
+                        if float(a["utilisation_pct"] or 0) >= 80
+                    ]
+                    rest_msg = (
+                        f"K.I.N. scheduled rest for {rested} overloaded agent(s). "
+                        "They will recover in 30 min via cooldown_recovery."
+                    )
+                    cur.execute(
+                        """
+                        INSERT INTO system_notifications
+                            (title, message, notification_type, severity, source, is_read)
+                        VALUES ('K.I.N. — Agent Rest Scheduled', %s,
+                                'info', 'info', 'kin_workload_monitor', FALSE)
+                        """,
+                        (rest_msg,),
+                    )
+                    # Notify A.R.C.H.I.E. → Telegram → Kytran + COMs tab
+                    try:
+                        from services.telegram_service import send_info
+
+                        agent_lines = "\n".join(
+                            f"  • {a['name']} ({a['department']}) — "
+                            f"{a['current_task_count']}/{a['task_queue_limit']} "
+                            f"({a['utilisation_pct']}% utilisation)"
+                            for a in overloaded
+                            if float(a["utilisation_pct"] or 0) >= 80
+                        )
+                        send_info(
+                            f"😴 K.I.N. Fleet Welfare Report\n\n"
+                            f"{rested} agent(s) scheduled for mandatory rest "
+                            f"(>80% workload capacity):\n{agent_lines}\n\n"
+                            f"Agents are winding down active tasks and will resume "
+                            f"full duty in ~30 minutes once recovered.",
+                            source_module="kin_workload_monitor",
+                        )
+                    except Exception as tg_err:
+                        logger.warning("[K.I.N.] Telegram notify failed: %s", tg_err)
 
         except Exception as exc:
             logger.error("[K.I.N.] Workload monitor failed: %s", exc)

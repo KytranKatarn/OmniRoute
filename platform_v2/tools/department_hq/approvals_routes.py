@@ -238,6 +238,12 @@ def register_approvals_routes(bp, admin_required_decorator):
                         category, display = "contractor_dispatch", "Contractor Dispatch"
                     elif at == "restart_container":
                         category, display = "restart_container", "Container Restart"
+                    elif at == "welfare_rest_8h":
+                        # K.I.N. welfare approval — agent overwork >12h
+                        _ad = r.get("action_data") or {}
+                        _aname = _ad.get("agent_name", "Agent") if isinstance(_ad, dict) else "Agent"
+                        _hrs = _ad.get("hours", "12+") if isinstance(_ad, dict) else "12+"
+                        category, display = "welfare", f"😴 {_aname} — {_hrs}h overwork (8h rest?)"
                     else:
                         category, display = "other", at
                     approvals.append(

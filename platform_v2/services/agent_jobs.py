@@ -371,10 +371,42 @@ def track_agent_hr():
             )
 
             if is_critical:
-                # 12h+: send Telegram with action buttons for Kytran approval
-                # [✅ Grant 8h Rest] [⏰ Snooze] [🔕 Dismiss]
+                # 12h+: write to autonomy_approval_queue (shows in DHQ Approvals tab)
+                # then send Telegram with action buttons embedding the queue_id
+                _queue_id = None
+                try:
+                    cur.execute(
+                        """
+                        INSERT INTO autonomy_approval_queue
+                            (action_type, action_data, tier, priority,
+                             requested_by, reason, expires_at)
+                        VALUES ('welfare_rest_8h',
+                                %s::jsonb, 2, 1, 'K.I.N.',
+                                %s,
+                                NOW() + INTERVAL '8 hours')
+                        ON CONFLICT DO NOTHING
+                        RETURNING id
+                        """,
+                        (
+                            json.dumps({"agent_id": row["agent_id"], "agent_name": row["name"], "hours": hours}),
+                            f"Agent {row['name']} worked {hours}h — K.I.N. recommends 8h rest",
+                        ),
+                    )
+                    _qr = cur.fetchone()
+                    _queue_id = _qr["id"] if _qr else None
+                except Exception as _qi_err:
+                    logger.warning("[K.I.N.] Approval queue INSERT failed: %s", _qi_err)
+
                 try:
                     from services.telegram_service import send_with_buttons as _welfare_buttons
+
+                    # Embed queue_id in callback so Telegram response can update the queue row
+                    _rest_cb = (
+                        f"welfare_rest8h_{row['agent_id']}_{_queue_id}"
+                        if _queue_id
+                        else f"welfare_rest8h_{row['agent_id']}"
+                    )
+                    _dismiss_cb = f"welfare_dismiss_{_queue_id}" if _queue_id else f"welfare_dismiss_{row['agent_id']}"
 
                     _welfare_buttons(
                         category="agent",
@@ -383,12 +415,12 @@ def track_agent_hr():
                             f"*{row['name']}* has worked *{hours} hours* straight today.\n\n"
                             f"K.I.N. recommends an 8-hour rest cycle to prevent burnout. "
                             f"While resting, queued tasks will be reassigned to backup agents.\n\n"
-                            f"_Tap below to approve or dismiss._"
+                            f"_Tap below to approve or dismiss. Also visible in DHQ Approvals tab._"
                         ),
                         buttons=[
-                            {"text": "✅ Grant 8h Rest", "callback_data": f"welfare_rest8h_{row['agent_id']}"},
+                            {"text": "✅ Grant 8h Rest", "callback_data": _rest_cb},
                             {"text": "⏰ Snooze 4h", "callback_data": f"welfare_snooze_{row['agent_id']}"},
-                            {"text": "🔕 Dismiss", "callback_data": f"welfare_dismiss_{row['agent_id']}"},
+                            {"text": "🔕 Dismiss", "callback_data": _dismiss_cb},
                         ],
                         source_agent="K.I.N.",
                         source_department="Human Resources & Culture",

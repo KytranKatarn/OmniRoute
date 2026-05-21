@@ -801,12 +801,14 @@ class TelegramGateway:
             await query.edit_message_text("Unauthorized.")
             return
 
-        data = query.data  # e.g. "welfare_rest8h_42"
+        data = query.data  # e.g. "welfare_rest8h_42_7" or "welfare_dismiss_7"
         try:
-            # data format: "welfare_{action}_{agent_id}"
-            parts = data.split("_", 2)  # ["welfare", "rest8h", "42"]
+            # data format: "welfare_{action}_{agent_id}" or "welfare_{action}_{agent_id}_{queue_id}"
+            parts = data.split("_", 3)  # max 4 parts
             action = parts[1] if len(parts) > 1 else ""
             agent_id = int(parts[2]) if len(parts) > 2 else 0
+            # queue_id is optional (present when approval was registered in autonomy_approval_queue)
+            queue_id = int(parts[3]) if len(parts) > 3 else None
             approved_by = user_info.get("display_name", "Kytran")
 
             if action == "rest8h":
@@ -874,6 +876,23 @@ class TelegramGateway:
                         (agent_id,),
                     )
 
+                    # Mark approval queue row as approved (shows in DHQ Approvals tab)
+                    if queue_id:
+                        cur.execute(
+                            """
+                            UPDATE autonomy_approval_queue
+                               SET status = 'approved',
+                                   approved_at = NOW(),
+                                   execution_result = %s::jsonb,
+                                   updated_at = NOW()
+                             WHERE id = %s
+                            """,
+                            (
+                                json.dumps({"approved_by": approved_by, "action": "rest_8h_granted"}),
+                                queue_id,
+                            ),
+                        )
+
                     conn.commit()
                     logger.info(
                         "[Welfare] %s granted 8h rest for agent %s (id=%d)",
@@ -896,6 +915,35 @@ class TelegramGateway:
                 )
 
             elif action == "dismiss":
+                # Mark queue row as rejected so DHQ Approvals tab clears it
+                if queue_id:
+                    try:
+                        import psycopg2
+                        from psycopg2.extras import RealDictCursor
+
+                        _dc = psycopg2.connect(
+                            host=os.getenv("DB_HOST", "192.168.1.200"),
+                            port=int(os.getenv("DB_PORT", "5432")),
+                            dbname=os.getenv("DB_NAME", "archie"),
+                            user=os.getenv("DB_USER", "archie"),
+                            password=_get_db_password(),
+                            cursor_factory=RealDictCursor,
+                        )
+                        try:
+                            _dcur = _dc.cursor()
+                            _dcur.execute(
+                                """UPDATE autonomy_approval_queue
+                                      SET status='rejected',
+                                          rejected_reason='Dismissed by Kytran via Telegram',
+                                          updated_at=NOW()
+                                    WHERE id=%s""",
+                                (queue_id,),
+                            )
+                            _dc.commit()
+                        finally:
+                            _dc.close()
+                    except Exception as _de:
+                        logger.warning("[Welfare] dismiss queue update failed: %s", _de)
                 await query.edit_message_text(
                     f"🔕 Welfare alert dismissed. No rest scheduled."
                 )

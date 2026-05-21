@@ -1905,6 +1905,24 @@ Respond with ONLY valid JSON:
             },
             department="Engineering & Technology",
         )
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """INSERT INTO task_execution_log
+                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
+                               %s, 'internal', %s, true, %s, 68)""",
+                    (
+                        "D.A.R.W.I.N.",
+                        "D.A.R.W.I.N.",
+                        int((time.time() - start) * 1000),
+                        "research",
+                    ),
+                )
+        except Exception as _tel:
+            logger.debug("[D.A.R.W.I.N.] task_execution_log write failed: %s", _tel)
 
     except Exception as e:
         logger.warning(f"[RepoRelevance] Job failed: {e}")

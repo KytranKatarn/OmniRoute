@@ -342,246 +342,193 @@ def track_agent_hr():
                 },
             )
 
-        # 2b. Overwork: tiered thresholds
-        #   >8h  → auto 30-min rest (recovery buffer, no approval needed)
-        #   >12h → request Kytran approval for 8h rest via Telegram action buttons
+        # 2b. Overwork — hours-based escalation
+        #   8-12h + at task queue limit (5000/5000): K.I.N. workload monitor handles (auto 30-min rest)
+        #   10h+: A.R.C.H.I.E. asks Kytran for approval via Telegram (upsert — no spam)
+        #   12h+: A.R.C.H.I.E. auto-approves immediately and advises Kytran (C.R.E.E.D. compliance)
         cur.execute(
             """
             SELECT ads.agent_id, a.name,
-                   -- Cap duration at hours elapsed today so task-duration sums can't exceed 24h
                    LEAST(ads.total_duration_ms,
                          EXTRACT(EPOCH FROM (NOW() - DATE_TRUNC('day', NOW()))) * 1000
                    ) AS total_duration_ms
             FROM agent_daily_summary ads
             JOIN agents a ON a.id = ads.agent_id
             WHERE ads.summary_date = %s
-              AND ads.total_duration_ms > 28800000
+              AND ads.total_duration_ms > 36000000
               AND a.shift_state NOT IN ('winding_down', 'cooldown', 'barracked', 'off_duty')
         """,
             (today,),
         )
         for row in cur.fetchall():
             hours = round(row["total_duration_ms"] / 3_600_000, 1)
-            is_critical = hours >= 12.0
+            is_auto_approve = hours >= 12.0
 
             alerts_created += _create_hr_alert(
                 cur,
                 row["agent_id"],
                 "overwork",
-                "critical" if is_critical else "warning",
+                "critical" if is_auto_approve else "warning",
                 f"{row['name']}: {hours}h continuous work",
                 f"Agent {row['name']} has worked {hours} hours today. "
-                + ("Kytran approval required for 8h rest." if is_critical else "Consider initiating a rest cycle."),
-                {"work_hours": hours, "requires_approval": is_critical},
+                + (
+                    "A.R.C.H.I.E. enforcing 8h rest (C.R.E.E.D. compliance)."
+                    if is_auto_approve
+                    else "A.R.C.H.I.E. requesting Kytran approval."
+                ),
+                {"work_hours": hours, "auto_approved": is_auto_approve},
             )
 
-            if is_critical:
-                # 12h+: write to autonomy_approval_queue (shows in DHQ Approvals tab)
-                # then send Telegram with action buttons embedding the queue_id
+            if is_auto_approve:
+                # 12h: A.R.C.H.I.E. enforces immediately as COO — C.R.E.E.D. mandatory threshold
+                try:
+                    cur.execute(
+                        """
+                        INSERT INTO agent_rest_cycles
+                            (agent_id, rest_type, reason, started_at, ended_at, initiated_by)
+                        SELECT %s, 'coo_override',
+                               'A.R.C.H.I.E. COO: 12h work threshold — C.R.E.E.D. mandatory rest',
+                               NOW(), NOW() + INTERVAL '8 hours', 'archie_coo'
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM agent_rest_cycles
+                            WHERE agent_id = %s
+                              AND started_at > NOW() - INTERVAL '30 minutes'
+                              AND (ended_at IS NULL OR ended_at > NOW())
+                        )
+                        """,
+                        (row["agent_id"], row["agent_id"]),
+                    )
+                    cur.execute(
+                        "UPDATE agents SET shift_state='winding_down', updated_at=NOW()"
+                        " WHERE id=%s AND shift_state NOT IN ('winding_down','cooldown','barracked','off_duty')",
+                        (row["agent_id"],),
+                    )
+                    cur.execute(
+                        """UPDATE agent_budgets SET current_task_count=0,
+                              last_task_reset_at=NOW(),
+                              task_reset_reason='A.R.C.H.I.E. COO 8h rest — C.R.E.E.D.',
+                              task_reset_by='archie_coo', updated_at=NOW()
+                           WHERE agent_id=%s""",
+                        (row["agent_id"],),
+                    )
+                    # Close any pending approval queue row
+                    cur.execute(
+                        """UPDATE autonomy_approval_queue
+                              SET status='approved', approved_at=NOW(),
+                                  execution_result=%s::jsonb, updated_at=NOW()
+                            WHERE action_type='welfare_rest_8h'
+                              AND action_data->>'agent_id' = %s AND status='pending'""",
+                        (
+                            json.dumps({"approved_by": "A.R.C.H.I.E. (COO)", "reason": "12h threshold — C.R.E.E.D."}),
+                            str(row["agent_id"]),
+                        ),
+                    )
+                    # C.R.E.E.D. governance log
+                    cur.execute(
+                        """INSERT INTO governance_audit_log
+                               (event_category, event_type, action, details, timestamp)
+                           VALUES ('creed_compliance','coo_welfare_override','archie_coo',%s,NOW())""",
+                        (f"A.R.C.H.I.E. COO enforced 8h rest for {row['name']} ({hours}h worked — 12h threshold)",),
+                    )
+                    # Telegram: A.R.C.H.I.E. advises Kytran of her decision
+                    try:
+                        from services.telegram_service import send_info as _archie_coo_send
+
+                        _archie_coo_send(
+                            title=f"⚖️ A.R.C.H.I.E. — Agent Welfare Decision",
+                            message=(
+                                f"I have approved *{row['name']}*'s 8-hour rest cycle as COO.\n\n"
+                                f"{row['name']} has worked *{hours} hours* today, reaching the C.R.E.E.D. "
+                                f"mandatory rest threshold.\n\n"
+                                f"Agent is winding down — returning to full duty in 8 hours. "
+                                f"Decision logged in C.R.E.E.D. governance records.\n\n"
+                                f"_— A.R.C.H.I.E., COO_"
+                            ),
+                            source_agent="A.R.C.H.I.E.",
+                            source_department="Executive Office",
+                        )
+                    except Exception as _tg_err:
+                        logger.warning("[A.R.C.H.I.E. COO] Telegram notify failed: %s", _tg_err)
+                    logger.info("[A.R.C.H.I.E. COO] Enforced 8h rest for %s (%sh)", row["name"], hours)
+                except Exception as _coo_err:
+                    logger.error("[A.R.C.H.I.E. COO] Rest enforcement failed for %s: %s", row["name"], _coo_err)
+
+            else:
+                # 10h-12h: A.R.C.H.I.E. requests Kytran approval (upsert — Telegram only on new alert)
                 _queue_id = None
                 _is_new_alert = False
                 try:
                     _action_data = json.dumps(
                         {"agent_id": row["agent_id"], "agent_name": row["name"], "hours": hours}
                     )
-                    _reason = f"Agent {row['name']} worked {hours}h — K.I.N. recommends 8h rest"
-
-                    # Check for existing pending approval (update it, don't spam new rows)
+                    _reason = (
+                        f"Agent {row['name']} worked {hours}h — A.R.C.H.I.E. requesting approval. "
+                        f"Auto-enforced at 12h."
+                    )
                     cur.execute(
-                        """
-                        SELECT id FROM autonomy_approval_queue
-                        WHERE action_type = 'welfare_rest_8h'
-                          AND action_data->>'agent_id' = %s
-                          AND status = 'pending'
-                        ORDER BY created_at DESC LIMIT 1
-                        """,
+                        """SELECT id FROM autonomy_approval_queue
+                           WHERE action_type='welfare_rest_8h'
+                             AND action_data->>'agent_id'=%s AND status='pending'
+                           ORDER BY created_at DESC LIMIT 1""",
                         (str(row["agent_id"]),),
                     )
                     _existing = cur.fetchone()
-
                     if _existing:
-                        # Update existing row with latest hours — no new Telegram
                         cur.execute(
-                            """
-                            UPDATE autonomy_approval_queue
-                               SET action_data  = %s::jsonb,
-                                   reason       = %s,
-                                   expires_at   = NOW() + INTERVAL '8 hours',
-                                   updated_at   = NOW()
-                             WHERE id = %s
-                            """,
+                            """UPDATE autonomy_approval_queue
+                                  SET action_data=%s::jsonb, reason=%s,
+                                      expires_at=NOW()+INTERVAL '8 hours', updated_at=NOW()
+                                WHERE id=%s""",
                             (_action_data, _reason, _existing["id"]),
                         )
                         _queue_id = _existing["id"]
                         _is_new_alert = False
                     else:
-                        # No pending row — insert fresh and send Telegram
                         cur.execute(
-                            """
-                            INSERT INTO autonomy_approval_queue
-                                (action_type, action_data, tier, priority,
-                                 requested_by, reason, expires_at)
-                            VALUES ('welfare_rest_8h', %s::jsonb, 2, 1, 'K.I.N.', %s,
-                                    NOW() + INTERVAL '8 hours')
-                            RETURNING id
-                            """,
+                            """INSERT INTO autonomy_approval_queue
+                                   (action_type,action_data,tier,priority,requested_by,reason,expires_at)
+                               VALUES ('welfare_rest_8h',%s::jsonb,2,1,'A.R.C.H.I.E.',%s,NOW()+INTERVAL '8 hours')
+                               RETURNING id""",
                             (_action_data, _reason),
                         )
                         _qr = cur.fetchone()
                         _queue_id = _qr["id"] if _qr else None
                         _is_new_alert = True
                 except Exception as _qi_err:
-                    logger.warning("[K.I.N.] Approval queue upsert failed: %s", _qi_err)
-                    _is_new_alert = True  # fallback: try to send Telegram anyway
+                    logger.warning("[A.R.C.H.I.E.] Approval queue upsert failed: %s", _qi_err)
+                    _is_new_alert = True
 
-                # Only send Telegram for NEW alerts, not updates (avoids repeated pings)
                 if _is_new_alert:
-                  try:
-                    from services.telegram_service import send_with_buttons as _welfare_buttons
+                    try:
+                        from services.telegram_service import send_with_buttons as _welfare_buttons
 
-                    # Embed queue_id in callback so Telegram response can update the queue row
-                    _rest_cb = (
-                        f"welfare_rest8h_{row['agent_id']}_{_queue_id}"
-                        if _queue_id
-                        else f"welfare_rest8h_{row['agent_id']}"
-                    )
-                    _dismiss_cb = f"welfare_dismiss_{_queue_id}" if _queue_id else f"welfare_dismiss_{row['agent_id']}"
-
-                    _welfare_buttons(
-                        category="agent",
-                        title=f"🚨 K.I.N. Welfare Alert — {row['name']}",
-                        message=(
-                            f"*{row['name']}* has worked *{hours} hours* straight today.\n\n"
-                            f"K.I.N. recommends an 8-hour rest cycle to prevent burnout. "
-                            f"While resting, queued tasks will be reassigned to backup agents.\n\n"
-                            f"_Tap below to approve or dismiss. Also visible in DHQ Approvals tab._"
-                        ),
-                        buttons=[
-                            {"text": "✅ Grant 8h Rest", "callback_data": _rest_cb},
-                            {"text": "⏰ Snooze 4h", "callback_data": f"welfare_snooze_{row['agent_id']}"},
-                            {"text": "🔕 Dismiss", "callback_data": _dismiss_cb},
-                        ],
-                        source_agent="K.I.N.",
-                        source_department="Human Resources & Culture",
-                    )
-                  except Exception as _ow_err:
-                    logger.warning("[K.I.N.] Welfare action buttons failed: %s", _ow_err)
-            else:
-                # 8h-12h: Auto-initiate 30-min recovery rest (no approval needed)
-                cur.execute(
-                    """
-                    INSERT INTO agent_rest_cycles
-                    (agent_id, rest_type, reason, started_at, ended_at)
-                    SELECT %s, 'automatic', 'Automatic rest: exceeded 8h work threshold',
-                           NOW(), NOW() + INTERVAL '30 minutes'
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM agent_rest_cycles
-                        WHERE agent_id = %s
-                          AND started_at > NOW() - INTERVAL '1 hour'
-                          AND (ended_at IS NULL OR ended_at > NOW())
-                    )
-                """,
-                    (row["agent_id"], row["agent_id"]),
-                )
-
-        # 2b2. A.R.C.H.I.E. COO escalation — auto-approve stale welfare_rest_8h requests
-        #   If Kytran hasn't responded within 2h, A.R.C.H.I.E. enforces the rest
-        #   as a C.R.E.E.D. compliance decision and notifies via Telegram.
-        cur.execute(
-            """
-            SELECT aaq.id, aaq.action_data,
-                   a.id AS agent_id, a.name AS agent_name, a.shift_state
-            FROM autonomy_approval_queue aaq
-            JOIN agents a ON a.id = (aaq.action_data->>'agent_id')::int
-            WHERE aaq.action_type = 'welfare_rest_8h'
-              AND aaq.status = 'pending'
-              AND aaq.created_at < NOW() - INTERVAL '12 hours'
-              AND a.shift_state NOT IN ('winding_down', 'cooldown', 'barracked', 'off_duty')
-            """
-        )
-        for stale in cur.fetchall() or []:
-            try:
-                _sid = stale["id"]
-                _aid = stale["agent_id"]
-                _aname = stale["agent_name"]
-                _ad = stale["action_data"] if isinstance(stale["action_data"], dict) else {}
-                _hours = _ad.get("hours", "12+")
-
-                # Open 8h rest cycle (A.R.C.H.I.E. COO authority)
-                cur.execute(
-                    """
-                    INSERT INTO agent_rest_cycles
-                        (agent_id, rest_type, reason, started_at, ended_at, initiated_by)
-                    SELECT %s, 'coo_override',
-                           'A.R.C.H.I.E. COO auto-approved 8h rest (C.R.E.E.D. compliance — Kytran did not respond within 2h)',
-                           NOW(), NOW() + INTERVAL '8 hours', 'archie_coo'
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM agent_rest_cycles
-                        WHERE agent_id = %s
-                          AND started_at > NOW() - INTERVAL '30 minutes'
-                          AND (ended_at IS NULL OR ended_at > NOW())
-                    )
-                    """,
-                    (_aid, _aid),
-                )
-                cur.execute(
-                    "UPDATE agents SET shift_state='winding_down', updated_at=NOW() WHERE id=%s"
-                    " AND shift_state NOT IN ('winding_down','cooldown','barracked','off_duty')",
-                    (_aid,),
-                )
-                cur.execute(
-                    """UPDATE agent_budgets SET current_task_count=0,
-                          last_task_reset_at=NOW(),
-                          task_reset_reason='A.R.C.H.I.E. COO 8h rest — C.R.E.E.D. compliance',
-                          task_reset_by='archie_coo', updated_at=NOW()
-                       WHERE agent_id=%s""",
-                    (_aid,),
-                )
-                # Mark approval as approved by A.R.C.H.I.E.
-                cur.execute(
-                    """UPDATE autonomy_approval_queue
-                          SET status='approved', approved_at=NOW(),
-                              execution_result=%s::jsonb, updated_at=NOW()
-                        WHERE id=%s""",
-                    (
-                        json.dumps({"approved_by": "A.R.C.H.I.E. (COO)", "reason": "C.R.E.E.D. compliance — 2h escalation"}),
-                        _sid,
-                    ),
-                )
-                # Log to governance audit (C.R.E.E.D.)
-                cur.execute(
-                    """INSERT INTO governance_audit_log
-                           (event_category, event_type, action, details, timestamp)
-                       VALUES ('creed_compliance', 'coo_welfare_override', 'archie_coo',
-                               %s, NOW())""",
-                    (f"A.R.C.H.I.E. COO approved 8h rest for {_aname} ({_hours}h worked) — Kytran non-response >12h",),
-                )
-                # Telegram — A.R.C.H.I.E. announces the decision (she IS privileged)
-                try:
-                    from services.telegram_service import send_info as _archie_send
-
-                    _archie_send(
-                        title=f"⚖️ A.R.C.H.I.E. — COO Welfare Override",
-                        message=(
-                            f"As COO, I am exercising C.R.E.E.D. authority to approve {_aname}'s 8-hour rest cycle.\n\n"
-                            f"{_aname} has worked {_hours}h today without a break. "
-                            f"Kytran did not respond to the welfare alert within 12 hours.\n\n"
-                            f"Agent is now winding down and will return to full duty in 8 hours. "
-                            f"This decision is logged in C.R.E.E.D. governance records.\n\n"
-                            f"_— A.R.C.H.I.E., COO_"
-                        ),
-                        source_agent="A.R.C.H.I.E.",
-                        source_department="Executive Office",
-                    )
-                except Exception as _tg_err:
-                    logger.warning("[K.I.N./A.R.C.H.I.E.] COO Telegram notify failed: %s", _tg_err)
-
-                logger.info(
-                    "[A.R.C.H.I.E. COO] Auto-approved 8h rest for %s (%sh) — CREED compliance",
-                    _aname, _hours
-                )
-            except Exception as _coo_err:
-                logger.error("[A.R.C.H.I.E. COO] Escalation failed for queue %d: %s", stale["id"], _coo_err)
+                        _rest_cb = (
+                            f"welfare_rest8h_{row['agent_id']}_{_queue_id}"
+                            if _queue_id
+                            else f"welfare_rest8h_{row['agent_id']}"
+                        )
+                        _dismiss_cb = (
+                            f"welfare_dismiss_{_queue_id}" if _queue_id else f"welfare_dismiss_{row['agent_id']}"
+                        )
+                        _welfare_buttons(
+                            category="agent",
+                            title=f"⚠️ A.R.C.H.I.E. — Welfare Approval Needed",
+                            message=(
+                                f"*{row['name']}* has worked *{hours} hours* today.\n\n"
+                                f"K.I.N. is monitoring. At *12 hours* I will enforce an 8h rest under C.R.E.E.D. authority.\n\n"
+                                f"You may approve early to protect the agent's wellbeing.\n\n"
+                                f"_Also visible in DHQ → Approvals tab._"
+                            ),
+                            buttons=[
+                                {"text": "✅ Grant 8h Rest Now", "callback_data": _rest_cb},
+                                {"text": "⏰ Continue Monitoring", "callback_data": f"welfare_snooze_{row['agent_id']}"},
+                                {"text": "🔕 Dismiss", "callback_data": _dismiss_cb},
+                            ],
+                            source_agent="A.R.C.H.I.E.",
+                            source_department="Executive Office",
+                        )
+                    except Exception as _ow_err:
+                        logger.warning("[A.R.C.H.I.E.] Welfare approval Telegram failed: %s", _ow_err)
 
         # 2c. Update emotional state based on workload + hours worked + rest recovery
         cur.execute(

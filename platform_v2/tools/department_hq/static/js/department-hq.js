@@ -128,6 +128,8 @@ function switchTab(tab) {
     });
     // Persist active tab so refresh restores it
     try { localStorage.setItem('dhq_active_tab', tab); } catch (_) {}
+    // Update URL hash so hard refresh lands on correct tab (not last-hash)
+    try { history.replaceState(null, '', '#' + tab); } catch (_) {}
     var loaders = {
         'overview':     loadOverview,
         'roster':       loadRoster,

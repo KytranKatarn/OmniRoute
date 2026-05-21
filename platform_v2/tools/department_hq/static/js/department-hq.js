@@ -705,8 +705,15 @@ async function loadKinWelfare() {
         var grid = document.createElement('div');
         grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;';
         agents.forEach(function(a) {
-            var statusColor = a.resting ? '#f59e0b' : (a.at_limit ? '#ef4444' : '#10b981');
-            var statusLabel = a.resting ? '😴 ' + (a.rest_type || 'resting') : (a.at_limit ? '⚠ at limit' : '✓ active');
+            var statusColor = a.resting ? '#f59e0b'
+                : (a.at_limit ? '#ef4444'
+                : (a.overwork_level === 'critical' ? '#ef4444'
+                : (a.overwork_level === 'warning' ? '#f59e0b' : '#10b981')));
+            var statusLabel = a.resting ? '😴 ' + (a.rest_type || 'resting')
+                : (a.at_limit ? '⚠ at limit'
+                : (a.overwork_level === 'critical' ? '🔥 ' + (a.hours_worked_today || 0).toFixed(1) + 'h OVERWORKED'
+                : (a.overwork_level === 'warning' ? '⏱ ' + (a.hours_worked_today || 0).toFixed(1) + 'h today'
+                : '✓ active')));
             var card = document.createElement('div');
             card.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid ' + statusColor + '44;border-radius:6px;padding:10px 12px;min-width:0;overflow:hidden;';
             card.innerHTML = '<div class="kinw-hdr" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
@@ -733,7 +740,13 @@ async function loadKinWelfare() {
                       + '</div>'
                     : (a.at_limit
                         ? '<div style="font-size:0.62rem;color:#f59e0b;margin-top:4px;opacity:0.8;">K.I.N. monitoring · next check ≤10 min</div>'
-                        : ''));
+                        : '')
+                + (a.overwork_level && a.overwork_level !== 'normal' && !a.resting && a.hours_worked_today
+                    ? '<div style="font-size:0.62rem;color:' + statusColor + ';margin-top:4px;">'
+                      + (a.hours_worked_today || 0).toFixed(1) + 'h worked today'
+                      + (a.overwork_level === 'critical' ? ' — 8h rest approval pending' : ' — K.I.N. monitoring')
+                      + '</div>'
+                    : ''));
             // Portrait injected via DOM (not innerHTML) to keep avatar_url out of HTML string
             var kinHdr = card.querySelector('.kinw-hdr');
             if (kinHdr) {

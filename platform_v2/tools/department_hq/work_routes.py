@@ -173,8 +173,8 @@ def register_work_routes(bp, admin_required):
                     "avatar_url": ("/" + r["avatar_path"].lstrip("/") if r.get("avatar_path") else None),
                 }
 
-                # Welfare cards: flagged agents only (resting, at limit, high stress)
-                if is_resting or at_limit or (r["stress"] or 0) > 0.7:
+                # Welfare cards: resting, at task limit, high stress, OR overworked (>8h today)
+                if is_resting or at_limit or (r["stress"] or 0) > 0.7 or overwork_level != "normal":
                     agents.append(agent_data)
 
                 # Workload table: all agents with any activity or task_count > 0

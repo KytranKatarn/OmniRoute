@@ -445,19 +445,61 @@ def track_agent_hr():
                     (row["agent_id"], row["agent_id"]),
                 )
 
-        # 2c. Update emotional state based on workload
+        # 2c. Update emotional state based on workload + hours worked + rest recovery
         cur.execute(
             """
-            SELECT ads.agent_id, ads.utilization_pct, ads.error_rate_pct
+            SELECT ads.agent_id, ads.utilization_pct, ads.error_rate_pct,
+                   ROUND(ads.total_duration_ms / 3600000.0, 1) AS hours_worked_today,
+                   (SELECT COUNT(*) FROM agent_rest_cycles arc
+                    WHERE arc.agent_id = ads.agent_id
+                      AND arc.started_at <= NOW()
+                      AND (arc.ended_at IS NULL OR arc.ended_at > NOW())) AS is_resting
             FROM agent_daily_summary ads
             WHERE ads.summary_date = %s
         """,
             (today,),
         )
         for row in cur.fetchall():
-            stress = min(float(row["utilization_pct"]) / 100, 0.9)
-            energy = max(1.0 - stress * 0.5 - float(row["error_rate_pct"]) / 200, 0.1)
-            mood = "stressed" if stress > 0.8 else "focused" if stress > 0.4 else "relaxed"
+            hours = float(row["hours_worked_today"] or 0)
+            is_resting = int(row["is_resting"] or 0) > 0
+
+            # Base stress from task utilization
+            base_stress = min(float(row["utilization_pct"]) / 100, 0.9)
+
+            # Hours fatigue bonus: more hours worked = more stress
+            if hours >= 12:
+                hours_stress = 0.30
+            elif hours >= 8:
+                hours_stress = 0.20
+            elif hours >= 4:
+                hours_stress = 0.10
+            else:
+                hours_stress = 0.0
+
+            # Rest recovery: active rest cycle lowers stress
+            rest_recovery = 0.20 if is_resting else 0.0
+
+            stress = max(0.0, min(0.95, base_stress + hours_stress - rest_recovery))
+            energy = max(
+                0.1,
+                1.0
+                - stress * 0.5
+                - float(row["error_rate_pct"]) / 200
+                - (hours * 0.01)  # gradual energy drain per hour worked
+                + (0.10 if is_resting else 0.0),  # energy recovery during rest
+            )
+
+            # Mood reflects combined state
+            if is_resting:
+                mood = "recovering"
+            elif stress > 0.85:
+                mood = "exhausted" if hours >= 8 else "stressed"
+            elif stress > 0.6:
+                mood = "stressed"
+            elif stress > 0.4:
+                mood = "focused"
+            else:
+                mood = "relaxed"
 
             update_welfare(
                 row["agent_id"],

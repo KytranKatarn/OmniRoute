@@ -17,6 +17,9 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+_TORONTO = ZoneInfo("America/Toronto")
 from typing import Any, Optional
 
 logger = logging.getLogger("agent_loop")
@@ -235,7 +238,11 @@ def track_agent_hr():
             conn.close()
             return
 
-        today = datetime.now(timezone.utc).date()
+        # Use EDT (America/Toronto) date so the welfare day aligns with
+        # Kytran's actual calendar day.  Using UTC.date() rolls over at 8 pm
+        # EDT (midnight UTC), making the overwork check go blind for agents
+        # who accumulated hours before that point.
+        today = datetime.now(_TORONTO).date()
 
         # 1. Aggregate today's task_execution_log into agent_daily_summary
         cur.execute(
@@ -250,7 +257,7 @@ def track_agent_hr():
                    ARRAY_AGG(DISTINCT module_source) FILTER (WHERE module_source IS NOT NULL) as modules,
                    ARRAY_AGG(DISTINCT capability) FILTER (WHERE capability IS NOT NULL) as capabilities
             FROM task_execution_log
-            WHERE created_at::date = %s
+            WHERE (created_at AT TIME ZONE 'America/Toronto')::date = %s
               AND agent_id IS NOT NULL
               AND COALESCE(module_source, '') != 'fleet_warmup'
             GROUP BY agent_id
@@ -266,9 +273,7 @@ def track_agent_hr():
 
             # Calculate utilization
             hours_elapsed = max(
-                (
-                    datetime.now(timezone.utc) - datetime.combine(today, datetime.min.time(), timezone.utc)
-                ).total_seconds()
+                (datetime.now(_TORONTO) - datetime.combine(today, datetime.min.time(), _TORONTO)).total_seconds()
                 / 3600,
                 0.1,
             )
@@ -350,7 +355,10 @@ def track_agent_hr():
             """
             SELECT ads.agent_id, a.name,
                    LEAST(ads.total_duration_ms,
-                         EXTRACT(EPOCH FROM (NOW() - DATE_TRUNC('day', NOW()))) * 1000
+                         EXTRACT(EPOCH FROM (
+                             NOW() AT TIME ZONE 'America/Toronto'
+                             - DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Toronto')
+                         )) * 1000
                    ) AS total_duration_ms
             FROM agent_daily_summary ads
             JOIN agents a ON a.id = ads.agent_id
@@ -398,10 +406,12 @@ def track_agent_hr():
                         """,
                         (row["agent_id"], row["agent_id"]),
                     )
-                    cur.execute(
-                        "UPDATE agents SET shift_state='winding_down', updated_at=NOW()"
-                        " WHERE id=%s AND shift_state NOT IN ('winding_down','cooldown','barracked','off_duty')",
-                        (row["agent_id"],),
+                    from services.agent_service import transition_shift_state as _ts
+
+                    _ts(
+                        row["agent_id"],
+                        "winding_down",
+                        "A.R.C.H.I.E. COO: 12h welfare threshold — C.R.E.E.D. mandatory rest",
                     )
                     cur.execute(
                         """UPDATE agent_budgets SET current_task_count=0,
@@ -458,9 +468,7 @@ def track_agent_hr():
                 _queue_id = None
                 _is_new_alert = False
                 try:
-                    _action_data = json.dumps(
-                        {"agent_id": row["agent_id"], "agent_name": row["name"], "hours": hours}
-                    )
+                    _action_data = json.dumps({"agent_id": row["agent_id"], "agent_name": row["name"], "hours": hours})
                     _reason = (
                         f"Agent {row['name']} worked {hours}h — A.R.C.H.I.E. requesting approval. "
                         f"Auto-enforced at 12h."
@@ -521,7 +529,10 @@ def track_agent_hr():
                             ),
                             buttons=[
                                 {"text": "✅ Grant 8h Rest Now", "callback_data": _rest_cb},
-                                {"text": "⏰ Continue Monitoring", "callback_data": f"welfare_snooze_{row['agent_id']}"},
+                                {
+                                    "text": "⏰ Continue Monitoring",
+                                    "callback_data": f"welfare_snooze_{row['agent_id']}",
+                                },
                                 {"text": "🔕 Dismiss", "callback_data": _dismiss_cb},
                             ],
                             source_agent="A.R.C.H.I.E.",
@@ -534,7 +545,14 @@ def track_agent_hr():
         cur.execute(
             """
             SELECT ads.agent_id, ads.utilization_pct, ads.error_rate_pct,
-                   ROUND(ads.total_duration_ms / 3600000.0, 1) AS hours_worked_today,
+                   ROUND(
+                       LEAST(ads.total_duration_ms,
+                           EXTRACT(EPOCH FROM (
+                               NOW() AT TIME ZONE 'America/Toronto'
+                               - DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Toronto')
+                           )) * 1000
+                       ) / 3600000.0, 1
+                   ) AS hours_worked_today,
                    (SELECT COUNT(*) FROM agent_rest_cycles arc
                     WHERE arc.agent_id = ads.agent_id
                       AND arc.started_at <= NOW()

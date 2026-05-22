@@ -2587,13 +2587,18 @@ def _get_agent_models():
     # Always include infrastructure models regardless of agent assignment
     infra_models = {"arctic-embed-cpu", "qwen25-classify", "minicpm-v-cpu"}
 
+    # Models that must NOT be pre-loaded during warmup — cold-load on first dispatch instead.
+    # qwen2.5vl:7b  — vision model; HTTP 500 on /api/generate without an image payload
+    # dolphin3:latest — consistently times out (>300s cold load); blocks all subsequent warmup
+    WARMUP_SKIP = {"qwen2.5vl:7b", "dolphin3:latest"}
+
     # Build load list: infrastructure first, then agent models by dispatch priority
     models_to_load = []
     for m in infra_models:
         endpoint = "embed" if "embed" in m else "generate"
         models_to_load.append((m, endpoint))
     for m in agent_models_ordered:
-        if m not in infra_models:
+        if m not in infra_models and m not in WARMUP_SKIP:
             endpoint = "embed" if "embed" in m else "generate"
             models_to_load.append((m, endpoint))
     return models_to_load

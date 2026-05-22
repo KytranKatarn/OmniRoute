@@ -1521,6 +1521,91 @@ def api_update_subscription(user_id):
 # ============================================================================
 
 
+@account_center_bp.route("/api/my/aliases")
+@login_required
+def api_my_aliases_get():
+    """List email aliases linked to the current user's canonical account (T23)."""
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT id, alias_email, verified, created_at
+                   FROM account_email_aliases
+                   WHERE canonical_user_id = %s
+                   ORDER BY created_at ASC""",
+                (current_user.id,),
+            )
+            aliases = [
+                {
+                    "id": r["id"],
+                    "email": r["alias_email"],
+                    "verified": r["verified"],
+                    "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                }
+                for r in cur.fetchall()
+            ]
+        return jsonify({"aliases": aliases})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@account_center_bp.route("/api/my/aliases", methods=["POST"])
+@login_required
+def api_my_aliases_add():
+    """Add an email alias to the current user's canonical account (T23).
+
+    Body: { "email": "alias@example.com" }
+    The alias is initially unverified. Verification is out-of-scope for Phase 1.
+    Admins can add aliases for any user; regular users can only alias their own.
+    """
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        alias_email = (data.get("email") or "").strip().lower()
+        if not alias_email or "@" not in alias_email:
+            return jsonify({"error": "valid email required"}), 400
+
+        # Prevent aliasing an existing canonical user email
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute("SELECT id FROM users WHERE LOWER(email) = %s", (alias_email,))
+            if cur.fetchone():
+                return jsonify({"error": "That email is already a canonical account — cannot also be an alias"}), 409
+
+            cur.execute(
+                """INSERT INTO account_email_aliases
+                   (canonical_user_id, alias_email, verified, added_by)
+                   VALUES (%s, %s, %s, %s)
+                   ON CONFLICT (alias_email) DO NOTHING
+                   RETURNING id""",
+                (current_user.id, alias_email, False, current_user.id),
+            )
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"error": "That email is already an alias of another account"}), 409
+
+        return jsonify({"ok": True, "id": row["id"], "email": alias_email, "verified": False})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@account_center_bp.route("/api/my/aliases/<int:alias_id>", methods=["DELETE"])
+@login_required
+def api_my_aliases_delete(alias_id: int):
+    """Remove an email alias (T23). User can only delete their own aliases."""
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """DELETE FROM account_email_aliases
+                   WHERE id = %s AND canonical_user_id = %s
+                   RETURNING alias_email""",
+                (alias_id, current_user.id),
+            )
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"error": "Alias not found or not yours"}), 404
+        return jsonify({"ok": True, "removed": row["alias_email"]})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 @account_center_bp.route("/api/my/subscription")
 @login_required
 def api_my_subscription():

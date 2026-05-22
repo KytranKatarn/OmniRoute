@@ -37,7 +37,8 @@
         ("api-keys", "API Keys", "key"),
         ("bulk", "Bulk Ops", "layers"),
         ("activity", "Activity", "activity"),
-        ("organizations", "Orgs", "building")
+        ("organizations", "Orgs", "building"),
+        ("aliases", "Linked Accounts", "link-2")
     ] %}
     {% include 'includes/lcars-header.html' %}
 
@@ -2057,6 +2058,45 @@ document.addEventListener('DOMContentLoaded', function() { demoLoadLinks(); });
     </div>
   </div>
 </div>
+
+{# ── Linked Accounts Tab pane (T23) ── #}
+<div class="tab-content" id="tab-aliases">
+  <div style="padding:1.5rem 2rem;max-width:720px;">
+    <h2 style="font-family:'Orbitron',sans-serif;font-size:0.9rem;color:#ef4444;letter-spacing:2px;margin:0 0 0.4rem;">🔗 LINKED EMAIL ACCOUNTS</h2>
+    <p style="color:var(--archie-text-muted,#6b7280);font-size:0.82rem;line-height:1.6;margin:0 0 1.5rem;">
+      Link alternate email addresses to your canonical account.
+      Downstream products (Gov Watch, KBS, etc.) will recognise all linked emails as the same identity,
+      eliminating duplicate profiles and data drift.
+    </p>
+
+    <div style="background:var(--archie-surface-2,#111827);border:1px solid var(--archie-border,#1f2937);
+                border-radius:8px;padding:1.2rem;margin-bottom:1.5rem;">
+      <h3 style="font-family:'Orbitron',sans-serif;font-size:0.72rem;color:#ef4444;letter-spacing:1.5px;margin:0 0 0.75rem;">CURRENT ALIASES</h3>
+      <div id="alias-list" style="min-height:2.5rem;color:var(--archie-text-muted,#6b7280);font-size:0.82rem;">Loading&hellip;</div>
+    </div>
+
+    <div style="background:var(--archie-surface-2,#111827);border:1px solid var(--archie-border,#1f2937);
+                border-radius:8px;padding:1.2rem;">
+      <h3 style="font-family:'Orbitron',sans-serif;font-size:0.72rem;color:#ef4444;letter-spacing:1.5px;margin:0 0 0.75rem;">ADD ALIAS</h3>
+      <form id="alias-add-form" style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;">
+        <input id="alias-email-input" type="email" placeholder="alternate@example.com" required
+          style="flex:1;min-width:220px;background:var(--archie-bg,#0a0f1a);border:1px solid var(--archie-border,#1f2937);
+                 border-radius:6px;color:#e5e7eb;font-family:'IBM Plex Mono',monospace;font-size:0.83rem;
+                 padding:0.55rem 0.8rem;outline:none;">
+        <button type="submit"
+          style="background:#ef4444;color:#fff;font-family:'Orbitron',sans-serif;font-size:0.7rem;
+                 font-weight:700;letter-spacing:1.5px;border:0;border-radius:6px;padding:0.55rem 1.1rem;
+                 cursor:pointer;white-space:nowrap;">ADD ALIAS</button>
+      </form>
+      <div id="alias-msg" style="font-size:0.78rem;margin-top:0.5rem;min-height:1.2rem;"></div>
+      <p style="color:var(--archie-text-muted,#6b7280);font-size:0.72rem;margin:0.75rem 0 0;">
+        Phase 1: aliases are added unverified. Email verification ships in Phase 2 (T24).
+        Admin-set aliases (like Kytran&rsquo;s gmail) are pre-verified.
+      </p>
+    </div>
+  </div>
+</div>
+
 <script>
 // ---- Partner Admin ----
 var _partnerStep = 1;
@@ -2251,5 +2291,122 @@ function partnerRevoke(id) {
 }
 
 document.addEventListener('DOMContentLoaded', function() { partnerLoadList(); });
+</script>
+
+{# ── Linked Accounts Tab (T23 — account_email_aliases) ── #}
+<script>
+(function () {
+  var aliasListEl, aliasFormEl, aliasInputEl, aliasMsgEl;
+
+  function loadAliases() {
+    if (!aliasListEl) return;
+    aliasListEl.textContent = 'Loading…';
+    fetch('/tools/account-center/api/my/aliases', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        aliasListEl.textContent = '';
+        if (!d.aliases || !d.aliases.length) {
+          var em = document.createElement('p');
+          em.style.cssText = 'color:var(--archie-text-muted,#6b7280);font-size:0.85rem;';
+          em.textContent = 'No linked email aliases yet.';
+          aliasListEl.appendChild(em);
+          return;
+        }
+        d.aliases.forEach(function (a) {
+          var row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;gap:1rem;padding:0.6rem 0.8rem;' +
+            'background:var(--archie-surface-2,#111827);border:1px solid var(--archie-border,#1f2937);' +
+            'border-radius:6px;margin-bottom:0.4rem;';
+
+          var emailSpan = document.createElement('span');
+          emailSpan.style.cssText = 'flex:1;font-family:"IBM Plex Mono",monospace;font-size:0.83rem;color:#e5e7eb;';
+          emailSpan.textContent = a.email;
+          row.appendChild(emailSpan);
+
+          if (a.verified) {
+            var badge = document.createElement('span');
+            badge.style.cssText = 'font-size:0.68rem;color:#22c55e;border:1px solid #22c55e;' +
+              'padding:2px 7px;border-radius:4px;white-space:nowrap;';
+            badge.textContent = 'VERIFIED';
+            row.appendChild(badge);
+          } else {
+            var ubadge = document.createElement('span');
+            ubadge.style.cssText = 'font-size:0.68rem;color:#fbbf24;border:1px solid #fbbf24;' +
+              'padding:2px 7px;border-radius:4px;white-space:nowrap;';
+            ubadge.textContent = 'UNVERIFIED';
+            row.appendChild(ubadge);
+          }
+
+          var del = document.createElement('button');
+          del.style.cssText = 'background:transparent;border:1px solid #ef4444;color:#ef4444;' +
+            'font-size:0.7rem;padding:3px 10px;border-radius:4px;cursor:pointer;white-space:nowrap;';
+          del.textContent = 'Remove';
+          del.addEventListener('click', function () { removeAlias(a.id, a.email); });
+          row.appendChild(del);
+          aliasListEl.appendChild(row);
+        });
+      })
+      .catch(function () {
+        aliasListEl.textContent = 'Failed to load aliases.';
+      });
+  }
+
+  function removeAlias(id, email) {
+    if (!confirm('Remove alias ' + email + '?')) return;
+    fetch('/tools/account-center/api/my/aliases/' + id, { method: 'DELETE', credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error) { showMsg(d.error, true); return; }
+        showMsg('Removed ' + email, false);
+        loadAliases();
+      })
+      .catch(function (e) { showMsg(e.message, true); });
+  }
+
+  function addAlias() {
+    var email = aliasInputEl ? aliasInputEl.value.trim() : '';
+    if (!email || email.indexOf('@') === -1) { showMsg('Enter a valid email', true); return; }
+    fetch('/tools/account-center/api/my/aliases', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error) { showMsg(d.error, true); return; }
+        if (aliasInputEl) aliasInputEl.value = '';
+        showMsg('Alias added (unverified — verification email coming in Phase 2)', false);
+        loadAliases();
+      })
+      .catch(function (e) { showMsg(e.message, true); });
+  }
+
+  function showMsg(msg, isError) {
+    if (!aliasMsgEl) return;
+    aliasMsgEl.textContent = msg;
+    aliasMsgEl.style.color = isError ? '#f87171' : '#22c55e';
+    setTimeout(function () { if (aliasMsgEl) aliasMsgEl.textContent = ''; }, 4000);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    aliasListEl  = document.getElementById('alias-list');
+    aliasFormEl  = document.getElementById('alias-add-form');
+    aliasInputEl = document.getElementById('alias-email-input');
+    aliasMsgEl   = document.getElementById('alias-msg');
+
+    if (aliasFormEl) {
+      aliasFormEl.addEventListener('submit', function (e) { e.preventDefault(); addAlias(); });
+    }
+
+    // Load on tab show
+    var aliasTab = document.querySelector('[data-tab="aliases"]');
+    if (aliasTab) {
+      aliasTab.addEventListener('click', function () {
+        setTimeout(loadAliases, 100);
+      });
+    }
+  });
+})();
 </script>
 {% endblock %}

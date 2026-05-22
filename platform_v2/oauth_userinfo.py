@@ -104,14 +104,30 @@ def userinfo():
 
     subscription_tier = user.get("subscription_tier") or "free"
     is_owner = subscription_tier in ("kytran", "owner") or user["role"] == "admin"
+    is_admin = user["role"] in ("admin", "super_admin")
+
+    # T23: Fetch email aliases for canonical identity
+    email_aliases: list[str] = []
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT alias_email FROM account_email_aliases WHERE canonical_user_id = %s ORDER BY created_at",
+                (user_id,),
+            )
+            email_aliases = [r["alias_email"] for r in cur.fetchall()]
+    except Exception:
+        pass  # table may not exist on older deployments — degrade gracefully
 
     return jsonify(
         {
             "sub": str(user["id"]),
+            "account_id": user["id"],  # T23: canonical identity key for downstream products
+            "email_aliases": email_aliases,  # T23: all linked emails resolve to this account
             "username": user["username"],
             "email": user["email"] or "",
             "name": user["username"],
             "role": user["role"],
+            "is_admin": is_admin,  # T23: explicit boolean for downstream RBAC
             "subscription_tier": subscription_tier,
             "tier": subscription_tier,
             "is_owner": is_owner,

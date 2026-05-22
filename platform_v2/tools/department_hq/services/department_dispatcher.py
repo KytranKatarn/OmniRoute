@@ -2057,7 +2057,7 @@ class DepartmentDispatcher:
             resp = requests.post(
                 _gen_url,
                 json=payload,
-                timeout=120,  # VPS CPU cold load can take 40-90s for small models
+                timeout=240,  # Starship model swaps (evict+load 7B) can take 2-3 min cold
             )
 
             if resp.status_code == 200:
@@ -2107,7 +2107,7 @@ class DepartmentDispatcher:
                 return None
 
         except requests.exceptions.Timeout:
-            logger.warning(f"[BridgeDispatcher] Fleet dispatch timeout (15s) to " f"{hostname}:{port} model={model}")
+            logger.warning(f"[BridgeDispatcher] Fleet dispatch timeout (240s) to " f"{hostname}:{port} model={model}")
             return None
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] Fleet dispatch failed: {e}")

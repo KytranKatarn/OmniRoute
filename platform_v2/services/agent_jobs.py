@@ -1566,7 +1566,7 @@ def check_counter_drift():
                     f"agent_budgets.current_task_count={row['current_task_count']} but "
                     f"bridge_jobs shows {row['live_count']} active jobs for {display} "
                     f"({row['department']}). Counter {direction} reality by {abs(drift)}. "
-                    "This observer does not self-correct — investigate decrement path."
+                    f"Counter auto-corrected to {row['live_count']}. Investigate decrement path to prevent recurrence."
                 ),
                 {
                     "department": row["department"],
@@ -1577,7 +1577,15 @@ def check_counter_drift():
             )
             alerts_created += created
 
-        if alerts_created:
+            # Self-correct: align stored counter to bridge_jobs reality.
+            # The alert notifies Kytran; this correction prevents cascading effects
+            # (welfare gates, capacity limits) from acting on stale data.
+            cur.execute(
+                "UPDATE agent_budgets SET current_task_count = %s, updated_at = NOW() WHERE agent_id = %s",
+                (row["live_count"], row["id"]),
+            )
+
+        if drifted:
             conn.commit()
 
         duration_ms = int((time.time() - start) * 1000)

@@ -160,66 +160,183 @@ def _scrape_profile(slug: str) -> dict:
     return result
 
 
-def _scrape_committees() -> dict[int, list[dict]]:
-    """Fetch all Senate committees and return {senator_id: [committee_dicts]}.
+def _scrape_committees() -> dict[str, list[dict]]:
+    """Fetch all Senate committees and return {senator_slug: [committee_dicts]}.
 
-    Committee member lists live on each committee page, not senator profile pages.
-    We fetch the full committee listing, then visit each committee's members page.
+    sencanada.ca is now fully JavaScript-rendered — committee member pages
+    (/committees/ABBR/members/) return 404 or an error page.  Members are visible
+    on the base committee URL (/committees/ABBR/) after JS execution.
+
+    Requires: playwright + system Chrome at /usr/bin/google-chrome
+    Install:  pip install playwright && playwright install chromium
     """
-    # Get list of active committees
-    list_url = f"{_SEN_BASE}/en/committees/"
     try:
-        resp = requests.get(list_url, headers=_HEADERS, timeout=15)
-        resp.raise_for_status()
-    except Exception as exc:
-        logger.warning("Committee list fetch failed: %s", exc)
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        logger.error(
+            "playwright not installed — cannot scrape committees. "
+            "Run: pip install playwright && playwright install chromium"
+        )
         return {}
 
-    soup = BeautifulSoup(resp.text, "html.parser")
-    # Find committee abbreviation links — href pattern /en/committees/XXXX/
-    comm_links = {}
-    for a in soup.find_all("a", href=re.compile(r"/en/committees/[A-Z]{3,6}/?$", re.IGNORECASE)):
-        abbr_m = re.search(r"/committees/([A-Z]{3,6})/?$", a["href"], re.IGNORECASE)
-        if abbr_m:
-            abbr = abbr_m.group(1).upper()
-            name = a.get_text(" ", strip=True)
-            if name and abbr not in comm_links:
-                comm_links[abbr] = {"name": name, "url": a["href"]}
+    # Hard-coded fallback list — used when index-page discovery finds < 5 committees.
+    # Reflects 42nd Parliament standing committees (update if committees are renamed).
+    _FALLBACK_COMMITTEES: dict[str, str] = {
+        "AGFO": "Agriculture and Forestry",
+        "BANC": "Banking, Commerce and the Economy",
+        "CIBA": "Internal Economy, Budgets and Administration",
+        "ENEV": "Energy, the Environment and Natural Resources",
+        "ETHE": "Ethics and Conflict of Interest for Senators",
+        "FORE": "Foreign Affairs and International Trade",
+        "HUMA": "Social Affairs, Science and Technology",
+        "LCJC": "Legal and Constitutional Affairs",
+        "NFFN": "National Finance",
+        "OLLO": "Official Languages",
+        "PAHO": "Indigenous Peoples",
+        "RIDR": "Human Rights",
+        "RPRD": "Rules, Procedures and the Rights of Parliament",
+        "SECD": "National Security, Defence and Veterans",
+        "SOCI": "Social Affairs, Science and Technology",
+        "TRCM": "Transport and Communications",
+        "VEAC": "Veterans Affairs",
+    }
 
-    if not comm_links:
-        logger.warning("No committees found on %s", list_url)
-        return {}
-
-    logger.info("Found %d committees to scrape for members", len(comm_links))
-    # slug → list of {abbr, name, role}
     slug_committees: dict[str, list] = {}
+    comm_abbrs: dict[str, str] = {}
 
-    for abbr, cinfo in comm_links.items():
-        members_url = f"{_SEN_BASE}/en/committees/{abbr.lower()}/members/"
+    _chrome_args = [
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--headless",
+        "--disable-gpu",
+    ]
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path="/usr/bin/google-chrome",
+            args=_chrome_args,
+        )
         try:
-            mresp = requests.get(members_url, headers=_HEADERS, timeout=15)
-            if mresp.status_code != 200:
-                continue
-            msoup = BeautifulSoup(mresp.text, "html.parser")
-            for a in msoup.find_all("a", href=re.compile(r"/senators/[\w-]+/?$", re.IGNORECASE)):
-                slug_m = re.search(r"/senators/([\w-]+)/?$", a["href"], re.IGNORECASE)
-                if not slug_m:
-                    continue
-                sen_slug = slug_m.group(1).lower()
-                role = "member"
-                surrounding = (a.parent or a).get_text(strip=True).lower()
-                if "deputy chair" in surrounding or "vice-chair" in surrounding:
-                    role = "deputy_chair"
-                elif "chair" in surrounding:
-                    role = "chair"
-                slug_committees.setdefault(sen_slug, []).append(
-                    {"abbr": abbr, "name": cinfo["name"], "role": role}
-                )
-        except Exception as exc:
-            logger.warning("Committee members fetch failed %s: %s", abbr, exc)
-        time.sleep(0.5)
+            page = browser.new_page()
+            page.set_extra_http_headers(_HEADERS)
 
-    logger.info("Committee memberships scraped for %d senators", len(slug_committees))
+            # ── Step 1: Discover committee abbreviations from index page ──────
+            index_url = f"{_SEN_BASE}/en/committees/"
+            logger.info("Fetching committee index via Playwright: %s", index_url)
+            page.goto(index_url, wait_until="networkidle", timeout=30000)
+
+            for link in page.query_selector_all("a[href]"):
+                href = link.get_attribute("href") or ""
+                # Match /en/committees/AGFO/ or /en/committees/agfo (upper or lower)
+                m = re.search(r"/committees/([A-Za-z]{2,8})/?(?:$|\?|#)", href)
+                if not m:
+                    continue
+                abbr = m.group(1).upper()
+                # Skip navigation / language fragments
+                if abbr in {"EN", "FR", "HOME", "BACK", "NEXT", "PREV", "ALL"}:
+                    continue
+                if len(abbr) < 2:
+                    continue
+                name_text = (link.inner_text() or "").strip()
+                if name_text and abbr not in comm_abbrs:
+                    comm_abbrs[abbr] = name_text
+
+            logger.info(
+                "Index discovery: %d committees found — %s",
+                len(comm_abbrs),
+                sorted(comm_abbrs.keys()),
+            )
+
+            if len(comm_abbrs) < 5:
+                logger.warning(
+                    "Fewer than 5 committees discovered (got %d); switching to fallback list",
+                    len(comm_abbrs),
+                )
+                comm_abbrs = _FALLBACK_COMMITTEES.copy()
+
+            # ── Step 2: Scrape each committee's base page for members ─────────
+            for abbr, comm_name in comm_abbrs.items():
+                comm_url = f"{_SEN_BASE}/en/committees/{abbr.lower()}/"
+                logger.info("Scraping members: %s → %s", abbr, comm_url)
+                try:
+                    page.goto(comm_url, wait_until="networkidle", timeout=20000)
+
+                    # Bail if the page returned an error
+                    title = (page.title() or "").lower()
+                    if "error" in title or "not found" in title or "404" in title:
+                        logger.warning("  %s → error page ('%s'), skipping", abbr, page.title())
+                        continue
+
+                    # Navigate to MEMBERSHIP tab if present.
+                    # sencanada.ca uses ?v=committee-members query param (not a path),
+                    # so we extract the href and goto() it — more reliable than click().
+                    membership_href = None
+                    for link in page.query_selector_all("a[href*='committees']"):
+                        txt = (link.inner_text() or "").strip().upper()
+                        if txt in ("MEMBERSHIP", "MEMBERS"):
+                            membership_href = link.get_attribute("href")
+                            break
+                    if membership_href:
+                        mem_url = (
+                            membership_href
+                            if membership_href.startswith("http")
+                            else f"{_SEN_BASE}{membership_href}"
+                        )
+                        try:
+                            page.goto(mem_url, wait_until="networkidle", timeout=15000)
+                        except Exception as exc:
+                            logger.warning("  %s → MEMBERSHIP nav failed: %s", abbr, exc)
+
+                    # Extract senator links
+                    seen: set[str] = set()
+                    member_count = 0
+
+                    for link in page.query_selector_all("a[href*='/senators/']"):
+                        href = link.get_attribute("href") or ""
+                        slug_m = re.search(r"/senators/([\w-]+)/?$", href, re.IGNORECASE)
+                        if not slug_m:
+                            continue
+                        sen_slug = slug_m.group(1).lower()
+                        if sen_slug in seen:
+                            continue
+                        seen.add(sen_slug)
+
+                        # Determine role from nearest block container
+                        role = "member"
+                        try:
+                            ctx = link.evaluate(
+                                "(el) => {"
+                                "  const p = el.closest('li, tr, [class*=member], [class*=senator], [class*=card]');"
+                                "  return (p || el.parentElement || el).textContent || '';"
+                                "}"
+                            )
+                            ctx_l = ctx.lower()
+                            if "deputy chair" in ctx_l or "vice-chair" in ctx_l or "vice chair" in ctx_l:
+                                role = "deputy_chair"
+                            elif "chair" in ctx_l:
+                                role = "chair"
+                        except Exception:
+                            pass
+
+                        slug_committees.setdefault(sen_slug, []).append(
+                            {"abbr": abbr, "name": comm_name, "role": role}
+                        )
+                        member_count += 1
+
+                    logger.info("  %s: %d unique members", abbr, member_count)
+
+                except Exception as exc:
+                    logger.warning("Failed to scrape committee %s: %s", abbr, exc)
+
+                time.sleep(0.5)
+
+        finally:
+            browser.close()
+
+    logger.info(
+        "Committee scrape complete — %d senators with at least one membership",
+        len(slug_committees),
+    )
     return slug_committees
 
 

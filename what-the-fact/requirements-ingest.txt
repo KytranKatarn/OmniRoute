@@ -1,4 +1,6 @@
 # Heavy ML dependencies for wtf-ingest only.
+# NOTE: senators.py committee scraper requires playwright + Chrome (hub only — not installed in container).
+# Hub install: pip install playwright && playwright install chromium  (already done — system Chrome at /usr/bin/google-chrome)
 # Consumer + tech containers MUST NOT install these — keeps their images small.
 # Added 2026-05-17 for #2136 (DistilBERT zero-shot bias scoring v2).
 

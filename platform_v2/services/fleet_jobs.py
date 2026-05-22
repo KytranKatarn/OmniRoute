@@ -284,7 +284,7 @@ def check_standalone_health():
         {
             "name": "Kytran System Operations",
             "url": os.getenv("STANDALONE_SYSOPS_URL", "https://server.kytranempowerment.com"),
-            "health_path": "/dashboard/api/health",
+            "health_path": "/health",  # /dashboard/api/health returns 404; /health is correct
         },
     ]
 

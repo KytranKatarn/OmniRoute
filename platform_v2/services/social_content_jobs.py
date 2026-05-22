@@ -184,7 +184,8 @@ def _call_kbs_maintenance(endpoint: str) -> dict:
 def refresh_social_tokens() -> None:
     """Refresh expiring OAuth tokens for all tenants — runs every 90 minutes."""
     logger.info("[SocialJobs] Token refresh starting")
-    result = _call_kbs_maintenance("/api/social/refresh-tokens")
+    # KBS plugins are registered at /plugins/{slug}
+    result = _call_kbs_maintenance("/plugins/social-media/api/social/refresh-tokens")
     logger.info(
         "[SocialJobs] Token refresh done — refreshed=%s errors=%s", result.get("refreshed", 0), result.get("errors", 0)
     )
@@ -192,7 +193,7 @@ def refresh_social_tokens() -> None:
 
 def publish_scheduled_posts() -> None:
     """Publish due scheduled posts — runs every 5 minutes."""
-    result = _call_kbs_maintenance("/api/social/publish-scheduled")
+    result = _call_kbs_maintenance("/plugins/social-media/api/social/publish-scheduled")
     published = result.get("published", 0)
     if published:
         logger.info("[SocialJobs] Scheduled publisher: %d posts published", published)

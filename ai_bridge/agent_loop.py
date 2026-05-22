@@ -5381,7 +5381,6 @@ class AgentLoop:
                 processed,
                 0,
                 elapsed,
-                department="Engineering & Technology",
             )
 
         except Exception as e:
@@ -5393,7 +5392,6 @@ class AgentLoop:
                 1,
                 elapsed,
                 error_message=str(e),
-                department="Engineering & Technology",
             )
 
     # ------------------------------------------------------------------
@@ -6134,7 +6132,10 @@ class AgentLoop:
 
             ram_free = psutil.virtual_memory().available / (1024**3)
             reloaded = 0
-            for model_name in missing:
+            # Cap warmup to 5 models per run so the job stays under ~15 min even when
+            # Ollama is under load. Remaining models get retried on the next 30-min cycle.
+            MAX_WARMUP_PER_RUN = 5
+            for model_name in list(missing)[:MAX_WARMUP_PER_RUN]:
                 ram_free = psutil.virtual_memory().available / (1024**3)
                 if ram_free < 10:
                     break
@@ -6153,7 +6154,9 @@ class AgentLoop:
                         if not use_gpu:
                             opts["num_gpu"] = 0
                         data = {"model": model_name, "prompt": "health", "stream": False, "options": opts, "keep_alive": "15m"}
-                    timeout = 600 if "coder" in model_name else 300
+                    # Reduced from 600/300s: prevents the job from blocking for 65+ min
+                    # when Ollama is under load. Large models retried next 30-min cycle.
+                    timeout = 180 if "coder" in model_name else 90
                     r = req.post(f"{ollama_host}/api/{endpoint}", json=data, timeout=timeout)
                     if r.status_code == 200:
                         reloaded += 1

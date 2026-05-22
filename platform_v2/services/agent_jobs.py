@@ -369,7 +369,9 @@ def track_agent_hr():
             (today,),
         )
         for row in cur.fetchall():
-            hours = round(row["total_duration_ms"] / 3_600_000, 1)
+            # float() cast: psycopg2 returns BIGINT/NUMERIC as Decimal, which
+            # breaks json.dumps() inside _create_hr_alert (not JSON serializable).
+            hours = float(round(row["total_duration_ms"] / 3_600_000, 1))
             is_auto_approve = hours >= 12.0
 
             alerts_created += _create_hr_alert(

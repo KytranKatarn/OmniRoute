@@ -840,7 +840,7 @@ class TelegramGateway:
                                'Kytran approved 8h rest via Telegram (overwork >12h)',
                                NOW(), NOW() + INTERVAL '8 hours',
                                'telegram_approval',
-                               '{"approved_by": "%s"}'::jsonb, 0.9, 0.2
+                               %s::jsonb, 0.9, 0.2
                         WHERE NOT EXISTS (
                             SELECT 1 FROM agent_rest_cycles
                             WHERE agent_id = %s
@@ -848,7 +848,7 @@ class TelegramGateway:
                               AND (ended_at IS NULL OR ended_at > NOW())
                         )
                         """,
-                        (agent_id, approved_by, agent_id),
+                        (agent_id, json.dumps({"approved_by": approved_by}), agent_id),
                     )
 
                     # Transition agent to winding_down (completes current tasks, then rests)

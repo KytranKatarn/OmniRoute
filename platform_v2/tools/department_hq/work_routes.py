@@ -84,21 +84,37 @@ def register_work_routes(bp, admin_required):
                 )
                 velocity_map = {r["agent_name"]: r for r in (cur.fetchall() or [])}
 
-                # Hours worked straight today (from agent_daily_summary)
+                # Hours worked today using EDT (America/Toronto) day boundary.
+                # CURRENT_DATE is UTC — rolls to tomorrow at 8pm EDT, making agents
+                # invisible to overwork checks all night.  Use local date + local midnight
+                # for the LEAST cap so 42h raw sums cap at actual elapsed hours today.
                 cur.execute(
                     """
                     SELECT a.name AS agent_name,
-                           ROUND(LEAST(ads.total_duration_ms,
-                               EXTRACT(EPOCH FROM (NOW() - DATE_TRUNC('day', NOW()))) * 1000
-                           ) / 3600000.0, 1) AS hours_worked_today,
+                           ROUND(
+                               LEAST(ads.total_duration_ms,
+                                   EXTRACT(EPOCH FROM (
+                                       NOW() AT TIME ZONE 'America/Toronto'
+                                       - DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Toronto')
+                                   )) * 1000
+                               ) / 3600000.0, 1
+                           ) AS hours_worked_today,
                            CASE
-                             WHEN ads.total_duration_ms > 43200000 THEN 'critical'  -- >12h
-                             WHEN ads.total_duration_ms > 28800000 THEN 'warning'   -- >8h
+                             WHEN LEAST(ads.total_duration_ms,
+                                      EXTRACT(EPOCH FROM (
+                                          NOW() AT TIME ZONE 'America/Toronto'
+                                          - DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Toronto')
+                                      )) * 1000) > 43200000 THEN 'critical'  -- >12h
+                             WHEN LEAST(ads.total_duration_ms,
+                                      EXTRACT(EPOCH FROM (
+                                          NOW() AT TIME ZONE 'America/Toronto'
+                                          - DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Toronto')
+                                      )) * 1000) > 28800000 THEN 'warning'   -- >8h
                              ELSE 'normal'
                            END AS overwork_level
                     FROM agent_daily_summary ads
                     JOIN agents a ON a.id = ads.agent_id
-                    WHERE ads.summary_date = CURRENT_DATE
+                    WHERE ads.summary_date = (NOW() AT TIME ZONE 'America/Toronto')::date
                     """
                 )
                 hours_map = {r["agent_name"]: r for r in (cur.fetchall() or [])}

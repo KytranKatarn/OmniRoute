@@ -298,7 +298,9 @@ def check_standalone_health():
             if resp.status_code == 200:
                 data = resp.json()
                 status = data.get("status", "unknown")
-                if status in ("healthy", "operational"):
+                # Accept both {"status": "healthy"/"operational"} and {"healthy": True} response shapes
+                is_healthy = status in ("healthy", "operational") or data.get("healthy") is True
+                if is_healthy:
                     if was_down:
                         # Nagios handles monitoring alerts -- log only
                         logger.info(f"[Standalone Health] {key} recovered")

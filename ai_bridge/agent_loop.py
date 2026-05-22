@@ -6468,11 +6468,15 @@ class AgentLoop:
             self._log_cycle("media_export_cleanup", 0, 1, duration_ms, error_message=str(e))
 
     def _reap_stale_jobs(self):
-        """Reap orphaned bridge jobs that stopped updating (every 2 min)."""
+        """Reap orphaned bridge jobs that stopped updating (every 2 min).
+
+        8-min threshold (up from 5) gives outpost fleet agents headroom
+        when the queue is momentarily deep (WTF burst — KB #267773).
+        """
         try:
             from tools.department_hq.services.department_dispatcher import get_dispatcher
             dispatcher = get_dispatcher()
-            reaped = dispatcher.reap_stale_jobs(max_age_minutes=5)
+            reaped = dispatcher.reap_stale_jobs(max_age_minutes=8)
             if reaped:
                 logger.info(f"Stale job reaper: cleaned {reaped} orphaned jobs")
         except Exception as e:

@@ -39,6 +39,11 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pre-download spacy en_core_web_sm during build — required by TTS (Coqui).
+# Without this, TTS triggers a runtime pip install that fails on the
+# read-only rootfs (compliance: read_only: true in docker-compose.yml).
+RUN python -m spacy download en_core_web_sm
+
 # Install Playwright + Chromium to /opt (not /root/.cache which is tmpfs at runtime)
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
 RUN playwright install chromium --with-deps

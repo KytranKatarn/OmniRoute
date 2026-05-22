@@ -3877,6 +3877,9 @@ def crew_wellness_tick(flask_app):
                 for training in active_trainings:
                     now = datetime.datetime.now(timezone.utc)
                     updated_at = training["updated_at"]
+                    # DB column is TIMESTAMP WITHOUT TIME ZONE (naive) — treat as UTC
+                    if updated_at is not None and updated_at.tzinfo is None:
+                        updated_at = updated_at.replace(tzinfo=timezone.utc)
                     hours_since_update = (now - updated_at).total_seconds() / 3600.0
                     current_level = training["current_proficiency"]
                     target_level = training["target_proficiency"]
@@ -3975,7 +3978,11 @@ def crew_wellness_tick(flask_app):
 
                 for rest in active_rests:
                     now = datetime.datetime.now(timezone.utc)
-                    hours_resting = (now - rest["started_at"]).total_seconds() / 3600.0
+                    started_at = rest["started_at"]
+                    # DB column is TIMESTAMP WITHOUT TIME ZONE (naive) — treat as UTC
+                    if started_at is not None and started_at.tzinfo is None:
+                        started_at = started_at.replace(tzinfo=timezone.utc)
+                    hours_resting = (now - started_at).total_seconds() / 3600.0
 
                     stress_at_start = float(rest["stress_at_start"])
                     energy_at_start = float(rest["energy_at_start"])

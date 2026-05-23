@@ -660,6 +660,9 @@ def register_routes(bp, admin_required):
         conversation_id_param = body.get("conversation_id")  # UUID string or None
         agent_target = body.get("agent_target")
         include_thinking = bool(body.get("include_thinking", True))
+        # Images: list of base64 data-URIs sent from the chat UI (vision capability)
+        images_raw = body.get("images") or []
+        images = [img for img in images_raw if isinstance(img, str) and img.startswith("data:image/")][:4]
 
         # Rate limit for API key users
         if user.get("auth_method") == "api_key":
@@ -924,6 +927,7 @@ def register_routes(bp, admin_required):
                     "conversation_history": conversation_history,
                     "original_message": message,
                 },
+                images=images if images else None,
             )
         except Exception as exc:
             log.exception("Orchestration failed: %s", exc)

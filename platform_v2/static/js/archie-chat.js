@@ -15,6 +15,7 @@ class ArchieChatUI {
     this.agentTarget = 'auto';
     this.sending = false;
     this.voiceMode = false;
+    this.pendingImages = [];   // base64 data-URIs waiting to be sent
   }
 
   /* ── Init ──────────────────────────────────────────── */
@@ -55,6 +56,9 @@ class ArchieChatUI {
     // Restore last active conversation from localStorage
     var savedConv = localStorage.getItem('archie-chat-conversation');
     if (savedConv) this.conversationId = savedConv;
+
+    // Image upload: paste + clip button
+    this._initImageUpload(input, sendBtn);
 
     this.loadConversations();
   }
@@ -98,26 +102,38 @@ class ArchieChatUI {
     if (!input || this.sending) return;
 
     var message = input.value.trim();
-    if (!message) return;
+    var hasImages = this.pendingImages.length > 0;
+    if (!message && !hasImages) return;
 
     this.sending = true;
     if (sendBtn) sendBtn.disabled = true;
     input.value = '';
     input.style.height = 'auto';
 
-    // Show user message immediately
-    this.renderMessage({ role: 'user', content: message, created_at: new Date().toISOString() });
+    // Snapshot and clear pending images
+    var imagesToSend = this.pendingImages.slice();
+    this.pendingImages = [];
+    this._clearImagePreviews();
+
+    // Show user message immediately (with image thumbnails if any)
+    this.renderMessage({
+      role: 'user',
+      content: message || '📎 [image]',
+      created_at: new Date().toISOString(),
+      images: imagesToSend
+    });
 
     // Show thinking indicator
     this.showThinking(true);
     this.showFlightDeckProcessing();
 
     var payload = {
-      message: message,
+      message: message || '(image attached)',
       conversation_id: this.conversationId,
       agent_target: this.agentTarget,
       include_thinking: true,
-      voice_mode: this.voiceMode
+      voice_mode: this.voiceMode,
+      images: imagesToSend.length ? imagesToSend : undefined
     };
 
     var data = await this.chatApi('/api/v1/chat/message', {
@@ -690,6 +706,109 @@ class ArchieChatUI {
       }
     }
     return parts.join(' · ');
+  }
+
+  /* ── Image Upload ────────────────────────────────────── */
+
+  _initImageUpload(input, sendBtn) {
+    var self = this;
+
+    // Paste handler: intercept clipboard images
+    if (input) {
+      input.addEventListener('paste', function(e) {
+        var items = (e.clipboardData || {}).items || [];
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].type.startsWith('image/')) {
+            e.preventDefault();
+            self._handleImageFile(items[i].getAsFile());
+            break;
+          }
+        }
+      });
+    }
+
+    // Inject clip button + hidden file input beside the send button
+    if (sendBtn && sendBtn.parentElement) {
+      var fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'image/*';
+      fileInput.multiple = false;
+      fileInput.style.display = 'none';
+      fileInput.id = 'ac-image-file-input';
+      fileInput.addEventListener('change', function() {
+        if (fileInput.files && fileInput.files[0]) {
+          self._handleImageFile(fileInput.files[0]);
+          fileInput.value = '';
+        }
+      });
+
+      var clipBtn = document.createElement('button');
+      clipBtn.id = 'ac-image-clip-btn';
+      clipBtn.type = 'button';
+      clipBtn.title = 'Attach image (or paste)';
+      clipBtn.textContent = '📎';
+      clipBtn.style.cssText = [
+        'background:none;border:1px solid rgba(255,255,255,0.15);border-radius:6px;',
+        'color:#94a3b8;cursor:pointer;font-size:1rem;padding:0 8px;height:36px;',
+        'transition:color .15s,border-color .15s;flex-shrink:0;'
+      ].join('');
+      clipBtn.addEventListener('mouseenter', function() { clipBtn.style.color = '#00e5ff'; clipBtn.style.borderColor = '#00e5ff'; });
+      clipBtn.addEventListener('mouseleave', function() { clipBtn.style.color = '#94a3b8'; clipBtn.style.borderColor = 'rgba(255,255,255,0.15)'; });
+      clipBtn.addEventListener('click', function() { fileInput.click(); });
+
+      sendBtn.parentElement.insertBefore(clipBtn, sendBtn);
+      sendBtn.parentElement.appendChild(fileInput);
+
+      // Preview strip above input row
+      var previewStrip = document.createElement('div');
+      previewStrip.id = 'ac-image-preview-strip';
+      previewStrip.style.cssText = 'display:none;gap:6px;flex-wrap:wrap;padding:6px 12px 0;';
+      sendBtn.parentElement.parentElement.insertBefore(previewStrip, sendBtn.parentElement);
+    }
+  }
+
+  _handleImageFile(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    if (this.pendingImages.length >= 4) return; // max 4
+    var self = this;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      self.pendingImages.push(e.target.result);
+      self._renderImagePreviews();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  _renderImagePreviews() {
+    var self = this;
+    var strip = document.getElementById('ac-image-preview-strip');
+    if (!strip) return;
+    strip.textContent = '';
+    if (!this.pendingImages.length) { strip.style.display = 'none'; return; }
+    strip.style.display = 'flex';
+    this.pendingImages.forEach(function(src, idx) {
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;display:inline-block;';
+      var img = document.createElement('img');
+      img.src = src;
+      img.style.cssText = 'width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid rgba(255,255,255,0.2);';
+      var rm = document.createElement('button');
+      rm.textContent = '×';
+      rm.type = 'button';
+      rm.style.cssText = 'position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:#ef4444;border:none;color:#fff;font-size:10px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;';
+      rm.addEventListener('click', function() {
+        self.pendingImages.splice(idx, 1);
+        self._renderImagePreviews();
+      });
+      wrap.appendChild(img);
+      wrap.appendChild(rm);
+      strip.appendChild(wrap);
+    });
+  }
+
+  _clearImagePreviews() {
+    var strip = document.getElementById('ac-image-preview-strip');
+    if (strip) { strip.textContent = ''; strip.style.display = 'none'; }
   }
 }
 

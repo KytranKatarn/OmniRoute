@@ -235,6 +235,7 @@ class OrchestrationEngine:
         user_context: Optional[Dict] = None,
         agent_target: Optional[str] = None,
         project_id: Optional[int] = None,
+        images: Optional[List[str]] = None,
     ) -> OrchestrationResult:
         """
         Main orchestration pipeline.
@@ -262,6 +263,9 @@ class OrchestrationEngine:
 
         # Create orchestration session in DB
         db_session_id = self._create_session(session_uuid, user_id, conversation_id)
+
+        # Store images for _step_execute to pick up (avoid changing all call sites)
+        self._images = images or []
 
         try:
             # --- Step 1: Parse intent ---
@@ -1437,6 +1441,9 @@ class OrchestrationEngine:
             if project_id is None and user_context and isinstance(user_context, dict):
                 project_id = user_context.get("project_id")
 
+            # Pass images if user attached any (vision capability — base64 strings)
+            _images = getattr(self, "_images", None) or None
+
             result = dispatcher.request_work(
                 capability=capability,
                 prompt=message,
@@ -1445,6 +1452,7 @@ class OrchestrationEngine:
                 timeout=120,
                 project_id=project_id,
                 prefer_agent=agent.get("name") if agent else None,
+                images=_images if _images else None,
             )
             if result.success and result.response:
                 response_text = result.response

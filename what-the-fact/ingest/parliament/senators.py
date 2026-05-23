@@ -116,45 +116,78 @@ def _norm_name(name: str) -> str:
 
 # ── sencanada.ca scraper ──────────────────────────────────────────────────────
 
-def _scrape_profile(slug: str) -> dict:
+def _scrape_profile(slug: str, page=None) -> dict:
     """Scrape one senator's sencanada.ca profile. Returns partial dict of enrichment fields.
 
-    sencanada.ca renders contact info as plain text (not structured dt/dd), so we use
-    regex on the raw HTML for phone/email, and find the Biography section via text markers.
+    sencanada.ca is fully JavaScript-rendered — requests.get() only returns the nav
+    shell with no biography content.  Pass a live Playwright `page` object (reused
+    across all senators) for proper JS rendering.  Falls back to plain requests if
+    Playwright is unavailable, but bio extraction will not succeed in that mode.
+
     Committee memberships are NOT on profile pages — fetched separately via _scrape_committees().
     """
     url = f"{_SEN_BASE}/en/senators/{slug}/"
-    try:
-        resp = requests.get(url, headers=_HEADERS, timeout=15)
-        resp.raise_for_status()
-    except Exception as exc:
-        logger.warning("Profile fetch failed for %s: %s", slug, exc)
-        return {}
-
-    text = resp.text
     result: dict = {}
 
-    # ── Biography — extract text after the Biography heading ─────────────────
-    bio_m = re.search(r"Biography\s*</h[2-5]>(.*?)(?=<h[2-5]|<footer|</main)", text, re.DOTALL | re.IGNORECASE)
-    if bio_m:
-        soup_bio = BeautifulSoup(bio_m.group(1), "html.parser")
-        raw = soup_bio.get_text(" ", strip=True)
-        result["biography"] = re.sub(r"\s{2,}", " ", raw)[:4000] or None
+    if page is not None:
+        # ── Playwright path (preferred) ───────────────────────────────────────
+        try:
+            page.goto(url, wait_until="networkidle", timeout=25000)
+            # Give JS components extra time to hydrate bio section
+            page.wait_for_timeout(2500)
+        except Exception as exc:
+            logger.warning("Playwright nav failed for %s: %s", slug, exc)
+            result["committees"] = []
+            return result
 
-    # ── Phone — 613-xxx-xxxx pattern ─────────────────────────────────────────
-    phone_m = re.search(r"613[-.\s]\d{3}[-.\s]\d{4}", text)
-    if phone_m:
-        result["office_phone"] = re.sub(r"\s+", "-", phone_m.group(0).strip())
+        # Biography — class sc-senator-bio-senatorbiography
+        bio_el = page.query_selector(".sc-senator-bio-senatorbiography")
+        if bio_el:
+            raw = bio_el.inner_text().strip()
+            # Strip leading "Biography" heading word
+            raw = re.sub(r"^Biography\s*", "", raw, flags=re.IGNORECASE).strip()
+            if raw:
+                result["biography"] = re.sub(r"\s{2,}", " ", raw)[:4000]
 
-    # ── Email — @sen.parl.gc.ca ───────────────────────────────────────────────
-    email_m = re.search(r"[\w.+-]+@sen\.parl\.gc\.ca", text, re.IGNORECASE)
-    if email_m:
-        result["office_email"] = email_m.group(0).lower()
+        # Contact card list items — "Label: Value" text pairs
+        card_items = page.query_selector_all(".sc-senator-bio-senatorheader-content-card-list-item")
+        for item in card_items:
+            txt = item.inner_text().strip()
+            # Phone
+            if txt.startswith("Telephone:"):
+                phone_raw = txt.replace("Telephone:", "").strip()
+                phone_m = re.search(r"613[-.\s]?\d{3}[-.\s]?\d{4}", phone_raw)
+                if phone_m:
+                    result["office_phone"] = re.sub(r"\s+", "-", phone_m.group(0))
+            # Email
+            elif txt.startswith("Email:"):
+                email_m = re.search(r"[\w.+-]+@sen\.parl\.gc\.ca", txt, re.IGNORECASE)
+                if email_m:
+                    result["office_email"] = email_m.group(0).lower()
 
-    # ── Twitter handle ────────────────────────────────────────────────────────
-    tw_m = re.search(r'twitter\.com/([A-Za-z0-9_]{1,50})', text)
-    if tw_m:
-        result["twitter_handle"] = tw_m.group(1)
+        # Twitter / X handle from social icon links
+        tw_m = re.search(r'(?:twitter|x)\.com/([A-Za-z0-9_]{1,50})', page.content())
+        if tw_m:
+            result["twitter_handle"] = tw_m.group(1)
+
+    else:
+        # ── Plain-requests fallback (bio will not be extracted) ───────────────
+        logger.warning(
+            "No Playwright page supplied for %s — contact info only (bio requires JS)",
+            slug,
+        )
+        try:
+            resp = requests.get(url, headers=_HEADERS, timeout=15)
+            resp.raise_for_status()
+            text = resp.text
+            phone_m = re.search(r"613[-.\s]\d{3}[-.\s]\d{4}", text)
+            if phone_m:
+                result["office_phone"] = re.sub(r"\s+", "-", phone_m.group(0).strip())
+            email_m = re.search(r"[\w.+-]+@sen\.parl\.gc\.ca", text, re.IGNORECASE)
+            if email_m:
+                result["office_email"] = email_m.group(0).lower()
+        except Exception as exc:
+            logger.warning("Profile fetch failed for %s: %s", slug, exc)
 
     result["committees"] = []  # populated separately by _scrape_committees()
     return result
@@ -404,51 +437,86 @@ def sync_senators(dry_run: bool = False) -> dict:
 
     stats = {"total": len(senators), "updated": 0, "no_bio": 0, "committees_total": 0, "dob_matched": 0}
 
-    for s in senators:
-        slug = s["slug"]
-        logger.info("  → %s (%s)", s["name"], slug)
+    # Open one Playwright browser for all profile scrapes (bio requires JS render)
+    _pw_ctx = None
+    _pw_browser = None
+    _pw_page = None
+    try:
+        from playwright.sync_api import sync_playwright as _sync_playwright
+        _pw_ctx = _sync_playwright().__enter__()
+        _pw_browser = _pw_ctx.chromium.launch(
+            executable_path="/usr/bin/google-chrome",
+            args=["--no-sandbox", "--disable-dev-shm-usage", "--headless", "--disable-gpu"],
+        )
+        _pw_page = _pw_browser.new_page()
+        _pw_page.set_extra_http_headers(_HEADERS)
+        logger.info("Playwright browser ready for profile scraping")
+    except Exception as exc:
+        logger.warning("Playwright unavailable — bios will not be extracted: %s", exc)
 
-        fields = _scrape_profile(slug)
+    try:
+        for s in senators:
+            slug = s["slug"]
+            logger.info("  → %s (%s)", s["name"], slug)
 
-        # Inject committees from the batch-fetched map
-        fields["committees"] = slug_committees.get(slug, [])
+            fields = _scrape_profile(slug, page=_pw_page)
 
-        # Appointed-by PM (computed from DB date — no scraping needed)
-        appt = s.get("appointed_at")
-        if isinstance(appt, datetime):
-            appt = appt.date()
-        fields["appointed_by"] = _appointing_pm(appt)
+            # Inject committees from the batch-fetched map
+            fields["committees"] = slug_committees.get(slug, [])
 
-        # DOB from Wikidata
-        norm = _norm_name(s["name"])
-        if norm in dob_map:
-            fields["date_of_birth"] = dob_map[norm]
-            stats["dob_matched"] += 1
-        else:
-            # Try family name only as fallback
-            family = norm.split(",")[0].strip() if "," in norm else norm.split()[-1]
-            matches = {k: v for k, v in dob_map.items() if family in k}
-            if len(matches) == 1:
-                fields["date_of_birth"] = list(matches.values())[0]
+            # Appointed-by PM (computed from DB date — no scraping needed)
+            appt = s.get("appointed_at")
+            if isinstance(appt, datetime):
+                appt = appt.date()
+            fields["appointed_by"] = _appointing_pm(appt)
+
+            # DOB from Wikidata
+            norm = _norm_name(s["name"])
+            if norm in dob_map:
+                fields["date_of_birth"] = dob_map[norm]
                 stats["dob_matched"] += 1
+            else:
+                # Try family name only as fallback
+                family = norm.split(",")[0].strip() if "," in norm else norm.split()[-1]
+                matches = {k: v for k, v in dob_map.items() if family in k}
+                if len(matches) == 1:
+                    fields["date_of_birth"] = list(matches.values())[0]
+                    stats["dob_matched"] += 1
 
-        if dry_run:
-            committees = fields.pop("committees", [])
-            logger.info("    DRY bio=%s phone=%s email=%s pm=%s dob=%s committees=%d",
-                        bool(fields.get("biography")), fields.get("office_phone"),
-                        fields.get("office_email"), fields.get("appointed_by"),
-                        fields.get("date_of_birth"), len(committees))
-            fields["committees"] = committees
-        else:
-            _update_senator(engine, s["id"], fields, dry_run=False)
+            if dry_run:
+                committees = fields.pop("committees", [])
+                logger.info("    DRY bio=%s phone=%s email=%s pm=%s dob=%s committees=%d",
+                            bool(fields.get("biography")), fields.get("office_phone"),
+                            fields.get("office_email"), fields.get("appointed_by"),
+                            fields.get("date_of_birth"), len(committees))
+                fields["committees"] = committees
+            else:
+                _update_senator(engine, s["id"], fields, dry_run=False)
 
-        if fields.get("biography"):
-            stats["updated"] += 1
-        else:
-            stats["no_bio"] += 1
-        stats["committees_total"] += len(fields.get("committees", []))
+            if fields.get("biography"):
+                stats["updated"] += 1
+            else:
+                stats["no_bio"] += 1
+            stats["committees_total"] += len(fields.get("committees", []))
 
-        time.sleep(_PROFILE_SLEEP)
+            time.sleep(_PROFILE_SLEEP)
+
+    finally:
+        if _pw_page:
+            try:
+                _pw_page.close()
+            except Exception:
+                pass
+        if _pw_browser:
+            try:
+                _pw_browser.close()
+            except Exception:
+                pass
+        if _pw_ctx:
+            try:
+                _pw_ctx.__exit__(None, None, None)
+            except Exception:
+                pass
 
     logger.info("Done. updated=%d no_bio=%d committees=%d dob_matched=%d",
                 stats["updated"], stats["no_bio"], stats["committees_total"], stats["dob_matched"])

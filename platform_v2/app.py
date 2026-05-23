@@ -2399,6 +2399,14 @@ from civic_dispatch import civic_dispatch_bp  # noqa: E402
 
 app.register_blueprint(civic_dispatch_bp)
 
+# M.A.R.K.E.T. dispatch — /api/market/dispatch is the hub-side surface for the
+# Market Watch standalone's M.A.R.K.E.T. chat overlay.
+# Routes market_analysis/stock_analysis/portfolio_analysis prompts →
+# M.A.R.K.E.T. (id=32, Analytics & Intelligence, mistral:7b). Same JWT bearer pattern.
+from market_dispatch import market_dispatch_bp  # noqa: E402
+
+app.register_blueprint(market_dispatch_bp)
+
 # S.I.G.N.A.L. dispatch — /api/signal/dispatch is the hub-side surface for KBS
 # social media content generation. Routes {capability, prompt, platform, tone}
 # through Bridge dispatcher → S.I.G.N.A.L. (Marketing & Comms). ADR-518.

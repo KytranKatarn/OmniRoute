@@ -275,6 +275,16 @@ CAPABILITY_DEPARTMENT_MAP = {
     # Medical & Wellness
     "health_data_analysis": "Medical & Wellness",
     "biometric_monitoring": "Medical & Wellness",
+    # Analytics & Intelligence — Market Watch capabilities (M.A.R.K.E.T. mistral:7b)
+    "market_analysis": "Analytics & Intelligence",
+    "market_intelligence": "Analytics & Intelligence",
+    "stock_analysis": "Analytics & Intelligence",
+    "portfolio_analysis": "Analytics & Intelligence",
+    "sector_analysis": "Analytics & Intelligence",
+    "technical_analysis": "Analytics & Intelligence",
+    "earnings_analysis": "Analytics & Intelligence",
+    "trading_strategy": "Analytics & Intelligence",
+    "economic_outlook": "Analytics & Intelligence",
     # Analytics & Intelligence — Civic Watch capabilities (W.A.T.C.H. Lv5 research+classify)
     "civic_analysis": "Analytics & Intelligence",
     "government_transparency": "Analytics & Intelligence",

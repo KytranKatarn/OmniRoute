@@ -2,7 +2,35 @@
 import json
 import logging
 import os
+import threading
 from sqlalchemy import text
+
+# ── Cross-Watch signal (fire-and-forget, Task #3023) ──────────────────────────
+_CW_HUB = os.getenv("CROSS_WATCH_HUB_URL", "")
+_CW_TOKEN = os.getenv("CROSS_WATCH_SERVICE_TOKEN", "")
+
+
+def _send_wtf_signal(article_id: int, title: str, url: str) -> None:
+    """POST a news_coverage signal to the hub for entity matching.  Non-fatal."""
+    if not _CW_HUB or not _CW_TOKEN:
+        return
+    try:
+        import requests as _req
+
+        _req.post(
+            f"{_CW_HUB}/api/cross-watch/signal",
+            json={
+                "signal_type": "news_coverage",
+                "source_product": "wtf",
+                "source_item_id": str(article_id),
+                "headline": title,
+                "url": url,
+            },
+            headers={"Authorization": f"Bearer {_CW_TOKEN}"},
+            timeout=3,
+        )
+    except Exception:
+        pass  # cross-watch failure must never break ingest
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +96,14 @@ def upsert_article(engine, source_id: int, article: dict, bias: dict, source_slu
         save_geo(engine, aid, S, geo)
     except Exception:
         pass  # geo is non-fatal
+
+    # Fire-and-forget cross-watch signal (daemon thread — never blocks ingest)
+    if aid:
+        threading.Thread(
+            target=_send_wtf_signal,
+            args=(aid, article.get("title", ""), article.get("url", "")),
+            daemon=True,
+        ).start()
 
     return aid
 

@@ -986,6 +986,25 @@ MODULES: List[ModuleDefinition] = [
         priority=3,
         tags=["standalone", "product", "ethics", "governance", "creed"],
     ),
+    # Cross-Watch Alert System — API-only, no dashboard card
+    ModuleDefinition(
+        id="cross_watch",
+        name="Cross-Watch Alerts",
+        description="Unified alert system — entity follows + cross-product signals",
+        icon="bell",
+        category=ModuleCategory.AI_COMMAND,
+        route="/api/cross-watch",
+        blueprint_import="tools.cross_watch:cross_watch_bp",
+        required_permissions=["admin:access"],
+        minimum_role="ADMIN",
+        minimum_tier="staff",
+        enabled=True,
+        coming_soon=False,
+        health_check=None,
+        show_on_dashboard=False,
+        priority=99,
+        tags=["cross-watch", "alerts", "signals", "entities", "api"],
+    ),
 ]
 
 

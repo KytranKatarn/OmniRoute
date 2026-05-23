@@ -48,6 +48,19 @@
     </div>
     <div class="wtf-nav-actions">
       {% if session.get('wtf_authenticated') %}
+      <a href="/alerts" id="cw-bell-link" title="Platform Alerts" style="position:relative;margin-right:6px;text-decoration:none;font-size:1.1rem;">🔔<span id="cw-badge" style="display:none;position:absolute;top:-4px;right:-8px;background:#e53e3e;color:#fff;border-radius:9px;padding:1px 5px;font-size:10px;line-height:1.4;font-weight:700;"></span></a>
+      <script>
+      (function(){
+        fetch('/api/cross-watch/alerts')
+          .then(function(r){return r.ok?r.json():null;})
+          .then(function(d){
+            if(!d||!d.alerts)return;
+            var n=d.alerts.filter(function(a){return !a.is_read;}).length;
+            if(n>0){var b=document.getElementById('cw-badge');if(b){b.textContent=n>9?'9+':String(n);b.style.display='inline';}}
+          })
+          .catch(function(){});
+      })();
+      </script>
       <a href="/account" class="wtf-nav-login" style="margin-right:4px;">Account</a>
       <a href="/logout" class="wtf-nav-login">Sign out</a>
       {% else %}

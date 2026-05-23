@@ -2494,6 +2494,15 @@ from tools.cluster_proxy.routes import proxy_bp as cluster_proxy_bp  # noqa: E40
 
 app.register_blueprint(cluster_proxy_bp)
 
+# Cross-Watch Alert System — seed entities on startup (blueprint loaded via module_registry)
+try:
+    from tools.cross_watch.entity_seeder import seed_entities as _seed_cross_watch_entities
+
+    _seed_cross_watch_entities()
+    print("[A.R.C.H.I.E.] Cross-Watch entity seed complete")
+except Exception as _cw_seed_err:
+    print(f"[A.R.C.H.I.E.] Warning: Cross-Watch entity seed failed (migration may not have run): {_cw_seed_err}")
+
 # NOTE: fleet_proxy (B.E.A.C.O.N. dashboard routing via *.fleet.kytranempowerment.com)
 # was removed 2026-04-18 — project #173 cancelled, DNS cleaned up 2026-04-13,
 # see task #2144 for the full fleet observability triad context.

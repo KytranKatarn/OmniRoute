@@ -19,4 +19,7 @@ def create_app():
     app.register_blueprint(billing_bp)
     app.register_blueprint(bp)
     app.register_blueprint(auth_bp)
+    # Cross-Watch proxy — server-side relay to hub (Task #3023)
+    from .cross_watch import cross_watch_bp
+    app.register_blueprint(cross_watch_bp)
     return app

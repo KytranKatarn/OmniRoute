@@ -130,6 +130,54 @@
     Digests run once per cycle (30 min). Substring match against article title + body, case-insensitive.
   </div>
 
+  {# ── Cross-Watch Platform Alerts (Task #3023) ── #}
+  <div id="cw-section" style="display:none;margin-top:28px;border-top:1px solid #1f2937;padding-top:20px;">
+    <h2 style="font-size:0.85rem;font-weight:700;letter-spacing:2px;color:#7fbf7f;margin-bottom:12px;">🔔 PLATFORM ALERTS</h2>
+    <p style="font-size:0.72rem;color:#6b7280;margin-bottom:14px;">Notifications from Gov Watch, Market Watch, and other Watch products for entities you follow.</p>
+    <ul id="cw-alert-list" style="list-style:none;padding:0;margin:0;"></ul>
+  </div>
+  <script>
+  (function(){
+    fetch('/api/cross-watch/alerts')
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(d){
+        if(!d||!d.alerts||!d.alerts.length)return;
+        var sec=document.getElementById('cw-section');
+        var ul=document.getElementById('cw-alert-list');
+        if(!sec||!ul)return;
+        sec.style.display='block';
+        d.alerts.forEach(function(a){
+          var li=document.createElement('li');
+          li.style.cssText='display:flex;align-items:baseline;gap:8px;padding:7px 0;border-bottom:1px solid #1f2937;font-size:0.75rem;';
+          var badge=document.createElement('span');
+          badge.style.cssText='background:#0a2a1a;border:1px solid #10b981;color:#7fbf7f;padding:1px 6px;border-radius:3px;font-size:0.65rem;white-space:nowrap;flex-shrink:0;';
+          badge.textContent=(a.source_product||'').replace(/_/g,' ');
+          var msg=document.createElement('span');
+          msg.style.cssText='color:'+(a.is_read?'#6b7280':'#d1d5db')+';flex:1;';
+          msg.textContent=a.message||'';
+          li.appendChild(badge);
+          li.appendChild(msg);
+          if(a.url){
+            var lnk=document.createElement('a');
+            lnk.href=a.url;
+            lnk.target='_blank';
+            lnk.rel='noopener noreferrer';
+            lnk.style.cssText='color:#60a5fa;white-space:nowrap;flex-shrink:0;';
+            lnk.textContent='View →';
+            li.appendChild(lnk);
+          }
+          if(!a.is_read){
+            li.addEventListener('click',function(){
+              fetch('/api/cross-watch/alerts/'+a.id+'/read',{method:'POST'}).catch(function(){});
+            });
+          }
+          ul.appendChild(li);
+        });
+      })
+      .catch(function(){});
+  })();
+  </script>
+
 </div>
 
 {% endblock %}

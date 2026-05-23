@@ -1498,8 +1498,28 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Job #75: Cross-Watch alert generator — match signals to user follows (Task #3023)
+        try:
+            from tools.cross_watch.alert_generator import generate_cross_watch_alerts as _cw_gen
+
+            self.scheduler.add_job(
+                with_app_context(_cw_gen),
+                trigger=IntervalTrigger(minutes=15),
+                id="cross_watch_alert_generator",
+                name="Cross-Watch: Alert Generator",
+                replace_existing=True,
+                max_instances=1,
+                coalesce=True,
+            )
+            logger.info("Registered job: Cross-Watch Alert Generator (every 15m)")
+        except Exception as _cw_import_err:
+            logger.warning(
+                "Could not register cross_watch_alert_generator — migration may not have run: %s",
+                _cw_import_err,
+            )
+
         self._running = True
-        logger.info("Agent loop started with 74 jobs")
+        logger.info("Agent loop started with 75 jobs")
 
     def _update_stock_prices(self):
         """Job #27: DISABLED — StockBot migrated to Kytran Market Watch (standalone).

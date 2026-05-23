@@ -1,0 +1,402 @@
+"""Cross-Watch Alert System — API routes.
+
+Blueprint prefix: none (all routes served at /api/cross-watch/*).
+Auth: Bearer CROSS_WATCH_SERVICE_TOKEN + X-User-Email header.
+
+Routes
+------
+POST   /api/cross-watch/signal                — ingest a signal from a Watch product
+GET    /api/cross-watch/alerts                — unread alerts for the calling user
+POST   /api/cross-watch/alerts/<id>/read      — mark one alert read
+GET    /api/cross-watch/entities              — full entity list (follow UI)
+POST   /api/cross-watch/follow                — follow an entity
+DELETE /api/cross-watch/follow/<entity_id>   — unfollow an entity
+GET    /api/cross-watch/following             — list user's followed entities
+"""
+
+import logging
+import os
+import time
+from threading import Lock
+
+from flask import jsonify, request
+
+from database import get_db_cursor
+
+from . import cross_watch_bp
+
+logger = logging.getLogger(__name__)
+
+# ── In-process entity cache (refreshed every 60s) ─────────────────────────────
+_entity_cache: list = []
+_entity_cache_at: float = 0.0
+_entity_cache_lock = Lock()
+_ENTITY_CACHE_TTL = 60  # seconds
+
+
+def _get_entities() -> list:
+    """Return entity list from cache, refreshing if stale."""
+    global _entity_cache, _entity_cache_at
+    now = time.monotonic()
+    if now - _entity_cache_at < _ENTITY_CACHE_TTL and _entity_cache:
+        return _entity_cache
+
+    with _entity_cache_lock:
+        # Double-checked locking
+        if now - _entity_cache_at < _ENTITY_CACHE_TTL and _entity_cache:
+            return _entity_cache
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT id, entity_type, name, slug, aliases
+                    FROM shared.entities
+                    ORDER BY name
+                    """
+                )
+                rows = cur.fetchall()
+                _entity_cache = [dict(r) for r in rows]
+                _entity_cache_at = time.monotonic()
+                logger.debug("[cross_watch] entity cache refreshed — %d entities", len(_entity_cache))
+        except Exception as exc:
+            logger.error("[cross_watch] entity cache refresh failed: %s", exc)
+            # Return stale cache rather than crashing callers
+        return _entity_cache
+
+
+def _invalidate_entity_cache():
+    """Force next call to _get_entities() to re-query the DB."""
+    global _entity_cache_at
+    _entity_cache_at = 0.0
+
+
+# ── Auth helpers ──────────────────────────────────────────────────────────────
+
+
+def _verify_token() -> bool:
+    """Return True if the request carries a valid service token."""
+    expected = os.getenv("CROSS_WATCH_SERVICE_TOKEN", "")
+    if not expected:
+        return False
+    bearer = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    return bearer == expected
+
+
+def _resolve_user(email: str):
+    """Resolve email → users.id; returns int or None."""
+    if not email:
+        return None
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT id FROM users WHERE LOWER(email) = LOWER(%s) LIMIT 1",
+                (email,),
+            )
+            row = cur.fetchone()
+            return row["id"] if row else None
+    except Exception as exc:
+        logger.error("[cross_watch] _resolve_user failed: %s", exc)
+        return None
+
+
+def _auth_gate():
+    """
+    Verify token + resolve user.  Returns (user_id, error_response).
+    Callers that need user_id must check for error_response first.
+    """
+    if not _verify_token():
+        return None, (jsonify({"error": "unauthorized"}), 401)
+
+    email = request.headers.get("X-User-Email", "").strip()
+    user_id = _resolve_user(email)
+    if not user_id:
+        return None, (jsonify({"error": "user not found", "email": email}), 404)
+
+    return user_id, None
+
+
+# ── Signal endpoint ───────────────────────────────────────────────────────────
+
+
+@cross_watch_bp.route("/api/cross-watch/signal", methods=["POST"])
+def ingest_signal():
+    """
+    Ingest a cross-product signal from any Watch product.
+
+    Body (JSON):
+      signal_type    — one of the CHECK constraint values
+      source_product — e.g. 'gov_watch', 'wtf'
+      source_item_id — PK of the triggering item in the source product
+      headline       — human-readable title / description
+      url            — optional deep-link back to the source item
+      metadata       — optional JSONB blob
+    """
+    if not _verify_token():
+        return jsonify({"error": "unauthorized"}), 401
+
+    body = request.get_json(silent=True) or {}
+    signal_type = body.get("signal_type", "")
+    source_product = body.get("source_product", "")
+    source_item_id = str(body.get("source_item_id", ""))
+    headline = body.get("headline", "")
+    url = body.get("url")
+    metadata = body.get("metadata", {})
+
+    if not all([signal_type, source_product, source_item_id, headline]):
+        return jsonify({"error": "missing required fields: signal_type, source_product, source_item_id, headline"}), 400
+
+    # Match entities by name/alias substring in headline
+    entities = _get_entities()
+    headline_lower = headline.lower()
+    matched = []
+    for ent in entities:
+        name_lower = ent["name"].lower()
+        if name_lower in headline_lower:
+            matched.append(ent)
+            continue
+        aliases = ent.get("aliases") or []
+        for alias in aliases:
+            if alias and alias.lower() in headline_lower:
+                matched.append(ent)
+                break
+
+    if not matched:
+        return jsonify({"signals_created": 0, "entities_matched": []}), 200
+
+    signals_created = 0
+    matched_names = []
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            for ent in matched:
+                cur.execute(
+                    """
+                    INSERT INTO shared.cross_watch_signals
+                        (entity_id, signal_type, source_product, source_item_id,
+                         headline, url, metadata)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (entity_id, source_product, source_item_id) DO NOTHING
+                    """,
+                    (
+                        ent["id"],
+                        signal_type,
+                        source_product,
+                        source_item_id,
+                        headline,
+                        url,
+                        (
+                            __import__("psycopg2").extras.Json(metadata)
+                            if metadata
+                            else __import__("psycopg2").extras.Json({})
+                        ),
+                    ),
+                )
+                if cur.rowcount:
+                    signals_created += 1
+                    matched_names.append(ent["name"])
+    except Exception as exc:
+        logger.error("[cross_watch] ingest_signal failed: %s", exc)
+        return jsonify({"error": "internal error"}), 500
+
+    if signals_created:
+        logger.info(
+            "[cross_watch] signal ingested — source=%s type=%s entities=%s",
+            source_product,
+            signal_type,
+            matched_names,
+        )
+
+    return jsonify({"signals_created": signals_created, "entities_matched": matched_names}), 200
+
+
+# ── Alerts ────────────────────────────────────────────────────────────────────
+
+
+@cross_watch_bp.route("/api/cross-watch/alerts", methods=["GET"])
+def get_alerts():
+    """Return all alerts for the calling user (newest first)."""
+    user_id, err = _auth_gate()
+    if err:
+        return err
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT a.id, a.entity_id, a.signal_id, a.message, a.url,
+                       a.is_read, a.created_at,
+                       e.name AS entity_name, e.entity_type,
+                       s.signal_type, s.source_product
+                FROM shared.cross_watch_alerts a
+                JOIN shared.entities e ON e.id = a.entity_id
+                JOIN shared.cross_watch_signals s ON s.id = a.signal_id
+                WHERE a.user_id = %s
+                ORDER BY a.created_at DESC
+                LIMIT 100
+                """,
+                (user_id,),
+            )
+            rows = cur.fetchall()
+    except Exception as exc:
+        logger.error("[cross_watch] get_alerts failed: %s", exc)
+        return jsonify({"error": "internal error"}), 500
+
+    alerts = [
+        {
+            "id": r["id"],
+            "entity_id": r["entity_id"],
+            "entity_name": r["entity_name"],
+            "entity_type": r["entity_type"],
+            "signal_id": r["signal_id"],
+            "signal_type": r["signal_type"],
+            "source_product": r["source_product"],
+            "message": r["message"],
+            "url": r["url"],
+            "is_read": r["is_read"],
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+        }
+        for r in rows
+    ]
+    return jsonify({"alerts": alerts, "unread": sum(1 for a in alerts if not a["is_read"])}), 200
+
+
+@cross_watch_bp.route("/api/cross-watch/alerts/<int:alert_id>/read", methods=["POST"])
+def mark_alert_read(alert_id: int):
+    """Mark one alert as read (user-scoped — cannot touch another user's alerts)."""
+    user_id, err = _auth_gate()
+    if err:
+        return err
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "UPDATE shared.cross_watch_alerts SET is_read = TRUE WHERE id = %s AND user_id = %s",
+                (alert_id, user_id),
+            )
+            updated = cur.rowcount
+    except Exception as exc:
+        logger.error("[cross_watch] mark_alert_read failed: %s", exc)
+        return jsonify({"error": "internal error"}), 500
+
+    if not updated:
+        return jsonify({"error": "alert not found"}), 404
+    return jsonify({"ok": True}), 200
+
+
+# ── Entity list ───────────────────────────────────────────────────────────────
+
+
+@cross_watch_bp.route("/api/cross-watch/entities", methods=["GET"])
+def list_entities():
+    """Return all followable entities (for follow UI autocomplete / browse)."""
+    if not _verify_token():
+        return jsonify({"error": "unauthorized"}), 401
+
+    entities = _get_entities()
+    return (
+        jsonify(
+            {
+                "entities": [
+                    {
+                        "id": e["id"],
+                        "name": e["name"],
+                        "entity_type": e["entity_type"],
+                        "slug": e["slug"],
+                    }
+                    for e in entities
+                ]
+            }
+        ),
+        200,
+    )
+
+
+# ── Follow / unfollow ─────────────────────────────────────────────────────────
+
+
+@cross_watch_bp.route("/api/cross-watch/follow", methods=["POST"])
+def follow_entity():
+    """Create a user→entity follow. Body: {entity_id: int}."""
+    user_id, err = _auth_gate()
+    if err:
+        return err
+
+    body = request.get_json(silent=True) or {}
+    entity_id = body.get("entity_id")
+    if not entity_id:
+        return jsonify({"error": "entity_id required"}), 400
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO shared.user_follows (user_id, entity_id)
+                VALUES (%s, %s)
+                ON CONFLICT (user_id, entity_id) DO NOTHING
+                """,
+                (user_id, entity_id),
+            )
+            created = bool(cur.rowcount)
+    except Exception as exc:
+        logger.error("[cross_watch] follow_entity failed: %s", exc)
+        return jsonify({"error": "internal error"}), 500
+
+    return jsonify({"ok": True, "created": created}), 200
+
+
+@cross_watch_bp.route("/api/cross-watch/follow/<int:entity_id>", methods=["DELETE"])
+def unfollow_entity(entity_id: int):
+    """Remove a user→entity follow."""
+    user_id, err = _auth_gate()
+    if err:
+        return err
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "DELETE FROM shared.user_follows WHERE user_id = %s AND entity_id = %s",
+                (user_id, entity_id),
+            )
+            deleted = bool(cur.rowcount)
+    except Exception as exc:
+        logger.error("[cross_watch] unfollow_entity failed: %s", exc)
+        return jsonify({"error": "internal error"}), 500
+
+    return jsonify({"ok": True, "deleted": deleted}), 200
+
+
+@cross_watch_bp.route("/api/cross-watch/following", methods=["GET"])
+def list_following():
+    """Return the list of entities the calling user follows."""
+    user_id, err = _auth_gate()
+    if err:
+        return err
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT e.id, e.name, e.entity_type, e.slug, f.created_at
+                FROM shared.user_follows f
+                JOIN shared.entities e ON e.id = f.entity_id
+                WHERE f.user_id = %s
+                ORDER BY e.name
+                """,
+                (user_id,),
+            )
+            rows = cur.fetchall()
+    except Exception as exc:
+        logger.error("[cross_watch] list_following failed: %s", exc)
+        return jsonify({"error": "internal error"}), 500
+
+    following = [
+        {
+            "id": r["id"],
+            "name": r["name"],
+            "entity_type": r["entity_type"],
+            "slug": r["slug"],
+            "followed_at": r["created_at"].isoformat() if r["created_at"] else None,
+        }
+        for r in rows
+    ]
+    return jsonify({"following": following}), 200

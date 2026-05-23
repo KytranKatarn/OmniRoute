@@ -1940,6 +1940,97 @@ def api_v1_blindspot():
 
 
 # ───────────────────────────────────────────────────────────────────────────
+# FR/EN Divergence Alert (#3003) — Different stories in French vs English
+# ───────────────────────────────────────────────────────────────────────────
+
+
+@bp.get("/divergence")
+def divergence_page():
+    """French-English coverage divergence page."""
+    return render_template("divergence.html",
+                           source_count=46,
+                           is_subscriber=is_subscriber())
+
+
+@bp.get("/api/v1/divergence")
+def api_v1_divergence():
+    """#3003 — Clusters where French and English outlets tell a different story.
+
+    Three divergence types:
+    - en_only: story exists in English press but not French
+    - fr_only: story exists in French press but not English
+    - bias_gap: both cover it, but avg bias scores differ significantly
+
+    Query params:
+      limit          int   default 20   max 100
+      days           int   default 30   look-back window
+      min_divergence float default 0.1  minimum |en_score - fr_score|
+    """
+    from flask import request as _req
+    limit = min(int(_req.args.get("limit", 20)), 100)
+    days = min(int(_req.args.get("days", 30)), 90)
+    min_div = float(_req.args.get("min_divergence", 0.1))
+    S = _schema()
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            WITH cluster_lang AS (
+                SELECT
+                    a.cluster_id,
+                    COUNT(*)         FILTER (WHERE s.language = 'en') AS en_count,
+                    COUNT(*)         FILTER (WHERE s.language = 'fr') AS fr_count,
+                    AVG(b.score)     FILTER (WHERE s.language = 'en') AS en_avg_score,
+                    AVG(b.score)     FILTER (WHERE s.language = 'fr') AS fr_avg_score
+                FROM {S}.articles a
+                JOIN {S}.sources s ON s.id = a.source_id
+                LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+                WHERE a.cluster_id IS NOT NULL
+                  AND a.published_at >= NOW() - INTERVAL '1 day' * :days
+                GROUP BY a.cluster_id
+            )
+            SELECT
+                cl.cluster_id           AS id,
+                sc.representative_title,
+                sc.article_count,
+                sc.certainty_label,
+                sc.latest_published_at,
+                cl.en_count,
+                cl.fr_count,
+                ROUND(cl.en_avg_score::numeric, 3) AS en_avg_score,
+                ROUND(cl.fr_avg_score::numeric, 3) AS fr_avg_score,
+                ROUND(ABS(
+                    COALESCE(cl.en_avg_score, 0) - COALESCE(cl.fr_avg_score, 0)
+                )::numeric, 3)          AS divergence_score,
+                (cl.fr_count = 0)       AS en_only,
+                (cl.en_count = 0)       AS fr_only
+            FROM cluster_lang cl
+            JOIN {S}.story_clusters sc ON sc.id = cl.cluster_id
+            WHERE (cl.en_count > 0 OR cl.fr_count > 0)
+              AND ABS(COALESCE(cl.en_avg_score, 0) - COALESCE(cl.fr_avg_score, 0)) >= :min_div
+            ORDER BY divergence_score DESC, sc.latest_published_at DESC
+            LIMIT :n
+        """), {"days": days, "min_div": min_div, "n": limit}).mappings().all()
+    return _api_cors_response({
+        "ok": True,
+        "days": days,
+        "min_divergence": min_div,
+        "divergence": [{
+            "id": r["id"],
+            "title": r["representative_title"],
+            "article_count": r["article_count"],
+            "certainty_label": r["certainty_label"],
+            "latest": r["latest_published_at"].isoformat() if r["latest_published_at"] else None,
+            "en_count": r["en_count"],
+            "fr_count": r["fr_count"],
+            "en_avg_score": float(r["en_avg_score"]) if r["en_avg_score"] is not None else None,
+            "fr_avg_score": float(r["fr_avg_score"]) if r["fr_avg_score"] is not None else None,
+            "divergence_score": round(float(r["divergence_score"]), 3),
+            "en_only": bool(r["en_only"]),
+            "fr_only": bool(r["fr_only"]),
+        } for r in rows],
+    })
+
+
+# ───────────────────────────────────────────────────────────────────────────
 # Map page (#2961) — Leaflet map of articles pinned by lat/lng
 # ───────────────────────────────────────────────────────────────────────────
 

@@ -6021,6 +6021,7 @@ class DepartmentDispatcher:
         timeout: int = 120,
         project_id: Optional[int] = None,
         images: Optional[List[str]] = None,
+        prefer_agent: Optional[str] = None,
     ) -> Dict:
         """
         Convenience method for JSON-mode requests.
@@ -6036,6 +6037,7 @@ class DepartmentDispatcher:
             timeout=timeout,
             project_id=project_id,
             images=images,
+            prefer_agent=prefer_agent,
         )
         if result.success:
             try:

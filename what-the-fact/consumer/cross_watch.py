@@ -95,3 +95,16 @@ def unfollow(entity_id: int):
 @cross_watch_bp.route("/api/cross-watch/following")
 def following():
     return _proxy_get("/api/cross-watch/following")
+
+
+@cross_watch_bp.route("/api/cross-watch/procurement")
+def procurement():
+    """Proxy: return recent gov_watch tenders matching an article title's entities.
+    Passes ?title= and optional ?limit= through to hub. No user session required.
+    """
+    import urllib.parse
+
+    title = request.args.get("title", "")
+    limit = request.args.get("limit", "5")
+    qs = urllib.parse.urlencode({"title": title, "limit": limit})
+    return _proxy_get(f"/api/cross-watch/procurement?{qs}")

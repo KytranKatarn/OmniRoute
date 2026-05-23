@@ -330,6 +330,13 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
   <!-- Deep Dive result area -->
   <div id="wtf-deep-dive-result" style="display:none;background:#060d14;border:1px solid #0af;border-radius:4px;padding:12px;margin-bottom:14px;font-size:11px;color:#ccc;"></div>
 
+  <!-- Related Gov Tenders — cross-watch procurement intelligence (#3019) -->
+  <div id="wtf-tenders-section" style="display:none;background:#06100a;border:1px solid #1a3a2a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
+    <div style="font-size:10px;letter-spacing:1.5px;color:#4ade80;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x1F4C4; Related Gov Tenders</div>
+    <ul id="wtf-tenders-list" style="list-style:none;margin:0;padding:0;"></ul>
+    <div style="font-size:10px;color:#4b5563;margin-top:6px;">Via Gov Watch · CanadaBuys + PSPC tenders</div>
+  </div>
+
   <!-- GoogleFCT partner fact-checks — free, always visible -->
   {% if google_fact_checks %}
   <div style="background:#060b14;border:1px solid #1e3a5f;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
@@ -570,6 +577,45 @@ async function wtfSubmitFlag(flagType) {
     res.textContent = data.ok ? '✓ Thanks — your feedback helps improve B.I.A.S. and V.E.R.I.F.Y.' : 'Could not send — try again.';
   } catch(e) { res.textContent = 'Network error.'; }
 }
+
+// Related Gov Tenders — cross-watch procurement intelligence (#3019)
+// Uses createElement + textContent throughout — never innerHTML with untrusted data.
+(function() {
+  var title = {{ a.title | tojson }};
+  if (!title) return;
+  fetch('/api/cross-watch/procurement?title=' + encodeURIComponent(title))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d || !d.count || !d.tenders || !d.tenders.length) return;
+      var section = document.getElementById('wtf-tenders-section');
+      var ul = document.getElementById('wtf-tenders-list');
+      if (!section || !ul) return;
+      d.tenders.forEach(function(t) {
+        var li = document.createElement('li');
+        li.style.cssText = 'border-left:2px solid #4ade80;padding:4px 8px;margin-bottom:6px;background:#080f0a;border-radius:2px;display:flex;align-items:baseline;flex-wrap:wrap;gap:4px;';
+        var badge = document.createElement('span');
+        badge.style.cssText = 'display:inline-block;background:#1a3a1a;color:#4ade80;font-size:9px;padding:1px 5px;border-radius:2px;text-transform:uppercase;letter-spacing:0.5px;flex-shrink:0;';
+        badge.textContent = t.entity_name || '';
+        var text = document.createElement('span');
+        text.style.cssText = 'font-size:11px;color:#c0c8d8;flex:1;min-width:0;';
+        text.textContent = t.headline || '';
+        li.appendChild(badge);
+        li.appendChild(text);
+        if (t.url) {
+          var link = document.createElement('a');
+          link.href = t.url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.style.cssText = 'font-size:10px;color:#4a9eff;text-decoration:none;flex-shrink:0;';
+          link.textContent = 'View →';
+          li.appendChild(link);
+        }
+        ul.appendChild(li);
+      });
+      section.style.display = 'block';
+    })
+    .catch(function() { /* silent — hub unreachable or no cross-watch configured */ });
+})();
 
 // Trigger phrase highlighting — DOM TreeWalker + split, XSS-safe
 (function() {

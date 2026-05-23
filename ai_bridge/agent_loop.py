@@ -6125,21 +6125,25 @@ class AgentLoop:
                     gpu_models.add(m["name"])
                     gpu_models.add(m["name"].replace(":latest", ""))
 
-            missing = {m for m in desired if m not in loaded and f"{m}:latest" not in loaded}
+            # Cap desired to the top 5 models (already dispatch-frequency-ordered by
+            # _get_agent_models). A 30-min cycle can keep ≤5 models warm without
+            # concurrent load contention. Remaining models load on-demand via dispatcher.
+            HEALTH_WARM_CAP = 5
+            desired_capped = dict(list(desired.items())[:HEALTH_WARM_CAP])
+
+            missing = {m for m in desired_capped if m not in loaded and f"{m}:latest" not in loaded}
             if not missing:
                 self._log_cycle("ollama_model_health", len(loaded), 0, int((time.time() - start) * 1000))
                 return
 
             ram_free = psutil.virtual_memory().available / (1024**3)
             reloaded = 0
-            # Cap warmup to 5 models per run so the job stays under ~15 min even when
-            # Ollama is under load. Remaining models get retried on the next 30-min cycle.
-            MAX_WARMUP_PER_RUN = 5
-            for model_name in list(missing)[:MAX_WARMUP_PER_RUN]:
+            actual_failed = 0
+            for model_name in list(missing):
                 ram_free = psutil.virtual_memory().available / (1024**3)
                 if ram_free < 10:
                     break
-                endpoint = desired[model_name]
+                endpoint = desired_capped[model_name]
                 use_gpu = model_name in gpu_models or f"{model_name}:latest" in gpu_models
                 try:
                     # keep_alive="15m" — was -1 which means "pin in RAM forever".
@@ -6154,18 +6158,33 @@ class AgentLoop:
                         if not use_gpu:
                             opts["num_gpu"] = 0
                         data = {"model": model_name, "prompt": "health", "stream": False, "options": opts, "keep_alive": "15m"}
-                    # Reduced from 600/300s: prevents the job from blocking for 65+ min
-                    # when Ollama is under load. Large models retried next 30-min cycle.
+                    # 90s timeout for most models, 180s for coder models.
+                    # Concurrent Ollama inference (quality scorer, dispatch) can cause
+                    # contention; failures are retried next 30-min cycle.
                     timeout = 180 if "coder" in model_name else 90
                     r = req.post(f"{ollama_host}/api/{endpoint}", json=data, timeout=timeout)
                     if r.status_code == 200:
                         reloaded += 1
+                    else:
+                        actual_failed += 1
+                        logger.warning(f"Ollama health: {model_name} returned {r.status_code}")
                 except Exception as e:
+                    actual_failed += 1
                     logger.warning(f"Ollama health: {model_name} failed: {e}")
 
             duration_ms = int((time.time() - start) * 1000)
-            self._log_cycle("ollama_model_health", reloaded, len(missing) - reloaded, duration_ms,
-                           details={"missing": len(missing), "reloaded": reloaded})
+            # items_failed = actual load failures only (not deferred-by-cap models).
+            # details.total_desired shows the full warm set size for context.
+            self._log_cycle(
+                "ollama_model_health", reloaded, actual_failed, duration_ms,
+                details={
+                    "missing": len(missing),
+                    "reloaded": reloaded,
+                    "actual_failed": actual_failed,
+                    "total_desired": len(desired),
+                    "warm_cap": HEALTH_WARM_CAP,
+                },
+            )
         except Exception as e:
             duration_ms = int((time.time() - start) * 1000)
             self._log_cycle("ollama_model_health", 0, 1, duration_ms, error_message=str(e))

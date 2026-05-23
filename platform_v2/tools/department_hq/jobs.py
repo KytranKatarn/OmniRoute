@@ -2257,9 +2257,11 @@ def _register_own_jobs(scheduler, flask_app):
     # VPS backlog workers remain active at low cap as always-on fallback.
     # =========================================================================
 
+    import os as _os_wtf
+
     _WTF_BATCH = 15
     _WTF_MAX_PER_CYCLE = int(
-        os.getenv("WTF_MAX_PER_CYCLE", "60")
+        _os_wtf.getenv("WTF_MAX_PER_CYCLE", "60")
     )  # reduced from 200 — prevents fleet queue saturation (stale-reaper KB #267773)
     _WTF_FAILBACK_THRESHOLD = 3
 

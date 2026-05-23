@@ -1875,6 +1875,71 @@ def api_v1_bias_distribution():
 
 
 # ───────────────────────────────────────────────────────────────────────────
+# Blindspot Feed (#3006) — Stories covered by very few outlets
+# ───────────────────────────────────────────────────────────────────────────
+
+
+@bp.get("/blindspot")
+def blindspot_page():
+    """Dedicated Blindspot Feed page."""
+    return render_template("blindspot.html",
+                           source_count=46,
+                           is_subscriber=is_subscriber())
+
+
+@bp.get("/api/v1/blindspot")
+def api_v1_blindspot():
+    """#3006 — Underreported stories: clusters with low coverage_gap_score.
+
+    A blindspot = a story covered by only 1–2 outlets while the rest of the
+    press stays silent. coverage_gap_score ≤ 0.15 means <15 % of tracked
+    outlets published on this cluster.
+
+    Query params:
+      limit         int   default 20   max 100
+      days          int   default 7    look-back window
+      max_gap_score float default 0.15 coverage threshold
+    """
+    from flask import request as _req
+    limit = min(int(_req.args.get("limit", 20)), 100)
+    days = min(int(_req.args.get("days", 7)), 90)
+    max_gap = float(_req.args.get("max_gap_score", 0.15))
+    S = _schema()
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT sc.id, sc.representative_title, sc.article_count,
+                   sc.source_count, sc.coverage_gap_score, sc.certainty_label,
+                   sc.earliest_published_at, sc.latest_published_at,
+                   sm.headline, sm.brief
+            FROM {S}.story_clusters sc
+            LEFT JOIN {S}.summaries sm ON sm.cluster_id = sc.id
+            WHERE sc.coverage_gap_score > 0
+              AND sc.coverage_gap_score <= :max_gap
+              AND sc.article_count >= 2
+              AND sc.latest_published_at >= NOW() - INTERVAL '1 day' * :days
+            ORDER BY sc.coverage_gap_score ASC, sc.latest_published_at DESC
+            LIMIT :n
+        """), {"max_gap": max_gap, "days": days, "n": limit}).mappings().all()
+    return _api_cors_response({
+        "ok": True,
+        "days": days,
+        "max_gap_score": max_gap,
+        "blindspots": [{
+            "id": r["id"],
+            "title": r["representative_title"],
+            "article_count": r["article_count"],
+            "source_count": r["source_count"],
+            "coverage_gap_score": round(float(r["coverage_gap_score"] or 0), 3),
+            "certainty_label": r["certainty_label"],
+            "earliest": r["earliest_published_at"].isoformat() if r["earliest_published_at"] else None,
+            "latest": r["latest_published_at"].isoformat() if r["latest_published_at"] else None,
+            "headline": r["headline"],
+            "brief": r["brief"],
+        } for r in rows],
+    })
+
+
+# ───────────────────────────────────────────────────────────────────────────
 # Map page (#2961) — Leaflet map of articles pinned by lat/lng
 # ───────────────────────────────────────────────────────────────────────────
 

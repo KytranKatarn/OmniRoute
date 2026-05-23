@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KYTRAN GOV WATCH - Government Procurement Intelligence</title>
+    <link rel="stylesheet" href="/static/css/govwatch.css">
+    <link rel="stylesheet" href="/static/css/glossary.css">
+    <link rel="stylesheet" href="/static/css/eligibility.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=IBM+Plex+Mono:wght@300;400;500;600&family=Antonio:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Page-wide horizontal overflow guard. Pin icons, long vendor
+           names, and the YoY chart can otherwise force a horizontal
+           scrollbar on phone-sized viewports — this clips them. */
+        html, body { overflow-x: hidden; max-width: 100%; }
+        /* Pin icons (added by pin-anywhere.js) — keep them inside the
+           row so they never widen layout. */
+        .gw-pin-icon { pointer-events: auto; }
+
+        /* Responsive overrides for the new dashboard sections (T2/T18/T19).
+           Tested viewport targets: 360 (Z Fold5 folded), 412 (phone), 768
+           (tablet / Z Fold5 unfolded), 1024+ (desktop). */
+
+        /* Header right-cluster — stack on narrow, hide email on Fold-folded */
+        @media (max-width: 720px) {
+            .gw-header-right { flex-wrap: wrap; justify-content: flex-end; gap: 0.4rem !important; }
+            .gw-header-right .gw-tier-pill { font-size: 0.6rem !important; padding: 3px 9px !important; letter-spacing: 1.5px !important; }
+        }
+        @media (max-width: 480px) {
+            .gw-header-right > span[title] { display: none; }   /* hide email on phones */
+            .gw-header-right .gw-version { display: none; }     /* hide version too */
+        }
+
+        /* Tier ribbon — stack cleanly on every breakpoint */
+        .gw-tier-ribbon { gap: 0.6rem !important; }
+        .gw-tier-ribbon > div:first-child {
+            flex: 1 1 auto;
+            min-width: 0;
+            row-gap: 0.4rem !important;
+        }
+        @media (max-width: 720px) {
+            .gw-tier-ribbon {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                padding: 12px 16px !important;
+            }
+            .gw-tier-ribbon > div:first-child {
+                flex-direction: column !important;
+                gap: 0.3rem !important;
+                align-items: flex-start !important;
+                width: 100%;
+            }
+            .gw-tier-ribbon > div:first-child > span { font-size: 0.78rem; }
+            .gw-tier-ribbon > a { width: 100%; text-align: center; }
+        }
+        @media (max-width: 380px) {
+            .gw-tier-ribbon > div:first-child > span { font-size: 0.74rem; }
+        }
+
+        /* DEEP HISTORY — KPI tiles + lists responsive on narrow */
+        @media (max-width: 720px) {
+            .gw-deep-history-section .gw-section-header { flex-direction: column; align-items: flex-start !important; }
+            #dh-totals { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important; }
+        }
+        @media (max-width: 480px) {
+            #dh-totals { grid-template-columns: 1fr 1fr !important; }
+            .gw-dh-panel { padding: 0.85rem !important; }
+        }
+
+        /* AWARDS & TRENDS — same treatment */
+        @media (max-width: 720px) {
+            .gw-awards-section .gw-section-header { flex-direction: column; align-items: flex-start !important; }
+            #awards-totals { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important; }
+        }
+        @media (max-width: 480px) {
+            #awards-totals { grid-template-columns: 1fr 1fr !important; }
+        }
+
+        /* "Paste an RFP" entry — stack content + button vertically on phones */
+        @media (max-width: 600px) {
+            .gw-rfp-entry > div { flex-direction: column !important; align-items: stretch !important; }
+            .gw-rfp-entry > div > div:last-child { text-align: center; }  /* the OPEN PARSER button */
+        }
+
+        /* RFP modal — full-screen on phones */
+        @media (max-width: 720px) {
+            #rfp-modal .gw-modal { width: 95vw !important; max-width: none !important; max-height: 92vh; overflow-y: auto; }
+            #rfp-input { font-size: 0.78rem !important; rows: 6; }
+        }
+
+        /* YOUR MATCHES — already auto-fit minmax 320 → stacks naturally;
+           bump down to 280 minmax on phones for less awkward gaps */
+        @media (max-width: 480px) {
+            #matches-grid { grid-template-columns: 1fr !important; }
+            .gw-matches-section .gw-section-header { flex-direction: column; align-items: flex-start !important; gap: 0.4rem; }
+        }
+
+        /* "NEXT UP — PRO+" coming-soon cards — stack on narrow */
+        @media (max-width: 480px) {
+            .gw-coming-soon > div { grid-template-columns: 1fr !important; }
+        }
+
+        /* Filter panel — already responsive in govwatch.css; no change */
+
+        /* Stats bar — gw-stat-card is in govwatch.css; just confirm wrap */
+        @media (max-width: 480px) {
+            .gw-stats-bar { gap: 0.6rem !important; padding: 1rem !important; }
+            .gw-stat-value { font-size: 1.1rem !important; }
+        }
+
+        /* Z Fold5 FOLDED outer screen — 360x904 logical = very narrow */
+        @media (max-width: 380px) {
+            .gw-header-inner { padding: 8px 12px !important; }
+            .gw-title { font-size: 0.85rem !important; letter-spacing: 1px !important; }
+            .gw-subtitle { font-size: 0.6rem !important; }
+            .gw-agent-badge { display: none; }  /* P.R.O.C.U.R.E. ASK link, hidden on Fold-folded */
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="gw-header">
+        <div class="gw-header-inner">
+            <div class="gw-logo-group">
+                <div class="gw-elbow-tl"></div>
+                <h1 class="gw-title">KYTRAN GOV WATCH</h1>
+                <span class="gw-subtitle">Government Procurement Intelligence</span>
+            </div>
+            <a class="gw-agent-badge gw-agent-badge-link" href="/procure" title="Chat with P.R.O.C.U.R.E.">
+                <span class="gw-agent-dot"></span>
+                <span class="gw-agent-name">P.R.O.C.U.R.E.</span>
+                <span class="gw-agent-role">Ask the agent →</span>
+            </a>
+            <div class="gw-header-right" style="display:flex;align-items:center;gap:0.6rem;">
+                {% if tier %}
+                <span class="gw-tier-pill" style="display:inline-block;padding:4px 12px;border:1px solid {{ tier.label_color }};color:{{ tier.label_color }};font-family:'Orbitron',sans-serif;font-size:0.7rem;letter-spacing:2px;border-radius:100px;text-transform:uppercase;">{{ tier.name }}</span>
+                {% endif %}
+                {% if user_email %}
+                <a href="/profile" title="View {{ user_email }} profile"
+                   style="color:#9ca3af;font-family:'IBM Plex Mono',monospace;font-size:0.72rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;border-bottom:1px dotted #00e5ff;transition:color 0.15s;"
+                   onmouseover="this.style.color='#00e5ff';"
+                   onmouseout="this.style.color='#9ca3af';">{{ user_name or user_email }}</a>
+                <a href="/auth/logout" title="Sign out"
+                   style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border:1px solid #1f2937;border-radius:14px;color:#9ca3af;text-decoration:none;font-family:'Orbitron',sans-serif;font-size:0.65rem;letter-spacing:1.5px;transition:all 0.15s;"
+                   onmouseover="this.style.borderColor='#ef4444';this.style.color='#ef4444';"
+                   onmouseout="this.style.borderColor='#1f2937';this.style.color='#9ca3af';">
+                    SIGN OUT
+                </a>
+                {% endif %}
+                <span class="gw-version" style="color:#6b7280;font-size:0.7rem;">v{{ version }}</span>
+                <div class="gw-elbow-tr"></div>
+            </div>
+        </div>
+    </header>
+
+    {% if wizard_completion and wizard_completion.pct < 100 %}
+<div style="background:#0d1929;border:1px solid #fbbf2444;border-left:3px solid #fbbf24;
+     border-radius:3px;padding:11px 18px;margin:12px 0 16px 0;
+     display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <div style="display:flex;align-items:center;gap:12px">
+    <span style="color:#fbbf24;font-size:14px">◈</span>
+    <span style="color:#fbbf24;font-weight:600;font-size:12px">{{ wizard_completion.steps_done }} of 6 steps complete</span>
+    <span style="color:#64748b;font-size:12px"> — finish your supplier profile to unlock personalized tender matches.</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px;flex-shrink:0">
+    <div style="display:flex;gap:4px">
+      {% for done in wizard_completion.steps %}
+      <div style="width:8px;height:8px;border-radius:50%;background:{{ '#4ade80' if done else '#1a2a3a' }}"></div>
+      {% endfor %}
+    </div>
+    <a href="/wizard?step={{ wizard_completion.first_incomplete }}"
+       style="color:#00e5ff;font-size:11px;font-family:'IBM Plex Mono',monospace;text-decoration:none">
+      Continue setup →
+    </a>
+  </div>
+</div>
+    {% endif %}
+
+    {% if tier %}
+    <!-- Tier ribbon -->
+    <section class="gw-tier-ribbon" style="background:rgba(17,24,39,0.6);border-bottom:1px solid #1f2937;padding:12px 24px;display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:0.78rem;">
+        <div style="display:flex;flex-wrap:wrap;gap:1.25rem;align-items:center;color:#9ca3af;">
+            <span><strong style="color:{{ tier.label_color }};">{{ tier.name }} TIER</strong></span>
+            {% if tier.drafts_limit < 0 %}
+                <span>· Bid drafts: <strong style="color:#10b981;">UNLIMITED</strong></span>
+            {% else %}
+                <span>· Bid drafts: <strong style="color:#fff;">{{ usage.drafts_used }} / {{ tier.drafts_limit }}</strong> this month</span>
+            {% endif %}
+            {% if tier.summaries_limit < 0 %}
+                <span>· AI summaries: <strong style="color:#10b981;">UNLIMITED</strong></span>
+            {% else %}
+                <span>· AI summaries: <strong style="color:#fff;">{{ usage.summaries_used }} / {{ tier.summaries_limit }}</strong> this month</span>
+            {% endif %}
+            {% if tier.alerts %}
+                <span style="color:#10b981;">· ✓ Real-time alerts</span>
+            {% else %}
+                <span style="color:#6b7280;">· Real-time alerts (Solo+)</span>
+            {% endif %}
+            {% if tier.award_diff %}
+                <span style="color:#10b981;">· ✓ Award diff</span>
+            {% else %}
+                <span style="color:#6b7280;">· Award diff (Solo+)</span>
+            {% endif %}
+        </div>
+        {% if tier.upgrade_to %}
+        <a href="{{ tier.upgrade_url }}" style="background:#f97316;color:#000;padding:6px 14px;border-radius:4px;text-decoration:none;font-weight:700;font-size:0.72rem;letter-spacing:1px;text-transform:uppercase;">↑ Upgrade to {{ tier.upgrade_to }}</a>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    <!-- Stats Bar -->
+    <!-- Tab nav — swaps the long-scroll dashboard into focused panes -->
+    <nav class="gw-tabs" id="gw-tabs" role="tablist" aria-label="Dashboard sections" style="display:flex;gap:2px;padding:0 24px;background:#0b1220;border-bottom:1px solid #1f2937;font-family:'Orbitron',sans-serif;font-size:0.75rem;letter-spacing:1.5px;overflow-x:auto;-webkit-overflow-scrolling:touch;">
+        <button type="button" role="tab" data-tab="matches"   class="gw-tab gw-tab-active" style="background:transparent;border:0;border-bottom:2px solid transparent;color:#9ca3af;padding:14px 18px;cursor:pointer;text-transform:uppercase;white-space:nowrap;transition:all 0.15s;">⚡ Matches</button>
+        <button type="button" role="tab" data-tab="tenders"   class="gw-tab" style="background:transparent;border:0;border-bottom:2px solid transparent;color:#9ca3af;padding:14px 18px;cursor:pointer;text-transform:uppercase;white-space:nowrap;transition:all 0.15s;">📋 All Tenders</button>
+        <button type="button" role="tab" data-tab="awards"    class="gw-tab" style="background:transparent;border:0;border-bottom:2px solid transparent;color:#9ca3af;padding:14px 18px;cursor:pointer;text-transform:uppercase;white-space:nowrap;transition:all 0.15s;">🏆 Awards</button>
+        <button type="button" role="tab" data-tab="contracts" class="gw-tab" style="background:transparent;border:0;border-bottom:2px solid transparent;color:#9ca3af;padding:14px 18px;cursor:pointer;text-transform:uppercase;white-space:nowrap;transition:all 0.15s;">📜 Contracts</button>
+        <button type="button" role="tab" data-tab="intel"    class="gw-tab" style="background:transparent;border:0;border-bottom:2px solid transparent;color:#9ca3af;padding:14px 18px;cursor:pointer;text-transform:uppercase;white-space:nowrap;transition:all 0.15s;">🔍 Intel Hub</button>
+    </nav>
+    <style>
+        .gw-tabs .gw-tab:hover { color: #fff !important; }
+        .gw-tabs .gw-tab-active { color: #00e5ff !important; border-bottom-color: #00e5ff !important; }
+        .gw-tab-pane { display: none; }
+        .gw-tab-pane.gw-tab-pane-active { display: block; }
+        @media (max-width: 480px) {
+            .gw-tabs .gw-tab { padding: 12px 12px !important; font-size: 0.68rem !important; }
+        }
+    </style>
+
+    <div class="gw-tab-pane gw-tab-pane-active" data-pane="matches">
+
+    <section class="gw-stats-bar">
+        <div class="gw-stat-card">
+            <div class="gw-stat-value" id="stat-total">--</div>
+            <div class="gw-stat-label">OPEN TENDERS</div>
+        </div>
+        <div class="gw-stat-card gw-stat-warn">
+            <div class="gw-stat-value" id="stat-closing">--</div>
+            <div class="gw-stat-label">CLOSING THIS WEEK</div>
+        </div>
+        <div class="gw-stat-card">
+            <div class="gw-stat-value" id="stat-avg-value">--</div>
+            <div class="gw-stat-label">AVG VALUE</div>
+        </div>
+        <div class="gw-stat-card">
+            <div class="gw-stat-value" id="stat-top-dept">--</div>
+            <div class="gw-stat-label">TOP DEPARTMENT</div>
+        </div>
+    </section>
+
+    <!-- Paste an RFP entry point (T19) -->
+    <section class="gw-rfp-entry" style="padding:1rem 2rem 0;">
+        <div onclick="GovWatch.openRfpParser()" role="button" tabindex="0"
+             onkeydown="if(event.key==='Enter'||event.key===' ')GovWatch.openRfpParser()"
+             style="background:linear-gradient(135deg,#111827 0%,rgba(0,229,255,0.08) 100%);border:1px solid #00e5ff;border-radius:10px;padding:1.1rem 1.5rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;font-family:'IBM Plex Mono',monospace;transition:transform 0.15s,box-shadow 0.15s;"
+             onmouseover="this.style.boxShadow='0 4px 24px rgba(0,229,255,0.2)';this.style.transform='translateY(-1px)';"
+             onmouseout="this.style.boxShadow='none';this.style.transform='none';">
+            <div>
+                <div style="font-family:'Orbitron',sans-serif;color:#00e5ff;font-size:0.85rem;letter-spacing:1.5px;margin-bottom:0.35rem;">📋 PASTE AN RFP — GET A STRUCTURED CHECKLIST</div>
+                <div style="color:#9ca3af;font-size:0.82rem;">5-minute analysis: mandatory + rated criteria, deliverables, deadlines, plain-English summary. P.R.O.C.U.R.E. parses up to 32KB of pasted text.</div>
+            </div>
+            <div style="background:#00e5ff;color:#000;padding:10px 22px;border-radius:6px;font-family:'Orbitron',sans-serif;font-size:0.78rem;font-weight:700;letter-spacing:1px;white-space:nowrap;">OPEN PARSER →</div>
+        </div>
+    </section>
+
+    <!-- RFP parser modal -->
+    <div class="gw-modal-overlay" id="rfp-modal" style="display:none;">
+        <div class="gw-modal" style="max-width:920px;">
+            <div class="gw-modal-header">
+                <div class="gw-modal-elbow"></div>
+                <h2>RFP Parser — P.R.O.C.U.R.E.</h2>
+                <button class="gw-modal-close" onclick="GovWatch.closeRfpParser()">&times;</button>
+            </div>
+            <div class="gw-modal-body">
+                <p style="color:#9ca3af;font-size:0.85rem;margin-bottom:1rem;">Paste the criteria / evaluation / deliverables sections of a federal RFP. Up to 32 KB. P.R.O.C.U.R.E. extracts a structured checklist of mandatory criteria (M1–M5), rated criteria, deliverables, and deadlines.</p>
+                <textarea id="rfp-input" rows="10" maxlength="32000"
+                          placeholder="Paste RFP / SOR / solicitation text here. The mandatory criteria, rated criteria, evaluation methodology, deliverables, and key dates are the most useful sections to include."
+                          style="width:100%;background:#0a0a1a;color:#e0e0e0;border:1px solid #1f2937;border-radius:6px;padding:12px;font-family:'IBM Plex Mono',monospace;font-size:0.85rem;line-height:1.5;resize:vertical;"></textarea>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.75rem;gap:1rem;flex-wrap:wrap;">
+                    <span id="rfp-char-count" style="color:#6b7280;font-size:0.72rem;font-family:'Orbitron',sans-serif;letter-spacing:1px;">0 / 32,000 chars</span>
+                    <button class="gw-btn gw-btn-primary" onclick="GovWatch.runRfpParser()" id="rfp-submit">EXTRACT CHECKLIST</button>
+                </div>
+                <div id="rfp-result" style="display:none;margin-top:1.5rem;border-top:1px solid #1f2937;padding-top:1rem;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Your matches — profile-scored opportunities (T18 / T20) -->
+    {% if wizard_completion and wizard_completion.steps_done == 0 %}
+    <!-- T20: Empty state — no profile yet. -->
+    <section style="padding:1.5rem 2rem 2rem;">
+        <div style="background:#0b1220;border:1px solid #1f2937;border-left:3px solid #00e5ff;border-radius:10px;padding:2rem 1.5rem;text-align:center;max-width:660px;margin:0 auto;">
+            <div style="font-family:'Orbitron',sans-serif;color:#00e5ff;font-size:0.9rem;letter-spacing:2px;margin-bottom:0.6rem;">⚡ P.R.O.C.U.R.E. NEEDS TO KNOW YOUR BUSINESS FIRST</div>
+            <p style="color:#9ca3af;font-size:0.83rem;line-height:1.65;margin:0 0 1.6rem;">Tell us who you are — we'll score every federal tender against your profile and surface the opportunities worth your time.</p>
+            <!-- 3-step preview -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1.75rem;">
+                <div style="background:#111827;border:1px solid #1f2937;border-radius:8px;padding:1rem 0.6rem;">
+                    <div style="font-family:'Orbitron',sans-serif;color:#00e5ff;font-size:0.6rem;letter-spacing:1.5px;margin-bottom:0.35rem;">STEP 1</div>
+                    <div style="font-size:1.3rem;margin-bottom:0.3rem;">🏢</div>
+                    <div style="color:#e5e7eb;font-size:0.77rem;font-weight:600;margin-bottom:0.25rem;">Business Info</div>
+                    <div style="color:#6b7280;font-size:0.68rem;line-height:1.4;">Company name &amp; NAICS codes</div>
+                </div>
+                <div style="background:#111827;border:1px solid #1f2937;border-radius:8px;padding:1rem 0.6rem;">
+                    <div style="font-family:'Orbitron',sans-serif;color:#00e5ff;font-size:0.6rem;letter-spacing:1.5px;margin-bottom:0.35rem;">STEP 2</div>
+                    <div style="font-size:1.3rem;margin-bottom:0.3rem;">🏷️</div>
+                    <div style="color:#e5e7eb;font-size:0.77rem;font-weight:600;margin-bottom:0.25rem;">Certifications</div>
+                    <div style="color:#6b7280;font-size:0.68rem;line-height:1.4;">ISO, CMMC, security clearance</div>
+                </div>
+                <div style="background:#111827;border:1px solid #1f2937;border-radius:8px;padding:1rem 0.6rem;">
+                    <div style="font-family:'Orbitron',sans-serif;color:#00e5ff;font-size:0.6rem;letter-spacing:1.5px;margin-bottom:0.35rem;">STEP 3</div>
+                    <div style="font-size:1.3rem;margin-bottom:0.3rem;">📊</div>
+                    <div style="color:#e5e7eb;font-size:0.77rem;font-weight:600;margin-bottom:0.25rem;">Diversity Profile</div>
+                    <div style="color:#6b7280;font-size:0.68rem;line-height:1.4;">Unlock set-aside matching</div>
+                </div>
+            </div>
+            <a href="/wizard" style="display:inline-block;background:#00e5ff;color:#0a0f1a;font-family:'Orbitron',sans-serif;font-size:0.75rem;font-weight:700;letter-spacing:2px;padding:0.8rem 2.2rem;border-radius:6px;text-decoration:none;">SET UP YOUR PROFILE →</a>
+            <div style="color:#374151;font-size:0.68rem;margin-top:0.8rem;">Takes about 5 minutes · No payment required</div>
+        </div>
+    </section>
+    {% else %}
+    <section class="gw-matches-section" style="padding:1rem 2rem 0;">
+        <div class="gw-section-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <h2 style="font-family:'Orbitron',sans-serif;font-size:0.95rem;color:#00e5ff;letter-spacing:2px;margin:0;">⚡ YOUR MATCHES</h2>
+            <span id="matches-count" style="font-family:'Orbitron',sans-serif;color:#9ca3af;font-size:0.7rem;letter-spacing:1px;">scoring tenders against your profile…</span>
+        </div>
+        <div id="matches-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem;">
+            <div id="matches-loading" style="grid-column:1/-1;padding:1.5rem;text-align:center;color:#6b7280;font-family:'IBM Plex Mono',monospace;font-size:0.85rem;background:#111827;border:1px dashed #1f2937;border-radius:8px;">
+                Loading personalized matches…
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    </div><!-- /matches pane -->
+
+    <div class="gw-tab-pane" data-pane="contracts">
+
+    <!-- WHAT'S NEW since last visit (hidden when nothing new) -->
+    <section style="padding:1rem 2rem 0;">
+        <div id="ci-whats-new" style="background:#0b1220;border:1px solid #1f2937;border-left:3px solid #22c55e;border-radius:8px;padding:0.9rem 1.1rem;font-family:'IBM Plex Mono',monospace;display:none;"></div>
+    </section>
+
+    <!-- Insights filters: my-category toggle + NAICS dropdown -->
+    <section style="padding:1rem 2rem 0;">
+        <div style="background:#111827;border:1px solid #1f2937;border-left:3px solid #fbbf24;border-radius:8px;padding:0.7rem 1rem;font-family:'IBM Plex Mono',monospace;display:flex;flex-wrap:wrap;gap:1rem;align-items:center;">
+            <h3 style="font-family:Orbitron,sans-serif;color:#fbbf24;font-size:0.72rem;letter-spacing:2px;margin:0;">🎯 INSIGHTS FILTERS</h3>
+            <label style="display:flex;align-items:center;gap:0.4rem;color:#d1d5db;font-size:0.78rem;cursor:pointer;">
+                <input type="checkbox" id="ci-mycategory" style="accent-color:#fbbf24;width:16px;height:16px;">
+                Show only my category
+            </label>
+            <label style="display:flex;align-items:center;gap:0.4rem;color:#d1d5db;font-size:0.78rem;">
+                NAICS
+                <select id="ci-naics" style="background:#0b1220;color:#e5e7eb;border:1px solid #1f2937;border-radius:5px;padding:5px 7px;font-family:inherit;font-size:0.75rem;max-width:280px;">
+                    <option value="">All</option>
+                </select>
+            </label>
+            <span id="ci-filters-meta" style="color:#9ca3af;font-size:0.7rem;margin-left:auto;">Filters apply to every panel below.</span>
+        </div>
+    </section>
+
+    <!-- YEAR-OVER-YEAR spend chart (national + my-category overlay) -->
+    <section style="padding:1rem 2rem 0;">
+        <div style="background:#111827;border:1px solid #1f2937;border-left:3px solid #00e5ff;border-radius:8px;padding:1rem 1.1rem;font-family:'IBM Plex Mono',monospace;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.6rem;">
+                <h3 style="font-family:Orbitron,sans-serif;color:#00e5ff;font-size:0.78rem;letter-spacing:2px;margin:0;">📈 FEDERAL CONTRACT SPEND BY YEAR</h3>
+                <span style="color:#9ca3af;font-size:0.7rem;">Last 10 years · sum of total_value</span>
+            </div>
+            <div id="ci-yearly" style="position:relative;height:280px;"><canvas id="ci-yearly-chart"></canvas></div>
+        </div>
+    </section>
+
+    <!-- Three-panel insights row: Expiring | Concentration | Overruns -->
+    <section style="padding:1rem 2rem 0;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem;">
+            <div style="background:#111827;border:1px solid #1f2937;border-left:3px solid #f97316;border-radius:8px;padding:1rem 1.1rem;font-family:'IBM Plex Mono',monospace;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.6rem;">
+                    <h3 style="font-family:Orbitron,sans-serif;color:#f97316;font-size:0.78rem;letter-spacing:2px;margin:0;">⏳ EXPIRING SOON</h3>
+                    <span style="color:#9ca3af;font-size:0.65rem;">120d · ≥$500K</span>
+                </div>
+                <div id="ci-expiring-list">—</div>
+            </div>
+
+            <div style="background:#111827;border:1px solid #1f2937;border-left:3px solid #a78bfa;border-radius:8px;padding:1rem 1.1rem;font-family:'IBM Plex Mono',monospace;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.6rem;">
+                    <h3 style="font-family:Orbitron,sans-serif;color:#a78bfa;font-size:0.78rem;letter-spacing:2px;margin:0;">🔒 VENDOR LOCK-IN</h3>
+                    <span style="color:#9ca3af;font-size:0.65rem;">3y · top-1 share % · end-user dept</span>
+                </div>
+                <div id="ci-concentration-list">—</div>
+            </div>
+
+            <div style="background:#111827;border:1px solid #1f2937;border-left:3px solid #ef4444;border-radius:8px;padding:1rem 1.1rem;font-family:'IBM Plex Mono',monospace;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.6rem;">
+                    <h3 style="font-family:Orbitron,sans-serif;color:#ef4444;font-size:0.78rem;letter-spacing:2px;margin:0;">💸 BIGGEST OVERRUNS</h3>
+                    <span style="color:#9ca3af;font-size:0.65rem;">5y · % over original</span>
+                </div>
+                <div id="ci-overruns-list">—</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Two-panel row: First-time recipients | Geographic split -->
+    <section style="padding:1rem 2rem 0;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem;">
+            <div style="background:#111827;border:1px solid #1f2937;border-left:3px solid #fbbf24;border-radius:8px;padding:1rem 1.1rem;font-family:'IBM Plex Mono',monospace;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.6rem;">
+                    <h3 style="font-family:Orbitron,sans-serif;color:#fbbf24;font-size:0.78rem;letter-spacing:2px;margin:0;">⭐ FIRST-TIME RECIPIENTS</h3>
+                    <span style="color:#9ca3af;font-size:0.65rem;">Crossed $1M · last 180d</span>
+                </div>
+                <div id="ci-firsttime-list">—</div>
+            </div>
+
+            <div style="background:#111827;border:1px solid #1f2937;border-left:3px solid #00e5ff;border-radius:8px;padding:1rem 1.1rem;font-family:'IBM Plex Mono',monospace;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.6rem;">
+                    <h3 style="font-family:Orbitron,sans-serif;color:#00e5ff;font-size:0.78rem;letter-spacing:2px;margin:0;">🌍 VENDOR GEOGRAPHY</h3>
+                    <span style="color:#9ca3af;font-size:0.65rem;">5y · vendor_country</span>
+                </div>
+                <div id="ci-geo-note" style="color:#fbbf24;font-size:0.7rem;font-style:italic;display:none;margin-bottom:0.4rem;"></div>
+                <div id="ci-geo" style="position:relative;height:240px;"><canvas id="ci-geo-chart"></canvas></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pinned vendors / departments / categories — quick-access shortcuts -->
+    <section class="gw-pinned-section" style="padding:1rem 2rem 0;">
+        <div style="background:#111827;border:1px solid #1f2937;border-left:3px solid #fbbf24;border-radius:8px;padding:0.9rem 1.1rem;font-family:'IBM Plex Mono',monospace;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;gap:0.4rem;">
+                <h3 style="font-family:Orbitron,sans-serif;color:#fbbf24;font-size:0.72rem;letter-spacing:2px;margin:0;">📌 PINNED</h3>
+                <span style="color:#9ca3af;font-size:0.7rem;">Click any breakdown title to add — they land here</span>
+            </div>
+            <div id="dh-pins-list" style="display:flex;flex-wrap:wrap;gap:0.45rem;">
+                <span style="color:#6b7280;font-size:0.78rem;font-style:italic;">No pinned items yet.</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Search + compare bar — drilldown by typeahead, multi-vendor PDF -->
+    <section class="gw-dh-search-bar" style="padding:1rem 2rem 0;">
+        <div style="background:#111827;border:1px solid #1f2937;border-left:3px solid #a78bfa;border-radius:8px;padding:0.9rem 1rem;font-family:'IBM Plex Mono',monospace;">
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">
+                <input type="search" id="dh-search" placeholder="Search vendor / department / category…" autocomplete="off" style="flex:1;min-width:240px;background:#0b1220;border:1px solid #1f2937;border-radius:5px;padding:7px 10px;color:#fff;font-family:inherit;font-size:0.85rem;">
+                <button type="button" id="dh-compare-toggle" class="gw-btn gw-btn-secondary" style="font-size:11px;padding:7px 12px;">⇆ Compare vendors</button>
+            </div>
+            <div id="dh-search-results" style="margin-top:0.5rem;display:none;background:#0b1220;border:1px solid #1f2937;border-radius:5px;max-height:280px;overflow-y:auto;"></div>
+            <div id="dh-compare-form" style="display:none;margin-top:0.6rem;padding:0.7rem;background:#0b1220;border:1px solid #a78bfa;border-radius:5px;">
+                <div style="color:#a78bfa;font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:0.4rem;">Multi-vendor comparison · 2-6 vendors → branded PDF</div>
+                <textarea id="dh-compare-list" rows="4" style="width:100%;background:#0b1220;border:1px solid #1f2937;border-radius:5px;padding:7px;color:#fff;font-family:inherit;font-size:0.82rem;box-sizing:border-box;" placeholder="One vendor per line, exactly as they appear in the data. Eg:&#10;Vancouver Shipyards Co. Ltd.&#10;Chantier Davie Canada Inc.&#10;Bell Textron Canada limitée"></textarea>
+                <div style="display:flex;gap:0.4rem;margin-top:0.5rem;align-items:center;flex-wrap:wrap;">
+                    <button type="button" id="dh-compare-go" class="gw-btn gw-btn-orange" style="font-size:11px;padding:7px 12px;">⤓ GENERATE COMPARISON PDF</button>
+                    <span id="dh-compare-status" style="color:#9ca3af;font-size:0.74rem;"></span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Deep History — 10+ years of contract history, offer-vs-paid -->
+    <section class="gw-deep-history-section" style="padding:1rem 2rem 0;">
+        <div class="gw-section-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.6rem;">
+            <h2 style="font-family:'Orbitron',sans-serif;font-size:0.95rem;color:#a78bfa;letter-spacing:2px;margin:0;">📜 DEEP HISTORY · OFFER VS PAID</h2>
+            <div style="display:flex;gap:0.4rem;align-items:center;font-family:'Orbitron',sans-serif;font-size:0.7rem;color:#9ca3af;flex-wrap:wrap;">
+                <label for="dh-window">Window:</label>
+                <input type="range" id="dh-range" min="1" max="20" step="1" value="5" style="width:130px;accent-color:#a78bfa;">
+                <span id="dh-range-label" style="color:#a78bfa;font-weight:600;min-width:54px;">5 years</span>
+                <select id="dh-window" style="display:none;">
+                    <option value="365">1</option><option value="730">2</option><option value="1095">3</option>
+                    <option value="1460">4</option><option value="1825" selected>5</option>
+                    <option value="2190">6</option><option value="2555">7</option><option value="2920">8</option>
+                    <option value="3285">9</option><option value="3650">10</option>
+                    <option value="4015">11</option><option value="4380">12</option><option value="4745">13</option>
+                    <option value="5110">14</option><option value="5475">15</option>
+                    <option value="5840">16</option><option value="6205">17</option><option value="6570">18</option>
+                    <option value="6935">19</option><option value="7300">20</option>
+                </select>
+                <span id="dh-meta" style="color:#9ca3af;font-size:0.7rem;letter-spacing:1px;margin-left:0.5rem;"></span>
+                <a id="dh-export"
+                   href="#"
+                   class="gw-btn gw-btn-orange"
+                   style="font-size:10px;padding:5px 11px;letter-spacing:1px;margin-left:0.6rem;"
+                   title="Download a branded copy-protected PDF report">⤓ EXPORT PDF</a>
+            </div>
+        </div>
+        <div id="dh-totals" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.6rem;margin-bottom:1rem;">
+            <div style="grid-column:1/-1;padding:1.2rem;text-align:center;color:#6b7280;font-family:'IBM Plex Mono',monospace;font-size:0.85rem;background:#111827;border:1px dashed #1f2937;border-radius:8px;">
+                Loading deep history…
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:1rem;">
+            <div class="gw-dh-panel" id="dh-top-vendors" style="background:#111827;border:1px solid #1f2937;border-left:3px solid #a78bfa;border-radius:8px;padding:1rem 1.1rem;font-family:'IBM Plex Mono',monospace;">
+                <h3 style="font-family:Orbitron,sans-serif;color:#a78bfa;font-size:0.78rem;letter-spacing:2px;margin:0 0 0.6rem;">TOP VENDORS · PAID</h3>
+                <div class="gw-dh-list">—</div>
+            </div>
+            <div class="gw-dh-panel" id="dh-top-depts" style="background:#111827;border:1px solid #1f2937;border-left:3px solid #00e5ff;border-radius:8px;padding:1rem 1.1rem;font-family:'IBM Plex Mono',monospace;">
+                <h3 style="font-family:Orbitron,sans-serif;color:#00e5ff;font-size:0.78rem;letter-spacing:2px;margin:0 0 0.6rem;">TOP SPENDING DEPARTMENTS</h3>
+                <div class="gw-dh-list">—</div>
+            </div>
+        </div>
+    </section>
+
+    </div><!-- /contracts pane -->
+
+    <div class="gw-tab-pane" data-pane="awards">
+
+    <!-- Awards & Trends — who won what, trends over the last 180 days -->
+    <section class="gw-awards-section" style="padding:1rem 2rem 0;">
+        <div class="gw-section-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <h2 style="font-family:'Orbitron',sans-serif;font-size:0.95rem;color:#22c55e;letter-spacing:2px;margin:0;">🏆 AWARDS &amp; TRENDS</h2>
+            <span id="awards-meta" style="font-family:'Orbitron',sans-serif;color:#9ca3af;font-size:0.7rem;letter-spacing:1px;">last 180 days · who won what · is your category active</span>
+        </div>
+        <div id="awards-totals" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.6rem;margin-bottom:1rem;">
+            <div class="gw-awards-loading" style="grid-column:1/-1;padding:1.2rem;text-align:center;color:#6b7280;font-family:'IBM Plex Mono',monospace;font-size:0.85rem;background:#111827;border:1px dashed #1f2937;border-radius:8px;">
+                Loading award data… (run "Sync awards" if empty)
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem;">
+            <div class="gw-awards-panel" id="awards-top-winners" style="background:#111827;border:1px solid #1f2937;border-left:3px solid #22c55e;border-radius:8px;padding:1rem 1.1rem;font-family:'IBM Plex Mono',monospace;">
+                <h3 style="font-family:Orbitron,sans-serif;color:#22c55e;font-size:0.78rem;letter-spacing:2px;margin:0 0 0.6rem;">TOP WINNERS</h3>
+                <div class="gw-awards-list">—</div>
+            </div>
+            <div class="gw-awards-panel" id="awards-by-dept" style="background:#111827;border:1px solid #1f2937;border-left:3px solid #00e5ff;border-radius:8px;padding:1rem 1.1rem;font-family:'IBM Plex Mono',monospace;">
+                <h3 style="font-family:Orbitron,sans-serif;color:#00e5ff;font-size:0.78rem;letter-spacing:2px;margin:0 0 0.6rem;">BY DEPARTMENT</h3>
+                <div class="gw-awards-list">—</div>
+            </div>
+            <div class="gw-awards-panel" id="awards-my-focus" style="background:#111827;border:1px solid #1f2937;border-left:3px solid #f97316;border-radius:8px;padding:1rem 1.1rem;font-family:'IBM Plex Mono',monospace;">
+                <h3 style="font-family:Orbitron,sans-serif;color:#f97316;font-size:0.78rem;letter-spacing:2px;margin:0 0 0.6rem;">YOUR CATEGORIES</h3>
+                <div class="gw-awards-list">—</div>
+            </div>
+        </div>
+        <div style="margin-top:0.8rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <button type="button" class="gw-btn gw-btn-secondary" style="font-size:11px;" onclick="GovWatchAwards.sync()">⟳ SYNC AWARDS FROM CANADABUYS</button>
+            <span id="awards-sync-status" style="font-family:'IBM Plex Mono',monospace;font-size:0.75rem;color:#9ca3af;align-self:center;"></span>
+        </div>
+    </section>
+
+    <!-- ── Competitive Analysis Widget ──────────────────────────────────── -->
+    <section class="gw-awards-section" style="padding:1rem 2rem 1.5rem;">
+        <div class="gw-section-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem;">
+            <h2 style="font-family:'Orbitron',sans-serif;font-size:0.95rem;color:#8b5cf6;letter-spacing:2px;margin:0;">🔬 COMPETITIVE ANALYSIS</h2>
+            <span style="font-family:'Orbitron',sans-serif;color:#9ca3af;font-size:0.7rem;letter-spacing:1px;">who won it · how much · what beat you</span>
+        </div>
+        <div style="display:flex;gap:0.5rem;margin-bottom:0.8rem;flex-wrap:wrap;">
+            <input id="awd-search-input" type="text"
+                   placeholder="Reference # · contract title · NAICS code (e.g. 541511)…"
+                   style="flex:1;min-width:200px;background:#0a0a1a;border:1px solid #2d1b69;border-radius:6px;
+                          padding:9px 14px;font-family:'IBM Plex Mono',monospace;font-size:12px;
+                          color:#e5e7eb;outline:none;"
+                   onkeydown="if(event.key==='Enter')AwardDiff.search()">
+            <button type="button" class="gw-btn"
+                    onclick="AwardDiff.search()"
+                    style="background:#2d1b69;border:1px solid #4c1d95;color:#8b5cf6;font-size:11px;white-space:nowrap;">
+                🔍 SEARCH AWARDS
+            </button>
+        </div>
+        <div id="awd-results" style="display:none;"></div>
+        {% if not tier.award_diff %}
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4b5563;margin-top:0.4rem;">
+            ⚠ Competitive analysis requires Solo tier.
+        </div>
+        {% endif %}
+    </section>
+
+    </div><!-- /awards pane -->
+
+    <div class="gw-tab-pane" data-pane="tenders">
+
+    <!-- Filter Panel -->
+    <section class="gw-filter-panel">
+        <div class="gw-filter-row">
+            <div class="gw-filter-group">
+                <label>Department</label>
+                <select id="filter-department">
+                    <option value="">All Departments</option>
+                </select>
+            </div>
+            <div class="gw-filter-group">
+                <label>Category</label>
+                <select id="filter-category">
+                    <option value="">All Categories</option>
+                </select>
+            </div>
+            <div class="gw-filter-group">
+                <label>Province</label>
+                <select id="filter-province">
+                    <option value="">All Provinces</option>
+                    <option value="AB">Alberta</option>
+                    <option value="BC">British Columbia</option>
+                    <option value="MB">Manitoba</option>
+                    <option value="NB">New Brunswick</option>
+                    <option value="NL">Newfoundland & Labrador</option>
+                    <option value="NS">Nova Scotia</option>
+                    <option value="NT">Northwest Territories</option>
+                    <option value="NU">Nunavut</option>
+                    <option value="ON">Ontario</option>
+                    <option value="PE">Prince Edward Island</option>
+                    <option value="QC">Quebec</option>
+                    <option value="SK">Saskatchewan</option>
+                    <option value="YT">Yukon</option>
+                </select>
+            </div>
+            <div class="gw-filter-group">
+                <label>Min Value ($)</label>
+                <input type="number" id="filter-value-min" placeholder="0">
+            </div>
+            <div class="gw-filter-group">
+                <label>Max Value ($)</label>
+                <input type="number" id="filter-value-max" placeholder="Any">
+            </div>
+            <div class="gw-filter-group gw-filter-search">
+                <label>Search</label>
+                <input type="text" id="filter-search" placeholder="Search tenders...">
+            </div>
+            <div class="gw-filter-group">
+                <label>Sort</label>
+                <select id="filter-sort" aria-label="Sort order">
+                    <option value="deadline_asc">Closing soonest</option>
+                    <option value="deadline_desc">Closing latest</option>
+                    <option value="value_desc">Value — high to low</option>
+                    <option value="value_asc">Value — low to high</option>
+                    <option value="posted_desc">Recently posted</option>
+                </select>
+            </div>
+            <div class="gw-filter-actions">
+                <button class="gw-btn gw-btn-primary" onclick="GovWatch.applyFilters()">SCAN</button>
+                <button class="gw-btn gw-btn-ghost" onclick="GovWatch.clearFilters()">RESET</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- View toggle -->
+    <section class="gw-view-toggle" role="tablist" aria-label="Results layout">
+        <button class="gw-view-btn gw-view-active" data-view="list" role="tab" aria-selected="true">☰ LIST</button>
+        <button class="gw-view-btn" data-view="calendar" role="tab" aria-selected="false">📅 BY WEEK</button>
+        <span class="gw-result-count" id="result-count"></span>
+    </section>
+
+    <!-- Data Sources Panel -->
+    <section class="gw-feeds-panel" id="feeds-panel">
+        <div class="gw-section-header">
+            <div class="gw-elbow-sl"></div>
+            <h2>DATA SOURCES</h2>
+            <button class="gw-btn gw-btn-primary gw-btn-sm" id="sync-btn" onclick="GovWatch.syncFeeds()">
+                SYNC NOW
+            </button>
+        </div>
+        <div class="gw-feeds-grid" id="feeds-grid">
+            <div class="gw-feed-card">
+                <div class="gw-feed-name">Loading sources...</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tender Grid -->
+    <section class="gw-content">
+        <div class="gw-section-header">
+            <div class="gw-elbow-sl"></div>
+            <h2>ACTIVE OPPORTUNITIES</h2>
+        </div>
+        <div class="gw-tender-grid" id="tender-grid">
+            <div class="gw-loading">SCANNING PROCUREMENT DATABASE...</div>
+        </div>
+        <div class="gw-tender-calendar" id="tender-calendar" hidden></div>
+        <div class="gw-pagination" id="pagination"></div>
+    </section>
+
+    <!-- Coming Soon — Pro+ feature roadmap (May Sprint T10-T13) -->
+    <section class="gw-content gw-coming-soon" style="margin-top:2rem;">
+        <div class="gw-section-header">
+            <div class="gw-elbow-sl"></div>
+            <h2>NEXT UP — PRO+ FEATURES</h2>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;padding:0 24px 24px;">
+
+            <div style="background:#111827;border:1px dashed rgba(249,115,22,0.4);border-radius:8px;padding:1.25rem;font-family:'IBM Plex Mono',monospace;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
+                    <span style="font-family:'Orbitron',sans-serif;font-size:0.7rem;color:#f97316;letter-spacing:1.5px;">RFP PDF PARSER</span>
+                    <span style="font-size:0.6rem;color:#fbbf24;border:1px solid #fbbf24;padding:2px 8px;border-radius:100px;letter-spacing:1px;">TEAM+</span>
+                </div>
+                <h4 style="color:#fff;font-size:0.95rem;margin:0.25rem 0 0.5rem;font-weight:600;">Drop a 200-page RFP, get a checklist</h4>
+                <p style="color:#9ca3af;font-size:0.78rem;line-height:1.6;margin:0;">Upload the solicitation PDF. Get back a structured checklist of mandatory criteria, evaluation weights, deadlines, and submission format. Then click "Draft bid" with the criteria pre-anchored.</p>
+                <div style="margin-top:0.75rem;font-size:0.7rem;color:#6b7280;">Coming this month · Task #2645</div>
+            </div>
+
+            <div style="background:#111827;border:1px dashed rgba(249,115,22,0.4);border-radius:8px;padding:1.25rem;font-family:'IBM Plex Mono',monospace;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
+                    <span style="font-family:'Orbitron',sans-serif;font-size:0.7rem;color:#f97316;letter-spacing:1.5px;">DIVERSITY PROFILE</span>
+                    <span style="font-size:0.6rem;color:#fbbf24;border:1px solid #fbbf24;padding:2px 8px;border-radius:100px;letter-spacing:1px;">SOLO+</span>
+                </div>
+                <h4 style="color:#fff;font-size:0.95rem;margin:0.25rem 0 0.5rem;font-weight:600;">Match diversity-supplier programs</h4>
+                <p style="color:#9ca3af;font-size:0.78rem;line-height:1.6;margin:0;">Indigenous · women-owned · veteran-owned · minority · disability-owned · LGBTQ2+. Plus certifications (ISO, CMMC, security clearance). Federal set-aside tenders auto-score higher for matching profiles.</p>
+                <div style="margin-top:0.75rem;font-size:0.7rem;color:#6b7280;">Coming this month · Task #2646</div>
+            </div>
+
+            <div style="background:#111827;border:1px dashed rgba(249,115,22,0.4);border-radius:8px;padding:1.25rem;font-family:'IBM Plex Mono',monospace;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
+                    <span style="font-family:'Orbitron',sans-serif;font-size:0.7rem;color:#f97316;letter-spacing:1.5px;">MY BIDS</span>
+                    <span style="font-size:0.6rem;color:#fbbf24;border:1px solid #fbbf24;padding:2px 8px;border-radius:100px;letter-spacing:1px;">SOLO+</span>
+                </div>
+                <h4 style="color:#fff;font-size:0.95rem;margin:0.25rem 0 0.5rem;font-weight:600;">Bid history, search, and re-render</h4>
+                <p style="color:#9ca3af;font-size:0.78rem;line-height:1.6;margin:0;">Every draft you generate is saved. Filter by status (draft / submitted / won / lost / abandoned). Re-render with the same prompt. Mark won/lost so the system can learn your win pattern.</p>
+                <div style="margin-top:0.75rem;font-size:0.7rem;color:#6b7280;">Coming this month · Task #2647</div>
+            </div>
+
+            <div style="background:#111827;border:1px dashed rgba(249,115,22,0.4);border-radius:8px;padding:1.25rem;font-family:'IBM Plex Mono',monospace;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
+                    <span style="font-family:'Orbitron',sans-serif;font-size:0.7rem;color:#f97316;letter-spacing:1.5px;">AWARD DIFF</span>
+                    <span style="font-size:0.6rem;color:#fbbf24;border:1px solid #fbbf24;padding:2px 8px;border-radius:100px;letter-spacing:1px;">SOLO+</span>
+                </div>
+                <h4 style="color:#fff;font-size:0.95rem;margin:0.25rem 0 0.5rem;font-weight:600;">Learn what won when you didn't</h4>
+                <p style="color:#9ca3af;font-size:0.78rem;line-height:1.6;margin:0;">When the contract closes, we pull the winning bidder's filing and surface the diff against your bid — pricing, certifications, scope, evaluation score where public. Iterate, don't just lose.</p>
+                <div style="margin-top:0.75rem;font-size:0.7rem;color:#6b7280;">Coming this month · Task #2648</div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Tender Detail Modal -->
+    <div class="gw-modal-overlay" id="tender-modal" style="display:none;">
+        <div class="gw-modal">
+            <div class="gw-modal-header">
+                <div class="gw-modal-elbow"></div>
+                <h2 id="modal-title">Tender Detail</h2>
+                <button class="gw-modal-close" onclick="GovWatch.closeModal()">&times;</button>
+            </div>
+            <div class="gw-modal-body">
+                <div class="gw-detail-meta" id="modal-meta"></div>
+                <div class="gw-detail-desc gw-tooltip-scope" id="modal-desc"></div>
+                <div class="gw-detail-actions">
+                    <a class="gw-btn gw-btn-primary" id="modal-link" href="#" target="_blank">VIEW ON CANADABUYS</a>
+                    <button class="gw-btn gw-btn-ai" id="btn-analyze" onclick="GovWatch.analyzeWithProcure()">
+                        <span class="gw-ai-icon">&#9672;</span> <span id="btn-analyze-label">ANALYZE WITH P.R.O.C.U.R.E.</span>
+                    </button>
+                    <button class="gw-btn gw-btn-bid" id="btn-draft" onclick="GovWatch.draftBid()">
+                        <span class="gw-ai-icon">&#9998;</span> <span id="btn-draft-label">DRAFT BID RESPONSE</span>
+                    </button>
+                </div>
+                <div class="gw-ai-result" id="ai-result" style="display:none;">
+                    <div class="gw-ai-header">
+                        <span class="gw-agent-dot"></span>
+                        <span id="ai-result-title">P.R.O.C.U.R.E. ANALYSIS</span>
+                        <span class="gw-ai-meta" id="ai-result-meta" style="margin-left:auto; font-size:11px; color:#8892a4;"></span>
+                    </div>
+                    <div class="gw-ai-content gw-tooltip-scope" id="ai-content"></div>
+                    <div class="gw-ai-actions" id="ai-actions" style="display:none; margin-top:14px; padding-top:12px; border-top:1px solid #1f2937; gap:8px; flex-wrap:wrap;">
+                        <button class="gw-btn gw-btn-orange" onclick="GovWatch.downloadArtifactPdf()">&#10515; DOWNLOAD PDF</button>
+                        <button class="gw-btn gw-btn-secondary" onclick="GovWatch.regenerateArtifact()">&#8635; REGENERATE</button>
+                        <span style="margin-left:auto;color:#6b7280;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:1px;">PDF EXPORT IS THE SANCTIONED COPY PATH</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    </div><!-- /tenders pane -->
+
+    <div class="gw-tab-pane" data-pane="intel">
+    <section style="padding:1.5rem 2rem 2rem;">
+      <div style="margin-bottom:0.75rem;">
+        <h2 style="font-family:'Orbitron',sans-serif;font-size:0.85rem;color:#00e5ff;letter-spacing:2px;margin:0 0 0.25rem;">FEDERAL PROCUREMENT INTEL HUB</h2>
+        <p style="color:#6b7280;font-size:0.75rem;margin:0;">Search across tenders &middot; awards &middot; contract history &middot; standing offers &middot; proactive disclosure</p>
+      </div>
+      <div style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center;margin-bottom:0.85rem;">
+        <input id="intel-q" type="text" placeholder="e.g. defence, IT services, construction&hellip;"
+          style="flex:1;min-width:200px;background:#111827;border:1px solid #1f2937;border-radius:6px;
+                 color:#e5e7eb;font-family:'IBM Plex Mono',monospace;font-size:0.83rem;
+                 padding:0.6rem 0.85rem;outline:none;">
+        <select id="intel-src" style="background:#111827;border:1px solid #1f2937;color:#e5e7eb;
+                border-radius:6px;padding:0.6rem 0.7rem;font-family:'IBM Plex Mono',monospace;font-size:0.78rem;">
+          <option value="all">All sources</option>
+          <option value="tenders">Tenders</option>
+          <option value="awards">Awards</option>
+          <option value="contracts">Contracts</option>
+          <option value="sosa">Standing Offers</option>
+          <option value="proactive">Proactive Disclosure</option>
+        </select>
+        <button data-intel-search-btn onclick="gwIntelSearch()"
+          style="background:#00e5ff;color:#0a0f1a;font-family:'Orbitron',sans-serif;font-size:0.7rem;
+                 font-weight:700;letter-spacing:1.5px;border:0;border-radius:6px;
+                 padding:0.6rem 1.1rem;cursor:pointer;white-space:nowrap;">SEARCH</button>
+      </div>
+      <div id="intel-chips" style="display:flex;gap:0.4rem;flex-wrap:wrap;min-height:1.4rem;margin-bottom:0.75rem;"></div>
+      <div id="intel-results" style="display:flex;flex-direction:column;gap:0.55rem;"></div>
+    </section>
+    <script src="/static/js/intel-hub.js"></script>
+    <script src="/static/js/award-diff.js"></script>
+    </div><!-- /intel pane -->
+
+    <footer class="gw-footer">
+        <div class="gw-footer-inner">
+            <div class="gw-elbow-bl"></div>
+            <span>KYTRAN GOV WATCH &bull; Powered by P.R.O.C.U.R.E. AI &bull; Kytran Empowerment Inc. &bull; <a href="/glossary" style="color:#00e5ff;text-decoration:none;">GLOSSARY</a></span>
+            <div class="gw-elbow-br"></div>
+        </div>
+    </footer>
+
+    <script>
+    // Dashboard tab switcher — show one pane at a time, sync to URL hash
+    (function () {
+        function activate(name) {
+            document.querySelectorAll('.gw-tab').forEach(b => {
+                b.classList.toggle('gw-tab-active', b.dataset.tab === name);
+            });
+            document.querySelectorAll('.gw-tab-pane').forEach(p => {
+                p.classList.toggle('gw-tab-pane-active', p.dataset.pane === name);
+            });
+            history.replaceState(null, '', '#' + name);
+            window.scrollTo(0, 0);
+        }
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest && e.target.closest('.gw-tab');
+            if (btn) activate(btn.dataset.tab);
+        });
+        const initial = (location.hash || '').slice(1);
+        if (initial && document.querySelector('.gw-tab[data-tab="' + initial + '"]')) {
+            activate(initial);
+        }
+        window.addEventListener('hashchange', function () {
+            const n = (location.hash || '').slice(1);
+            if (n && document.querySelector('.gw-tab[data-tab="' + n + '"]')) activate(n);
+        });
+    })();
+    </script>
+    <script src="/static/js/govwatch.js"></script>
+    <script src="/static/js/awards.js" defer></script>
+    <script src="/static/js/deep-history.js" defer></script>
+    <script src="/static/js/glossary-tooltip.js" defer></script>
+    <!-- Chart.js for YoY + geo charts on the contracts tab -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>
+    <script src="/static/js/contracts-insights.js" defer></script>
+    <!-- Pin-from-anywhere — sprouts a ⭐ icon on any element marked with data-pin-* -->
+    <script src="/static/js/pin-anywhere.js" defer></script>
+</body>
+</html>

@@ -2383,6 +2383,14 @@ from procure_dispatch import procure_dispatch_bp  # noqa: E402
 
 app.register_blueprint(procure_dispatch_bp)
 
+# G.A.V.E.L. dispatch — /api/gavel/dispatch is the hub-side surface for the
+# Legal Watch standalone's G.A.V.E.L. chat overlay (Task #2863).
+# Routes legal/compliance/contract_review prompts → G.A.V.E.L. (id=147,
+# Legal & Regulatory director, mistral:7b). Same JWT bearer pattern.
+from gavel_dispatch import gavel_dispatch_bp  # noqa: E402
+
+app.register_blueprint(gavel_dispatch_bp)
+
 # S.I.G.N.A.L. dispatch — /api/signal/dispatch is the hub-side surface for KBS
 # social media content generation. Routes {capability, prompt, platform, tone}
 # through Bridge dispatcher → S.I.G.N.A.L. (Marketing & Comms). ADR-518.

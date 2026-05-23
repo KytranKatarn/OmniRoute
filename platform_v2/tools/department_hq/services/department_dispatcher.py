@@ -275,6 +275,16 @@ CAPABILITY_DEPARTMENT_MAP = {
     # Medical & Wellness
     "health_data_analysis": "Medical & Wellness",
     "biometric_monitoring": "Medical & Wellness",
+    # Legal & Regulatory (G.A.V.E.L. Lv5 legal + compliance)
+    "legal": "Legal & Regulatory",
+    "legal_analysis": "Legal & Regulatory",
+    "legal_research": "Legal & Regulatory",
+    "legal_summary": "Legal & Regulatory",
+    "compliance": "Legal & Regulatory",
+    "contract_review": "Legal & Regulatory",
+    "regulatory_review": "Legal & Regulatory",
+    "privacy_review": "Legal & Regulatory",
+    "risk_assessment": "Legal & Regulatory",
 }
 
 # ============================================================================

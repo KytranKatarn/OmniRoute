@@ -275,6 +275,14 @@ CAPABILITY_DEPARTMENT_MAP = {
     # Medical & Wellness
     "health_data_analysis": "Medical & Wellness",
     "biometric_monitoring": "Medical & Wellness",
+    # Analytics & Intelligence — Civic Watch capabilities (W.A.T.C.H. Lv5 research+classify)
+    "civic_analysis": "Analytics & Intelligence",
+    "government_transparency": "Analytics & Intelligence",
+    "spending_analysis": "Analytics & Intelligence",
+    "mp_research": "Analytics & Intelligence",
+    "policy_research": "Analytics & Intelligence",
+    "contract_analysis": "Analytics & Intelligence",
+    "transparency_review": "Analytics & Intelligence",
     # Legal & Regulatory (G.A.V.E.L. Lv5 legal + compliance)
     "legal": "Legal & Regulatory",
     "legal_analysis": "Legal & Regulatory",

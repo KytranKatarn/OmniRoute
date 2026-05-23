@@ -2391,6 +2391,14 @@ from gavel_dispatch import gavel_dispatch_bp  # noqa: E402
 
 app.register_blueprint(gavel_dispatch_bp)
 
+# W.A.T.C.H. dispatch — /api/civic/dispatch is the hub-side surface for the
+# Civic Watch standalone's W.A.T.C.H. chat overlay (Civic Watch roadmap).
+# Routes civic_analysis/government_transparency/spending_analysis prompts →
+# W.A.T.C.H. (id=152, Analytics & Intelligence, mistral:7b). Same JWT bearer pattern.
+from civic_dispatch import civic_dispatch_bp  # noqa: E402
+
+app.register_blueprint(civic_dispatch_bp)
+
 # S.I.G.N.A.L. dispatch — /api/signal/dispatch is the hub-side surface for KBS
 # social media content generation. Routes {capability, prompt, platform, tone}
 # through Bridge dispatcher → S.I.G.N.A.L. (Marketing & Comms). ADR-518.

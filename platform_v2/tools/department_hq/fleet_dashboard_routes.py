@@ -363,8 +363,9 @@ def register_dashboard_routes(bp, auth_decorator):
                 """
                 )
                 welfare_rows = cur.fetchall()
-                stress_vals = [r["stress_level"] for r in welfare_rows if r["stress_level"] is not None]
-                energy_vals = [r["energy_level"] for r in welfare_rows if r["energy_level"] is not None]
+                # Cast Decimal→float so jsonify can serialize psycopg2 numeric values
+                stress_vals = [float(r["stress_level"]) for r in welfare_rows if r["stress_level"] is not None]
+                energy_vals = [float(r["energy_level"]) for r in welfare_rows if r["energy_level"] is not None]
                 avg_stress = round(sum(stress_vals) / len(stress_vals), 2) if stress_vals else None
                 avg_energy = round(sum(energy_vals) / len(energy_vals), 2) if energy_vals else None
 
@@ -1413,16 +1414,23 @@ def register_dashboard_routes(bp, auth_decorator):
             with get_db_cursor(commit=False) as (conn, cur):
                 cur.execute(
                     """
-                    SELECT department,
+                    SELECT a.department,
                            COUNT(*) as agent_count,
-                           COUNT(*) FILTER (WHERE shift_state = 'active') as active_count,
-                           COALESCE(AVG(stress_level), 0) as avg_stress,
-                           COALESCE(AVG(energy_level), 0.5) as avg_energy,
-                           COALESCE(SUM(total_tokens_used), 0) as total_tokens,
-                           COALESCE(AVG(total_tokens_used), 0) as avg_tokens_per_agent
-                    FROM agents
-                    GROUP BY department
-                    ORDER BY SUM(total_tokens_used) DESC NULLS LAST
+                           COUNT(*) FILTER (WHERE a.shift_state = 'active') as active_count,
+                           COALESCE(AVG(es.stress_level), 0) as avg_stress,
+                           COALESCE(AVG(es.energy_level), 0.5) as avg_energy,
+                           COALESCE(SUM(a.total_tokens_used), 0) as total_tokens,
+                           COALESCE(AVG(a.total_tokens_used), 0) as avg_tokens_per_agent
+                    FROM agents a
+                    LEFT JOIN LATERAL (
+                        SELECT stress_level, energy_level
+                        FROM agent_emotional_state
+                        WHERE agent_id = a.id
+                        ORDER BY timestamp DESC
+                        LIMIT 1
+                    ) es ON true
+                    GROUP BY a.department
+                    ORDER BY SUM(a.total_tokens_used) DESC NULLS LAST
                     """
                 )
                 departments = []
@@ -1465,11 +1473,21 @@ def register_dashboard_routes(bp, auth_decorator):
 
                 cur.execute(
                     """
-                    SELECT id, name, display_name, department,
-                           stress_level, energy_level, total_tokens_used
-                    FROM agents
-                    WHERE shift_state = 'active'
-                    ORDER BY stress_level DESC, energy_level ASC
+                    SELECT a.id, a.name, a.display_name, a.department,
+                           a.total_tokens_used,
+                           COALESCE(es.stress_level, 0) as stress_level,
+                           COALESCE(es.energy_level, 0.5) as energy_level
+                    FROM agents a
+                    LEFT JOIN LATERAL (
+                        SELECT stress_level, energy_level
+                        FROM agent_emotional_state
+                        WHERE agent_id = a.id
+                        ORDER BY timestamp DESC
+                        LIMIT 1
+                    ) es ON true
+                    WHERE a.shift_state = 'active'
+                    ORDER BY COALESCE(es.stress_level, 0) DESC,
+                             COALESCE(es.energy_level, 0.5) ASC
                     LIMIT 5
                     """
                 )

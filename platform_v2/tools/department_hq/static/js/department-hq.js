@@ -5216,7 +5216,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // localStorage fallback removed: replaceState now keeps hash in sync.
         }
     } catch (_) {}
-})();
+});
 
 // WTF Agent Status panel — Project #350
 // escWtf: sanitize values before DOM insertion

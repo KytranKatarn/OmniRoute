@@ -654,7 +654,7 @@ class DepartmentCoordinator:
                 return cross
             # Fall through — nobody anywhere has the skill, stick with best.
 
-        logger.info(
+        logger.debug(
             "coordinator: selected %s (score=%.2f) for %s in %s",
             best_name,
             best_score,

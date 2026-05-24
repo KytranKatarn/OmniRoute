@@ -3410,10 +3410,16 @@ function switchArmadaSection(s) {
         loadClaudeFeed();
     }
 
-    // NETWORK: move fleet map section
+    // NETWORK: move fleet map + usage + providers into armadaSection-network on first open
     if (s === 'network' && !_armadaMounted.network) {
         _armadaMounted.network = true;
+        var networkTarget = document.getElementById('armadaSection-network');
+        var networkSrc = document.getElementById('fleetNetworkContent');
+        if (networkTarget && networkSrc) networkTarget.appendChild(networkSrc);
+        // Leaflet only initialises once (guard: if (fleetMap) return).
+        // If map was already init'd in cluster view, invalidate so it re-renders in new container.
         loadFleetData(); initFleetMap(); loadFleetUsage();
+        setTimeout(function() { if (fleetMap) fleetMap.invalidateSize(); }, 50);
     }
 
     // CLUSTER: refresh live data

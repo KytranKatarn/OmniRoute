@@ -220,6 +220,23 @@ def setup_logging(app_name: str = "archie_platform", debug: bool = False) -> log
     # Prevent propagation to root logger
     logger.propagate = False
 
+    # -----------------------------------------------------------------------
+    # Silence noisy third-party loggers
+    # httpx/httpcore: Telegram long-poll logs every ~11s at INFO — mute to WARNING
+    # apscheduler: scheduler heartbeat + executor noise — mute to WARNING
+    # -----------------------------------------------------------------------
+    _NOISY_LOGGERS = [
+        "httpx",
+        "httpcore",
+        "httpcore.http11",
+        "httpcore.connection",
+        "apscheduler.scheduler",
+        "apscheduler.executors.default",
+        "apscheduler.executors.asyncio",
+    ]
+    for _name in _NOISY_LOGGERS:
+        logging.getLogger(_name).setLevel(logging.WARNING)
+
     return logger
 
 

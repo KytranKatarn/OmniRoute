@@ -67,6 +67,11 @@ services:
       - /root/.gunicorn:size=8m    # gunicorn control socket (avoids EROFS on /root)
       - /mnt/archie_brain/logs:size=64m
     mem_limit: 8g  # bumped from 4g for --workers 4 (each worker ~1.5GB RSS)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
     cpus: 4.0
     cap_drop:
       - ALL

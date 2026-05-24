@@ -155,7 +155,17 @@ def list_providers():
             """
         )
         rows = cur.fetchall()
-        return [dict(r) for r in rows]
+        result = []
+        for r in rows:
+            row = dict(r)
+            row["monthly_budget_usd"] = (
+                float(row["monthly_budget_usd"]) if row["monthly_budget_usd"] is not None else None
+            )
+            row["current_month_cost_usd"] = (
+                float(row["current_month_cost_usd"]) if row["current_month_cost_usd"] is not None else None
+            )
+            result.append(row)
+        return result
 
 
 def get_provider_status(provider_key):
@@ -182,6 +192,12 @@ def get_provider_status(provider_key):
             return None
 
         result = dict(provider)
+        result["monthly_budget_usd"] = (
+            float(result["monthly_budget_usd"]) if result.get("monthly_budget_usd") is not None else None
+        )
+        result["current_month_cost_usd"] = (
+            float(result["current_month_cost_usd"]) if result.get("current_month_cost_usd") is not None else None
+        )
 
         # Get pricing rows
         cur.execute(

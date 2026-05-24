@@ -14,6 +14,7 @@ DELETE /api/cross-watch/follow/<entity_id>   — unfollow an entity
 GET    /api/cross-watch/following             — list user's followed entities
 GET    /api/cross-watch/procurement           — gov_watch tenders matching article title (#3019)
 GET    /api/cross-watch/legal-rulings        — legal_watch SCC/regulation/ethics signals (#3020)
+GET    /api/cross-watch/search               — unified free-text search across all signal types (#3128)
 """
 
 import logging
@@ -683,6 +684,105 @@ def get_civic_events():
         for r in rows
     ]
     return jsonify({"events": events, "count": len(events)}), 200
+
+
+# ── Unified search ────────────────────────────────────────────────────────────
+
+_VALID_TYPES = {"procurement", "parliament_vote", "legal_ruling", "civic_event"}
+_TYPE_TO_SIGNAL = {
+    "procurement": "new_tender",
+    "parliament_vote": "parliament_vote",
+    "legal_ruling": "legal_ruling",
+    "civic_event": "civic_event",
+}
+_SIGNAL_TO_TYPE = {v: k for k, v in _TYPE_TO_SIGNAL.items()}
+
+
+@cross_watch_bp.route("/api/cross-watch/search", methods=["GET"])
+def get_unified_search():
+    """
+    Unified free-text search across all cross-watch signal types.
+
+    Query params:
+      q      — free-text matched against s.headline (ILIKE, required)
+      types  — optional comma-separated filter from:
+                 procurement, parliament_vote, legal_ruling, civic_event
+               Defaults to all four types.
+      limit  — max results per type, default 3, capped at 5
+
+    Returns:
+      {query, results: {procurement:[...], parliament_vote:[...],
+                        legal_ruling:[...], civic_event:[...]}, total}
+
+    Each result: {id, signal_type, headline, url, created_at,
+                  source_product, entity_name, metadata}
+
+    Auth: Bearer token only — no user session required (#3128).
+    """
+    if not _verify_token():
+        return jsonify({"error": "unauthorized"}), 401
+
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify({"error": "q parameter required"}), 400
+
+    try:
+        limit = min(int(request.args.get("limit", 3)), 5)
+    except (ValueError, TypeError):
+        limit = 3
+
+    raw_types = request.args.get("types", "").strip()
+    if raw_types:
+        requested = {t.strip() for t in raw_types.split(",") if t.strip()}
+        active_types = requested & _VALID_TYPES
+        if not active_types:
+            return jsonify({"error": f"invalid types — valid values: {sorted(_VALID_TYPES)}"}), 400
+    else:
+        active_types = set(_VALID_TYPES)
+
+    signal_types = [_TYPE_TO_SIGNAL[t] for t in active_types]
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT s.id, s.signal_type, s.source_product,
+                       s.headline, s.url, s.created_at, s.metadata,
+                       e.name AS entity_name
+                FROM shared.cross_watch_signals s
+                JOIN shared.entities e ON e.id = s.entity_id
+                WHERE s.headline ILIKE %s
+                  AND s.signal_type = ANY(%s)
+                  AND s.created_at > NOW() - INTERVAL '180 days'
+                ORDER BY s.created_at DESC
+                """,
+                (f"%{q}%", signal_types),
+            )
+            all_rows = cur.fetchall()
+    except Exception as exc:
+        logger.error("[cross_watch] get_unified_search failed: %s", exc)
+        return jsonify({"error": "internal error"}), 500
+
+    # Group by logical type, cap at limit per type
+    buckets: dict = {t: [] for t in active_types}
+    for r in all_rows:
+        logical = _SIGNAL_TO_TYPE.get(r["signal_type"])
+        if logical and logical in buckets and len(buckets[logical]) < limit:
+            buckets[logical].append(
+                {
+                    "id": r["id"],
+                    "signal_type": logical,
+                    "headline": r["headline"],
+                    "url": r["url"],
+                    "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                    "source_product": r["source_product"],
+                    "entity_name": r["entity_name"],
+                    "metadata": r["metadata"] or {},
+                }
+            )
+
+    total = sum(len(v) for v in buckets.values())
+    return jsonify({"query": q, "results": buckets, "total": total}), 200
 
 
 @cross_watch_bp.route("/api/cross-watch/following", methods=["GET"])

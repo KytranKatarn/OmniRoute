@@ -345,6 +345,13 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
   <!-- Deep Dive result area -->
   <div id="wtf-deep-dive-result" style="display:none;background:#060d14;border:1px solid #0af;border-radius:4px;padding:12px;margin-bottom:14px;font-size:11px;color:#ccc;"></div>
 
+  <!-- Intelligence Feed — unified cross-watch search (#3128) -->
+  <div id="wtf-intel-section" style="display:none;background:#060a14;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
+    <div style="font-size:10px;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x1F50D; Intelligence Feed</div>
+    <ul id="wtf-intel-list" style="list-style:none;margin:0;padding:0;"></ul>
+    <div style="font-size:10px;color:#4b5563;margin-top:6px;">Cross-Watch · Gov · Parliament · Legal · Civic</div>
+  </div>
+
   <!-- Related Gov Tenders — cross-watch procurement intelligence (#3019) -->
   <div id="wtf-tenders-section" style="display:none;background:#06100a;border:1px solid #1a3a2a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
     <div style="font-size:10px;letter-spacing:1.5px;color:#4ade80;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x1F4C4; Related Gov Tenders</div>
@@ -606,6 +613,68 @@ async function wtfSubmitFlag(flagType) {
     res.textContent = data.ok ? '✓ Thanks — your feedback helps improve B.I.A.S. and V.E.R.I.F.Y.' : 'Could not send — try again.';
   } catch(e) { res.textContent = 'Network error.'; }
 }
+
+// Intelligence Feed — unified cross-watch search (#3128)
+// Uses createElement + textContent throughout — never innerHTML with untrusted data.
+(function() {
+  var title = {{ a.title | tojson }};
+  if (!title) return;
+  var TYPE_LABELS = {
+    procurement: 'TENDER',
+    parliament_vote: 'VOTE',
+    legal_ruling: 'RULING',
+    civic_event: 'CIVIC'
+  };
+  var TYPE_COLORS = {
+    procurement: '#4ade80',
+    parliament_vote: '#a78bfa',
+    legal_ruling: '#f59e0b',
+    civic_event: '#38bdf8'
+  };
+  fetch('/api/cross-watch/search?q=' + encodeURIComponent(title) + '&limit=3')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d || !d.results || !d.total) return;
+      var section = document.getElementById('wtf-intel-section');
+      var ul = document.getElementById('wtf-intel-list');
+      if (!section || !ul) return;
+      var types = ['procurement', 'parliament_vote', 'legal_ruling', 'civic_event'];
+      var shown = 0;
+      types.forEach(function(t) {
+        var items = d.results[t];
+        if (!items || !items.length) return;
+        items.forEach(function(item) {
+          var li = document.createElement('li');
+          li.style.cssText = 'border-left:2px solid ' + (TYPE_COLORS[t] || '#38bdf8') + ';padding:4px 8px;margin-bottom:6px;background:#060e18;border-radius:2px;display:flex;align-items:baseline;flex-wrap:wrap;gap:4px;';
+          var chip = document.createElement('span');
+          chip.style.cssText = 'display:inline-block;background:#0c1e2e;color:' + (TYPE_COLORS[t] || '#38bdf8') + ';font-size:9px;padding:1px 5px;border-radius:2px;text-transform:uppercase;letter-spacing:0.5px;flex-shrink:0;font-weight:600;';
+          chip.textContent = TYPE_LABELS[t] || t;
+          var entity = document.createElement('span');
+          entity.style.cssText = 'font-size:9px;color:#6b7280;flex-shrink:0;';
+          entity.textContent = item.entity_name || '';
+          var text = document.createElement('span');
+          text.style.cssText = 'font-size:11px;color:#c0c8d8;flex:1;min-width:0;';
+          text.textContent = item.headline || '';
+          li.appendChild(chip);
+          if (entity.textContent) li.appendChild(entity);
+          li.appendChild(text);
+          if (item.url) {
+            var link = document.createElement('a');
+            link.href = item.url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.style.cssText = 'font-size:10px;color:#38bdf8;text-decoration:none;flex-shrink:0;';
+            link.textContent = 'View →';
+            li.appendChild(link);
+          }
+          ul.appendChild(li);
+          shown++;
+        });
+      });
+      if (shown > 0) section.style.display = 'block';
+    })
+    .catch(function() { /* silent — hub unreachable or no cross-watch signals */ });
+})();
 
 // Related Gov Tenders — cross-watch procurement intelligence (#3019)
 // Uses createElement + textContent throughout — never innerHTML with untrusted data.

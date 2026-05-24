@@ -150,3 +150,26 @@ def civic_events():
     limit = request.args.get("limit", "5")
     qs = urllib.parse.urlencode({"title": title, "limit": limit})
     return _proxy_get(f"/api/cross-watch/civic-events?{qs}")
+
+
+@cross_watch_bp.route("/api/cross-watch/search")
+def unified_search():
+    """Proxy: unified free-text search across all signal types (#3128).
+    Passes ?q=, ?types=, ?limit= through to hub. No user session required.
+    Returns grouped results: {query, results:{procurement,parliament_vote,
+    legal_ruling,civic_event}, total}.
+    """
+    import urllib.parse
+
+    params = {}
+    q = request.args.get("q", "").strip()
+    if q:
+        params["q"] = q
+    types_ = request.args.get("types", "").strip()
+    if types_:
+        params["types"] = types_
+    limit = request.args.get("limit", "").strip()
+    if limit:
+        params["limit"] = limit
+    qs = urllib.parse.urlencode(params)
+    return _proxy_get(f"/api/cross-watch/search?{qs}")

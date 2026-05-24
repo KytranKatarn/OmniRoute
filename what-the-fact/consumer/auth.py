@@ -96,6 +96,9 @@ def callback():
     session["wtf_username"] = user.get("username") or token_data.get("username")
     session["wtf_email"] = user.get("email", "")
     session["wtf_tier"] = user.get("subscription_tier") or "free"
+    # Bundle entitlements — list of product_ids the user has active subscriptions for.
+    # Used by access.py user_has_bundle() to gate bundle-purchased products (#3025).
+    session["wtf_entitlements"] = user.get("entitlements") or []
     session["wtf_authenticated"] = True
 
     return redirect(session.pop("wtf_next", "/"))
@@ -104,6 +107,9 @@ def callback():
 @auth_bp.get("/logout")
 def logout():
     session.pop("wtf_username", None)
+    session.pop("wtf_email", None)
     session.pop("wtf_tier", None)
+    session.pop("wtf_entitlements", None)
+    session.pop("wtf_beats", None)
     session.pop("wtf_authenticated", None)
     return redirect("/")

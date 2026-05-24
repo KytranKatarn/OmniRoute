@@ -293,6 +293,38 @@ def token():
     except Exception:
         refresh_token_value = ""
 
+    # Fetch entitlements — active billing_subscriptions modules for this user.
+    # Admins get the full hardcoded list; regular users get whatever is active.
+    # This mirrors the logic in oauth_userinfo.py so WTF/Watch products can
+    # gate bundle access without a second /userinfo round-trip.
+    if role == "admin":
+        entitlements = [
+            "kso",
+            "kbs",
+            "archie-comms",
+            "claude-terminal",
+            "civic-watch",
+            "legal-watch",
+            "gov-watch",
+            "news",
+            "kytran-mail",
+            "market-watch-viewer",
+            "market-watch-ai",
+            "news-watch",
+            "wtf-starter",
+        ]
+    else:
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT DISTINCT module FROM billing_subscriptions
+                       WHERE user_id = %s AND status = 'active' AND module IS NOT NULL""",
+                    (uid,),
+                )
+                entitlements = [r["module"] for r in cur.fetchall()]
+        except Exception:
+            entitlements = []
+
     _token_resp = {
         "access_token": access_token,
         "token_type": "Bearer",
@@ -304,6 +336,7 @@ def token():
             "role": role,
             "subscription_tier": subscription_tier,
             "is_owner": is_owner,
+            "entitlements": entitlements,
         },
     }
     if refresh_token_value:

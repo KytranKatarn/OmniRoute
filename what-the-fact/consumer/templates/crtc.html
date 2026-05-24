@@ -30,6 +30,47 @@
   </div>
 </div>
 
+{# ── Ownership concentration panel ─────────────────────────────────────── #}
+{% if owners_summary %}
+<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:6px;padding:14px 16px;margin-bottom:16px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+    <div style="font-family:'Orbitron',sans-serif;font-size:12px;color:#e5e7eb;">🏢 Media Ownership Concentration</div>
+    {% if concentration_badge %}
+    <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;background:{{ concentration_badge.colour }}22;color:{{ concentration_badge.colour }};border:1px solid {{ concentration_badge.colour }}44;">
+      {{ concentration_badge.label }} · top 3 own {{ concentration_badge.pct_top3 }}% of tracked outlets
+    </span>
+    {% endif %}
+  </div>
+  {# Owner bars #}
+  {% set max_count = owners_summary[0].outlet_count if owners_summary else 1 %}
+  {% set TYPE_COLOURS = {'corporate':'#ef4444','public':'#3b82f6','non_profit':'#22c55e','independent':'#a78bfa'} %}
+  {% set TYPE_ICONS = {'corporate':'🏢','public':'🏛','non_profit':'🤝','independent':'👤'} %}
+  <div style="display:flex;flex-direction:column;gap:6px;">
+  {% for o in owners_summary %}
+  {% set tc = TYPE_COLOURS.get(o.owner_type or '', '#6b7280') %}
+  {% set ti = TYPE_ICONS.get(o.owner_type or '', '📰') %}
+  {% set bar_pct = (o.outlet_count / max_count * 100)|int %}
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div style="width:110px;font-size:11px;color:#9ca3af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ o.owner_name }}">
+      {{ ti }} {{ o.owner_name }}
+    </div>
+    <div style="flex:1;background:#0a1520;border-radius:2px;height:12px;position:relative;">
+      <div style="width:{{ bar_pct }}%;background:{{ tc }};height:100%;border-radius:2px;opacity:0.7;"></div>
+    </div>
+    <div style="width:60px;font-size:10px;color:#6b7280;text-align:right;flex-shrink:0;">
+      {{ o.outlet_count }} outlet{{ 's' if o.outlet_count != 1 else '' }}
+      {% if o.avg_bias is not none %}· <span style="color:{{ '#ef4444' if (o.avg_bias|float) > 0.15 else ('#3b82f6' if (o.avg_bias|float) < -0.15 else '#22c55e') }};">{{ '%+.2f'|format(o.avg_bias|float) }}</span>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  </div>
+  <div style="margin-top:10px;font-size:10px;color:#4b5563;">
+    Bias scores are rolling averages from AI analysis. Bar width = share of tracked outlets.
+    <a href="/owners" style="color:#0af;margin-left:8px;">Full ownership map →</a>
+  </div>
+</div>
+{% endif %}
+
 <div class="wtf-crtc-filters">
   <a class="wtf-crtc-filter {{ 'active' if dtype == 'all' }}" href="/crtc">All</a>
   <a class="wtf-crtc-filter {{ 'active' if dtype == 'broadcasting' }}" href="/crtc?type=broadcasting">Broadcasting</a>

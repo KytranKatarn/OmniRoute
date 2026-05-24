@@ -1120,7 +1120,9 @@ def officers_of_parliament():
 def crtc_decisions():
     """CRTC rulings — broadcasting, telecom, compliance decisions."""
     from flask import request as _req
+    from .crtc_data import get_concentration_badge
     dtype = _req.args.get("type", "all")
+    S = _schema()
     with _db().begin() as c:
         query = """
             SELECT decision_number, decision_year, subject, scope,
@@ -1132,11 +1134,33 @@ def crtc_decisions():
         """.format("WHERE decision_type = :dtype" if dtype != "all" else "")
         params = {"dtype": dtype} if dtype != "all" else {}
         rows = c.execute(text(query), params).mappings().all()
-        source_count = c.execute(text(f"SELECT COUNT(*) FROM {_schema()}.sources")).scalar() or 0
+        source_count = c.execute(text(f"SELECT COUNT(*) FROM {S}.sources")).scalar() or 0
+
+        # Ownership concentration data for the CRTC panel
+        owner_rows = c.execute(text(f"""
+            SELECT
+                s.owner_name,
+                s.owner_type,
+                COUNT(s.id)                           AS outlet_count,
+                ROUND(AVG(obs.avg_score)::numeric, 2) AS avg_bias,
+                MIN(s.bias_lean)                      AS sample_lean
+            FROM {S}.sources s
+            LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = s.id
+            WHERE s.owner_name IS NOT NULL
+            GROUP BY s.owner_name, s.owner_type
+            ORDER BY outlet_count DESC
+            LIMIT 10
+        """)).mappings().all()
+        owners_summary = [dict(r) for r in owner_rows]
+
+    concentration_badge = get_concentration_badge(owners_summary, source_count)
+
     return render_template("crtc.html",
                            decisions=[dict(r) for r in rows],
                            dtype=dtype,
                            source_count=source_count,
+                           owners_summary=owners_summary,
+                           concentration_badge=concentration_badge,
                            is_subscriber=is_subscriber())
 
 

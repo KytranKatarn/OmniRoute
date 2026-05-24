@@ -23,3 +23,7 @@ register_demo_routes(account_center_bp, admin_required)
 from .partner_routes import register_partner_routes
 
 register_partner_routes(account_center_bp, admin_required)
+
+from .bundle_routes import register_bundle_routes
+
+register_bundle_routes(account_center_bp, admin_required)

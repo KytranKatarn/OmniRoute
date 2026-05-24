@@ -160,8 +160,15 @@ def webhook():
     obj = event["data"]["object"]
 
     if et == "checkout.session.completed":
-        email = (obj.get("metadata") or {}).get("email") or obj.get("customer_email")
-        tier = (obj.get("metadata") or {}).get("tier", "starter")
+        metadata = obj.get("metadata") or {}
+        email = metadata.get("email") or obj.get("customer_email")
+        # Bundle checkouts: tier sync happens via OAuth entitlements on next login.
+        # Just log and return 200 — do not call _upgrade_user for bundle purchases.
+        if metadata.get("subscription_type") == "bundle":
+            bundle_id = metadata.get("bundle_id", "unknown")
+            logger.info("WTF webhook: bundle checkout completed bundle=%s email=%s — tier sync deferred to OAuth", bundle_id, email)
+            return jsonify({"received": True})
+        tier = metadata.get("tier", "starter")
         if email:
             _upgrade_user(email, tier, obj.get("customer"), obj.get("subscription"))
 

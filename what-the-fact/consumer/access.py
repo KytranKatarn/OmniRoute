@@ -35,8 +35,29 @@ def get_tier() -> str:
     return session.get("wtf_tier", "free")
 
 
+def user_has_bundle(product_id: str) -> bool:
+    """Return True if session entitlements include the given product_id.
+
+    wtf_entitlements is a list of product IDs injected by the OAuth /userinfo
+    callback (e.g. ['civic-watch', 'wtf-starter'] for intelligence_bundle holders).
+    """
+    entitlements = session.get("wtf_entitlements", [])
+    return product_id in entitlements
+
+
 def has_paid_tier() -> bool:
-    return get_tier() in _SUBSCRIBED_TIERS
+    """Return True if the user has any paid access to WTF content.
+
+    Checks (in order):
+    1. Session wtf_tier is a known subscribed tier (direct WTF subscription).
+    2. Session wtf_entitlements contains 'wtf-starter' (bundle access via OAuth).
+    """
+    if get_tier() in _SUBSCRIBED_TIERS:
+        return True
+    # Bundle holders get 'wtf-starter' injected into wtf_entitlements by OAuth
+    if user_has_bundle("wtf-starter"):
+        return True
+    return False
 
 
 def check_platform_access(user_id: int, product_slug: str) -> bool:

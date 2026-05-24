@@ -121,3 +121,17 @@ def parliament_votes():
     limit = request.args.get("limit", "5")
     qs = urllib.parse.urlencode({"title": title, "limit": limit})
     return _proxy_get(f"/api/cross-watch/parliament-votes?{qs}")
+
+
+@cross_watch_bp.route("/api/cross-watch/legal-rulings")
+def legal_rulings():
+    """Proxy: return recent legal_watch rulings matching an article title's entities.
+    Covers SCC decisions, regulations, and ethics rulings.
+    Passes ?title= and optional ?limit= through to hub. No user session required.
+    """
+    import urllib.parse
+
+    title = request.args.get("title", "")
+    limit = request.args.get("limit", "5")
+    qs = urllib.parse.urlencode({"title": title, "limit": limit})
+    return _proxy_get(f"/api/cross-watch/legal-rulings?{qs}")

@@ -13,6 +13,7 @@ POST   /api/cross-watch/follow                — follow an entity
 DELETE /api/cross-watch/follow/<entity_id>   — unfollow an entity
 GET    /api/cross-watch/following             — list user's followed entities
 GET    /api/cross-watch/procurement           — gov_watch tenders matching article title (#3019)
+GET    /api/cross-watch/legal-rulings        — legal_watch SCC/regulation/ethics signals (#3020)
 """
 
 import logging
@@ -522,6 +523,85 @@ def get_parliament_votes():
         for r in rows
     ]
     return jsonify({"votes": votes, "count": len(votes)}), 200
+
+
+@cross_watch_bp.route("/api/cross-watch/legal-rulings", methods=["GET"])
+def get_legal_rulings():
+    """
+    Return recent legal_watch signals whose entities match keywords in
+    the given article title. Covers SCC decisions, regulations, and ethics rulings.
+
+    Query params:
+      title — article headline to match against entity names (same substring logic)
+      limit — max results, default 5, capped at 10
+
+    Auth: Bearer token only — no user session required (page-level lookup).
+    """
+    if not _verify_token():
+        return jsonify({"error": "unauthorized"}), 401
+
+    title = request.args.get("title", "").strip()
+    if not title:
+        return jsonify({"rulings": [], "count": 0}), 200
+
+    try:
+        limit = min(int(request.args.get("limit", 5)), 10)
+    except (ValueError, TypeError):
+        limit = 5
+
+    entities = _get_entities()
+    title_lower = title.lower()
+    matched_ids = []
+    for ent in entities:
+        if ent["name"].lower() in title_lower:
+            matched_ids.append(ent["id"])
+            continue
+        for alias in ent.get("aliases") or []:
+            if alias and alias.lower() in title_lower:
+                matched_ids.append(ent["id"])
+                break
+
+    if not matched_ids:
+        return jsonify({"rulings": [], "count": 0}), 200
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT s.id, s.headline, s.url, s.created_at,
+                       e.name AS entity_name, e.entity_type,
+                       s.metadata
+                FROM shared.cross_watch_signals s
+                JOIN shared.entities e ON e.id = s.entity_id
+                WHERE s.entity_id = ANY(%s)
+                  AND s.source_product = 'legal_watch'
+                  AND s.signal_type = 'legal_ruling'
+                  AND s.created_at > NOW() - INTERVAL '365 days'
+                ORDER BY s.created_at DESC
+                LIMIT %s
+                """,
+                (matched_ids, limit),
+            )
+            rows = cur.fetchall()
+    except Exception as exc:
+        logger.error("[cross_watch] get_legal_rulings failed: %s", exc)
+        return jsonify({"error": "internal error"}), 500
+
+    rulings = [
+        {
+            "id": r["id"],
+            "entity_name": r["entity_name"],
+            "entity_type": r["entity_type"],
+            "headline": r["headline"],
+            "url": r["url"],
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+            "ruling_type": (r["metadata"] or {}).get("ruling_type"),
+            "outcome": (r["metadata"] or {}).get("outcome"),
+            "citation": (r["metadata"] or {}).get("citation"),
+        }
+        for r in rows
+    ]
+    return jsonify({"rulings": rulings, "count": len(rulings)}), 200
 
 
 @cross_watch_bp.route("/api/cross-watch/following", methods=["GET"])

@@ -25,4 +25,7 @@ def create_app():
     # Election Claim Tracker admin CRUD (#3013)
     from .claim_admin_routes import claim_admin_bp
     app.register_blueprint(claim_admin_bp)
+    # Topic micro-subscriptions — $2/mo per beat (#3015)
+    from .beats import beats_bp
+    app.register_blueprint(beats_bp)
     return app

@@ -16,6 +16,11 @@ _PRICE_STARTER = os.environ.get("WTF_STRIPE_PRICE_STARTER", "")
 _SUBSCRIBED_TIERS = {"starter", "professional", "enterprise", "vip", "pro", "business", "kytran", "owner", "admin"}
 
 
+def _get_beat_price_id(beat_slug: str) -> str:
+    env_key = f"WTF_STRIPE_PRICE_BEAT_{beat_slug.upper().replace('-', '_')}"
+    return os.environ.get(env_key, "")
+
+
 def _upgrade_user(email, tier, stripe_customer_id=None, stripe_subscription_id=None):
     try:
         from .db import get_db
@@ -160,19 +165,47 @@ def webhook():
     obj = event["data"]["object"]
 
     if et == "checkout.session.completed":
-        metadata = obj.get("metadata") or {}
-        email = metadata.get("email") or obj.get("customer_email")
+        meta = obj.get("metadata") or {}
+        email = meta.get("email") or obj.get("customer_email")
+        # Beat micro-subscription checkout
+        if meta.get("subscription_type") == "beat":
+            beat_slug = meta.get("beat_slug", "")
+            if email and beat_slug:
+                try:
+                    try:
+                        from .db import upsert_beat_subscription
+                    except ImportError:
+                        from db import upsert_beat_subscription
+                    upsert_beat_subscription(
+                        email, beat_slug,
+                        obj.get("subscription", ""),
+                        meta.get("price_id", ""),
+                        "active"
+                    )
+                    logger.info("WTF webhook: beat subscription activated beat=%s email=%s", beat_slug, email)
+                except Exception:
+                    logger.exception("WTF webhook: beat upsert failed beat=%s email=%s", beat_slug, email)
+            return jsonify({"received": True})
         # Bundle checkouts: tier sync happens via OAuth entitlements on next login.
         # Just log and return 200 — do not call _upgrade_user for bundle purchases.
-        if metadata.get("subscription_type") == "bundle":
-            bundle_id = metadata.get("bundle_id", "unknown")
+        if meta.get("subscription_type") == "bundle":
+            bundle_id = meta.get("bundle_id", "unknown")
             logger.info("WTF webhook: bundle checkout completed bundle=%s email=%s — tier sync deferred to OAuth", bundle_id, email)
             return jsonify({"received": True})
-        tier = metadata.get("tier", "starter")
+        tier = meta.get("tier", "starter")
         if email:
             _upgrade_user(email, tier, obj.get("customer"), obj.get("subscription"))
 
     elif et in ("customer.subscription.deleted", "customer.subscription.paused"):
+        # Cancel any beat subscription tied to this Stripe subscription ID
+        try:
+            try:
+                from .db import cancel_beat_by_stripe_sub
+            except ImportError:
+                from db import cancel_beat_by_stripe_sub
+            cancel_beat_by_stripe_sub(obj.get("id", ""))
+        except Exception:
+            logger.exception("WTF webhook: cancel_beat_by_stripe_sub failed sub=%s", obj.get("id"))
         _downgrade_by_customer(obj.get("customer"))
 
     return jsonify({"received": True})

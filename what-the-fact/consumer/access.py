@@ -60,6 +60,30 @@ def has_paid_tier() -> bool:
     return False
 
 
+def user_has_beat_access(beat_slug: str) -> bool:
+    """True if user has a full paid tier OR a beat subscription for this slug."""
+    if has_paid_tier():
+        return True
+    email = session.get("wtf_email", "")
+    if not email:
+        return False
+    try:
+        # Check session cache first
+        cached = session.get("wtf_beats", [])
+        if beat_slug in cached:
+            return True
+        # Fall back to DB
+        try:
+            from .db import get_user_beats
+        except ImportError:
+            from db import get_user_beats
+        beats = get_user_beats(email)
+        session["wtf_beats"] = beats  # refresh cache
+        return beat_slug in beats
+    except Exception:
+        return False
+
+
 def check_platform_access(user_id: int, product_slug: str) -> bool:
     """Call platform_v2 /api/access/check for a hard access_grants verification.
 

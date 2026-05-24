@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}My Beats — What The Fact{% endblock %}
+{% block content %}
+<style>
+.wtf-beats-container { max-width: 860px; margin: 0 auto; padding: 20px 16px; }
+.wtf-beats-header    { margin-bottom: 24px; border-bottom: 1px solid #1a3a5a; padding-bottom: 18px; }
+.wtf-beats-eyebrow   { font-size: 10px; letter-spacing: 2px; color: #0af; margin-bottom: 8px; }
+.wtf-beats-title     { font-size: 24px; font-weight: bold; color: #e8e8e8; }
+
+.wtf-beat-row        { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.wtf-beat-row-info   { flex: 1 1 200px; }
+.wtf-beat-row-name   { font-size: 15px; font-weight: bold; color: #e8e8e8; margin-bottom: 4px; }
+.wtf-beat-row-desc   { font-size: 12px; color: #666; }
+.wtf-beat-row-actions{ display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+
+.wtf-btn-view   { display: inline-block; background: #0a1a2a; color: #0af; border: 1px solid #0af4; font-size: 12px; padding: 6px 14px; border-radius: 3px; text-decoration: none; }
+.wtf-btn-view:hover { background: #0a2a3a; }
+.wtf-btn-cancel { display: inline-block; background: transparent; color: #f44; border: 1px solid #f444; font-size: 12px; padding: 6px 14px; border-radius: 3px; cursor: pointer; }
+.wtf-btn-cancel:hover { background: #2a0a0a; }
+
+.wtf-empty { color: #555; font-size: 13px; padding: 24px 0; }
+.wtf-browse-link { color: #0af; text-decoration: none; }
+.wtf-browse-link:hover { text-decoration: underline; }
+
+.wtf-success-msg { background: #0a2a1a; color: #4a9; border: 1px solid #1a4a2a; border-radius: 4px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
+</style>
+
+<div class="wtf-beats-container">
+  <div class="wtf-beats-header">
+    <div class="wtf-beats-eyebrow">ACCOUNT / BEAT SUBSCRIPTIONS</div>
+    <h1 class="wtf-beats-title">My Beats</h1>
+  </div>
+
+  {% if request.args.get('cancelled') %}
+    <div class="wtf-success-msg">Beat subscription cancelled.</div>
+  {% endif %}
+
+  {% if beats %}
+    {% for b in beats %}
+      <div class="wtf-beat-row">
+        <div class="wtf-beat-row-info">
+          <div class="wtf-beat-row-name">{{ b.name }}</div>
+          {% if b.description %}
+            <div class="wtf-beat-row-desc">{{ b.description }}</div>
+          {% endif %}
+        </div>
+        <div class="wtf-beat-row-actions">
+          <a href="/beat/{{ b.slug }}" class="wtf-btn-view">View Beat</a>
+          <form method="POST" action="/account/beats/{{ b.slug }}/cancel"
+                onsubmit="return confirm('Cancel your {{ b.name }} subscription?')">
+            <button type="submit" class="wtf-btn-cancel">Cancel</button>
+          </form>
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="wtf-empty">
+      You have no active beat subscriptions.
+      <br><br>
+      <a href="/" class="wtf-browse-link">Browse beats →</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -336,6 +336,16 @@ def main():
         except Exception:
             log.exception("mp_tagging crashed — skipping this cycle")
 
+        # Sync article_mp_tags → shared.entity_mentions (Task #3024 entity graph).
+        # Also seeds party org entities and MP→Party edges (idempotent no-ops after first run).
+        try:
+            from ingest.shared.entity_mentions_sync import run_entity_mentions_sync
+            em = run_entity_mentions_sync(engine, days_back=2)
+            if em["article_mentions"]["synced"]:
+                log.info("entity_mentions: %s", em["article_mentions"])
+        except Exception:
+            log.exception("entity_mentions_sync crashed — skipping this cycle")
+
         # Backlog workers — all run in PARALLEL. Each is fully independent:
         # different DB tables, different agents, different fleet nodes.
         # One slow worker (geo, llm) no longer starves the others.

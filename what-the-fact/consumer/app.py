@@ -22,4 +22,7 @@ def create_app():
     # Cross-Watch proxy — server-side relay to hub (Task #3023)
     from .cross_watch import cross_watch_bp
     app.register_blueprint(cross_watch_bp)
+    # Election Claim Tracker admin CRUD (#3013)
+    from .claim_admin_routes import claim_admin_bp
+    app.register_blueprint(claim_admin_bp)
     return app

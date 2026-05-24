@@ -4,7 +4,7 @@ import os
 import time
 import urllib.request
 
-from flask import Blueprint, render_template, abort, Response
+from flask import Blueprint, render_template, abort, Response, request
 
 from sqlalchemy import create_engine, text
 from .auth import is_subscriber
@@ -731,6 +731,29 @@ def article(article_id: int):
     except Exception:
         pass
 
+    # MP election claims — tagged MPs for this article × claim_tracker (#3013)
+    mp_claims = []
+    try:
+        with _db().begin() as c:
+            mp_claim_rows = c.execute(text(f"""
+                SELECT ct.id, ct.politician_slug, ct.politician_name,
+                       ct.claim_text, ct.claim_date, ct.status, ct.verdict_summary
+                FROM {S}.article_mp_tags t
+                JOIN parliament.mps m ON m.id = t.mp_id
+                JOIN {S}.claim_tracker ct ON ct.mp_id = m.id
+                WHERE t.article_id = :aid
+                  AND ct.status != 'pending'
+                ORDER BY ct.created_at DESC
+                LIMIT 10
+            """), {"aid": article_id}).mappings().all()
+        mp_claims = [dict(r) for r in mp_claim_rows]
+        for r in mp_claims:
+            if r.get("claim_date"):
+                r["claim_date"] = str(r["claim_date"])
+    except Exception:
+        # Missing table or no parliament data — never break article rendering
+        pass
+
     return render_template("article.html", a=a, wtf_tech_url=wtf_tech_url,
                            is_subscriber=subscribed,
                            is_paywalled=is_paywalled,
@@ -739,7 +762,84 @@ def article(article_id: int):
                            cluster_articles=cluster_articles,
                            reading_time_min=reading_time_min,
                            article_type=article_type,
-                           sparkline=sparkline)
+                           sparkline=sparkline,
+                           mp_claims=mp_claims)
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# Election Claim Tracker — public pages (#3013)
+# ───────────────────────────────────────────────────────────────────────────
+
+@bp.get("/claims")
+def claims_index():
+    S = _schema()
+    status_filter = request.args.get("status")
+    params = {}
+    where = "WHERE ct.status != 'pending'"
+    if status_filter and status_filter != "all":
+        where += " AND ct.status = :status"
+        params["status"] = status_filter
+    try:
+        with _db().begin() as c:
+            rows = c.execute(
+                text(
+                    f"""
+                    SELECT id, politician_slug, politician_name,
+                           claim_text, claim_date, status, verdict_summary
+                    FROM {S}.claim_tracker ct
+                    {where}
+                    ORDER BY created_at DESC
+                    LIMIT 50
+                    """
+                ),
+                params,
+            ).mappings().all()
+        claims = []
+        for r in rows:
+            d = dict(r)
+            if d.get("claim_date"):
+                d["claim_date"] = str(d["claim_date"])
+            claims.append(d)
+    except Exception:
+        claims = []
+    subscribed = is_subscriber()
+    return render_template("claims.html", claims=claims,
+                           is_subscriber=subscribed,
+                           active_status=status_filter or "all")
+
+
+@bp.get("/claims/<slug>")
+def claims_by_politician(slug: str):
+    S = _schema()
+    try:
+        with _db().begin() as c:
+            rows = c.execute(
+                text(
+                    f"""
+                    SELECT id, politician_slug, politician_name,
+                           claim_text, claim_date, status, verdict_summary
+                    FROM {S}.claim_tracker
+                    WHERE politician_slug = :slug
+                    ORDER BY created_at DESC
+                    """
+                ),
+                {"slug": slug},
+            ).mappings().all()
+        claims = []
+        for r in rows:
+            d = dict(r)
+            if d.get("claim_date"):
+                d["claim_date"] = str(d["claim_date"])
+            claims.append(d)
+    except Exception:
+        claims = []
+    subscribed = is_subscriber()
+    politician_name = claims[0]["politician_name"] if claims else slug
+    return render_template("claims.html", claims=claims,
+                           is_subscriber=subscribed,
+                           active_status="all",
+                           politician_slug=slug,
+                           politician_name=politician_name)
 
 
 # ───────────────────────────────────────────────────────────────────────────

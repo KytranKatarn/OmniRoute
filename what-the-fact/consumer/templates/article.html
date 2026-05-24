@@ -366,6 +366,42 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
     <div style="font-size:10px;color:#4b5563;margin-top:6px;">Via Civic Watch · OpenParliament.ca</div>
   </div>
 
+  <!-- MP Election Claims — claim_tracker cross-link (#3013) -->
+  {% if mp_claims %}
+  <div class="wtf-mp-claims-panel" style="background:#0a0e14;border:1px solid #1a2a1a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
+    <div style="font-size:10px;letter-spacing:1.5px;color:#4ade80;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x1F4CB; Tracked Claims</div>
+    {% for claim in mp_claims[:3] %}
+    <div style="background:#060d08;border-radius:3px;padding:8px 10px;margin-bottom:6px;border-left:3px solid
+      {%- if claim.status == 'verified_true' %} #22c55e
+      {%- elif claim.status == 'partially_true' %} #84cc16
+      {%- elif claim.status == 'misleading' %} #f97316
+      {%- elif claim.status == 'false' %} #ef4444
+      {%- else %} #374151
+      {%- endif %};">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;gap:8px;flex-wrap:wrap;">
+        <a href="/claims/{{ claim.politician_slug }}" style="font-size:10px;color:#38bdf8;text-decoration:none;font-weight:bold;">{{ claim.politician_name }}</a>
+        <span style="font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:2px 6px;border-radius:2px;font-weight:bold;
+          {%- if claim.status == 'verified_true' %} background:#14532d;color:#4ade80;
+          {%- elif claim.status == 'partially_true' %} background:#1a3a0a;color:#a3e635;
+          {%- elif claim.status == 'misleading' %} background:#431407;color:#fb923c;
+          {%- elif claim.status == 'false' %} background:#450a0a;color:#f87171;
+          {%- else %} background:#1f2937;color:#9ca3af;
+          {%- endif %}">{{ claim.status.replace('_', ' ').title() }}</span>
+      </div>
+      <p style="font-size:11px;color:#ccc;margin:0 0 4px;">{{ claim.claim_text[:150] }}{% if claim.claim_text | length > 150 %}&hellip;{% endif %}</p>
+      {% if claim.verdict_summary and is_subscriber %}
+      <p style="font-size:10px;color:#a0aec0;margin:4px 0 0;border-left:2px solid #1a2a1a;padding-left:8px;">{{ claim.verdict_summary }}</p>
+      {% elif claim.verdict_summary %}
+      <p style="font-size:10px;color:#4b5563;margin:4px 0 0;">&#x1F512; Full verdict &mdash; Deep Dive subscribers only</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% if mp_claims | length > 3 %}
+    <a href="/claims/{{ mp_claims[0].politician_slug }}" style="font-size:10px;color:#4ade80;text-decoration:none;">+{{ mp_claims | length - 3 }} more &rarr;</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
   <!-- Related Civic Events — civic-watch municipal crossover (#3021) -->
   <div id="wtf-civic-section" style="display:none;background:#060a10;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
     <div style="font-size:10px;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x1F3D9; Related Municipal Events</div>

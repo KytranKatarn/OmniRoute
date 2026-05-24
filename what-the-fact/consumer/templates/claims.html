@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Election Claim Tracker — What The Fact{% endblock %}
+{% block content %}
+<style>
+.wtf-claims-container { max-width: 860px; margin: 0 auto; padding: 20px 16px; }
+.wtf-claims-header { margin-bottom: 20px; }
+.wtf-claims-title { font-size: 18px; font-weight: bold; color: #e0e0e0; margin-bottom: 6px; }
+.wtf-claims-subtitle { font-size: 11px; color: #666; letter-spacing: 1px; }
+
+/* Filter bar */
+.wtf-claims-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+.wtf-filter-btn { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; padding: 5px 12px;
+  border-radius: 3px; border: 1px solid #1a2a3a; background: #0a1520; color: #888;
+  text-decoration: none; cursor: pointer; }
+.wtf-filter-btn:hover { border-color: #0af; color: #0af; }
+.wtf-filter-btn--active { border-color: #0af; color: #0af; background: #061a2a; }
+
+/* Claim cards */
+.wtf-claim-card { background: #0a1520; border-radius: 4px; padding: 12px 14px; margin-bottom: 10px;
+  border-left: 3px solid #1a2a3a; }
+.wtf-claim-card--verified_true  { border-left-color: #22c55e; }
+.wtf-claim-card--partially_true { border-left-color: #84cc16; }
+.wtf-claim-card--misleading     { border-left-color: #f97316; }
+.wtf-claim-card--false          { border-left-color: #ef4444; }
+.wtf-claim-card--contested      { border-left-color: #6b7280; }
+.wtf-claim-card--pending        { border-left-color: #1a2a3a; }
+
+.wtf-claim-card-header { display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.wtf-claim-politician { font-size: 11px; font-weight: bold; color: #38bdf8; text-decoration: none; }
+.wtf-claim-politician:hover { text-decoration: underline; }
+.wtf-claim-date { font-size: 10px; color: #555; flex-shrink: 0; }
+
+.wtf-claim-badge { display: inline-block; font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 2px; font-weight: bold; }
+.wtf-claim-badge--verified_true  { background: #14532d; color: #4ade80; }
+.wtf-claim-badge--partially_true { background: #1a3a0a; color: #a3e635; }
+.wtf-claim-badge--misleading     { background: #431407; color: #fb923c; }
+.wtf-claim-badge--false          { background: #450a0a; color: #f87171; }
+.wtf-claim-badge--contested      { background: #1f2937; color: #9ca3af; }
+.wtf-claim-badge--pending        { background: #0a1520; color: #4b5563; }
+
+.wtf-claim-text { font-size: 12px; color: #ccc; line-height: 1.6; margin-bottom: 8px; }
+.wtf-claim-verdict { font-size: 11px; color: #a0aec0; background: #060d14;
+  border-left: 2px solid #1a2a3a; padding: 6px 10px; border-radius: 0 3px 3px 0; margin-top: 6px; }
+.wtf-claim-verdict-locked { font-size: 10px; color: #4b5563; margin-top: 6px; }
+.wtf-claim-more-link { font-size: 10px; color: #0af; text-decoration: none; }
+.wtf-claim-more-link:hover { text-decoration: underline; }
+
+.wtf-claims-empty { text-align: center; padding: 40px 20px; color: #4b5563; font-size: 12px; }
+.wtf-claims-count { font-size: 10px; color: #4b5563; letter-spacing: 1px; margin-bottom: 14px; }
+</style>
+
+<div class="wtf-claims-container">
+  <div class="wtf-claims-header">
+    {% if politician_name is defined and politician_slug is defined %}
+    <div class="wtf-claims-title">&#x1F4CB; Claims — {{ politician_name }}</div>
+    <div class="wtf-claims-subtitle">ELECTION CLAIM TRACKER &nbsp;&bull;&nbsp; <a href="/claims" style="color:#0af;text-decoration:none;">&#x2190; All Claims</a></div>
+    {% else %}
+    <div class="wtf-claims-title">&#x1F4CB; Election Claim Tracker</div>
+    <div class="wtf-claims-subtitle">TRACKING MP PROMISES AND STATEMENTS</div>
+    {% endif %}
+  </div>
+
+  {% if politician_slug is not defined %}
+  <!-- Filter bar — only on the index page -->
+  <div class="wtf-claims-filters">
+    <a href="/claims" class="wtf-filter-btn {% if active_status == 'all' %}wtf-filter-btn--active{% endif %}">All</a>
+    <a href="/claims?status=verified_true" class="wtf-filter-btn {% if active_status == 'verified_true' %}wtf-filter-btn--active{% endif %}">Verified True</a>
+    <a href="/claims?status=partially_true" class="wtf-filter-btn {% if active_status == 'partially_true' %}wtf-filter-btn--active{% endif %}">Partially True</a>
+    <a href="/claims?status=misleading" class="wtf-filter-btn {% if active_status == 'misleading' %}wtf-filter-btn--active{% endif %}">Misleading</a>
+    <a href="/claims?status=false" class="wtf-filter-btn {% if active_status == 'false' %}wtf-filter-btn--active{% endif %}">False</a>
+    <a href="/claims?status=contested" class="wtf-filter-btn {% if active_status == 'contested' %}wtf-filter-btn--active{% endif %}">Contested</a>
+  </div>
+  {% endif %}
+
+  <div class="wtf-claims-count">{{ claims | length }} claim{% if claims | length != 1 %}s{% endif %}</div>
+
+  {% if claims %}
+    {% for claim in claims %}
+    <div class="wtf-claim-card wtf-claim-card--{{ claim.status }}">
+      <div class="wtf-claim-card-header">
+        <span>
+          <a href="/claims/{{ claim.politician_slug }}" class="wtf-claim-politician">{{ claim.politician_name }}</a>
+          &nbsp;
+          <span class="wtf-claim-badge wtf-claim-badge--{{ claim.status }}">{{ claim.status.replace('_', ' ').title() }}</span>
+        </span>
+        {% if claim.claim_date %}
+        <span class="wtf-claim-date">{{ claim.claim_date }}</span>
+        {% endif %}
+      </div>
+      <div class="wtf-claim-text">
+        {{ claim.claim_text[:200] }}{% if claim.claim_text | length > 200 %}&hellip;{% endif %}
+      </div>
+      {% if claim.verdict_summary %}
+        {% if is_subscriber %}
+        <div class="wtf-claim-verdict">{{ claim.verdict_summary }}</div>
+        {% else %}
+        <div class="wtf-claim-verdict-locked">&#x1F512; Subscribe for full verdict</div>
+        {% endif %}
+      {% endif %}
+    </div>
+    {% endfor %}
+  {% else %}
+  <div class="wtf-claims-empty">
+    <div style="font-size:24px;margin-bottom:10px;">&#x1F4CB;</div>
+    No claims tracked yet{% if active_status and active_status != 'all' %} with status <strong>{{ active_status }}</strong>{% endif %}.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -51,6 +51,12 @@
 6. **[2026-05-15] stripe must be in ROOT requirements.txt for Docker builds**
    Do instead: Dockerfile installs ROOT `requirements.txt`, not `consumer/requirements.txt`. Always add deps to root file for VPS services.
 
+7. **[2026-05-24] Legal Watch Dockerfile: COPY . . must come BEFORE pip install**
+   Do instead: If requirements.txt has `pkg @ file:///app/localdir`, Dockerfile MUST `COPY . .` BEFORE `RUN pip install`. Standard cache-friendly order (COPY requirements first) breaks local file refs. Also: `docker cp` fails on read_only rootfs — full rebuild is the only path.
+
+8. **[2026-05-24] Legal Watch VPS live dir = /opt/archie-products/legal-watch/ (NOT kytran-legal-watch/)**
+   Do instead: Two legal-watch dirs exist on VPS. `legal-watch/` has Dockerfile + docker-compose.yml and runs the live container. `kytran-legal-watch/` is a stub. Always rsync to `legal-watch/`.
+
 ## Domain Behavior Guardrails
 1. **[2026-04-15] All LLM inference through Bridge dispatcher**
    Do instead: `from tools.department_hq.services.bridge_dispatcher import dispatch` — never direct Ollama.
@@ -86,6 +92,18 @@
 
 2. **[2026-05-18] merge-pr skill Step 7 resets whichever branch is checked out**
    Do instead: `git checkout main` BEFORE invoking /merge-pr. Recovery: `git reflog` → `git cherry-pick <hash>` → new branch + PR.
+
+3. **[2026-05-24] Two SEPARATE shared.entities tables — wtf db ≠ archie db**
+   Do instead: `wtf` db `shared.entities` = 487 rows (persons/orgs, entity graph). `archie` db `shared.entities` = 34 rows (topics/departments, cross-watch signals). Completely separate schemas, different purposes. Never confuse them.
+
+4. **[2026-05-24] Organization slugs use `org-` prefix in entity_graph.py**
+   Do instead: All org slugs follow `org-{name}` convention (entity_graph.py line 385: `org_slug = "org-" + name_to_slug(org_norm)`). Political parties: `org-liberal-party-of-canada`, etc. Never omit the `org-` prefix.
+
+5. **[2026-05-24] wtf-ingest has read_only rootfs — docker cp is blocked**
+   Do instead: Always rsync code to VPS `/opt/archie-products/what-the-fact/` then `docker compose up -d --build --no-deps wtf-ingest`. Never `docker cp` — silently fails on read_only rootfs.
+
+6. **[2026-05-24] rsync multiple files to different VPS subdirs — rsync each path separately**
+   Do instead: `rsync file.py user@vps:/app/ingest/` and `rsync other.py user@vps:/app/ingest/shared/` as separate commands. rsync to a parent dir sends files flat — subdir structure is NOT preserved automatically.
 
 ## User Directives
 1. **[2026-05-11] PR review → Repair Bay F.O.R.G.E., not Claude tokens**

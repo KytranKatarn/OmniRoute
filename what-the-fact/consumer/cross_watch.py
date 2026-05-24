@@ -135,3 +135,18 @@ def legal_rulings():
     limit = request.args.get("limit", "5")
     qs = urllib.parse.urlencode({"title": title, "limit": limit})
     return _proxy_get(f"/api/cross-watch/legal-rulings?{qs}")
+
+
+@cross_watch_bp.route("/api/cross-watch/civic-events")
+def civic_events():
+    """Proxy: return recent civic_watch municipal events matching an article title.
+    Matches on Canadian city/municipality names in the title.
+    Covers council decisions, bylaws, permits, and spending.
+    Passes ?title= and optional ?limit= through to hub. No user session required.
+    """
+    import urllib.parse
+
+    title = request.args.get("title", "")
+    limit = request.args.get("limit", "5")
+    qs = urllib.parse.urlencode({"title": title, "limit": limit})
+    return _proxy_get(f"/api/cross-watch/civic-events?{qs}")

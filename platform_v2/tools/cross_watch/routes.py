@@ -604,6 +604,87 @@ def get_legal_rulings():
     return jsonify({"rulings": rulings, "count": len(rulings)}), 200
 
 
+@cross_watch_bp.route("/api/cross-watch/civic-events", methods=["GET"])
+def get_civic_events():
+    """
+    Return recent civic_event signals whose city entity matches keywords in
+    the given article title. Covers municipal council decisions, bylaws,
+    spending, and development permits from Civic Watch.
+
+    Query params:
+      title — article headline to match against entity names / city aliases
+      limit — max results, default 5, capped at 10
+
+    Auth: Bearer token only — no user session required (page-level lookup).
+    """
+    if not _verify_token():
+        return jsonify({"error": "unauthorized"}), 401
+
+    title = request.args.get("title", "").strip()
+    if not title:
+        return jsonify({"events": [], "count": 0}), 200
+
+    try:
+        limit = min(int(request.args.get("limit", 5)), 10)
+    except (ValueError, TypeError):
+        limit = 5
+
+    entities = _get_entities()
+    title_lower = title.lower()
+    matched_ids = []
+    for ent in entities:
+        if ent["name"].lower() in title_lower:
+            matched_ids.append(ent["id"])
+            continue
+        for alias in ent.get("aliases") or []:
+            if alias and alias.lower() in title_lower:
+                matched_ids.append(ent["id"])
+                break
+
+    if not matched_ids:
+        return jsonify({"events": [], "count": 0}), 200
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT s.id, s.headline, s.url, s.created_at,
+                       e.name AS entity_name, e.entity_type,
+                       s.metadata
+                FROM shared.cross_watch_signals s
+                JOIN shared.entities e ON e.id = s.entity_id
+                WHERE s.entity_id = ANY(%s)
+                  AND s.source_product = 'civic_watch'
+                  AND s.signal_type = 'civic_event'
+                  AND s.created_at > NOW() - INTERVAL '180 days'
+                ORDER BY s.created_at DESC
+                LIMIT %s
+                """,
+                (matched_ids, limit),
+            )
+            rows = cur.fetchall()
+    except Exception as exc:
+        logger.error("[cross_watch] get_civic_events failed: %s", exc)
+        return jsonify({"error": "internal error"}), 500
+
+    events = [
+        {
+            "id": r["id"],
+            "city": r["entity_name"],
+            "headline": r["headline"],
+            "url": r["url"],
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+            "event_type": (r["metadata"] or {}).get("event_type"),
+            "level": (r["metadata"] or {}).get("level"),
+            "jurisdiction": (r["metadata"] or {}).get("jurisdiction"),
+            "amount": (r["metadata"] or {}).get("amount"),
+            "event_date": (r["metadata"] or {}).get("event_date"),
+        }
+        for r in rows
+    ]
+    return jsonify({"events": events, "count": len(events)}), 200
+
+
 @cross_watch_bp.route("/api/cross-watch/following", methods=["GET"])
 def list_following():
     """Return the list of entities the calling user follows."""

@@ -1017,7 +1017,8 @@ def cluster_comparison(cluster_id: int):
     with _db().begin() as c:
         meta = c.execute(text(f"""
             SELECT sc.id, sc.representative_title, sc.article_count,
-                   sc.created_at, sc.framing_summary, sc.framing_generated_at
+                   sc.created_at, sc.framing_summary, sc.framing_generated_at,
+                   sc.coverage_gap_score
             FROM {S}.story_clusters sc
             WHERE sc.id = :cid
         """), {"cid": cluster_id}).mappings().first()
@@ -1042,12 +1043,37 @@ def cluster_comparison(cluster_id: int):
         source_count = c.execute(
             text(f"SELECT COUNT(*) FROM {S}.sources")
         ).scalar() or 0
+        # Coverage Gap Score — distinct bias_lean bands that covered this cluster (#3010)
+        _ALL_BANDS = ["left", "center-left", "center", "center-right", "right"]
+        band_rows = c.execute(text(f"""
+            SELECT DISTINCT LOWER(TRIM(s.bias_lean)) AS band
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            WHERE a.cluster_id = :cid
+              AND s.bias_lean IS NOT NULL
+              AND TRIM(s.bias_lean) != ''
+        """), {"cid": cluster_id}).fetchall()
+        covered_bands = {r[0] for r in band_rows} & set(_ALL_BANDS)
+        bias_coverage_count = len(covered_bands)
+        # Prefer pre-computed value from story_clusters; fall back to on-the-fly calc
+        stored_gap = meta.get("coverage_gap_score")
+        if stored_gap is not None:
+            gap_score = round(float(stored_gap), 3)
+        else:
+            gap_score = round(1.0 - (bias_coverage_count / 5.0), 3)
+        coverage_data = {
+            "gap_score": gap_score,
+            "bias_coverage_count": bias_coverage_count,
+            "covered_bands": covered_bands,
+            "all_bands": _ALL_BANDS,
+        }
     return render_template("cluster.html",
                            cluster=dict(meta),
                            articles=[dict(r) for r in articles],
                            source_count=source_count,
                            is_subscriber=is_subscriber(),
-                           framing_summary=dict(meta).get("framing_summary"))
+                           framing_summary=dict(meta).get("framing_summary"),
+                           coverage_data=coverage_data)
 
 
 _OPENPARL_BASE = "https://openparliament.ca"

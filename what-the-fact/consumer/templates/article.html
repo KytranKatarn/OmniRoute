@@ -347,6 +347,13 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
     <div style="font-size:10px;color:#4b5563;margin-top:6px;">Via Gov Watch · CanadaBuys + PSPC tenders</div>
   </div>
 
+  <!-- Related Parliament Votes — civic-watch cross-link -->
+  <div id="wtf-votes-section" style="display:none;background:#0a0614;border:1px solid #2a1a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
+    <div style="font-size:10px;letter-spacing:1.5px;color:#a78bfa;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x1F3DB; Related Parliament Votes</div>
+    <ul id="wtf-votes-list" style="list-style:none;margin:0;padding:0;"></ul>
+    <div style="font-size:10px;color:#4b5563;margin-top:6px;">Via Civic Watch · OpenParliament.ca</div>
+  </div>
+
   <!-- GoogleFCT partner fact-checks — free, always visible -->
   {% if google_fact_checks %}
   <div style="background:#060b14;border:1px solid #1e3a5f;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
@@ -625,6 +632,59 @@ async function wtfSubmitFlag(flagType) {
       section.style.display = 'block';
     })
     .catch(function() { /* silent — hub unreachable or no cross-watch configured */ });
+})();
+
+// Related Parliament Votes — civic-watch cross-link
+// Uses createElement + textContent throughout — never innerHTML with untrusted data.
+(function() {
+  var title = {{ a.title | tojson }};
+  if (!title) return;
+  fetch('/api/cross-watch/parliament-votes?title=' + encodeURIComponent(title))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d || !d.count || !d.votes || !d.votes.length) return;
+      var section = document.getElementById('wtf-votes-section');
+      var ul = document.getElementById('wtf-votes-list');
+      if (!section || !ul) return;
+      d.votes.forEach(function(v) {
+        var li = document.createElement('li');
+        li.style.cssText = 'border-left:2px solid #a78bfa;padding:4px 8px;margin-bottom:6px;background:#0a0810;border-radius:2px;display:flex;align-items:baseline;flex-wrap:wrap;gap:4px;';
+        // Result badge
+        var result = (v.result || '').toLowerCase();
+        var badgeColor = result === 'passed' ? '#4ade80' : result === 'failed' ? '#f87171' : '#a78bfa';
+        var badge = document.createElement('span');
+        badge.style.cssText = 'display:inline-block;background:#1a1030;color:' + badgeColor + ';font-size:9px;padding:1px 5px;border-radius:2px;text-transform:uppercase;letter-spacing:0.5px;flex-shrink:0;';
+        badge.textContent = v.result || 'vote';
+        // Headline text
+        var text = document.createElement('span');
+        text.style.cssText = 'font-size:11px;color:#c0c8d8;flex:1;min-width:0;';
+        text.textContent = v.headline || '';
+        // Yeas/nays
+        if (v.yeas != null && v.nays != null) {
+          var tally = document.createElement('span');
+          tally.style.cssText = 'font-size:10px;color:#6b7280;flex-shrink:0;';
+          tally.textContent = '✓' + v.yeas + ' / ✗' + v.nays;
+          li.appendChild(badge);
+          li.appendChild(text);
+          li.appendChild(tally);
+        } else {
+          li.appendChild(badge);
+          li.appendChild(text);
+        }
+        if (v.url) {
+          var link = document.createElement('a');
+          link.href = v.url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.style.cssText = 'font-size:10px;color:#a78bfa;text-decoration:none;flex-shrink:0;';
+          link.textContent = 'OpenParliament →';
+          li.appendChild(link);
+        }
+        ul.appendChild(li);
+      });
+      section.style.display = 'block';
+    })
+    .catch(function() { /* silent — hub unreachable or civic-watch signal pipeline not yet populated */ });
 })();
 
 // Trigger phrase highlighting — DOM TreeWalker + split, XSS-safe

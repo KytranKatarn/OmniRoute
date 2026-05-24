@@ -108,3 +108,16 @@ def procurement():
     limit = request.args.get("limit", "5")
     qs = urllib.parse.urlencode({"title": title, "limit": limit})
     return _proxy_get(f"/api/cross-watch/procurement?{qs}")
+
+
+@cross_watch_bp.route("/api/cross-watch/parliament-votes")
+def parliament_votes():
+    """Proxy: return recent civic_watch parliament votes matching article title entities.
+    Passes ?title= and optional ?limit= through to hub. No user session required.
+    """
+    import urllib.parse
+
+    title = request.args.get("title", "")
+    limit = request.args.get("limit", "5")
+    qs = urllib.parse.urlencode({"title": title, "limit": limit})
+    return _proxy_get(f"/api/cross-watch/parliament-votes?{qs}")

@@ -6848,17 +6848,22 @@ class AgentLoop:
             SSH_KEY = "/root/.ssh/id_ed25519"
 
             # 1. Get current git HEAD SHA for the WTF directory
+            # Run git from the repo root (/mnt/archie_brain) to avoid filesystem
+            # boundary issue — WTF_LOCAL is a bind-mount subdirectory and git
+            # refuses to cross mount points to find .git by default.
+            # Using `git log -- what-the-fact/` gives the last commit touching WTF
+            # files, which is semantically correct (only rsync when WTF changes).
             git_result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                cwd=WTF_LOCAL,
+                ["git", "log", "--format=%H", "-1", "--", "what-the-fact/"],
+                cwd="/mnt/archie_brain",
                 capture_output=True,
                 text=True,
                 timeout=10,
             )
-            if git_result.returncode != 0:
+            if git_result.returncode != 0 or not git_result.stdout.strip():
                 logger.warning(
-                    "warden_wtf_rsync: git rev-parse failed — %s",
-                    git_result.stderr.strip()[:200],
+                    "warden_wtf_rsync: git log failed — %s",
+                    git_result.stderr.strip()[:200] or "no commits found for what-the-fact/",
                 )
                 return
             current_sha = git_result.stdout.strip()

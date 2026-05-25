@@ -208,6 +208,8 @@ services:
       - /mnt/stacks:/mnt/stacks:ro
       # Nagios monitoring data (status.dat) for health integration
       - monitoring_nagios_data:/opt/nagios-data:ro
+      # SSH key for W.A.R.D.E.N. warden_wtf_rsync job (hub→VPS code sync)
+      - /home/kytran/.ssh/id_ed25519:/root/.ssh/id_ed25519:ro
       # Host config files for STIG compliance scanning (read-only)
       - /etc/ssh:/etc/ssh:ro
       - /etc/docker:/etc/docker:ro
@@ -374,6 +376,8 @@ services:
       - ./migrations:/mnt/archie_brain/migrations:ro
       - /mnt/stacks:/mnt/stacks:ro
       - monitoring_nagios_data:/opt/nagios-data:ro
+      # SSH key for W.A.R.D.E.N. warden_wtf_rsync job (hub→VPS code sync)
+      - /home/kytran/.ssh/id_ed25519:/root/.ssh/id_ed25519:ro
       - /etc/ssh:/etc/ssh:ro
       - /etc/docker:/etc/docker:ro
       - /etc/security:/etc/security:ro

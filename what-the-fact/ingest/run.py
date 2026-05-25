@@ -49,6 +49,7 @@ from ingest import (
     llm_analysis_backlog_worker,
     scout_body_backlog_worker,
     bias_v2_backlog_worker,
+    beat_backlog_worker,
     alerts_digest_worker,
     factcheck_partner_worker,
     weekly_digest_worker,
@@ -232,6 +233,19 @@ def run_once(engine) -> dict:
                             "aid": article_id,
                         },
                     )
+            # Beat classification — fast path for priority articles.
+            # Backlog worker (WTF_BEAT_BACKLOG_ENABLED) handles historical articles.
+            beat_result = ai_analyze("classify_beat", article_id, row.title or "", row.body or "")
+            if beat_result:
+                _beat = (beat_result.get("beat") or "").strip().lower()
+                _beat_val = _beat if _beat in beat_backlog_worker.VALID_BEATS else "none"
+                with engine.begin() as c:
+                    c.execute(
+                        _text(
+                            "UPDATE wtf.articles SET beat = :beat WHERE id = :id AND beat IS NULL"
+                        ),
+                        {"beat": _beat_val, "id": article_id},
+                    )
             mark_ai_analyzed(engine, article_id, "wtf")
         log.info("orchestrator: %d articles AI-analyzed this cycle", len(priority_ids))
     except Exception as exc:
@@ -356,6 +370,7 @@ def main():
             factcheck_backlog_worker,
             llm_analysis_backlog_worker,
             bias_v2_backlog_worker,
+            beat_backlog_worker,       # WTF_BEAT_BACKLOG_ENABLED=true to activate
         )
         with ThreadPoolExecutor(max_workers=len(_backlog_workers)) as pool:
             future_to_worker = {

@@ -1,0 +1,145 @@
+"""beat_backlog_worker.py — backfill wtf.articles.beat via classify_beat hub task.
+
+Fetches articles without a beat tag (newest first) and classifies them into one of
+10 Canadian news beats: climate, crime, economy, education, foreign-policy, healthcare,
+housing, immigration, indigenous, parliament.
+
+Runs inside the wtf-ingest cycle as part of the parallel backlog worker pool.
+Each cycle processes up to _MAX_PER_RUN articles then yields back to the pool.
+Articles are processed newest → oldest so recently-ingested articles (the ones
+users are actually reading) get tagged first.
+
+Default OFF — set WTF_BEAT_BACKLOG_ENABLED=true to activate.
+"""
+import logging
+import os
+import time
+
+from sqlalchemy import text
+
+from .ai_dispatcher import analyze_with_status
+
+logger = logging.getLogger("wtf-ingest")
+
+_ENABLED = os.environ.get("WTF_BEAT_BACKLOG_ENABLED", "false").lower() == "true"
+_BATCH_SIZE = int(os.environ.get("WTF_BEAT_BACKLOG_BATCH_SIZE", "10"))
+_DISPATCH_SLEEP_SEC = float(os.environ.get("WTF_BEAT_BACKLOG_DISPATCH_SLEEP_SEC", "5"))
+_MAX_PER_RUN = int(os.environ.get("WTF_BEAT_BACKLOG_MAX_PER_RUN", "50"))
+
+_ALLOWED_SCHEMAS = frozenset({"wtf"})
+
+VALID_BEATS = frozenset({
+    "climate", "crime", "economy", "education",
+    "foreign-policy", "healthcare", "housing",
+    "immigration", "indigenous", "parliament",
+})
+
+__name__ = "beat_backlog_worker"
+
+
+def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
+    if schema not in _ALLOWED_SCHEMAS:
+        raise ValueError(f"_fetch_batch: disallowed schema {schema!r}")
+    with engine.connect() as c:
+        rows = c.execute(
+            text(f"""
+                SELECT a.id, a.title, LEFT(a.body, 1500) AS body,
+                       s.slug AS source_slug
+                FROM {schema}.articles a
+                JOIN {schema}.sources s ON s.id = a.source_id
+                WHERE a.beat IS NULL
+                ORDER BY a.published_at DESC NULLS LAST
+                LIMIT :limit
+            """),
+            {"limit": limit},
+        ).mappings().all()
+    return [dict(r) for r in rows]
+
+
+def _persist(engine, schema: str, article_id: int, beat: str | None) -> None:
+    """Write the beat (or 'none' sentinel) so this article is not re-fetched next cycle."""
+    # Use 'none' as terminal sentinel for articles that don't fit any beat.
+    # NULL means unprocessed; 'none' means processed but no beat matched.
+    value = beat if beat in VALID_BEATS else "none"
+    with engine.begin() as c:
+        c.execute(
+            text(f"UPDATE wtf.articles SET beat = :beat WHERE id = :id"),
+            {"beat": value, "id": article_id},
+        )
+
+
+def run_backlog(engine, schema: str = "wtf") -> dict:
+    if not _ENABLED:
+        return {"processed": 0, "tagged": 0, "stopped": "disabled"}
+
+    if schema not in _ALLOWED_SCHEMAS:
+        logger.warning("beat_backlog_worker: disallowed schema %r — skipping", schema)
+        return {"processed": 0, "tagged": 0, "stopped": "bad_schema"}
+
+    processed = 0
+    tagged = 0
+    rate_limited = 0
+
+    while processed < _MAX_PER_RUN:
+        remaining = min(_BATCH_SIZE, _MAX_PER_RUN - processed)
+        batch = _fetch_batch(engine, schema, remaining)
+        if not batch:
+            break
+
+        for row in batch:
+            result = analyze_with_status(
+                task="classify_beat",
+                article_id=row["id"],
+                title=row["title"] or "",
+                body=row["body"] or "",
+                source_slug=row["source_slug"] or "",
+            )
+
+            if result["status"] == "rate_limited":
+                # Hub rate-limited — stop for this cycle, retry next ingest cycle
+                logger.info(
+                    "beat_backlog_worker: rate-limited after %d articles — "
+                    "will resume next cycle", processed
+                )
+                rate_limited += 1
+                return {
+                    "processed": processed,
+                    "tagged": tagged,
+                    "rate_limited": rate_limited,
+                    "stopped": "rate_limited",
+                }
+
+            if result["status"] == "ok" and result.get("result"):
+                raw = result["result"]
+                beat = None
+                if isinstance(raw, dict):
+                    beat = (raw.get("beat") or "").strip().lower()
+                    if beat not in VALID_BEATS:
+                        beat = None
+                _persist(engine, schema, row["id"], beat)
+                if beat:
+                    tagged += 1
+                    logger.debug(
+                        "beat_backlog_worker: article %d → %s", row["id"], beat
+                    )
+                else:
+                    _persist(engine, schema, row["id"], None)  # saves as 'none'
+                    logger.debug(
+                        "beat_backlog_worker: article %d → none (no match)", row["id"]
+                    )
+            else:
+                # Hard failure — mark 'none' so we don't retry endlessly
+                _persist(engine, schema, row["id"], None)
+                logger.debug(
+                    "beat_backlog_worker: article %d dispatch failed — marking none",
+                    row["id"],
+                )
+
+            processed += 1
+            time.sleep(_DISPATCH_SLEEP_SEC)
+
+    logger.info(
+        "beat_backlog_worker: %d processed, %d tagged this run",
+        processed, tagged,
+    )
+    return {"processed": processed, "tagged": tagged, "rate_limited": rate_limited}

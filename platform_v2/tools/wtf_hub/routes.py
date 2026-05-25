@@ -29,6 +29,7 @@ _AGENT_IDS: dict[str, int | None] = {
     "factcheck": None,
     "geo": None,
     "deep_analysis": None,
+    "classify_beat": None,
 }
 
 
@@ -57,6 +58,11 @@ def _resolve_agents() -> None:
         # in one LLM round-trip. V.E.R.I.F.Y. owns it (claims verification
         # is the load-bearing piece — the others are supporting context).
         _AGENT_IDS["deep_analysis"] = _get_agent_id("V.E.R.I.F.Y.")
+    if not _AGENT_IDS["classify_beat"]:
+        # Beat classification routes to F.A.C.T. (News & Media director).
+        # Dispatches via capability="classify" → DHQ routes to Analytics &
+        # Intelligence (S.P.E.C.T.R.A./W.A.T.C.H.) for the actual inference.
+        _AGENT_IDS["classify_beat"] = _get_agent_id("F.A.C.T.")
 
 
 def _auth_ok(req) -> bool:
@@ -94,7 +100,7 @@ def analyze():
 
     data = request.get_json(force=True, silent=True) or {}
     task = data.get("task", "")
-    if task not in ("bias", "factcheck", "geo", "deep_analysis"):
+    if task not in ("bias", "factcheck", "geo", "deep_analysis", "classify_beat"):
         return jsonify({"ok": False, "error": f"unknown task: {task}"}), 400
 
     title = (data.get("title") or "")[:200]
@@ -146,6 +152,14 @@ def analyze():
             '  "editorial_take": str (1-3 sentence summary of importance + reliability),\n'
             '  "confidence": float 0.0-1.0\n'
         ),
+        "classify_beat": (
+            f"Classify this Canadian news article into exactly one beat topic.\n\n"
+            f"Valid beats: climate, crime, economy, education, foreign-policy, "
+            f"healthcare, housing, immigration, indigenous, parliament\n"
+            f'Use "none" if no beat fits.\n\n'
+            f"Title: {title}\nBody: {body[:1000]}\n\n"
+            'Return ONLY valid JSON: {"beat": "healthcare"}'
+        ),
     }
 
     agent_names = {
@@ -153,6 +167,7 @@ def analyze():
         "factcheck": "V.E.R.I.F.Y.",
         "geo": "L.O.C.A.L.",
         "deep_analysis": "V.E.R.I.F.Y.",
+        "classify_beat": "F.A.C.T.",
     }
     agent_name = agent_names[task]
     agent_id = _AGENT_IDS.get(task)
@@ -175,6 +190,7 @@ def analyze():
         "factcheck": "fact_check",
         "geo": "geo_extraction",
         "deep_analysis": "fact_check",  # routes to V.E.R.I.F.Y. — same agent, longer prompt
+        "classify_beat": "classify",  # routes to Analytics & Intelligence (S.P.E.C.T.R.A./W.A.T.C.H.)
     }
 
     try:

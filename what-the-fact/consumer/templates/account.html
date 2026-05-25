@@ -102,6 +102,73 @@
   </div>
   {% endif %}
 
+  {% if subscribed %}
+  <!-- T3008 — Reading Bubble Score -->
+  <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:8px;padding:24px;margin-bottom:20px;">
+    <div style="font-size:0.55rem;letter-spacing:2px;color:#4b5563;text-transform:uppercase;margin-bottom:14px;">Your Reading Bubble — Last 7 Days</div>
+    <div id="wtf-bubble-body"></div>
+  </div>
+  <script>
+  (function(){
+    var BC={'left':'#ef4444','center-left':'#f97316','center':'#22c55e','center-right':'#3b82f6','right':'#8b5cf6','unscored':'#374151'};
+    var BANDS=['left','center-left','center','center-right','right','unscored'];
+    var el=document.getElementById('wtf-bubble-body');
+    function clr(node){while(node.firstChild)node.removeChild(node.firstChild);}
+    function msg(txt){var d=document.createElement('div');d.style.cssText='color:#4b5563;font-size:0.75rem;';d.textContent=txt;el.appendChild(d);}
+    function mkDiv(css){var d=document.createElement('div');d.style.cssText=css;return d;}
+    msg('Loading…');
+    fetch('/api/me/bubble-score')
+      .then(function(r){return r.json();})
+      .then(function(d){
+        clr(el);
+        if(d.error){msg(d.error);return;}
+        if(!d.total_articles){msg('No reading history in the last 7 days.');return;}
+        var dist=d.distribution||{};
+        var wrap=mkDiv('margin-bottom:14px;');
+        BANDS.forEach(function(b){
+          if(!dist[b])return;
+          var c=BC[b]||'#374151';
+          var row=mkDiv('display:flex;align-items:center;gap:10px;margin-bottom:5px;');
+          var lbl=mkDiv('width:80px;font-size:0.62rem;color:#9ca3af;text-align:right;text-transform:uppercase;');
+          lbl.textContent=b;
+          var track=mkDiv('flex:1;background:#111827;border-radius:2px;height:6px;');
+          var fill=mkDiv('width:'+dist[b]+'%;background:'+c+';border-radius:2px;height:6px;');
+          var num=mkDiv('width:36px;font-size:0.62rem;color:#6b7280;text-align:right;');
+          num.textContent=dist[b]+'%';
+          track.appendChild(fill);
+          row.appendChild(lbl);row.appendChild(track);row.appendChild(num);
+          wrap.appendChild(row);
+        });
+        el.appendChild(wrap);
+        var hdr=mkDiv('font-size:0.55rem;color:#4b5563;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;');
+        hdr.textContent='Diversity Score';
+        el.appendChild(hdr);
+        var score=d.bubble_score;
+        if(score!==null&&score!==undefined){
+          var sc=score<0.4?'#22c55e':(score<0.7?'#f59e0b':'#ef4444');
+          var lbl2=score<0.4?'Diverse':(score<0.7?'Moderate':'Echo Chamber');
+          var row2=mkDiv('display:flex;align-items:center;gap:12px;');
+          var track2=mkDiv('flex:1;background:#111827;border-radius:3px;height:8px;');
+          var fill2=mkDiv('width:'+Math.round(score*100)+'%;background:'+sc+';border-radius:3px;height:8px;');
+          var lv=mkDiv('font-size:0.75rem;font-weight:700;color:'+sc+';min-width:110px;');
+          lv.textContent=lbl2+' ('+score.toFixed(2)+')';
+          track2.appendChild(fill2);
+          row2.appendChild(track2);row2.appendChild(lv);
+          el.appendChild(row2);
+          var note=mkDiv('font-size:0.6rem;color:#4b5563;margin-top:6px;');
+          note.textContent=d.total_articles+' articles · 0.00 = fully diverse, 1.00 = single viewpoint';
+          el.appendChild(note);
+        }else{
+          var hint=mkDiv('color:#4b5563;font-size:0.72rem;');
+          hint.textContent='Read at least 3 scored articles to unlock your diversity score.';
+          el.appendChild(hint);
+        }
+      })
+      .catch(function(){clr(el);msg('Could not load reading data.');});
+  })();
+  </script>
+  {% endif %}
+
   <!-- Quick nav -->
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;">
     <a href="/" style="color:#6b7280;font-size:0.72rem;text-decoration:none;">← News Feed</a>

@@ -78,6 +78,42 @@
   </div>
   {% endif %}
 
+  <!-- T3007 — Bias Drift Tracker -->
+  <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:6px;padding:18px;margin-bottom:24px;">
+    <div style="font-size:0.55rem;letter-spacing:2px;color:#4b5563;text-transform:uppercase;margin-bottom:12px;">Bias Drift — Last 12 Months</div>
+    <div id="wtf-trend-chart" style="height:80px;display:flex;align-items:flex-end;gap:3px;overflow:hidden;"></div>
+    <div id="wtf-trend-labels" style="display:flex;gap:3px;margin-top:4px;"></div>
+  </div>
+  <script>
+  (function(){
+    var BC={'left':'#ef4444','center-left':'#f97316','center':'#22c55e','center-right':'#3b82f6','right':'#8b5cf6','unscored':'#374151'};
+    var chart=document.getElementById('wtf-trend-chart');
+    var labelsEl=document.getElementById('wtf-trend-labels');
+    function showMsg(msg){var d=document.createElement('div');d.style.cssText='color:#4b5563;font-size:0.65rem;padding:8px;';d.textContent=msg;chart.appendChild(d);}
+    showMsg('Loading…');
+    fetch('/api/v1/outlets/{{ src.id }}/bias-trend')
+      .then(function(r){return r.json();})
+      .then(function(d){
+        chart.innerHTML='';labelsEl.innerHTML='';
+        if(!d.months||!d.months.length){showMsg('No trend data yet.');return;}
+        var max=Math.max.apply(null,d.months.map(function(m){return m.article_count||1;}));
+        d.months.forEach(function(m){
+          var h=Math.max(6,Math.round((m.article_count/max)*72));
+          var c=BC[m.band]||'#374151';
+          var bar=document.createElement('div');
+          bar.title=m.month+' · '+(m.band||'unscored')+' · '+parseFloat(m.avg_score||0).toFixed(2)+' avg · '+m.article_count+' articles';
+          bar.style.cssText='flex:1;min-width:0;height:'+h+'px;background:'+c+'33;border-top:2px solid '+c+';border-radius:2px 2px 0 0;cursor:default;';
+          chart.appendChild(bar);
+          var lbl=document.createElement('div');
+          lbl.style.cssText='flex:1;min-width:0;font-size:0.5rem;color:#374151;text-align:center;overflow:hidden;';
+          lbl.textContent=m.month.slice(5);
+          labelsEl.appendChild(lbl);
+        });
+      })
+      .catch(function(){chart.innerHTML='';showMsg('Trend unavailable.');});
+  })();
+  </script>
+
   <!-- Recent articles -->
   <div style="margin-bottom:8px;">
     <div style="font-size:0.55rem;letter-spacing:2px;color:#4b5563;text-transform:uppercase;margin-bottom:12px;">Recent Articles</div>

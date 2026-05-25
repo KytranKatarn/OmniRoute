@@ -160,6 +160,69 @@ async function wtfReframe() {
 </script>
 
 {% if articles and is_subscriber %}
+<!-- T3011 — Story Timeline -->
+<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:14px 16px;margin-bottom:16px;">
+  <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">⏱ Coverage Timeline</div>
+  <div id="wtf-timeline-body" style="font-size:12px;color:#6b7280;"></div>
+</div>
+<script>
+(function(){
+  var BC={'left':'#ef4444','center-left':'#f97316','center':'#22c55e','center-right':'#3b82f6','right':'#8b5cf6'};
+  var el=document.getElementById('wtf-timeline-body');
+  function mkEl(tag,css){var e=document.createElement(tag);if(css)e.style.cssText=css;return e;}
+  function msg(txt){var d=mkEl('div','color:#4b5563;font-size:11px;');d.textContent=txt;el.appendChild(d);}
+  msg('Loading…');
+  fetch('/api/clusters/{{ cluster.id }}/timeline')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      while(el.firstChild)el.removeChild(el.firstChild);
+      if(!d.articles||!d.articles.length){msg('No timeline data.');return;}
+      var spine=mkEl('div','position:relative;padding-left:18px;');
+      var line=mkEl('div','position:absolute;left:6px;top:0;bottom:0;width:1px;background:#1a3a5a;');
+      spine.appendChild(line);
+      d.articles.forEach(function(a,i){
+        var c=BC[a.bias_band]||'#374151';
+        var row=mkEl('div','position:relative;'+(i<d.articles.length-1?'margin-bottom:12px;':''));
+        var dot=mkEl('div','position:absolute;left:-12px;top:5px;width:7px;height:7px;border-radius:50%;background:'+c+';');
+        row.appendChild(dot);
+        /* meta line: date + source + band */
+        var meta=mkEl('div','display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;');
+        var dt=mkEl('span','font-size:9px;color:#4b5563;white-space:nowrap;');
+        var dateStr=a.published_at?a.published_at.slice(0,10):'—';
+        var timeStr=a.published_at&&a.published_at.length>16?a.published_at.slice(11,16):'';
+        dt.textContent=dateStr+(timeStr?' '+timeStr:'');
+        meta.appendChild(dt);
+        if(a.source_name){
+          if(a.source_slug){
+            var srcA=mkEl('a','font-size:10px;color:#9ca3af;text-decoration:none;font-weight:600;');
+            srcA.href='/source/'+encodeURIComponent(a.source_slug);
+            srcA.textContent=a.source_name;
+            meta.appendChild(srcA);
+          }else{
+            var srcS=mkEl('span','font-size:10px;color:#9ca3af;font-weight:600;');
+            srcS.textContent=a.source_name;
+            meta.appendChild(srcS);
+          }
+        }
+        if(a.bias_band){
+          var pill=mkEl('span','font-size:9px;padding:1px 6px;border-radius:8px;background:'+c+'22;color:'+c+';border:1px solid '+c+'44;');
+          pill.textContent=a.bias_band.replace('-',' ');
+          meta.appendChild(pill);
+        }
+        row.appendChild(meta);
+        /* article title link */
+        var titleA=mkEl('a','font-size:11px;color:#d1d5db;text-decoration:none;line-height:1.4;display:block;margin-top:2px;');
+        titleA.href='/article/'+encodeURIComponent(String(a.id));
+        titleA.textContent=(a.title||'').slice(0,100)+((a.title||'').length>100?'…':'');
+        row.appendChild(titleA);
+        spine.appendChild(row);
+      });
+      el.appendChild(spine);
+    })
+    .catch(function(){while(el.firstChild)el.removeChild(el.firstChild);msg('Could not load timeline.');});
+})();
+</script>
+
 <div class="wtf-cluster-grid">
   {% for art in articles %}
   {% set band = art.bias_band or '' %}

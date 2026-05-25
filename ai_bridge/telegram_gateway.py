@@ -1401,8 +1401,8 @@ class TelegramGateway:
             return
 
         try:
+            from tools.repair_bay.services.github_service import merge_pr  # noqa: PLC0415
             from tools.repair_bay.services.pr_review_service import (  # noqa: PLC0415
-                merge_pr,
                 _mark_tier_processed,
             )
             from database import get_db_cursor as _gdc  # noqa: PLC0415

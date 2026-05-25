@@ -1,0 +1,127 @@
+# What The Fact (WTF) Rules
+
+**Creating new file** — no prior state. Documents 3-container VPS architecture, XSS rule, deploy patterns, DB location.
+
+## 3-Container Architecture (VPS only)
+
+| Container | Port | Domain | Purpose |
+|-----------|------|--------|---------|
+| `wtf-consumer` | 8103 | what-the-fact.com | Public news feed, OAuth paywall |
+| `wtf-tech` | 8104 | what-the-fact.tech | Tech-focused news variant |
+| `wtf-ingest` | internal | — | RSS fetch, clustering, scoring (2GB RAM) |
+
+All 3 on VPS `76.13.107.109`. Networks: `default` + `archie_net` (required for Caddy reachability).
+
+## Critical Path Rules
+
+### Deployment (image-baked — COPY . in Dockerfile)
+```bash
+# REBUILD — required for ANY code change (no volume mount on VPS):
+docker compose up -d --build wtf-consumer
+docker compose up -d --build wtf-tech
+docker compose up -d --build wtf-ingest
+
+# NEVER use `docker compose restart` for code changes — stale image stays
+
+# Hot-fix single file (avoids full rebuild):
+docker cp /path/to/file.py wtf-consumer:/app/path/to/file.py
+docker compose restart wtf-consumer
+```
+
+### VPS Path — ALWAYS use `what-the-fact/`
+```bash
+# CORRECT:
+/opt/archie-products/what-the-fact/
+
+# WRONG (empty dir, silently does nothing):
+/opt/archie-products/wtf/
+```
+
+### WTF DB — separate database on HUB postgres
+```bash
+# WTF uses its own `wtf` DB on hub postgres (NOT a VPS container database):
+docker exec archie_database psql -U archie -d wtf
+```
+
+Schema tables:
+- `wtf.sources` — news outlets
+- `wtf.articles` — ingested articles
+- `wtf.story_clusters` — Jaccard-clustered stories
+- `wtf.summaries` — extractive summaries
+- `wtf.bias_scores` — per-article bias
+- `wtf.outlet_bias_scores` — per-outlet aggregate
+- `wtf.fact_checks` — fact-check results
+
+## XSS Rule (MANDATORY — never violate)
+
+**ALL external news content MUST use `element.textContent = value`. Never set `element.innerHTML` with dynamic data from RSS/external sources.**
+
+This applies to: headlines, summaries, article bodies, outlet names, author names — anything from an RSS feed or scraped source.
+
+Using the `textContent` property is safe. Using the `innerHTML` property with untrusted external content is a critical XSS vulnerability. The hook system will flag this. If you need formatted HTML from trusted internal data only, use `escHtml()` first.
+
+## WTF_TECH_URL — Server-Side Proxy Rule (KB #267314)
+
+**NEVER pass `WTF_TECH_URL` to browser JavaScript.** Always add a server-side proxy route first.
+
+The env var is an internal URL. Exposing it to the browser leaks infra details, breaks CORS, and bypasses the proxy. Always proxy server-side:
+
+```python
+# Add a proxy route in the consumer app:
+@consumer_bp.route('/api/tech/proxy/<path:endpoint>')
+def proxy_to_tech(endpoint):
+    resp = requests.get(f"{os.getenv('WTF_TECH_URL')}/{endpoint}")
+    return jsonify(resp.json())
+```
+
+## Hub Dispatch (from wtf_hub module)
+
+Hub module: `tools/wtf_hub/wtf_hub.html`, teal accent `#00ffff`
+
+Dispatch capabilities → agents:
+- `bias_analysis` → B.I.A.S.
+- `fact_check` → V.E.R.I.F.Y.
+- `geo_extraction` → L.O.C.A.L.
+
+**Hub routes (`wtf_hub/routes.py`) are volume-mounted — restart `archie_platform` to pick up changes. VPS containers are NOT volume-mounted — they require a full `--build` rebuild.**
+
+## OAuth / Paywall Tiers
+
+| Feature | Free | Paid |
+|---------|------|------|
+| News feed + story clusters | ✅ | ✅ |
+| Bias scores | ✅ | ✅ |
+| Bias rationale | ❌ | ✅ |
+| Deep Dive analysis | ❌ | ✅ |
+
+OAuth SSO via Kytran Empowerment identity provider (same as other Watch products).
+
+## Ingest Pipeline
+
+- 10 Canadian news sources
+- RSS poll: every 30 minutes (`wtf-ingest`)
+- Clustering: Jaccard similarity on headlines/keywords
+- Summarization: extractive (no LLM required for basic)
+- Bias scoring: `wtf.bias_scores` + `wtf.outlet_bias_scores` aggregate
+- LLM backlog: `WTF_LLM_BACKLOG_ENABLED=true`, max 14 days, max 100 runs/night
+
+## Container Resource Limits
+
+| Container | Mem | CPU |
+|-----------|-----|-----|
+| wtf-ingest | 2GB | 1.0 |
+| wtf-consumer | 512MB | 0.5 |
+| wtf-tech | 512MB | 0.5 |
+
+All containers: `read_only: true`, `cap_drop: [ALL]`, `tmpfs: /tmp`
+
+## Gotchas
+
+- `WTF_TECH_URL` is an internal URL — never expose in browser JS (KB #267314)
+- WTF DB is on HUB postgres (`wtf` database), NOT a VPS container database
+- `wtf-ingest` has no exposed port — internal only, no direct API access
+- VPS path is `what-the-fact/` not `wtf/` — wrong path is empty, silently fails
+- Images from `ghcr.io/kytrankatarn/wtf-*:0.1.0` — always `--build` to pick up Dockerfile changes
+- Hub wtf_hub module: volume-mounted (restart picks up changes)
+- VPS containers: image-baked (full rebuild required for code changes)
+- BRIDGE_URL in WTF config must be `http://100.64.0.4:3000` (Headscale mesh — never the public CDN hostname)

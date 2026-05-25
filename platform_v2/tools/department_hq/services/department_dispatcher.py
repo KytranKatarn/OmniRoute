@@ -1703,7 +1703,7 @@ class DepartmentDispatcher:
             # Find node agents in matching department with online nodes
             cur.execute(
                 """
-                SELECT na.name AS agent_name,
+                SELECT COALESCE(na.display_name, a_hub.display_name, na.name) AS agent_name,
                        na.model,
                        a_hub.department,
                        na.hub_agent_id,
@@ -1869,13 +1869,15 @@ class DepartmentDispatcher:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(
                 f"""
-                SELECT na.model, na.display_name,
+                SELECT na.model,
+                       COALESCE(na.display_name, a.display_name, a.name) AS display_name,
                        rn.id as node_id, rn.node_name,
                        rn.hostname, rn.port, rn.vpn_ip,
                        rn.bridge_priority,
                        COALESCE(load_5m.task_count, 0) AS recent_load
                 FROM node_agents na
                 JOIN remote_nodes rn ON rn.id = na.node_id
+                LEFT JOIN agents a ON a.id = na.hub_agent_id
                 LEFT JOIN (
                     SELECT node_used_id, COUNT(*) AS task_count
                     FROM task_execution_log
@@ -6148,7 +6150,7 @@ class DepartmentDispatcher:
         """
         station_code = CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")
         agent = get_dept_coordinator().select_agent(capability, station_code)
-        agent_name = "ARCHIE"
+        agent_name = "A.R.C.H.I.E."
         agent_id = 2
         if agent:
             agent_id = agent.get("id", 2)

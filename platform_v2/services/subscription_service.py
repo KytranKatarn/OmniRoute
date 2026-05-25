@@ -42,6 +42,54 @@ def _resolve_tier_from_price(stripe_price_id):
     return "viewer"
 
 
+def resolve_tier_for_product(stripe_price_id, product_id=None):
+    """DB-backed tier resolution via subscription_plans table (T3027).
+
+    Looks up the tier_name for a given stripe_price_id (+ optional product_id
+    for disambiguation).  Falls back to legacy keyword-matching only when the
+    price ID is not yet seeded in subscription_plans.
+
+    Args:
+        stripe_price_id: Stripe price ID (e.g. 'price_1AbCdEfGhIjKlMnO')
+        product_id:      Optional product scope (e.g. 'gov_watch', 'wtf').
+
+    Returns:
+        tier_name str — canonical tier vocabulary:
+        free | starter | solo | team | agency | enterprise
+    """
+    if not stripe_price_id:
+        return "free"
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            if product_id:
+                cur.execute(
+                    """
+                    SELECT tier_name FROM billing_product_plans
+                    WHERE stripe_price_id = %s AND product_id = %s AND is_active
+                    LIMIT 1
+                    """,
+                    (stripe_price_id, product_id),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT tier_name FROM billing_product_plans
+                    WHERE stripe_price_id = %s AND is_active
+                    LIMIT 1
+                    """,
+                    (stripe_price_id,),
+                )
+            row = cur.fetchone()
+            if row:
+                return row["tier_name"]
+    except Exception:
+        logger.warning("resolve_tier_for_product: DB lookup failed, falling back to keyword match")
+
+    # Fallback: legacy keyword heuristic (catches prices not yet in subscription_plans)
+    return _resolve_tier_from_price(stripe_price_id) or "free"
+
+
 def get_user_subscriptions(user_id):
     """Return all active subscriptions for a user.
 

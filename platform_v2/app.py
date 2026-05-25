@@ -2429,6 +2429,13 @@ from services.ksm_billing_handler import register_ksm_billing_handlers  # noqa: 
 
 register_ksm_billing_handlers()
 
+# Watch Products Billing — covers gov_watch, civic_watch, legal_watch, market_watch, wtf + bundles
+# Must be registered AFTER KSM so Watch handlers override the same event prefixes;
+# non-Watch prices fall through to KSM handlers inside each Watch handler (T3027).
+from services.watch_billing_handler import register_watch_billing_handlers  # noqa: E402
+
+register_watch_billing_handlers()
+
 # Register additional blueprints
 # Note: app_builder_bp, archie_chat_bp, consciousness_bp, backup_manager_bp, repair_bay_bp loaded via module_registry
 # app.register_blueprint(github_bp)  # Disabled — Task #1986

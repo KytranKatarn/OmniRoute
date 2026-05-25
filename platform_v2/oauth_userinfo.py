@@ -96,13 +96,11 @@ def userinfo():
             for row in cur.fetchall():
                 module = row.get("module", "")
                 price_id = row.get("stripe_price_id", "")
-                # Determine tier from price_id suffix convention: _pro, _business, _enterprise
-                if "enterprise" in price_id.lower():
-                    product_tiers[module] = "enterprise"
-                elif "business" in price_id.lower():
-                    product_tiers[module] = "business"
-                else:
-                    product_tiers[module] = "pro"
+                # DB-backed tier resolution via subscription_plans (T3027)
+                # Falls back to legacy keyword match only for prices not yet seeded
+                from services.subscription_service import resolve_tier_for_product  # noqa: PLC0415
+
+                product_tiers[module] = resolve_tier_for_product(price_id, module)
         # Any entitled product without a subscription row defaults to free
         for product in entitlements:
             if product not in product_tiers:

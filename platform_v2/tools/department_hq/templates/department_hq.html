@@ -777,6 +777,18 @@
                 <input id="addNodeName" type="text" placeholder="e.g. Starship-246" maxlength="40"
                   style="width:100%;margin-top:6px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.25);color:#e0e0e0;padding:8px 12px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;box-sizing:border-box;">
               </div>
+              <div style="margin-bottom:14px;">
+                <label style="font-size:0.7rem;letter-spacing:1px;color:var(--dhq-text-dim,#aaa);font-family:'IBM Plex Mono',monospace;">MESH IP <span style="opacity:0.5;">(optional — 100.64.x.x from Headscale)</span></label>
+                <input id="addNodeMeshIp" type="text" placeholder="100.64.0.x" maxlength="15"
+                  style="width:100%;margin-top:6px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.25);color:#e0e0e0;padding:8px 12px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;box-sizing:border-box;">
+              </div>
+              <div style="margin-bottom:14px;">
+                <label style="font-size:0.7rem;letter-spacing:1px;color:var(--dhq-text-dim,#aaa);font-family:'IBM Plex Mono',monospace;">NODE TYPE</label>
+                <select id="addNodeDeployMode" style="width:100%;margin-top:6px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.25);color:#e0e0e0;padding:8px 12px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;box-sizing:border-box;">
+                  <option value="starship">Starship (LAN — GPU laptop/desktop)</option>
+                  <option value="starbase_outpost">Outpost (VPS — remote CPU node)</option>
+                </select>
+              </div>
               <div style="margin-bottom:20px;">
                 <label style="font-size:0.7rem;letter-spacing:1px;color:var(--dhq-text-dim,#aaa);font-family:'IBM Plex Mono',monospace;">OPERATING SYSTEM</label>
                 <div style="display:flex;gap:10px;margin-top:8px;">
@@ -823,11 +835,15 @@
     async function generateNodeSetup() {
       const name = document.getElementById('addNodeName').value.trim() || 'Starship-' + Math.random().toString(36).substr(2,4).toUpperCase();
       const os = document.querySelector('input[name="addNodeOs"]:checked').value;
+      const meshIp = (document.getElementById('addNodeMeshIp') || {}).value || '';
+      const deployMode = (document.getElementById('addNodeDeployMode') || {}).value || 'starship';
       const btn = document.getElementById('addNodeGenBtn');
       btn.textContent = 'GENERATING...';
       btn.disabled = true;
       try {
-        const resp = await fetch(`/tools/department-hq/api/nodes/new-setup-script?os=${os}&name=${encodeURIComponent(name)}&format=json`);
+        let url = `/tools/department-hq/api/nodes/new-setup-script?os=${os}&name=${encodeURIComponent(name)}&format=json&deployment_mode=${encodeURIComponent(deployMode)}`;
+        if (meshIp.trim()) url += `&mesh_ip=${encodeURIComponent(meshIp.trim())}`;
+        const resp = await fetch(url);
         const data = await resp.json();
         if (!data.success) throw new Error(data.error || 'Unknown error');
         document.getElementById('addNodeResultId').textContent = data.node_id;

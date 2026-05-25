@@ -3,8 +3,8 @@ set -e
 
 # =============================================================================
 # A.R.C.H.I.E. Node Installer v3.0 — Linux
-# Usage: curl -fsSL https://platform.kytranempowerment.com/tools/starbase/api/nodes/install-node.sh | sudo bash
-#   or:  sudo bash install-node.sh https://platform.kytranempowerment.com
+# Usage: curl -fsSL http://100.64.0.4:3000/tools/department-hq/api/nodes/install-node.sh | sudo bash
+#   or:  sudo bash install-node.sh http://100.64.0.4:3000
 # =============================================================================
 
 CLIENT_VERSION="3.0.0"
@@ -268,7 +268,7 @@ main() {
               os_info:$os_info, client_version:$ver, tags:["linux"]}')
 
         info "Sending registration to $HUB_URL..."
-        RESPONSE=$(curl -s -X POST "$HUB_URL/tools/starbase/api/nodes/register" \
+        RESPONSE=$(curl -s -X POST "$HUB_URL/tools/department-hq/api/nodes/register" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD")
 
@@ -308,7 +308,7 @@ ENVEOF
     ok ".env"
 
     # Download files from hub
-    API_BASE="$HUB_URL/tools/starbase/api/nodes"
+    API_BASE="$HUB_URL/tools/department-hq/api/nodes"
     for file in docker-compose.node.yml node_sync.py node_api.py Dockerfile.node; do
         outname="$file"
         [ "$file" = "docker-compose.node.yml" ] && outname="docker-compose.yml"
@@ -365,15 +365,15 @@ ENVEOF
         ok "Node already approved"
     else
         step "7" "Waiting for admin approval..."
-        info "Node registered as PENDING — an admin must approve in Starship Command"
-        info "Hub: $HUB_URL/tools/starship"
+        info "Node registered as PENDING — an admin must approve in DHQ Fleet"
+        info "Hub: $HUB_URL/tools/department-hq#fleet"
 
         APPROVED=false
         SPIN=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
         i=0
         while [ "$APPROVED" = "false" ]; do
             printf "\r      ${BLUE}[${SPIN[$((i % 10))]}]${NC}   Waiting for approval...  "
-            STATUS=$(curl -s "$HUB_URL/tools/starbase/api/nodes/$NODE_ID/status" \
+            STATUS=$(curl -s "$HUB_URL/tools/department-hq/api/nodes/$NODE_ID/status" \
                 -H "X-Node-API-Key: $API_KEY" 2>/dev/null | jq -r '.status // "pending"' 2>/dev/null)
             if [ "$STATUS" = "online" ] || [ "$STATUS" = "approved" ]; then
                 APPROVED=true

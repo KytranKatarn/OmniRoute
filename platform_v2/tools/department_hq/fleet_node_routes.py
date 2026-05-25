@@ -29,6 +29,8 @@ from .fleet_helpers import (
     _compute_node_status,
     HEARTBEAT_TIMEOUT_SECONDS,
     LATEST_NODE_VERSION,
+    validate_mesh_ip,
+    node_inter_cluster_host,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,30 +57,90 @@ def _on_node_approved(node_id):
     """Post-approval orchestration for a newly approved fleet node.
 
     Called from the node approval flow (fleet_node_routes.py line ~1628).
-    Wraps in try/except at the call site, so a RuntimeError here is
-    logged but doesn't break the approval itself.
+    Wrapped in try/except at the call site so any failure here is logged
+    but does not roll back the approval itself.
+
+    Steps:
+    1. Load the node row from DB.
+    2. Auto-assign agents for each model listed on the node.
+    3. Insert a system_notifications entry.
+    4. Send a Telegram notification.
     """
-    logger.warning(
-        "_on_node_approved(%s) is not yet implemented — post-approval "
-        "orchestration skipped. See Project #243 follow-up.",
-        node_id,
-    )
+    try:
+        from database import get_db_cursor
+        from services.telegram_service import send_info
+
+        # 1. Load node
+        node_name = node_id
+        models = []
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    "SELECT node_name, extra_capabilities FROM remote_nodes WHERE node_id = %s",
+                    (node_id,),
+                )
+                row = cur.fetchone()
+                if row:
+                    node_name = row["node_name"] or node_id
+                    caps = row["extra_capabilities"] or {}
+                    models = caps.get("ollama_models", [])
+        except Exception:
+            logger.warning("_on_node_approved: could not load node %s", node_id, exc_info=True)
+
+        # 2. Auto-assign agents for each model (best-effort)
+        assigned = 0
+        for model_name in models:
+            try:
+                from services.agent_service import auto_assign_agents_for_model
+
+                auto_assign_agents_for_model(node_id, model_name)
+                assigned += 1
+            except Exception:
+                logger.warning(
+                    "_on_node_approved: auto_assign failed for node=%s model=%s",
+                    node_id,
+                    model_name,
+                    exc_info=True,
+                )
+
+        # 3. System notification
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO system_notifications
+                        (title, message, notification_type, is_read, created_at)
+                    VALUES (%s, %s, 'info', false, NOW())
+                    """,
+                    (
+                        f"Node approved: {node_name}",
+                        f"Fleet node {node_name} ({node_id}) approved. "
+                        f"{assigned} model(s) processed for agent assignment.",
+                    ),
+                )
+        except Exception:
+            logger.warning("_on_node_approved: system_notifications insert failed", exc_info=True)
+
+        # 4. Telegram
+        try:
+            send_info(f"✅ *Node approved:* `{node_name}`\n" f"ID: `{node_id}`\n" f"Models processed: {assigned}")
+        except Exception:
+            logger.warning("_on_node_approved: Telegram notify failed", exc_info=True)
+
+        logger.info("_on_node_approved(%s) complete — %d model(s) processed", node_id, assigned)
+
+    except Exception:
+        logger.exception("_on_node_approved(%s) unexpected error", node_id)
 
 
 def _generate_powershell_installer(hub_url: str, node_id: str, token: str) -> str:
     """Return a PowerShell installer script for Windows node onboarding."""
-    raise RuntimeError(
-        "_generate_powershell_installer not yet implemented — see Project #243 follow-up. "
-        "Use the manual setup flow via /api/nodes/<id>/setup instead."
-    )
+    return _generate_setup_ps1(hub_url, node_id, token, node_name=node_id)
 
 
 def _generate_bash_installer(hub_url: str, node_id: str, token: str) -> str:
     """Return a Bash installer script for Linux/macOS node onboarding."""
-    raise RuntimeError(
-        "_generate_bash_installer not yet implemented — see Project #243 follow-up. "
-        "Use the manual setup flow via /api/nodes/<id>/setup instead."
-    )
+    return _generate_setup_sh(hub_url, node_id, token, node_name=node_id)
 
 
 def _generate_setup_ps1(hub_url: str, node_id: str, token: str, node_name: str) -> str:
@@ -110,25 +172,146 @@ Write-Host "" ; Write-Host "Setup complete! Node $NodeId is pending admin approv
 """
 
 
-def _generate_setup_sh(hub_url: str, node_id: str, token: str, node_name: str) -> str:
-    """Return a self-contained Bash node setup script."""
+def _generate_setup_sh(
+    hub_url: str,
+    node_id: str,
+    token: str,
+    node_name: str,
+    headscale_authkey: str = "",
+    mesh_ip: str = "",
+) -> str:
+    """Return a self-contained Bash node setup script.
+
+    The script:
+    1. Installs Docker + Tailscale if missing.
+    2. Joins the Headscale mesh (uses headscale_authkey if provided).
+    3. Auto-discovers mesh IP via `tailscale ip -4` (3 retries, 5s sleep).
+       Falls back to admin-provided mesh_ip env var if discovery fails.
+    4. Registers the mesh IP back with the hub via POST /mesh-ip.
+    5. Writes /opt/archie-node/.env with hub connection details.
+    6. Downloads docker-compose.node.yml from hub and starts the node stack.
+
+    All hub references use the mesh URL (100.64.0.4:3000) — never the
+    public CDN hostname per DHQ mesh-routing mandate (KB #263641).
+    """
+    headscale_login_server = "https://mesh.kytranempowerment.com"
+    safe_name = node_name.replace('"', "").replace("'", "")
     return f"""#!/bin/bash
-# A.R.C.H.I.E. Node Auto Setup — {node_name} ({node_id})
-set -e
+# A.R.C.H.I.E. Node Setup — {safe_name} ({node_id})
+# Generated by hub at {hub_url}
+# Hub references use Headscale mesh IP (100.64.0.4) per DHQ mandate.
+set -euo pipefail
+
+RED='\\033[0;31m'; GREEN='\\033[0;32m'; CYAN='\\033[0;36m'; NC='\\033[0m'
+info()  {{ echo -e "${{CYAN}}[ARCHIE]${{NC}} $*"; }}
+ok()    {{ echo -e "${{GREEN}}[OK]${{NC}} $*"; }}
+err()   {{ echo -e "${{RED}}[ERROR]${{NC}} $*" >&2; exit 1; }}
+
 HUB_URL="{hub_url}"
 NODE_ID="{node_id}"
 HUB_API_KEY="{token}"
+NODE_NAME="{safe_name}"
+HEADSCALE_AUTHKEY="{headscale_authkey}"
+HEADSCALE_LOGIN_SERVER="{headscale_login_server}"
+PROVIDED_MESH_IP="{mesh_ip}"
+INSTALL_DIR="/opt/archie-node"
 
 echo "" ; echo "============================================"
-echo "  A.R.C.H.I.E. Node Setup: $NODE_ID"
+echo "  A.R.C.H.I.E. Node Setup: $NODE_NAME"
+echo "  Node ID: $NODE_ID"
 echo "============================================" ; echo ""
 
-mkdir -p /opt/archie-node && cd /opt/archie-node
-curl -sL "$HUB_URL/tools/department-hq/api/nodes/install-node.sh" -o install-node.sh
-chmod +x install-node.sh
-bash install-node.sh --fresh --node-id "$NODE_ID" --hub-url "$HUB_URL" --api-key "$HUB_API_KEY"
+# ── 1. Docker ───────────────────────────────────────────────────────────────
+if ! command -v docker &>/dev/null; then
+  info "Installing Docker..."
+  curl -fsSL https://get.docker.com | sh
+  systemctl enable --now docker
+  ok "Docker installed"
+else
+  ok "Docker already installed"
+fi
 
-echo "" ; echo "Setup complete! Node $NODE_ID is pending admin approval."
+# ── 2. Tailscale ────────────────────────────────────────────────────────────
+if ! command -v tailscale &>/dev/null; then
+  info "Installing Tailscale..."
+  curl -fsSL https://tailscale.com/install.sh | sh
+  ok "Tailscale installed"
+else
+  ok "Tailscale already installed"
+fi
+
+# ── 3. Join Headscale mesh ─────────────────────────────────────────────────
+if [ -n "$HEADSCALE_AUTHKEY" ]; then
+  info "Joining Headscale mesh at $HEADSCALE_LOGIN_SERVER..."
+  tailscale up \\
+    --login-server="$HEADSCALE_LOGIN_SERVER" \\
+    --auth-key="$HEADSCALE_AUTHKEY" \\
+    --hostname="$NODE_NAME" \\
+    --accept-routes \\
+    --reset || true
+  ok "Joined Headscale mesh"
+else
+  info "No Headscale auth key provided — skipping mesh join (manual enroll required)"
+fi
+
+# ── 4. Discover mesh IP ─────────────────────────────────────────────────────
+info "Discovering mesh IP..."
+MESH_IP=""
+for i in 1 2 3; do
+  MESH_IP=$(tailscale ip -4 2>/dev/null | head -1 || true)
+  [ -n "$MESH_IP" ] && break
+  info "Retry $i/3 — waiting 5s for mesh IP..."
+  sleep 5
+done
+if [ -z "$MESH_IP" ] && [ -n "$PROVIDED_MESH_IP" ]; then
+  info "tailscale ip -4 returned empty — using admin-provided IP: $PROVIDED_MESH_IP"
+  MESH_IP="$PROVIDED_MESH_IP"
+fi
+if [ -z "$MESH_IP" ]; then
+  err "Could not determine mesh IP. Ensure Tailscale/Headscale is configured or provide mesh_ip at enrollment."
+fi
+ok "Mesh IP: $MESH_IP"
+
+# ── 5. Register mesh IP with hub ────────────────────────────────────────────
+info "Registering mesh IP with hub..."
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{{http_code}}" \\
+  -X POST "$HUB_URL/tools/department-hq/api/nodes/$NODE_ID/mesh-ip" \\
+  -H "Content-Type: application/json" \\
+  -H "X-Node-API-Key: $HUB_API_KEY" \\
+  -d "{{\\"mesh_ip\\": \\"$MESH_IP\\"}}")
+if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "204" ]; then
+  ok "Mesh IP registered with hub"
+else
+  info "Warning: mesh-ip registration returned HTTP $HTTP_STATUS — continuing"
+fi
+
+# ── 6. Write node .env ──────────────────────────────────────────────────────
+info "Writing $INSTALL_DIR/.env..."
+mkdir -p "$INSTALL_DIR"
+cat > "$INSTALL_DIR/.env" <<ENV
+HUB_URL=$HUB_URL
+NODE_ID=$NODE_ID
+HUB_API_KEY=$HUB_API_KEY
+MESH_IP=$MESH_IP
+NODE_NAME=$NODE_NAME
+ENV
+ok ".env written"
+
+# ── 7. Pull docker-compose and start node stack ────────────────────────────
+info "Downloading docker-compose.node.yml from hub..."
+curl -fsSL "$HUB_URL/tools/department-hq/api/nodes/docker-compose.node.yml" \\
+  -o "$INSTALL_DIR/docker-compose.yml"
+cd "$INSTALL_DIR"
+info "Starting node containers..."
+docker compose up -d
+ok "Node stack started"
+
+echo ""
+echo "============================================"
+echo "  Setup complete!"
+echo "  Node $NODE_ID is pending admin approval."
+echo "  Approve at: $HUB_URL/tools/department-hq#fleet"
+echo "============================================"
 """
 
 
@@ -3618,12 +3801,30 @@ def register_node_routes(bp, login_required, admin_required):
 
         For the one-line curl/powershell flow: registers a pending node,
         then returns the install script with credentials baked in.
+
+        Query params:
+          os          — linux (default) | windows
+          name        — human-readable node name (optional)
+          mesh_ip     — Headscale mesh IP (100.64.x.x) if known ahead of time (optional)
+          format      — json → return {command_linux, command_windows} for the UI modal
+          deployment_mode — starship (default) | starbase_outpost
         """
         import psycopg2
 
         user_id = current_user.id
         os_type = request.args.get("os", "linux").lower()
         node_name = request.args.get("name", "").strip()
+        mesh_ip_param = (request.args.get("mesh_ip") or "").strip()
+        deployment_mode = request.args.get("deployment_mode", "starship").strip()
+        if deployment_mode not in ("starship", "starbase_outpost"):
+            deployment_mode = "starship"
+
+        # Validate mesh IP if provided
+        if mesh_ip_param and not validate_mesh_ip(mesh_ip_param):
+            return (
+                jsonify({"success": False, "error": f"Invalid mesh IP: {mesh_ip_param!r}. Must be in 100.64.0.0/10."}),
+                400,
+            )
 
         # Generate unique node ID and setup token
         node_id = f"starship_{secrets.token_hex(8)}"
@@ -3631,12 +3832,44 @@ def register_node_routes(bp, login_required, admin_required):
         if not node_name:
             node_name = f"Starship-{secrets.token_hex(3).upper()}"
 
-        # Prefer mesh IP — canonical inter-cluster transport (ADR mesh mandate).
-        # LAN IP (192.168.1.200) works for on-LAN nodes as fallback.
+        # Hub URL — always mesh IP per DHQ mandate (KB #263641).
         hub_url = os.environ.get(
-            "STARSHIP_HUB_URL",
-            os.environ.get("HUB_URL", "http://100.64.0.4:3000"),
+            "HUB_MESH_URL",
+            os.environ.get("STARSHIP_HUB_URL", "http://100.64.0.4:3000"),
         )
+
+        # Generate Headscale pre-auth key so the setup script can join the mesh
+        # automatically without any manual console steps.
+        headscale_authkey = ""
+        try:
+            import subprocess
+
+            hs_result = subprocess.run(
+                [
+                    "docker",
+                    "exec",
+                    "archie_headscale",
+                    "headscale",
+                    "preauthkeys",
+                    "create",
+                    "--user",
+                    "archie-fleet",
+                    "--expiration",
+                    "24h",
+                    "--reusable",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if hs_result.returncode == 0:
+                lines = [l.strip() for l in hs_result.stdout.strip().splitlines() if l.strip()]
+                headscale_authkey = lines[-1] if lines else ""
+                logger.info("Generated Headscale auth key for node %s", node_id)
+            else:
+                logger.warning("headscale preauthkeys create failed: %s", hs_result.stderr[:200])
+        except Exception:
+            logger.warning("Could not generate Headscale auth key (docker exec unavailable?)", exc_info=True)
 
         try:
             with get_db_cursor(commit=True) as (conn, cur):
@@ -3646,44 +3879,59 @@ def register_node_routes(bp, login_required, admin_required):
                         node_id, node_name, deployment_mode, status,
                         is_active, bridge_enabled, bridge_priority,
                         approval_status, user_id, setup_token,
-                        api_key_hash, privacy_settings
+                        api_key_hash, privacy_settings,
+                        mesh_ip, hostname
                     ) VALUES (
-                        %s, %s, 'starship', 'pending',
+                        %s, %s, %s, 'pending',
                         false, false, 50,
                         'pending', %s, %s,
-                        %s, '{}'::jsonb
+                        %s, '{}'::jsonb,
+                        %s, %s
                     )
                     RETURNING id, node_id, node_name
                     """,
-                    (node_id, node_name, user_id, setup_token, hash_api_key(setup_token)),
+                    (
+                        node_id,
+                        node_name,
+                        deployment_mode,
+                        user_id,
+                        setup_token,
+                        hash_api_key(setup_token),
+                        mesh_ip_param or None,
+                        mesh_ip_param or None,  # hostname = mesh_ip when provided
+                    ),
                 )
                 cur.fetchone()
 
-            # JSON mode — return credentials + copy-paste command for the UI modal
+            # JSON mode — return credentials + copy-paste commands for the UI modal
             if request.args.get("format") == "json":
-                cmd_win = (
-                    f"Set-ExecutionPolicy Bypass -Scope Process -Force; "
-                    f"mkdir C:\\archie-node -ErrorAction SilentlyContinue; "
-                    f"cd C:\\archie-node; "
-                    f"iwr {hub_url}/tools/department-hq/api/nodes/deploy-node.ps1 -OutFile deploy-node.ps1 -UseBasicParsing; "
-                    f'.\\deploy-node.ps1 -Fresh -NodeId "{node_id}" '
-                    f'-HubUrl "{hub_url}" -HubApiKey "{setup_token}"'
+                cmd_linux = _generate_setup_sh(
+                    hub_url,
+                    node_id,
+                    setup_token,
+                    node_name,
+                    headscale_authkey=headscale_authkey,
+                    mesh_ip=mesh_ip_param,
                 )
-                cmd_linux = (
-                    f"curl -sL {hub_url}/tools/department-hq/api/nodes/install-node.sh | "
-                    f"bash -s -- --fresh --node-id {node_id} "
-                    f"--hub-url {hub_url} --api-key {setup_token}"
+                # Inline one-liner (pipe to bash) — wraps the full self-contained script
+                cmd_linux_oneliner = (
+                    f"curl -fsSL '{hub_url}/tools/department-hq/install?token={setup_token}' | sudo bash"
                 )
-                return jsonify(
-                    {
-                        "success": True,
-                        "node_id": node_id,
-                        "node_name": node_name,
-                        "setup_token": setup_token,
-                        "command_windows": cmd_win,
-                        "command_linux": cmd_linux,
-                    }
+                cmd_win = _generate_setup_ps1(hub_url, node_id, setup_token, node_name)
+                cmd_win_oneliner = (
+                    f"iex (iwr '{hub_url}/tools/department-hq/install?token={setup_token}' -UseBasicParsing).Content"
                 )
+                resp = {
+                    "success": True,
+                    "node_id": node_id,
+                    "node_name": node_name,
+                    "setup_token": setup_token,
+                    "command_linux": cmd_linux_oneliner,
+                    "command_windows": cmd_win_oneliner,
+                }
+                if headscale_authkey:
+                    resp["headscale_authkey"] = headscale_authkey
+                return jsonify(resp)
 
             if os_type == "windows":
                 # Prefer the pre-built GUI installer .exe — check static/downloads first, then installer/dist

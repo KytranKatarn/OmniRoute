@@ -326,6 +326,21 @@ def node_inter_cluster_host(node, fallback=None):
     return getter("mesh_ip") or getter("vpn_ip") or getter("hostname") or fallback
 
 
+def validate_mesh_ip(ip: str) -> bool:
+    """Return True if *ip* is within the Headscale mesh range 100.64.0.0/10.
+
+    Used by api/request-node, update_mesh_ip, and the heartbeat handler to
+    reject IPs that could never be reachable via our Headscale overlay.
+    """
+    import ipaddress
+
+    HEADSCALE_NETWORK = ipaddress.ip_network("100.64.0.0/10")
+    try:
+        return ipaddress.ip_address(ip.strip()) in HEADSCALE_NETWORK
+    except ValueError:
+        return False
+
+
 def check_ollama_status(host, port):
     """Check if Ollama is running and responsive"""
     try:

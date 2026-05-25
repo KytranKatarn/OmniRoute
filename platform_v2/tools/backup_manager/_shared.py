@@ -775,7 +775,8 @@ STANDALONE_PRODUCTS = [
         "name": "wtf",
         "display_name": "What The Fact",
         "code_path": "/mnt/archie_brain/what-the-fact",
-        "db_schema": "wtf",  # schema in hub archie DB
+        "db_schema": "wtf",  # schema within the wtf database
+        "db_name": "wtf",  # separate postgres DB — connect: psql -U archie -d wtf
         "backup_type": "full",
     },
 ]
@@ -830,7 +831,7 @@ def backup_standalone(standalone_name):
                     "-U",
                     os.getenv("DB_USER", "archie"),
                     "-d",
-                    os.getenv("DB_NAME", "archie"),
+                    product.get("db_name", os.getenv("DB_NAME", "archie")),
                     "-n",
                     product["db_schema"],
                     "-f",

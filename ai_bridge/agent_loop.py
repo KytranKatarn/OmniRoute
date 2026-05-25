@@ -569,6 +569,13 @@ class AgentLoop:
             name="W.A.R.D.E.N.: Weekly Admin Compliance Scan",
             replace_existing=True,
         )
+        self.scheduler.add_job(
+            with_app_context(self._run_warden_wtf_rsync),
+            trigger=IntervalTrigger(minutes=15),
+            id="warden_wtf_rsync",
+            name="W.A.R.D.E.N.: WTF Code Sync Hub→VPS",
+            replace_existing=True,
+        )
 
         self.scheduler.add_job(
             with_app_context(self._run_proactive_scan),
@@ -6824,6 +6831,133 @@ class AgentLoop:
         except Exception as e:
             logger.error("warden_compliance_check failed: %s", e)
 
+    def _run_warden_wtf_rsync(self):
+        """Every 15 min: if WTF git HEAD changed, rsync hub→VPS (code-only, no container restart).
+        Requires SSH key mounted at /root/.ssh/id_ed25519 inside archie_platform container.
+        On SSH key missing: logs a warning and skips — degraded gracefully."""
+        try:
+            import os
+            import subprocess
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from database import get_db_cursor
+
+            WTF_LOCAL = "/mnt/archie_brain/what-the-fact"
+            WTF_VPS = "kytran@76.13.107.109:/opt/archie-products/what-the-fact/"
+            SSH_KEY = "/root/.ssh/id_ed25519"
+
+            # 1. Get current git HEAD SHA for the WTF directory
+            git_result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=WTF_LOCAL,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if git_result.returncode != 0:
+                logger.warning(
+                    "warden_wtf_rsync: git rev-parse failed — %s",
+                    git_result.stderr.strip()[:200],
+                )
+                return
+            current_sha = git_result.stdout.strip()
+
+            # 2. Compare against last synced SHA stored in system_config
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT value FROM system_config WHERE key = 'wtf_last_rsync_sha'"
+                )
+                row = cur.fetchone()
+            last_sha = row["value"] if row else None
+
+            if current_sha == last_sha:
+                logger.debug(
+                    "warden_wtf_rsync: no change since last sync (%s)", current_sha[:8]
+                )
+                return
+
+            # 3. SSH key must be accessible from inside the container
+            if not os.path.exists(SSH_KEY):
+                logger.warning(
+                    "warden_wtf_rsync: SSH key not found at %s — "
+                    "mount ~/.ssh into archie_platform container or run "
+                    "cd /mnt/archie_brain/what-the-fact && ./deploy.sh manually. "
+                    "Pending SHA: %s",
+                    SSH_KEY,
+                    current_sha[:8],
+                )
+                return
+
+            # 4. Rsync code to VPS (excludes .env so live secrets are preserved)
+            start = time.time()
+            rsync_result = subprocess.run(
+                [
+                    "rsync",
+                    "-az",
+                    "--delete",
+                    "--exclude=.env",
+                    "--exclude=__pycache__",
+                    "--exclude=*.pyc",
+                    "--exclude=.git",
+                    "--exclude=*.log",
+                    "-e",
+                    f"ssh -i {SSH_KEY} -o StrictHostKeyChecking=no",
+                    f"{WTF_LOCAL}/",
+                    WTF_VPS,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            duration_ms = int((time.time() - start) * 1000)
+
+            if rsync_result.returncode != 0:
+                logger.error(
+                    "warden_wtf_rsync: rsync failed (SHA %s): %s",
+                    current_sha[:8],
+                    rsync_result.stderr.strip()[:300],
+                )
+                self._log_cycle(
+                    "warden_wtf_rsync",
+                    0,
+                    1,
+                    duration_ms,
+                    details={
+                        "sha": current_sha[:8],
+                        "error": rsync_result.stderr.strip()[:300],
+                    },
+                )
+                return
+
+            # 5. Persist the new synced SHA so next tick skips if no change
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """INSERT INTO system_config (key, value, updated_at)
+                       VALUES ('wtf_last_rsync_sha', %s, NOW())
+                       ON CONFLICT (key) DO UPDATE
+                       SET value = EXCLUDED.value, updated_at = NOW()""",
+                    (current_sha,),
+                )
+
+            logger.info(
+                "warden_wtf_rsync: synced %s→%s to VPS in %dms",
+                (last_sha or "init")[:8],
+                current_sha[:8],
+                duration_ms,
+            )
+            self._log_cycle(
+                "warden_wtf_rsync",
+                1,
+                0,
+                duration_ms,
+                details={
+                    "prev_sha": (last_sha or "")[:8],
+                    "new_sha": current_sha[:8],
+                },
+            )
+        except Exception as e:
+            logger.error("warden_wtf_rsync failed: %s", e)
 
     def _archive_stale_notifications(self):
         """Archive notifications older than 30 days (every 6 hours)."""

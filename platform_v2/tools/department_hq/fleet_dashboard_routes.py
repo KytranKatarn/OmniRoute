@@ -2082,9 +2082,9 @@ def register_dashboard_routes(bp, auth_decorator):
                             t.node_used_id
                         FROM task_execution_log t
                         LEFT JOIN node_agents na ON (
-                            na.id = (CASE WHEN t.agent_name ~ '^fleet-agent-[0-9]+$'
-                                          THEN REGEXP_REPLACE(t.agent_name, '^fleet-agent-', '')::int
-                                     END)
+                            na.hub_agent_id = (CASE WHEN t.agent_name ~ '^fleet-agent-[0-9]+$'
+                                                    THEN REGEXP_REPLACE(t.agent_name, '^fleet-agent-', '')::int
+                                               END)
                         )
                         LEFT JOIN agents a_na ON a_na.id = na.hub_agent_id
                         WHERE t.created_at > NOW() - INTERVAL '1 hour'

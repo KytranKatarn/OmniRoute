@@ -50,9 +50,10 @@ def list_nodes():
         cur.execute(
             """
             SELECT id, node_name, hostname, status,
-                   gpu_model, gpu_vram_gb, ram_gb,
+                   gpu_model, gpu_vram_gb, ram_gb, cpu_model,
                    latitude, longitude, last_heartbeat,
-                   deployment_mode, mesh_ip, region
+                   deployment_mode, mesh_ip, region,
+                   extra_capabilities
             FROM remote_nodes
             ORDER BY node_name
             """
@@ -323,6 +324,7 @@ def get_fleet_map_data():
     for n in nodes_raw:
         node_id = n.get("id")
         agents = get_node_agents(node_id) if node_id else []
+        caps = n.get("extra_capabilities") or {}
         nodes.append(
             {
                 "node_id": node_id,
@@ -334,9 +336,18 @@ def get_fleet_map_data():
                 "gpu": n.get("gpu_model", ""),
                 "gpu_vram_gb": n.get("gpu_vram_gb"),
                 "ram": n.get("ram_gb"),
-                "mesh_ip": n.get("vpn_ip", ""),
-                "last_heartbeat": n["last_heartbeat"].isoformat() if n.get("last_heartbeat") else None,
+                "cpu_model": n.get("cpu_model", "") or caps.get("cpu_model", ""),
+                "mesh_ip": n.get("mesh_ip", ""),
+                "last_heartbeat": (n["last_heartbeat"].isoformat() if n.get("last_heartbeat") else None),
                 "deployment_mode": n.get("deployment_mode", ""),
+                # Enriched from extra_capabilities
+                "region": n.get("region") or caps.get("region", ""),
+                "provider": caps.get("provider", ""),
+                "location_city": caps.get("location_city", ""),
+                "location_country": caps.get("location_country", ""),
+                "inference_type": caps.get("inference_type", "gpu"),
+                "max_model_gb": caps.get("max_model_gb"),
+                "ollama_models": caps.get("ollama_models", []),
                 "agents": [
                     {
                         "hub_agent_id": a.get("hub_agent_id"),

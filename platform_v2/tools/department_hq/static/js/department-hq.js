@@ -4209,9 +4209,15 @@ function renderFleetPins(data) {
         fleetMarkers.push(marker);
     }
 
+    window._fleetNodeRegistry = window._fleetNodeRegistry || {};
     (data.nodes || []).forEach(function(node) {
         if (!node.lat || !node.lon) return;
         var isOnline = node.status === 'online';
+        var isOutpost = node.inference_type === 'cpu' ||
+            (node.deployment_mode && node.deployment_mode.indexOf('outpost') !== -1);
+        // Store node in registry so popup buttons can reference it by id
+        if (node.node_id) window._fleetNodeRegistry[node.node_id] = node;
+
         var marker = L.marker([node.lat, node.lon], {
             icon: L.divIcon({
                 className: 'fleet-marker-node ' + (isOnline ? '' : 'offline'),
@@ -4220,13 +4226,50 @@ function renderFleetPins(data) {
                 iconAnchor: [17, 17],
             }),
         }).addTo(fleetMap);
-        marker.bindPopup(buildFleetPopup(node.name || node.hostname, [
-            ['Type', node.deployment_mode || 'starship'],
-            ['Status', isOnline ? '<span style="color:#10b981;">ONLINE</span>' : '<span style="color:#ef4444;">OFFLINE</span>'],
-            ['GPU', node.gpu || 'Not reported'],
-            ['VRAM', node.gpu_vram_gb ? node.gpu_vram_gb + ' GB' : '--'],
-            ['RAM', node.ram ? node.ram + ' GB' : '--'],
-        ]), { className: 'fleet-popup' });
+
+        var popupRows, nodeLabel;
+        if (isOutpost) {
+            nodeLabel = (node.name || node.hostname || 'Outpost') + ' — OUTPOST';
+            var modelList = (node.ollama_models && node.ollama_models.length)
+                ? node.ollama_models.join(' · ')
+                : 'None loaded';
+            var inferLabel = 'CPU-only' + (node.max_model_gb ? ' · max ' + node.max_model_gb + ' GB' : '');
+            var locationStr = [node.location_city, node.location_country].filter(Boolean).join(', ') || '--';
+            popupRows = [
+                ['Status', isOnline ? '<span style="color:#10b981;">ONLINE</span>' : '<span style="color:#ef4444;">OFFLINE</span>'],
+                ['Location', locationStr],
+                ['Region', node.region || '--'],
+                ['Provider', node.provider || '--'],
+                ['Inference', inferLabel],
+                ['RAM', node.ram ? node.ram + ' GB' : '--'],
+                ['Mesh IP', node.mesh_ip || '--'],
+                ['Models', modelList],
+                ['Agents', (node.agents || []).length + ' assigned'],
+            ];
+        } else {
+            nodeLabel = node.name || node.hostname || 'Node';
+            var gpuLabel = (node.gpu || 'Not reported') + (node.gpu_vram_gb ? ' · ' + node.gpu_vram_gb + ' GB' : '');
+            popupRows = [
+                ['Type', node.deployment_mode || 'starship'],
+                ['Status', isOnline ? '<span style="color:#10b981;">ONLINE</span>' : '<span style="color:#ef4444;">OFFLINE</span>'],
+                ['GPU', gpuLabel],
+                ['RAM', node.ram ? node.ram + ' GB' : '--'],
+                ['Mesh IP', node.mesh_ip || '--'],
+                ['Agents', (node.agents || []).length + ' assigned'],
+            ];
+        }
+
+        var nodeIdStr = node.node_id ? String(node.node_id).replace(/['"\\]/g, '') : '';
+        var popupFooter = '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);">'
+            + '<button onclick="var n=window._fleetNodeRegistry[\'' + nodeIdStr + '\'];if(n)showNodeDetail(n);" '
+            + 'style="width:100%;background:rgba(163,230,53,0.12);border:1px solid rgba(163,230,53,0.35);'
+            + 'color:#a3e635;font-family:\'IBM Plex Mono\',monospace;font-size:0.62rem;padding:5px 8px;'
+            + 'border-radius:4px;cursor:pointer;letter-spacing:1px;transition:background 0.15s;"'
+            + ' onmouseover="this.style.background=\'rgba(163,230,53,0.22)\'"'
+            + ' onmouseout="this.style.background=\'rgba(163,230,53,0.12)\'">'
+            + 'VIEW DETAIL / DISPATCH →</button></div>';
+
+        marker.bindPopup(buildFleetPopup(nodeLabel, popupRows, popupFooter), { className: 'fleet-popup' });
         marker.on('click', function() { showNodeDetail(node); });
         fleetMarkers.push(marker);
     });
@@ -4263,11 +4306,12 @@ function renderFleetPins(data) {
     updateOffscreenBlips();
 }
 
-function buildFleetPopup(title, rows) {
+function buildFleetPopup(title, rows, footer) {
     var html = '<div class="fleet-popup-title">' + title + '</div>';
     rows.forEach(function(row) {
         html += '<div class="fleet-popup-row"><span class="fleet-popup-label">' + row[0] + '</span><span class="fleet-popup-value">' + row[1] + '</span></div>';
     });
+    if (footer) html += footer;
     return html;
 }
 

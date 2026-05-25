@@ -2131,7 +2131,10 @@ class DepartmentDispatcher:
                     "completion_tokens": data.get("eval_count", 0),
                 }
             else:
-                logger.warning(f"[BridgeDispatcher] Fleet node {hostname}:{port} " f"returned HTTP {resp.status_code}")
+                logger.warning(
+                    f"[BridgeDispatcher] Fleet node {hostname}:{port} "
+                    f"returned HTTP {resp.status_code} — body: {resp.text[:800]}"
+                )
                 return None
 
         except requests.exceptions.Timeout:

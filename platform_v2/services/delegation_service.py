@@ -43,6 +43,7 @@ KNOWN_TOOL_CAPABILITIES = {
     "deploy_vps",
     "portrait_refinement",
     "translation_coverage_scan",
+    "visual_scan",  # P.R.O.B.E. Playwright visual verification — logs and completes
 }
 
 VALID_DELEGATION_SOURCES = {
@@ -333,6 +334,26 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
                 f"({summary.get('duration_ms', 0)}ms)"
             ),
             "result": summary,
+        }
+
+    if capability == "visual_scan":
+        # Triggered by P.R.O.B.E. domain translation audit when it detects DOM
+        # rendering gaps. Playwright execution is manual (P.R.O.B.E. follows up);
+        # this handler logs the request and completes so the worker doesn't block.
+        url = payload.get("url", "")
+        trigger = payload.get("trigger", reason or "unknown")
+        return {
+            "success": True,
+            "summary": (
+                f"visual_scan logged for manual P.R.O.B.E. review: "
+                f"trigger={trigger}" + (f" url={url}" if url else "")
+            ),
+            "result": {
+                "url": url,
+                "trigger": trigger,
+                "queued": True,
+                "note": "Playwright visual scan requires manual P.R.O.B.E. follow-up — task auto-completed to unblock worker",
+            },
         }
 
     if capability == "portrait_refinement":

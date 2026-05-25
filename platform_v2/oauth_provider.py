@@ -322,6 +322,23 @@ def token():
                     (uid,),
                 )
                 entitlements = [r["module"] for r in cur.fetchall()]
+                # Expand bundle subscriptions — bundle purchases add bundle_id to
+                # billing_subscriptions; billing_bundle_products maps bundle→products.
+                # e.g. intelligence_bundle → [civic-watch, legal-watch, gov-watch,
+                #                             market-watch, wtf-starter]
+                cur.execute(
+                    """SELECT DISTINCT bbp.product_id
+                       FROM billing_subscriptions bs
+                       JOIN billing_bundle_products bbp ON bbp.bundle_id = bs.bundle_id
+                       WHERE bs.user_id = %s
+                         AND bs.status = 'active'
+                         AND bs.bundle_id IS NOT NULL""",
+                    (uid,),
+                )
+                for row in cur.fetchall():
+                    product_id = row["product_id"]
+                    if product_id not in entitlements:
+                        entitlements.append(product_id)
         except Exception:
             entitlements = []
 

@@ -1176,6 +1176,134 @@ def cluster_comparison(cluster_id: int):
                            coverage_data=coverage_data)
 
 
+# ---------------------------------------------------------------------------
+# T3007 — Bias Drift Tracker: monthly outlet bias trend (JSON API)
+# ---------------------------------------------------------------------------
+
+@bp.get("/api/v1/outlets/<int:source_id>/bias-trend")
+def outlet_bias_trend(source_id: int):
+    """Return monthly avg bias score + band for an outlet (last 12 months).
+
+    Response: {source_id, months: [{month, avg_score, band, article_count}]}
+    No auth required — same public data shown in source profile.
+    """
+    S = _schema()
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT
+                TO_CHAR(DATE_TRUNC('month', bs.computed_at), 'YYYY-MM') AS month,
+                ROUND(AVG(bs.score)::numeric, 3)                         AS avg_score,
+                MODE() WITHIN GROUP (ORDER BY bs.band)                   AS band,
+                COUNT(*)                                                  AS article_count
+            FROM {S}.bias_scores bs
+            JOIN {S}.articles a ON a.id = bs.article_id
+            WHERE a.source_id = :sid
+              AND bs.computed_at >= NOW() - INTERVAL '12 months'
+            GROUP BY DATE_TRUNC('month', bs.computed_at)
+            ORDER BY 1 ASC
+        """), {"sid": source_id}).mappings().all()
+    return jsonify({
+        "source_id": source_id,
+        "months": [dict(r) for r in rows],
+    })
+
+
+# ---------------------------------------------------------------------------
+# T3008 — "You've Been in a Bubble" weekly score (JSON API)
+# ---------------------------------------------------------------------------
+
+@bp.get("/api/me/bubble-score")
+def me_bubble_score():
+    """Return the current user's reading diet breakdown for the past 7 days.
+
+    Requires login. Joins user_article_views → bias_scores, groups by band,
+    returns percentage distribution + a raw bubble score (0=diverse, 1=mono).
+
+    Response: {total_articles, distribution: {band: pct}, bubble_score}
+    """
+    from flask import request as _req
+    email = session.get("wtf_email")
+    if not email:
+        return jsonify({"error": "login required"}), 401
+
+    S = _schema()
+    with _db().begin() as c:
+        band_rows = c.execute(text(f"""
+            SELECT COALESCE(bs.band, 'unscored') AS band, COUNT(*) AS n
+            FROM {S}.user_article_views uav
+            LEFT JOIN {S}.bias_scores bs ON bs.article_id = uav.article_id
+            WHERE uav.user_email = :email
+              AND uav.last_view_at >= NOW() - INTERVAL '7 days'
+            GROUP BY 1
+        """), {"email": email}).mappings().all()
+
+    total = sum(int(r["n"]) for r in band_rows)
+    if total == 0:
+        return jsonify({"total_articles": 0, "distribution": {}, "bubble_score": None})
+
+    distribution = {r["band"]: round(int(r["n"]) / total * 100, 1) for r in band_rows}
+
+    # Bubble score: fraction of articles from a single dominant band
+    max_pct = max(distribution.values()) / 100.0
+    _ORDERED_BANDS = ["left", "center-left", "center", "center-right", "right"]
+    scored_total = sum(int(r["n"]) for r in band_rows if r["band"] in _ORDERED_BANDS)
+    if scored_total >= 3:
+        bubble_score = round(max_pct, 3)
+    else:
+        bubble_score = None  # not enough scored articles to be meaningful
+
+    return jsonify({
+        "total_articles": total,
+        "distribution": distribution,
+        "bubble_score": bubble_score,
+    })
+
+
+# ---------------------------------------------------------------------------
+# T3011 — Story Timeline View: articles in a cluster ordered by time (JSON API)
+# ---------------------------------------------------------------------------
+
+@bp.get("/api/clusters/<int:cluster_id>/timeline")
+def cluster_timeline(cluster_id: int):
+    """Return all articles in a cluster ordered chronologically.
+
+    Response: {cluster_id, article_count, articles: [{id, title, url,
+               published_at, source_name, source_slug, bias_band, bias_score}]}
+    """
+    S = _schema()
+    with _db().begin() as c:
+        meta = c.execute(text(f"""
+            SELECT id, representative_title, article_count
+            FROM {S}.story_clusters WHERE id = :cid
+        """), {"cid": cluster_id}).mappings().first()
+        if not meta:
+            return jsonify({"error": "cluster not found"}), 404
+
+        articles = c.execute(text(f"""
+            SELECT a.id, a.title, a.url, a.published_at,
+                   s.name AS source_name, s.slug AS source_slug, s.bias_lean,
+                   b.band AS bias_band, b.score AS bias_score
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE a.cluster_id = :cid
+            ORDER BY a.published_at ASC
+        """), {"cid": cluster_id}).mappings().all()
+
+    return jsonify({
+        "cluster_id": cluster_id,
+        "representative_title": meta["representative_title"],
+        "article_count": meta["article_count"],
+        "articles": [
+            {
+                **dict(r),
+                "published_at": r["published_at"].isoformat() if r["published_at"] else None,
+            }
+            for r in articles
+        ],
+    })
+
+
 _OPENPARL_BASE = "https://openparliament.ca"
 _PARTY_COLOURS = {
     "conservative": "#3b82f6",

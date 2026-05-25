@@ -47,6 +47,21 @@ def userinfo():
         )
         rows = cur.fetchall()
         entitlements = [row["module"] for row in rows if row.get("module")]
+        # Expand bundle subscriptions — bundle purchases add bundle_id to
+        # billing_subscriptions; billing_bundle_products maps bundle→products.
+        cur.execute(
+            """SELECT DISTINCT bbp.product_id
+               FROM billing_subscriptions bs
+               JOIN billing_bundle_products bbp ON bbp.bundle_id = bs.bundle_id
+               WHERE bs.user_id = %s
+                 AND bs.status = 'active'
+                 AND bs.bundle_id IS NOT NULL""",
+            (user_id,),
+        )
+        for row in cur.fetchall():
+            product_id = row["product_id"]
+            if product_id not in entitlements:
+                entitlements.append(product_id)
 
     if user["role"] == "admin":
         entitlements = [
@@ -62,6 +77,7 @@ def userinfo():
             "market-watch-viewer",
             "market-watch-ai",
             "news-watch",
+            "wtf-starter",
         ]
 
     # Build per-product tier map from billing_subscriptions

@@ -257,9 +257,15 @@ else
   OLLAMA_INSTALL_URL="https://ollama.ai/install.sh"
   curl -fsSL "$OLLAMA_INSTALL_URL" | sh
   OLLAMA_BIN="$(command -v ollama)"
-  systemctl enable --now ollama
+  systemctl enable ollama
+  # Bind to all interfaces so Docker sync agent reaches it via host.docker.internal
+  mkdir -p /etc/systemd/system/ollama.service.d
+  printf '[Service]\nEnvironment="OLLAMA_HOST=0.0.0.0"\n' \
+    > /etc/systemd/system/ollama.service.d/override.conf
+  systemctl daemon-reload
+  systemctl start ollama
   sleep 3
-  ok "Ollama installed and started"
+  ok "Ollama installed and started (bound to 0.0.0.0)"
 fi
 
 # 9b. Pull CPU-compatible models for outpost agents
@@ -308,7 +314,7 @@ docker run -d --name archie_outpost_sync \
   -v "$INSTALL_DIR/node_sync.py":/app/node_sync.py:ro \
   --network archie-outpost_archie_net \
   -w /app \
-  python:3.11-slim python3 -u node_sync.py \
+  python:3.11-slim sh -c "pip install --no-cache-dir requests psycopg2-binary --quiet && python3 -u node_sync.py" \
   && ok "archie_outpost_sync started (heartbeats every 60 s)" \
   || warn "sync agent failed — check: docker logs archie_outpost_sync"
 

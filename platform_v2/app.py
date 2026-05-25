@@ -2463,9 +2463,8 @@ from tools.account_center.email_link_routes import account_link_verify_bp  # noq
 app.register_blueprint(account_link_verify_bp)
 
 # Bundle pricing — Watch Bundle ($12.99) + Intelligence Bundle ($19.99) (#3025)
-from tools.account_center.bundle_routes import bundle_bp  # noqa: E402
-
-app.register_blueprint(bundle_bp)
+# Routes registered via account_center __init__.py → register_bundle_routes(bp)
+# bundle_bp does not exist; bundle_routes uses the register_bundle_routes pattern.
 
 # HR Management Module (Phase 51) - Registered via module_registry
 

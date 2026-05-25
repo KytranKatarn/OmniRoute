@@ -1101,6 +1101,17 @@ body.light-mode .bridge-ops-status-value {
     0%, 100% { box-shadow: 0 0 12px rgba(var(--contractor-rgb, 147,51,234), 0.4), inset 0 0 6px rgba(var(--contractor-rgb, 147,51,234), 0.1); }
     50% { box-shadow: 0 0 20px rgba(var(--contractor-rgb, 147,51,234), 0.7), inset 0 0 10px rgba(var(--contractor-rgb, 147,51,234), 0.2); }
 }
+/* T3182: Fold5 unfolded (~882px) — collapse badge to icon+dot only */
+@media (max-width: 900px) {
+    .iso-contractor-badge {
+        padding: 2px 5px;
+        gap: 3px;
+    }
+    .iso-contractor-badge .contractor-name,
+    .iso-contractor-badge .contractor-model {
+        display: none;
+    }
+}
 @media (max-width: 500px) {
     .iso-contractor-badge { display: none; }
     .bridge-cross-station-line { display: none; }

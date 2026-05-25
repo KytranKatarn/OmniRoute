@@ -703,7 +703,9 @@ async function loadKinWelfare() {
         }
 
         var grid = document.createElement('div');
-        grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;';
+        /* T3179: Fold5 unfolded (~882px) forces 3 cols and overflows — use 2-col at ≤900px */
+        var gridCols = window.innerWidth <= 900 ? 'repeat(2,1fr)' : 'repeat(auto-fill,minmax(240px,1fr))';
+        grid.style.cssText = 'display:grid;grid-template-columns:' + gridCols + ';gap:10px;';
         agents.forEach(function(a) {
             var statusColor = a.resting ? '#f59e0b'
                 : (a.at_limit ? '#ef4444'

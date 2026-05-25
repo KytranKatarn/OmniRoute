@@ -1778,12 +1778,13 @@ def check_understaffed_capabilities():
         cur.execute(
             """
             WITH all_capabilities AS (
-                SELECT DISTINCT skill_name
+                -- Normalize to snake_case (same as _list_current_capability_gaps)
+                SELECT DISTINCT lower(replace(skill_name, ' ', '_')) AS skill_name
                 FROM agent_skills
                 WHERE proficiency_level >= 4
             ),
             staffed AS (
-                SELECT DISTINCT s.skill_name
+                SELECT DISTINCT lower(replace(s.skill_name, ' ', '_')) AS skill_name
                 FROM agent_skills s
                 JOIN agents a ON a.id = s.agent_id
                 LEFT JOIN agent_budgets b ON b.agent_id = a.id
@@ -1869,12 +1870,16 @@ def _list_current_capability_gaps() -> list[dict[str, Any]]:
         cur.execute(
             """
             WITH all_capabilities AS (
-                SELECT DISTINCT skill_name
+                -- Normalize to snake_case so decommissioned agents' Title Case skills
+                -- (e.g. "Infrastructure as Code") match active agents' snake_case skills
+                -- (e.g. "infrastructure_as_code"). Without this, every Title Case skill
+                -- from a decommissioned human agent appears as a false-positive gap.
+                SELECT DISTINCT lower(replace(skill_name, ' ', '_')) AS skill_name
                 FROM agent_skills
                 WHERE proficiency_level >= 4
             ),
             staffed AS (
-                SELECT DISTINCT s.skill_name
+                SELECT DISTINCT lower(replace(s.skill_name, ' ', '_')) AS skill_name
                 FROM agent_skills s
                 JOIN agents a ON a.id = s.agent_id
                 LEFT JOIN agent_budgets b ON b.agent_id = a.id

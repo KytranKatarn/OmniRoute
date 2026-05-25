@@ -3660,39 +3660,48 @@ function loadClusterActivity() {
                 // CPU pre-queue backlog (may be stale if drain worker is behind)
                 var backlog = n.backlog || 0;
                 var isActive = dispatches5m > 0;
+                var hasHeartbeat = !!n.last_heartbeat; // false for registered-but-no-agent-stack nodes
                 totalActive += active60s > 0 ? 1 : 0; // count nodes with work in last 60s
 
                 var card = document.createElement('div');
-                card.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid ' + (isActive ? '#10b981' : 'rgba(255,255,255,0.1)') + ';border-radius:6px;padding:10px 12px;min-width:0;overflow:hidden;';
+                card.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid ' + (!hasHeartbeat ? 'rgba(255,165,0,0.25)' : (isActive ? '#10b981' : 'rgba(255,255,255,0.1)')) + ';border-radius:6px;padding:10px 12px;min-width:0;overflow:hidden;';
 
                 // Hardware label: GPU+CPU for GPU nodes, CPU-only for pure-CPU nodes
                 var hwLabel = n.gpu
                     ? '<span style="margin-left:auto;font-size:0.6rem;color:#a78bfa;letter-spacing:1px;">GPU</span>'
                       + '<span style="font-size:0.6rem;color:var(--dhq-text-dim);letter-spacing:1px;">+CPU</span>'
                     : '<span style="margin-left:auto;font-size:0.6rem;color:var(--dhq-text-dim);letter-spacing:1px;">CPU</span>';
+                // Dot color: grey for no-heartbeat (registered only), green/cyan/red for live nodes
+                var dotColor = !hasHeartbeat ? '#888' : (n.status === 'online' ? (isActive ? '#10b981' : '#00bcd4') : '#ef4444');
+                var dotGlow = isActive && hasHeartbeat ? 'box-shadow:0 0 6px #10b981;' : '';
                 var header = '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">'
-                    + '<span style="width:8px;height:8px;border-radius:50%;background:' + (n.status === 'online' ? (isActive ? '#10b981' : '#00bcd4') : '#ef4444') + ';flex-shrink:0;' + (isActive ? 'box-shadow:0 0 6px #10b981;' : '') + '"></span>'
+                    + '<span style="width:8px;height:8px;border-radius:50%;background:' + dotColor + ';flex-shrink:0;' + dotGlow + '"></span>'
                     + '<span style="font-family:Antonio,sans-serif;font-size:0.8rem;letter-spacing:1px;color:var(--dhq-text-main);">' + esc(nodeName) + '</span>'
                     + hwLabel
                     + '</div>';
 
                 // Activity counts: 5-min window is primary (60s is too narrow — tasks take 15-30s each)
+                // For nodes with no heartbeat (registered but agent stack not yet running), show status label
                 var okPct = dispatches5m > 0 ? Math.round(successRate * 100) : null;
                 var okBadge = okPct !== null
                     ? ' <span style="color:' + (okPct >= 90 ? '#10b981' : (okPct >= 70 ? '#f59e0b' : '#ef4444')) + ';">' + okPct + '% ok</span>'
                     : '';
                 var hotDot = active60s > 0 ? ' <span style="color:#10b981;" title="active in last 60s">●</span>' : '';
-                var counts = '<div style="display:flex;gap:10px;font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;margin-bottom:5px;flex-wrap:wrap;">'
-                    + '<span style="color:' + (dispatches5m > 0 ? '#00bcd4' : 'var(--dhq-text-dim)') + ';">⚡ ' + dispatches5m + '/5m' + hotDot + '</span>'
-                    + (backlog > 0 ? '<span style="color:#f59e0b;" title="staged in CPU pre-queue">⏳ ' + backlog + ' staged</span>' : '')
-                    + okBadge
-                    + '</div>';
+                var counts = hasHeartbeat
+                    ? '<div style="display:flex;gap:10px;font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;margin-bottom:5px;flex-wrap:wrap;">'
+                      + '<span style="color:' + (dispatches5m > 0 ? '#00bcd4' : 'var(--dhq-text-dim)') + ';">⚡ ' + dispatches5m + '/5m' + hotDot + '</span>'
+                      + (backlog > 0 ? '<span style="color:#f59e0b;" title="staged in CPU pre-queue">⏳ ' + backlog + ' staged</span>' : '')
+                      + okBadge
+                      + '</div>'
+                    : '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.65rem;color:#888;margin-bottom:5px;letter-spacing:0.5px;">REGISTERED · AGENT STACK PENDING</div>';
 
-                // Throughput rate
+                // Throughput rate (hidden for no-heartbeat nodes)
                 var ratePerMin = dispatches5m > 0 ? (dispatches5m / 5).toFixed(1) : '0.0';
-                var throughputLine = '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;margin-bottom:5px;color:' + (dispatches5m > 0 ? '#00bcd4' : 'var(--dhq-text-dim)') + ';">'
-                    + '▲ ' + ratePerMin + ' disp/min'
-                    + '</div>';
+                var throughputLine = hasHeartbeat
+                    ? '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;margin-bottom:5px;color:' + (dispatches5m > 0 ? '#00bcd4' : 'var(--dhq-text-dim)') + ';">'
+                      + '▲ ' + ratePerMin + ' disp/min'
+                      + '</div>'
+                    : '';
 
                 // Active agents (last 60s from task_execution_log)
                 var taskList = '';

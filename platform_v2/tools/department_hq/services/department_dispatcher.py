@@ -50,7 +50,11 @@ try:
     from services.model_service import get_model_service
     from services.department_coordinator import get_coordinator as get_dept_coordinator
     from services.dispatch_service import get_dispatch_service
-    from services.fleet_service import list_nodes, get_node_status, disconnect_node as svc_disconnect_node
+    from services.fleet_service import (
+        list_nodes,
+        get_node_status,
+        disconnect_node as svc_disconnect_node,
+    )
 
     _HAS_DEPT_HQ_SERVICES = True
 except ImportError:
@@ -59,7 +63,9 @@ except ImportError:
 from .ollama_options import build_options
 
 try:
-    from ai_bridge.schemas.agent_schemas import validate_schema as _validate_handoff_schema
+    from ai_bridge.schemas.agent_schemas import (
+        validate_schema as _validate_handoff_schema,
+    )
 except ImportError:
     try:
         from schemas.agent_schemas import validate_schema as _validate_handoff_schema
@@ -947,7 +953,12 @@ class DepartmentDispatcher:
                 conn.close()
 
             if aux_count >= max_aux:
-                return False, aux_count, max_aux, f"Auxiliary slot full ({aux_count}/{max_aux})"
+                return (
+                    False,
+                    aux_count,
+                    max_aux,
+                    f"Auxiliary slot full ({aux_count}/{max_aux})",
+                )
 
             return True, aux_count, max_aux, ""
         except Exception as e:
@@ -1097,9 +1108,9 @@ class DepartmentDispatcher:
                 # happens on next task dispatch via _increment_agent_budget)
                 reset_overdue = r["token_reset_at"] is not None and r["token_reset_at"] < datetime.now()
                 budget_map[r["agent_id"]] = {
-                    "current_task_count": 0 if reset_overdue else (r["current_task_count"] or 0),
+                    "current_task_count": (0 if reset_overdue else (r["current_task_count"] or 0)),
                     "task_queue_limit": r["task_queue_limit"] or 10,
-                    "tokens_used_today": 0 if reset_overdue else (r["tokens_used_today"] or 0),
+                    "tokens_used_today": (0 if reset_overdue else (r["tokens_used_today"] or 0)),
                     "token_limit_per_day": r["token_limit_per_day"] or 100000,
                 }
 
@@ -1427,7 +1438,10 @@ class DepartmentDispatcher:
         candidates = cur.fetchall()
 
         if not candidates:
-            logger.debug("[ShiftLifecycle] No replacement candidates for department %s", department)
+            logger.debug(
+                "[ShiftLifecycle] No replacement candidates for department %s",
+                department,
+            )
             return None
 
         best_score = -1.0
@@ -1509,7 +1523,11 @@ class DepartmentDispatcher:
         """DEPRECATED: Use get_dept_coordinator().score_agent() instead."""
         logger.warning("DEPRECATED: _score_agent called — use coordinator.score_agent()")
         return get_dept_coordinator().score_agent(
-            agent_name, agent_info, capability, department, recommended_tier=recommended_tier
+            agent_name,
+            agent_info,
+            capability,
+            department,
+            recommended_tier=recommended_tier,
         )
 
     def _resolve_department(self, capability: str) -> str:
@@ -2931,7 +2949,16 @@ class DepartmentDispatcher:
                 from ai_bridge.archie_bridge import analyze_image
 
                 vision_model = model
-                known_vision_markers = ("vl:", "vl-", "vl_", "vision", "llava", "minicpm", "-vl", "moondream")
+                known_vision_markers = (
+                    "vl:",
+                    "vl-",
+                    "vl_",
+                    "vision",
+                    "llava",
+                    "minicpm",
+                    "-vl",
+                    "moondream",
+                )
                 if not any(m in (model or "").lower() for m in known_vision_markers):
                     # Resolve against actually-installed vision models so we
                     # don't substitute a model that isn't pulled. Default to
@@ -2980,7 +3007,11 @@ class DepartmentDispatcher:
                     self._vram_restore_after_vision(ollama_models_unloaded)
 
         try:
-            from ai_bridge.archie_bridge import call_ollama, call_ollama_json, call_ollama_cloud
+            from ai_bridge.archie_bridge import (
+                call_ollama,
+                call_ollama_json,
+                call_ollama_cloud,
+            )
 
             # Route to external providers — dynamic lookup from contractor_providers DB
             from ai_bridge.external_providers import (
@@ -3818,7 +3849,13 @@ class DepartmentDispatcher:
         return None
 
     # Proficiency tier mapping: level → tier name
-    _PROFICIENCY_TIERS = {1: "novice", 2: "novice", 3: "intermediate", 4: "advanced", 5: "advanced"}
+    _PROFICIENCY_TIERS = {
+        1: "novice",
+        2: "novice",
+        3: "intermediate",
+        4: "advanced",
+        5: "advanced",
+    }
 
     def _augment_for_proficiency(
         self,
@@ -4485,7 +4522,10 @@ class DepartmentDispatcher:
         capability = approval_data.get("capability", "general")
         department = approval_data.get(
             "department",
-            approval_data.get("station_code", CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")),
+            approval_data.get(
+                "station_code",
+                CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology"),
+            ),
         )
         # If station_code was passed (legacy), map to department
         if department in DEPARTMENT_FLOOR_MAP:
@@ -4931,7 +4971,7 @@ class DepartmentDispatcher:
                 _node_assign = self._find_fleet_agent_for_hub_agent(
                     _hub_agent_id,
                     prefer_hub=local_only,
-                    department=agent.get("department") if isinstance(agent, dict) else None,
+                    department=(agent.get("department") if isinstance(agent, dict) else None),
                 )
                 if _node_assign:
                     logger.info(
@@ -5041,7 +5081,7 @@ class DepartmentDispatcher:
                             success=True,
                             response=_wp_res.get("response", ""),
                             agent_name=(_wp_info["agent_name"]),
-                            agent_id=agent.get("id") if isinstance(agent, dict) else None,
+                            agent_id=(agent.get("id") if isinstance(agent, dict) else None),
                             model_used=_wp_model,
                             department=dispatch_department,
                             capability=capability,
@@ -5341,7 +5381,10 @@ class DepartmentDispatcher:
                                 department=blocked_department,
                                 capability=capability,
                                 duration_ms=duration_ms,
-                                prompt_tokens=llm_result.get("prompt_tokens", llm_result.get("prompt_eval_count", 0)),
+                                prompt_tokens=llm_result.get(
+                                    "prompt_tokens",
+                                    llm_result.get("prompt_eval_count", 0),
+                                ),
                                 completion_tokens=llm_result.get("completion_tokens", llm_result.get("eval_count", 0)),
                                 provider="ollama_cloud",
                                 metadata={
@@ -5976,7 +6019,7 @@ class DepartmentDispatcher:
         result_metadata = {
             "module_id": module_id,
             "priority": priority,
-            "home_station": agent.get("department") if agent and is_cross_station else home_station,
+            "home_station": (agent.get("department") if agent and is_cross_station else home_station),
             "dispatch_station": home_station if is_cross_station else dispatch_station,
             "is_cross_station": is_cross_station,
             "capability_station": capability_station,
@@ -7526,12 +7569,18 @@ class DepartmentDispatcher:
 
                         dn2_conn = self._get_db()
                         dn2_cur = dn2_conn.cursor(cursor_factory=RealDictCursor)
-                        dn2_cur.execute("SELECT hostname, port FROM remote_nodes WHERE id = %s", (nid,))
+                        dn2_cur.execute(
+                            "SELECT hostname, port FROM remote_nodes WHERE id = %s",
+                            (nid,),
+                        )
                         nr = dn2_cur.fetchone()
                         dn2_cur.close()
                         dn2_conn.close()
                         if nr:
-                            ps = _nreq.get(f"http://{nr['hostname']}:{nr['port']}/api/ps", timeout=3)
+                            ps = _nreq.get(
+                                f"http://{nr['hostname']}:{nr['port']}/api/ps",
+                                timeout=3,
+                            )
                             if ps.status_code == 200:
                                 _checked_nodes[nid] = {m["name"] for m in ps.json().get("models", [])}
                             else:
@@ -7632,7 +7681,8 @@ class DepartmentDispatcher:
                         "id": agent_id,
                         "agent_id": agent_id,
                         "station": DEPARTMENT_FLOOR_MAP.get(
-                            info.get("department", "Engineering & Technology"), "ENGINEERING"
+                            info.get("department", "Engineering & Technology"),
+                            "ENGINEERING",
                         ),
                         "department": info.get("department", "Engineering & Technology"),
                         "is_department_ai": info.get("is_department_ai", False),
@@ -8047,8 +8097,16 @@ class DepartmentDispatcher:
         svc = get_model_service()
         acquired = self._model_loading_lock.acquire(timeout=120)
         if not acquired:
-            logger.warning("[BridgeDispatcher] model_loading_lock timeout waiting to load %s", model)
-            return {"ready": False, "tier": "cold", "host": str(target_host), "warm_boot_ms": 120000}
+            logger.warning(
+                "[BridgeDispatcher] model_loading_lock timeout waiting to load %s",
+                model,
+            )
+            return {
+                "ready": False,
+                "tier": "cold",
+                "host": str(target_host),
+                "warm_boot_ms": 120000,
+            }
         try:
             return svc.ensure_model_ready(agent_name, model, target_host)
         finally:
@@ -8101,7 +8159,10 @@ class DepartmentDispatcher:
                     keep_alive=0,
                 )
                 _evict_url = f"{_node_url(_evict_opts['target_node_id'])}/api/generate"
-                _evict_payload = {"model": _evict_opts["model"], "keep_alive": _evict_opts["keep_alive"]}
+                _evict_payload = {
+                    "model": _evict_opts["model"],
+                    "keep_alive": _evict_opts["keep_alive"],
+                }
                 resp = requests.post(
                     _evict_url,
                     json=_evict_payload,
@@ -8154,7 +8215,10 @@ class DepartmentDispatcher:
                 keep_alive=0,
             )
             _unload_url = f"{_node_url(_unload_opts['target_node_id'])}/api/generate"
-            _unload_payload = {"model": _unload_opts["model"], "keep_alive": _unload_opts["keep_alive"]}
+            _unload_payload = {
+                "model": _unload_opts["model"],
+                "keep_alive": _unload_opts["keep_alive"],
+            }
             resp = requests.post(
                 _unload_url,
                 json=_unload_payload,
@@ -8207,7 +8271,10 @@ class DepartmentDispatcher:
                         keep_alive=0,
                     )
                     _swap_url = f"{_node_url(_swap_opts['target_node_id'])}/api/generate"
-                    _swap_payload = {"model": _swap_opts["model"], "keep_alive": _swap_opts["keep_alive"]}
+                    _swap_payload = {
+                        "model": _swap_opts["model"],
+                        "keep_alive": _swap_opts["keep_alive"],
+                    }
                     _req.post(
                         _swap_url,
                         json=_swap_payload,
@@ -8365,7 +8432,10 @@ class DepartmentDispatcher:
                 fleet_nodes = list_nodes()
                 for fn in fleet_nodes:
                     if fn.get("status") == "offline" and fn.get("id"):
-                        logger.debug("[FleetHealth] Node %s offline per fleet_service", fn.get("node_name"))
+                        logger.debug(
+                            "[FleetHealth] Node %s offline per fleet_service",
+                            fn.get("node_name"),
+                        )
             except Exception as exc:
                 logger.debug("[FleetHealth] fleet_service unavailable, using direct SQL: %s", exc)
 
@@ -8375,7 +8445,10 @@ class DepartmentDispatcher:
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Get all active, non-starbase nodes
+            # Get all active, non-starbase nodes that have sent at least one heartbeat.
+            # Nodes with last_heartbeat IS NULL have no running agent stack (registered-only
+            # product hosts like outpost-asia/eu) — exclude them from heartbeat health
+            # checking so they are not flipped offline by the health monitor.
             cur.execute(
                 """
                 SELECT id, node_name, deployment_mode, last_heartbeat,
@@ -8383,6 +8456,7 @@ class DepartmentDispatcher:
                 FROM remote_nodes
                 WHERE is_active = true
                   AND deployment_mode != 'starbase'
+                  AND last_heartbeat IS NOT NULL
                 ORDER BY id
                 """
             )
@@ -8605,7 +8679,10 @@ class DepartmentDispatcher:
                 )
                 node = cur.fetchone()
                 if not node:
-                    logger.warning("[BridgeDispatcher] _save_model_state: node %s not found", node_db_id)
+                    logger.warning(
+                        "[BridgeDispatcher] _save_model_state: node %s not found",
+                        node_db_id,
+                    )
                     return
                 from tools.department_hq.fleet_helpers import node_inter_cluster_host
 
@@ -8622,7 +8699,11 @@ class DepartmentDispatcher:
                 resp.raise_for_status()
                 models = resp.json().get("models", [])
             except Exception as e:
-                logger.warning("[BridgeDispatcher] _save_model_state: cannot reach %s: %s", ollama_url, e)
+                logger.warning(
+                    "[BridgeDispatcher] _save_model_state: cannot reach %s: %s",
+                    ollama_url,
+                    e,
+                )
                 return
 
             # Clear old state for this host
@@ -8775,7 +8856,11 @@ class DepartmentDispatcher:
                     )
                     if resp.status_code == 200:
                         loaded += 1
-                        logger.info("[BridgeDispatcher] Restored model %s on %s", model_name, host_type)
+                        logger.info(
+                            "[BridgeDispatcher] Restored model %s on %s",
+                            model_name,
+                            host_type,
+                        )
                         logger.debug(
                             "placement: node=%s model=%s placement=%s reason=%s",
                             _restore_opts["target_node_id"],

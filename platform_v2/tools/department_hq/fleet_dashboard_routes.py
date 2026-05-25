@@ -142,8 +142,8 @@ def register_dashboard_routes(bp, auth_decorator):
                             "llm_status": {"online": llm_online, "total": llm_total},
                             "active_requests": active_requests,
                             "system_load": system_load,
-                            "active_agents": agent_stats["active_agents"] if agent_stats else 0,
-                            "tokens_24h": token_stats["total_tokens"] if token_stats else 0,
+                            "active_agents": (agent_stats["active_agents"] if agent_stats else 0),
+                            "tokens_24h": (token_stats["total_tokens"] if token_stats else 0),
                         },
                         "archie": {
                             "mood": emotional_state["current_mood"],
@@ -159,7 +159,11 @@ def register_dashboard_routes(bp, auth_decorator):
                             ),
                             "status": "Active",
                         },
-                        "captain": {"name": "Kytran", "role": "Admin", "status": "On Duty"},
+                        "captain": {
+                            "name": "Kytran",
+                            "role": "Admin",
+                            "status": "On Duty",
+                        },
                     }
                 )
 
@@ -272,7 +276,7 @@ def register_dashboard_routes(bp, auth_decorator):
                             **node,
                             "last_heartbeat": last_hb.isoformat() if last_hb else None,
                             "load_pct": utilization_pct(node),
-                            "fail_rate": round(100 * failed / total, 2) if total else 0.0,
+                            "fail_rate": (round(100 * failed / total, 2) if total else 0.0),
                             "stale": is_stale(node),
                         }
                     )
@@ -329,7 +333,7 @@ def register_dashboard_routes(bp, auth_decorator):
                         "name": r["model_used"],
                         "node": node,
                         "loaded": True,
-                        "last_used": r["last_used"].isoformat() if r["last_used"] else None,
+                        "last_used": (r["last_used"].isoformat() if r["last_used"] else None),
                     }
                     all_models.append(entry)
                     by_node.setdefault(node, []).append(entry)
@@ -651,11 +655,11 @@ def register_dashboard_routes(bp, auth_decorator):
                         label = etype
                     events.append(
                         {
-                            "timestamp": r["timestamp"].isoformat() if r["timestamp"] else None,
+                            "timestamp": (r["timestamp"].isoformat() if r["timestamp"] else None),
                             "event_category": r["event_category"] or "governance",
                             "label": label,
                             "agent_name": r["agent_first_name"] or r["agent_name"],
-                            "severity": "warning" if r["event_category"] == "autonomy" else "info",
+                            "severity": ("warning" if r["event_category"] == "autonomy" else "info"),
                         }
                     )
 
@@ -778,7 +782,7 @@ def register_dashboard_routes(bp, auth_decorator):
                         err = err[:77] + "..."
                     events.append(
                         {
-                            "timestamp": r["created_at"].isoformat() if r["created_at"] else None,
+                            "timestamp": (r["created_at"].isoformat() if r["created_at"] else None),
                             "event_category": "dispatch",
                             "label": (f"dispatch failed — {detail}: {err}" if detail else f"dispatch failed — {err}"),
                             "agent_name": r["agent_name"],
@@ -807,7 +811,7 @@ def register_dashboard_routes(bp, auth_decorator):
                         reason = reason[:57] + "..."
                     events.append(
                         {
-                            "timestamp": r["created_at"].isoformat() if r["created_at"] else None,
+                            "timestamp": (r["created_at"].isoformat() if r["created_at"] else None),
                             "event_category": "governance",
                             "label": f"Escalated from {r['original_model']} to {r['escalated_model']}: {reason}",
                             "agent_name": r["agent_name"],
@@ -859,7 +863,7 @@ def register_dashboard_routes(bp, auth_decorator):
                             continue
                         events.append(
                             {
-                                "timestamp": r["timestamp"].isoformat() if r["timestamp"] else None,
+                                "timestamp": (r["timestamp"].isoformat() if r["timestamp"] else None),
                                 "event_category": cat,
                                 "label": label,
                                 "agent_name": r["agent_first_name"] or r["agent_name"],
@@ -990,7 +994,7 @@ def register_dashboard_routes(bp, auth_decorator):
                             err = err[:97] + "..."
                         events.append(
                             {
-                                "timestamp": r["created_at"].isoformat() if r["created_at"] else None,
+                                "timestamp": (r["created_at"].isoformat() if r["created_at"] else None),
                                 "event_category": "dispatch",
                                 "label": (
                                     f"dispatch failed — {detail}: {err}" if detail else f"dispatch failed — {err}"
@@ -1022,7 +1026,7 @@ def register_dashboard_routes(bp, auth_decorator):
                             reason = reason[:77] + "..."
                         events.append(
                             {
-                                "timestamp": r["created_at"].isoformat() if r["created_at"] else None,
+                                "timestamp": (r["created_at"].isoformat() if r["created_at"] else None),
                                 "event_category": "governance",
                                 "label": (
                                     f"Escalated from {r['original_model']} to " f"{r['escalated_model']}: {reason}"
@@ -1282,7 +1286,7 @@ def register_dashboard_routes(bp, auth_decorator):
                         "bridge_priority": n["bridge_priority"],
                         "approval_status": n["approval_status"],
                         "gpu_model": n["gpu_model"],
-                        "gpu_vram_gb": float(n["gpu_vram_gb"]) if n["gpu_vram_gb"] else None,
+                        "gpu_vram_gb": (float(n["gpu_vram_gb"]) if n["gpu_vram_gb"] else None),
                         "cpu_model": n["cpu_model"],
                         "cpu_cores": n["cpu_cores"],
                         "ram_gb": float(n["ram_gb"]) if n["ram_gb"] else None,
@@ -1365,7 +1369,9 @@ def register_dashboard_routes(bp, auth_decorator):
     def api_starbase_stats():
         """Hero Starbase stats -- real data from dispatcher + DB."""
         try:
-            from tools.department_hq.services.department_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import (
+                get_dispatcher,
+            )
 
             dispatcher = get_dispatcher()
             manifest = dispatcher.get_crew_manifest()
@@ -1639,7 +1645,13 @@ def register_dashboard_routes(bp, auth_decorator):
             try:
                 resp = _ureq.urlopen("http://192.168.1.200:11434/api/ps", timeout=3)
                 for m in _json.loads(resp.read()).get("models", []):
-                    loaded.append({"name": m["name"], "vram_gb": round(m.get("size_vram", 0) / 1e9, 1), "node": "Hub"})
+                    loaded.append(
+                        {
+                            "name": m["name"],
+                            "vram_gb": round(m.get("size_vram", 0) / 1e9, 1),
+                            "node": "Hub",
+                        }
+                    )
             except Exception:
                 pass
 
@@ -1701,7 +1713,10 @@ def register_dashboard_routes(bp, auth_decorator):
                 data = request.get_json(silent=True) or {}
                 mode = str(data.get("mode", "auto")).lower()
                 if mode not in VALID_MODES:
-                    return jsonify({"success": False, "error": f"Invalid mode '{mode}'"}), 400
+                    return (
+                        jsonify({"success": False, "error": f"Invalid mode '{mode}'"}),
+                        400,
+                    )
                 with get_db_cursor(commit=True) as (_, cur):
                     cur.execute(
                         """INSERT INTO system_config (key, value, updated_at)
@@ -1824,8 +1839,8 @@ def register_dashboard_routes(bp, auth_decorator):
                         AND na.status = 'active'
                     LEFT JOIN agents a ON a.id = na.hub_agent_id
                         AND a.worker_type = 'ai' AND a.shift_state != 'decommissioned'
-                    WHERE rn.is_active = TRUE AND rn.status = 'online'
-                      AND rn.last_heartbeat > NOW() - INTERVAL '3 minutes'
+                    WHERE rn.status = 'online'
+                      AND (rn.last_heartbeat > NOW() - INTERVAL '3 minutes' OR rn.last_heartbeat IS NULL)
                     GROUP BY rn.id, rn.node_id, rn.node_name, rn.status, rn.mesh_ip,
                              rn.gpu_available, rn.current_load, rn.last_heartbeat,
                              rn.cpu_model, rn.gpu_model, rn.gpu_vram_gb, rn.ram_gb,
@@ -1876,7 +1891,7 @@ def register_dashboard_routes(bp, auth_decorator):
                             "node": r["node_name"],
                             "success": bool(r["success"]),
                             "duration_ms": r["duration_ms"],
-                            "ts": r["created_at"].isoformat() if r["created_at"] else None,
+                            "ts": (r["created_at"].isoformat() if r["created_at"] else None),
                         }
                     )
 
@@ -1907,7 +1922,7 @@ def register_dashboard_routes(bp, auth_decorator):
                             "source": r["module_id"] or "cloud_approval",
                             "status": r["status"],
                             "reason": (r["reason"] or "")[:120],
-                            "ts": r["created_at"].isoformat() if r["created_at"] else None,
+                            "ts": (r["created_at"].isoformat() if r["created_at"] else None),
                         }
                     )
 
@@ -1981,7 +1996,13 @@ def register_dashboard_routes(bp, auth_decorator):
                 nid = n["node_id"]
                 bl = backlog_by_node.get(nid, {"backlog": 0, "running": 0, "tasks": []})
                 act = activity_by_node.get(
-                    nid, {"active_60s": 0, "dispatches_5m": 0, "success_rate": 0, "active_agents": ""}
+                    nid,
+                    {
+                        "active_60s": 0,
+                        "dispatches_5m": 0,
+                        "success_rate": 0,
+                        "active_agents": "",
+                    },
                 )
                 nodes_out.append(
                     {
@@ -1992,10 +2013,10 @@ def register_dashboard_routes(bp, auth_decorator):
                         "gpu": bool(n["gpu_available"]),
                         "has_cpu": True,  # all nodes can run CPU inference
                         "load": n["current_load"] or 0,
-                        "last_heartbeat": n["last_heartbeat"].isoformat() if n["last_heartbeat"] else None,
+                        "last_heartbeat": (n["last_heartbeat"].isoformat() if n["last_heartbeat"] else None),
                         "cpu_model": n["cpu_model"] or "",
                         "gpu_model": n["gpu_model"] or "",
-                        "gpu_vram_gb": float(n["gpu_vram_gb"]) if n["gpu_vram_gb"] else 0,
+                        "gpu_vram_gb": (float(n["gpu_vram_gb"]) if n["gpu_vram_gb"] else 0),
                         "ram_gb": float(n["ram_gb"]) if n["ram_gb"] else 0,
                         "deployment_mode": n["deployment_mode"] or "",
                         # Queue backlog (CPU pre-queue — may accumulate if drain worker is behind)

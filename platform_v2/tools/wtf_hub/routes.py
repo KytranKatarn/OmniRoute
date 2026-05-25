@@ -196,11 +196,15 @@ def analyze():
     try:
         from tools.department_hq.services.department_dispatcher import dispatch
 
+        # Geo extraction is a lightweight structured task — pin to qwen2.5:1.5b so
+        # it never lands on a 7b model (OOM on hub Quadro M4000 → 90s timeout).
+        # model_override=None for non-geo tasks is a no-op in the dispatcher.
         result = dispatch(
             capability=capabilities[task],
             prompt=prompts[task],
             module_id="wtf_hub",
             json_mode=True,
+            model_override="qwen2.5:1.5b" if task == "geo" else None,
         )
         if result.success:
             try:

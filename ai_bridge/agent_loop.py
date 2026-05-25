@@ -6853,12 +6853,22 @@ class AgentLoop:
             # refuses to cross mount points to find .git by default.
             # Using `git log -- what-the-fact/` gives the last commit touching WTF
             # files, which is semantically correct (only rsync when WTF changes).
+            # Pass safe.directory via env so git doesn't reject the bind-mounted
+            # repo (owned by kytran on host, container runs as root — git 2.35.2+
+            # "dubious ownership" check blocks access without this override).
+            _git_env = {
+                **os.environ,
+                "GIT_CONFIG_COUNT": "1",
+                "GIT_CONFIG_KEY_0": "safe.directory",
+                "GIT_CONFIG_VALUE_0": "/mnt/archie_brain",
+            }
             git_result = subprocess.run(
                 ["git", "log", "--format=%H", "-1", "--", "what-the-fact/"],
                 cwd="/mnt/archie_brain",
                 capture_output=True,
                 text=True,
                 timeout=10,
+                env=_git_env,
             )
             if git_result.returncode != 0 or not git_result.stdout.strip():
                 logger.warning(

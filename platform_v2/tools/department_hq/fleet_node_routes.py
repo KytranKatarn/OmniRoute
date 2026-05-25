@@ -87,6 +87,32 @@ def _on_node_approved(node_id):
         except Exception:
             logger.warning("_on_node_approved: could not load node %s", node_id, exc_info=True)
 
+        # 1b. Copy geo coords from extra_capabilities → latitude/longitude columns
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    "SELECT extra_capabilities FROM remote_nodes WHERE node_id = %s",
+                    (node_id,),
+                )
+                row = cur.fetchone()
+                if row:
+                    caps = row["extra_capabilities"] or {}
+                    geo_lat = caps.get("geo_lat")
+                    geo_lon = caps.get("geo_lon")
+                    if geo_lat is not None and geo_lon is not None:
+                        with get_db_cursor(commit=True) as (conn2, cur2):
+                            cur2.execute(
+                                """
+                                UPDATE remote_nodes
+                                   SET latitude = %s, longitude = %s
+                                 WHERE node_id = %s
+                                   AND (latitude IS NULL OR longitude IS NULL)
+                                """,
+                                (float(geo_lat), float(geo_lon), node_id),
+                            )
+        except Exception:
+            logger.warning("_on_node_approved: geo-coord sync failed for node=%s", node_id, exc_info=True)
+
         # 2. Auto-assign agents for each model (best-effort)
         assigned = 0
         for model_name in models:

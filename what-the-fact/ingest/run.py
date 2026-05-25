@@ -194,7 +194,12 @@ def run_once(engine) -> dict:
         for article_id in priority_ids:
             with engine.connect() as c:
                 row = c.execute(
-                    _text("SELECT title, body FROM wtf.articles WHERE id = :id"),
+                    _text("""
+                        SELECT a.title, a.body, s.slug AS source_slug
+                        FROM wtf.articles a
+                        JOIN wtf.sources s ON s.id = a.source_id
+                        WHERE a.id = :id
+                    """),
                     {"id": article_id},
                 ).fetchone()
             if not row:
@@ -245,6 +250,43 @@ def run_once(engine) -> dict:
                             "UPDATE wtf.articles SET beat = :beat WHERE id = :id AND beat IS NULL"
                         ),
                         {"beat": _beat_val, "id": article_id},
+                    )
+            # Geo extraction — fast path for priority articles.
+            # Backlog worker (WTF_GEO_BACKLOG_ENABLED) handles historical articles.
+            from ingest.geocoder import extract_geo as _extract_geo
+            geo_result = _extract_geo(
+                article_id,
+                row.title or "",
+                row.body or "",
+                getattr(row, "source_slug", None) or "",
+            )
+            if geo_result:
+                with engine.begin() as c:
+                    c.execute(
+                        _text("""
+                            UPDATE wtf.articles
+                            SET province_code = :pc,
+                                city          = :city,
+                                lat           = :lat,
+                                lng           = :lng,
+                                country_code  = :country,
+                                geo_scope     = :geo_scope,
+                                analysis_tier = CASE
+                                    WHEN analysis_tier = 'pending' THEN 'quick_v1'
+                                    ELSE analysis_tier
+                                END,
+                                tier1_at = COALESCE(tier1_at, NOW())
+                            WHERE id = :id AND geo_scope IN ('national')
+                        """),
+                        {
+                            "id": article_id,
+                            "pc": geo_result.get("province_code"),
+                            "city": geo_result.get("city"),
+                            "lat": geo_result.get("lat"),
+                            "lng": geo_result.get("lng"),
+                            "country": geo_result.get("country_code"),
+                            "geo_scope": geo_result.get("geo_scope") or "unmappable",
+                        },
                     )
             mark_ai_analyzed(engine, article_id, "wtf")
         log.info("orchestrator: %d articles AI-analyzed this cycle", len(priority_ids))

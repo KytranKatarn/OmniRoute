@@ -35,10 +35,12 @@ from .fleet_helpers import (
 
 logger = logging.getLogger(__name__)
 
-# Path to node client distribution package
-NODE_CLIENT_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-    "node_client",
+# Path to node client distribution package.
+# Inside Docker: /mnt/archie_brain/node_client (bind-mounted from host).
+# On host: /mnt/archie_brain/node_client
+NODE_CLIENT_DIR = os.environ.get(
+    "NODE_CLIENT_DIR",
+    "/mnt/archie_brain/node_client",
 )
 
 
@@ -206,6 +208,7 @@ def _generate_setup_sh(
     headscale_authkey: str = "",
     mesh_ip: str = "",
     hub_mesh_url: str = "http://100.64.0.4:3000",
+    deployment_mode: str = "starship",
 ) -> str:
     """Return a self-contained Bash node setup script.
 
@@ -232,6 +235,106 @@ def _generate_setup_sh(
     """
     headscale_login_server = "https://mesh.kytranempowerment.com"
     safe_name = node_name.replace('"', "").replace("'", "")
+    _is_outpost = deployment_mode in ("starbase_outpost", "outpost")
+
+    # Pre-compute step 9 bash block — outpost (VPS/CPU) vs starship (LAN/GPU).
+    # Inference on these outpost nodes routes through department_dispatcher →
+    # ensure_model_ready → node Ollama service; the bash commands below install
+    # the Ollama *daemon* on the remote VPS (not a platform-level inference call).
+    if _is_outpost:
+        _step9 = r"""# ── 9. archie-node agent stack (VPS/outpost mode) ──────────────────────────
+info "Step 9/9 — Installing archie-node agent stack (CPU/outpost mode)..."
+# Inference later routes through department_dispatcher + ensure_model_ready.
+# These steps only install the Ollama service and pull base models on the VPS.
+NODE_OLLAMA_PORT=11434
+
+# 9a. Install Ollama natively on VPS host (CPU inference, no GPU)
+OLLAMA_BIN="$(command -v ollama 2>/dev/null || echo /usr/local/bin/ollama)"
+if "$OLLAMA_BIN" --version &>/dev/null 2>&1; then
+  ok "Ollama already present ($($OLLAMA_BIN --version 2>/dev/null | head -1))"
+else
+  info "Installing Ollama (native, CPU-only)..."
+  OLLAMA_INSTALL_URL="https://ollama.ai/install.sh"
+  curl -fsSL "$OLLAMA_INSTALL_URL" | sh
+  OLLAMA_BIN="$(command -v ollama)"
+  systemctl enable --now ollama
+  sleep 3
+  ok "Ollama installed and started"
+fi
+
+# 9b. Pull CPU-compatible models for outpost agents
+# department_dispatcher uses ensure_model_ready which references these models.
+info "Pulling qwen2.5:1.5b (primary model ~1.3 GB, may take 3-5 min)..."
+"$OLLAMA_BIN" pull qwen2.5:1.5b \
+  && ok "Pulled qwen2.5:1.5b" \
+  || warn "Pull failed — retried on first dispatch via ensure_model_ready"
+info "Pulling nomic-embed-text (~274 MB)..."
+"$OLLAMA_BIN" pull nomic-embed-text \
+  && ok "Pulled nomic-embed-text" \
+  || warn "nomic-embed-text pull failed (non-fatal)"
+
+# 9c. Download archie-node VPS stack files from hub (Headscale mesh)
+info "Downloading archie-node VPS stack files from hub..."
+for FILE in docker-compose.vps.yml Dockerfile.node node_api.py node_sync.py requirements.txt; do
+  HUB_FILE_URL="$HUB_URL/tools/department-hq/api/nodes/vps/$FILE"
+  curl -fsSL "$HUB_FILE_URL" -o "$INSTALL_DIR/$FILE" --max-time 60 \
+    && ok "  $FILE" \
+    || warn "  $FILE — download failed (check mesh reachability)"
+done
+
+# 9d. Start node_api container (handles skill dispatch + OTA from hub)
+info "Building and starting archie_node_api..."
+cd "$INSTALL_DIR"
+docker compose -f docker-compose.vps.yml up -d --build \
+  && ok "archie_node_api started on port 3001" \
+  || warn "node_api start failed — check: docker logs archie_node_api"
+cd -
+
+# 9e. Start heartbeat/sync agent (python:3.11-slim, no custom Dockerfile needed)
+info "Starting archie_outpost_sync heartbeat agent..."
+docker stop archie_outpost_sync 2>/dev/null || true
+docker rm   archie_outpost_sync 2>/dev/null || true
+docker run -d --name archie_outpost_sync \
+  --restart unless-stopped \
+  -e NODE_ID="$NODE_ID" \
+  -e HUB_URL="$HUB_URL" \
+  -e HUB_API_KEY="$HUB_API_KEY" \
+  -e NODE_TYPE=outpost \
+  -e HEARTBEAT_INTERVAL=60 \
+  -e SYNC_POLL_INTERVAL=60 \
+  -e OLLAMA_HOST="http://host.docker.internal:${NODE_OLLAMA_PORT}" \
+  --add-host host.docker.internal:host-gateway \
+  --memory 128m --cpus 0.25 \
+  -v "$INSTALL_DIR/node_sync.py":/app/node_sync.py:ro \
+  --network archie-outpost_archie_net \
+  -w /app \
+  python:3.11-slim python3 -u node_sync.py \
+  && ok "archie_outpost_sync started (heartbeats every 60 s)" \
+  || warn "sync agent failed — check: docker logs archie_outpost_sync"
+
+# 9f. Open node_api port to Headscale mesh peers only
+if command -v ufw &>/dev/null; then
+  ufw allow from 100.64.0.0/10 to any port 3001 comment 'Mesh->NodeAPI' 2>/dev/null || true
+  ok "UFW: port 3001 open to Headscale mesh"
+fi"""
+        _next_steps = """\
+  1. Approve at https://platform.kytranempowerment.com
+     → Department HQ → Fleet tab → approve this node
+  2. Node sends heartbeats every 60 s — status flips online automatically
+  3. DHQ dispatcher will delegate agent work to this node"""
+    else:
+        _step9 = r"""# ── 9. Save node stack template (start products separately via fleet deploy) ──
+info "Step 9/9 — Saving node docker-compose template..."
+curl -fsSL "$HUB_URL/tools/department-hq/api/nodes/docker-compose.node.yml" \
+  -o "$INSTALL_DIR/docker-compose.yml" \
+  --max-time 30 && ok "docker-compose.yml saved to $INSTALL_DIR" || \
+  warn "Could not download docker-compose template — deploy separately via fleet tab" """
+        _next_steps = """\
+  1. Approve at https://platform.kytranempowerment.com
+     → Department HQ → Fleet tab
+  2. Deploy products via /vps-deploy <product>
+     (Caddy, UFW, archie-outpost stack)"""
+
     return f"""#!/bin/bash
 # A.R.C.H.I.E. Outpost Node Setup — {safe_name} ({node_id})
 # Downloaded from: {hub_url}
@@ -387,12 +490,7 @@ else
   ok "Network archie-outpost_archie_net created"
 fi
 
-# ── 9. Save node stack template (start products separately via fleet deploy) ──
-info "Step 9/9 — Saving node docker-compose template..."
-curl -fsSL "$HUB_URL/tools/department-hq/api/nodes/docker-compose.node.yml" \\
-  -o "$INSTALL_DIR/docker-compose.yml" \\
-  --max-time 30 && ok "docker-compose.yml saved to $INSTALL_DIR" || \\
-  warn "Could not download docker-compose template — products can still be deployed via fleet deploy"
+{_step9}
 
 echo ""
 echo "============================================"
@@ -404,10 +502,7 @@ echo "  Mesh   : $MESH_IP"
 echo "  Status : Pending admin approval"
 echo ""
 echo "  Next steps:"
-echo "  1. Approve at https://platform.kytranempowerment.com"
-echo "     → Department HQ → Fleet tab"
-echo "  2. Deploy products via /vps-deploy <product>"
-echo "     (Caddy, UFW, archie-outpost stack)"
+echo "{_next_steps}"
 echo "============================================"
 echo ""
 """
@@ -690,6 +785,39 @@ def register_node_routes(bp, login_required, admin_required):
             jsonify({"success": False, "error": "Docker Compose template not found"}),
             404,
         )
+
+    @bp.route("/api/nodes/vps/<filename>", methods=["GET"])
+    def get_vps_node_file(filename):
+        """Serve VPS-specific archie-node stack files for outpost enrollment.
+
+        Called by the generated bash installer script (step 9c) running on the
+        outpost VPS after Headscale mesh join. Files are served from node_client/
+        on the hub and downloaded via the Headscale mesh URL (100.64.0.4:3000).
+
+        Allowed files mirror what outpost-us runs in /opt/archie-node/:
+          docker-compose.vps.yml, Dockerfile.node, node_api.py,
+          node_sync.py, requirements.txt
+        """
+        import mimetypes
+
+        allowed = {
+            "docker-compose.vps.yml",
+            "Dockerfile.node",
+            "node_api.py",
+            "node_sync.py",
+            "requirements.txt",
+        }
+        if filename not in allowed:
+            return jsonify({"error": "File not found or not allowed"}), 404
+
+        file_path = os.path.join(NODE_CLIENT_DIR, filename)
+        if not os.path.exists(file_path):
+            return jsonify({"error": f"{filename} not found on hub"}), 404
+
+        mime = mimetypes.guess_type(filename)[0] or "text/plain"
+        with open(file_path, "r", encoding="utf-8", errors="replace") as fh:
+            content = fh.read()
+        return Response(content, mimetype=mime)
 
     @bp.route("/api/nodes/deploy-node.ps1", methods=["GET"])
     def get_node_deploy_script():
@@ -3513,7 +3641,7 @@ def register_node_routes(bp, login_required, admin_required):
 
         with get_db_cursor() as (conn, cur):
             cur.execute(
-                "SELECT node_id, node_name, setup_token, mesh_ip FROM remote_nodes WHERE setup_token = %s",
+                "SELECT node_id, node_name, setup_token, mesh_ip, deployment_mode FROM remote_nodes WHERE setup_token = %s",
                 (token,),
             )
             node = cur.fetchone()
@@ -3530,6 +3658,7 @@ def register_node_routes(bp, login_required, admin_required):
         node_id = node["node_id"]
         node_name = node.get("node_name") or node_id
         provided_mesh_ip = node.get("mesh_ip") or ""
+        node_deployment_mode = node.get("deployment_mode", "starship") or "starship"
 
         # Generate a fresh Headscale pre-auth key so VPS joins mesh automatically
         headscale_authkey = ""
@@ -3575,6 +3704,7 @@ def register_node_routes(bp, login_required, admin_required):
                 headscale_authkey=headscale_authkey,
                 mesh_ip=provided_mesh_ip,
                 hub_mesh_url=hub_mesh_url,
+                deployment_mode=node_deployment_mode,
             )
             return Response(script, mimetype="text/plain", status=200)
 
@@ -4068,6 +4198,7 @@ def register_node_routes(bp, login_required, admin_required):
                     headscale_authkey=headscale_authkey,
                     mesh_ip=mesh_ip_param,
                     hub_mesh_url=hub_url,  # ALL in-script API calls use mesh IP
+                    deployment_mode=deployment_mode,
                 )
                 # One-liner uses PUBLIC URL — VPS cannot reach 100.64.0.4 before Headscale join.
                 # The /install endpoint serves the script; inside it HUB_URL = mesh IP.
@@ -4133,7 +4264,13 @@ def register_node_routes(bp, login_required, admin_required):
                     headers={"Content-Disposition": f'attachment; filename="ARCHIE-Node-Setup-{safe_name}.bat"'},
                 )
             else:
-                script = _generate_setup_sh(hub_url, node_id, setup_token, node_name)
+                script = _generate_setup_sh(
+                    hub_url,
+                    node_id,
+                    setup_token,
+                    node_name,
+                    deployment_mode=deployment_mode,
+                )
                 return Response(
                     script,
                     mimetype="application/octet-stream",

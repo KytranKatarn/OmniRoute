@@ -1,5 +1,34 @@
 # Billing Infrastructure Rules
 
+## Stripe Account — Source of Truth
+
+**All Stripe credentials come from KBS.** The `KBS_STRIPE_SECRET_KEY` in `/mnt/archie_brain/kytran-business-suite/.env` is the live restricted key for the `51RiHp80` account. The platform `.env` files mirror it as `STRIPE_SECRET_KEY`.
+
+| File | Key name | Value source |
+|------|----------|-------------|
+| `kytran-business-suite/.env` | `KBS_STRIPE_SECRET_KEY` | **Canonical source** — update here first |
+| `platform_v2/.env` | `STRIPE_SECRET_KEY` | Copy from KBS |
+| `.env` (root) | `STRIPE_SECRET_KEY` | Copy from KBS |
+
+**KBS Stripe interface (future task)** — KBS should expose a Stripe management UI (products, prices, subscriptions, webhooks) so Kytran can manage billing from the business suite rather than the Stripe dashboard. Task to be created.
+
+## Stripe Price Registry (billing_product_plans — populated 2026-05-25)
+
+| product_id | tier_name | stripe_price_id | amount_cents (CAD) |
+|------------|-----------|-----------------|-------------------|
+| wtf | starter | price_1Tb2ye06cZ0yWDKJSRwxJHxu | 499 |
+| civic_watch | starter | price_1Tb2ye06cZ0yWDKJgvsB0lBq | 499 |
+| legal_watch | starter | price_1Tb2yf06cZ0yWDKJzG9kGVK2 | 499 |
+| market_watch | starter | price_1Tb2yf06cZ0yWDKJGtwPQy90 | 499 |
+| gov_watch | solo | price_1Tb2yg06cZ0yWDKJ14dX1JYP | 999 |
+| gov_watch | team | price_1Tb2yg06cZ0yWDKJgfjyosWD | 2999 |
+| gov_watch | agency | price_1Tb2yh06cZ0yWDKJ4O4Bp6Uc | 7999 |
+| bundle_watch | solo | price_1Taji206cZ0yWDKJi7GavKYw | 1299 |
+| bundle_intelligence | team | price_1Taji206cZ0yWDKJcZB1qYc6 | 1999 |
+
+Free tiers have no Stripe price (gated at app layer). All prices are CAD, monthly recurring.
+New prices: created 2026-05-25 via API. Bundles reuse existing prices from WTF Bundle Subscriptions product.
+
 ## Key Finding: 80% Already Built
 
 Before adding anything, read these existing files:

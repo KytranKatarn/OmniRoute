@@ -95,7 +95,9 @@ def callback():
     user = token_data.get("user") or {}
     session["wtf_username"] = user.get("username") or token_data.get("username")
     session["wtf_email"] = user.get("email", "")
-    session["wtf_tier"] = user.get("subscription_tier") or "free"
+    # T3027: product_tiers["wtf"] from billing (canonical source) takes precedence
+    _pt = user.get("product_tiers") or {}
+    session["wtf_tier"] = _pt.get("wtf") or user.get("subscription_tier") or "free"
     # Bundle entitlements — list of product_ids the user has active subscriptions for.
     # Used by access.py user_has_bundle() to gate bundle-purchased products (#3025).
     session["wtf_entitlements"] = user.get("entitlements") or []

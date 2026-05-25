@@ -2064,24 +2064,45 @@ def register_dashboard_routes(bp, auth_decorator):
             now_utc = datetime.now(timezone.utc)
 
             with get_db_cursor() as (_, cur):
-                # Per-agent dispatch stats from last 1 hour (WTF module sources)
+                # Per-agent dispatch stats from last 1 hour (WTF module sources).
+                # CTE resolves fleet-agent-{id} fallback names via node_agents join.
                 cur.execute(
                     """
+                    WITH resolved AS (
+                        SELECT
+                            COALESCE(
+                                CASE WHEN t.agent_name ~ '^fleet-agent-[0-9]+$'
+                                     THEN COALESCE(na.display_name, a_na.display_name, a_na.name, 'Fleet Agent')
+                                     ELSE NULL
+                                END,
+                                t.agent_name
+                            ) AS agent_name,
+                            t.duration_ms,
+                            t.created_at,
+                            t.node_used_id
+                        FROM task_execution_log t
+                        LEFT JOIN node_agents na ON (
+                            na.id = (CASE WHEN t.agent_name ~ '^fleet-agent-[0-9]+$'
+                                          THEN REGEXP_REPLACE(t.agent_name, '^fleet-agent-', '')::int
+                                     END)
+                        )
+                        LEFT JOIN agents a_na ON a_na.id = na.hub_agent_id
+                        WHERE t.created_at > NOW() - INTERVAL '1 hour'
+                          AND t.module_source IN ('wtf_hub', 'wtf_hub_quick',
+                                                  'wtf_dhq_llm', 'wtf_dhq_geo',
+                                                  'wtf_dhq_factcheck', 'wtf_dhq_scout')
+                          AND t.agent_name IS NOT NULL
+                    )
                     SELECT
-                        t.agent_name,
+                        agent_name,
                         COUNT(*) AS calls_1h,
-                        ROUND(AVG(t.duration_ms) / 1000.0, 1) AS avg_sec,
-                        MAX(t.created_at) AS last_seen,
+                        ROUND(AVG(duration_ms) / 1000.0, 1) AS avg_sec,
+                        MAX(created_at) AS last_seen,
                         (SELECT rn.node_name FROM remote_nodes rn
-                         WHERE rn.id = mode() WITHIN GROUP (ORDER BY t.node_used_id)
+                         WHERE rn.id = mode() WITHIN GROUP (ORDER BY node_used_id)
                          LIMIT 1) AS node
-                    FROM task_execution_log t
-                    WHERE t.created_at > NOW() - INTERVAL '1 hour'
-                      AND t.module_source IN ('wtf_hub', 'wtf_hub_quick',
-                                              'wtf_dhq_llm', 'wtf_dhq_geo',
-                                              'wtf_dhq_factcheck', 'wtf_dhq_scout')
-                      AND t.agent_name IS NOT NULL
-                    GROUP BY t.agent_name
+                    FROM resolved
+                    GROUP BY agent_name
                     ORDER BY calls_1h DESC
                     """
                 )

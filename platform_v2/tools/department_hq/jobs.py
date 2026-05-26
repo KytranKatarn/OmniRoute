@@ -3273,15 +3273,36 @@ def _register_own_jobs(scheduler, flask_app):
 
             # Pass 5 — score each (agent, node, capability) assignment
             with get_db_cursor() as (_, cur):
+                # T3165: UNION primary skills (bid_factor=1.0) with overflow bids
+                # (bid_factor = bid_priority/10.0) so primary-skill agents win at equal load.
                 cur.execute(
                     """
-                    SELECT na.hub_agent_id AS agent_id,
+                    SELECT na.hub_agent_id    AS agent_id,
                            na.node_id,
-                           sk.skill_name   AS capability,
-                           a.name          AS agent_name
+                           sk.skill_name      AS capability,
+                           a.name             AS agent_name,
+                           1.0                AS bid_factor
+                    FROM node_agents na
+                    JOIN agents a  ON a.id  = na.hub_agent_id
+                    JOIN agent_skills sk ON sk.agent_id = na.hub_agent_id
+                    WHERE a.shift_state IN ('active', 'deployed')
+                      AND a.worker_type = 'ai'
+                      AND na.node_id IN (
+                          SELECT id FROM remote_nodes
+                          WHERE last_heartbeat > NOW() - INTERVAL '2 minutes'
+                      )
+
+                    UNION
+
+                    SELECT na.hub_agent_id          AS agent_id,
+                           na.node_id,
+                           os.capability,
+                           a.name                  AS agent_name,
+                           os.bid_priority / 10.0  AS bid_factor
                     FROM node_agents na
                     JOIN agents a ON a.id = na.hub_agent_id
-                    JOIN agent_skills sk ON sk.agent_id = na.hub_agent_id
+                    JOIN agent_overflow_skills os
+                         ON os.agent_id = na.hub_agent_id AND os.enabled = TRUE
                     WHERE a.shift_state IN ('active', 'deployed')
                       AND a.worker_type = 'ai'
                       AND na.node_id IN (
@@ -3307,11 +3328,15 @@ def _register_own_jobs(scheduler, flask_app):
                 if not cfg.get("overflow_enabled", True):
                     continue
 
-                score = compute_overflow_score(
-                    idle_minutes=agent_idle.get(agent_id, 999),
-                    util_pct=node_util.get(node_id, 100.0),
-                    queue_depth=queue_depths.get(capability, 0),
-                    config=cfg,
+                bid_factor = float(row.get("bid_factor") or 1.0)
+                score = (
+                    compute_overflow_score(
+                        idle_minutes=agent_idle.get(agent_id, 999),
+                        util_pct=node_util.get(node_id, 100.0),
+                        queue_depth=queue_depths.get(capability, 0),
+                        config=cfg,
+                    )
+                    * bid_factor
                 )
                 paused = cfg.get("overflow_paused", False)
                 is_active = (score >= 0.5) and not paused
@@ -3328,6 +3353,7 @@ def _register_own_jobs(scheduler, flask_app):
                             "util_pct": round(node_util.get(node_id, 100), 1),
                             "queue_depth": queue_depths.get(capability, 0),
                             "paused": paused,
+                            "bid_factor": round(bid_factor, 2),
                         },
                     }
                 )

@@ -424,6 +424,47 @@ def _build_stats():
         else:
             ethics_grade = "F"
 
+        # 5b. Per-department ethics breakdown
+        def _ethics_grade(sc: int) -> str:
+            if sc >= 95:
+                return "A+"
+            if sc >= 90:
+                return "A"
+            if sc >= 85:
+                return "B+"
+            if sc >= 80:
+                return "B"
+            if sc >= 70:
+                return "C"
+            if sc >= 60:
+                return "D"
+            return "F"
+
+        welfare_by_dept = {w["department"]: w for w in welfare}
+        jobs_by_dept = {j["department"]: j for j in job_health}
+        all_depts = set(welfare_by_dept) | set(jobs_by_dept)
+        dept_ethics_list = []
+        for dept in sorted(all_depts):
+            wf = welfare_by_dept.get(dept, {})
+            jh = jobs_by_dept.get(dept, {})
+            dept_sr = round(jh["success"] / jh["total"] * 100, 1) if jh.get("total", 0) > 0 else 100.0
+            dept_hs = wf.get("high_stress_agents", 0)
+            dept_raw = dept_sr - (dept_hs * 2)
+            dept_score = max(0, min(100, round(dept_raw)))
+            dept_ethics_list.append(
+                {
+                    "department": dept,
+                    "score": dept_score,
+                    "grade": _ethics_grade(dept_score),
+                    "success_rate": dept_sr,
+                    "high_stress_agents": dept_hs,
+                    "avg_stress": wf.get("avg_stress", 0.0),
+                    "welfare_status": wf.get("status", "green"),
+                }
+            )
+        # worst-performing departments first
+        dept_ethics_list.sort(key=lambda x: x["score"])
+
         # 6. Director roster (public names only)
         cur.execute(
             """
@@ -468,5 +509,6 @@ def _build_stats():
         "ethics": {
             "score": ethics_score,
             "grade": ethics_grade,
+            "by_department": dept_ethics_list,
         },
     }

@@ -4198,4 +4198,320 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered dynamic_skill_activation job (every 5 min, T3167)")
 
+    # ── Job #130: token_welfare_monitor ──────────────────────────────────────
+    # Daily 06:00 AM: flag agents whose 24h token burn AND stress both breach
+    # thresholds. Writes governance_audit_log + pushes Telegram alert.
+    _TOKEN_DAY_LIMIT = 100_000  # tokens per 24h
+    _TOKEN_STRESS_GATE = 0.75  # stress above which token overload is reported
+
+    def _run_token_welfare_monitor():
+        """Flag agents with simultaneous high token consumption + high stress."""
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (_, cur):
+                cur.execute(
+                    """
+                    SELECT a.id, a.name, a.display_name, a.department,
+                           COALESCE(SUM(tel.tokens_used), 0) AS tokens_24h,
+                           COALESCE(ae.stress_level, 0.0)    AS stress_level
+                    FROM   agents a
+                    LEFT JOIN task_execution_log tel
+                           ON tel.agent_id = a.id
+                          AND tel.created_at > NOW() - INTERVAL '24 hours'
+                    LEFT JOIN LATERAL (
+                        SELECT stress_level FROM agent_emotional_state
+                        WHERE  agent_id = a.id ORDER BY id DESC LIMIT 1
+                    ) ae ON true
+                    WHERE  a.worker_type = 'ai'
+                      AND  a.shift_state NOT IN ('decommissioned', 'barracked')
+                    GROUP BY a.id, a.name, a.display_name, a.department, ae.stress_level
+                    HAVING COALESCE(SUM(tel.tokens_used), 0) > %s
+                       AND COALESCE(ae.stress_level, 0.0)    > %s
+                    ORDER BY tokens_24h DESC
+                    """,
+                    (_TOKEN_DAY_LIMIT, _TOKEN_STRESS_GATE),
+                )
+                flagged = [dict(r) for r in (cur.fetchall() or [])]
+
+            if not flagged:
+                return
+
+            # Log each overloaded agent to governance_audit_log
+            for agent in flagged:
+                try:
+                    with get_db_cursor() as (_, cur):
+                        cur.execute(
+                            """
+                            INSERT INTO governance_audit_log
+                                (event_type, event_category, agent_id, action,
+                                 target_table, reason, outcome)
+                            VALUES ('token_overload_warning', 'welfare', %s, 'flag',
+                                    'task_execution_log', %s, 'flagged')
+                            """,
+                            (
+                                agent["id"],
+                                (
+                                    f"tokens_24h={agent['tokens_24h']}"
+                                    f" > {_TOKEN_DAY_LIMIT}"
+                                    f" AND stress={agent['stress_level']:.2f}"
+                                    f" > {_TOKEN_STRESS_GATE}"
+                                ),
+                            ),
+                        )
+                except Exception as _ge:
+                    logger.debug("[TokenWelfare] governance_audit_log failed: %s", _ge)
+
+            # Telegram alert
+            lines = [f"⚠️ *Token Overload Alert* — {len(flagged)} agent(s) hit daily token + stress thresholds:\n"]
+            for a in flagged[:10]:
+                lines.append(
+                    f"• {a['display_name']} ({a['department']}): "
+                    f"{a['tokens_24h']:,} tokens, stress {float(a['stress_level']):.0%}"
+                )
+            try:
+                from services.telegram_service import send_info
+
+                send_info("\n".join(lines), source_module="department_hq.jobs.token_welfare_monitor")
+            except Exception as _tg:
+                logger.debug("[TokenWelfare] Telegram send failed: %s", _tg)
+
+            logger.info("[TokenWelfare] flagged %d agents over token+stress threshold", len(flagged))
+
+        except Exception as _exc:
+            logger.error("[TokenWelfare] crashed: %s", _exc)
+
+    scheduler.add_job(
+        with_ctx(_run_token_welfare_monitor),
+        trigger=CronTrigger(hour=6, minute=0, timezone="America/Toronto"),
+        id="token_welfare_monitor",
+        name="Token Welfare Monitor — flag agents with high token burn + stress (daily 06:00)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered token_welfare_monitor job (daily 06:00, Job #130)")
+
+    # ── Job #131: creed_kin_weekly_digest ────────────────────────────────────
+    # Monday 09:00 AM: K.I.N. + C.R.E.E.D. governance advisory report.
+    # Covers: platform ethics grade, top-stress departments, top token consumers,
+    # overflow governance events, staffing imbalance flags.
+    # Logged to governance_audit_log + pushed to Telegram for Kytran visibility.
+
+    def _run_creed_kin_weekly_digest():
+        """Weekly K.I.N. + C.R.E.E.D. governance digest — Telegram + audit log."""
+        try:
+            from collections import defaultdict
+
+            from database import get_db_cursor
+
+            with get_db_cursor() as (_, cur):
+                # 7-day job health
+                cur.execute(
+                    """
+                    SELECT COUNT(*) FILTER (WHERE status = 'success') AS success,
+                           COUNT(*) FILTER (WHERE status = 'error')   AS errors,
+                           COUNT(*)                                    AS total
+                    FROM   autonomy_loop_log
+                    WHERE  created_at > NOW() - INTERVAL '7 days'
+                    """
+                )
+                jrow = dict(cur.fetchone() or {})
+                total_j = jrow.get("total") or 0
+                sr_7d = round((jrow.get("success") or 0) / total_j * 100, 1) if total_j > 0 else 100.0
+
+                # Highest-stress departments (latest emotional state per agent)
+                cur.execute(
+                    """
+                    SELECT a.department,
+                           AVG(ae.stress_level)                                       AS avg_stress,
+                           COUNT(CASE WHEN ae.stress_level >= 0.8 THEN 1 END) AS high_stress_cnt
+                    FROM   agents a
+                    JOIN LATERAL (
+                        SELECT stress_level FROM agent_emotional_state
+                        WHERE  agent_id = a.id ORDER BY id DESC LIMIT 1
+                    ) ae ON true
+                    WHERE  a.worker_type = 'ai'
+                      AND  a.shift_state NOT IN ('decommissioned')
+                    GROUP BY a.department
+                    ORDER BY avg_stress DESC
+                    LIMIT 5
+                    """
+                )
+                top_stress = [dict(r) for r in (cur.fetchall() or [])]
+
+                # Top token consumers (7d)
+                cur.execute(
+                    """
+                    SELECT a.display_name, a.department,
+                           COALESCE(SUM(tel.tokens_used), 0) AS tokens_7d,
+                           COUNT(tel.id)                     AS dispatches_7d
+                    FROM   task_execution_log tel
+                    JOIN   agents a ON a.id = tel.agent_id
+                    WHERE  tel.created_at > NOW() - INTERVAL '7 days'
+                      AND  a.worker_type = 'ai'
+                    GROUP  BY a.id, a.display_name, a.department
+                    ORDER  BY tokens_7d DESC
+                    LIMIT 5
+                    """
+                )
+                top_tokens = [dict(r) for r in (cur.fetchall() or [])]
+
+                # Overflow + token governance events (7d)
+                cur.execute(
+                    """
+                    SELECT event_type, COUNT(*) AS cnt
+                    FROM   governance_audit_log
+                    WHERE  event_type IN (
+                               'overflow_skill_activated', 'overflow_skill_deactivated',
+                               'overflow_welfare_blocked', 'overflow_mass_activation',
+                               'token_overload_warning'
+                           )
+                      AND  timestamp > NOW() - INTERVAL '7 days'
+                    GROUP  BY event_type
+                    ORDER  BY cnt DESC
+                    """
+                )
+                overflow_events = {r["event_type"]: r["cnt"] for r in (cur.fetchall() or [])}
+
+                # Per-agent dispatch counts (7d) for imbalance detection
+                cur.execute(
+                    """
+                    SELECT a.department, a.display_name,
+                           COUNT(tel.id) AS dispatches
+                    FROM   agents a
+                    LEFT JOIN task_execution_log tel
+                           ON tel.agent_id = a.id
+                          AND tel.created_at > NOW() - INTERVAL '7 days'
+                    WHERE  a.worker_type = 'ai'
+                      AND  a.shift_state NOT IN ('decommissioned')
+                    GROUP  BY a.department, a.id, a.display_name
+                    ORDER  BY a.department, dispatches DESC
+                    """
+                )
+                imbalance_rows = [dict(r) for r in (cur.fetchall() or [])]
+
+            # Staffing imbalance ratio per department (max/min dispatches)
+            dept_counts: dict = defaultdict(list)
+            for row in imbalance_rows:
+                dept_counts[row["department"]].append(int(row["dispatches"] or 0))
+
+            imbalance_flags = []
+            for dept, counts in dept_counts.items():
+                if len(counts) < 2:
+                    continue
+                mx, mn = max(counts), min(c for c in counts if c > 0) if any(c > 0 for c in counts) else 0
+                if mn == 0:
+                    continue
+                ratio = round(mx / mn, 1)
+                if ratio >= 5.0:
+                    imbalance_flags.append((dept, ratio, mx, mn))
+            imbalance_flags.sort(key=lambda x: -x[1])
+
+            # Ethics score approximation (7d)
+            high_stress_total = sum(int(d.get("high_stress_cnt") or 0) for d in top_stress)
+            ethics_raw = sr_7d - (high_stress_total * 2)
+            ethics_score = max(0, min(100, round(ethics_raw)))
+
+            def _grade(s: int) -> str:
+                if s >= 95:
+                    return "A+"
+                if s >= 90:
+                    return "A"
+                if s >= 85:
+                    return "B+"
+                if s >= 80:
+                    return "B"
+                if s >= 70:
+                    return "C"
+                if s >= 60:
+                    return "D"
+                return "F"
+
+            lines = [
+                "\U0001f4ca *C.R.E.E.D. + K.I.N. Weekly Digest*",
+                "",
+                f"*Platform Ethics (7d):* {ethics_score}/100 — {_grade(ethics_score)}",
+                f"Job success rate: {sr_7d}%  |  High-stress agents: {high_stress_total}",
+                "",
+            ]
+            if top_stress:
+                lines.append("*Top-Stress Departments:*")
+                for d in top_stress[:3]:
+                    lines.append(
+                        f"• {d['department']}: avg {float(d['avg_stress']):.0%} "
+                        f"({d['high_stress_cnt']} agents ≥80%)"
+                    )
+                lines.append("")
+            if top_tokens:
+                lines.append("*Top Token Consumers (7d):*")
+                for t in top_tokens[:3]:
+                    lines.append(
+                        f"• {t['display_name']} ({t['department']}): "
+                        f"{int(t['tokens_7d'] or 0):,} tokens / {t['dispatches_7d']} dispatches"
+                    )
+                lines.append("")
+            if overflow_events:
+                lines.append("*Overflow Governance Events (7d):*")
+                for ev, cnt in list(overflow_events.items())[:5]:
+                    lines.append(f"• {ev}: {cnt}")
+                lines.append("")
+            if imbalance_flags:
+                lines.append("*⚠️ Staffing Imbalance Flags:*")
+                for dept, ratio, mx, mn in imbalance_flags[:3]:
+                    lines.append(f"• {dept}: {ratio}× imbalance " f"(max {mx:,} / min {mn:,} dispatches)")
+                lines.append("")
+                lines.append(
+                    "_K.I.N. recommends reviewing backup agent skill registrations " "and overflow bid thresholds._"
+                )
+
+            msg = "\n".join(lines)
+
+            # Log digest to governance_audit_log
+            try:
+                with get_db_cursor() as (_, cur):
+                    cur.execute(
+                        """
+                        INSERT INTO governance_audit_log
+                            (event_type, event_category, action,
+                             target_table, reason, outcome)
+                        VALUES ('creed_kin_weekly_digest', 'governance', 'report',
+                                'governance_audit_log', %s, 'success')
+                        """,
+                        (
+                            f"ethics={ethics_score} high_stress={high_stress_total} "
+                            f"imbalance_flags={len(imbalance_flags)}",
+                        ),
+                    )
+            except Exception as _ge:
+                logger.debug("[CreedKINDigest] governance_audit_log failed: %s", _ge)
+
+            try:
+                from services.telegram_service import send_info
+
+                send_info(msg, source_module="department_hq.jobs.creed_kin_weekly_digest")
+            except Exception as _tg:
+                logger.debug("[CreedKINDigest] Telegram send failed: %s", _tg)
+
+            logger.info(
+                "[CreedKINDigest] digest sent: ethics=%d stress_depts=%d imbalance_flags=%d",
+                ethics_score,
+                len(top_stress),
+                len(imbalance_flags),
+            )
+
+        except Exception as _exc:
+            logger.error("[CreedKINDigest] crashed: %s", _exc)
+
+    scheduler.add_job(
+        with_ctx(_run_creed_kin_weekly_digest),
+        trigger=CronTrigger(day_of_week="mon", hour=9, minute=0, timezone="America/Toronto"),
+        id="creed_kin_weekly_digest",
+        name="C.R.E.E.D. + K.I.N. Weekly Digest — governance + welfare advisory report (Mon 09:00)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered creed_kin_weekly_digest job (Mon 09:00, Job #131)")
+
     logger.info("[DeptHQ] Registered 12 code health/audit jobs")

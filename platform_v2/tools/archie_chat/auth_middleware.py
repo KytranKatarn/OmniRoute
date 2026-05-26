@@ -56,7 +56,7 @@ def _check_bearer_token():
                 (row["id"],),
             )
 
-            return {
+            user_dict = {
                 "id": row["user_id"],
                 "username": row["username"],
                 "is_admin": bool(row["is_admin"]),
@@ -64,6 +64,19 @@ def _check_bearer_token():
                 "scopes": row["scopes"] if row["scopes"] else ["chat"],
                 "rate_limit": row["rate_limit"] or 30,
             }
+            # C.R.E.E.D. privacy event — PIPEDA: accountability + safeguards
+            try:
+                from services.creed_privacy_logger import log_api_key_access
+
+                log_api_key_access(
+                    scope=",".join(user_dict["scopes"]),
+                    endpoint=request.path,
+                    granted=True,
+                    key_id=row["id"],
+                )
+            except Exception:
+                pass
+            return user_dict
     except Exception:
         return None
 
@@ -134,6 +147,25 @@ def require_scope(scope):
             if user and user.get("auth_method") == "api_key":
                 scopes = user.get("scopes") or []
                 if scope not in scopes:
+                    # C.R.E.E.D. privacy event — PIPEDA: accountability (scope gate)
+                    try:
+                        from services.creed_privacy_logger import log_privacy_event
+
+                        log_privacy_event(
+                            event_type="access_control_check",
+                            action="scope_check",
+                            outcome="denied",
+                            data_category="system",
+                            description=(f"API key scope denied: required={scope} " f"granted={scopes}"),
+                            details={
+                                "required_scope": scope,
+                                "granted_scopes": scopes,
+                                "endpoint": request.path,
+                                "pipeda_principle": "accountability",
+                            },
+                        )
+                    except Exception:
+                        pass
                     return (
                         jsonify(
                             {

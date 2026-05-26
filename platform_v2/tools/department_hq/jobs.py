@@ -3031,6 +3031,327 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered wtf_factcheck_backlog job (every 30 min at :05/:35)")
 
+    # Job #127: WTF Bias Backlog — clears historical LLM-analysis gap via B.I.A.S. on hub/fleet.
+    # Fires at :15/:45 — interleaved with production bias (:00/:30) and factcheck backlog (:20/:50).
+    # Selects OLDEST articles first; production selects highest-cluster-count newest, so
+    # both ends drain the unanalysed window simultaneously → "LLM Analyzed" reaches 100%.
+    def _run_wtf_bias_backlog():
+        import time as _wbb_t
+
+        _wbb_start = _wbb_t.time()
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import json as _json
+
+        def _bias_backlog_one(app, row):
+            with app.app_context():
+                from tools.department_hq.services.department_dispatcher import dispatch
+
+                aid = row["id"]
+                title = row["title"]
+                body = (row["body"] or "")[:2000]
+                source_slug = row["source_slug"] or ""
+                prompt = (
+                    f"Analyze the bias of this Canadian news article.\n\n"
+                    f"Source: {source_slug}\nTitle: {title}\nBody: {body}\n\n"
+                    'Return ONLY valid JSON: {"score": float -1 to 1, "band": string, '
+                    '"rationale": string, "trigger_phrases": list[str], "confidence": float}'
+                )
+                result = dispatch(
+                    capability="bias_backlog",
+                    prompt=prompt,
+                    module_id="wtf_dhq_bias_backlog",
+                    json_mode=True,
+                )
+                if not result.success:
+                    return aid, False
+                try:
+                    parsed = (
+                        _json.loads(result.response) if isinstance(result.response, str) else (result.response or {})
+                    )
+                except Exception:
+                    parsed = {}
+                band = (parsed.get("band") or "center").lower().strip()
+                if band not in ("left", "center-left", "center", "center-right", "right"):
+                    band = "center"
+                score = float(parsed.get("score") or 0.0)
+                rationale = str(parsed.get("rationale") or "")[:2000]
+                trigger_phrases = _json.dumps(parsed.get("trigger_phrases") or [])
+                confidence = parsed.get("confidence")
+                try:
+                    with _wtf_cur(commit=True) as cur:
+                        cur.execute(
+                            """
+                            INSERT INTO wtf.llm_analyses (article_id, sections_json, model, completed_at)
+                            VALUES (%s, %s::jsonb, 'dhq_bias_v1', NOW())
+                            ON CONFLICT (article_id, model) DO UPDATE
+                              SET sections_json = EXCLUDED.sections_json, completed_at = NOW()
+                            """,
+                            (aid, _json.dumps(parsed)),
+                        )
+                        cur.execute(
+                            "UPDATE wtf.articles SET ai_analyzed = true, ai_analyzed_at = NOW() WHERE id = %s",
+                            (aid,),
+                        )
+                        cur.execute(
+                            """
+                            INSERT INTO wtf.bias_scores
+                                (article_id, band, score, heuristic_version, rationale,
+                                 analyzed_by, trigger_phrases, confidence, computed_at)
+                            VALUES (%s, %s, %s, 'dhq_v1', %s, 'dhq_v1', %s::jsonb, %s, NOW())
+                            ON CONFLICT (article_id) DO UPDATE
+                              SET band = EXCLUDED.band, score = EXCLUDED.score,
+                                  rationale = EXCLUDED.rationale, analyzed_by = EXCLUDED.analyzed_by,
+                                  trigger_phrases = EXCLUDED.trigger_phrases,
+                                  confidence = EXCLUDED.confidence, computed_at = NOW()
+                            """,
+                            (aid, band, score, rationale, trigger_phrases, confidence),
+                        )
+                    return aid, True
+                except Exception as persist_exc:
+                    logger.warning("[WTFBiasBacklog] persist failed article=%s: %s", aid, persist_exc)
+                    return aid, False
+
+        try:
+            from flask import current_app
+
+            app = current_app._get_current_object()
+            processed = failed = 0
+            tried_ids: set = set()
+
+            while processed + failed < _WTF_MAX_PER_CYCLE:
+                with _wtf_cur() as cur:
+                    cur.execute(
+                        """
+                        SELECT a.id, a.title, a.body, s.slug AS source_slug
+                        FROM wtf.articles a
+                        JOIN wtf.sources s ON s.id = a.source_id
+                        LEFT JOIN wtf.story_clusters sc ON sc.id = a.cluster_id
+                        WHERE a.ai_analyzed = false
+                          AND a.published_at > NOW() - INTERVAL '90 days'
+                          AND NOT EXISTS (
+                              SELECT 1 FROM wtf.llm_analyses la WHERE la.article_id = a.id
+                          )
+                          AND a.id != ALL(%s)
+                        ORDER BY a.published_at ASC
+                        LIMIT %s
+                        """,
+                        (list(tried_ids) or [0], _WTF_BATCH),
+                    )
+                    batch = cur.fetchall() or []
+
+                if not batch:
+                    logger.info("[WTFBiasBacklog] backlog clear — nothing to process")
+                    break
+
+                _workers, _qdepth, _by_model = _wtf_cluster_slots()
+                _llm_queued = _by_model.get("qwen2.5:1.5b", {}).get("queued", 0)
+                if _llm_queued > 10:
+                    logger.info("[WTFBiasBacklog] B.I.A.S. model cold (%d items queued) — deferring", _llm_queued)
+                    return
+                if _workers < 4:
+                    logger.info("[WTFBiasBacklog] cluster backlog=%d, throttling to %d workers", _qdepth, _workers)
+                with ThreadPoolExecutor(max_workers=_workers) as executor:
+                    futures = {executor.submit(_bias_backlog_one, app, row): row["id"] for row in batch}
+                    try:
+                        for future in as_completed(futures, timeout=300):
+                            aid = futures[future]
+                            tried_ids.add(aid)
+                            try:
+                                _, success = future.result()
+                                if success:
+                                    processed += 1
+                                else:
+                                    failed += 1
+                            except Exception as exc:
+                                logger.debug("[WTFBiasBacklog] article %s error: %s", aid, exc)
+                                failed += 1
+                    except Exception:
+                        unfinished = {aid for fut, aid in futures.items() if not fut.done()}
+                        tried_ids.update(unfinished)
+                        failed += len(unfinished)
+                        logger.warning("[WTFBiasBacklog] batch timeout — %d unfinished", len(unfinished))
+                if failed > 0 and processed == 0:
+                    logger.warning("[WTFBiasBacklog] full batch failed — stopping cycle")
+                    break
+
+            logger.info("[WTFBiasBacklog] cycle done: processed=%d failed=%d", processed, failed)
+        except Exception as exc:
+            logger.error("[WTFBiasBacklog] crashed: %s", exc)
+        try:
+            from database import get_db_cursor as _wbb_db
+
+            with _wbb_db(commit=True) as (_, _wbb_cur):
+                _wbb_cur.execute(
+                    """INSERT INTO task_execution_log
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
+                               %s, 'internal', %s, true, %s, 68)""",
+                    ("B.I.A.S.", "B.I.A.S.", int((_wbb_t.time() - _wbb_start) * 1000), "analysis"),
+                )
+        except Exception as _tel:
+            logger.debug("[WTFBiasBacklog] task_execution_log write failed: %s", _tel)
+
+    scheduler.add_job(
+        with_ctx(_run_wtf_bias_backlog),
+        trigger=CronTrigger(minute="15,45", timezone="America/Toronto"),
+        id="wtf_bias_backlog",
+        name="WTF: Bias Backlog — B.I.A.S. fleet oldest-first (Job #127)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered wtf_bias_backlog job (every 30 min at :15/:45)")
+
+    # Job #128: WTF Geo Backlog — clears historical geo gap via L.O.C.A.L. on hub/fleet.
+    # Fires at :25/:55 — offset from production geo (:05/:35) and bias backlog (:15/:45).
+    # Selects OLDEST articles first; production selects newest, so both ends drain together.
+    def _run_wtf_geo_backlog():
+        import time as _wgb_t
+
+        _wgb_start = _wgb_t.time()
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import json as _json
+
+        def _geo_backlog_one(app, row):
+            with app.app_context():
+                from tools.department_hq.services.department_dispatcher import dispatch
+
+                aid = row["id"]
+                title = row["title"]
+                body = (row["body"] or "")[:1000]
+                prompt = (
+                    f"Extract the primary geographic location this news article is about.\n\n"
+                    f"Title: {title}\nBody: {body}\n\n"
+                    'Return ONLY valid JSON: {"province_code": "ON" or null, "country_code": "CA"|"US"|... or null, '
+                    '"city": "Toronto" or null, "lat": float or null, "lng": float or null, '
+                    '"geo_scope": "national|provincial|municipal|international", "geo_confidence": 0.0-1.0}'
+                )
+                result = dispatch(
+                    capability="geo_backlog",
+                    prompt=prompt,
+                    module_id="wtf_dhq_geo_backlog",
+                    json_mode=True,
+                )
+                if not result.success:
+                    return aid, False
+                try:
+                    parsed = (
+                        _json.loads(result.response) if isinstance(result.response, str) else (result.response or {})
+                    )
+                except Exception:
+                    parsed = {}
+                if not isinstance(parsed, dict):
+                    parsed = {}
+                try:
+                    with _wtf_cur(commit=True) as cur:
+                        cur.execute(
+                            """
+                            UPDATE wtf.articles
+                            SET province_code = %s, city = %s, lat = %s, lng = %s,
+                                geo_scope = %s
+                            WHERE id = %s AND province_code IS NULL
+                            """,
+                            (
+                                parsed.get("province_code"),
+                                parsed.get("city"),
+                                parsed.get("lat"),
+                                parsed.get("lng"),
+                                parsed.get("geo_scope") or "national",
+                                aid,
+                            ),
+                        )
+                    return aid, True
+                except Exception as persist_exc:
+                    logger.warning("[WTFGeoBacklog] persist failed article=%s: %s", aid, persist_exc)
+                    return aid, False
+
+        try:
+            from flask import current_app
+
+            app = current_app._get_current_object()
+            processed = failed = 0
+            tried_ids: set = set()
+
+            while processed + failed < _WTF_MAX_PER_CYCLE:
+                with _wtf_cur() as cur:
+                    cur.execute(
+                        """
+                        SELECT a.id, a.title, a.body
+                        FROM wtf.articles a
+                        WHERE a.province_code IS NULL
+                          AND a.city IS NULL
+                          AND a.published_at > NOW() - INTERVAL '90 days'
+                          AND a.id != ALL(%s)
+                        ORDER BY a.published_at ASC
+                        LIMIT %s
+                        """,
+                        (list(tried_ids) or [0], _WTF_BATCH),
+                    )
+                    batch = cur.fetchall() or []
+
+                if not batch:
+                    logger.info("[WTFGeoBacklog] backlog clear — nothing to process")
+                    break
+
+                _workers, _qdepth, _by_model = _wtf_cluster_slots()
+                _geo_queued = _by_model.get("llama3.2:3b", {}).get("queued", 0)
+                if _geo_queued > 10:
+                    logger.info("[WTFGeoBacklog] L.O.C.A.L. model cold (%d items queued) — deferring", _geo_queued)
+                    return
+                if _workers < 4:
+                    logger.info("[WTFGeoBacklog] cluster backlog=%d, throttling to %d workers", _qdepth, _workers)
+                with ThreadPoolExecutor(max_workers=_workers) as executor:
+                    futures = {executor.submit(_geo_backlog_one, app, row): row["id"] for row in batch}
+                    try:
+                        for future in as_completed(futures, timeout=300):
+                            aid = futures[future]
+                            tried_ids.add(aid)
+                            try:
+                                _, success = future.result()
+                                if success:
+                                    processed += 1
+                                else:
+                                    failed += 1
+                            except Exception as exc:
+                                logger.debug("[WTFGeoBacklog] article %s error: %s", aid, exc)
+                                failed += 1
+                    except Exception:
+                        unfinished = {aid for fut, aid in futures.items() if not fut.done()}
+                        tried_ids.update(unfinished)
+                        failed += len(unfinished)
+                        logger.warning("[WTFGeoBacklog] batch timeout — %d unfinished", len(unfinished))
+                if failed > 0 and processed == 0:
+                    logger.warning("[WTFGeoBacklog] full batch failed — stopping cycle")
+                    break
+
+            logger.info("[WTFGeoBacklog] cycle done: processed=%d failed=%d", processed, failed)
+        except Exception as exc:
+            logger.error("[WTFGeoBacklog] crashed: %s", exc)
+        try:
+            from database import get_db_cursor as _wgb_db
+
+            with _wgb_db(commit=True) as (_, _wgb_cur):
+                _wgb_cur.execute(
+                    """INSERT INTO task_execution_log
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
+                               %s, 'internal', %s, true, %s, 68)""",
+                    ("L.O.C.A.L.", "L.O.C.A.L.", int((_wgb_t.time() - _wgb_start) * 1000), "analysis"),
+                )
+        except Exception as _tel:
+            logger.debug("[WTFGeoBacklog] task_execution_log write failed: %s", _tel)
+
+    scheduler.add_job(
+        with_ctx(_run_wtf_geo_backlog),
+        trigger=CronTrigger(minute="25,55", timezone="America/Toronto"),
+        id="wtf_geo_backlog",
+        name="WTF: Geo Backlog — L.O.C.A.L. fleet oldest-first (Job #128)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered wtf_geo_backlog job (every 30 min at :25/:55)")
+
     # Job #125: WTF Scout — full body fetch for short articles via archie_browser Playwright.
     # Runs every 30 min at :15 and :45. Only processes articles <7 days old.
     # Rate-limited to 25/cycle (archie_browser max 60/hr, job runs 2×/hr).

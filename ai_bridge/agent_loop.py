@@ -1599,11 +1599,13 @@ class AgentLoop:
 
         # Step 1: Ask DHQ which agent handles image_generation (P.I.X.E.L.).
         # Wakes the agent if barracked and confirms Creative & Design is staffed.
+        _pixel_agent = None
         try:
             from services.department_coordinator import get_coordinator as _get_coord
             coord = _get_coord()
             agent = coord.select_agent("image_generation", "Creative & Design")
             if agent:
+                _pixel_agent = agent
                 logger.info("media_generation_worker: %s (id=%s) selected via DHQ for image_generation", agent.get("name", "?"), agent.get("id", "?"))
             else:
                 logger.warning("media_generation_worker: DHQ found no image_generation agent — proceeding anyway")
@@ -1699,6 +1701,8 @@ class AgentLoop:
             for row in claimed:
                 queue_id = row["id"]
                 media_type = row["media_type"]
+                _gen_start = time.time()
+                _gen_success = False
                 try:
                     from tools.media_studio.services.generation_service import (
                         generate_via_comfyui,
@@ -1707,11 +1711,12 @@ class AgentLoop:
                     )
 
                     if media_type == "video":
-                        generate_video_via_comfyui(queue_id)
+                        _gen_result = generate_video_via_comfyui(queue_id)
                     elif media_type == "audio":
-                        generate_audio(queue_id)
+                        _gen_result = generate_audio(queue_id)
                     else:
-                        generate_via_comfyui(queue_id)
+                        _gen_result = generate_via_comfyui(queue_id)
+                    _gen_success = _gen_result is not None
                 except Exception as e:
                     err_str = str(e)
                     # ComfyUI down = transient — reset to pending so next tick retries.
@@ -1740,6 +1745,56 @@ class AgentLoop:
                                 """,
                                 (err_str, queue_id),
                             )
+                finally:
+                    # Attribute job to P.I.X.E.L. in task_execution_log so DHQ
+                    # Dispatch Traffic panel + performance metrics reflect ComfyUI work.
+                    _dur_ms = int((time.time() - _gen_start) * 1000)
+                    try:
+                        _pa = _pixel_agent or {}
+                        _pid = _pa.get("id") or 13  # P.I.X.E.L. fallback agent_id
+                        _pname = _pa.get("name") or "P.I.X.E.L."
+                        # Read model + fleet_node from queue row (may have been updated during gen)
+                        with get_db_cursor() as (_, _lc):
+                            _lc.execute(
+                                "SELECT params->>'model' AS model, "
+                                "params->>'fleet_node' AS fleet_node "
+                                "FROM media_generation_queue WHERE id = %s",
+                                (queue_id,),
+                            )
+                            _qr = _lc.fetchone() or {}
+                        _model = _qr.get("model") or "comfyui"
+                        _fleet_name = _qr.get("fleet_node")
+                        # Resolve fleet node DB id for node_used_id column
+                        _node_db_id = None
+                        if _fleet_name:
+                            try:
+                                with get_db_cursor() as (_, _nc):
+                                    _nc.execute(
+                                        "SELECT id FROM remote_nodes WHERE node_name = %s LIMIT 1",
+                                        (_fleet_name,),
+                                    )
+                                    _nr = _nc.fetchone()
+                                    if _nr:
+                                        _node_db_id = _nr["id"]
+                            except Exception:
+                                pass
+                        with get_db_cursor(commit=True) as (_, _tc):
+                            _tc.execute(
+                                """INSERT INTO task_execution_log
+                                   (agent_id, agent_name, model_used, duration_ms, success,
+                                    capability, node_used_id, module_source)
+                                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                                (_pid, _pname, _model, _dur_ms, _gen_success,
+                                 "image_generation", _node_db_id, "media_studio"),
+                            )
+                        if _gen_success:
+                            try:
+                                from services.agent_service import get_agent_service
+                                get_agent_service().increment_usage(_pid)
+                            except Exception:
+                                pass
+                    except Exception as _tel_err:
+                        logger.debug("media_generation_worker: task_execution_log write failed: %s", _tel_err)
         except Exception as e:
             logger.error("media_generation_worker error: %s", e)
 

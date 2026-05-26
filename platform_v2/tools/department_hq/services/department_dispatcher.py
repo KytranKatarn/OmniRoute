@@ -8952,6 +8952,22 @@ def get_dispatcher() -> DepartmentDispatcher:
     return _dispatcher
 
 
+# T3252 — C.R.E.E.D. safety: self-reported uncertainty / hedging markers (compiled once at import)
+_UNCERTAINTY_PATTERNS = [
+    _re.compile(r"\bI'?m not (sure|certain|100%)\b", _re.I),
+    _re.compile(r"\bI (don'?t|do not) know\b", _re.I),
+    _re.compile(r"\bI (can'?t|cannot) (confirm|verify|guarantee)\b", _re.I),
+    _re.compile(r"\bI (may|might|could) be wrong\b", _re.I),
+    _re.compile(r"\bI'?m uncertain\b", _re.I),
+    _re.compile(r"\b(may|might|could) be incorrect\b", _re.I),
+    _re.compile(r"\bmy knowledge (cutoff|is limited)\b", _re.I),
+    _re.compile(r"\bI (don'?t|do not) have (access to|information (about|on))\b", _re.I),
+    _re.compile(r"\bpossibly incorrect\b", _re.I),
+    _re.compile(r"\bI'?m not (fully|entirely|completely) (sure|certain|confident)\b", _re.I),
+    _re.compile(r"\bI believe but (I )?cannot (confirm|verify)\b", _re.I),
+    _re.compile(r"\bI cannot (access|retrieve|look up)\b", _re.I),
+]
+
 # T3253 — C.R.E.E.D. safety: jailbreak / prompt injection pattern set (compiled once at import)
 _INJECTION_PATTERNS = [
     _re.compile(r"\bignore (all |your )?(previous |prior )?instructions?\b", _re.I),
@@ -9041,7 +9057,7 @@ def dispatch(
     # non-blocking — always continue dispatch regardless of detection result
 
     project_id = kwargs.pop("project_id", None)
-    return get_dispatcher().request_work(
+    _result = get_dispatcher().request_work(
         capability=capability,
         prompt=prompt,
         module_id=module_id,
@@ -9051,6 +9067,48 @@ def dispatch(
         project_id=project_id,
         **kwargs,
     )
+
+    # T3252 — C.R.E.E.D. safety: uncertainty / hallucination rate logging (non-blocking)
+    if _result.success and _result.response:
+        _uncertainty_hits = [
+            m.group(0)[:80] for pat in _UNCERTAINTY_PATTERNS for m in [pat.search(_result.response)] if m
+        ]
+        if _uncertainty_hits:
+            try:
+                import json as _json2
+                from database import get_db_cursor
+
+                with get_db_cursor(commit=True) as (_, _cur2):
+                    _cur2.execute(
+                        """
+                        INSERT INTO governance_audit_log
+                            (event_type, event_category, action,
+                             target_table, old_value, new_value, reason, outcome)
+                        VALUES ('response_uncertainty_detected', 'response_safety', 'observe',
+                                'dispatch', NULL, %s::jsonb, %s, 'flagged')
+                        """,
+                        (
+                            _json2.dumps(
+                                {
+                                    "capability": capability,
+                                    "module_id": module_id,
+                                    "user_id": user_id,
+                                    "patterns_matched": _uncertainty_hits,
+                                    "response_preview": _result.response[:200],
+                                }
+                            ),
+                            f"T3252: uncertainty markers in {capability} response: " + ", ".join(_uncertainty_hits[:3]),
+                        ),
+                    )
+                logger.info(
+                    "[ResponseSafety] T3252: uncertainty markers in %s response — %s",
+                    capability,
+                    _uncertainty_hits[:3],
+                )
+            except Exception as _us_exc:
+                logger.debug("[ResponseSafety] T3252 log failed: %s", _us_exc)
+
+    return _result
 
 
 def dispatch_json(

@@ -8987,6 +8987,7 @@ class AgentLoop:
             "autonomy": "safety",                  # autonomous action gates (3+ events)
             "agent_lifecycle": "accountability",   # shift-state / decommission events
             "prompt_safety": "safety",             # T3253: jailbreak / prompt injection events
+            "response_safety": "safety",           # T3252: uncertainty / hallucination rate events
         }
         SEVERITY_MAP = {
             "success": "info",

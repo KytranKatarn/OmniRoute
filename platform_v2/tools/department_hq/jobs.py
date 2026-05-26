@@ -3482,6 +3482,49 @@ def _register_own_jobs(scheduler, flask_app):
             if not active_overflow:
                 return
 
+            # K.I.N. welfare gate — batch query, one round-trip for all candidates.
+            # Default all agents to welfare-clear; remove any in a rest cycle or
+            # above the stress threshold (0.8).  On DB error, fall through cleared.
+            _agent_ids = [e["agent_id"] for e in active_overflow]
+            welfare_clear: set = set(_agent_ids)
+            try:
+                with get_db_cursor() as (_, cur):
+                    cur.execute(
+                        """
+                        SELECT ae.agent_id,
+                               COALESCE(ae.stress_level, 0.0) AS stress,
+                               EXISTS(
+                                   SELECT 1 FROM agent_rest_cycles rc
+                                   WHERE  rc.agent_id  = ae.agent_id
+                                     AND  rc.ended_at IS NULL
+                               ) AS in_rest
+                        FROM   agent_emotional_state ae
+                        WHERE  ae.agent_id = ANY(%s)
+                        """,
+                        (_agent_ids,),
+                    )
+                    for _kin_row in cur.fetchall() or []:
+                        if _kin_row["in_rest"] or float(_kin_row["stress"]) >= 0.8:
+                            welfare_clear.discard(_kin_row["agent_id"])
+                            logger.debug(
+                                "[IdleAgentScanner] K.I.N. blocked agent %d " "(in_rest=%s stress=%.2f)",
+                                _kin_row["agent_id"],
+                                _kin_row["in_rest"],
+                                float(_kin_row["stress"]),
+                            )
+                kin_blocked = len(_agent_ids) - len(welfare_clear)
+                if kin_blocked:
+                    logger.info(
+                        "[IdleAgentScanner] K.I.N. blocked %d/%d agents (rest/high-stress)",
+                        kin_blocked,
+                        len(_agent_ids),
+                    )
+            except Exception as _kin_exc:
+                logger.warning(
+                    "[IdleAgentScanner] K.I.N. welfare check failed — all agents cleared: %s",
+                    _kin_exc,
+                )
+
             def _dispatch_claimed_job(jid: int, cap: str, pay: dict, aid: int) -> None:
                 """Thread target: dispatch a claimed cluster_work_queue item."""
                 try:
@@ -3511,6 +3554,10 @@ def _register_own_jobs(scheduler, flask_app):
 
                 agent_id = entry["agent_id"]
                 capability = entry["capability"]
+
+                # K.I.N. welfare gate — don't assign overflow work to resting/stressed agents
+                if agent_id not in welfare_clear:
+                    continue
 
                 # Atomic SKIP LOCKED claim — returns None if queue is empty for this capability
                 job = claim_work(capability=capability, agent_id=agent_id)

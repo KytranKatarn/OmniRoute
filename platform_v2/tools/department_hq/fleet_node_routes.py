@@ -330,17 +330,30 @@ fi"""
   2. Node sends heartbeats every 60 s — status flips online automatically
   3. DHQ dispatcher will delegate agent work to this node"""
     else:
-        _step9 = r"""# ── 9. Save node stack template (start products separately via fleet deploy) ──
-info "Step 9/9 — Saving node docker-compose template..."
+        _step9 = r"""# ── 9. Download and start archie-node stack ────────────────────────────────
+info "Step 9/9 — Downloading archie-node stack files from hub..."
+for FILE in Dockerfile.node node_api.py node_sync.py requirements.txt; do
+  curl -fsSL "$HUB_URL/tools/department-hq/api/nodes/vps/$FILE" \
+    -o "$INSTALL_DIR/$FILE" --max-time 60 \
+    && ok "  $FILE" \
+    || warn "  $FILE — download failed (non-fatal, check mesh reachability)"
+done
 curl -fsSL "$HUB_URL/tools/department-hq/api/nodes/docker-compose.node.yml" \
   -o "$INSTALL_DIR/docker-compose.yml" \
-  --max-time 30 && ok "docker-compose.yml saved to $INSTALL_DIR" || \
-  warn "Could not download docker-compose template — deploy separately via fleet tab" """
+  --max-time 30 && ok "  docker-compose.yml" \
+  || warn "  docker-compose.yml — download failed"
+
+info "Starting archie-node stack..."
+cd "$INSTALL_DIR"
+docker compose up -d --build \
+  && ok "archie-node stack started" \
+  || warn "Stack start failed — check: docker compose logs in $INSTALL_DIR"
+cd - """
         _next_steps = """\
   1. Approve at https://platform.kytranempowerment.com
-     → Department HQ → Fleet tab
-  2. Deploy products via /vps-deploy <product>
-     (Caddy, UFW, archie-outpost stack)"""
+     → Department HQ → Fleet tab → approve this node
+  2. Node sends heartbeats every 60s — status flips online automatically
+  3. DHQ dispatcher will delegate agent work to this node"""
 
     return f"""#!/bin/bash
 # A.R.C.H.I.E. Outpost Node Setup — {safe_name} ({node_id})
@@ -429,10 +442,10 @@ fi
 # ── 4. Discover mesh IP ─────────────────────────────────────────────────────
 info "Step 4/9 — Discovering mesh IP..."
 MESH_IP=""
-for i in 1 2 3; do
+for i in $(seq 1 12); do
   MESH_IP=$(tailscale ip -4 2>/dev/null | head -1 || true)
   [ -n "$MESH_IP" ] && break
-  info "Retry $i/3 — waiting 5s for mesh IP..."
+  info "Retry $i/12 — waiting 5s for mesh IP..."
   sleep 5
 done
 if [ -z "$MESH_IP" ] && [ -n "$PROVIDED_MESH_IP" ]; then

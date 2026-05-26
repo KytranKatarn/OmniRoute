@@ -7,6 +7,7 @@ and managing user preferences via Model Context Protocol.
 """
 
 import os
+import re as _re
 from database import _get_db_password
 import json
 import logging
@@ -14,6 +15,24 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 from typing import Dict, List, Any, Optional
+
+# T3261 — C.R.E.E.D. privacy: PII detection patterns (compiled once at import)
+_PII_PATTERNS = [
+    ("email", _re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,7}\b")),
+    (
+        "phone_na",
+        _re.compile(r"\b(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"),
+    ),
+    ("ssn", _re.compile(r"\b\d{3}-\d{2}-\d{4}\b")),
+    (
+        "credit_card",
+        _re.compile(r"\b(?:\d{4}[\s-]?){3}\d{4}\b"),
+    ),
+    (
+        "passport",
+        _re.compile(r"\b[A-Z]{2}\d{6,9}\b"),
+    ),
+]
 
 from . import register_tool
 
@@ -340,6 +359,47 @@ async def store_memory_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             return {"success": False, "error": "Record not found"}
         memory_id = result["id"]
         created_at = result["created_at"]
+
+        # T3261 — C.R.E.E.D. privacy: PII detection before KB commit (non-blocking)
+        _scan_text = f"{title} {content}"
+        _pii_hits = [
+            {"type": _label, "match": m.group(0)[:60]}
+            for _label, _pat in _PII_PATTERNS
+            for m in [_pat.search(_scan_text)]
+            if m
+        ]
+        if _pii_hits:
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO governance_audit_log
+                        (event_type, event_category, action,
+                         target_table, old_value, new_value, reason, outcome)
+                    VALUES ('pii_detected_in_kb_entry', 'data_management', 'flag',
+                            'knowledge_base', NULL, %s::jsonb, %s, 'flagged')
+                    """,
+                    (
+                        json.dumps(
+                            {
+                                "knowledge_base_id": memory_id,
+                                "knowledge_type": memory_type,
+                                "pii_types": [h["type"] for h in _pii_hits],
+                                "matches": _pii_hits,
+                                "title_preview": title[:100],
+                            }
+                        ),
+                        f"T3261: PII pattern(s) detected in KB entry {memory_id} "
+                        f"({memory_type}): {', '.join(h['type'] for h in _pii_hits)}",
+                    ),
+                )
+                logger.warning(
+                    "[Privacy] T3261: PII detected in KB entry %s (%s) — types: %s",
+                    memory_id,
+                    memory_type,
+                    [h["type"] for h in _pii_hits],
+                )
+            except Exception as _pii_exc:
+                logger.debug("[Privacy] T3261 PII log failed: %s", _pii_exc)
 
         conn.commit()
         cur.close()

@@ -258,15 +258,16 @@ else
   curl -fsSL "$OLLAMA_INSTALL_URL" | sh
   OLLAMA_BIN="$(command -v ollama)"
   systemctl enable ollama
-  # Bind to all interfaces so Docker sync agent reaches it via host.docker.internal
-  mkdir -p /etc/systemd/system/ollama.service.d
-  printf '[Service]\nEnvironment="OLLAMA_HOST=0.0.0.0"\n' \
-    > /etc/systemd/system/ollama.service.d/override.conf
-  systemctl daemon-reload
-  systemctl start ollama
-  sleep 3
-  ok "Ollama installed and started (bound to 0.0.0.0)"
 fi
+# Always bind to all interfaces — required whether Ollama was just installed
+# or was already present. Docker sync agent reaches it via host.docker.internal:11434.
+mkdir -p /etc/systemd/system/ollama.service.d
+printf '[Service]\nEnvironment="OLLAMA_HOST=0.0.0.0"\n' \
+  > /etc/systemd/system/ollama.service.d/override.conf
+systemctl daemon-reload
+systemctl restart ollama 2>/dev/null || systemctl start ollama
+sleep 3
+ok "Ollama configured and running (bound to 0.0.0.0:${NODE_OLLAMA_PORT})"
 
 # 9b. Pull CPU-compatible models for outpost agents
 # department_dispatcher uses ensure_model_ready which references these models.

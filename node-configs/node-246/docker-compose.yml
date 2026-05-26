@@ -101,7 +101,7 @@ services:
       - comfyui_data:/comfyui/models
     command: ["python3", "-u", "node_sync.py"]
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f node_sync.py || exit 1"]
+      test: ["CMD-SHELL", "grep -q node_sync /proc/1/cmdline || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

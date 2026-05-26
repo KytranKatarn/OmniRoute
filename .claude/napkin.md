@@ -36,7 +36,10 @@
 1. **[2026-05-15] Hub Headscale mesh IP = 100.64.0.4 (NOT 100.64.0.1 — deleted)**
    Do instead: All VPS→hub calls use `http://100.64.0.4:3000`. NEVER `https://platform.kytranempowerment.com` (CDN caps at 60s). UFW allows `100.64.0.0/24 → port 3000`.
 
-2. **[2026-05-15] tailscaled-headscale.service needs ExecStartPre for stale socket**
+2. **[2026-05-26] Windows Starship SSH — sshd service setup**
+   Do instead: `Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.0.1` installs binary only. Service may already exist but be hidden. Run `sc.exe config sshd start= auto` + `sc.exe start sshd`. Admin authorized_keys goes to `C:\ProgramData\ssh\administrators_authorized_keys` (NOT `~\.ssh\`). Fix perms: `icacls $keyFile /inheritance:r /grant "SYSTEM:(F)" /grant "Administrators:(F)"`. Starship-246 = `Famil@192.168.1.246`, hostname `Gaming_Desktop`. Starship-245 = `Famil@192.168.1.245`, hostname `Gaming-Laptop`. Win32-OpenSSH GitHub zip required on .245 (capability broken). Both: `archie_node_sync` unhealthy (non-blocking).
+
+3. **[2026-05-15] tailscaled-headscale.service needs ExecStartPre for stale socket**
    Do instead: Unit must have `ExecStartPre=/bin/rm -f /tmp/tailscaled.sock` before ExecStart. Restart=always alone won't recover from stale socket.
 
 3. **[2026-05-15] Docker read_only containers — writable dirs need tmpfs or named volumes**

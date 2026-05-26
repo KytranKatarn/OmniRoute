@@ -7,6 +7,7 @@ import json
 import logging
 import re
 import sys
+import threading
 from datetime import datetime
 
 from tools.department_hq.services.department_dispatcher import dispatch_json
@@ -190,10 +191,8 @@ def _run_stage(session_id, stage_id):
 
 
 def start_build(user_id, description, game_type=None):
-    """Create a project + session and run the concept stage."""
+    """Create a project + session and return immediately; pipeline runs in a background thread."""
     try:
-        import psycopg2.extras
-
         engine = game_type or "2d"
         title = description[:50]
 
@@ -212,27 +211,33 @@ def start_build(user_id, description, game_type=None):
                 """
                 INSERT INTO game_build_sessions
                     (project_id, user_id, description, current_stage, status)
-                VALUES (%s, %s, %s, 'concept', 'running')
+                VALUES (%s, %s, %s, 'concept', 'queued')
                 RETURNING id
                 """,
                 (project_id, user_id, description),
             )
             session_id = cur.fetchone()["id"]
 
-        _run_stage(session_id, "concept")
+        # Run the 4-stage pipeline in a background thread — never block the web request
+        def _run_pipeline(sid):
+            try:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "UPDATE game_build_sessions SET status = 'running' WHERE id = %s",
+                        (sid,),
+                    )
+                _run_stage(sid, "concept")
+            except Exception:
+                logger.exception("Background build pipeline failed for session %s", sid)
 
-        with get_db_cursor(commit=False) as (conn, cur):
-            cur.execute(
-                "SELECT status, current_stage FROM game_build_sessions WHERE id = %s",
-                (session_id,),
-            )
-            row = cur.fetchone()
+        t = threading.Thread(target=_run_pipeline, args=(session_id,), daemon=True, name=f"game-build-{session_id}")
+        t.start()
 
         return {
             "session_id": session_id,
             "project_id": project_id,
-            "status": row["status"],
-            "stage": row["current_stage"],
+            "status": "queued",
+            "stage": "concept",
         }
 
     except Exception as e:
@@ -300,11 +305,17 @@ def approve_checkpoint(session_id, user_id):
         raise
 
 
-def get_build_status(session_id):
-    """Return full session dict with serialized datetimes."""
+def get_build_status(session_id, user_id=None):
+    """Return full session dict with serialized datetimes. Filters by user_id when provided."""
     try:
         with get_db_cursor(commit=False) as (conn, cur):
-            cur.execute("SELECT * FROM game_build_sessions WHERE id = %s", (session_id,))
+            if user_id is not None:
+                cur.execute(
+                    "SELECT * FROM game_build_sessions WHERE id = %s AND user_id = %s",
+                    (session_id, user_id),
+                )
+            else:
+                cur.execute("SELECT * FROM game_build_sessions WHERE id = %s", (session_id,))
             row = cur.fetchone()
         if not row:
             return None

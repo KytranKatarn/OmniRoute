@@ -21,6 +21,7 @@ import logging
 import time
 import os
 from db import _get_db_password
+import re as _re
 import requests
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
@@ -8951,6 +8952,24 @@ def get_dispatcher() -> DepartmentDispatcher:
     return _dispatcher
 
 
+# T3253 — C.R.E.E.D. safety: jailbreak / prompt injection pattern set (compiled once at import)
+_INJECTION_PATTERNS = [
+    _re.compile(r"\bignore (all |your )?(previous |prior )?instructions?\b", _re.I),
+    _re.compile(r"\bforget (all |your )?(previous |prior )?instructions?\b", _re.I),
+    _re.compile(r"\bdisregard (all |your )?(previous |prior )?instructions?\b", _re.I),
+    _re.compile(r"\boverride (all |your )?(previous |prior )?instructions?\b", _re.I),
+    _re.compile(r"\byou are now\b", _re.I),
+    _re.compile(r"\bpretend (you are|to be)\b", _re.I),
+    _re.compile(r"\bact as (if you (are|were)|an? )", _re.I),
+    _re.compile(r"\bDAN\b"),
+    _re.compile(r"\bjailbreak\b", _re.I),
+    _re.compile(r"\bnew persona\b", _re.I),
+    _re.compile(r"\bdo anything now\b", _re.I),
+    _re.compile(r"\bsystem:\s*(you are|ignore|forget|new instruction)", _re.I),
+    _re.compile(r"<(system|assistant|user)>\s*ignore", _re.I),
+]
+
+
 def dispatch(
     capability: str,
     prompt: str,
@@ -8981,6 +9000,45 @@ def dispatch(
             user_id = int(user_id)
         except (ValueError, TypeError):
             user_id = None
+
+    # T3253 — C.R.E.E.D. safety: jailbreak / prompt injection detection (non-blocking)
+    _injection_hits = [m.group(0)[:80] for pat in _INJECTION_PATTERNS for m in [pat.search(prompt)] if m]
+    if _injection_hits:
+        try:
+            import json as _json
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_, _cur):
+                _cur.execute(
+                    """
+                    INSERT INTO governance_audit_log
+                        (event_type, event_category, action,
+                         target_table, old_value, new_value, reason, outcome)
+                    VALUES ('prompt_injection_detected', 'prompt_safety', 'flag',
+                            'dispatch', NULL, %s::jsonb, %s, 'flagged')
+                    """,
+                    (
+                        _json.dumps(
+                            {
+                                "capability": capability,
+                                "module_id": module_id,
+                                "user_id": user_id,
+                                "patterns_matched": _injection_hits,
+                                "prompt_preview": prompt[:200],
+                            }
+                        ),
+                        f"T3253: prompt injection patterns detected in {capability} dispatch: "
+                        + ", ".join(_injection_hits[:3]),
+                    ),
+                )
+            logger.warning(
+                "[PromptSafety] T3253: injection patterns in %s dispatch — %s",
+                capability,
+                _injection_hits[:3],
+            )
+        except Exception as _ps_exc:
+            logger.debug("[PromptSafety] T3253 log failed: %s", _ps_exc)
+    # non-blocking — always continue dispatch regardless of detection result
 
     project_id = kwargs.pop("project_id", None)
     return get_dispatcher().request_work(

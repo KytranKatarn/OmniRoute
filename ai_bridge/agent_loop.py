@@ -8986,6 +8986,7 @@ class AgentLoop:
             "agent_management": "accountability",  # agent CRUD / lifecycle (19+ events)
             "autonomy": "safety",                  # autonomous action gates (3+ events)
             "agent_lifecycle": "accountability",   # shift-state / decommission events
+            "prompt_safety": "safety",             # T3253: jailbreak / prompt injection events
         }
         SEVERITY_MAP = {
             "success": "info",

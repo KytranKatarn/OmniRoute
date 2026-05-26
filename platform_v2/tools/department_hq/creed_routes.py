@@ -626,6 +626,10 @@ def _build_stats():
         shift_states = {r["shift_state"]: r["cnt"] for r in cur.fetchall()}
         total_agents = sum(shift_states.values())
 
+        # 1b. Agents currently in a rest cycle
+        cur.execute("SELECT COUNT(*) AS cnt FROM agent_rest_cycles WHERE ended_at IS NULL")
+        in_rest_count = int((cur.fetchone() or {}).get("cnt") or 0)
+
         # 2. Agent counts by department
         cur.execute(
             """
@@ -821,6 +825,7 @@ def _build_stats():
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "agents": {
             "total": total_agents,
+            "in_rest": in_rest_count,
             "by_state": shift_states,
             "departments": departments,
             "directors": directors,

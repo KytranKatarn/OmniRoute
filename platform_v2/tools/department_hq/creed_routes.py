@@ -33,6 +33,10 @@ TREND_CACHE_TTL = 300  # 5 min
 _v1_score_cache = {"data": None, "expires": 0}
 V1_SCORE_CACHE_TTL = 60  # 60 s — stable public API, third-party badge embeds
 
+_model_card_cache: dict = {"data": None, "expires": 0}  # full list
+_model_card_single_cache: dict = {}  # agent_id → {"data": ..., "expires": float}
+MODEL_CARD_CACHE_TTL = 300  # 5 min — model assignments change rarely
+
 # Welfare thresholds
 _TOKEN_DAY_LIMIT = 100_000
 
@@ -219,6 +223,68 @@ def register_creed_routes(bp, admin_required):
         except Exception as e:
             logger.error("Failed to render v1 badge SVG: %s", e)
             return "", 500
+
+    @bp.route("/api/creed/v1/model-cards")
+    def creed_v1_model_cards():
+        """Transparency model cards for all AI agents — T3249.
+
+        No authentication required.  CORS open.
+        Cached 5 min (model assignments change rarely).
+
+        Response: {version, generated_at, count, agents: [<model_card>, ...]}
+        Each model card: agent_id, name, display_name, department, role,
+          model, tier, shift_state, skills, performance, welfare_baseline.
+        """
+        now = time.time()
+        if _model_card_cache["data"] and now < _model_card_cache["expires"]:
+            resp = jsonify(_model_card_cache["data"])
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Cache-Control"] = f"public, max-age={MODEL_CARD_CACHE_TTL}"
+            return resp
+        try:
+            data = _build_model_cards()
+            _model_card_cache["data"] = data
+            _model_card_cache["expires"] = now + MODEL_CARD_CACHE_TTL
+            resp = jsonify(data)
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Cache-Control"] = f"public, max-age={MODEL_CARD_CACHE_TTL}"
+            return resp
+        except Exception as e:
+            logger.error("Failed to build model cards: %s", e)
+            return jsonify({"success": False, "error": "Model cards unavailable"}), 500
+
+    @bp.route("/api/creed/v1/model-cards/<int:agent_id>")
+    def creed_v1_model_card_single(agent_id):
+        """Transparency model card for a single AI agent — T3249.
+
+        No authentication required.  CORS open.  Cached 5 min.
+        Returns 404 if agent not found or not worker_type='ai'.
+        """
+        now = time.time()
+        cached = _model_card_single_cache.get(agent_id)
+        if cached and now < cached["expires"]:
+            resp = jsonify(cached["data"])
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Cache-Control"] = f"public, max-age={MODEL_CARD_CACHE_TTL}"
+            return resp
+        try:
+            card = _build_single_model_card(agent_id)
+            if card is None:
+                return (
+                    jsonify({"success": False, "error": "Agent not found"}),
+                    404,
+                )
+            _model_card_single_cache[agent_id] = {
+                "data": card,
+                "expires": now + MODEL_CARD_CACHE_TTL,
+            }
+            resp = jsonify(card)
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Cache-Control"] = f"public, max-age={MODEL_CARD_CACHE_TTL}"
+            return resp
+        except Exception as e:
+            logger.error("Failed to build model card for agent %s: %s", agent_id, e)
+            return jsonify({"success": False, "error": "Model card unavailable"}), 500
 
 
 # ── Fleet agents ─────────────────────────────────────────────────────────────
@@ -822,6 +888,163 @@ def _render_v1_badge_svg(score: int, grade: str) -> str:
         "  </g>\n"
         "</svg>"
     )
+
+
+def _build_model_card_row(row, skills_by_agent: dict, welfare_by_agent: dict) -> dict:
+    """Assemble a single model card dict from a DB row + preloaded lookups."""
+    agent_id = row["id"]
+    skills = skills_by_agent.get(agent_id, [])
+    welfare = welfare_by_agent.get(agent_id, {})
+    sr = row["success_rate"]
+    ps = row["performance_score"]
+    return {
+        "agent_id": agent_id,
+        "name": row["name"],
+        "display_name": row["display_name"],
+        "department": row["department"],
+        "role": "department_director" if row["is_department_ai"] else "specialist",
+        "model": row["model"] or "unassigned",
+        "tier": row["tier"] or 1,
+        "shift_state": row["shift_state"],
+        "skills": skills,
+        "performance": {
+            "success_rate": float(sr) if sr is not None else None,
+            "performance_score": float(ps) if ps is not None else None,
+            "total_tasks_completed": row["total_tasks_completed"] or 0,
+        },
+        "welfare_baseline": {
+            "avg_stress": welfare.get("stress_level"),
+            "avg_energy": welfare.get("energy_level"),
+            "current_mood": welfare.get("current_mood"),
+            "in_rest": welfare.get("in_rest", False),
+        },
+    }
+
+
+def _load_agent_skills(agent_ids: list) -> dict:
+    """Return {agent_id: [{skill_name, proficiency_level, skill_category, can_escalate_to}]}."""
+    if not agent_ids:
+        return {}
+    placeholders = ",".join(str(i) for i in agent_ids)
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            f"""
+            SELECT agent_id, skill_name, skill_category, proficiency_level, can_escalate_to
+            FROM agent_skills
+            WHERE agent_id IN ({placeholders})
+            ORDER BY agent_id, proficiency_level DESC
+            """
+        )
+        rows = cur.fetchall() or []
+    result: dict = {}
+    for r in rows:
+        result.setdefault(r["agent_id"], []).append(
+            {
+                "skill_name": r["skill_name"],
+                "skill_category": r["skill_category"],
+                "proficiency_level": r["proficiency_level"],
+                "can_escalate_to": r["can_escalate_to"],
+            }
+        )
+    return result
+
+
+def _load_agent_welfare(agent_ids: list) -> dict:
+    """Return {agent_id: {stress_level, energy_level, current_mood, in_rest}}."""
+    if not agent_ids:
+        return {}
+    placeholders = ",".join(str(i) for i in agent_ids)
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            f"""
+            SELECT DISTINCT ON (ae.agent_id)
+                   ae.agent_id,
+                   ae.stress_level, ae.energy_level, ae.current_mood,
+                   EXISTS(
+                       SELECT 1 FROM agent_rest_cycles rc
+                       WHERE rc.agent_id = ae.agent_id AND rc.ended_at IS NULL
+                   ) AS in_rest
+            FROM agent_emotional_state ae
+            WHERE ae.agent_id IN ({placeholders})
+            ORDER BY ae.agent_id, ae.id DESC
+            """
+        )
+        rows = cur.fetchall() or []
+    return {
+        r["agent_id"]: {
+            "stress_level": float(r["stress_level"]) if r["stress_level"] is not None else None,
+            "energy_level": float(r["energy_level"]) if r["energy_level"] is not None else None,
+            "current_mood": r["current_mood"],
+            "in_rest": bool(r["in_rest"]),
+        }
+        for r in rows
+    }
+
+
+def _build_model_cards() -> dict:
+    """Build model card list for all non-decommissioned AI agents (T3249).
+
+    No system_prompt / internal config exposed — only public-safe fields.
+    """
+    import datetime
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT id, name, display_name, department, model, tier,
+                   shift_state, is_department_ai,
+                   success_rate, performance_score, total_tasks_completed
+            FROM agents
+            WHERE worker_type = 'ai'
+              AND shift_state != 'decommissioned'
+            ORDER BY department, name
+            """
+        )
+        rows = cur.fetchall() or []
+
+    agent_ids = [r["id"] for r in rows]
+    skills_map = _load_agent_skills(agent_ids)
+    welfare_map = _load_agent_welfare(agent_ids)
+
+    cards = [_build_model_card_row(r, skills_map, welfare_map) for r in rows]
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    return {
+        "version": "1",
+        "generated_at": now_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "count": len(cards),
+        "agents": cards,
+    }
+
+
+def _build_single_model_card(agent_id: int):
+    """Build a model card for one AI agent.  Returns None if not found."""
+    import datetime
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT id, name, display_name, department, model, tier,
+                   shift_state, is_department_ai,
+                   success_rate, performance_score, total_tasks_completed
+            FROM agents
+            WHERE id = %s
+              AND worker_type = 'ai'
+              AND shift_state != 'decommissioned'
+            """,
+            (agent_id,),
+        )
+        row = cur.fetchone()
+
+    if not row:
+        return None
+
+    skills_map = _load_agent_skills([agent_id])
+    welfare_map = _load_agent_welfare([agent_id])
+    card = _build_model_card_row(row, skills_map, welfare_map)
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    card["version"] = "1"
+    card["generated_at"] = now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return card
 
 
 def _build_stats():

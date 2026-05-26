@@ -97,6 +97,8 @@ def _build_fleet_agents():
     """Build fleet agent roster grouped by node."""
     with get_db_cursor() as (conn, cur):
         # Fleet agents (stationed on remote nodes)
+        # Use DISTINCT ON subquery for emotional state — agent_emotional_state is a
+        # time-series table with thousands of rows per agent; joining directly fans out.
         cur.execute(
             """
             SELECT a.id, a.name, a.display_name, a.department, a.shift_state,
@@ -111,10 +113,15 @@ def _build_fleet_agents():
                    COUNT(os.id) FILTER (WHERE os.enabled = TRUE)  AS active_overflow_bids,
                    COUNT(os.id)                                     AS total_overflow_bids
             FROM node_agents na
-            JOIN agents a    ON a.id  = na.hub_agent_id
+            JOIN agents a ON a.id = na.hub_agent_id
             JOIN remote_nodes rn ON rn.id = na.node_id
-            LEFT JOIN agent_emotional_state ae ON ae.agent_id = a.id
-            LEFT JOIN agent_overflow_skills  os ON os.agent_id = a.id
+            LEFT JOIN (
+                SELECT DISTINCT ON (agent_id)
+                       agent_id, stress_level, energy_level, current_mood
+                FROM agent_emotional_state
+                ORDER BY agent_id, id DESC
+            ) ae ON ae.agent_id = a.id
+            LEFT JOIN agent_overflow_skills os ON os.agent_id = a.id
             WHERE a.worker_type = 'ai'
               AND na.status = 'active'
             GROUP BY a.id, rn.node_name, rn.mesh_ip,
@@ -138,8 +145,13 @@ def _build_fleet_agents():
                    COUNT(os.id) FILTER (WHERE os.enabled = TRUE) AS active_overflow_bids,
                    COUNT(os.id)                                    AS total_overflow_bids
             FROM agents a
-            LEFT JOIN agent_emotional_state ae ON ae.agent_id = a.id
-            LEFT JOIN agent_overflow_skills  os ON os.agent_id = a.id
+            LEFT JOIN (
+                SELECT DISTINCT ON (agent_id)
+                       agent_id, stress_level, energy_level, current_mood
+                FROM agent_emotional_state
+                ORDER BY agent_id, id DESC
+            ) ae ON ae.agent_id = a.id
+            LEFT JOIN agent_overflow_skills os ON os.agent_id = a.id
             WHERE a.worker_type = 'ai'
               AND a.shift_state NOT IN ('decommissioned')
               AND a.id NOT IN (

@@ -72,14 +72,43 @@ If a session shows Kytran as `tier='free'` — that's a bug, not correct state. 
 - Hub dispatch via `POST /api/procure/dispatch` (JWT bearer)
 - 21 API endpoints total
 
-## WIP Uncommitted Files (as of 2026-05-25)
+## Internal Tier-Push Endpoint (added 2026-05-26)
+
+Gov-watch exposes `/api/internal/set-tier` so the platform billing webhook can push tier
+changes on subscribe/upgrade/cancel without the user needing to log in again.
+
+**Auth**: `X-Internal-Key` header must match `INTERNAL_API_KEY` env var (same value as platform).
+
+**Payload** (JSON POST):
+```json
+{ "email": "user@example.com", "tier": "solo" }
+```
+- `email` is required — gov-watch keys on email, not platform user_id.
+- `tier` must be one of: `kytran, owner, admin, pro, agency, team, solo, starter, free`.
+- No-downgrade invariant enforced via the same numeric CASE SQL as `_sync_user_tier()`.
+- Returns `{"ok": true, "email": "...", "tier": "..."}` on success.
+
+**Required `.env` keys** (VPS `/opt/archie-products/gov-watch/.env`):
+```
+INTERNAL_API_KEY=<same value as platform INTERNAL_API_KEY>
+```
+Key was added 2026-05-26. NEVER overwrite `.env` on VPS — append only.
+
+**Platform side** (`services/watch_billing_handler.py`):
+- `_get_user_email(user_id)` fetches email from platform `users` table.
+- `_push_tier_to_standalone()` includes `email` in payload when available.
+- All 3 webhook handlers (checkout.completed, sub.updated, sub.deleted) pass email.
+
+**Verified live** (2026-05-26):
+- Health 200 ✅ | Bad key 401 ✅ | Valid push 200 + `user_profiles.tier=solo` in DB ✅
+
+## WIP Uncommitted Files (as of 2026-05-26)
 
 These exist in `/mnt/standalone/kytran-gov-watch/` but are NOT committed:
 
 | File | Purpose | Status |
 |------|---------|--------|
 | `procure/usage.py` | Per-tier draft limits enforcement | WIP |
-| `static/js/intel-hub.js` | Federal procurement intel hub UI | WIP |
 | `migrations/003_usage_billing.sql` | Usage/billing schema | WIP |
 | `migrations/004_intel_hub_tables.sql` | Intel hub tables | WIP |
 | `migrations/005_award_diff.sql` | Award diff tracking | WIP |
@@ -88,7 +117,9 @@ These exist in `/mnt/standalone/kytran-gov-watch/` but are NOT committed:
 | `kytran_auth.py` | Auth module | WIP |
 | `docs/provincial-scrapers-design.md` | Design doc, not started | Draft |
 
-**Do NOT commit these without reviewing first** — they may be part of an unfinished sprint.
+Committed 2026-05-26: `static/js/intel-hub.js` (SOSA display fix), `/api/internal/set-tier` in `app.py`.
+
+**Do NOT commit remaining WIP without reviewing first** — they may be part of an unfinished sprint.
 
 ## Kytran OAuth Identity Rule
 

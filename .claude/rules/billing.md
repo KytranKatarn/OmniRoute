@@ -122,15 +122,42 @@ incoming_tier = (product_tiers.get("gov_watch") or user.get("subscription_tier")
 
 ## Push Tier to Standalone
 
+**Endpoint status** — which standalones have `/api/internal/set-tier` implemented:
+
+| Standalone | Endpoint | INTERNAL_API_KEY in VPS .env | Verified |
+|-----------|---------|------------------------------|---------|
+| `gov_watch` | ✅ Added 2026-05-26 | ✅ Added 2026-05-26 | ✅ Live test passed |
+| `civic_watch` | ✅ Added 2026-05-26 | ✅ Added 2026-05-26 | ✅ Live test passed |
+| `legal_watch` | ✅ Added 2026-05-26 | ✅ Added 2026-05-26 | ✅ Live test passed |
+| `market_watch` | ✅ Added 2026-05-26 | ✅ Added 2026-05-26 | ✅ Live test passed |
+| `wtf` | ✅ Added 2026-05-26 | ✅ Added 2026-05-26 | ✅ Live test passed |
+
+**Note**: civic_watch and market_watch docker-compose.yml required explicit `INTERNAL_API_KEY=${INTERNAL_API_KEY:-}` in `environment:` block (no `env_file:` directive). Always add new internal keys to both `.env` AND the `environment:` block for these two products.
+
+Local tier mapping per standalone (canonical → local):
+- `gov_watch`: PostgreSQL `user_profiles`, canonical tiers (kytran/owner/admin=99… free=0)
+- `civic_watch`, `legal_watch`: non-free → `"pro"` | free → `"free"`
+- `market_watch`: non-free → `"ai"` | free → `"free"`
+- `wtf`: canonical tier stored as-is (starter/solo/etc. all valid in `_SUBSCRIBED_TIERS`)
+
+**Implementation pattern** (copy from gov-watch `app.py` `internal_set_tier()`):
+- Auth: `X-Internal-Key` header == `INTERNAL_API_KEY` env var
+- Payload: `{"email": "...", "tier": "..."}` — use **email** as the key, not user_id
+- No-downgrade enforced on each standalone's tier store
+- Valid tiers: `kytran, owner, admin, pro, agency, team, solo, starter, free`
+
 ```python
-def _push_tier_to_standalone(product_id: str, user_id: int, tier: str) -> bool:
+def _push_tier_to_standalone(product_id: str, user_id: int, tier: str, email: str | None = None) -> bool:
     url = PRODUCT_STANDALONE_URLS.get(product_id)
     if not url:
         return False
-    # Use mesh IP (100.64.0.1 for outpost), NOT public CDN hostname
+    payload: dict = {"user_id": user_id, "tier": tier}
+    if email:
+        payload["email"] = email.strip().lower()
+    # Use mesh IP (100.64.0.2 for outpost), NOT public CDN hostname
     resp = requests.post(
         f"{url}/api/internal/set-tier",
-        json={"user_id": user_id, "tier": tier},
+        json=payload,
         headers={"X-Internal-Key": os.getenv("INTERNAL_API_KEY", "")},
         timeout=10,
     )

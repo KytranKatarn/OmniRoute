@@ -2583,3 +2583,60 @@ def upgrade_tier2(article_id: int):
         "bias_summary": bias_summary,
         "claims_count": len(claims),
     })
+
+
+@bp.route("/api/internal/set-tier", methods=["POST"])
+def internal_set_tier():
+    """Internal webhook — platform billing pushes tier changes here.
+    Auth: X-Internal-Key header == INTERNAL_API_KEY env var.
+    Payload: {"email": "...", "tier": "starter|solo|..."}
+    No-downgrade: lower-ranked incoming tier is ignored.
+    WTF stores canonical platform tiers as-is (no local mapping needed).
+    """
+    from .db import get_db, get_billing_tier
+
+    expected = os.environ.get("INTERNAL_API_KEY", "")
+    if not expected:
+        return jsonify({"error": "internal key not configured"}), 503
+    if request.headers.get("X-Internal-Key", "") != expected:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(force=True, silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    tier = (data.get("tier") or "free").strip().lower()
+    if not email:
+        return jsonify({"error": "email required"}), 400
+    VALID = {"kytran", "owner", "admin", "pro", "agency", "team", "solo", "starter", "free"}
+    if tier not in VALID:
+        return jsonify({"error": f"unknown tier '{tier}'"}), 400
+
+    _TIER_RANK = {
+        "free": 0, "starter": 10, "solo": 30, "team": 40, "agency": 50,
+        "pro": 60, "admin": 90, "owner": 99, "kytran": 99,
+    }
+    existing = get_billing_tier(email)
+    if _TIER_RANK.get(tier, 0) < _TIER_RANK.get(existing, 0):
+        return jsonify({"ok": True, "email": email, "tier": existing, "unchanged": True})
+
+    try:
+        conn = get_db()
+        if tier == "free":
+            conn.execute(
+                "UPDATE billing_subscriptions SET tier='free', status='cancelled',"
+                " updated_at=CURRENT_TIMESTAMP WHERE LOWER(email)=LOWER(?)",
+                (email,),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO billing_subscriptions (email, tier, status, updated_at)
+                   VALUES (LOWER(?), ?, 'active', CURRENT_TIMESTAMP)
+                   ON CONFLICT(email) DO UPDATE SET
+                       tier=excluded.tier, status='active', updated_at=CURRENT_TIMESTAMP""",
+                (email, tier),
+            )
+        conn.commit()
+        conn.close()
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+    return jsonify({"ok": True, "email": email, "tier": tier})

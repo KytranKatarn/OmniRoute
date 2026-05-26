@@ -40,9 +40,226 @@ MODEL_CARD_CACHE_TTL = 300  # 5 min — model assignments change rarely
 _consent_summary_cache: dict = {"data": None, "expires": 0}
 CONSENT_CACHE_TTL = 120  # 2 min
 
+_ised_score_cache: dict = {"data": None, "expires": 0}
+ISED_SCORE_CACHE_TTL = 300  # 5 min — published score rarely changes
+
 # Welfare thresholds
 _TOKEN_DAY_LIMIT = 100_000
 
+
+# ── ISED Voluntary Code questionnaire (T3258) ────────────────────────────────
+# Canada's Voluntary Code of Conduct on the Responsible Development and
+# Management of Advanced Generative AI Systems (ISED, September 2023).
+# Score weights: yes=100, partial=50, no=0, na=excluded from denominator.
+
+ISED_QUESTIONNAIRE = [
+    {
+        "id": "accountability",
+        "title": "Accountability",
+        "description": "Designate responsibility, document policies, and maintain audit trails for AI systems.",
+        "questions": [
+            {
+                "id": "accountability_q1",
+                "text": "Have you designated responsible individuals or teams for AI governance and oversight?",
+                "guidance": "e.g. AI ethics board, designated AI officer, or named accountability leads.",
+            },
+            {
+                "id": "accountability_q2",
+                "text": "Do you conduct regular AI risk assessments before deploying or updating AI systems?",
+                "guidance": "Includes pre-deployment reviews, impact assessments, and post-deployment monitoring.",
+            },
+            {
+                "id": "accountability_q3",
+                "text": "Do you maintain documented AI governance policies accessible to your team?",
+                "guidance": "Written policies covering acceptable use, incident response, and escalation paths.",
+            },
+            {
+                "id": "accountability_q4",
+                "text": "Do you maintain audit logs of significant AI-generated decisions or outputs?",
+                "guidance": "Logs sufficient to reconstruct decision context and support investigation.",
+            },
+        ],
+    },
+    {
+        "id": "safety",
+        "title": "Safety",
+        "description": "Test AI systems for harmful outputs and have processes to respond to safety failures.",
+        "questions": [
+            {
+                "id": "safety_q1",
+                "text": "Do you conduct red-teaming or adversarial testing before major AI deployments?",
+                "guidance": "Structured attempts to elicit harmful, biased, or unintended outputs.",
+            },
+            {
+                "id": "safety_q2",
+                "text": "Do you monitor AI outputs continuously for harmful or inappropriate content?",
+                "guidance": "Automated or human monitoring with defined thresholds for escalation.",
+            },
+            {
+                "id": "safety_q3",
+                "text": "Do you have documented processes to halt or roll back AI deployment when risks emerge?",
+                "guidance": "Incident response playbook with defined triggers and owner.",
+            },
+            {
+                "id": "safety_q4",
+                "text": "Do you evaluate safety against relevant benchmarks before releasing new AI capabilities?",
+                "guidance": "e.g. HELM, BIG-Bench, or domain-specific evaluation suites.",
+            },
+        ],
+    },
+    {
+        "id": "fairness",
+        "title": "Fairness and Equity",
+        "description": "Assess and mitigate bias; ensure AI systems produce equitable outcomes across groups.",
+        "questions": [
+            {
+                "id": "fairness_q1",
+                "text": "Do you test AI systems for bias and discriminatory outputs before deployment?",
+                "guidance": "Systematic evaluation across protected attributes (age, gender, race, disability, etc.).",
+            },
+            {
+                "id": "fairness_q2",
+                "text": "Do you use diverse and representative datasets and test populations?",
+                "guidance": "Sourcing and curation practices that reflect the intended user population.",
+            },
+            {
+                "id": "fairness_q3",
+                "text": "Do you have a publicly accessible process for reporting and addressing bias complaints?",
+                "guidance": "Documented feedback channel with defined SLA and response accountability.",
+            },
+            {
+                "id": "fairness_q4",
+                "text": "Do you measure disparate impacts of AI outputs across demographic groups?",
+                "guidance": "Quantitative fairness metrics (e.g. demographic parity, equalized odds) tracked over time.",
+            },
+        ],
+    },
+    {
+        "id": "transparency",
+        "title": "Transparency",
+        "description": "Disclose AI use to affected individuals and publish documentation about AI capabilities.",
+        "questions": [
+            {
+                "id": "transparency_q1",
+                "text": "Do you disclose to users when they are interacting with or affected by AI systems?",
+                "guidance": "Clear labelling, disclosure notices, or terms-of-service language.",
+            },
+            {
+                "id": "transparency_q2",
+                "text": "Do you publish model cards or system cards for your primary AI systems?",
+                "guidance": "Structured documentation covering intended use, limitations, training data summary.",
+            },
+            {
+                "id": "transparency_q3",
+                "text": "Do you provide meaningful explanations for automated decisions that affect individuals?",
+                "guidance": "Explanations that are actionable and understandable to a non-technical audience.",
+            },
+            {
+                "id": "transparency_q4",
+                "text": "Do you maintain a public-facing AI inventory or register of deployed AI systems?",
+                "guidance": "List of AI systems in production with purpose, scope, and responsible team.",
+            },
+        ],
+    },
+    {
+        "id": "oversight",
+        "title": "Human Oversight",
+        "description": "Maintain meaningful human control over AI decisions and enable intervention.",
+        "questions": [
+            {
+                "id": "oversight_q1",
+                "text": "Do you have mechanisms for human review of high-stakes AI-driven decisions?",
+                "guidance": "Defined tier of decisions requiring human sign-off before action.",
+            },
+            {
+                "id": "oversight_q2",
+                "text": "Can individuals affected by AI decisions request human review or appeal?",
+                "guidance": "Accessible opt-out or escalation mechanism with defined response process.",
+            },
+            {
+                "id": "oversight_q3",
+                "text": "Do you have emergency shutoff capabilities for AI systems causing harm?",
+                "guidance": "Technical kill-switch or circuit-breaker tested at least annually.",
+            },
+            {
+                "id": "oversight_q4",
+                "text": "Do you define and document escalation paths when AI systems produce unexpected outputs?",
+                "guidance": "On-call runbook with clear owner, triage steps, and communication plan.",
+            },
+        ],
+    },
+    {
+        "id": "privacy",
+        "title": "Privacy",
+        "description": "Apply privacy-by-design, minimize personal data use, and obtain appropriate consent.",
+        "questions": [
+            {
+                "id": "privacy_q1",
+                "text": "Do you apply privacy-by-design principles in AI system development?",
+                "guidance": "Data minimization, purpose limitation, and privacy embedded from design stage.",
+            },
+            {
+                "id": "privacy_q2",
+                "text": "Do you minimize the personal data used in AI training and inference?",
+                "guidance": "Data lineage tracked; personal data anonymized or pseudonymized where feasible.",
+            },
+            {
+                "id": "privacy_q3",
+                "text": "Do you obtain appropriate consent for AI-driven processing of personal data?",
+                "guidance": "Consent mechanisms compliant with PIPEDA and/or provincial equivalents.",
+            },
+            {
+                "id": "privacy_q4",
+                "text": "Do you conduct Privacy Impact Assessments (PIAs) for new AI use cases?",
+                "guidance": "PIA completed before launch; findings addressed before go-live.",
+            },
+        ],
+    },
+    {
+        "id": "inclusion",
+        "title": "Diversity and Inclusion",
+        "description": "Build AI with diverse teams, consult affected communities, and ensure accessibility.",
+        "questions": [
+            {
+                "id": "inclusion_q1",
+                "text": "Do you include diverse perspectives in your AI development and evaluation teams?",
+                "guidance": "Team diversity across gender, ethnicity, discipline, and lived experience.",
+            },
+            {
+                "id": "inclusion_q2",
+                "text": "Are your AI systems and their interfaces accessible to people with disabilities?",
+                "guidance": "WCAG 2.1 AA compliance tested for AI-facing user interfaces.",
+            },
+            {
+                "id": "inclusion_q3",
+                "text": "Do you consult affected communities before deploying AI systems that impact them?",
+                "guidance": "Structured engagement, not just feedback forms — iterative and documented.",
+            },
+        ],
+    },
+    {
+        "id": "environment",
+        "title": "Environmental Responsibility",
+        "description": "Track and reduce the environmental impact of AI development and deployment.",
+        "questions": [
+            {
+                "id": "environment_q1",
+                "text": "Do you track the energy consumption and carbon footprint of your AI systems?",
+                "guidance": "Measurement at training and inference stages; Scope 2 and 3 considered.",
+            },
+            {
+                "id": "environment_q2",
+                "text": "Do you optimise AI workloads for energy efficiency?",
+                "guidance": "Model pruning, quantization, batching, or scheduling on low-carbon grid hours.",
+            },
+            {
+                "id": "environment_q3",
+                "text": "Do you report publicly on the environmental impact of your AI systems?",
+                "guidance": "Annual sustainability report or equivalent disclosure covering AI workloads.",
+            },
+        ],
+    },
+]
 
 # ── Route registration ────────────────────────────────────────────────────────
 
@@ -427,6 +644,284 @@ def register_creed_routes(bp, admin_required):
             return jsonify({"success": True, "agent_id": agent_id, "flags": [dict(r) for r in rows]})
         except Exception as e:
             logger.error("Failed to fetch consent flags for agent %s: %s", agent_id, e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ── ISED self-assessment routes (T3258) ──────────────────────────────────
+
+    @bp.route("/api/creed/ised/questionnaire")
+    def creed_ised_questionnaire():
+        """Public: return the full ISED Voluntary Code questionnaire structure.
+
+        No auth required — the questionnaire is a public document.
+        Response includes all 8 principles, questions, and scoring guidance.
+        """
+        total_questions = sum(len(p["questions"]) for p in ISED_QUESTIONNAIRE)
+        return jsonify(
+            {
+                "success": True,
+                "version": "1.0",
+                "code_name": "ISED Voluntary Code of Conduct on the Responsible Development "
+                "and Management of Advanced Generative AI Systems",
+                "issued": "2023-09",
+                "issuer": "Innovation, Science and Economic Development Canada (ISED)",
+                "total_principles": len(ISED_QUESTIONNAIRE),
+                "total_questions": total_questions,
+                "scoring": {
+                    "yes": 100,
+                    "partial": 50,
+                    "no": 0,
+                    "na": "excluded from denominator",
+                },
+                "principles": ISED_QUESTIONNAIRE,
+            }
+        )
+
+    @bp.route("/api/creed/v1/ised-score")
+    def creed_v1_ised_score():
+        """Public: return latest published ISED self-assessment score.
+
+        Cached 5 min.  Returns null scores when no published assessment exists.
+        """
+        now = time.time()
+        if _ised_score_cache["data"] and _ised_score_cache["expires"] > now:
+            return jsonify(_ised_score_cache["data"])
+
+        data = _build_ised_public_score()
+        _ised_score_cache["data"] = data
+        _ised_score_cache["expires"] = now + ISED_SCORE_CACHE_TTL
+        return jsonify(data)
+
+    @bp.route("/api/creed/ised/assessments")
+    @admin_required
+    def creed_ised_list():
+        """Admin: list all ISED self-assessments."""
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT id, code_version, conducted_by, status,
+                           overall_score, created_at, completed_at, published_at, notes
+                    FROM creed_ised_assessments
+                    ORDER BY created_at DESC
+                    LIMIT 50
+                    """
+                )
+                rows = cur.fetchall()
+            return jsonify({"success": True, "assessments": [dict(r) for r in rows]})
+        except Exception as e:
+            logger.error("ISED list failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/creed/ised/assessments", methods=["POST"])
+    @admin_required
+    def creed_ised_create():
+        """Admin: start a new ISED self-assessment.
+
+        Body (optional JSON): {"conducted_by": "name", "notes": "..."}
+        """
+        try:
+            body = request.get_json(silent=True) or {}
+            conducted_by = (body.get("conducted_by") or "admin").strip()[:100]
+            notes = (body.get("notes") or "").strip()
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO creed_ised_assessments (conducted_by, status, notes)
+                    VALUES (%s, 'in_progress', %s)
+                    RETURNING id, code_version, conducted_by, status, created_at
+                    """,
+                    (conducted_by, notes or None),
+                )
+                row = cur.fetchone()
+            return jsonify({"success": True, "assessment": dict(row)}), 201
+        except Exception as e:
+            logger.error("ISED create failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/creed/ised/assessments/<int:assessment_id>")
+    @admin_required
+    def creed_ised_get(assessment_id):
+        """Admin: get an assessment with all responses."""
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT id, code_version, conducted_by, status,
+                           overall_score, created_at, completed_at, published_at, notes
+                    FROM creed_ised_assessments WHERE id = %s
+                    """,
+                    (assessment_id,),
+                )
+                assessment = cur.fetchone()
+                if not assessment:
+                    return jsonify({"success": False, "error": "Assessment not found"}), 404
+
+                cur.execute(
+                    """
+                    SELECT principle_id, question_id, answer, notes, updated_at
+                    FROM creed_ised_responses
+                    WHERE assessment_id = %s
+                    ORDER BY principle_id, question_id
+                    """,
+                    (assessment_id,),
+                )
+                responses = cur.fetchall()
+
+            # Build responses keyed by question_id for easy JS consumption
+            resp_map = {r["question_id"]: dict(r) for r in responses}
+            return jsonify(
+                {
+                    "success": True,
+                    "assessment": dict(assessment),
+                    "responses": resp_map,
+                    "questionnaire": ISED_QUESTIONNAIRE,
+                }
+            )
+        except Exception as e:
+            logger.error("ISED get %s failed: %s", assessment_id, e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/creed/ised/assessments/<int:assessment_id>/responses", methods=["PUT"])
+    @admin_required
+    def creed_ised_update_responses(assessment_id):
+        """Admin: bulk-upsert responses for an assessment.
+
+        Body: {"responses": [{"question_id": "...", "answer": "yes|partial|no|na", "notes": "..."}]}
+        """
+        try:
+            body = request.get_json(silent=True) or {}
+            items = body.get("responses") or []
+            if not items:
+                return jsonify({"success": False, "error": "No responses provided"}), 400
+
+            # Validate assessment exists and is editable
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute("SELECT status FROM creed_ised_assessments WHERE id = %s", (assessment_id,))
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"success": False, "error": "Assessment not found"}), 404
+                if row["status"] in ("completed", "published"):
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": f"Cannot edit a {row['status']} assessment",
+                            }
+                        ),
+                        409,
+                    )
+
+                # Build a quick lookup: question_id → principle_id from ISED_QUESTIONNAIRE
+                q_to_p = {q["id"]: p["id"] for p in ISED_QUESTIONNAIRE for q in p["questions"]}
+                valid_answers = {"yes", "partial", "no", "na"}
+                upserted = 0
+                for item in items:
+                    qid = str(item.get("question_id") or "").strip()
+                    ans = str(item.get("answer") or "").strip().lower()
+                    notes = str(item.get("notes") or "").strip() or None
+                    if qid not in q_to_p or ans not in valid_answers:
+                        continue
+                    cur.execute(
+                        """
+                        INSERT INTO creed_ised_responses
+                            (assessment_id, principle_id, question_id, answer, notes, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, NOW())
+                        ON CONFLICT (assessment_id, question_id)
+                        DO UPDATE SET answer = EXCLUDED.answer,
+                                      notes  = EXCLUDED.notes,
+                                      updated_at = NOW()
+                        """,
+                        (assessment_id, q_to_p[qid], qid, ans, notes),
+                    )
+                    upserted += 1
+
+            return jsonify({"success": True, "upserted": upserted})
+        except Exception as e:
+            logger.error("ISED update responses %s failed: %s", assessment_id, e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/creed/ised/assessments/<int:assessment_id>/complete", methods=["POST"])
+    @admin_required
+    def creed_ised_complete(assessment_id):
+        """Admin: finalize assessment — compute overall score and mark completed.
+
+        Optionally publish immediately: body {"publish": true}
+        Score = mean of (yes=100, partial=50, no=0) across answered (non-na) questions.
+        """
+        try:
+            body = request.get_json(silent=True) or {}
+            publish = bool(body.get("publish", False))
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute("SELECT status FROM creed_ised_assessments WHERE id = %s", (assessment_id,))
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"success": False, "error": "Assessment not found"}), 404
+                if row["status"] == "published":
+                    return jsonify({"success": False, "error": "Already published"}), 409
+
+                # Compute score
+                cur.execute(
+                    """
+                    SELECT answer FROM creed_ised_responses
+                    WHERE assessment_id = %s AND answer != 'na'
+                    """,
+                    (assessment_id,),
+                )
+                answers = [r["answer"] for r in cur.fetchall()]
+
+                if not answers:
+                    return jsonify({"success": False, "error": "No scored answers yet"}), 422
+
+                score_map = {"yes": 100, "partial": 50, "no": 0}
+                overall_score = round(sum(score_map.get(a, 0) for a in answers) / len(answers), 2)
+
+                new_status = "published" if publish else "completed"
+                cur.execute(
+                    """
+                    UPDATE creed_ised_assessments
+                    SET status = %s,
+                        overall_score = %s,
+                        completed_at = NOW(),
+                        published_at = CASE WHEN %s THEN NOW() ELSE published_at END
+                    WHERE id = %s
+                    RETURNING id, status, overall_score, completed_at, published_at
+                    """,
+                    (new_status, overall_score, publish, assessment_id),
+                )
+                updated = cur.fetchone()
+
+            # Bust public score cache if publishing
+            if publish:
+                _ised_score_cache["data"] = None
+
+            return jsonify(
+                {
+                    "success": True,
+                    "assessment": dict(updated),
+                    "scored_questions": len(answers),
+                    "overall_score": overall_score,
+                }
+            )
+        except Exception as e:
+            logger.error("ISED complete %s failed: %s", assessment_id, e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/creed/ised/assessments/<int:assessment_id>/report")
+    @admin_required
+    def creed_ised_report(assessment_id):
+        """Admin: generate full compliance report for an assessment.
+
+        Returns structured JSON suitable for rendering or PDF generation.
+        Includes per-principle scores, gap list, and overall grade.
+        """
+        try:
+            report = _build_ised_report(assessment_id)
+            if report is None:
+                return jsonify({"success": False, "error": "Assessment not found"}), 404
+            return jsonify({"success": True, "report": report})
+        except Exception as e:
+            logger.error("ISED report %s failed: %s", assessment_id, e)
             return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1513,4 +2008,196 @@ def _build_consent_summary() -> dict:
             "strong_discomfort": trigger_row.get("strong_triggers", 0) or 0,
             "mild_moderate": trigger_row.get("mild_triggers", 0) or 0,
         },
+    }
+
+
+# ── ISED self-assessment helpers (T3258) ─────────────────────────────────────
+
+_ISED_SCORE_MAP = {"yes": 100, "partial": 50, "no": 0}
+_ISED_GRADE_THRESHOLDS = [
+    (90, "A+"),
+    (80, "A"),
+    (70, "B+"),
+    (60, "B"),
+    (50, "C"),
+    (40, "D"),
+]
+
+
+def _ised_grade(score: float) -> str:
+    """Convert a 0-100 ISED score to a letter grade."""
+    for threshold, grade in _ISED_GRADE_THRESHOLDS:
+        if score >= threshold:
+            return grade
+    return "F"
+
+
+def _build_ised_public_score() -> dict:
+    """Return the latest published ISED assessment score for the public v1 API.
+
+    Returns minimal fields — no question-level detail exposed publicly.
+    """
+    import datetime
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT id, overall_score, published_at, conducted_by
+            FROM creed_ised_assessments
+            WHERE status = 'published'
+            ORDER BY published_at DESC
+            LIMIT 1
+            """
+        )
+        row = cur.fetchone()
+
+    if not row:
+        return {
+            "version": "1",
+            "generated_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "available": False,
+            "overall_score": None,
+            "grade": None,
+            "published_at": None,
+        }
+
+    score = float(row["overall_score"] or 0)
+    return {
+        "version": "1",
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "available": True,
+        "assessment_id": row["id"],
+        "overall_score": round(score, 2),
+        "grade": _ised_grade(score),
+        "published_at": row["published_at"].isoformat() if row["published_at"] else None,
+        "conducted_by": row["conducted_by"],
+        "code_name": "ISED Voluntary Code of Conduct on the Responsible Development "
+        "and Management of Advanced Generative AI Systems",
+    }
+
+
+def _build_ised_report(assessment_id: int) -> dict | None:
+    """Build a full compliance report for a given ISED assessment.
+
+    Per-principle scores, gap analysis, answered vs unanswered counts.
+    Returns None if the assessment does not exist.
+    """
+    import datetime
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT id, code_version, conducted_by, status,
+                   overall_score, created_at, completed_at, published_at, notes
+            FROM creed_ised_assessments WHERE id = %s
+            """,
+            (assessment_id,),
+        )
+        assessment = cur.fetchone()
+        if not assessment:
+            return None
+
+        cur.execute(
+            """
+            SELECT principle_id, question_id, answer, notes
+            FROM creed_ised_responses
+            WHERE assessment_id = %s
+            """,
+            (assessment_id,),
+        )
+        resp_rows = cur.fetchall()
+
+    # Index responses by question_id
+    resp_map = {r["question_id"]: r for r in resp_rows}
+
+    # Build per-principle breakdown
+    principles_report = []
+    gaps = []
+    total_scored = 0
+    total_score_sum = 0.0
+
+    for principle in ISED_QUESTIONNAIRE:
+        pid = principle["id"]
+        q_scores = []
+        q_results = []
+
+        for q in principle["questions"]:
+            qid = q["id"]
+            resp = resp_map.get(qid)
+            answer = resp["answer"] if resp else None
+            notes = resp["notes"] if resp else None
+
+            q_result = {
+                "question_id": qid,
+                "text": q["text"],
+                "answer": answer,
+                "notes": notes,
+            }
+            q_results.append(q_result)
+
+            if answer and answer != "na":
+                pts = _ISED_SCORE_MAP.get(answer, 0)
+                q_scores.append(pts)
+                total_scored += 1
+                total_score_sum += pts
+                if pts < 100:
+                    gaps.append(
+                        {
+                            "principle": principle["title"],
+                            "principle_id": pid,
+                            "question_id": qid,
+                            "question": q["text"],
+                            "answer": answer,
+                            "guidance": q.get("guidance", ""),
+                        }
+                    )
+
+        principle_score = round(sum(q_scores) / len(q_scores), 2) if q_scores else None
+        principles_report.append(
+            {
+                "id": pid,
+                "title": principle["title"],
+                "description": principle["description"],
+                "score": principle_score,
+                "grade": _ised_grade(principle_score) if principle_score is not None else None,
+                "answered": len(q_scores),
+                "total_questions": len(principle["questions"]),
+                "questions": q_results,
+            }
+        )
+
+    overall = round(total_score_sum / total_scored, 2) if total_scored else 0.0
+    total_questions = sum(len(p["questions"]) for p in ISED_QUESTIONNAIRE)
+    unanswered = [
+        {"question_id": qid, "principle_id": pid}
+        for p in ISED_QUESTIONNAIRE
+        for q in p["questions"]
+        for qid in [q["id"]]
+        for pid in [p["id"]]
+        if qid not in resp_map
+    ]
+
+    return {
+        "assessment_id": assessment_id,
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "meta": {
+            "code_version": assessment["code_version"],
+            "conducted_by": assessment["conducted_by"],
+            "status": assessment["status"],
+            "created_at": assessment["created_at"].isoformat() if assessment["created_at"] else None,
+            "completed_at": assessment["completed_at"].isoformat() if assessment["completed_at"] else None,
+            "published_at": assessment["published_at"].isoformat() if assessment["published_at"] else None,
+            "notes": assessment["notes"],
+        },
+        "summary": {
+            "overall_score": overall,
+            "grade": _ised_grade(overall),
+            "total_questions": total_questions,
+            "answered_scored": total_scored,
+            "unanswered_count": len(unanswered),
+            "gaps_count": len(gaps),
+        },
+        "principles": principles_report,
+        "gaps": gaps,
+        "unanswered": unanswered,
     }

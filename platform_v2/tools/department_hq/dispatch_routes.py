@@ -449,7 +449,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     )
                 job_cte = """
                     SELECT 'job'::text AS source,
-                           bj.agent_name,
+                           COALESCE(a.name, bj.agent_name) AS agent_name,
                            bj.job_type AS capability,
                            bj.module_source AS module,
                            NULL::text AS model_used,
@@ -461,6 +461,10 @@ def register_dispatch_routes(bp, admin_required_decorator):
                            0::float AS cost,
                            COALESCE(bj.metadata->>'node_name', 'Hub') AS node_name
                     FROM bridge_jobs bj
+                    LEFT JOIN agents a ON (
+                        bj.agent_name ~ '^fleet-agent-[0-9]+$'
+                        AND a.id::text = substring(bj.agent_name FROM 13)
+                    )
                     WHERE {job_where}
                 """.format(
                     job_where=" AND ".join(job_filters)
@@ -1090,13 +1094,19 @@ def register_dispatch_routes(bp, admin_required_decorator):
         try:
             with get_db_cursor() as (conn, cur):
                 cur.execute(
-                    """SELECT id, mcp_tool, agent_name, capability,
-                              model_used, success, duration_ms, cost,
-                              error_message, station_code, created_at
-                       FROM task_execution_log
-                       WHERE request_origin = 'claude'
-                         AND created_at > NOW() - INTERVAL %s
-                       ORDER BY id DESC
+                    """SELECT tel.id, tel.mcp_tool,
+                              COALESCE(a.name, tel.agent_name) AS agent_name,
+                              tel.capability,
+                              tel.model_used, tel.success, tel.duration_ms, tel.cost,
+                              tel.error_message, tel.station_code, tel.created_at
+                       FROM task_execution_log tel
+                       LEFT JOIN agents a ON (
+                           tel.agent_name ~ '^fleet-agent-[0-9]+$'
+                           AND a.id::text = substring(tel.agent_name FROM 13)
+                       )
+                       WHERE tel.request_origin = 'claude'
+                         AND tel.created_at > NOW() - INTERVAL %s
+                       ORDER BY tel.id DESC
                        LIMIT %s""",
                     (f"{hours} hours", limit),
                 )

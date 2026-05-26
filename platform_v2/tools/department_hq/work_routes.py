@@ -265,12 +265,12 @@ def register_work_routes(bp, admin_required):
                         FROM agents ha
                         WHERE ha.name = tel.agent_name AND ha.worker_type = 'ai'
                         UNION ALL
-                        -- Fleet agent resolution: fleet-agent-<node_agents.id> → hub agent
+                        -- Fleet agent resolution: fleet-agent-<hub_agent_id> → hub agent
                         SELECT ha.id, ha.name, ha.display_name, ha.department
                         FROM node_agents na
                         JOIN agents ha ON ha.id = na.hub_agent_id AND ha.worker_type = 'ai'
                         WHERE tel.agent_name ~ '^fleet-agent-[0-9]+$'
-                          AND na.id::text = substring(tel.agent_name FROM 13)
+                          AND na.hub_agent_id::text = substring(tel.agent_name FROM 13)
                         LIMIT 1
                     ) a ON TRUE
                     LEFT JOIN agent_portraits ap ON ap.agent_id = a.id

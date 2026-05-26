@@ -1114,9 +1114,113 @@ async function loadCreed() {
             }
         } catch(e) { /* workload scores not critical */ }
 
+        // ── Fleet Node Health Grid ─────────────────────────────────
+        try {
+            var fleet = await api('/api/creed/fleet-agents');
+            if (fleet.success && fleet.nodes && fleet.nodes.length > 0) {
+                html += '<div class="dhq-ad-section" style="margin-top:1rem">';
+                html += '<div class="dhq-ad-section-title" style="color:#22d3ee">FLEET NODE HEALTH</div>';
+                html += '<div style="font-size:0.72rem;color:var(--dhq-text-dim);margin-bottom:0.5rem">'
+                    + fleet.total_nodes + ' nodes · ' + fleet.total_agents + ' AI agents across cluster</div>';
+                html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0.5rem">';
+                for (var fi = 0; fi < fleet.nodes.length; fi++) {
+                    var nd = fleet.nodes[fi];
+                    var ndColor = nd.status === 'red' ? '#ef4444' : nd.status === 'yellow' ? '#fbbf24' : '#10b981';
+                    html += '<div style="background:var(--dhq-card-bg,#111827);border:1px solid ' + ndColor + '55;border-radius:6px;padding:0.5rem">'
+                        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem">'
+                        + '<span style="color:' + ndColor + ';font-weight:bold;font-size:0.8rem;text-transform:uppercase">'
+                        + esc(nd.node_name) + '</span>'
+                        + '<span style="color:' + ndColor + ';font-size:0.7rem">' + nd.online_count + ' online</span>'
+                        + '</div>'
+                        + '<div style="background:#1a1a2e;border-radius:3px;height:4px;margin:0.25rem 0">'
+                        + '<div style="background:' + ndColor + ';height:100%;border-radius:3px;width:' + Math.min(100, Math.round(nd.avg_stress * 100)) + '%"></div>'
+                        + '</div>'
+                        + '<div style="color:#666;font-size:0.65rem">'
+                        + 'avg stress ' + (nd.avg_stress * 100).toFixed(0) + '%'
+                        + (nd.in_rest_count > 0 ? ' · ' + nd.in_rest_count + ' resting' : '')
+                        + (nd.active_overflow_bids > 0 ? ' · ' + nd.active_overflow_bids + ' overflow bids' : '')
+                        + '</div></div>';
+                }
+                html += '</div></div>';
+            }
+        } catch(e) { /* fleet data not critical */ }
+
+        // ── Overflow Activation Timeline ──────────────────────────
+        try {
+            var ov = await api('/api/creed/overflow-activations');
+            if (ov.success && ov.events && ov.events.length > 0) {
+                html += '<div class="dhq-ad-section" style="margin-top:1rem">';
+                html += '<div class="dhq-ad-section-title" style="color:#a78bfa">OVERFLOW SKILL ACTIVATIONS</div>';
+                html += '<div style="font-size:0.72rem;color:var(--dhq-text-dim);margin-bottom:0.5rem">'
+                    + ov.count + ' events logged · last 50 shown</div>';
+                html += '<div id="creedOverflowRows">';
+                var ovShow = Math.min(10, ov.events.length);
+                for (var oi2 = 0; oi2 < ov.events.length; oi2++) {
+                    var ovEv = ov.events[oi2];
+                    var ovColor = '#6b7280';
+                    var ovLabel = ovEv.event_type;
+                    if (ovEv.event_type === 'overflow_skill_activated')   { ovColor = '#22d3ee'; ovLabel = 'ACTIVATED'; }
+                    if (ovEv.event_type === 'overflow_skill_deactivated') { ovColor = '#6b7280'; ovLabel = 'DEACTIVATED'; }
+                    if (ovEv.event_type === 'overflow_welfare_blocked')   { ovColor = '#f97316'; ovLabel = 'WELFARE BLOCKED'; }
+                    if (ovEv.event_type === 'overflow_mass_activation')   { ovColor = '#fbbf24'; ovLabel = 'MASS ACTIVATION'; }
+                    var capability = (ovEv.new_value && ovEv.new_value.capability)
+                        ? ovEv.new_value.capability
+                        : (ovEv.old_value && ovEv.old_value.capability ? ovEv.old_value.capability : '');
+                    var tsFormatted = ovEv.timestamp
+                        ? (typeof ArchieTime !== 'undefined' ? ArchieTime.format(ovEv.timestamp, 'datetime') : ovEv.timestamp)
+                        : '';
+                    var rowStyle = oi2 >= ovShow ? 'display:none' : '';
+                    html += '<div class="dhq-welfare-item" style="' + rowStyle + 'padding:0.3rem 0;border-bottom:1px solid #ffffff0a">'
+                        + '<span style="background:' + ovColor + '22;color:' + ovColor + ';border:1px solid ' + ovColor + '44;'
+                        + 'border-radius:3px;padding:0.1rem 0.3rem;font-size:0.65rem;font-weight:600;min-width:130px;display:inline-block">'
+                        + esc(ovLabel) + '</span>'
+                        + '<span style="color:#ccc;margin:0 0.5rem;font-size:0.75rem">'
+                        + esc(ovEv.display_name || ovEv.agent_name) + '</span>'
+                        + (capability ? '<span style="color:#22d3ee;font-size:0.7rem">' + esc(capability) + '</span>' : '')
+                        + '<span style="color:#666;font-size:0.65rem;margin-left:auto;float:right">' + esc(tsFormatted) + '</span>'
+                        + '</div>';
+                }
+                html += '</div>';
+                if (ov.events.length > 10) {
+                    html += '<div style="margin-top:0.4rem">'
+                        + '<button onclick="creedToggleOverflow(this,' + ov.events.length + ')" '
+                        + 'style="background:transparent;border:1px solid #a78bfa55;color:#a78bfa;'
+                        + 'padding:0.2rem 0.6rem;border-radius:4px;font-size:0.7rem;cursor:pointer">'
+                        + 'Show all ' + ov.events.length + ' events</button></div>';
+                }
+                html += '</div>';
+            }
+        } catch(e) { /* overflow timeline not critical */ }
+
+        // ── Standalone Link ────────────────────────────────────────
+        html += '<div style="margin-top:1.25rem;padding:0.75rem;background:#0a0a1a;border:1px solid #22d3ee33;'
+            + 'border-radius:6px;display:flex;align-items:center;justify-content:space-between">'
+            + '<div>'
+            + '<div style="color:#22d3ee;font-weight:bold;font-size:0.8rem">C.R.E.E.D. INSTITUTE</div>'
+            + '<div style="color:#666;font-size:0.7rem;margin-top:0.2rem">Public governance dashboard · creed-ai.org</div>'
+            + '</div>'
+            + '<a href="https://creed.kytranempowerment.com" target="_blank" rel="noopener" '
+            + 'style="background:#22d3ee22;border:1px solid #22d3ee66;color:#22d3ee;padding:0.3rem 0.8rem;'
+            + 'border-radius:4px;font-size:0.75rem;text-decoration:none;white-space:nowrap">'
+            + 'Open C.R.E.E.D. Institute →</a>'
+            + '</div>';
+
         setHtml(el, html);
     } catch (err) {
         setHtml(el, '<div class="dhq-empty">Error loading C.R.E.E.D.: ' + esc(err.message) + '</div>');
+    }
+}
+
+function creedToggleOverflow(btn, total) {
+    var rows = document.querySelectorAll('#creedOverflowRows .dhq-welfare-item');
+    var hidden = Array.prototype.some.call(rows, function(r) { return r.style.display === 'none'; });
+    rows.forEach(function(r) { r.style.display = hidden ? '' : 'none'; });
+    if (hidden) {
+        btn.textContent = 'Show fewer';
+        // re-show first 10 is already done (all revealed)
+    } else {
+        for (var i = 0; i < Math.min(10, rows.length); i++) rows[i].style.display = '';
+        btn.textContent = 'Show all ' + total + ' events';
     }
 }
 

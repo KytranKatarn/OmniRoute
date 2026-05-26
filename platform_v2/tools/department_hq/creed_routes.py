@@ -17,6 +17,14 @@ logger = logging.getLogger(__name__)
 _cache = {"data": None, "expires": 0}
 CACHE_TTL = 300  # 5 minutes
 
+# Fleet-agents cache (60s TTL)
+_fleet_cache = {"data": None, "expires": 0}
+FLEET_CACHE_TTL = 60
+
+# Overflow-activations cache (30s TTL)
+_overflow_cache = {"data": None, "expires": 0}
+OVERFLOW_CACHE_TTL = 30
+
 
 def register_creed_routes(bp, admin_required):
     """Register C.R.E.E.D. public stats routes."""
@@ -41,6 +49,223 @@ def register_creed_routes(bp, admin_required):
         except Exception as e:
             logger.error("Failed to build C.R.E.E.D. stats: %s", e)
             return jsonify({"success": False, "error": "Stats unavailable"}), 500
+
+    @bp.route("/api/creed/fleet-agents")
+    def creed_fleet_agents():
+        """Fleet-aware agent roster across all cluster nodes + hub.
+
+        Returns agents grouped by node_name with welfare state and overflow bid
+        counts.  Hub-only agents use node_name='hub'.  Cached 60s.
+        No auth required — aggregate data only.
+        """
+        now = time.time()
+        if _fleet_cache["data"] and now < _fleet_cache["expires"]:
+            return jsonify(_fleet_cache["data"])
+
+        try:
+            data = _build_fleet_agents()
+            _fleet_cache["data"] = data
+            _fleet_cache["expires"] = now + FLEET_CACHE_TTL
+            return jsonify(data)
+        except Exception as e:
+            logger.error("Failed to build C.R.E.E.D. fleet-agents: %s", e)
+            return jsonify({"success": False, "error": "Fleet data unavailable"}), 500
+
+    @bp.route("/api/creed/overflow-activations")
+    def creed_overflow_activations():
+        """Last 50 overflow skill governance events from audit log.
+
+        Covers: overflow_skill_activated, overflow_skill_deactivated,
+        overflow_welfare_blocked, overflow_mass_activation.
+        Cached 30s.  No auth required.
+        """
+        now = time.time()
+        if _overflow_cache["data"] and now < _overflow_cache["expires"]:
+            return jsonify(_overflow_cache["data"])
+
+        try:
+            data = _build_overflow_activations()
+            _overflow_cache["data"] = data
+            _overflow_cache["expires"] = now + OVERFLOW_CACHE_TTL
+            return jsonify(data)
+        except Exception as e:
+            logger.error("Failed to build C.R.E.E.D. overflow-activations: %s", e)
+            return jsonify({"success": False, "error": "Overflow data unavailable"}), 500
+
+
+def _build_fleet_agents():
+    """Build fleet agent roster grouped by node."""
+    with get_db_cursor() as (conn, cur):
+        # Fleet agents (stationed on remote nodes)
+        cur.execute(
+            """
+            SELECT a.id, a.name, a.display_name, a.department, a.shift_state,
+                   rn.node_name, rn.mesh_ip,
+                   COALESCE(ae.stress_level, 0.0)  AS stress_level,
+                   COALESCE(ae.energy_level, 0.8)  AS energy_level,
+                   ae.current_mood,
+                   EXISTS(
+                       SELECT 1 FROM agent_rest_cycles rc
+                       WHERE rc.agent_id = a.id AND rc.ended_at IS NULL
+                   ) AS in_rest,
+                   COUNT(os.id) FILTER (WHERE os.enabled = TRUE)  AS active_overflow_bids,
+                   COUNT(os.id)                                     AS total_overflow_bids
+            FROM node_agents na
+            JOIN agents a    ON a.id  = na.hub_agent_id
+            JOIN remote_nodes rn ON rn.id = na.node_id
+            LEFT JOIN agent_emotional_state ae ON ae.agent_id = a.id
+            LEFT JOIN agent_overflow_skills  os ON os.agent_id = a.id
+            WHERE a.worker_type = 'ai'
+              AND na.status = 'active'
+            GROUP BY a.id, rn.node_name, rn.mesh_ip,
+                     ae.stress_level, ae.energy_level, ae.current_mood
+            ORDER BY rn.node_name, a.department
+        """
+        )
+        fleet_rows = cur.fetchall() or []
+
+        # Hub-only AI agents (not in node_agents at all)
+        cur.execute(
+            """
+            SELECT a.id, a.name, a.display_name, a.department, a.shift_state,
+                   COALESCE(ae.stress_level, 0.0) AS stress_level,
+                   COALESCE(ae.energy_level, 0.8) AS energy_level,
+                   ae.current_mood,
+                   EXISTS(
+                       SELECT 1 FROM agent_rest_cycles rc
+                       WHERE rc.agent_id = a.id AND rc.ended_at IS NULL
+                   ) AS in_rest,
+                   COUNT(os.id) FILTER (WHERE os.enabled = TRUE) AS active_overflow_bids,
+                   COUNT(os.id)                                    AS total_overflow_bids
+            FROM agents a
+            LEFT JOIN agent_emotional_state ae ON ae.agent_id = a.id
+            LEFT JOIN agent_overflow_skills  os ON os.agent_id = a.id
+            WHERE a.worker_type = 'ai'
+              AND a.shift_state NOT IN ('decommissioned')
+              AND a.id NOT IN (
+                  SELECT hub_agent_id FROM node_agents WHERE status = 'active'
+              )
+            GROUP BY a.id, ae.stress_level, ae.energy_level, ae.current_mood
+            ORDER BY a.department
+        """
+        )
+        hub_rows = cur.fetchall() or []
+
+    # Group by node
+    nodes: dict = {}
+
+    def _add_row(row, node_name, mesh_ip=None):
+        if node_name not in nodes:
+            nodes[node_name] = {
+                "node_name": node_name,
+                "mesh_ip": mesh_ip,
+                "agents": [],
+                "online_count": 0,
+                "in_rest_count": 0,
+                "avg_stress": 0.0,
+                "active_overflow_bids": 0,
+                "status": "green",
+            }
+        stress = float(row["stress_level"])
+        nodes[node_name]["agents"].append(
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "display_name": row["display_name"],
+                "department": row["department"],
+                "shift_state": row["shift_state"],
+                "stress_level": round(stress, 3),
+                "energy_level": round(float(row["energy_level"]), 3),
+                "current_mood": row["current_mood"],
+                "in_rest": bool(row["in_rest"]),
+                "active_overflow_bids": row["active_overflow_bids"] or 0,
+                "total_overflow_bids": row["total_overflow_bids"] or 0,
+            }
+        )
+        if row["shift_state"] in ("active", "deployed", "working"):
+            nodes[node_name]["online_count"] += 1
+        if row["in_rest"]:
+            nodes[node_name]["in_rest_count"] += 1
+        nodes[node_name]["active_overflow_bids"] += row["active_overflow_bids"] or 0
+
+    for row in fleet_rows:
+        _add_row(row, row["node_name"], row["mesh_ip"])
+    for row in hub_rows:
+        _add_row(row, "hub", "100.64.0.4")
+
+    # Compute avg_stress + color per node
+    node_list = []
+    for nd in nodes.values():
+        if nd["agents"]:
+            nd["avg_stress"] = round(sum(a["stress_level"] for a in nd["agents"]) / len(nd["agents"]), 3)
+        avg = nd["avg_stress"]
+        nd["status"] = "red" if avg >= 0.7 else ("yellow" if avg >= 0.4 else "green")
+        node_list.append(nd)
+
+    # Hub first, then alphabetical
+    node_list.sort(key=lambda n: (0 if n["node_name"] == "hub" else 1, n["node_name"]))
+
+    return {
+        "success": True,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "nodes": node_list,
+        "total_nodes": len(node_list),
+        "total_agents": sum(len(n["agents"]) for n in node_list),
+    }
+
+
+def _build_overflow_activations():
+    """Return last 50 overflow governance events from audit log."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT gal.id,
+                   gal.event_type,
+                   gal.agent_id,
+                   a.name        AS agent_name,
+                   a.display_name,
+                   gal.old_value,
+                   gal.new_value,
+                   gal.reason,
+                   gal.outcome,
+                   gal.timestamp
+            FROM governance_audit_log gal
+            LEFT JOIN agents a ON a.id = gal.agent_id
+            WHERE gal.event_type IN (
+                'overflow_skill_activated',
+                'overflow_skill_deactivated',
+                'overflow_welfare_blocked',
+                'overflow_mass_activation'
+            )
+            ORDER BY gal.timestamp DESC
+            LIMIT 50
+        """
+        )
+        rows = cur.fetchall() or []
+
+    events = []
+    for r in rows:
+        events.append(
+            {
+                "id": r["id"],
+                "event_type": r["event_type"],
+                "agent_id": r["agent_id"],
+                "agent_name": r["agent_name"] or "Unknown",
+                "display_name": r["display_name"] or r["agent_name"] or "Unknown",
+                "old_value": r["old_value"],
+                "new_value": r["new_value"],
+                "reason": r["reason"],
+                "outcome": r["outcome"],
+                "timestamp": r["timestamp"].isoformat() if r["timestamp"] else None,
+            }
+        )
+
+    return {
+        "success": True,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "events": events,
+        "count": len(events),
+    }
 
 
 def _build_stats():

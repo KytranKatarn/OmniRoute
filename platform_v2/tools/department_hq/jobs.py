@@ -3936,4 +3936,266 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered idle_agent_scanner (every 30s)")
 
+    # ── T3167: dynamic_skill_activation ──────────────────────────────────────
+    # High-water / low-water thresholds for auto-enabling/disabling overflow bids.
+    _DSKILL_HIGH_WATER = 5  # queue depth that triggers activation
+    _DSKILL_LOW_WATER = 1  # queue depth that triggers deactivation
+    _DSKILL_STRESS_MAX = 0.8  # K.I.N. stress gate (matches idle_agent_scanner)
+
+    def _run_dynamic_skill_activation():
+        """Auto-enable/disable agent_overflow_skills.enabled based on queue pressure.
+
+        Every 5 minutes:
+          - Reads cluster_work_queue depths per capability.
+          - HIGH-WATER (depth >= 5): enables disabled overflow bids for that
+            capability after a K.I.N. welfare check (stress < 0.8, not in rest).
+            Welfare blocks are logged to governance_audit_log so C.R.E.E.D. can
+            surface them.  Mass activations (>5 agents) also raise a Tier-2
+            informational approval for human visibility.
+          - LOW-WATER (depth <= 1): disables enabled bids for capabilities that
+            have drained, returning agents to primary-skill focus.
+
+        All decisions are written to governance_audit_log
+        (event_category='workload') so the C.R.E.E.D. tab and standalone can
+        display a live ethics timeline of overflow governance.
+        """
+        import json as _json
+
+        try:
+            from database import get_db_cursor
+
+            # ── 1. Queue depths per capability ──────────────────────────────
+            queue_depths: dict = {}
+            try:
+                with get_db_cursor() as (_, cur):
+                    cur.execute(
+                        """
+                        SELECT capability, COUNT(*) AS depth
+                        FROM   cluster_work_queue
+                        WHERE  status = 'pending'
+                        GROUP BY capability
+                        """
+                    )
+                    for row in cur.fetchall() or []:
+                        queue_depths[row["capability"]] = int(row["depth"])
+            except Exception as _qd_exc:
+                logger.warning("[DynamicSkill] queue depth query failed: %s", _qd_exc)
+                return
+
+            if not queue_depths:
+                return  # nothing pending — no adjustments needed
+
+            # ── 2. All overflow bids (enabled + disabled) ────────────────────
+            try:
+                with get_db_cursor() as (_, cur):
+                    cur.execute(
+                        """
+                        SELECT os.id, os.agent_id, os.capability, os.enabled,
+                               os.bid_priority
+                        FROM   agent_overflow_skills os
+                        JOIN   agents a ON a.id = os.agent_id
+                        WHERE  a.shift_state IN ('active', 'deployed')
+                          AND  a.worker_type = 'ai'
+                        """
+                    )
+                    all_bids = [dict(r) for r in (cur.fetchall() or [])]
+            except Exception as _bid_exc:
+                logger.warning("[DynamicSkill] bid query failed: %s", _bid_exc)
+                return
+
+            if not all_bids:
+                return
+
+            # ── 3. HIGH-WATER: enable disabled bids where queue is hot ───────
+            hot_capabilities = {cap for cap, depth in queue_depths.items() if depth >= _DSKILL_HIGH_WATER}
+            to_activate = [b for b in all_bids if not b["enabled"] and b["capability"] in hot_capabilities]
+
+            activated = 0
+            welfare_blocked = 0
+
+            if to_activate:
+                # K.I.N. welfare gate — batch check (mirrors idle_agent_scanner)
+                _act_agent_ids = [b["agent_id"] for b in to_activate]
+                welfare_clear: set = set(_act_agent_ids)
+                try:
+                    with get_db_cursor() as (_, cur):
+                        cur.execute(
+                            """
+                            SELECT ae.agent_id,
+                                   COALESCE(ae.stress_level, 0.0) AS stress,
+                                   EXISTS(
+                                       SELECT 1 FROM agent_rest_cycles rc
+                                       WHERE  rc.agent_id  = ae.agent_id
+                                         AND  rc.ended_at IS NULL
+                                   ) AS in_rest
+                            FROM   agent_emotional_state ae
+                            WHERE  ae.agent_id = ANY(%s)
+                            """,
+                            (_act_agent_ids,),
+                        )
+                        for _kr in cur.fetchall() or []:
+                            if _kr["in_rest"] or float(_kr["stress"]) >= _DSKILL_STRESS_MAX:
+                                welfare_clear.discard(_kr["agent_id"])
+                except Exception as _kin_exc:
+                    logger.warning(
+                        "[DynamicSkill] K.I.N. welfare check failed — proceeding cleared: %s",
+                        _kin_exc,
+                    )
+
+                for bid in to_activate:
+                    depth = queue_depths.get(bid["capability"], 0)
+                    cleared = bid["agent_id"] in welfare_clear
+
+                    if cleared:
+                        # Enable the bid
+                        try:
+                            with get_db_cursor() as (_, cur):
+                                cur.execute(
+                                    """
+                                    UPDATE agent_overflow_skills
+                                    SET    enabled = TRUE, updated_at = NOW()
+                                    WHERE  id = %s AND enabled = FALSE
+                                    """,
+                                    (bid["id"],),
+                                )
+                        except Exception as _upd_exc:
+                            logger.warning("[DynamicSkill] enable bid %d failed: %s", bid["id"], _upd_exc)
+                            continue
+
+                        activated += 1
+                        _gov_event_type = "overflow_skill_activated"
+                        _gov_action = "update"
+                        _gov_outcome = "success"
+                    else:
+                        welfare_blocked += 1
+                        _gov_event_type = "overflow_welfare_blocked"
+                        _gov_action = "block"
+                        _gov_outcome = "blocked"
+
+                    # Governance audit log — C.R.E.E.D. visibility
+                    try:
+                        with get_db_cursor() as (_, cur):
+                            cur.execute(
+                                """
+                                INSERT INTO governance_audit_log
+                                    (event_type, event_category, agent_id, action,
+                                     target_table, target_id,
+                                     old_value, new_value, reason, outcome)
+                                VALUES (%s, 'workload', %s, %s,
+                                        'agent_overflow_skills', %s,
+                                        %s::jsonb, %s::jsonb, %s, %s)
+                                """,
+                                (
+                                    _gov_event_type,
+                                    bid["agent_id"],
+                                    _gov_action,
+                                    bid["id"],
+                                    _json.dumps(
+                                        {"enabled": False, "capability": bid["capability"], "queue_depth": depth}
+                                    ),
+                                    _json.dumps(
+                                        {"enabled": cleared, "capability": bid["capability"], "queue_depth": depth}
+                                    ),
+                                    f"queue_depth={depth} >= HIGH_WATER={_DSKILL_HIGH_WATER} "
+                                    f"cap={bid['capability']}",
+                                    _gov_outcome,
+                                ),
+                            )
+                    except Exception as _gal_exc:
+                        logger.debug("[DynamicSkill] governance_audit_log write failed: %s", _gal_exc)
+
+                # Tier-2 informational approval for mass activations (>5 agents same cycle)
+                if activated > 5:
+                    try:
+                        from ai_bridge.agent_loop import request_approval
+
+                        request_approval(
+                            action_type="overflow_mass_activation",
+                            action_data={
+                                "activated_count": activated,
+                                "capabilities": list(hot_capabilities),
+                                "queue_depths": {c: queue_depths[c] for c in hot_capabilities},
+                            },
+                            reason=(
+                                f"T3167: {activated} overflow bids auto-enabled "
+                                f"for {list(hot_capabilities)} — informational review"
+                            ),
+                            requested_by="dynamic_skill_activation",
+                            priority=3,
+                            tier=2,
+                        )
+                    except Exception as _apr_exc:
+                        logger.debug("[DynamicSkill] approval request failed (non-critical): %s", _apr_exc)
+
+            # ── 4. LOW-WATER: disable bids where queue has drained ────────────
+            drain_capabilities = {cap for cap, depth in queue_depths.items() if depth <= _DSKILL_LOW_WATER}
+            # Also disable bids for capabilities with NO pending items at all
+            all_bid_caps = {b["capability"] for b in all_bids}
+            drain_capabilities |= all_bid_caps - set(queue_depths.keys())
+
+            to_deactivate = [b for b in all_bids if b["enabled"] and b["capability"] in drain_capabilities]
+
+            deactivated = 0
+            for bid in to_deactivate:
+                depth = queue_depths.get(bid["capability"], 0)
+                try:
+                    with get_db_cursor() as (_, cur):
+                        cur.execute(
+                            """
+                            UPDATE agent_overflow_skills
+                            SET    enabled = FALSE, updated_at = NOW()
+                            WHERE  id = %s AND enabled = TRUE
+                            """,
+                            (bid["id"],),
+                        )
+                except Exception as _de_exc:
+                    logger.warning("[DynamicSkill] disable bid %d failed: %s", bid["id"], _de_exc)
+                    continue
+
+                deactivated += 1
+                try:
+                    with get_db_cursor() as (_, cur):
+                        cur.execute(
+                            """
+                            INSERT INTO governance_audit_log
+                                (event_type, event_category, agent_id, action,
+                                 target_table, target_id,
+                                 old_value, new_value, reason, outcome)
+                            VALUES ('overflow_skill_deactivated', 'workload', %s, 'update',
+                                    'agent_overflow_skills', %s,
+                                    %s::jsonb, %s::jsonb, %s, 'success')
+                            """,
+                            (
+                                bid["agent_id"],
+                                bid["id"],
+                                _json.dumps({"enabled": True, "capability": bid["capability"], "queue_depth": depth}),
+                                _json.dumps({"enabled": False, "capability": bid["capability"], "queue_depth": depth}),
+                                f"queue_depth={depth} <= LOW_WATER={_DSKILL_LOW_WATER} " f"cap={bid['capability']}",
+                            ),
+                        )
+                except Exception as _gal2_exc:
+                    logger.debug("[DynamicSkill] governance_audit_log deactivate failed: %s", _gal2_exc)
+
+            if activated or deactivated or welfare_blocked:
+                logger.info(
+                    "[DynamicSkill] cycle done: activated=%d deactivated=%d welfare_blocked=%d",
+                    activated,
+                    deactivated,
+                    welfare_blocked,
+                )
+
+        except Exception as _exc:
+            logger.error("[DynamicSkill] crashed: %s", _exc)
+
+    scheduler.add_job(
+        with_ctx(_run_dynamic_skill_activation),
+        trigger=IntervalTrigger(minutes=5, timezone="America/Toronto"),
+        id="dynamic_skill_activation",
+        name="Dynamic Skill Activation — auto-enable/disable overflow bids via K.I.N. + C.R.E.E.D. (T3167)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered dynamic_skill_activation job (every 5 min, T3167)")
+
     logger.info("[DeptHQ] Registered 12 code health/audit jobs")

@@ -4391,6 +4391,48 @@ def _register_own_jobs(scheduler, flask_app):
                 )
                 imbalance_rows = [dict(r) for r in (cur.fetchall() or [])]
 
+                # Rest cycle compliance (7d)
+                cur.execute(
+                    """
+                    SELECT COUNT(DISTINCT a.id)         AS total_active,
+                           COUNT(DISTINCT arc.agent_id) AS completed_rest
+                    FROM   agents a
+                    LEFT JOIN agent_rest_cycles arc
+                           ON arc.agent_id = a.id
+                          AND arc.started_at > NOW() - INTERVAL '7 days'
+                          AND arc.ended_at IS NOT NULL
+                    WHERE  a.worker_type = 'ai'
+                      AND  a.shift_state NOT IN ('decommissioned', 'barracked')
+                    """
+                )
+                _rr = dict(cur.fetchone() or {})
+                _total_active = int(_rr.get("total_active") or 0)
+                _completed_rest = int(_rr.get("completed_rest") or 0)
+                rest_compliance_pct = round(_completed_rest / _total_active * 100, 1) if _total_active > 0 else 0.0
+
+                # Welfare blocks honored (7d)
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS cnt
+                    FROM   governance_audit_log
+                    WHERE  event_type = 'overflow_welfare_blocked'
+                      AND  timestamp > NOW() - INTERVAL '7 days'
+                    """
+                )
+                blocks_7d = int((cur.fetchone() or {}).get("cnt") or 0)
+
+                # Active SLA breaches (dept score < 70 for 2+ consecutive days)
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS cnt
+                    FROM   governance_audit_log
+                    WHERE  event_type = 'welfare_sla_breach'
+                      AND  outcome != 'resolved'
+                      AND  timestamp > NOW() - INTERVAL '7 days'
+                    """
+                )
+                active_sla_breaches = int((cur.fetchone() or {}).get("cnt") or 0)
+
             # Staffing imbalance ratio per department (max/min dispatches)
             dept_counts: dict = defaultdict(list)
             for row in imbalance_rows:
@@ -4464,6 +4506,17 @@ def _register_own_jobs(scheduler, flask_app):
                 lines.append(
                     "_K.I.N. recommends reviewing backup agent skill registrations " "and overflow bid thresholds._"
                 )
+                lines.append("")
+
+            # Rest compliance + welfare consent
+            rest_icon = "✅" if rest_compliance_pct >= 80 else ("⚠️" if rest_compliance_pct >= 50 else "🔴")
+            lines.append(
+                f"*Rest Compliance (7d):* {rest_icon} "
+                f"{rest_compliance_pct}% ({_completed_rest}/{_total_active} agents completed rest)"
+            )
+            lines.append(f"*Welfare Blocks Honored (7d):* {blocks_7d} consent decisions respected")
+            if active_sla_breaches:
+                lines.append(f"*🔴 Active SLA Breaches:* {active_sla_breaches} dept(s) below C-grade for 48h+")
 
             msg = "\n".join(lines)
 
@@ -4480,7 +4533,9 @@ def _register_own_jobs(scheduler, flask_app):
                         """,
                         (
                             f"ethics={ethics_score} high_stress={high_stress_total} "
-                            f"imbalance_flags={len(imbalance_flags)}",
+                            f"imbalance_flags={len(imbalance_flags)} "
+                            f"rest_compliance={rest_compliance_pct}% "
+                            f"blocks_honored={blocks_7d} sla_breaches={active_sla_breaches}",
                         ),
                     )
             except Exception as _ge:
@@ -4513,5 +4568,418 @@ def _register_own_jobs(scheduler, flask_app):
         replace_existing=True,
     )
     logger.info("[DeptHQ] Registered creed_kin_weekly_digest job (Mon 09:00, Job #131)")
+
+    # ── Job #132 — Daily C.R.E.E.D. ethics snapshot + SLA breach tracking ─────
+
+    def _run_creed_ethics_snapshot():
+        """Nightly per-department ethics score snapshot → creed_ethics_snapshots.
+
+        Also checks SLA breaches: any department scoring below C (70) for
+        2+ consecutive days emits welfare_sla_breach to governance_audit_log.
+        Recovery to ≥70 emits welfare_sla_resolved.
+        """
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (_, cur):
+                # Compute per-dept welfare (LATERAL — avoids time-series fan-out)
+                cur.execute(
+                    """
+                    SELECT a.department,
+                           AVG(ae.stress_level)                                AS avg_stress,
+                           COUNT(CASE WHEN ae.stress_level >= 0.8 THEN 1 END) AS high_stress_count
+                    FROM agents a
+                    JOIN LATERAL (
+                        SELECT stress_level FROM agent_emotional_state
+                        WHERE agent_id = a.id ORDER BY id DESC LIMIT 1
+                    ) ae ON true
+                    WHERE a.shift_state NOT IN ('decommissioned')
+                    GROUP BY a.department
+                    """
+                )
+                welfare_by_dept = {
+                    r["department"]: {
+                        "avg_stress": float(r["avg_stress"] or 0),
+                        "high_stress_agents": int(r["high_stress_count"] or 0),
+                    }
+                    for r in (cur.fetchall() or [])
+                }
+
+                # 24h job success rate per department
+                cur.execute(
+                    """
+                    SELECT department,
+                           COUNT(*) FILTER (WHERE status = 'success') AS success,
+                           COUNT(*) AS total
+                    FROM autonomy_loop_log
+                    WHERE created_at > NOW() - INTERVAL '24 hours'
+                      AND department IS NOT NULL AND department != 'UNKNOWN'
+                    GROUP BY department
+                    """
+                )
+                jobs_by_dept = {
+                    r["department"]: {
+                        "success": int(r["success"] or 0),
+                        "total": int(r["total"] or 0),
+                    }
+                    for r in (cur.fetchall() or [])
+                }
+
+                all_depts = set(welfare_by_dept) | set(jobs_by_dept)
+
+                def _grade(sc: int) -> str:
+                    if sc >= 95:
+                        return "A+"
+                    if sc >= 90:
+                        return "A"
+                    if sc >= 85:
+                        return "B+"
+                    if sc >= 80:
+                        return "B"
+                    if sc >= 70:
+                        return "C"
+                    if sc >= 60:
+                        return "D"
+                    return "F"
+
+                today_scores: dict = {}
+                for dept in all_depts:
+                    wf = welfare_by_dept.get(dept, {})
+                    jh = jobs_by_dept.get(dept, {})
+                    sr = round(jh["success"] / jh["total"] * 100, 1) if jh.get("total", 0) > 0 else 100.0
+                    hs = wf.get("high_stress_agents", 0)
+                    raw = sr - (hs * 2)
+                    score = max(0, min(100, round(raw)))
+                    avg_stress = wf.get("avg_stress", 0.0)
+                    welfare_status = "red" if avg_stress >= 0.8 else ("yellow" if avg_stress >= 0.5 else "green")
+                    today_scores[dept] = {
+                        "score": score,
+                        "grade": _grade(score),
+                        "success_rate": sr,
+                        "high_stress_agents": hs,
+                        "avg_stress": round(avg_stress, 3),
+                        "welfare_status": welfare_status,
+                    }
+
+                # Upsert today's snapshots
+                for dept, s in today_scores.items():
+                    cur.execute(
+                        """
+                        INSERT INTO creed_ethics_snapshots
+                            (snapshot_date, department, score, grade,
+                             success_rate, high_stress_agents, avg_stress, welfare_status)
+                        VALUES (CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (snapshot_date, department)
+                        DO UPDATE SET
+                            score              = EXCLUDED.score,
+                            grade              = EXCLUDED.grade,
+                            success_rate       = EXCLUDED.success_rate,
+                            high_stress_agents = EXCLUDED.high_stress_agents,
+                            avg_stress         = EXCLUDED.avg_stress,
+                            welfare_status     = EXCLUDED.welfare_status
+                        """,
+                        (
+                            dept,
+                            s["score"],
+                            s["grade"],
+                            s["success_rate"],
+                            s["high_stress_agents"],
+                            s["avg_stress"],
+                            s["welfare_status"],
+                        ),
+                    )
+
+                # SLA breach / resolution detection — compare with yesterday
+                cur.execute(
+                    """
+                    SELECT department, score
+                    FROM creed_ethics_snapshots
+                    WHERE snapshot_date = CURRENT_DATE - INTERVAL '1 day'
+                    """
+                )
+                yesterday = {r["department"]: int(r["score"]) for r in (cur.fetchall() or [])}
+
+            # Evaluate SLA changes (outside the DB cursor so we can reopen)
+            breaches_raised = 0
+            resolved_raised = 0
+            for dept, s in today_scores.items():
+                today_score = s["score"]
+                yest_score = yesterday.get(dept, 100)
+                below_today = today_score < 70
+                below_yest = yest_score < 70
+                if below_today and below_yest:
+                    # 2+ consecutive days below C — raise breach
+                    try:
+                        with get_db_cursor() as (_, cur2):
+                            cur2.execute(
+                                """
+                                INSERT INTO governance_audit_log
+                                    (event_type, event_category, action,
+                                     target_table, reason, outcome)
+                                VALUES ('welfare_sla_breach', 'welfare', 'flag',
+                                        'creed_ethics_snapshots', %s, 'open')
+                                """,
+                                (f"dept={dept} score={today_score} " f"yesterday={yest_score} grade={s['grade']}",),
+                            )
+                        breaches_raised += 1
+                    except Exception as _be:
+                        logger.debug("[EthicsSnapshot] SLA breach log failed: %s", _be)
+                elif not below_today and below_yest:
+                    # Recovered — log resolution
+                    try:
+                        with get_db_cursor() as (_, cur2):
+                            cur2.execute(
+                                """
+                                INSERT INTO governance_audit_log
+                                    (event_type, event_category, action,
+                                     target_table, reason, outcome)
+                                VALUES ('welfare_sla_resolved', 'welfare', 'update',
+                                        'creed_ethics_snapshots', %s, 'resolved')
+                                """,
+                                (
+                                    f"dept={dept} score={today_score} "
+                                    f"recovered_from={yest_score} grade={s['grade']}",
+                                ),
+                            )
+                        resolved_raised += 1
+                    except Exception as _re:
+                        logger.debug("[EthicsSnapshot] SLA resolve log failed: %s", _re)
+
+            # Summary audit entry
+            try:
+                with get_db_cursor() as (_, cur):
+                    cur.execute(
+                        """
+                        INSERT INTO governance_audit_log
+                            (event_type, event_category, action,
+                             target_table, reason, outcome)
+                        VALUES ('creed_ethics_snapshot_done', 'governance', 'report',
+                                'creed_ethics_snapshots', %s, 'success')
+                        """,
+                        (
+                            f"depts={len(today_scores)} "
+                            f"breaches_raised={breaches_raised} "
+                            f"resolved={resolved_raised}",
+                        ),
+                    )
+            except Exception as _ge:
+                logger.debug("[EthicsSnapshot] summary audit log failed: %s", _ge)
+
+            logger.info(
+                "[EthicsSnapshot] done — %d depts, %d SLA breaches, %d resolved",
+                len(today_scores),
+                breaches_raised,
+                resolved_raised,
+            )
+
+        except Exception as _exc:
+            logger.error("[EthicsSnapshot] crashed: %s", _exc)
+
+    scheduler.add_job(
+        with_ctx(_run_creed_ethics_snapshot),
+        trigger=CronTrigger(hour=0, minute=5, timezone="America/Toronto"),
+        id="creed_ethics_snapshot",
+        name="C.R.E.E.D. Ethics Snapshot — nightly per-dept score history + SLA breach check (00:05)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered creed_ethics_snapshot job (daily 00:05, Job #132)")
+
+    # ── Job #133 — Quarterly C.R.E.E.D. governance report ─────────────────────
+
+    def _run_creed_quarterly_report():
+        """Generate quarterly governance report → creed_governance_reports + knowledge_base.
+
+        Runs on the 1st of Jan / Apr / Jul / Oct at 08:00 ET.
+        Pulls 90 days of ethics snapshots + governance events + welfare signals.
+        Stores JSON in creed_governance_reports for the API to serve.
+        Also writes a vault_note to knowledge_base for archiving.
+        """
+        import datetime
+
+        try:
+            from database import get_db_cursor
+
+            now_dt = datetime.datetime.now()
+            quarter_num = (now_dt.month - 1) // 3 + 1
+            quarter_label = f"{now_dt.year}-Q{quarter_num}"
+
+            with get_db_cursor() as (_, cur):
+                # 90-day ethics snapshot summary per department
+                cur.execute(
+                    """
+                    SELECT department,
+                           MIN(score) AS min_score, MAX(score) AS max_score,
+                           ROUND(AVG(score)::numeric, 1) AS avg_score,
+                           COUNT(*) AS days_tracked,
+                           COUNT(CASE WHEN score < 70 THEN 1 END) AS days_below_c
+                    FROM creed_ethics_snapshots
+                    WHERE snapshot_date >= CURRENT_DATE - INTERVAL '90 days'
+                    GROUP BY department
+                    ORDER BY avg_score
+                    """
+                )
+                dept_summary = [dict(r) for r in (cur.fetchall() or [])]
+                for d in dept_summary:
+                    for k in ("min_score", "max_score", "avg_score"):
+                        if d[k] is not None:
+                            d[k] = float(d[k])
+
+                # Global ethics trend (daily avg across all depts)
+                cur.execute(
+                    """
+                    SELECT snapshot_date::text,
+                           ROUND(AVG(score)::numeric, 1) AS avg_score,
+                           MIN(score) AS min_score
+                    FROM creed_ethics_snapshots
+                    WHERE snapshot_date >= CURRENT_DATE - INTERVAL '90 days'
+                    GROUP BY snapshot_date
+                    ORDER BY snapshot_date
+                    """
+                )
+                daily_trend = [
+                    {
+                        "date": r["snapshot_date"],
+                        "avg_score": float(r["avg_score"] or 0),
+                        "min_score": int(r["min_score"] or 0),
+                    }
+                    for r in (cur.fetchall() or [])
+                ]
+
+                # Governance events by type (90d)
+                cur.execute(
+                    """
+                    SELECT event_type, COUNT(*) AS cnt
+                    FROM governance_audit_log
+                    WHERE timestamp >= NOW() - INTERVAL '90 days'
+                    GROUP BY event_type
+                    ORDER BY cnt DESC
+                    LIMIT 20
+                    """
+                )
+                event_counts = {r["event_type"]: int(r["cnt"]) for r in (cur.fetchall() or [])}
+
+                # Welfare summary
+                welfare_blocks = event_counts.get("overflow_welfare_blocked", 0)
+                sla_breaches = event_counts.get("welfare_sla_breach", 0)
+                sla_resolved = event_counts.get("welfare_sla_resolved", 0)
+                token_warnings = event_counts.get("token_overload_warning", 0)
+                overflow_activations = event_counts.get("overflow_skill_activated", 0)
+
+                # Agent count snapshot
+                cur.execute("SELECT COUNT(*) AS cnt FROM agents WHERE shift_state != 'decommissioned'")
+                agent_count = int((cur.fetchone() or {}).get("cnt") or 0)
+
+                # Rest compliance (90d) — agents who rested at least once
+                cur.execute(
+                    """
+                    SELECT COUNT(DISTINCT agent_id) AS rested
+                    FROM agent_rest_cycles
+                    WHERE started_at >= NOW() - INTERVAL '90 days'
+                      AND ended_at IS NOT NULL
+                    """
+                )
+                rested_agents = int((cur.fetchone() or {}).get("rested") or 0)
+
+            report = {
+                "quarter": quarter_label,
+                "generated_at": now_dt.isoformat(),
+                "period_days": 90,
+                "agents_monitored": agent_count,
+                "departments": len(dept_summary),
+                "summary": {
+                    "welfare_blocks_honored": welfare_blocks,
+                    "sla_breaches": sla_breaches,
+                    "sla_breaches_resolved": sla_resolved,
+                    "token_overload_warnings": token_warnings,
+                    "overflow_activations": overflow_activations,
+                    "agents_completed_rest": rested_agents,
+                },
+                "dept_ethics": dept_summary,
+                "daily_ethics_trend": daily_trend,
+                "governance_event_counts": event_counts,
+            }
+
+            # Store in creed_governance_reports
+            try:
+                import json as _json
+
+                with get_db_cursor() as (_, cur):
+                    cur.execute(
+                        """
+                        INSERT INTO creed_governance_reports (quarter, report_json)
+                        VALUES (%s, %s)
+                        ON CONFLICT (quarter)
+                        DO UPDATE SET report_json = EXCLUDED.report_json,
+                                      created_at  = NOW()
+                        """,
+                        (quarter_label, _json.dumps(report)),
+                    )
+            except Exception as _dbe:
+                logger.warning("[QuarterlyReport] DB store failed: %s", _dbe)
+
+            # Store as vault_note in knowledge_base for archiving
+            try:
+                import json as _json
+
+                with get_db_cursor() as (_, cur):
+                    cur.execute(
+                        """
+                        INSERT INTO knowledge_base
+                            (title, content, knowledge_type, category, tags,
+                             importance_score, source)
+                        VALUES (%s, %s, 'vault_note', 'governance', %s, 0.95, 'creed_quarterly_job')
+                        ON CONFLICT DO NOTHING
+                        """,
+                        (
+                            f"C.R.E.E.D. Governance Report — {quarter_label}",
+                            _json.dumps(report, indent=2),
+                            _json.dumps(["creed", "governance", "quarterly_report", quarter_label]),
+                        ),
+                    )
+            except Exception as _kbe:
+                logger.debug("[QuarterlyReport] KB vault_note failed: %s", _kbe)
+
+            # Governance audit entry
+            try:
+                with get_db_cursor() as (_, cur):
+                    cur.execute(
+                        """
+                        INSERT INTO governance_audit_log
+                            (event_type, event_category, action,
+                             target_table, reason, outcome)
+                        VALUES ('creed_quarterly_report', 'governance', 'report',
+                                'creed_governance_reports', %s, 'success')
+                        """,
+                        (
+                            f"quarter={quarter_label} depts={len(dept_summary)} "
+                            f"welfare_blocks={welfare_blocks} sla_breaches={sla_breaches}",
+                        ),
+                    )
+            except Exception as _ge:
+                logger.debug("[QuarterlyReport] audit log failed: %s", _ge)
+
+            logger.info(
+                "[QuarterlyReport] %s complete — %d depts, %d welfare blocks, %d SLA breaches",
+                quarter_label,
+                len(dept_summary),
+                welfare_blocks,
+                sla_breaches,
+            )
+
+        except Exception as _exc:
+            logger.error("[QuarterlyReport] crashed: %s", _exc)
+
+    scheduler.add_job(
+        with_ctx(_run_creed_quarterly_report),
+        trigger=CronTrigger(month="1,4,7,10", day=1, hour=8, minute=0, timezone="America/Toronto"),
+        id="creed_quarterly_report",
+        name="C.R.E.E.D. Quarterly Governance Report — 1st of Jan/Apr/Jul/Oct 08:00",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered creed_quarterly_report job (quarterly 08:00, Job #133)")
 
     logger.info("[DeptHQ] Registered 12 code health/audit jobs")

@@ -16,6 +16,7 @@ import uuid
 import requests
 
 from . import social_video_service as svs
+from .comfyui_manager import get_best_comfyui_url
 
 logger = logging.getLogger(__name__)
 
@@ -73,10 +74,12 @@ def _process_item(item):
 
     logger.info("Processing queue item %s (quality=%s)", item_id, quality)
 
+    _gen_start = time.time()
     if quality == "draft":
         result = _generate_local(prompt, generation_params)
     else:
         result = _generate_cloud(prompt, generation_params)
+    _gen_dur_ms = int((time.time() - _gen_start) * 1000)
 
     if result.get("success"):
         video_path = result["path"]
@@ -109,6 +112,14 @@ def _process_item(item):
         logger.error("Generation failed for item %s: %s", item_id, error_msg)
         svs.update_queue_item(item_id, status="failed", error_message=error_msg)
 
+    # DHQ attribution — P.I.X.E.L. credit for all social video generation
+    _write_task_log(
+        success=result.get("success", False),
+        duration_ms=_gen_dur_ms,
+        model="ltx-video-2b-v0.9" if result.get("provider") in (None, "local") else result.get("provider", "video-gen"),
+        node_name=result.get("node_name"),
+    )
+
 
 # ---------------------------------------------------------------------------
 # Local generation (ComfyUI)
@@ -135,9 +146,17 @@ def _generate_local(prompt, params):
                     node["inputs"]["text"] = prompt
                     break
 
+        # Fleet-aware ComfyUI routing — routes to best available GPU node
+        _comfyui_url, _fleet_node_name = get_best_comfyui_url("ltx-video-2b-v0.9")
+        logger.info(
+            "social_video_worker: ComfyUI → %s (node=%s)",
+            _comfyui_url,
+            _fleet_node_name or "hub",
+        )
+
         # Submit to ComfyUI
         resp = requests.post(
-            f"{COMFYUI_URL}/prompt",
+            f"{_comfyui_url}/prompt",
             json={"prompt": workflow},
             timeout=30,
         )
@@ -149,7 +168,7 @@ def _generate_local(prompt, params):
         # Poll history
         for _ in range(120):
             time.sleep(5)
-            history_resp = requests.get(f"{COMFYUI_URL}/history/{prompt_id}", timeout=15)
+            history_resp = requests.get(f"{_comfyui_url}/history/{prompt_id}", timeout=15)
             if history_resp.status_code == 200:
                 history = history_resp.json()
                 if prompt_id in history:
@@ -162,7 +181,7 @@ def _generate_local(prompt, params):
                             filename = file_info.get("filename", "")
                             subfolder = file_info.get("subfolder", "")
                             # Download the file
-                            dl_url = f"{COMFYUI_URL}/view?filename={filename}"
+                            dl_url = f"{_comfyui_url}/view?filename={filename}"
                             if subfolder:
                                 dl_url += f"&subfolder={subfolder}"
                             dl_resp = requests.get(dl_url, timeout=60)
@@ -179,6 +198,7 @@ def _generate_local(prompt, params):
                                 "path": dst,
                                 "provider": "local",
                                 "cost": 0,
+                                "node_name": _fleet_node_name,
                             }
 
         return {"success": False, "error": "ComfyUI generation timed out after 10 minutes"}
@@ -345,6 +365,42 @@ def _log_cloud_usage(provider, model, cost):
             )
     except Exception as exc:
         logger.debug("Failed to log cloud video usage: %s", exc)
+
+
+# ---------------------------------------------------------------------------
+# DHQ attribution
+# ---------------------------------------------------------------------------
+
+
+def _write_task_log(success: bool, duration_ms: int, model: str, node_name=None):
+    """Write P.I.X.E.L. attribution to task_execution_log — non-fatal."""
+    try:
+        from database import get_db_cursor
+
+        node_db_id = None
+        if node_name:
+            try:
+                with get_db_cursor() as (_, nc):
+                    nc.execute(
+                        "SELECT id FROM remote_nodes WHERE node_name = %s LIMIT 1",
+                        (node_name,),
+                    )
+                    row = nc.fetchone()
+                    if row:
+                        node_db_id = row["id"]
+            except Exception:
+                pass
+
+        with get_db_cursor(commit=True) as (_, cur):
+            cur.execute(
+                """INSERT INTO task_execution_log
+                   (agent_id, agent_name, model_used, duration_ms, success,
+                    capability, node_used_id, module_source)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                (13, "P.I.X.E.L.", model, duration_ms, success, "video_generation", node_db_id, "media_studio"),
+            )
+    except Exception as exc:
+        logger.debug("social_video_worker: task_execution_log write failed: %s", exc)
 
 
 # ---------------------------------------------------------------------------

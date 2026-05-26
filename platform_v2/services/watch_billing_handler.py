@@ -94,12 +94,31 @@ def _get_user_id_for_stripe_customer(stripe_customer_id: str) -> int | None:
         return None
 
 
-def _push_tier_to_standalone(product_id: str, user_id: int, tier: str) -> bool:
+def _get_user_email(user_id: int) -> str | None:
+    """Look up the email address for a platform user_id.
+
+    Used to pass email alongside user_id in tier-push payloads so that
+    standalone products keyed by email (e.g. gov-watch user_profiles) can
+    update their tier without needing access to the platform users table.
+    """
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT email FROM users WHERE id = %s LIMIT 1", (user_id,))
+            row = cur.fetchone()
+            return row["email"] if row else None
+    except Exception as exc:
+        logger.error("User email lookup failed for user_id=%s: %s", user_id, exc)
+        return None
+
+
+def _push_tier_to_standalone(product_id: str, user_id: int, tier: str, email: str | None = None) -> bool:
     """POST tier update to the standalone via internal API key (mesh IP).
 
     Endpoint: {url}/api/internal/set-tier
     Auth: X-Internal-Key header from INTERNAL_API_KEY env var.
 
+    Payload includes email when available — standalones keyed by email
+    (e.g. gov-watch user_profiles) use it directly instead of platform user_id.
     No-downgrade invariant is enforced on the standalone side.
     """
     url = PRODUCT_STANDALONE_URLS.get(product_id)
@@ -107,10 +126,14 @@ def _push_tier_to_standalone(product_id: str, user_id: int, tier: str) -> bool:
         logger.warning("No standalone URL configured for product_id=%s", product_id)
         return False
 
+    payload: dict = {"user_id": user_id, "tier": tier}
+    if email:
+        payload["email"] = email.strip().lower()
+
     try:
         resp = requests.post(
             f"{url}/api/internal/set-tier",
-            json={"user_id": user_id, "tier": tier},
+            json=payload,
             headers={
                 "X-Internal-Key": os.getenv("INTERNAL_API_KEY", ""),
                 "Content-Type": "application/json",
@@ -133,12 +156,12 @@ def _push_tier_to_standalone(product_id: str, user_id: int, tier: str) -> bool:
         return False
 
 
-def _push_tier_for_product_id(product_id: str, user_id: int, tier: str) -> dict:
+def _push_tier_for_product_id(product_id: str, user_id: int, tier: str, email: str | None = None) -> dict:
     """Push tier to all standalones for a product (handles bundles)."""
     results = {}
     targets = BUNDLE_PRODUCTS.get(product_id, [product_id] if product_id in PRODUCT_STANDALONE_URLS else [])
     for pid in targets:
-        results[pid] = _push_tier_to_standalone(pid, user_id, tier)
+        results[pid] = _push_tier_to_standalone(pid, user_id, tier, email=email)
     return results
 
 
@@ -231,6 +254,8 @@ def handle_checkout_completed(event: dict) -> str:
     if not user_id:
         return f"No user for customer {stripe_customer_id}"
 
+    email = _get_user_email(user_id)
+
     import stripe as _stripe  # noqa: PLC0415
 
     try:
@@ -255,7 +280,7 @@ def handle_checkout_completed(event: dict) -> str:
             logger.debug("KSM fallthrough skipped: %s", exc)
         return f"Price {price_id} not a Watch product — skipped"
 
-    pushed = _push_tier_for_product_id(product_id, user_id, tier)
+    pushed = _push_tier_for_product_id(product_id, user_id, tier, email=email)
     _update_billing_subscription(sub, user_id, price_id, product_id, tier)
 
     return f"Watch checkout: user={user_id} product={product_id} tier={tier} " f"pushed={pushed}"
@@ -269,6 +294,8 @@ def handle_subscription_updated(event: dict) -> str:
     user_id = _get_user_id_for_stripe_customer(stripe_customer_id)
     if not user_id:
         return f"No user for customer {stripe_customer_id}"
+
+    email = _get_user_email(user_id)
 
     items = subscription.get("items", {}).get("data", [])
     if not items:
@@ -286,7 +313,7 @@ def handle_subscription_updated(event: dict) -> str:
             logger.debug("KSM fallthrough skipped: %s", exc)
         return f"Price {price_id} not a Watch product — skipped"
 
-    pushed = _push_tier_for_product_id(product_id, user_id, tier)
+    pushed = _push_tier_for_product_id(product_id, user_id, tier, email=email)
     _update_billing_subscription(subscription, user_id, price_id, product_id, tier)
 
     return f"Watch sub updated: user={user_id} product={product_id} tier={tier} pushed={pushed}"
@@ -300,6 +327,8 @@ def handle_subscription_deleted(event: dict) -> str:
     user_id = _get_user_id_for_stripe_customer(stripe_customer_id)
     if not user_id:
         return f"No user for customer {stripe_customer_id}"
+
+    email = _get_user_email(user_id)
 
     items = subscription.get("items", {}).get("data", [])
     if not items:
@@ -317,7 +346,7 @@ def handle_subscription_deleted(event: dict) -> str:
             logger.debug("KSM fallthrough skipped: %s", exc)
         return f"Price {price_id} not a Watch product — skipped"
 
-    pushed = _push_tier_for_product_id(product_id, user_id, "free")
+    pushed = _push_tier_for_product_id(product_id, user_id, "free", email=email)
 
     sub_id = subscription.get("id")
     if sub_id:

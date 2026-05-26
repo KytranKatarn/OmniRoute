@@ -1654,7 +1654,12 @@ def register_node_routes(bp, login_required, admin_required):
                         cpu_cores = COALESCE(%s, cpu_cores),
                         cpu_model = COALESCE(%s, cpu_model),
                         ram_gb = COALESCE(%s, ram_gb),
-                        gpu_available = COALESCE(%s, gpu_available),
+                        -- True if heartbeat confirms GPU, or if gpu_model already set
+                        -- (sync container has no GPU device access → nvidia-smi fails there,
+                        --  but ollama container proves GPU exists via gpu_model being populated)
+                        gpu_available = CASE WHEN %s IS TRUE THEN TRUE
+                                             WHEN gpu_model IS NOT NULL THEN TRUE
+                                             ELSE FALSE END,
                         gpu_model = COALESCE(%s, gpu_model),
                         gpu_vram_gb = COALESCE(%s, gpu_vram_gb),
                         -- AI Service availability (Phase 72)
@@ -1679,7 +1684,9 @@ def register_node_routes(bp, login_required, admin_required):
                         data.get("cpu_cores"),
                         data.get("cpu_model"),
                         data.get("ram_gb"),
-                        data.get("gpu_available"),
+                        # Convert False→None so COALESCE preserves existing TRUE
+                        # when nvidia-smi fails inside sync container (no GPU device access).
+                        data.get("gpu_available") or None,
                         data.get("gpu_model"),
                         data.get("gpu_vram_gb"),
                         # AI Services

@@ -156,6 +156,23 @@ def record_failed_login(username, ip_address, user_agent, reason):
                 cur.close()
     except Exception as e:
         logger.debug("record_failed_login error: %s", e)
+    # C.R.E.E.D. privacy event — PIPEDA: safeguards + access control
+    try:
+        from services.creed_privacy_logger import log_privacy_event
+
+        log_privacy_event(
+            event_type="access_control_check",
+            action="authenticate",
+            outcome="failed",
+            data_category="personal",
+            description=f"Failed login: {reason}",
+            details={
+                "ip_address": ip_address,
+                "pipeda_principle": "safeguards",
+            },
+        )
+    except Exception:
+        pass
 
 
 def log_auth_event(user_id, action, ip_address, user_agent=""):
@@ -246,6 +263,27 @@ def is_account_locked(user_data):
                 now = datetime.now(timezone.utc)
                 if now < unlock_at:
                     remaining = int((unlock_at - now).total_seconds() / 60) + 1
+                    # C.R.E.E.D. privacy event — PIPEDA: safeguards (lockout enforced)
+                    try:
+                        from services.creed_privacy_logger import log_privacy_event
+
+                        log_privacy_event(
+                            event_type="access_control_check",
+                            action="lockout_gate",
+                            outcome="denied",
+                            data_category="personal",
+                            description=(
+                                f"Account locked: {user_data.get('username', 'unknown')} "
+                                f"({remaining} min remaining)"
+                            ),
+                            details={
+                                "minutes_remaining": remaining,
+                                "failed_count": failed_count,
+                                "pipeda_principle": "safeguards",
+                            },
+                        )
+                    except Exception:
+                        pass
                     return True, remaining
                 else:
                     # Lockout expired — reset count

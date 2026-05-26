@@ -8977,6 +8977,15 @@ class AgentLoop:
             "development": "transparency",
             "operations": "accountability",
             "data_management": "privacy",
+            # Extended mappings — previously fell through to default "accountability"
+            "telegram_send": "transparency",      # outbound comms logged (4,110+ events)
+            "workload_balance": "fairness",        # K.I.N. load / rest decisions (1,512+ events)
+            "welfare_ethics": "fairness",          # agent welfare gate events (162+ events)
+            "node_planning": "accountability",     # fleet node lifecycle (259+ events)
+            "orchestration": "transparency",       # dispatch pipeline steps (37+ events)
+            "agent_management": "accountability",  # agent CRUD / lifecycle (19+ events)
+            "autonomy": "safety",                  # autonomous action gates (3+ events)
+            "agent_lifecycle": "accountability",   # shift-state / decommission events
         }
         SEVERITY_MAP = {
             "success": "info",
@@ -9072,6 +9081,77 @@ class AgentLoop:
                     (str(new_last_id), str(new_last_id)),
                 )
                 conn.commit()
+
+            # ── T3247: Pillar score-drop Telegram alert ──────────────────────
+            if reported > 0:
+                try:
+                    score_resp = req.get(f"{CREED_URL}/api/v1/scores", timeout=5)
+                    if score_resp.status_code == 200:
+                        scores_now = score_resp.json()
+                        overall_now = float(scores_now.get("overall", 100))
+                        cur.execute(
+                            "SELECT value FROM system_config "
+                            "WHERE key = 'creed_score_prev_overall'"
+                        )
+                        prev_row = cur.fetchone()
+                        prev_score = float(prev_row["value"]) if prev_row else None
+                        cur.execute(
+                            """INSERT INTO system_config (key, value, description)
+                               VALUES ('creed_score_prev_overall', %s,
+                                       'Prev C.R.E.E.D. overall score for drop-alert baseline')
+                               ON CONFLICT (key) DO UPDATE
+                               SET value = %s, updated_at = NOW()""",
+                            (str(round(overall_now, 2)), str(round(overall_now, 2))),
+                        )
+                        conn.commit()
+                        if prev_score is not None and (prev_score - overall_now) >= 5.0:
+                            drop = round(prev_score - overall_now, 1)
+                            grade = scores_now.get("grade", "?")
+                            by_cat = scores_now.get("by_category", {})
+
+                            def _pv(v):
+                                return v.get("score", v) if isinstance(v, dict) else v
+
+                            pillar_lines = "\n".join(
+                                f"  {cat}: {round(float(_pv(v)), 1)}%"
+                                for cat, v in by_cat.items()
+                            )
+                            alert_msg = (
+                                f"⚠️ C.R.E.E.D. score dropped {drop} pts\n"
+                                f"Overall: {round(overall_now, 1)}% (Grade {grade})\n"
+                                f"Previous: {round(prev_score, 1)}%\n\n"
+                                f"Pillars:\n{pillar_lines}"
+                            )
+                            try:
+                                _ppath = os.path.join(
+                                    os.path.dirname(__file__), "..", "platform_v2"
+                                )
+                                if _ppath not in sys.path:
+                                    sys.path.insert(0, _ppath)
+                                from services.director_report_service import (
+                                    submit_via_inbox,
+                                )
+
+                                submit_via_inbox(
+                                    category="creed_alert",
+                                    subject=(
+                                        f"C.R.E.E.D. score alert — {drop}pt drop"
+                                    ),
+                                    body=alert_msg,
+                                    priority="high",
+                                )
+                                logger.warning(
+                                    "[CREED Reporter] Score drop alert sent: "
+                                    "%.1f -> %.1f",
+                                    prev_score,
+                                    overall_now,
+                                )
+                            except Exception as _te:
+                                logger.warning(
+                                    "[CREED Reporter] Telegram alert failed: %s", _te
+                                )
+                except Exception as _se:
+                    logger.debug("[CREED Reporter] Score-drop check failed: %s", _se)
 
             conn.close()
 

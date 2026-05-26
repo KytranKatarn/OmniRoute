@@ -5004,7 +5004,7 @@ def _register_own_jobs(scheduler, flask_app):
             from services.creed_privacy_logger import log_privacy_event
             from database import get_db_cursor
 
-            with get_db_cursor() as (conn, cur):
+            with get_db_cursor(commit=True) as (conn, cur):
 
                 # ── 1. Email data processed ───────────────────────────────────
                 cur.execute(
@@ -5083,9 +5083,8 @@ def _register_own_jobs(scheduler, flask_app):
                         },
                     )
 
-                # ── 4. Data retention check ───────────────────────────────────
-                # Flag conversation_memory entries older than 90 days as a
-                # retention policy review signal
+                # ── 4. Data retention — count then DELETE stale memories ──────
+                # PIPEDA: Limiting Use — conversation_memory >90 days purged
                 cur.execute(
                     """
                     SELECT COUNT(*) AS cnt
@@ -5096,15 +5095,36 @@ def _register_own_jobs(scheduler, flask_app):
                 )
                 stale_memories = int((cur.fetchone() or {}).get("cnt", 0))
 
+                # Enforce retention: delete up to 500 per cycle (batch-safe)
+                deleted_memories = 0
+                if stale_memories > 0:
+                    cur.execute(
+                        """
+                        DELETE FROM knowledge_base
+                        WHERE id IN (
+                            SELECT id FROM knowledge_base
+                            WHERE knowledge_type = 'conversation_memory'
+                              AND created_at < NOW() - INTERVAL '90 days'
+                            ORDER BY created_at ASC
+                            LIMIT 500
+                        )
+                        """
+                    )
+                    deleted_memories = cur.rowcount or 0
+
                 retention_outcome = "failed" if stale_memories > 500 else "success"
                 log_privacy_event(
                     event_type="data_retention_check",
-                    action="review",
+                    action="purge",
                     outcome=retention_outcome,
                     data_category="personal",
-                    description=(f"Retention check: {stale_memories} conversation memories >90 days old"),
+                    description=(
+                        f"Retention: {stale_memories} conversation memories >90 days; "
+                        f"{deleted_memories} purged this cycle"
+                    ),
                     details={
-                        "stale_conversation_memories": stale_memories,
+                        "stale_before_purge": stale_memories,
+                        "deleted_this_cycle": deleted_memories,
                         "threshold_days": 90,
                         "pipeda_principle": "limiting_use",
                     },

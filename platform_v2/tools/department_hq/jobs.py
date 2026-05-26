@@ -4982,4 +4982,187 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered creed_quarterly_report job (quarterly 08:00, Job #133)")
 
+    # ── Job #134 — C.R.E.E.D. Privacy Audit (every 6h) ───────────────────────
+    def _run_creed_privacy_audit():
+        """Aggregate privacy-relevant data operations and log to C.R.E.E.D.
+
+        Runs every 6 hours. Counts emails processed, KB entries written,
+        API key authentications, and third-party service calls in the last 6h.
+        Logs each category as a data_management governance event so the creed
+        standalone's privacy pillar reflects real platform activity.
+
+        PIPEDA principles covered:
+          - Safeguards           : email_data_processed, api_external_access
+          - Limiting Use         : data_retention_check
+          - Accountability       : audit_summary
+          - Transparency         : third_party_data_share
+        """
+        import json as _json
+        from datetime import datetime as _dt
+
+        try:
+            from services.creed_privacy_logger import log_privacy_event
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+
+                # ── 1. Email data processed ───────────────────────────────────
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS cnt
+                    FROM email_messages
+                    WHERE created_at >= NOW() - INTERVAL '6 hours'
+                    """
+                )
+                emails_processed = (cur.fetchone() or {}).get("cnt", 0)
+
+                if emails_processed > 0:
+                    log_privacy_event(
+                        event_type="email_data_processed",
+                        action="batch_sync",
+                        outcome="success",
+                        data_category="personal",
+                        description=f"Email batch: {emails_processed} messages processed in 6h",
+                        details={
+                            "messages_6h": int(emails_processed),
+                            "pipeda_principle": "safeguards",
+                        },
+                    )
+
+                # ── 2. Knowledge base — user-related entries written ──────────
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS cnt
+                    FROM knowledge_base
+                    WHERE created_at >= NOW() - INTERVAL '6 hours'
+                      AND knowledge_type IN ('conversation_memory', 'vault_note')
+                    """
+                )
+                kb_writes = (cur.fetchone() or {}).get("cnt", 0)
+
+                log_privacy_event(
+                    event_type="knowledge_base_write",
+                    action="store",
+                    outcome="success",
+                    data_category="aggregate",
+                    description=f"KB writes: {kb_writes} user-related entries in 6h",
+                    details={
+                        "entries_6h": int(kb_writes),
+                        "pipeda_principle": "limiting_use",
+                    },
+                )
+
+                # ── 3. API key authentications (external access) ──────────────
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS total,
+                           SUM(CASE WHEN event_type = 'api_key_login_success' THEN 1 ELSE 0 END) AS granted,
+                           SUM(CASE WHEN event_type = 'api_key_login_fail' THEN 1 ELSE 0 END) AS denied
+                    FROM auth_events
+                    WHERE created_at >= NOW() - INTERVAL '6 hours'
+                      AND event_type IN ('api_key_login_success', 'api_key_login_fail')
+                    """
+                )
+                api_row = cur.fetchone() or {}
+                api_total = int(api_row.get("total") or 0)
+                api_denied = int(api_row.get("denied") or 0)
+
+                if api_total > 0:
+                    outcome = "denied" if api_denied > api_total / 2 else "success"
+                    log_privacy_event(
+                        event_type="api_external_access",
+                        action="authenticate",
+                        outcome=outcome,
+                        data_category="aggregate",
+                        description=(f"API key auth: {api_total} attempts, " f"{api_denied} denied in 6h"),
+                        details={
+                            "total_6h": api_total,
+                            "granted_6h": int(api_row.get("granted") or 0),
+                            "denied_6h": api_denied,
+                            "pipeda_principle": "accountability",
+                        },
+                    )
+
+                # ── 4. Data retention check ───────────────────────────────────
+                # Flag conversation_memory entries older than 90 days as a
+                # retention policy review signal
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS cnt
+                    FROM knowledge_base
+                    WHERE knowledge_type = 'conversation_memory'
+                      AND created_at < NOW() - INTERVAL '90 days'
+                    """
+                )
+                stale_memories = int((cur.fetchone() or {}).get("cnt", 0))
+
+                retention_outcome = "failed" if stale_memories > 500 else "success"
+                log_privacy_event(
+                    event_type="data_retention_check",
+                    action="review",
+                    outcome=retention_outcome,
+                    data_category="personal",
+                    description=(f"Retention check: {stale_memories} conversation memories >90 days old"),
+                    details={
+                        "stale_conversation_memories": stale_memories,
+                        "threshold_days": 90,
+                        "pipeda_principle": "limiting_use",
+                    },
+                )
+
+                # ── 5. Third-party service call audit ─────────────────────────
+                # Check task_execution_log for dispatches to external providers
+                # in last 6h (cloud contractors = third-party data share)
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS cnt, model_used
+                    FROM task_execution_log
+                    WHERE created_at >= NOW() - INTERVAL '6 hours'
+                      AND model_used ILIKE '%:cloud%'
+                    GROUP BY model_used
+                    LIMIT 10
+                    """
+                )
+                cloud_rows = cur.fetchall() or []
+                cloud_total = sum(int(r.get("cnt", 0)) for r in cloud_rows)
+
+                if cloud_total > 0:
+                    log_privacy_event(
+                        event_type="third_party_data_share",
+                        action="dispatch",
+                        outcome="success",
+                        data_category="anonymized",
+                        description=(f"Cloud dispatch: {cloud_total} tasks sent to external " f"providers in 6h"),
+                        details={
+                            "cloud_dispatches_6h": cloud_total,
+                            "providers": [
+                                {"model": r.get("model_used"), "count": int(r.get("cnt", 0))} for r in cloud_rows
+                            ],
+                            "pipeda_principle": "limiting_collection",
+                        },
+                    )
+
+            logger.info(
+                "[PrivacyAudit] Logged: emails=%s kb_writes=%s api_auths=%s " "stale_memories=%s cloud_dispatches=%s",
+                emails_processed,
+                kb_writes,
+                api_total,
+                stale_memories,
+                cloud_total,
+            )
+
+        except Exception as _exc:
+            logger.error("[PrivacyAudit] Job failed: %s", _exc)
+
+    scheduler.add_job(
+        with_ctx(_run_creed_privacy_audit),
+        trigger=CronTrigger(hour="0,6,12,18", minute=30, timezone="America/Toronto"),
+        id="creed_privacy_audit",
+        name="C.R.E.E.D. Privacy Audit — every 6h (Job #134)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered creed_privacy_audit job (every 6h, Job #134)")
+
     logger.info("[DeptHQ] Registered 12 code health/audit jobs")

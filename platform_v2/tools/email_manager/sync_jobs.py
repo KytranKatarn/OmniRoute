@@ -182,6 +182,19 @@ def run_email_imap_sync() -> dict:
         total_new,
         errors,
     )
+
+    # C.R.E.E.D. privacy event — PIPEDA: safeguards + limiting use
+    try:
+        from services.creed_privacy_logger import log_email_sync
+
+        log_email_sync(
+            mailboxes_synced=len(mailboxes),
+            new_messages=total_new,
+            errors=errors,
+        )
+    except Exception as _pe:
+        logger.debug("[email_imap_sync] C.R.E.E.D. privacy log skipped: %s", _pe)
+
     return {"mailboxes": len(mailboxes), "new_messages": total_new, "errors": errors}
 
 

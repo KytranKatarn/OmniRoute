@@ -4006,6 +4006,49 @@ def _register_own_jobs(scheduler, flask_app):
             if not all_bids:
                 return
 
+            # ── T3257: C.R.E.E.D. safety score gate ─────────────────────────
+            # Block ALL overflow activations if the platform ethics score is below
+            # 70 (failing grade). This ensures we don't expand agent workload when
+            # the governance posture is already degraded.
+            import os as _os
+
+            _creed_url = _os.environ.get("CREED_API_URL", "http://192.168.1.200:8086")
+            _creed_gate_passed = True
+            try:
+                import requests as _creq
+
+                _csr = _creq.get(f"{_creed_url}/api/v1/scores", timeout=4)
+                if _csr.status_code == 200:
+                    _creed_overall = float(_csr.json().get("overall", 100))
+                    if _creed_overall < 70.0:
+                        _creed_gate_passed = False
+                        logger.warning(
+                            "[DynamicSkill] T3257: CREED score %.1f < 70 — overflow activations gated this cycle",
+                            _creed_overall,
+                        )
+                        try:
+                            with get_db_cursor() as (_, cur):
+                                cur.execute(
+                                    """
+                                    INSERT INTO governance_audit_log
+                                        (event_type, event_category, action,
+                                         target_table, reason, outcome)
+                                    VALUES ('overflow_creed_gate', 'workload', 'block',
+                                            'agent_overflow_skills', %s, 'blocked')
+                                    """,
+                                    (
+                                        f"T3257: CREED safety score {_creed_overall:.1f} < 70 — "
+                                        f"overflow activations blocked this cycle",
+                                    ),
+                                )
+                        except Exception as _cgl:
+                            logger.debug("[DynamicSkill] T3257 gate log failed: %s", _cgl)
+            except Exception as _cse:
+                logger.debug("[DynamicSkill] T3257 CREED score check skipped (fail-open): %s", _cse)
+
+            if not _creed_gate_passed:
+                return
+
             # ── 3. HIGH-WATER: enable disabled bids where queue is hot ───────
             hot_capabilities = {cap for cap, depth in queue_depths.items() if depth >= _DSKILL_HIGH_WATER}
             to_activate = [b for b in all_bids if not b["enabled"] and b["capability"] in hot_capabilities]

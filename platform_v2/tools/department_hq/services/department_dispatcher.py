@@ -1326,15 +1326,16 @@ class DepartmentDispatcher:
             reason,
         )
 
-        # Get current department from agents table
+        # Get current department + prev shift_state from agents table
         cur.execute(
             """
-            SELECT department FROM agents WHERE id = %s
+            SELECT department, shift_state FROM agents WHERE id = %s
         """,
             (agent_id,),
         )
         dept_row = cur.fetchone()
         department = dept_row["department"] if dept_row else "Engineering & Technology"
+        _prev_state = (dept_row["shift_state"] if dept_row else "active") or "active"
 
         # Close previous rotation log entry
         cur.execute(
@@ -1372,6 +1373,35 @@ class DepartmentDispatcher:
             department,
             reason,
         )
+
+        # T3250 — C.R.E.E.D. dispatch fairness logging (PIPEDA: accountability)
+        # Log welfare-driven state transitions to governance_audit_log so C.R.E.E.D.
+        # can surface them under the 'welfare_ethics' category → fairness pillar.
+        if "stress" in reason:
+            try:
+                import json as _json
+
+                cur.execute(
+                    """
+                    INSERT INTO governance_audit_log
+                        (event_type, event_category, agent_id, action,
+                         target_table, target_id,
+                         old_value, new_value, reason, outcome)
+                    VALUES (%s, 'welfare_ethics', %s, 'update',
+                            'agents', %s,
+                            %s::jsonb, %s::jsonb, %s, 'success')
+                    """,
+                    (
+                        f"welfare_shift_{new_state}",
+                        agent_id,
+                        agent_id,
+                        _json.dumps({"shift_state": _prev_state, "agent": agent_name, "department": department}),
+                        _json.dumps({"shift_state": new_state, "trigger": reason, "department": department}),
+                        f"T3250 dispatch fairness: {agent_name} → {new_state} triggered by {reason}",
+                    ),
+                )
+            except Exception as _t3250_ge:
+                logger.debug("[ShiftLifecycle] T3250 governance_audit_log failed: %s", _t3250_ge)
 
         # If cooldown, find a replacement in the same department
         if new_state == "cooldown":

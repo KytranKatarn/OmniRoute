@@ -3433,4 +3433,113 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered cluster_orchestration_worker (every 60s)")
 
+    # ── T3164: idle_agent_scanner ─────────────────────────────────────────────
+    def _run_idle_agent_scanner():
+        """Dispatch cluster_work_queue items to idle overflow agents.
+
+        The cluster_orchestration_worker identifies which agents are idle and marks
+        them is_active=True in agent_overflow_state.  This job is the consumer:
+        it reads that state, claims pending cluster_work_queue items, and dispatches
+        them to idle agents via the DHQ dispatcher in daemon threads.
+
+        Runs every 30s; max_instances=1 / coalesce=True prevents overlap.
+        Caps dispatches per cycle at max_overflow_concurrent (config, default 3).
+        """
+        import threading as _threading
+
+        try:
+            from database import get_db_cursor
+            from services.cluster_orchestration_service import claim_work, complete_work, fail_work
+
+            # Resolve max_overflow_concurrent from global config (default 3)
+            try:
+                with get_db_cursor() as (_, cur):
+                    cur.execute(
+                        "SELECT max_overflow_concurrent FROM cluster_orchestration_config "
+                        "WHERE scope = 'global' LIMIT 1"
+                    )
+                    _cfg_row = cur.fetchone()
+                max_concurrent = int((_cfg_row or {}).get("max_overflow_concurrent") or 3)
+            except Exception:
+                max_concurrent = 3
+
+            # Fetch active overflow agents sorted by overflow_score DESC.
+            # Over-fetch (×3) because some capabilities may have empty queues.
+            with get_db_cursor() as (_, cur):
+                cur.execute(
+                    """
+                    SELECT aos.agent_id, aos.capability, aos.overflow_score, aos.node_id
+                    FROM   agent_overflow_state aos
+                    WHERE  aos.is_active  = TRUE
+                      AND  aos.expires_at > NOW()
+                    ORDER BY aos.overflow_score DESC
+                    LIMIT  %s
+                    """,
+                    (max_concurrent * 3,),
+                )
+                active_overflow = [dict(r) for r in (cur.fetchall() or [])]
+
+            if not active_overflow:
+                return
+
+            def _dispatch_claimed_job(jid: int, cap: str, pay: dict, aid: int) -> None:
+                """Thread target: dispatch a claimed cluster_work_queue item."""
+                try:
+                    from tools.department_hq.services.department_dispatcher import dispatch as _dispatch
+
+                    prompt = pay.get("prompt") or str(pay)
+                    ctx = {**pay, "cluster_job_id": jid, "overflow_dispatch": True}
+                    result = _dispatch(capability=cap, prompt=prompt, context=ctx)
+                    if result.success:
+                        complete_work(
+                            jid,
+                            {"response": result.response, "tier": getattr(result, "tier", None)},
+                        )
+                    else:
+                        fail_work(jid, result.error or "dispatch returned failure")
+                except Exception as _exc:
+                    logger.error("[IdleAgentScanner] dispatch thread error job=%d: %s", jid, _exc)
+                    try:
+                        fail_work(jid, str(_exc))
+                    except Exception:
+                        pass
+
+            dispatched = 0
+            for entry in active_overflow:
+                if dispatched >= max_concurrent:
+                    break
+
+                agent_id = entry["agent_id"]
+                capability = entry["capability"]
+
+                # Atomic SKIP LOCKED claim — returns None if queue is empty for this capability
+                job = claim_work(capability=capability, agent_id=agent_id)
+                if not job:
+                    continue
+
+                dispatched += 1
+                _threading.Thread(
+                    target=_dispatch_claimed_job,
+                    args=(job["id"], job["capability"], job["payload"] or {}, agent_id),
+                    daemon=True,
+                    name=f"cwq-{job['id']}",
+                ).start()
+
+            if dispatched:
+                logger.info("[IdleAgentScanner] dispatched=%d overflow jobs from cluster_work_queue", dispatched)
+
+        except Exception as _exc:
+            logger.error("[IdleAgentScanner] crashed: %s", _exc)
+
+    scheduler.add_job(
+        with_ctx(_run_idle_agent_scanner),
+        trigger=CronTrigger(second="0,30", timezone="America/Toronto"),
+        id="idle_agent_scanner",
+        name="Idle Agent Scanner — dispatch queue work to overflow agents (T3164)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered idle_agent_scanner (every 30s)")
+
     logger.info("[DeptHQ] Registered 12 code health/audit jobs")

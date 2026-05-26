@@ -30,6 +30,9 @@ OVERFLOW_CACHE_TTL = 30  # 30 s
 _trend_cache: dict = {}  # keyed by days int → {"data": ..., "expires": float}
 TREND_CACHE_TTL = 300  # 5 min
 
+_v1_score_cache = {"data": None, "expires": 0}
+V1_SCORE_CACHE_TTL = 60  # 60 s — stable public API, third-party badge embeds
+
 # Welfare thresholds
 _TOKEN_DAY_LIMIT = 100_000
 
@@ -154,6 +157,68 @@ def register_creed_routes(bp, admin_required):
         except Exception as e:
             logger.error("Failed to build governance report data: %s", e)
             return jsonify({"success": False, "error": "Report unavailable"}), 500
+
+    @bp.route("/api/creed/v1/ethics-score")
+    def creed_v1_ethics_score():
+        """Stable versioned public ethics score — T3259.
+
+        No authentication required.  CORS open for third-party embeds.
+        Pillar scores derived from governance_audit_log outcomes (last 7 days).
+        Overall score re-uses the same formula as /api/creed/public-stats.
+        Cached 60 s.
+
+        Response schema:
+          version, operator, generated_at, overall_score, grade,
+          pillars: {name: {score, grade, event_count}}, cache_seconds
+        """
+        now = time.time()
+        if _v1_score_cache["data"] and now < _v1_score_cache["expires"]:
+            resp = jsonify(_v1_score_cache["data"])
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Cache-Control"] = f"public, max-age={V1_SCORE_CACHE_TTL}"
+            return resp
+        try:
+            data = _build_v1_ethics_score()
+            _v1_score_cache["data"] = data
+            _v1_score_cache["expires"] = now + V1_SCORE_CACHE_TTL
+            resp = jsonify(data)
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Cache-Control"] = f"public, max-age={V1_SCORE_CACHE_TTL}"
+            return resp
+        except Exception as e:
+            logger.error("Failed to build v1 ethics score: %s", e)
+            return jsonify({"success": False, "error": "Score unavailable"}), 500
+
+    @bp.route("/api/creed/v1/badge.svg")
+    def creed_v1_badge_svg():
+        """Embeddable SVG ethics grade badge for third-party sites — T3259.
+
+        No authentication required.  CORS open.
+        Returns shields.io-style two-part SVG: label | grade (score).
+        Colour-coded by grade tier: green A+/A, yellow B+/B, orange C, red D/F.
+
+        Embed:
+          <img src="https://.../tools/department-hq/api/creed/v1/badge.svg">
+        """
+        from flask import Response
+
+        try:
+            now = time.time()
+            if _v1_score_cache["data"] and now < _v1_score_cache["expires"]:
+                score_data = _v1_score_cache["data"]
+            else:
+                score_data = _build_v1_ethics_score()
+                _v1_score_cache["data"] = score_data
+                _v1_score_cache["expires"] = now + V1_SCORE_CACHE_TTL
+
+            svg = _render_v1_badge_svg(score_data["overall_score"], score_data["grade"])
+            resp = Response(svg, mimetype="image/svg+xml")
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Cache-Control"] = f"public, max-age={V1_SCORE_CACHE_TTL}"
+            return resp
+        except Exception as e:
+            logger.error("Failed to render v1 badge SVG: %s", e)
+            return "", 500
 
 
 # ── Fleet agents ─────────────────────────────────────────────────────────────
@@ -609,6 +674,154 @@ def _ethics_grade(sc: int) -> str:
     if sc >= 60:
         return "D"
     return "F"
+
+
+# ── v1 public API helpers (T3259) ─────────────────────────────────────────────
+
+# Mirror of CATEGORY_MAP in ai_bridge/agent_loop.py — kept in sync manually.
+# Maps governance_audit_log.event_category → C.R.E.E.D. pillar name.
+_PILLAR_CATEGORY_MAP: dict = {
+    "creed_gate": "accountability",
+    "bridge_dispatch": "transparency",
+    "emotional": "fairness",
+    "autonomous_operations": "safety",
+    "system": "safety",
+    "development": "transparency",
+    "operations": "accountability",
+    "data_management": "privacy",
+    "telegram_send": "transparency",
+    "workload_balance": "fairness",
+    "welfare_ethics": "fairness",
+    "node_planning": "accountability",
+    "orchestration": "transparency",
+    "agent_management": "accountability",
+    "autonomy": "safety",
+    "agent_lifecycle": "accountability",
+    "prompt_safety": "safety",
+    "response_safety": "safety",
+}
+
+_ALL_PILLARS = ("transparency", "fairness", "safety", "privacy", "accountability")
+
+
+def _build_v1_ethics_score() -> dict:
+    """Build the stable v1 public ethics score payload (T3259).
+
+    Overall score: re-uses _build_stats() formula (success_rate − 2×high_stress_agents).
+    Per-pillar scores: governance_audit_log outcomes last 7 days, grouped by
+    event_category → pillar via _PILLAR_CATEGORY_MAP.
+    Events with unknown category are skipped (not mis-attributed).
+    Pillars with zero events score 100 (no violations observed).
+    """
+    import datetime
+
+    stats = _build_stats()
+    overall_score = stats["ethics"]["score"]
+    grade = stats["ethics"]["grade"]
+
+    pillar_totals: dict = {p: {"success": 0, "total": 0} for p in _ALL_PILLARS}
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT event_category,
+                   COUNT(*) AS total,
+                   COUNT(*) FILTER (
+                       WHERE outcome = 'success' OR outcome IS NULL
+                   ) AS success_count
+            FROM governance_audit_log
+            WHERE timestamp > NOW() - INTERVAL '7 days'
+              AND event_category IS NOT NULL
+            GROUP BY event_category
+            """
+        )
+        rows = cur.fetchall() or []
+
+    for row in rows:
+        pillar = _PILLAR_CATEGORY_MAP.get(row["event_category"])
+        if not pillar:
+            continue
+        pillar_totals[pillar]["total"] += int(row["total"])
+        pillar_totals[pillar]["success"] += int(row["success_count"])
+
+    pillars: dict = {}
+    for pillar in _ALL_PILLARS:
+        tot = pillar_totals[pillar]["total"]
+        suc = pillar_totals[pillar]["success"]
+        raw = round(suc / tot * 100) if tot > 0 else 100
+        pillars[pillar] = {
+            "score": raw,
+            "grade": _ethics_grade(raw),
+            "event_count": tot,
+        }
+
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    return {
+        "version": "1",
+        "operator": "Kytran Empowerment Inc.",
+        "generated_at": now_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "overall_score": overall_score,
+        "grade": grade,
+        "pillars": pillars,
+        "cache_seconds": V1_SCORE_CACHE_TTL,
+    }
+
+
+def _render_v1_badge_svg(score: int, grade: str) -> str:
+    """Render a shields.io-style two-part SVG badge (T3259).
+
+    Left panel:  "C.R.E.E.D. Ethics" (dark slate)
+    Right panel: grade letter + numeric score, colour by tier:
+      A+/A  → green   #3fb950
+      B+/B  → yellow  #e3b341
+      C     → orange  #f0883e
+      D/F   → red     #f85149
+    """
+    if grade in ("A+", "A"):
+        colour = "#3fb950"
+    elif grade in ("B+", "B"):
+        colour = "#e3b341"
+    elif grade == "C":
+        colour = "#f0883e"
+    else:
+        colour = "#f85149"
+
+    label = "C.R.E.E.D. Ethics"
+    value = f"{grade} ({score})"
+
+    # Approximate pixel widths for Verdana 11px (~6.5px/char + 10px padding)
+    label_w = max(int(len(label) * 6.5) + 10, 100)
+    value_w = max(int(len(value) * 6.5) + 10, 50)
+    total_w = label_w + value_w
+    label_cx = label_w // 2
+    value_cx = label_w + value_w // 2
+
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{total_w}" height="20"'
+        f' role="img" aria-label="{label}: {value}">\n'
+        f"  <title>{label}: {value}</title>\n"
+        '  <linearGradient id="s" x2="0" y2="100%">\n'
+        '    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>\n'
+        '    <stop offset="1" stop-opacity=".1"/>\n'
+        "  </linearGradient>\n"
+        '  <clipPath id="r">\n'
+        f'    <rect width="{total_w}" height="20" rx="3" fill="#fff"/>\n'
+        "  </clipPath>\n"
+        '  <g clip-path="url(#r)">\n'
+        f'    <rect width="{label_w}" height="20" fill="#555"/>\n'
+        f'    <rect x="{label_w}" width="{value_w}" height="20" fill="{colour}"/>\n'
+        f'    <rect width="{total_w}" height="20" fill="url(#s)"/>\n'
+        "  </g>\n"
+        '  <g fill="#fff" text-anchor="middle"'
+        ' font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">\n'
+        f'    <text x="{label_cx}" y="14" fill="#010101"'
+        f' fill-opacity=".3">{label}</text>\n'
+        f'    <text x="{label_cx}" y="13">{label}</text>\n'
+        f'    <text x="{value_cx}" y="14" fill="#010101"'
+        f' fill-opacity=".3">{value}</text>\n'
+        f'    <text x="{value_cx}" y="13">{value}</text>\n'
+        "  </g>\n"
+        "</svg>"
+    )
 
 
 def _build_stats():

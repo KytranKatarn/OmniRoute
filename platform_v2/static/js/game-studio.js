@@ -1112,7 +1112,7 @@
                     showCheckpointReview(s);
                 } else if (status === 'complete') {
                     showBuildComplete(s);
-                } else if (status === 'running') {
+                } else if (status === 'running' || status === 'queued') {
                     _buildPollTimer = setTimeout(function () { pollBuildStatus(sessionId); }, 3000);
                 } else if (status === 'error') {
                     toast('Build error: ' + (s.error || 'Unknown'));

@@ -37,6 +37,9 @@ _model_card_cache: dict = {"data": None, "expires": 0}  # full list
 _model_card_single_cache: dict = {}  # agent_id → {"data": ..., "expires": float}
 MODEL_CARD_CACHE_TTL = 300  # 5 min — model assignments change rarely
 
+_consent_summary_cache: dict = {"data": None, "expires": 0}
+CONSENT_CACHE_TTL = 120  # 2 min
+
 # Welfare thresholds
 _TOKEN_DAY_LIMIT = 100_000
 
@@ -285,6 +288,146 @@ def register_creed_routes(bp, admin_required):
         except Exception as e:
             logger.error("Failed to build model card for agent %s: %s", agent_id, e)
             return jsonify({"success": False, "error": "Model card unavailable"}), 500
+
+    # ── Consent flag routes (T3255) ───────────────────────────────────────────
+
+    @bp.route("/api/creed/v1/consent-flags")
+    def creed_v1_consent_summary():
+        """Public aggregate view of agent consent flags — T3255.
+
+        No authentication required.  CORS open.  Cached 2 min.
+        Returns counts by discomfort level and capability breakdown.
+        No agent names or PII exposed.
+        """
+        now = time.time()
+        if _consent_summary_cache["data"] and now < _consent_summary_cache["expires"]:
+            resp = jsonify(_consent_summary_cache["data"])
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Cache-Control"] = f"public, max-age={CONSENT_CACHE_TTL}"
+            return resp
+        try:
+            data = _build_consent_summary()
+            _consent_summary_cache["data"] = data
+            _consent_summary_cache["expires"] = now + CONSENT_CACHE_TTL
+            resp = jsonify(data)
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Cache-Control"] = f"public, max-age={CONSENT_CACHE_TTL}"
+            return resp
+        except Exception as e:
+            logger.error("Failed to build consent summary: %s", e)
+            return jsonify({"success": False, "error": "Consent summary unavailable"}), 500
+
+    @bp.route("/api/creed/consent-flags")
+    @admin_required
+    def creed_consent_flags_list():
+        """Admin: list all active agent consent flags with agent info."""
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT atc.id, atc.agent_id, a.name AS agent_name,
+                           a.display_name, a.department,
+                           atc.capability, atc.discomfort_level,
+                           atc.reason, atc.registered_by, atc.active,
+                           atc.created_at, atc.updated_at
+                    FROM agent_task_consent atc
+                    JOIN agents a ON a.id = atc.agent_id
+                    ORDER BY atc.discomfort_level DESC, a.name, atc.capability
+                    """
+                )
+                rows = cur.fetchall()
+            flags = [dict(r) for r in rows]
+            return jsonify({"success": True, "flags": flags, "count": len(flags)})
+        except Exception as e:
+            logger.error("Failed to list consent flags: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/creed/consent-flags", methods=["POST"])
+    @admin_required
+    def creed_consent_flag_create():
+        """Admin: register a consent flag for an agent+capability.
+
+        Body: {agent_id, capability, discomfort_level, reason, registered_by}
+        discomfort_level: 'mild' | 'moderate' | 'strong' (default: 'mild')
+        ON CONFLICT (agent_id, capability): updates existing row.
+        """
+        body = request.get_json(silent=True) or {}
+        agent_id = body.get("agent_id")
+        capability = (body.get("capability") or "").strip()
+        discomfort_level = body.get("discomfort_level", "mild")
+        reason = (body.get("reason") or "").strip() or None
+        registered_by = (body.get("registered_by") or "admin").strip()
+
+        if not agent_id or not capability:
+            return jsonify({"success": False, "error": "agent_id and capability required"}), 400
+        if discomfort_level not in ("mild", "moderate", "strong"):
+            return jsonify({"success": False, "error": "discomfort_level must be mild/moderate/strong"}), 400
+
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO agent_task_consent
+                        (agent_id, capability, discomfort_level, reason, registered_by, active)
+                    VALUES (%s, %s, %s, %s, %s, TRUE)
+                    ON CONFLICT (agent_id, capability) DO UPDATE
+                        SET discomfort_level = EXCLUDED.discomfort_level,
+                            reason          = EXCLUDED.reason,
+                            registered_by   = EXCLUDED.registered_by,
+                            active          = TRUE,
+                            updated_at      = NOW()
+                    RETURNING id
+                    """,
+                    (agent_id, capability, discomfort_level, reason, registered_by),
+                )
+                flag_id = cur.fetchone()["id"]
+            _consent_summary_cache["data"] = None  # invalidate cache
+            return jsonify({"success": True, "flag_id": flag_id})
+        except Exception as e:
+            logger.error("Failed to create consent flag: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/creed/consent-flags/<int:flag_id>", methods=["DELETE"])
+    @admin_required
+    def creed_consent_flag_delete(flag_id):
+        """Admin: deactivate a consent flag (soft delete — sets active=FALSE)."""
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE agent_task_consent SET active=FALSE, updated_at=NOW() WHERE id=%s RETURNING id",
+                    (flag_id,),
+                )
+                row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Flag not found"}), 404
+            _consent_summary_cache["data"] = None
+            return jsonify({"success": True, "flag_id": flag_id})
+        except Exception as e:
+            logger.error("Failed to delete consent flag %s: %s", flag_id, e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/creed/consent-flags/agent/<int:agent_id>")
+    @admin_required
+    def creed_consent_flags_by_agent(agent_id):
+        """Admin: list all consent flags for a specific agent."""
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT atc.id, atc.capability, atc.discomfort_level,
+                           atc.reason, atc.registered_by, atc.active,
+                           atc.created_at, atc.updated_at
+                    FROM agent_task_consent atc
+                    WHERE atc.agent_id = %s
+                    ORDER BY atc.discomfort_level DESC, atc.capability
+                    """,
+                    (agent_id,),
+                )
+                rows = cur.fetchall()
+            return jsonify({"success": True, "agent_id": agent_id, "flags": [dict(r) for r in rows]})
+        except Exception as e:
+            logger.error("Failed to fetch consent flags for agent %s: %s", agent_id, e)
+            return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ── Fleet agents ─────────────────────────────────────────────────────────────
@@ -1287,5 +1430,87 @@ def _build_stats():
             "score": ethics_score,
             "grade": ethics_grade,
             "by_department": dept_ethics_list,
+        },
+    }
+
+
+# ── Consent summary ───────────────────────────────────────────────────────────
+
+
+def _build_consent_summary() -> dict:
+    """Aggregate consent flag stats for the public v1 endpoint.
+
+    Returns total flag count, breakdown by discomfort level and by
+    capability — no agent names or PII exposed.
+    """
+    import datetime
+
+    with get_db_cursor() as (conn, cur):
+        # Overall counts by discomfort level
+        cur.execute(
+            """
+            SELECT discomfort_level, COUNT(*) AS cnt
+            FROM agent_task_consent
+            WHERE active = TRUE
+            GROUP BY discomfort_level
+            """
+        )
+        level_rows = cur.fetchall()
+
+        # Top capabilities flagged (aggregate, no agent identity)
+        cur.execute(
+            """
+            SELECT capability, COUNT(*) AS cnt,
+                   COUNT(*) FILTER (WHERE discomfort_level = 'strong')  AS strong_cnt,
+                   COUNT(*) FILTER (WHERE discomfort_level = 'moderate') AS moderate_cnt,
+                   COUNT(*) FILTER (WHERE discomfort_level = 'mild')    AS mild_cnt
+            FROM agent_task_consent
+            WHERE active = TRUE
+            GROUP BY capability
+            ORDER BY strong_cnt DESC, cnt DESC
+            LIMIT 20
+            """
+        )
+        cap_rows = cur.fetchall()
+
+        # Events logged in last 7 days (consent_flag_triggered)
+        cur.execute(
+            """
+            SELECT COUNT(*) AS total,
+                   COUNT(*) FILTER (WHERE outcome = 'flagged')  AS strong_triggers,
+                   COUNT(*) FILTER (WHERE outcome = 'success')  AS mild_triggers
+            FROM governance_audit_log
+            WHERE event_type = 'consent_flag_triggered'
+              AND timestamp >= NOW() - INTERVAL '7 days'
+            """
+        )
+        trigger_row = cur.fetchone() or {}
+
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    levels = {r["discomfort_level"]: r["cnt"] for r in level_rows}
+
+    return {
+        "version": "1",
+        "generated_at": now_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "total_active_flags": sum(levels.values()),
+        "by_discomfort_level": {
+            "mild": levels.get("mild", 0),
+            "moderate": levels.get("moderate", 0),
+            "strong": levels.get("strong", 0),
+        },
+        "top_flagged_capabilities": [
+            {
+                "capability": r["capability"],
+                "total_flags": r["cnt"],
+                "strong": r["strong_cnt"],
+                "moderate": r["moderate_cnt"],
+                "mild": r["mild_cnt"],
+            }
+            for r in cap_rows
+        ],
+        "triggers_last_7d": {
+            "total": trigger_row.get("total", 0) or 0,
+            "strong_discomfort": trigger_row.get("strong_triggers", 0) or 0,
+            "mild_moderate": trigger_row.get("mild_triggers", 0) or 0,
         },
     }

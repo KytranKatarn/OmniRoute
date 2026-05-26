@@ -1039,6 +1039,101 @@ class DepartmentDispatcher:
         except Exception as e:
             logger.warning(f"[CAPACITY] Error logging event {event_type} for {department}: {e}")
 
+    # ── Consent framework (T3255) ─────────────────────────────────────────────
+
+    # In-process cache: agent_id → {"flags": {capability: level}, "expires": float}
+    _consent_cache: dict = {}
+    _CONSENT_CACHE_TTL = 60  # 60 s — flags change rarely
+
+    def _check_and_log_consent(
+        self,
+        agent_id,
+        agent_name: str,
+        capability: str,
+        module_id: str,
+    ) -> None:
+        """Check agent consent flags and log to governance_audit_log.
+
+        C.R.E.E.D. fairness pillar — T3255.
+        If the agent has a consent flag for this capability, write a
+        'consent_flag_triggered' event to governance_audit_log so the
+        fairness pillar score reflects it.
+
+        discomfort_level → outcome:
+          mild / moderate  → 'success'  (logged, task proceeds normally)
+          strong           → 'flagged'  (logged, task proceeds — counts against fairness)
+
+        Does NOT block dispatch — purely a governance transparency measure.
+        Exceptions are swallowed so consent check never breaks a dispatch.
+        """
+        if not agent_id or not capability:
+            return
+        try:
+            now = time.time()
+            cached = self._consent_cache.get(agent_id)
+            if cached and now < cached["expires"]:
+                flags = cached["flags"]
+            else:
+                from database import get_db_cursor
+
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        """
+                        SELECT capability, discomfort_level
+                        FROM agent_task_consent
+                        WHERE agent_id = %s AND active = TRUE
+                        """,
+                        (agent_id,),
+                    )
+                    rows = cur.fetchall()
+                flags = {r["capability"]: r["discomfort_level"] for r in rows}
+                self._consent_cache[agent_id] = {"flags": flags, "expires": now + self._CONSENT_CACHE_TTL}
+
+            discomfort = flags.get(capability)
+            if not discomfort:
+                return  # no flag — nothing to log
+
+            outcome = "flagged" if discomfort == "strong" else "success"
+            import json as _json
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO governance_audit_log
+                        (event_type, event_category, agent_id, action,
+                         target_table, old_value, new_value, reason, outcome)
+                    VALUES (
+                        'consent_flag_triggered', 'welfare_ethics', %s, 'dispatch',
+                        'agent_task_consent',
+                        NULL::jsonb,
+                        %s::jsonb,
+                        %s, %s
+                    )
+                    """,
+                    (
+                        agent_id,
+                        _json.dumps(
+                            {
+                                "capability": capability,
+                                "discomfort_level": discomfort,
+                                "module_id": module_id,
+                                "agent_name": agent_name,
+                            }
+                        ),
+                        f"{agent_name} has {discomfort} discomfort with '{capability}' (module={module_id})",
+                        outcome,
+                    ),
+                )
+            logger.info(
+                "[Consent] %s flagged for capability='%s' discomfort=%s outcome=%s",
+                agent_name,
+                capability,
+                discomfort,
+                outcome,
+            )
+        except Exception as exc:
+            logger.warning("[Consent] consent check failed for agent %s: %s", agent_id, exc)
+
     def _refresh_welfare_cache(self, skip_busy_refresh: bool = False):
         """Load agent welfare state (emotional, rest cycles, budgets) with 30s TTL.
 
@@ -5548,6 +5643,14 @@ class DepartmentDispatcher:
         # task_execution_log for ~50% of dispatches and breaking welfare /
         # routing analytics that aggregate by name (Bug A, 2026-05-03).
         agent_name = agent.get("name") or "ARCHIE"
+
+        # 3.45 Consent check — T3255 fairness pillar
+        self._check_and_log_consent(
+            agent_id=agent.get("id"),
+            agent_name=agent_name,
+            capability=capability,
+            module_id=module_id,
+        )
 
         # 3.5 Proficiency-aware augmentation
         skill_entry = agent.get("skills", {}).get(capability, {})

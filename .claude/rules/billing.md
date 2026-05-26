@@ -164,6 +164,24 @@ def _push_tier_to_standalone(product_id: str, user_id: int, tier: str, email: st
     return resp.ok
 ```
 
+## Webhook Registration (updated 2026-05-26)
+
+### Live endpoint
+| Webhook ID | URL | Events | Secret env var |
+|------------|-----|--------|----------------|
+| `we_1TbKoa06cZ0yWDKJ6OZgkm5v` | `https://platform.kytranempowerment.com/api/billing/webhook` | `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted` | `STRIPE_WEBHOOK_SECRET` in root `.env` |
+
+**`STRIPE_WEBHOOK_SECRET` source of truth**: root `.env` (not `platform_v2/.env` — container reads root via `env_file: .env`).
+
+### Deleted standalone endpoints (cleaned up 2026-05-26)
+These 7 dead endpoints were registered before standalones got `/api/internal/set-tier`. All deleted via API on 2026-05-26:
+- `we_1TYDdh...` → what-the-fact.com/billing/webhook ✅ deleted
+- `we_1TX8ue...` → civic.kytranempowerment.com/billing/webhook ✅ deleted
+- `we_1TX8or...` (×2) → what-the-fact.com + market.kytranempowerment.com/billing/webhook ✅ deleted
+- `we_1TX8oq...` → legal.kytranempowerment.com/billing/webhook ✅ deleted
+- `we_1TX3Mi...` → civic.kytranempowerment.com/billing/webhook (dupe) ✅ deleted
+- `we_1TX3GC...` → gov.kytranempowerment.com/billing/webhook ✅ deleted
+
 ## Gotchas
 
 - **VPS network**: Use mesh IP `100.64.0.2` (Outpost) in `PRODUCT_STANDALONE_URLS` — NOT public CDN hostname (60s cap, bypasses queue)
@@ -171,3 +189,9 @@ def _push_tier_to_standalone(product_id: str, user_id: int, tier: str, email: st
 - **Stripe IDs**: `subscription_plans.stripe_price_id` starts empty (`''`) — populate from Stripe dashboard. Check `WHERE stripe_price_id != ''` before doing price lookups.
 - **Idempotency**: `billing_events` table dedupes webhooks by `stripe_event_id`. All webhook handlers must check this first via `billing_webhook.is_processed(event_id)`.
 - **Annual billing**: Not yet implemented. `billing_interval='month'` is the only active interval. Annual rows can be seeded later.
+- **Docker secrets override env vars**: Stripe keys are loaded from `secrets/stripe/*.txt` files (Docker secrets), NOT from `.env`. `_read_secret()` checks `/run/secrets/` first. To update Stripe keys: edit `secrets/stripe/webhook_secret.txt` + `secret_key.txt`, then `docker compose up -d --no-deps --force-recreate archie_platform` (KB #268834).
+- **Env reload**: `docker compose restart` does NOT re-read `env_file:` — must use `docker compose up -d --no-deps archie_platform` after `.env` changes (KB #268829).
+- **Container reads root `.env`**: `archie_platform` uses `env_file: .env` (root). Changes to `platform_v2/.env` alone do NOT affect the running container.
+- **DB is read-only**: `docker cp` to `archie_database` fails. Use `docker exec -i archie_database psql -U archie -d archie < migration.sql` instead (KB #268830).
+- **FK cleanup order**: To delete a test user: `billing_subscriptions` → `billing_customers` → `users`. No CASCADE is set (KB #268831).
+- **RealDictCursor**: `get_db_cursor()` returns dict rows. Use `row['id']` not `row[0]` in simulation/admin scripts (KB #268832).

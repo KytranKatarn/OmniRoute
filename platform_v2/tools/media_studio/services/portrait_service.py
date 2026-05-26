@@ -888,45 +888,42 @@ def describe_portrait(image_source: str) -> Dict:
             }
         b64 = image_source
 
-    # Direct-to-moondream call (bypasses agent selection via
-    # capability='vision'). Rationale: Pixel / V.I.S.A.G.E. are configured
-    # with qwen2.5vl:7b (8.3B params, CPU-bound on M4000, 5+ min per
-    # inference). moondream:latest (1.8B, fits on GPU VRAM, ~11s) is 20x
-    # faster and sufficient for face-describe — small input, small output.
-    # This is a utility function (no creative welfare/cost logging needed);
-    # going direct keeps the pipeline fast and predictable.
+    # DHQ dispatch — vision capability routes to Creative & Design agent.
+    # PORTRAIT_DESCRIBE_MODEL selects the Ollama model (default: moondream:latest,
+    # 1.8B GPU, ~11s). The dispatcher's request_work() detects images=[b64] and
+    # routes through analyze_image so model choice is preserved.
     vision_model = os.getenv("PORTRAIT_DESCRIBE_MODEL", "moondream:latest")
 
     try:
-        from ai_bridge.archie_bridge import analyze_image
+        from tools.department_hq.services.department_dispatcher import dispatch as _dhq_dispatch
     except ImportError as e:
         return {
             "success": False,
             "prompt": "",
             "model": "",
-            "error": f"analyze_image import failed: {e}",
+            "error": f"DHQ dispatcher import failed: {e}",
         }
 
     try:
-        result = analyze_image(
-            image_base64=b64,
+        result = _dhq_dispatch(
+            capability="vision",
             prompt=VISION_DESCRIBE_PROMPT,
-            model=vision_model,
-            timeout=180,
+            module_id="portrait_service",
+            images=[b64],
         )
     except Exception as e:
-        logger.exception("analyze_image for describe_portrait failed")
+        logger.exception("DHQ vision dispatch for describe_portrait failed")
         return {"success": False, "prompt": "", "model": vision_model, "error": str(e)}
 
-    if not result.get("success"):
+    if not result.success:
         return {
             "success": False,
             "prompt": "",
-            "model": result.get("model", vision_model),
-            "error": result.get("error") or "analyze_image returned failure",
+            "model": vision_model,
+            "error": result.error or "DHQ vision dispatch returned failure",
         }
 
-    desc = (result.get("response") or "").strip()
+    desc = (result.response or "").strip()
     # Strip surrounding quotes if the model added them
     if len(desc) > 2 and desc[0] in ('"', "'") and desc[-1] == desc[0]:
         desc = desc[1:-1].strip()
@@ -935,15 +932,15 @@ def describe_portrait(image_source: str) -> Dict:
         return {
             "success": False,
             "prompt": "",
-            "model": result.get("model", vision_model),
+            "model": result.model_used or vision_model,
             "error": "vision model returned empty description",
         }
 
     return {
         "success": True,
         "prompt": desc,
-        "model": result.get("model", vision_model),
-        "provider": result.get("provider", "ollama_vision"),
+        "model": result.model_used or vision_model,
+        "provider": "ollama_vision",
     }
 
 

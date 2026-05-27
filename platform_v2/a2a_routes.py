@@ -19,6 +19,7 @@ Implementation phase: 1 (synchronous dispatch; async + SSE = Phase 2)
 """
 
 import hashlib
+import json
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -191,6 +192,34 @@ def _validate_a2a_key(raw_key: str) -> bool:
         return False
 
 
+def _validate_a2a_admin_key(raw_key: str) -> bool:
+    """Validate X-A2A-API-Key — admin permission required.
+
+    Used by tasks/get and tasks/cancel to prevent IDOR (any authenticated key
+    reading another key's task results).  Phase 2 will replace this with
+    per-key ownership filtering once tasks are persisted to bridge_jobs.
+    """
+    if not raw_key:
+        return False
+    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT id FROM api_keys
+                WHERE key_hash = %s
+                  AND is_active = TRUE
+                  AND permissions @> '["admin"]'::jsonb
+                LIMIT 1
+                """,
+                (key_hash,),
+            )
+            return cur.fetchone() is not None
+    except Exception as e:
+        logger.warning("A2A admin key validation error: %s", e)
+        return False
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -351,8 +380,14 @@ def tasks_get(task_id: str):
     via metadata JSONB.  Returns 404 for unknown task IDs.
     """
     api_key = request.headers.get("X-A2A-API-Key", "")
-    if not _validate_a2a_key(api_key):
-        return jsonify({"error": {"code": -32001, "message": "Unauthorized"}}), 401
+    if not _validate_a2a_admin_key(api_key):
+        # Admin scope required — prevents IDOR (any chat key reading another key's tasks).
+        # Phase 2 will replace this with per-key ownership filtering once tasks are
+        # persisted to bridge_jobs with metadata.a2a_owner_key_id.
+        return (
+            jsonify({"error": {"code": -32001, "message": "Unauthorized — admin scope required for task lookup"}}),
+            401,
+        )
 
     try:
         with get_db_cursor() as (conn, cur):
@@ -365,7 +400,8 @@ def tasks_get(task_id: str):
                 ORDER BY created_at DESC
                 LIMIT 1
                 """,
-                (f'{{"a2a_task_id": "{task_id}"}}',),
+                # json.dumps ensures task_id cannot inject additional JSON structure.
+                (json.dumps({"a2a_task_id": task_id}),),
             )
             row = cur.fetchone()
     except Exception as exc:
@@ -404,8 +440,12 @@ def tasks_cancel(task_id: str):
     cancellation against bridge_jobs.
     """
     api_key = request.headers.get("X-A2A-API-Key", "")
-    if not _validate_a2a_key(api_key):
-        return jsonify({"error": {"code": -32001, "message": "Unauthorized"}}), 401
+    if not _validate_a2a_admin_key(api_key):
+        # Admin scope required — same IDOR risk as tasks_get (Phase 2 will add ownership).
+        return (
+            jsonify({"error": {"code": -32001, "message": "Unauthorized — admin scope required for task cancel"}}),
+            401,
+        )
 
     return jsonify(_a2a_task(task_id, "canceled"))
 

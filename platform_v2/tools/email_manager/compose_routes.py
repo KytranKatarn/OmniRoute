@@ -10,7 +10,9 @@ from email.mime.text import MIMEText
 
 from database import get_db_cursor
 from flask import jsonify, request
-from flask_login import login_required
+from flask_login import current_user, login_required
+
+from .access_control import get_visible_mailbox_ids
 
 logger = logging.getLogger(__name__)
 
@@ -24,15 +26,30 @@ def register_compose_routes(bp, admin_required):
     @login_required
     @admin_required
     def email_compose_mailboxes():
-        """List provisioned mailboxes available as From addresses."""
+        """List provisioned mailboxes available as From addresses.
+
+        COLLABORATOR callers only see their own department's mailboxes.
+        """
+        visible = get_visible_mailbox_ids(current_user)
         with get_db_cursor() as (conn, cur):
-            cur.execute(
-                """SELECT address, display_name, mailbox_type
-                   FROM email_mailboxes
-                   WHERE provisioned = TRUE AND active = TRUE
-                     AND imap_password IS NOT NULL
-                   ORDER BY mailbox_type, address"""
-            )
+            if visible is not None:
+                cur.execute(
+                    """SELECT address, display_name, mailbox_type
+                       FROM email_mailboxes
+                       WHERE provisioned = TRUE AND active = TRUE
+                         AND imap_password IS NOT NULL
+                         AND id = ANY(%s)
+                       ORDER BY mailbox_type, address""",
+                    (visible,),
+                )
+            else:
+                cur.execute(
+                    """SELECT address, display_name, mailbox_type
+                       FROM email_mailboxes
+                       WHERE provisioned = TRUE AND active = TRUE
+                         AND imap_password IS NOT NULL
+                       ORDER BY mailbox_type, address"""
+                )
             rows = [dict(r) for r in cur.fetchall()]
         return jsonify({"mailboxes": rows})
 
@@ -40,7 +57,11 @@ def register_compose_routes(bp, admin_required):
     @login_required
     @admin_required
     def email_compose_send():
-        """Send an email from a provisioned mailbox via Stalwart SMTP."""
+        """Send an email from a provisioned mailbox via Stalwart SMTP.
+
+        COLLABORATOR callers may only send FROM a mailbox in their visible set.
+        Attempting to send from another department's mailbox returns 403.
+        """
         data = request.get_json() or {}
         from_address = (data.get("from_address") or "").strip()
         to_address = (data.get("to_address") or "").strip()
@@ -50,13 +71,22 @@ def register_compose_routes(bp, admin_required):
         if not from_address or not to_address or not subject:
             return jsonify({"error": "from_address, to_address and subject are required"}), 400
 
-        # Resolve credentials for the From mailbox
+        # Resolve credentials for the From mailbox; enforce scope for COLLABORATORs.
+        visible = get_visible_mailbox_ids(current_user)
         with get_db_cursor() as (conn, cur):
-            cur.execute(
-                """SELECT imap_password FROM email_mailboxes
-                   WHERE address = %s AND provisioned = TRUE AND active = TRUE""",
-                (from_address,),
-            )
+            if visible is not None:
+                cur.execute(
+                    """SELECT imap_password FROM email_mailboxes
+                       WHERE address = %s AND provisioned = TRUE AND active = TRUE
+                         AND id = ANY(%s)""",
+                    (from_address, visible),
+                )
+            else:
+                cur.execute(
+                    """SELECT imap_password FROM email_mailboxes
+                       WHERE address = %s AND provisioned = TRUE AND active = TRUE""",
+                    (from_address,),
+                )
             row = cur.fetchone()
 
         if not row or not row["imap_password"]:

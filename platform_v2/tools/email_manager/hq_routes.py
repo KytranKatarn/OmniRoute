@@ -1,9 +1,12 @@
 """Email HQ routes — unified inbox, assign-to-agent, rules, stats, and R.E.S.O.L.V.E. oversight."""
 
 import logging
-from flask import jsonify, request
-from flask_login import login_required
+
 from database import get_db_cursor
+from flask import abort, jsonify, request
+from flask_login import current_user, login_required
+
+from .access_control import get_visible_mailbox_ids
 
 logger = logging.getLogger(__name__)
 
@@ -121,21 +124,37 @@ def register_hq_routes(bp, admin_required):
 
     @bp.route("/api/hq/unified-inbox", methods=["GET"])
     @login_required
+    @admin_required
     def hq_unified_inbox():
+        """Unified inbox across all visible mailboxes.
+
+        COLLABORATORs see only their department's mailboxes.
+        Filtering by mailbox_id enforces the same scope guard — 403 if out of range.
+        """
         limit = min(int(request.args.get("limit", 50)), 200)
         mailbox_filter = request.args.get("mailbox_id", type=int)
         status_filter = request.args.get("status", "")
+        visible = get_visible_mailbox_ids(current_user)
 
         with get_db_cursor() as (_, cur):
             where_clauses = []
             params = []
+
             if mailbox_filter:
+                # Scope guard: COLLABORATOR may only request their own mailboxes.
+                if visible is not None and mailbox_filter not in visible:
+                    abort(403)
                 where_clauses.append("m.id = %s")
                 params.append(mailbox_filter)
+            elif visible is not None:
+                where_clauses.append("m.id = ANY(%s)")
+                params.append(visible)
+
             if status_filter == "unread":
                 where_clauses.append("al.read_at IS NULL")
             elif status_filter == "read":
                 where_clauses.append("al.read_at IS NOT NULL")
+
             where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
             params.append(limit)
             cur.execute(
@@ -178,6 +197,7 @@ def register_hq_routes(bp, admin_required):
 
     @bp.route("/api/hq/assign", methods=["POST"])
     @login_required
+    @admin_required
     def hq_assign():
         data = request.get_json(silent=True) or {}
         email_id = data.get("email_id")
@@ -200,25 +220,63 @@ def register_hq_routes(bp, admin_required):
 
     @bp.route("/api/hq/stats", methods=["GET"])
     @login_required
+    @admin_required
     def hq_stats():
+        """HQ activity stats.
+
+        Scoped to the caller's visible mailboxes for COLLABORATORs.
+        Admins see platform-wide totals.
+        """
+        visible = get_visible_mailbox_ids(current_user)
         with get_db_cursor() as (_, cur):
-            cur.execute(
-                """
-                SELECT
-                    COUNT(*) FILTER (WHERE logged_at > NOW() - INTERVAL '24h') AS last_24h,
-                    COUNT(*) FILTER (WHERE read_at IS NULL
-                        AND logged_at > NOW() - INTERVAL '24h') AS unread_24h,
-                    COUNT(*) FILTER (WHERE logged_at > NOW() - INTERVAL '24h'
-                        AND direction = 'received') AS inbound_24h,
-                    COUNT(DISTINCT mailbox_address) AS active_mailboxes
-                FROM email_activity_log
-                """
-            )
+            if visible is not None:
+                cur.execute(
+                    """
+                    SELECT
+                        COUNT(*) FILTER (WHERE al.logged_at > NOW() - INTERVAL '24h') AS last_24h,
+                        COUNT(*) FILTER (WHERE al.read_at IS NULL
+                            AND al.logged_at > NOW() - INTERVAL '24h') AS unread_24h,
+                        COUNT(*) FILTER (WHERE al.logged_at > NOW() - INTERVAL '24h'
+                            AND al.direction = 'received') AS inbound_24h,
+                        COUNT(DISTINCT al.mailbox_address) AS active_mailboxes
+                    FROM email_activity_log al
+                    JOIN email_mailboxes m ON m.address = al.mailbox_address
+                    WHERE m.id = ANY(%s)
+                    """,
+                    (visible,),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT
+                        COUNT(*) FILTER (WHERE logged_at > NOW() - INTERVAL '24h') AS last_24h,
+                        COUNT(*) FILTER (WHERE read_at IS NULL
+                            AND logged_at > NOW() - INTERVAL '24h') AS unread_24h,
+                        COUNT(*) FILTER (WHERE logged_at > NOW() - INTERVAL '24h'
+                            AND direction = 'received') AS inbound_24h,
+                        COUNT(DISTINCT mailbox_address) AS active_mailboxes
+                    FROM email_activity_log
+                    """
+                )
             row = cur.fetchone()
-            cur.execute(
-                "SELECT COUNT(*) AS flagged FROM email_assignments "
-                "WHERE status = 'open' AND created_at < NOW() - INTERVAL '24h'"
-            )
+            if visible is not None:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS flagged
+                    FROM email_assignments ea
+                    JOIN email_activity_log al ON al.id = ea.email_id
+                    JOIN email_mailboxes m ON m.address = al.mailbox_address
+                    WHERE ea.status = 'open'
+                      AND ea.created_at < NOW() - INTERVAL '24h'
+                      AND m.id = ANY(%s)
+                    """,
+                    (visible,),
+                )
+            else:
+                cur.execute(
+                    "SELECT COUNT(*) AS flagged FROM email_assignments "
+                    "WHERE status = 'open' AND created_at < NOW() - INTERVAL '24h'"
+                )
             flagged_row = cur.fetchone()
         return jsonify(
             {
@@ -232,9 +290,22 @@ def register_hq_routes(bp, admin_required):
 
     @bp.route("/api/hq/rules", methods=["GET"])
     @login_required
+    @admin_required
     def hq_rules():
+        """List email rules.
+
+        COLLABORATORs see only rules for their visible mailboxes.
+        """
+        visible = get_visible_mailbox_ids(current_user)
         with get_db_cursor() as (_, cur):
-            cur.execute("SELECT id, mailbox_id, conditions, actions, enabled " "FROM email_rules ORDER BY id")
+            if visible is not None:
+                cur.execute(
+                    "SELECT id, mailbox_id, conditions, actions, enabled "
+                    "FROM email_rules WHERE mailbox_id = ANY(%s) ORDER BY id",
+                    (visible,),
+                )
+            else:
+                cur.execute("SELECT id, mailbox_id, conditions, actions, enabled FROM email_rules ORDER BY id")
             rows = cur.fetchall()
         return jsonify({"rules": [dict(r) for r in rows]})
 
@@ -242,10 +313,22 @@ def register_hq_routes(bp, admin_required):
 
     @bp.route("/api/hq/oversight/unanswered", methods=["GET"])
     @login_required
+    @admin_required
     def hq_oversight_unanswered():
-        """List inbound emails with no reply after threshold hours."""
+        """List inbound emails with no reply after threshold hours.
+
+        Scoped to the caller's visible mailboxes for COLLABORATORs.
+        """
         threshold = int(request.args.get("threshold_hours", 24))
         limit = min(int(request.args.get("limit", 50)), 200)
+        visible = get_visible_mailbox_ids(current_user)
+
+        scope_clause = ""
+        scope_params: list = []
+        if visible is not None:
+            scope_clause = " AND al.mailbox_address IN " "(SELECT address FROM email_mailboxes WHERE id = ANY(%s))"
+            scope_params = [visible]
+
         with get_db_cursor() as (_, cur):
             cur.execute(
                 """
@@ -264,10 +347,13 @@ def register_hq_routes(bp, admin_required):
                         AND r.to_address = al.from_address
                         AND r.logged_at > al.logged_at
                   )
+                """
+                + scope_clause
+                + """
                 ORDER BY al.logged_at ASC
                 LIMIT %s
                 """,
-                (str(threshold), limit),
+                [str(threshold)] + scope_params + [limit],
             )
             rows = cur.fetchall()
         emails = [
@@ -290,6 +376,7 @@ def register_hq_routes(bp, admin_required):
 
     @bp.route("/api/hq/oversight/scan", methods=["POST"])
     @login_required
+    @admin_required
     def hq_oversight_scan():
         """Trigger a manual R.E.S.O.L.V.E. oversight scan."""
         data = request.get_json(silent=True) or {}
@@ -299,6 +386,7 @@ def register_hq_routes(bp, admin_required):
 
     @bp.route("/api/hq/oversight/tickets", methods=["GET"])
     @login_required
+    @admin_required
     def hq_oversight_tickets():
         """List unified_tasks auto-created by R.E.S.O.L.V.E. oversight."""
         limit = min(int(request.args.get("limit", 50)), 200)

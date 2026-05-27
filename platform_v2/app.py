@@ -2505,6 +2505,12 @@ from tools.cluster_proxy.routes import proxy_bp as cluster_proxy_bp  # noqa: E40
 
 app.register_blueprint(cluster_proxy_bp)
 
+# A2A Protocol — Agent-to-Agent interoperability (T1715)
+from a2a_routes import a2a_wellknown_bp, a2a_tasks_bp  # noqa: E402
+
+app.register_blueprint(a2a_wellknown_bp)
+app.register_blueprint(a2a_tasks_bp)
+
 # Cross-Watch Alert System — seed entities on startup (blueprint loaded via module_registry)
 try:
     from tools.cross_watch.entity_seeder import seed_entities as _seed_cross_watch_entities

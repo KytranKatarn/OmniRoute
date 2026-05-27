@@ -5084,18 +5084,16 @@ class AgentLoop:
             logger.error("pr_diff_analysis failed: %s", e)
 
     def _run_email_imap_sync(self):
-        """Poll IMAP for provisioned mailboxes and sync to email_activity_log."""
+        """Poll IMAP for all provisioned mailboxes and sync full message bodies."""
         try:
-            from database import get_db_cursor
+            from tools.email_manager.sync_jobs import run_email_imap_sync
 
-            with get_db_cursor() as (conn, cur):
-                cur.execute(
-                    "SELECT COUNT(*) AS cnt FROM email_mailboxes WHERE provisioned=TRUE AND active=TRUE"
-                )
-                count = cur.fetchone()["cnt"]
+            result = run_email_imap_sync()
             logger.info(
-                "email_imap_sync: %d provisioned mailboxes (full IMAP sync requires Phase 2 credential storage)",
-                count,
+                "email_imap_sync: %d mailboxes synced — %d new messages, %d errors",
+                result["mailboxes"],
+                result["new_messages"],
+                result["errors"],
             )
         except Exception as e:
             logger.error("email_imap_sync failed: %s", e)

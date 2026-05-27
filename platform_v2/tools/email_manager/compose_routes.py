@@ -14,7 +14,7 @@ from flask_login import login_required
 
 logger = logging.getLogger(__name__)
 
-_SMTP_HOST = "192.168.1.200"
+_SMTP_HOST = "stalwart_mail"  # Docker-internal hostname on archie_network (not LAN IP)
 _SMTP_PORT = 587  # STARTTLS submission
 
 

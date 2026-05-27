@@ -234,10 +234,7 @@ def register_hq_routes(bp, admin_required):
     @login_required
     def hq_rules():
         with get_db_cursor() as (_, cur):
-            cur.execute(
-                "SELECT id, name, condition_field, condition_value, "
-                "action, action_value, is_active FROM email_rules ORDER BY id"
-            )
+            cur.execute("SELECT id, mailbox_id, conditions, actions, enabled " "FROM email_rules ORDER BY id")
             rows = cur.fetchall()
         return jsonify({"rules": [dict(r) for r in rows]})
 

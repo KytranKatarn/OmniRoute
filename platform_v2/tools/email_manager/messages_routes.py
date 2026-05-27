@@ -481,7 +481,7 @@ def register_email_messages_routes(bp, admin_required):
 
     @bp.route("/api/email/sync/bulk", methods=["POST"])
     @login_required
-    @access_required
+    @admin_required
     def email_sync_bulk():
         """Sync IMAP for the caller's visible mailboxes.
 

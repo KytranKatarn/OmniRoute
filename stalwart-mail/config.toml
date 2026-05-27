@@ -12,20 +12,28 @@ trusted-networks = ["127.0.0.0/8", "172.16.0.0/12", "10.0.0.0/8", "100.64.0.0/10
 [server.listener.submission]
 bind = "[::]:587"
 protocol = "smtp"
+# Trust Docker bridge subnets so the platform container (172.x) can send mail
+# without tripping the brute-force auto-ban on the submission port.
+trusted-networks = ["127.0.0.0/8", "172.16.0.0/12", "10.0.0.0/8", "100.64.0.0/10"]
 
 [server.listener.submissions]
 bind = "[::]:465"
 protocol = "smtp"
 tls.implicit = true
+trusted-networks = ["127.0.0.0/8", "172.16.0.0/12", "10.0.0.0/8", "100.64.0.0/10"]
 
 [server.listener.imap]
 bind = "[::]:143"
 protocol = "imap"
+# Trust Docker bridge subnets so IMAP sync from the platform container never
+# triggers auto-ban (the platform hits this port every 5 minutes per mailbox).
+trusted-networks = ["127.0.0.0/8", "172.16.0.0/12", "10.0.0.0/8", "100.64.0.0/10"]
 
 [server.listener.imaptls]
 bind = "[::]:993"
 protocol = "imap"
 tls.implicit = true
+trusted-networks = ["127.0.0.0/8", "172.16.0.0/12", "10.0.0.0/8", "100.64.0.0/10"]
 
 [server.listener.pop3]
 bind = "[::]:110"

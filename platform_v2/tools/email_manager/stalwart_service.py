@@ -94,9 +94,12 @@ def list_accounts() -> list:
         return []
     if resp.status_code == 200:
         data = resp.json()
-        # Stalwart v0.11 returns {"items": [...], "total": N} or a plain list
+        # Stalwart v0.11 wraps the payload: {"data": {"items": [...], "total": N}}
+        # Earlier versions returned {"items": [...]} or a plain list directly.
         if isinstance(data, list):
             return data
+        if "data" in data and isinstance(data["data"], dict):
+            data = data["data"]
         return data.get("items", [])
     logger.error("Stalwart list_accounts failed: %s %s", resp.status_code, resp.text[:200])
     return []

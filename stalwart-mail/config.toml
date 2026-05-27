@@ -110,7 +110,7 @@ mechanisms = [ { if = "listener != 'smtp'", then = "[plain, login]" },
 next-hop = [ { else = "'relay'" } ]
 
 [queue.outbound.tls]
-mta-sts = "disable"
+mta-sts = "optional"
 allow-invalid-certs = true
 
 # Loopback delivery — connects to Stalwart's own port-25 inbound listener
@@ -164,3 +164,55 @@ ip-lookup = "ipv4_only"
 [remote."relay".tls]
 implicit = false
 allow-invalid-certs = true
+
+# ─── Inbound authentication verification ────────────────────────────────────
+
+# SPF — verify sender's IP is authorised to send for the From domain.
+# "relaxed" = log failures and add Authentication-Results header; don't reject.
+# Upgrade to "strict" once SPF is confirmed stable.
+[auth.spf.ehlo]
+verify = "relaxed"
+
+[auth.spf.mail-from]
+verify = "relaxed"
+
+# DMARC — verify alignment of SPF + DKIM against the From header domain.
+# "relaxed" = tag & report failures; don't reject (DMARC DNS policy handles rejection).
+[auth.dmarc]
+verify = "relaxed"
+
+# ARC — honour forwarded mail that carries valid ARC seals (mailing lists etc.)
+# Also seal outbound mail so downstream servers can verify our chain.
+[auth.arc]
+verify = "relaxed"
+seal = "'rsa-kytranempowerment.com'"
+
+# ─── Aggregate reporting ─────────────────────────────────────────────────────
+
+# DMARC aggregate reports — sent daily at 03:00 to postmaster@
+[report.dmarc.aggregate]
+from.name = "Kytran Empowerment Mail"
+from.address = "postmaster@kytranempowerment.com"
+org-name = "Kytran Empowerment Inc."
+contact-info = "https://kytranempowerment.com"
+send-at = "0 3 * * *"
+max-size = 26214400
+sign = ["rsa-kytranempowerment.com"]
+
+# TLS-RPT aggregate reports — sent daily at 04:00 to postmaster@
+[report.tls.aggregate]
+from.name = "Kytran Empowerment Mail"
+from.address = "postmaster@kytranempowerment.com"
+org-name = "Kytran Empowerment Inc."
+send-at = "0 4 * * *"
+max-size = 26214400
+sign = ["rsa-kytranempowerment.com"]
+
+# ─── Outbound per-user rate limit ────────────────────────────────────────────
+
+# Cap each authenticated account to 200 messages/hour outbound.
+# Prevents a compromised agent/business account from becoming a spam relay.
+# The 127.0.0.1 throttle above handles local loopback bursts separately.
+[[session.throttle]]
+key = ["authenticated_as"]
+rate = "200/1h"

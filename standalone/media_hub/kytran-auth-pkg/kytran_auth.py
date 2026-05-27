@@ -217,17 +217,24 @@ class KytranAuth:
             except Exception as e:
                 return f"Userinfo error: {e}", 500
 
-            # Check entitlements
+            # Check entitlements — can be disabled per-product via env var
+            # (e.g. KYTRAN_AUTH_ENFORCE_ENTITLEMENT=false for family/open-access products)
+            _enforce = os.environ.get(
+                "KYTRAN_AUTH_ENFORCE_ENTITLEMENT", "true"
+            ).lower() not in ("false", "0", "no")
             entitlements = userinfo.get("entitlements", [])
-            if sdk.client_id not in entitlements:
-                # Check if any entitlement starts with the base product name
+            if _enforce and sdk.client_id not in entitlements:
+                # Strip variant suffixes (-lan, -viewer, -pro, -ai) to get base product name.
+                # Order matters: strip -lan before -viewer so "media-hub-viewer-lan" → "media-hub".
                 base = (
-                    sdk.client_id.replace("-viewer", "")
+                    sdk.client_id.replace("-lan", "")
+                    .replace("-viewer", "")
                     .replace("-pro", "")
                     .replace("-ai", "")
                 )
                 has_access = any(e.startswith(base) for e in entitlements)
-                if not has_access and userinfo.get("role") != "admin":
+                _role = (userinfo.get("role") or "").lower()
+                if not has_access and _role not in ("admin", "super_admin"):
                     return (
                         "<h2>Subscription Required</h2>"
                         "<p>Your account does not have access to this product.</p>"

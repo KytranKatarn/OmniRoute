@@ -136,8 +136,8 @@ incoming_tier = (product_tiers.get("gov_watch") or user.get("subscription_tier")
 
 Local tier mapping per standalone (canonical → local):
 - `gov_watch`: PostgreSQL `user_profiles`, canonical tiers (kytran/owner/admin=99… free=0)
-- `civic_watch`, `legal_watch`: non-free → `"pro"` | free → `"free"`
-- `market_watch`: non-free → `"ai"` | free → `"free"`
+- `civic_watch`, `legal_watch`: canonical tier stored directly (2026-05-27); auth.py billing fallback: any non-free → return `"pro"`
+- `market_watch`: canonical tier stored directly (2026-05-27); auth.py billing fallback: any non-free → return `"ai"`
 - `wtf`: canonical tier stored as-is (starter/solo/etc. all valid in `_SUBSCRIBED_TIERS`)
 
 **Implementation pattern** (copy from gov-watch `app.py` `internal_set_tier()`):

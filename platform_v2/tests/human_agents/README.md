@@ -110,6 +110,10 @@ After resetting:
 | `conftest.py` | Shared fixtures + `login_as()` / `logout()` helpers |
 | `test_01_login.py` | Login smoke test — all 21 agents (T3292) |
 | `test_02_email_scoping.py` | Email Manager dept scoping (browser proof of T3279–T3283) |
+| `test_03_compose_send.py`  | Compose & send email as COLLABORATOR (T3296) |
+| `test_04_dashboard.py`     | Dashboard presence + module tile visibility (T3297 Phase 2) |
+| `test_05_profile.py`       | Profile self-service — USER_SETTINGS (T3297 Phase 2) |
+| `test_06_chat.py`          | Archie Chat — USER_CHAT permission (T3297 Phase 2) |
 | `admin_reset_passwords.py` | Admin API/DB password reset utility (T3293) |
 | `profiles/` | Persistent browser profiles per agent (gitignored) |
 
@@ -123,9 +127,9 @@ After resetting:
 | T3292 | ✅ Done | Login flow — all 21 agents |
 | T3293 | ✅ Done | Password reset flow (admin API path) |
 | T3294 | ✅ Done | Email Manager scoping verification |
-| T3295 | 🔲 TODO | must_change_password UI enforcement (force-redirect on login) |
-| T3296 | 🔲 TODO | Compose + send email as COLLABORATOR |
-| T3297 | 🔲 TODO | General human-online interactions (Phase 2) |
+| T3295 | ✅ Done | must_change_password UI enforcement (force-redirect on login) — PR #1167 |
+| T3296 | ✅ Done | Compose + send email as COLLABORATOR — PR #1168 |
+| T3297 | 🔄 WIP  | General human-online interactions (Phase 2) — dashboard, profile, chat |
 
 ---
 

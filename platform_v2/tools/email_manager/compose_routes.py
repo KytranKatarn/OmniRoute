@@ -69,7 +69,10 @@ def register_compose_routes(bp, admin_required):
         body = (data.get("body") or "").strip()
 
         if not from_address or not to_address or not subject:
-            return jsonify({"error": "from_address, to_address and subject are required"}), 400
+            return (
+                jsonify({"error": "from_address, to_address and subject are required"}),
+                400,
+            )
 
         # Resolve credentials for the From mailbox; enforce scope for COLLABORATORs.
         visible = get_visible_mailbox_ids(current_user)
@@ -90,7 +93,10 @@ def register_compose_routes(bp, admin_required):
             row = cur.fetchone()
 
         if not row or not row["imap_password"]:
-            return jsonify({"error": "Mailbox not provisioned or missing SMTP credentials"}), 400
+            return (
+                jsonify({"error": "Mailbox not provisioned or missing SMTP credentials"}),
+                400,
+            )
 
         username = from_address.split("@")[0]
         password = row["imap_password"]
@@ -105,8 +111,10 @@ def register_compose_routes(bp, admin_required):
 
         # Send via Stalwart SMTP (port 587 STARTTLS)
         ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        ctx.check_hostname = (
+            False  # Docker-internal hostname (stalwart_mail) doesn't match cert CN (mail.kytranempowerment.com)
+        )
+        ctx.verify_mode = ssl.CERT_REQUIRED  # Stalwart has a valid Let's Encrypt cert — enforce chain validation
         try:
             with smtplib.SMTP(_SMTP_HOST, _SMTP_PORT, timeout=30) as smtp:
                 smtp.ehlo()
@@ -115,7 +123,10 @@ def register_compose_routes(bp, admin_required):
                 smtp.sendmail(from_address, [to_address], msg.as_string())
         except smtplib.SMTPAuthenticationError as exc:
             logger.error("SMTP auth failed for %s: %s", from_address, exc)
-            return jsonify({"error": "SMTP authentication failed — check mailbox credentials"}), 500
+            return (
+                jsonify({"error": "SMTP authentication failed — check mailbox credentials"}),
+                500,
+            )
         except smtplib.SMTPRecipientsRefused as exc:
             logger.error("Recipient refused %s: %s", to_address, exc)
             return jsonify({"error": f"Recipient refused: {to_address}"}), 400

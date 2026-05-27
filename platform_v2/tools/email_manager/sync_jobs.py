@@ -92,8 +92,10 @@ def sync_single_mailbox_full(mailbox_id: int, address: str, password: str) -> in
 
     username = address.split("@")[0]
     ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
+    ctx.check_hostname = (
+        False  # Docker-internal hostname (stalwart_mail) doesn't match cert CN (mail.kytranempowerment.com)
+    )
+    ctx.verify_mode = ssl.CERT_REQUIRED  # Stalwart has a valid Let's Encrypt cert — enforce chain validation
 
     try:
         with imaplib.IMAP4_SSL(_IMAP_HOST, _IMAP_PORT, ssl_context=ctx) as imap:
@@ -121,7 +123,8 @@ def sync_single_mailbox_full(mailbox_id: int, address: str, password: str) -> in
                     if insert_email_message(cur, mailbox_id, uid, msg, raw):
                         inserted += 1
                         cur.execute(
-                            "SELECT id FROM email_messages WHERE mailbox_id=%s AND imap_uid=%s", (mailbox_id, uid)
+                            "SELECT id FROM email_messages WHERE mailbox_id=%s AND imap_uid=%s",
+                            (mailbox_id, uid),
                         )
                         row = cur.fetchone()
                         if row:

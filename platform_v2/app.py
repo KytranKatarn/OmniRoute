@@ -295,6 +295,7 @@ class User(UserMixin):
         profile_picture=None,
         oauth_picture=None,
         created_at=None,
+        must_change_password=False,
     ):
         self.id = id
         self.username = username
@@ -308,6 +309,7 @@ class User(UserMixin):
         self.profile_picture = profile_picture
         self.oauth_picture = oauth_picture
         self.created_at = created_at
+        self.must_change_password = bool(must_change_password)
         # Note: is_authenticated, is_active, is_anonymous are provided by UserMixin
 
 
@@ -340,6 +342,7 @@ def load_user(user_id):
                 profile_picture=user_data.get("profile_picture"),
                 oauth_picture=user_data.get("oauth_picture"),
                 created_at=user_data.get("created_at"),
+                must_change_password=user_data.get("must_change_password", False),
             )
     except Exception as e:
         print(f"Error loading user: {e}")
@@ -1211,12 +1214,21 @@ def login():
                     profile_picture=user_data.get("profile_picture"),
                     oauth_picture=user_data.get("oauth_picture"),
                     created_at=user_data.get("created_at"),
+                    must_change_password=user_data.get("must_change_password", False),
                 )
                 login_user(user, remember=True)
                 create_user_session(user_data["id"])
 
                 log_auth_event(user_data["id"], "login_success", ip, ua)
                 reset_failed_login_count(user_data["id"])
+
+                # Force password change for accounts with must_change_password flag
+                if user_data.get("must_change_password"):
+                    flash(
+                        "You must set a new password before continuing.",
+                        "warning",
+                    )
+                    return redirect(url_for("change_password"))
 
                 flash("Login successful!", "success")
                 next_url = request.args.get("next") or request.form.get("next")
@@ -3123,6 +3135,20 @@ def update_session_activity():
                 pass
 
 
+@app.before_request
+def enforce_password_change():
+    """Redirect users with must_change_password=True to the change-password page
+    for every request until they comply. Exempts /change-password, /logout, and static assets."""
+    if not current_user.is_authenticated:
+        return
+    if not getattr(current_user, "must_change_password", False):
+        return
+    allowed_endpoints = {"change_password", "logout", "static"}
+    if request.endpoint in allowed_endpoints:
+        return
+    return redirect(url_for("change_password"))
+
+
 @app.after_request
 def add_security_headers(response):
     """Add security headers to every response (Project Alpha, 2026-05-06)."""
@@ -4470,6 +4496,55 @@ def api_internal_repair_count():
     except Exception as exc:
         logger.error("api_internal_repair_count failed: %s", exc)
         return jsonify({"count": 0})
+
+
+# ============================================================================
+# CHANGE PASSWORD (must_change_password enforcement — T3295)
+# ============================================================================
+
+
+@app.route("/change-password", methods=["GET", "POST"])
+@login_required
+def change_password():
+    """Force-password-change page for accounts provisioned with must_change_password=True.
+    After a successful change, clears the flag and redirects to the dashboard."""
+    from database import get_db_cursor
+    from werkzeug.security import generate_password_hash
+
+    from services.auth_service import validate_password_complexity
+
+    if request.method == "POST":
+        new_pw = request.form.get("new_password", "")
+        confirm = request.form.get("confirm_password", "")
+
+        if new_pw != confirm:
+            flash("Passwords do not match.", "error")
+        else:
+            valid, msg = validate_password_complexity(new_pw)
+            if not valid:
+                flash(msg, "error")
+            else:
+                pw_hash = generate_password_hash(new_pw)
+                try:
+                    with get_db_cursor(commit=True) as (conn, cur):
+                        cur.execute(
+                            """UPDATE users
+                               SET password_hash = %s,
+                                   must_change_password = FALSE,
+                                   updated_at = NOW()
+                               WHERE id = %s""",
+                            (pw_hash, current_user.id),
+                        )
+                    # Refresh the flag on the current_user object so the
+                    # before_request guard stops redirecting immediately
+                    current_user.must_change_password = False
+                    flash("Password updated successfully. Welcome!", "success")
+                    return redirect(url_for("dashboard"))
+                except Exception as exc:
+                    print(f"change_password error: {exc}")
+                    flash("An error occurred. Please try again.", "error")
+
+    return render_template("change_password.html")
 
 
 # ============================================================================

@@ -147,6 +147,7 @@ def create_mailbox(address: str, display_name: str = "", password: str = None, q
                 "secrets": [_password],
                 "emails": [address],
                 "quota": quota_gb * 1024 * 1024 * 1024,
+                "roles": ["user"],
             },
             timeout=10,
         )

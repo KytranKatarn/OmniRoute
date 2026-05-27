@@ -101,14 +101,13 @@ mechanisms = [ { if = "listener != 'smtp'", then = "[plain, login]" },
                { else = false } ]
 
 # Outbound routing
-# Local domains: route through loopback SMTP so delivery comes from 127.0.0.1
-# (never banned) rather than via MX → 192.168.1.200 → Docker bridge 172.27.0.1
-# (which was auto-banned from auth-test failures).  Port 25 inbound path delivers
-# directly to the mailbox without re-queuing, so no infinite loop.
+# Local domains: Stalwart delivers directly to the internal RocksDB mailbox
+# (no SMTP loopback — that created an infinite loop via localhost:25).
+# The trusted-networks block on port 25 already covers the Docker bridge subnet
+# so no auth-ban risk for local delivery.
 # External domains: relay through US outpost VPS.
 [queue.outbound]
-next-hop = [ { if = "is_local_domain('', rcpt_domain)", then = "'local_smtp'" },
-             { else = "'relay'" } ]
+next-hop = [ { else = "'relay'" } ]
 
 [queue.outbound.tls]
 mta-sts = "disable"
@@ -145,6 +144,16 @@ rate = "500/1s"
 enable = true
 key = "remote_ip"
 rate = "500/1s"
+
+# Raise the per-sender hourly limit so business mailboxes (no-reply@, billing@,
+# etc.) can send more than 25 messages/hour.  External anti-spam protection
+# comes primarily from SPF/DKIM/DMARC + the IP limiter above; the per-sender
+# hard cap is a secondary safeguard.  500/h is still meaningful protection
+# against a compromised account flooding the queue.
+[queue.limiter.inbound.sender]
+enable = true
+key = "sender"
+rate = "500/1h"
 
 [remote."relay"]
 address = "relay.kytranempowerment.com"

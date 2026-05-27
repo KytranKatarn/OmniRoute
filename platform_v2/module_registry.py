@@ -741,6 +741,23 @@ MODULES: List[ModuleDefinition] = [
             "placeholder",
         ],
     ),
+    ModuleDefinition(
+        id="brainstorm",
+        name="Brainstorm",
+        description="Structured ideation workspace<br>Sessions • Clusters • Votes • KB export • AI expansion",
+        icon="lightbulb",
+        category=ModuleCategory.APPLICATIONS_CONCEPTS,
+        route="/tools/brainstorm",
+        blueprint_import="tools.brainstorm:brainstorm_bp",
+        required_permissions=[],
+        minimum_role="USER",
+        minimum_tier="staff",
+        enabled=True,
+        coming_soon=False,
+        health_check=lambda: check_service_health("brainstorm", "/tools/brainstorm/api/status"),
+        priority=2,
+        tags=["brainstorm", "ideas", "creativity", "productivity", "planning"],
+    ),
     # market_watch removed — duplicate of kytran_market_watch in APPLICATIONS (line 896)
     ModuleDefinition(
         id="game_studio",

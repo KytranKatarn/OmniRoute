@@ -44,6 +44,12 @@ CONSENT_CACHE_TTL = 120  # 2 min
 _ised_score_cache: dict = {"data": None, "expires": 0}
 ISED_SCORE_CACHE_TTL = 300  # 5 min — published score rarely changes
 
+# ── Agentic safety thresholds (T3275) ────────────────────────────────────────
+_COORD_DEPTH_FLAG = 5  # flag coordination chains reaching this depth
+_COORD_DEPTH_BLOCK = 8  # block coordination chains at or beyond this depth
+_COORD_WARN_COST_USD = 2.0  # flag when estimated chain cost exceeds $2
+_COORD_BLOCK_COST_USD = 10.0  # block when estimated chain cost exceeds $10
+
 # Welfare thresholds
 _TOKEN_DAY_LIMIT = 100_000
 
@@ -1278,6 +1284,179 @@ def register_creed_routes(bp, admin_required):
             return jsonify({"success": True, "export": export})
         except Exception as e:
             logger.error("my-data/export user=%s: %s", getattr(current_user, "id", "?"), e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ── Agentic safety framework (T3275) ──────────────────────────────────────
+
+    @bp.route("/api/creed/v1/agentic-safety-policy")
+    def creed_agentic_safety_policy():
+        """Public: describe the agentic safety framework thresholds and risk flags.
+
+        No authentication required — consumed by creed-ai.org and governance auditors.
+        """
+        return jsonify(
+            {
+                "success": True,
+                "framework": "C.R.E.E.D. Agentic Safety Framework",
+                "version": "1.0",
+                "description": (
+                    "Monitors and governs multi-agent coordination chains to prevent "
+                    "runaway escalation, prompt-injection propagation, circular delegation, "
+                    "and unchecked resource consumption."
+                ),
+                "risk_thresholds": {
+                    "depth_flag": _COORD_DEPTH_FLAG,
+                    "depth_block": _COORD_DEPTH_BLOCK,
+                    "cost_flag_usd": _COORD_WARN_COST_USD,
+                    "cost_block_usd": _COORD_BLOCK_COST_USD,
+                },
+                "risk_flags": {
+                    "loop_detected": (
+                        "Same agent appears twice in a coordination chain — " "circular delegation blocked"
+                    ),
+                    "depth_elevated": (f"Chain depth ≥ {_COORD_DEPTH_FLAG} — flagged for governance review"),
+                    "depth_exceeded": (f"Chain depth ≥ {_COORD_DEPTH_BLOCK} — coordination blocked"),
+                    "cost_elevated": (f"Estimated chain cost ≥ ${_COORD_WARN_COST_USD:.2f} USD — flagged"),
+                    "cost_exceeded": (f"Estimated chain cost ≥ ${_COORD_BLOCK_COST_USD:.2f} USD — blocked"),
+                },
+                "outcomes": {
+                    "allowed": "No risk flags — coordination proceeds normally",
+                    "flagged": "Coordination allowed but logged to governance_audit_log for review",
+                    "blocked": "Coordination prevented — safety threshold exceeded",
+                },
+                "governance_log": (
+                    "Flagged and blocked events written to governance_audit_log " "(event_category='safety')"
+                ),
+                "legal_basis": {
+                    "pipeda": "PIPEDA Principle 4.1 — accountability for AI agent actions",
+                    "gdpr": "GDPR Article 22 — safeguards for automated decision-making",
+                },
+            }
+        )
+
+    @bp.route("/api/creed/coordination-events")
+    @admin_required
+    def creed_coordination_events():
+        """Admin: paginated list of multi-agent coordination chain log entries.
+
+        Optional query params: ?outcome=flagged|blocked|allowed  ?limit=50  ?offset=0
+        """
+        outcome_filter = request.args.get("outcome")
+        limit = min(int(request.args.get("limit", 50)), 200)
+        offset = int(request.args.get("offset", 0))
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                where = "WHERE outcome = %s" if outcome_filter else ""
+                params: list = [outcome_filter] if outcome_filter else []
+                cur.execute(
+                    f"""
+                    SELECT id, chain_id, root_capability, depth,
+                           estimated_cost_usd, risk_score, risk_flags, outcome, created_at
+                    FROM creed_coordination_chains
+                    {where}
+                    ORDER BY created_at DESC
+                    LIMIT %s OFFSET %s
+                    """,  # noqa: S608
+                    params + [limit, offset],
+                )
+                rows = cur.fetchall()
+                cur.execute(
+                    f"SELECT COUNT(*) FROM creed_coordination_chains {where}",  # noqa: S608
+                    params,
+                )
+                total = cur.fetchone()[0]
+            return jsonify(
+                {
+                    "success": True,
+                    "events": [
+                        {
+                            "id": r["id"],
+                            "chain_id": str(r["chain_id"]),
+                            "root_capability": r["root_capability"],
+                            "depth": r["depth"],
+                            "estimated_cost_usd": float(r["estimated_cost_usd"] or 0),
+                            "risk_score": float(r["risk_score"]),
+                            "risk_flags": r["risk_flags"],
+                            "outcome": r["outcome"],
+                            "created_at": r["created_at"].isoformat(),
+                        }
+                        for r in rows
+                    ],
+                    "total": total,
+                    "limit": limit,
+                    "offset": offset,
+                }
+            )
+        except Exception as e:
+            logger.error("coordination-events: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/creed/coordination-events/<chain_id>")
+    @admin_required
+    def creed_coordination_chain_detail(chain_id):
+        """Admin: full hop-by-hop trace for one coordination chain UUID."""
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT id, chain_id, root_capability, parent_dispatch_id, depth,
+                           agent_sequence, estimated_cost_usd, risk_score,
+                           risk_flags, outcome, created_at
+                    FROM creed_coordination_chains
+                    WHERE chain_id = %s::uuid
+                    ORDER BY created_at ASC
+                    """,
+                    (chain_id,),
+                )
+                rows = cur.fetchall()
+                if not rows:
+                    return jsonify({"success": False, "error": "Chain not found"}), 404
+                # Related governance events for this chain
+                cur.execute(
+                    """
+                    SELECT event_type, action, reason, outcome, timestamp
+                    FROM governance_audit_log
+                    WHERE event_category = 'safety'
+                      AND (old_value->>'chain_id' = %s
+                           OR new_value->>'chain_id' = %s)
+                    ORDER BY timestamp ASC
+                    """,
+                    (chain_id, chain_id),
+                )
+                gov_events = [
+                    {
+                        "event_type": g["event_type"],
+                        "action": g["action"],
+                        "reason": g["reason"],
+                        "outcome": g["outcome"],
+                        "timestamp": g["timestamp"].isoformat(),
+                    }
+                    for g in cur.fetchall()
+                ]
+            return jsonify(
+                {
+                    "success": True,
+                    "chain_id": chain_id,
+                    "hops": [
+                        {
+                            "id": r["id"],
+                            "root_capability": r["root_capability"],
+                            "parent_dispatch_id": r["parent_dispatch_id"],
+                            "depth": r["depth"],
+                            "agent_sequence": r["agent_sequence"],
+                            "estimated_cost_usd": float(r["estimated_cost_usd"] or 0),
+                            "risk_score": float(r["risk_score"]),
+                            "risk_flags": r["risk_flags"],
+                            "outcome": r["outcome"],
+                            "created_at": r["created_at"].isoformat(),
+                        }
+                        for r in rows
+                    ],
+                    "governance_events": gov_events,
+                }
+            )
+        except Exception as e:
+            logger.error("coordination-chain-detail %s: %s", chain_id, e)
             return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3031,3 +3210,153 @@ def _build_user_data_export(user_id: int) -> dict:
             export["erasure_requests"] = []
 
     return export
+
+
+# ── Agentic safety helpers (T3275) ───────────────────────────────────────────
+
+
+def _assess_coordination_risk(
+    depth: int,
+    agent_ids: list,
+    estimated_cost_usd: float = 0.0,
+) -> dict:
+    """Assess risk for a multi-agent coordination chain.
+
+    Returns a dict with risk_score (0.0–1.0), risk_flags list, outcome string
+    (allowed / flagged / blocked), and a boolean should_block.
+
+    Non-blocking by design — callers decide whether to act on ``should_block``.
+    Called by ``log_coordination_event`` and may be called directly for
+    pre-dispatch checks without persisting a log row.
+    """
+    risk_flags: list[str] = []
+
+    # Loop detection — same non-null agent_id twice in chain signals circular delegation
+    seen_ids = [a for a in agent_ids if a is not None]
+    if len(seen_ids) != len(set(seen_ids)):
+        risk_flags.append("loop_detected")
+
+    # Depth checks
+    if depth >= _COORD_DEPTH_BLOCK:
+        risk_flags.append("depth_exceeded")
+    elif depth >= _COORD_DEPTH_FLAG:
+        risk_flags.append("depth_elevated")
+
+    # Cost checks
+    if estimated_cost_usd >= _COORD_BLOCK_COST_USD:
+        risk_flags.append("cost_exceeded")
+    elif estimated_cost_usd >= _COORD_WARN_COST_USD:
+        risk_flags.append("cost_elevated")
+
+    # Composite risk score 0.0–1.0
+    score = 0.0
+    if "loop_detected" in risk_flags:
+        score += 0.50
+    if "depth_exceeded" in risk_flags:
+        score += 0.30
+    elif "depth_elevated" in risk_flags:
+        score += 0.15
+    if "cost_exceeded" in risk_flags:
+        score += 0.20
+    elif "cost_elevated" in risk_flags:
+        score += 0.10
+    score = min(round(score, 2), 1.0)
+
+    _BLOCKING = {"loop_detected", "depth_exceeded", "cost_exceeded"}
+    if risk_flags and _BLOCKING.intersection(risk_flags):
+        outcome = "blocked"
+    elif risk_flags:
+        outcome = "flagged"
+    else:
+        outcome = "allowed"
+
+    return {
+        "risk_score": score,
+        "risk_flags": risk_flags,
+        "outcome": outcome,
+        "should_block": outcome == "blocked",
+    }
+
+
+def log_coordination_event(
+    chain_id: str,
+    root_capability: str,
+    depth: int,
+    agent_sequence: list,
+    estimated_cost_usd: float = 0.0,
+    parent_dispatch_id: int | None = None,
+) -> dict:
+    """Log a multi-agent coordination hop to ``creed_coordination_chains``.
+
+    This is the **public surface** called from the dispatcher or any service
+    that coordinates agents.  Returns the risk assessment dict so callers can
+    act on ``should_block`` without re-computing it.
+
+    ``agent_sequence`` is a list of dicts, each with at least:
+        {agent_id: int | None, agent_name: str, capability: str}
+
+    Flagged / blocked events also write a row to ``governance_audit_log``
+    (event_category='safety') for C.R.E.E.D. audit trail compliance.
+    """
+    import json as _json
+
+    agent_ids = [a.get("agent_id") for a in agent_sequence]
+    assessment = _assess_coordination_risk(depth, agent_ids, estimated_cost_usd)
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO creed_coordination_chains
+                    (chain_id, root_capability, parent_dispatch_id, depth,
+                     agent_sequence, estimated_cost_usd, risk_score, risk_flags, outcome)
+                VALUES (%s::uuid, %s, %s, %s, %s::jsonb, %s, %s, %s::jsonb, %s)
+                """,
+                (
+                    chain_id,
+                    root_capability,
+                    parent_dispatch_id,
+                    depth,
+                    _json.dumps(agent_sequence),
+                    estimated_cost_usd or None,
+                    assessment["risk_score"],
+                    _json.dumps(assessment["risk_flags"]),
+                    assessment["outcome"],
+                ),
+            )
+    except Exception as e:
+        logger.error("[safety] creed_coordination_chains insert chain=%s: %s", chain_id, e)
+
+    # Governance audit log — only for flagged / blocked events
+    if assessment["outcome"] in ("flagged", "blocked"):
+        event_type = (
+            "coordination_chain_blocked" if assessment["outcome"] == "blocked" else "coordination_risk_detected"
+        )
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO governance_audit_log
+                        (event_type, event_category, action,
+                         old_value, new_value, reason, outcome, timestamp)
+                    VALUES (%s, 'safety', %s, %s::jsonb, %s::jsonb, %s, %s, NOW())
+                    """,
+                    (
+                        event_type,
+                        "block" if assessment["outcome"] == "blocked" else "flag",
+                        _json.dumps(
+                            {
+                                "chain_id": chain_id,
+                                "depth": depth,
+                                "cost_usd": estimated_cost_usd,
+                            }
+                        ),
+                        _json.dumps({"chain_id": chain_id, **assessment}),
+                        f"Risk flags: {', '.join(assessment['risk_flags'])}",
+                        assessment["outcome"],
+                    ),
+                )
+        except Exception as e:
+            logger.error("[safety] governance_audit_log insert chain=%s: %s", chain_id, e)
+
+    return assessment

@@ -1082,6 +1082,29 @@
     state.refreshTimer = setInterval(function () { loadCounts(); loadSidebar(); }, 30000);
   }
 
+  // ── SSE — real-time new-mail push (T3279) ─────────────────────────────
+  function initSSE() {
+    if (!window.EventSource) return;
+    try {
+      var src = new EventSource(BASE + '/api/email/stream');
+      src.onmessage = function (e) {
+        try {
+          var d = JSON.parse(e.data);
+          if (d.type === 'newMail') {
+            loadCounts();
+            loadSidebar();
+            if (state.currentMailboxId === d.mailbox_id) {
+              loadMessages();
+            }
+          }
+        } catch (_) {}
+      };
+      src.onerror = function () {
+        // Browser auto-reconnects; no action needed
+      };
+    } catch (_) {}
+  }
+
   // ── Wire events ───────────────────────────────────────────────────────
   function wireEvents() {
     document.querySelectorAll('.em-nav-item[data-view]').forEach(function (item) {
@@ -1126,6 +1149,7 @@
     loadCounts();
     selectView('all');
     startRefresh();
+    initSSE();
   });
 
 }());

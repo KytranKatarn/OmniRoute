@@ -4199,6 +4199,12 @@ if (os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug) and _run_sch
             except Exception as _e:
                 logger.warning("[Startup] Email sync jobs skipped: %s", _e)
             try:
+                from tools.email_manager.idle_worker import start_idle_workers
+
+                start_idle_workers()
+            except Exception as _e:
+                logger.warning("[Startup] IMAP IDLE workers skipped: %s", _e)
+            try:
                 from services.social_content_jobs import register_social_content_jobs
 
                 register_social_content_jobs(_scheduler)

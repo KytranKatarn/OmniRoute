@@ -53,3 +53,8 @@ register_email_messages_routes(email_manager_bp, email_access_required)
 from .rules_routes import register_email_rules_routes  # noqa: F401, E402
 
 register_email_rules_routes(email_manager_bp, admin_required)
+
+# SSE stream — real-time new-mail push (T3279)
+from .sync_routes import register_sync_routes  # noqa: F401, E402
+
+register_sync_routes(email_manager_bp, email_access_required)

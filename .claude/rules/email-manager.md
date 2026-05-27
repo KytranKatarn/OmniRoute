@@ -17,8 +17,8 @@
 
 ## Mailbox Scale
 
-- **49 mailboxes total**: 38 AI agent mailboxes + 10 business mailboxes + 1 owner mailbox
-- IMAP sync: every **5 minutes**
+- **70 mailboxes total**: 38 AI agent mailboxes + 10 business mailboxes + 1 owner mailbox + 21 human_agent (COLLABORATOR) mailboxes
+- IMAP sync: every **5 minutes** (polling; T3279 targets IMAP IDLE push)
 - AI triage: priority scoring, routing to correct agent mailbox
 
 ## Stalwart SMTP/IMAP — Critical Connection Rule
@@ -67,11 +67,50 @@ WRONG:     https://mail.kytranempowerment.com  (external, TLS, hairpin NAT)
 
 ## Routes Structure
 
-- `routes.py` — core CRUD (mailboxes, messages, threads)
-- `sync_routes.py` — IMAP sync triggers, status
-- `rules_routes.py` — email rules CRUD
-- `ai_routes.py` — triage, draft generation (Bridge dispatch)
-- Each registered via `register_*_routes(bp, admin_required)`
+- `messages_routes.py` — sidebar, message list, single message read, search, thread fetch
+- `sync_routes.py` — IMAP sync triggers, status (`@admin_required`)
+- `rules_routes.py` — email rules CRUD (`@admin_required`)
+- `ai_routes.py` — triage, draft generation via Bridge (`@admin_required`)
+- `imap_routes.py` — low-level IMAP operations (`@admin_required`)
+- `inbox_routes.py`, `sent_routes.py`, `overview_routes.py`, `hq_routes.py`, `compose_routes.py` — user-facing (`email_access_required`)
+- `mailbox_routes.py` — provisioning (`@admin_required`)
+- Each registered via `register_*_routes(bp, access_decorator)` in `__init__.py`
+
+## COLLABORATOR Access Control (T3290, migration 406)
+
+```python
+from tools.email_manager.access_control import get_visible_mailbox_ids, email_access_required
+
+visible = get_visible_mailbox_ids(current_user)
+# None  → admin, unrestricted
+# list  → dept-scoped mailbox IDs (own dept agents + explicit grants)
+```
+
+- `email_access_required = require_any_permission(ADMIN_ACCESS, EMAIL_INBOX_VIEW)`
+- `email_mailboxes.department` column (denormalized from `agents.department`) enables fast scoping
+- `user_mailbox_grants` table — explicit cross-dept grants
+- `users.agent_department` — set on COLLABORATOR provision, drives scope
+- Filter applied in: sidebar, message list, message read, search — all in `messages_routes.py`
+
+## JS State & Compose Patterns (T3280)
+
+```javascript
+// state.currentMsg — set in selectMessage() after API fetch
+// contains: mailbox_address, mailbox_type, from_addr, subject, body, ...
+state.currentMsg = msg;
+
+// openCompose — 4th param auto-selects From dropdown to receiving mailbox
+openCompose(toAddr, subject, quotedBody, fromAddr);
+// fromAddr = state.currentMsg.mailbox_address
+
+// AI Reply button — visible for ALL mailbox types (owner, business, human_agent, ai)
+// was restricted to owner/business only before T3280
+var showDraft = true;
+```
+
+- `state.currentMsg` is set by `selectMessage()` after the `/api/email/messages/<id>` GET
+- Single-message GET returns `mailbox_address` + `mailbox_type` — list-view rows do NOT
+- AI Reply dispatches to `POST /api/email/messages/<id>/draft-reply` → Bridge `capability='support'` → R.E.S.O.L.V.E.
 
 ## Migrations
 

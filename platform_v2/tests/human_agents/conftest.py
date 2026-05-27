@@ -26,6 +26,10 @@ BASE_URL = os.environ.get("ARCHIE_BASE_URL", "http://192.168.1.200:3000")
 ADMIN_USER = os.environ.get("ARCHIE_ADMIN_USER", "admin")
 ADMIN_PASS = os.environ.get("ARCHIE_ADMIN_PASS", "")
 
+# Deterministic password set on first login (when must_change_password=TRUE).
+# On second test run the temp password is gone — login_as falls back to this.
+FORCE_CHANGE_PW = os.environ.get("AGENT_FORCE_CHANGE_PW", "ChangeMe#2026!")
+
 
 # ---------------------------------------------------------------------------
 # Credential loader
@@ -110,21 +114,46 @@ def _agent_profile_dir(agent: dict) -> Path:
     return path
 
 
-def login_as(page: Page, agent: dict) -> None:
-    """Log in as a human agent. Raises if login fails."""
+def _do_login(page: Page, identifier: str, password: str) -> None:
+    """Fill and submit the login form (does NOT assert result)."""
     page.goto(f"{BASE_URL}/login")
     page.wait_for_load_state("networkidle")
-
-    # Fill username field — platform accepts email or username
-    page.fill('input[name="username"], input[id="username"], input[type="text"]', agent["email"])
-    page.fill('input[name="password"], input[id="password"], input[type="password"]', agent["password"])
+    page.fill('input[name="username"], input[id="username"], input[type="text"]', identifier)
+    page.fill('input[name="password"], input[id="password"], input[type="password"]', password)
     page.click('button[type="submit"], input[type="submit"]')
     page.wait_for_load_state("networkidle")
 
-    # Verify we landed on dashboard (not back on /login with error)
-    current_url = page.url
-    assert "/login" not in current_url, (
-        f"Login failed for {agent['email']}. Still on login page. " f"Check credentials.env has the correct password."
+
+def _handle_force_change(page: Page) -> None:
+    """If redirected to /change-password, set FORCE_CHANGE_PW and continue."""
+    if "/change-password" not in page.url:
+        return
+    page.fill('input[name="new_password"]', FORCE_CHANGE_PW)
+    page.fill('input[name="confirm_password"]', FORCE_CHANGE_PW)
+    page.click('button[type="submit"]')
+    page.wait_for_load_state("networkidle")
+
+
+def login_as(page: Page, agent: dict) -> None:
+    """Log in as a human agent. Handles must_change_password redirect automatically.
+
+    First-run: uses temp password from credentials.env.
+    Subsequent runs: temp password is gone — falls back to FORCE_CHANGE_PW.
+    Raises AssertionError if login cannot be established.
+    """
+    # Attempt 1 — credentials.env temp password
+    _do_login(page, agent["email"], agent["password"])
+    _handle_force_change(page)
+
+    # Attempt 2 — temp password may have been changed on a previous run
+    if "/login" in page.url:
+        _do_login(page, agent["email"], FORCE_CHANGE_PW)
+        _handle_force_change(page)
+
+    assert "/login" not in page.url, (
+        f"Login failed for {agent['email']}. "
+        f"Tried credentials.env password and FORCE_CHANGE_PW={FORCE_CHANGE_PW!r}. "
+        f"Run admin_reset_passwords.py --generate to regenerate temp passwords."
     )
 
 

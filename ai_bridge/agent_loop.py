@@ -1525,8 +1525,20 @@ class AgentLoop:
                 _cw_import_err,
             )
 
+        # Job #76: Email HQ morning digest → Telegram (T3288)
+        self.scheduler.add_job(
+            with_app_context(self._email_morning_digest),
+            trigger=CronTrigger(hour=8, minute=0, timezone="America/Toronto"),
+            id="email_morning_digest",
+            name="Email HQ: Morning Digest",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+        logger.info("Registered job: Email HQ Morning Digest (08:00 EDT)")
+
         self._running = True
-        logger.info("Agent loop started with 75 jobs")
+        logger.info("Agent loop started with 76 jobs")
 
     def _update_stock_prices(self):
         """Job #27: DISABLED — StockBot migrated to Kytran Market Watch (standalone).
@@ -9164,6 +9176,18 @@ class AgentLoop:
 
         except Exception as e:
             logger.error("[CREED Reporter] Job failed: %s", e)
+
+    def _email_morning_digest(self):
+        """Job #76: Send daily email digest to Telegram at 08:00 EDT (T3288)."""
+        try:
+            from tools.email_manager.digest_service import build_morning_digest
+            from services.telegram_service import send_info
+
+            title, message = build_morning_digest()
+            send_info(title, message)
+            logger.info("[Email Digest] Morning digest sent: %s", title)
+        except Exception as e:
+            logger.error("[Email Digest] Job failed: %s", e)
 
 
 # ---------------------------------------------------------------------------

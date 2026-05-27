@@ -16,6 +16,7 @@
     currentPage: 1,
     currentTotal: 0,
     currentMessageId: null,
+    currentMsg: null,
     searchQuery: '',
     searchTimer: null,
     refreshTimer: null,
@@ -496,6 +497,7 @@
       }
     });
     api('/api/email/messages/' + messageId).then(function (msg) {
+      state.currentMsg = msg;
       renderReadPane(msg);
       slideTo('read');
       if (wasUnread) { loadCounts(); loadSidebar(); }
@@ -555,7 +557,7 @@
     var draftBtn = el('em-draft-reply-btn');
     var draftLabel = el('em-draft-reply-label');
     if (draftBtn) {
-      var showDraft = msg.mailbox_type === 'owner' || msg.mailbox_type === 'business';
+      var showDraft = true;
       draftBtn.style.display = showDraft ? '' : 'none';
       if (draftLabel) draftLabel.textContent = 'Draft Reply';
       draftBtn.disabled = false;
@@ -878,7 +880,7 @@
     if (label) label.textContent = 'Drafting…';
 
     apiPost('/api/email/messages/' + state.currentMessageId + '/draft-reply').then(function (d) {
-      if (label) label.textContent = 'Draft Reply';
+      if (label) label.textContent = 'AI Reply';
       if (btn) btn.disabled = false;
       if (d.draft) {
         var subjEl = el('em-read-subject');
@@ -887,7 +889,8 @@
         var quote = '\n\n---\nOn ' + (dateEl ? dateEl.textContent : '') + ', ' +
           (fromEl ? fromEl.textContent : '') + ' wrote:\n[See original message]';
         var subject = subjEl ? 'Re: ' + subjEl.textContent : '';
-        openCompose(fromEl ? fromEl.textContent : '', subject, d.draft + quote);
+        var myMailbox = state.currentMsg && state.currentMsg.mailbox_address;
+        openCompose(fromEl ? fromEl.textContent : '', subject, d.draft + quote, myMailbox);
         // Show agent attribution in compose status
         var statusEl = el('em-compose-status');
         if (statusEl) {
@@ -899,7 +902,7 @@
         alert('Could not generate draft: ' + (d.error || 'unknown'));
       }
     }).catch(function () {
-      if (label) label.textContent = 'Draft Reply';
+      if (label) label.textContent = 'AI Reply';
       if (btn) btn.disabled = false;
       alert('Dispatch failed — agent may be offline');
     });
@@ -912,7 +915,8 @@
     var bodyEl = el('em-read-body');
     var quote = bodyEl ? '\n\n---\nOn ' + (dateEl ? dateEl.textContent : '') + ', ' +
       (fromEl ? fromEl.textContent : '') + ' wrote:\n' + (bodyEl.textContent || '').slice(0, 2000) : '';
-    openCompose(fromEl ? fromEl.textContent : '', subjEl ? 'Re: ' + subjEl.textContent : '', quote);
+    var myMailbox = state.currentMsg && state.currentMsg.mailbox_address;
+    openCompose(fromEl ? fromEl.textContent : '', subjEl ? 'Re: ' + subjEl.textContent : '', quote, myMailbox);
   }
 
   function forwardMessage() {
@@ -946,7 +950,7 @@
   }
 
   // ── Compose modal ─────────────────────────────────────────────────────
-  function openCompose(toAddr, subject, quotedBody) {
+  function openCompose(toAddr, subject, quotedBody, fromAddr) {
     api('/api/email/compose/mailboxes').then(function (d) {
       var sel = el('em-compose-from');
       if (!sel) return;
@@ -957,6 +961,7 @@
         opt.textContent = m.display_name ? m.display_name + ' <' + m.address + '>' : m.address;
         sel.appendChild(opt);
       });
+      if (fromAddr) sel.value = fromAddr;
     }).catch(function () {});
 
     var toEl = el('em-compose-to');

@@ -63,6 +63,7 @@ COPY platform_v2/static/css/archie-breakpoints.css /app/static/css/archie-breakp
 COPY platform_v2/static/css/mobile.css             /app/static/css/mobile.css
 COPY platform_v2/static/js/media-hub.js        /app/static/js/media-hub.js
 COPY platform_v2/static/js/media-hub-sw.js     /app/static/js/media-hub-sw.js
+COPY platform_v2/static/js/media-hub-cast.js   /app/static/js/media-hub-cast.js
 COPY platform_v2/static/js/lcars-header.js          /app/static/js/lcars-header.js
 COPY standalone/media_hub/static/js/i18n.js         /app/static/js/i18n.js
 COPY platform_v2/static/manifest.json          /app/static/manifest.json

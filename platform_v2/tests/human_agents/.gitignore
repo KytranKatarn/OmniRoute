@@ -1,0 +1,7 @@
+credentials.env
+*.pyc
+__pycache__/
+.pytest_cache/
+test-results/
+playwright-report/
+profiles/

@@ -1,0 +1,149 @@
+[
+  {
+    "user_id": 72,
+    "username": "adrienne.parenteau",
+    "email": "adrienne.parenteau@kytranempowerment.com",
+    "department": "Legal & Regulatory",
+    "display_name": "Adrienne Parenteau"
+  },
+  {
+    "user_id": 73,
+    "username": "amina.youssef",
+    "email": "amina.youssef@kytranempowerment.com",
+    "department": "Documentation & Knowledge",
+    "display_name": "Amina Youssef"
+  },
+  {
+    "user_id": 74,
+    "username": "dr..aisha.patel",
+    "email": "aisha.patel@kytranempowerment.com",
+    "department": "Medical & Wellness",
+    "display_name": "Dr. Aisha Patel"
+  },
+  {
+    "user_id": 75,
+    "username": "emmanuel.adeyemi",
+    "email": "emmanuel.adeyemi@kytranempowerment.com",
+    "department": "Medical & Wellness",
+    "display_name": "Emmanuel Adeyemi"
+  },
+  {
+    "user_id": 76,
+    "username": "grace.domingo",
+    "email": "grace.domingo@kytranempowerment.com",
+    "department": "Medical & Wellness",
+    "display_name": "Grace Domingo"
+  },
+  {
+    "user_id": 77,
+    "username": "haruto.takahashi",
+    "email": "haruto.takahashi@kytranempowerment.com",
+    "department": "Research & Development",
+    "display_name": "Haruto Takahashi"
+  },
+  {
+    "user_id": 78,
+    "username": "jin.park",
+    "email": "jin.park@kytranempowerment.com",
+    "department": "Analytics & Intelligence",
+    "display_name": "Jin Park"
+  },
+  {
+    "user_id": 79,
+    "username": "josee.arsenault",
+    "email": "josee.arsenault@kytranempowerment.com",
+    "department": "Human Resources & Culture",
+    "display_name": "Josée Arsenault"
+  },
+  {
+    "user_id": 80,
+    "username": "kenji.yamamoto",
+    "email": "kenji.yamamoto@kytranempowerment.com",
+    "department": "Legal & Regulatory",
+    "display_name": "Kenji Yamamoto"
+  },
+  {
+    "user_id": 81,
+    "username": "kwame.asante",
+    "email": "kwame.asante@kytranempowerment.com",
+    "department": "Customer Success & Support",
+    "display_name": "Kwame Asante"
+  },
+  {
+    "user_id": 82,
+    "username": "leila.abadi",
+    "email": "leila.abadi@kytranempowerment.com",
+    "department": "Marketing & Communications",
+    "display_name": "Leila Abadi"
+  },
+  {
+    "user_id": 83,
+    "username": "lillian.paul",
+    "email": "lillian.paul@kytranempowerment.com",
+    "department": "Diplomatic & External Relations",
+    "display_name": "Lillian Paul"
+  },
+  {
+    "user_id": 84,
+    "username": "lucia.moreno",
+    "email": "lucia.moreno@kytranempowerment.com",
+    "department": "Creative & Design",
+    "display_name": "Lucia Moreno"
+  },
+  {
+    "user_id": 85,
+    "username": "marco.cardoso",
+    "email": "marco.cardoso@kytranempowerment.com",
+    "department": "Marketing & Communications",
+    "display_name": "Marco Cardoso"
+  },
+  {
+    "user_id": 86,
+    "username": "marie-soleil.obomsawin",
+    "email": "marie-soleil.obomsawin@kytranempowerment.com",
+    "department": "Documentation & Knowledge",
+    "display_name": "Marie-Soleil Obomsawin"
+  },
+  {
+    "user_id": 87,
+    "username": "maya.singh",
+    "email": "maya.singh@kytranempowerment.com",
+    "department": "Logistics & Supply Chain",
+    "display_name": "Maya Singh"
+  },
+  {
+    "user_id": 88,
+    "username": "oksana.kovalenko",
+    "email": "oksana.kovalenko@kytranempowerment.com",
+    "department": "Operations & Infrastructure",
+    "display_name": "Oksana Kovalenko"
+  },
+  {
+    "user_id": 89,
+    "username": "olivia.oduya",
+    "email": "olivia.oduya@kytranempowerment.com",
+    "department": "Finance & Accounting",
+    "display_name": "Olivia Oduya"
+  },
+  {
+    "user_id": 90,
+    "username": "priya.krishnan",
+    "email": "priya.krishnan@kytranempowerment.com",
+    "department": "Research & Development",
+    "display_name": "Priya Krishnan"
+  },
+  {
+    "user_id": 91,
+    "username": "regine.baptiste",
+    "email": "regine.baptiste@kytranempowerment.com",
+    "department": "Security & Compliance",
+    "display_name": "Régine Baptiste"
+  },
+  {
+    "user_id": 92,
+    "username": "sofia.petrov",
+    "email": "sofia.petrov@kytranempowerment.com",
+    "department": "Documentation & Knowledge",
+    "display_name": "Sofia Petrov"
+  }
+]

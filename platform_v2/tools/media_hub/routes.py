@@ -117,8 +117,13 @@ def enrich_items_with_tmdb(items: list) -> list:
 
     enriched = []
     for item in items:
-        # Check if item needs enrichment (missing poster or overview)
-        needs_enrichment = not item.get("poster_url") or not item.get("overview") or item.get("overview") == ""
+        # Check if item needs enrichment (missing poster, overview, or tmdb_id)
+        needs_enrichment = (
+            not item.get("poster_url")
+            or not item.get("overview")
+            or item.get("overview") == ""
+            or not item.get("tmdb_id")
+        )
 
         if needs_enrichment and item.get("title"):
             # Clean title for search (remove suffixes like "(US)")
@@ -518,6 +523,7 @@ def api_search():
     results = []
     library_tmdb_ids: set = set()
     library_title_keys: set = set()  # (title.lower(), year) fallback dedup
+    library_results_by_tkey: dict = {}  # tkey -> index in results (for tmdb_id merge)
 
     def _tkey(d: dict) -> tuple:
         return (str(d.get("title") or "").lower(), d.get("year"))
@@ -533,6 +539,7 @@ def api_search():
                     continue  # already found on another server
                 item_dict["source"] = server_type
                 item_dict["in_library"] = True
+                library_results_by_tkey[tkey] = len(results)
                 results.append(item_dict)
                 if item.tmdb_id:
                     library_tmdb_ids.add(item.tmdb_id)
@@ -556,7 +563,19 @@ def api_search():
 
             for item in discovery_results:
                 item_dict_check = item.to_dict()
-                if (item.tmdb_id and item.tmdb_id in library_tmdb_ids) or _tkey(item_dict_check) in library_title_keys:
+                tkey_check = _tkey(item_dict_check)
+                if item.tmdb_id and item.tmdb_id in library_tmdb_ids:
+                    continue  # already in library with correct tmdb_id
+
+                if tkey_check in library_title_keys:
+                    # Library item exists but may lack tmdb_id — merge it in
+                    if item.tmdb_id:
+                        idx = library_results_by_tkey.get(tkey_check)
+                        if idx is not None:
+                            results[idx]["tmdb_id"] = item.tmdb_id
+                            if item.imdb_id:
+                                results[idx]["imdb_id"] = item.imdb_id
+                            library_tmdb_ids.add(item.tmdb_id)
                     continue
 
                 item_dict_check["source"] = "overseerr"

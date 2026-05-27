@@ -2643,8 +2643,8 @@ async function checkLibraryStatus(req, container) {
 }
 
 async function requestMedia(item) {
-    if (!item.tmdb_id && !item.id) {
-        showToast('Cannot request this item', 'error');
+    if (!item.tmdb_id) {
+        showToast('Cannot request: TMDB ID not found for this item', 'error');
         return;
     }
 
@@ -2654,7 +2654,7 @@ async function requestMedia(item) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 media_type: item.media_type,
-                tmdb_id: item.tmdb_id || item.id
+                tmdb_id: item.tmdb_id
             })
         });
 

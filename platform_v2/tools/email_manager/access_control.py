@@ -20,8 +20,18 @@ from rbac import Permission, require_any_permission
 
 logger = logging.getLogger(__name__)
 
-# Roles that see all mailboxes — no filter applied.
-_ADMIN_ROLES = frozenset({"ADMIN", "SUPER_ADMIN"})
+
+def _is_admin(user) -> bool:
+    """True when the user should see all mailboxes with no filter.
+
+    Checks the User object's boolean flags first (most reliable), then falls
+    back to the raw role string for any future role naming changes.
+    DB stores roles as lowercase ('admin') so we compare case-insensitively.
+    """
+    if getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False):
+        return True
+    role = (getattr(user, "role", "") or "").lower()
+    return role in ("admin", "super_admin")
 
 
 def get_visible_mailbox_ids(user) -> list[int] | None:
@@ -32,8 +42,7 @@ def get_visible_mailbox_ids(user) -> list[int] | None:
         list  — caller must add ``AND mailbox_id = ANY(%s)`` to all queries.
                 May be an empty list if the user has no dept + no grants.
     """
-    role = getattr(user, "role", "") or ""
-    if role in _ADMIN_ROLES:
+    if _is_admin(user):
         return None  # fast path — no SQL overhead for admins
 
     dept = getattr(user, "agent_department", None)

@@ -54,6 +54,11 @@ from .rules_routes import register_email_rules_routes  # noqa: F401, E402
 
 register_email_rules_routes(email_manager_bp, admin_required)
 
+# SLA dashboard — response-time metrics per mailbox (T3282)
+from .sla_routes import register_sla_routes  # noqa: F401, E402
+
+register_sla_routes(email_manager_bp, email_access_required)
+
 # SSE stream — real-time new-mail push (T3279)
 from .sync_routes import register_sync_routes  # noqa: F401, E402
 

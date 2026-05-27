@@ -196,7 +196,7 @@
     // Tab bar: Mailboxes | Rules
     var tabBar = document.createElement('div');
     tabBar.style.cssText = 'display:flex;gap:0;border-bottom:1px solid #1a1a2e;flex-shrink:0;';
-    var tabs = [['mailboxes', 'Mailboxes'], ['rules', 'Rules']];
+    var tabs = [['mailboxes', 'Mailboxes'], ['rules', 'Rules'], ['sla', 'SLA']];
     tabs.forEach(function (t) {
       var tab = document.createElement('button');
       tab.className = 'em-text-btn';
@@ -211,6 +211,7 @@
         tab.style.borderBottomColor = '#00d4ff';
         tab.style.color = '#00d4ff';
         if (t[0] === 'rules') showRulesPanel(content);
+        else if (t[0] === 'sla') showSlaPanel(content);
         else showMailboxesPanel(content);
       });
       if (t[0] === 'mailboxes') {
@@ -923,6 +924,144 @@
       err.textContent = 'Failed to load rules';
       container.appendChild(err);
     });
+  }
+
+  function showSlaPanel(container) {
+    while (container.firstChild) container.removeChild(container.firstChild);
+
+    var currentWindow = 30;
+
+    function fmtHours(h) {
+      if (h === null || h === undefined) return '—';
+      if (h < 1) return Math.round(h * 60) + 'm';
+      return h.toFixed(1) + 'h';
+    }
+
+    function renderDashboard(data) {
+      while (container.firstChild) container.removeChild(container.firstChild);
+
+      var s = data.summary;
+
+      // Window toggle
+      var toggleRow = document.createElement('div');
+      toggleRow.style.cssText = 'display:flex;gap:6px;margin-bottom:10px;align-items:center;';
+      var toggleLabel = document.createElement('span');
+      toggleLabel.style.cssText = 'font-size:11px;color:#6b7280;';
+      toggleLabel.textContent = 'Window:';
+      toggleRow.appendChild(toggleLabel);
+      [7, 30].forEach(function (w) {
+        var btn = document.createElement('button');
+        btn.className = 'em-text-btn';
+        btn.textContent = w + 'd';
+        btn.style.cssText = 'padding:2px 8px;font-size:11px;border-radius:3px;' +
+          (w === currentWindow
+            ? 'color:#00d4ff;border:1px solid #00d4ff;'
+            : 'color:#9ca3af;border:1px solid #333;');
+        btn.addEventListener('click', function () {
+          if (w !== currentWindow) { currentWindow = w; loadData(); }
+        });
+        toggleRow.appendChild(btn);
+      });
+      container.appendChild(toggleRow);
+
+      // Summary cards (2×2 grid)
+      var cards = document.createElement('div');
+      cards.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;';
+      [
+        { label: 'Received (' + s.window_days + 'd)', value: s.total_received, color: '#00d4ff' },
+        { label: 'Unread', value: s.total_unread, color: s.total_unread > 0 ? '#f59e0b' : '#22c55e' },
+        { label: 'SLA Breach >24h', value: s.total_breach_24h, color: s.total_breach_24h > 0 ? '#ef4444' : '#22c55e' },
+        { label: 'Avg Read Time', value: fmtHours(s.avg_read_hours), color: '#a78bfa' },
+      ].forEach(function (c) {
+        var card = document.createElement('div');
+        card.style.cssText = 'background:#0d0d1a;border:1px solid #1a1a2e;border-radius:4px;padding:8px;text-align:center;';
+        var val = document.createElement('div');
+        val.style.cssText = 'font-size:20px;font-weight:bold;color:' + c.color + ';';
+        val.textContent = c.value;
+        var lbl = document.createElement('div');
+        lbl.style.cssText = 'font-size:10px;color:#6b7280;margin-top:2px;';
+        lbl.textContent = c.label;
+        card.appendChild(val);
+        card.appendChild(lbl);
+        cards.appendChild(card);
+      });
+      container.appendChild(cards);
+
+      // Per-mailbox table
+      var tableWrap = document.createElement('div');
+      tableWrap.style.cssText = 'overflow-x:auto;';
+      var table = document.createElement('table');
+      table.style.cssText = 'width:100%;border-collapse:collapse;font-size:11px;';
+
+      var thead = document.createElement('thead');
+      var hrow = document.createElement('tr');
+      ['Mailbox', 'Recv', 'Unread', '>24h', '>48h', 'Avg'].forEach(function (h) {
+        var th = document.createElement('th');
+        th.style.cssText = 'text-align:left;padding:4px 6px;border-bottom:1px solid #1a1a2e;color:#6b7280;white-space:nowrap;';
+        th.textContent = h;
+        hrow.appendChild(th);
+      });
+      thead.appendChild(hrow);
+      table.appendChild(thead);
+
+      var tbody = document.createElement('tbody');
+      if (!data.mailboxes || data.mailboxes.length === 0) {
+        var emr = document.createElement('tr');
+        var emc = document.createElement('td');
+        emc.colSpan = 6;
+        emc.style.cssText = 'padding:12px;text-align:center;color:#6b7280;';
+        emc.textContent = 'No mailbox data';
+        emr.appendChild(emc);
+        tbody.appendChild(emr);
+      } else {
+        data.mailboxes.forEach(function (m) {
+          var tr = document.createElement('tr');
+          tr.style.borderBottom = '1px solid #111827';
+          [
+            { text: (m.display_name || m.address).split('@')[0], tip: m.address, color: '#e5e7eb', truncate: true },
+            { text: m.received, color: '#9ca3af' },
+            { text: m.unread, color: m.unread > 0 ? '#f59e0b' : '#9ca3af' },
+            { text: m.breach_24h, color: m.breach_24h > 0 ? '#ef4444' : '#22c55e' },
+            { text: m.breach_48h, color: m.breach_48h > 0 ? '#dc2626' : '#22c55e' },
+            { text: fmtHours(m.avg_read_hours), color: '#a78bfa' },
+          ].forEach(function (c) {
+            var td = document.createElement('td');
+            td.style.cssText = 'padding:4px 6px;white-space:nowrap;color:' + c.color + ';';
+            if (c.truncate) {
+              td.style.maxWidth = '90px';
+              td.style.overflow = 'hidden';
+              td.style.textOverflow = 'ellipsis';
+              td.title = c.tip || '';
+            }
+            td.textContent = c.text;
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+      }
+      table.appendChild(tbody);
+      tableWrap.appendChild(table);
+      container.appendChild(tableWrap);
+    }
+
+    function loadData() {
+      while (container.firstChild) container.removeChild(container.firstChild);
+      var loading = document.createElement('div');
+      loading.className = 'em-list-empty';
+      loading.textContent = 'Loading SLA data…';
+      container.appendChild(loading);
+      api('/api/email/sla/stats?window=' + currentWindow)
+        .then(function (data) { renderDashboard(data); })
+        .catch(function () {
+          while (container.firstChild) container.removeChild(container.firstChild);
+          var err = document.createElement('div');
+          err.className = 'em-list-empty';
+          err.textContent = 'Failed to load SLA data';
+          container.appendChild(err);
+        });
+    }
+
+    loadData();
   }
 
   function toggleThread() {

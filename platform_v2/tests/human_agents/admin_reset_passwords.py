@@ -127,14 +127,15 @@ with get_db_cursor(commit=True) as (conn, cur):
 
 def generate_password() -> str:
     """Generate a strong 16-char password meeting platform complexity rules:
-    8+ chars, upper+lower+digit+special."""
-    import random
+    8+ chars, upper+lower+digit+special.
+    Uses secrets.choice() — cryptographically secure PRNG.
+    """
     import string
 
     special = "!@#$%^&*"
     chars = string.ascii_letters + string.digits + special
     while True:
-        pw = "".join(random.choice(chars) for _ in range(16))
+        pw = "".join(secrets.choice(chars) for _ in range(16))
         if (
             any(c.isupper() for c in pw)
             and any(c.islower() for c in pw)
@@ -224,10 +225,11 @@ def main():
         print(f"  {status} {email}")
         results.append((email, new_password, ok))
 
-    # Write new credentials file (gitignored)
+    # Write new credentials file (gitignored) — 0o600 so only owner can read
     if args.generate and not args.dry_run:
         out_file = SUITE_DIR / "new_credentials.env"
-        with open(out_file, "w") as f:
+        fd = os.open(out_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
             f.write("# New passwords after admin reset — distribute and delete\n")
             for email, pw, ok in results:
                 if ok:

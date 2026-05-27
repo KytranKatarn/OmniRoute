@@ -85,7 +85,7 @@
       }
 
       var groupKeys = Object.keys(groups).sort(function (a, b) {
-        var order = { owner: 0, business: 1 };
+        var order = { owner: 0, business: 1, human_agent: 100 };
         return (order[a] != null ? order[a] : 99) - (order[b] != null ? order[b] : 99) || a.localeCompare(b);
       });
 
@@ -103,7 +103,7 @@
           item.className = 'em-mailbox-item';
           item.dataset.mailboxId = m.id;
 
-          var iconName = m.mailbox_type === 'owner' ? 'crown' : m.mailbox_type === 'business' ? 'briefcase' : 'bot';
+          var iconName = m.mailbox_type === 'owner' ? 'crown' : m.mailbox_type === 'business' ? 'briefcase' : m.mailbox_type === 'human_agent' ? 'user' : 'bot';
           item.appendChild(lucideIcon(iconName, 11));
 
           var name = document.createElement('span');

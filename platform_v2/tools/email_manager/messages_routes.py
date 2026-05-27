@@ -82,10 +82,16 @@ def register_email_messages_routes(bp, admin_required):
             )
             rows = [dict(r) for r in cur.fetchall()]
 
-        # Group by mailbox_type / department
+        # Group by mailbox_type / department.
+        # human_agent mailboxes always group under their mailbox_type key so the
+        # "Human Agents" section stays together at the bottom of the sidebar
+        # regardless of which department the linked agent belongs to.
         groups: dict[str, list] = {}
         for r in rows:
-            key = r.get("department") or r["mailbox_type"]
+            if r["mailbox_type"] == "human_agent":
+                key = "human_agent"
+            else:
+                key = r.get("department") or r["mailbox_type"]
             groups.setdefault(key, []).append(r)
 
         return jsonify({"groups": groups, "mailboxes": rows})

@@ -789,6 +789,10 @@
         <div class="video-player-controls">
             <div class="video-quality-info" id="videoQualityInfo"></div>
             <div class="video-subtitle-selector" id="videoSubtitleSelector"></div>
+            <div class="video-cast-controls" id="videoCastControls" style="display:none; align-items:center; gap:8px; margin-left:auto;">
+                <span style="font-size:0.75rem; color:var(--archie-palette-teal-400, #2dd4bf); letter-spacing:0.05em;">CAST</span>
+                <google-cast-launcher id="castLauncher" style="width:32px; height:32px; cursor:pointer; --connected-color:#2dd4bf; --disconnected-color:#94a3b8;"></google-cast-launcher>
+            </div>
         </div>
     </div>
 </div>
@@ -858,8 +862,12 @@
 <!-- HLS.js for adaptive streaming -->
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
 
+<!-- Google Cast SDK (Chrome/Edge only — no-op on other browsers) -->
+<script src="//www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+
 <script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script src="{{ url_for('static', filename='js/media-hub.js') }}"></script>
+<script src="{{ url_for('static', filename='js/media-hub-cast.js') }}"></script>
 <script>
 /* Bridge LCARS header tabs → Media Hub switchTab */
 window.onLcarsTabSwitch = function(tabId) { if (window.switchTab) switchTab(tabId); };

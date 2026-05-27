@@ -2096,6 +2096,120 @@ def api_stream_info(media_id):
 
 
 # =============================================================================
+# CHROMECAST CAST URL ENDPOINT (T3302)
+# =============================================================================
+
+_CAST_LAN_HOST = "192.168.1.200"
+
+
+@media_hub_bp.route("/api/cast/stream-url")
+@login_required
+def api_cast_stream_url():
+    """Return a LAN-accessible stream URL for Chromecast (T3302).
+
+    Chromecast is on the same LAN (192.168.1.0/24) as the hub, so we must
+    use the hub's LAN IP rather than a Docker-internal hostname or the public
+    subdomain (which hits Hostinger CDN with a 60 s timeout).
+
+    Query params:
+        item_id    - Jellyfin item ID (required)
+        title      - Optional title for fallback lookup
+        year       - Optional year for movie lookup
+        type       - 'movie' or 'episode' (default 'movie')
+        show_title, season, episode - Episode lookup params
+    """
+    import re as _re
+
+    item_id = request.args.get("item_id", "").strip()
+    title = request.args.get("title")
+    year = request.args.get("year", type=int)
+    media_type = request.args.get("type", "movie")
+    show_title = request.args.get("show_title")
+    season_num = request.args.get("season", type=int)
+    episode_num = request.args.get("episode", type=int)
+
+    if not item_id:
+        return jsonify({"success": False, "error": "item_id is required"}), 400
+
+    jellyfin_config = get_service_config("jellyfin")
+    if not jellyfin_config or not jellyfin_config.get("api_key"):
+        return jsonify({"success": False, "error": "Jellyfin not configured"})
+
+    try:
+        from .clients.jellyfin import JellyfinClient
+
+        client = JellyfinClient(
+            host=jellyfin_config["host"],
+            port=jellyfin_config["port"],
+            api_key=jellyfin_config["api_key"],
+            use_ssl=jellyfin_config["use_ssl"],
+        )
+
+        stream_info = client.get_stream_url(item_id, direct=True)
+
+        # Title-based fallback (mirrors api_stream_info logic)
+        if not stream_info and (title or show_title):
+            if media_type == "episode" and show_title and season_num is not None and episode_num is not None:
+                results = client.search_library(show_title, media_type="show")
+                for show in results:
+                    if show.title.lower().strip() == show_title.lower().strip():
+                        episodes = client.get_episodes(show.id, season_num)
+                        for ep in episodes:
+                            if ep.get("episode_number") == episode_num:
+                                stream_info = client.get_stream_url(ep["id"], direct=True)
+                                break
+                        if stream_info:
+                            break
+            elif title:
+                results = client.search_library(title, media_type="movie")
+                for item_r in results:
+                    if item_r.title.lower().strip() == title.lower().strip():
+                        if not year or (item_r.year and abs(item_r.year - year) <= 1):
+                            stream_info = client.get_stream_url(item_r.id, direct=True)
+                            break
+
+        if not stream_info:
+            return jsonify({"success": False, "error": "Could not resolve stream URL"})
+
+        # Rewrite host in stream_url to LAN IP so Chromecast can reach it.
+        # Jellyfin base_url uses configured host (may be Docker-internal like
+        # 'media_jellyfin') which is not resolvable from the Chromecast device.
+        raw_url = stream_info["stream_url"]
+        jellyfin_port = jellyfin_config["port"]
+        lan_url = _re.sub(
+            r"^https?://[^/]+",
+            f"http://{_CAST_LAN_HOST}:{jellyfin_port}",
+            raw_url,
+        )
+
+        cast_title = title or show_title or item_id
+        if media_type == "episode" and show_title and season_num is not None and episode_num is not None:
+            cast_title = f"{show_title} — S{season_num:02d}E{episode_num:02d}"
+
+        # Poster via this server's proxy endpoint (LAN-accessible at port 8105)
+        poster_url = (
+            f"http://{_CAST_LAN_HOST}:8105/tools/media-hub/api/proxy/thumb" f"?s=jellyfin&id={item_id}&type=Primary"
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "url": lan_url,
+                "title": cast_title,
+                "poster": poster_url,
+                "container": stream_info.get("container", "mp4"),
+            }
+        )
+
+    except Exception as exc:
+        logger.error(f"[Cast] Error building cast URL: {exc}")
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(exc)})
+
+
+# =============================================================================
 # IMAGE PROXY ENDPOINT
 # =============================================================================
 

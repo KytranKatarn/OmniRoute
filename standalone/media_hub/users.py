@@ -178,7 +178,7 @@ def upsert_sso_user(sso_data: dict) -> Optional[User]:
                 display_name  = EXCLUDED.display_name,
                 role          = EXCLUDED.role,
                 product_tiers = EXCLUDED.product_tiers,
-                is_admin      = media_hub_users.is_admin OR EXCLUDED.is_admin,
+                is_admin      = EXCLUDED.is_admin,
                 last_login_at = CURRENT_TIMESTAMP
             RETURNING {cols}
             """.format(cols=_USER_SELECT_COLS),

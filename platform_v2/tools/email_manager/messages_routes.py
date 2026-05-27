@@ -23,7 +23,9 @@ import logging
 
 from database import get_db_cursor
 from flask import jsonify, request
-from flask_login import login_required
+from flask_login import current_user, login_required
+
+from .access_control import get_visible_mailbox_ids
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +65,11 @@ def register_email_messages_routes(bp, admin_required):
     @admin_required
     def email_sidebar():
         """Mailboxes grouped by department with per-mailbox unread counts."""
+        visible = get_visible_mailbox_ids(current_user)
+        # None = admin (no filter). list = scoped to dept + explicit grants.
+        mailbox_filter = " AND m.id = ANY(%s)" if visible is not None else ""
+        filter_params = [visible] if visible is not None else []
+
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """SELECT m.id, m.address, m.display_name, m.mailbox_type,
@@ -77,8 +84,10 @@ def register_email_messages_routes(bp, admin_required):
                        WHERE is_read = FALSE AND is_archived = FALSE
                        GROUP BY mailbox_id
                    ) u ON u.mailbox_id = m.id
-                   WHERE m.active = TRUE
-                   ORDER BY m.mailbox_type, a.department, m.address"""
+                   WHERE m.active = TRUE"""
+                + mailbox_filter
+                + " ORDER BY m.mailbox_type, a.department, m.address",
+                filter_params,
             )
             rows = [dict(r) for r in cur.fetchall()]
 
@@ -101,12 +110,17 @@ def register_email_messages_routes(bp, admin_required):
     @admin_required
     def email_counts():
         """Total unread and action-priority counts for header badges."""
+        visible = get_visible_mailbox_ids(current_user)
+        mailbox_filter = " WHERE mailbox_id = ANY(%s)" if visible is not None else ""
+        filter_params = [visible] if visible is not None else []
+
         with get_db_cursor() as (conn, cur):
             cur.execute(
-                """SELECT
-                     COUNT(*) FILTER (WHERE is_read = FALSE AND is_archived = FALSE) AS unread,
-                     COUNT(*) FILTER (WHERE ai_priority = 'action' AND is_archived = FALSE) AS action_items
-                   FROM email_messages"""
+                "SELECT"
+                " COUNT(*) FILTER (WHERE is_read = FALSE AND is_archived = FALSE) AS unread,"
+                " COUNT(*) FILTER (WHERE ai_priority = 'action' AND is_archived = FALSE) AS action_items"
+                " FROM email_messages" + mailbox_filter,
+                filter_params,
             )
             row = dict(cur.fetchone())
         return jsonify(row)
@@ -126,14 +140,23 @@ def register_email_messages_routes(bp, admin_required):
         search = (request.args.get("search") or "").strip()
         offset = (page - 1) * _PAGE_SIZE
 
+        visible = get_visible_mailbox_ids(current_user)
+
         # All conditions use the "em" alias to avoid ambiguity when
         # LEFT JOIN email_threads is added to the main SELECT query.
         conditions = ["em.is_archived = FALSE"]
         params: list = []
 
         if mailbox_id:
+            # Guard: COLLABORATOR must not access a mailbox outside their scope.
+            if visible is not None and mailbox_id not in visible:
+                return jsonify({"error": "Access denied"}), 403
             conditions.append("em.mailbox_id = %s")
             params.append(mailbox_id)
+        elif visible is not None:
+            # No specific mailbox requested — scope to all accessible mailboxes.
+            conditions.append("em.mailbox_id = ANY(%s)")
+            params.append(visible)
 
         if view == "unread":
             conditions.append("em.is_read = FALSE")
@@ -196,6 +219,11 @@ def register_email_messages_routes(bp, admin_required):
 
         row = dict(row)
 
+        # Guard: COLLABORATOR must not read messages from inaccessible mailboxes.
+        visible = get_visible_mailbox_ids(current_user)
+        if visible is not None and row["mailbox_id"] not in visible:
+            return jsonify({"error": "Access denied"}), 403
+
         # Auto-mark read
         if not row["is_read"]:
             with get_db_cursor(commit=True) as (conn, cur):
@@ -238,8 +266,13 @@ def register_email_messages_routes(bp, admin_required):
         if not row:
             return jsonify({"error": "Message not found"}), 404
 
+        # Guard: COLLABORATOR must not generate drafts for inaccessible mailboxes.
+        visible = get_visible_mailbox_ids(current_user)
+        if visible is not None and row["mailbox_id"] not in visible:
+            return jsonify({"error": "Access denied"}), 403
+
         mailbox_type = row["mailbox_type"]
-        if mailbox_type not in ("owner", "business"):
+        if mailbox_type not in ("owner", "business", "human_agent"):
             return jsonify({"error": f"Draft reply not available for {mailbox_type} mailboxes"}), 400
 
         body_snippet = (row["body_text"] or row["body_preview"] or "")[:1000]
@@ -346,8 +379,18 @@ def register_email_messages_routes(bp, admin_required):
         ids = [i for i in (data.get("ids") or []) if isinstance(i, int) and i > 0]
         if not ids:
             return jsonify({"error": "ids required"}), 400
+
+        visible = get_visible_mailbox_ids(current_user)
         with get_db_cursor(commit=True) as (conn, cur):
-            cur.execute("UPDATE email_messages SET is_read = TRUE WHERE id = ANY(%s)", (ids,))
+            if visible is not None:
+                # Scope the UPDATE to only messages in accessible mailboxes —
+                # out-of-scope IDs are silently skipped (not an error).
+                cur.execute(
+                    "UPDATE email_messages SET is_read = TRUE" " WHERE id = ANY(%s) AND mailbox_id = ANY(%s)",
+                    (ids, visible),
+                )
+            else:
+                cur.execute("UPDATE email_messages SET is_read = TRUE WHERE id = ANY(%s)", (ids,))
             updated = cur.rowcount
         return jsonify({"success": True, "updated": updated})
 
@@ -355,7 +398,23 @@ def register_email_messages_routes(bp, admin_required):
     # Smart views (cross-mailbox)
     # ------------------------------------------------------------------
 
-    def _smart_view(where_clause: str, params: list = None):
+    def _smart_view(where_clause: str, params: list = None, *, visible: list | None):
+        """Run a cross-mailbox view query.
+
+        Args:
+            where_clause: SQL WHERE fragment (m-aliased columns).
+            params: Positional params for where_clause.
+            visible: Result of get_visible_mailbox_ids(). Mandatory keyword arg —
+                     omitting it raises TypeError at call time (prevents silent data leaks).
+                     None = admin path (no mailbox filter).
+                     list = filter to those mailbox IDs.
+        """
+        extra_clause = ""
+        extra_params: list = []
+        if visible is not None:
+            extra_clause = " AND m.mailbox_id = ANY(%s)"
+            extra_params = [visible]
+
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 f"""SELECT m.id, m.mailbox_id, m.from_address, m.to_address, m.subject,
@@ -364,10 +423,10 @@ def register_email_messages_routes(bp, admin_required):
                            m.size_bytes, mb.address AS mailbox_address, mb.display_name AS mailbox_name
                     FROM email_messages m
                     JOIN email_mailboxes mb ON mb.id = m.mailbox_id
-                    WHERE {where_clause}
+                    WHERE {where_clause}{extra_clause}
                     ORDER BY m.received_at DESC
                     LIMIT 200""",
-                params or [],
+                (params or []) + extra_params,
             )
             return [dict(r) for r in cur.fetchall()]
 
@@ -375,21 +434,24 @@ def register_email_messages_routes(bp, admin_required):
     @login_required
     @admin_required
     def email_view_action():
-        rows = _smart_view("m.ai_priority = 'action' AND m.is_archived = FALSE")
+        visible = get_visible_mailbox_ids(current_user)
+        rows = _smart_view("m.ai_priority = 'action' AND m.is_archived = FALSE", visible=visible)
         return jsonify({"messages": rows})
 
     @bp.route("/api/email/views/starred", methods=["GET"])
     @login_required
     @admin_required
     def email_view_starred():
-        rows = _smart_view("m.is_starred = TRUE AND m.is_archived = FALSE")
+        visible = get_visible_mailbox_ids(current_user)
+        rows = _smart_view("m.is_starred = TRUE AND m.is_archived = FALSE", visible=visible)
         return jsonify({"messages": rows})
 
     @bp.route("/api/email/views/unread", methods=["GET"])
     @login_required
     @admin_required
     def email_view_unread():
-        rows = _smart_view("m.is_read = FALSE AND m.is_archived = FALSE")
+        visible = get_visible_mailbox_ids(current_user)
+        rows = _smart_view("m.is_read = FALSE AND m.is_archived = FALSE", visible=visible)
         return jsonify({"messages": rows})
 
     # ------------------------------------------------------------------
@@ -451,11 +513,18 @@ def register_email_messages_routes(bp, admin_required):
                 (thread_id,),
             )
             messages = [dict(r) for r in cur.fetchall()]
-            for m in messages:
-                if m.get("received_at"):
-                    m["received_at"] = m["received_at"].isoformat()
-                if m.get("last_message_at"):
-                    m["last_message_at"] = m["last_message_at"].isoformat()
+
+        # Guard: all messages in a thread share the same mailbox — check the first.
+        if messages:
+            visible = get_visible_mailbox_ids(current_user)
+            if visible is not None and messages[0]["mailbox_id"] not in visible:
+                return jsonify({"error": "Access denied"}), 403
+
+        for m in messages:
+            if m.get("received_at"):
+                m["received_at"] = m["received_at"].isoformat()
+            if m.get("last_message_at"):
+                m["last_message_at"] = m["last_message_at"].isoformat()
 
         thread_dict = dict(thread)
         if thread_dict.get("last_message_at"):

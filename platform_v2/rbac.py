@@ -112,6 +112,9 @@ class Permission(Enum):
     # Autonomy permissions
     AUTONOMY_MANAGE = "autonomy:manage"
 
+    # Email HQ permissions
+    EMAIL_INBOX_VIEW = "email:inbox_view"  # COLLABORATOR: view own-dept mailboxes
+
     # Super Admin permissions
     ADMIN_MINING = "admin:mining"
     ADMIN_SYSTEM = "admin:system"
@@ -174,6 +177,8 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.MEDIA_STUDIO_GENERATE,
         Permission.AUTOMATION_CREATE,
         Permission.AUTOMATION_MANAGE,
+        # Email HQ: view own department mailboxes only
+        Permission.EMAIL_INBOX_VIEW,
     },
     Role.PREMIUM: {
         # Inherit USER

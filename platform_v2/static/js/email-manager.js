@@ -670,33 +670,124 @@
   function showRulesPanel(container) {
     while (container.firstChild) container.removeChild(container.firstChild);
 
-    function renderRules(rules) {
-      while (container.firstChild) container.removeChild(container.firstChild);
+    var FIELD_LABELS = { from_address: 'From', subject: 'Subject', to_address: 'To', body_preview: 'Body' };
+    var OP_LABELS = { contains: 'contains', not_contains: "doesn't contain", equals: 'equals', starts_with: 'starts with', ends_with: 'ends with' };
+    var ACTION_LABELS = { set_priority: 'Set Priority', archive: 'Archive', star: 'Star', skip_triage: 'Skip Triage' };
 
-      // Create rule form
+    var allMailboxes = [];
+    var filterMailboxId = null;
+    var cachedRules = [];
+    var listDiv = document.createElement('div');
+    var statusDiv = document.createElement('div');
+    statusDiv.style.cssText = 'font-size:11px;margin-top:5px;min-height:14px;';
+
+    function setStatus(msg, ok) {
+      statusDiv.textContent = msg;
+      statusDiv.style.color = ok ? '#22c55e' : '#ef4444';
+    }
+
+    function reloadRules() {
+      api('/api/email/rules').then(function (d) {
+        cachedRules = d.rules || [];
+        renderList(cachedRules);
+      }).catch(function () {});
+    }
+
+    function renderList(rules) {
+      while (listDiv.firstChild) listDiv.removeChild(listDiv.firstChild);
+      var visible = filterMailboxId
+        ? rules.filter(function (r) { return r.mailbox_id === filterMailboxId; })
+        : rules;
+
+      if (!visible.length) {
+        var empty = document.createElement('div');
+        empty.className = 'em-list-empty';
+        empty.textContent = filterMailboxId ? 'No rules for this mailbox' : 'No rules yet';
+        listDiv.appendChild(empty);
+        return;
+      }
+
+      visible.forEach(function (r) {
+        var item = document.createElement('div');
+        item.className = 'em-msg-row';
+        item.style.padding = '8px 10px';
+
+        var top = document.createElement('div');
+        top.className = 'em-msg-top';
+
+        var nameSpan = document.createElement('span');
+        nameSpan.className = 'em-msg-from-text';
+        nameSpan.textContent = r.name;
+
+        var badge = document.createElement('span');
+        badge.className = 'em-priority-chip ' + (r.is_active ? 'em-priority-info' : 'em-priority-review');
+        badge.textContent = r.is_active ? 'on' : 'off';
+        badge.style.cursor = 'pointer';
+        badge.title = 'Click to toggle';
+        badge.addEventListener('click', function (e) {
+          e.stopPropagation();
+          api('/api/email/rules/' + r.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+            .then(reloadRules).catch(function () {});
+        });
+        top.appendChild(nameSpan);
+        top.appendChild(badge);
+
+        var desc = document.createElement('div');
+        desc.className = 'em-msg-preview-text';
+        var condText = (FIELD_LABELS[r.condition_field] || r.condition_field) + ' '
+          + (OP_LABELS[r.condition_op] || r.condition_op) + ' "' + r.condition_value + '"';
+        var actText = (ACTION_LABELS[r.action_type] || r.action_type) + (r.action_value ? ': ' + r.action_value : '');
+        desc.textContent = condText + ' → ' + actText;
+
+        var bottom = document.createElement('div');
+        bottom.className = 'em-msg-bottom';
+        bottom.style.marginTop = '4px';
+
+        var mbLabel = document.createElement('span');
+        mbLabel.style.cssText = 'font-size:9px;color:#64748b;flex:1;';
+        mbLabel.textContent = r.mailbox_address || 'all mailboxes';
+        bottom.appendChild(mbLabel);
+
+        var delBtn = document.createElement('button');
+        delBtn.className = 'em-text-btn';
+        delBtn.style.color = '#ef4444';
+        delBtn.textContent = 'Delete';
+        delBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (!confirm('Delete rule "' + r.name + '"?')) return;
+          apiDelete('/api/email/rules/' + r.id).then(reloadRules).catch(function () {});
+        });
+        bottom.appendChild(delBtn);
+
+        item.appendChild(top);
+        item.appendChild(desc);
+        item.appendChild(bottom);
+        listDiv.appendChild(item);
+      });
+    }
+
+    function buildForm() {
       var form = document.createElement('div');
       form.style.cssText = 'padding:10px;border-bottom:1px solid #1a1a2e;';
 
-      function row(label, el_) {
-        var wrap = document.createElement('div');
-        wrap.style.cssText = 'margin-bottom:6px;';
-        var lbl = document.createElement('div');
-        lbl.style.cssText = 'font-size:9px;color:#64748b;text-transform:uppercase;margin-bottom:2px;';
-        lbl.textContent = label;
-        wrap.appendChild(lbl);
-        wrap.appendChild(el_);
-        return wrap;
+      function mkLabel(text) {
+        var l = document.createElement('div');
+        l.style.cssText = 'font-size:9px;color:#64748b;text-transform:uppercase;margin-bottom:2px;';
+        l.textContent = text;
+        return l;
       }
-
-      function sel(opts) {
+      function mkRow(label, input) {
+        var w = document.createElement('div');
+        w.style.marginBottom = '6px';
+        w.appendChild(mkLabel(label));
+        w.appendChild(input);
+        return w;
+      }
+      function mkSel(opts) {
         var s = document.createElement('select');
         s.className = 'em-view-select';
         s.style.width = '100%';
-        opts.forEach(function (o) {
-          var opt = document.createElement('option');
-          opt.value = o[0]; opt.textContent = o[1];
-          s.appendChild(opt);
-        });
+        opts.forEach(function (o) { var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; s.appendChild(op); });
         return s;
       }
 
@@ -705,18 +796,31 @@
       nameInput.style.width = '100%';
       nameInput.placeholder = 'Rule name';
 
-      var fieldSel = sel([['from_address','From Address'],['subject','Subject'],['to_address','To Address'],['body_preview','Body Preview']]);
-      var opSel = sel([['contains','Contains'],['not_contains','Not Contains'],['equals','Equals'],['starts_with','Starts With'],['ends_with','Ends With']]);
+      var mbSel = document.createElement('select');
+      mbSel.className = 'em-view-select';
+      mbSel.style.width = '100%';
+      var mbAllOpt = document.createElement('option');
+      mbAllOpt.value = '';
+      mbAllOpt.textContent = 'All mailboxes';
+      mbSel.appendChild(mbAllOpt);
+      allMailboxes.forEach(function (mb) {
+        var o = document.createElement('option');
+        o.value = mb.id;
+        o.textContent = mb.address;
+        mbSel.appendChild(o);
+      });
+
+      var fieldSel = mkSel([['from_address','From Address'],['subject','Subject'],['to_address','To Address'],['body_preview','Body Preview']]);
+      var opSel = mkSel([['contains','Contains'],['not_contains','Not Contains'],['equals','Equals'],['starts_with','Starts With'],['ends_with','Ends With']]);
 
       var valInput = document.createElement('input');
       valInput.className = 'em-search';
       valInput.style.width = '100%';
       valInput.placeholder = 'Value to match';
 
-      var actionSel = sel([['set_priority','Set Priority'],['archive','Archive'],['star','Star'],['skip_triage','Skip Triage']]);
-      var prioritySel = sel([['action','Action'],['review','Review'],['info','Info']]);
-      var priorityRow = row('Priority', prioritySel);
-
+      var actionSel = mkSel([['set_priority','Set Priority'],['archive','Archive'],['star','Star'],['skip_triage','Skip Triage']]);
+      var prioritySel = mkSel([['action','Action'],['review','Review'],['info','Info']]);
+      var priorityRow = mkRow('Priority', prioritySel);
       actionSel.addEventListener('change', function () {
         priorityRow.style.display = actionSel.value === 'set_priority' ? '' : 'none';
       });
@@ -729,103 +833,90 @@
       addBtn.addEventListener('click', function () {
         var name = nameInput.value.trim();
         var val = valInput.value.trim();
-        if (!name || !val) { alert('Name and value are required'); return; }
-        apiPost('/api/email/rules', {
-          name: name,
-          condition_field: fieldSel.value,
-          condition_op: opSel.value,
-          condition_value: val,
-          action_type: actionSel.value,
-          action_value: actionSel.value === 'set_priority' ? prioritySel.value : null,
+        if (!name) { setStatus('Rule name is required', false); return; }
+        if (!val) { setStatus('Match value is required', false); return; }
+        setStatus('Saving…', true);
+        addBtn.disabled = true;
+        api('/api/email/rules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name,
+            mailbox_id: mbSel.value ? parseInt(mbSel.value) : null,
+            condition_field: fieldSel.value,
+            condition_op: opSel.value,
+            condition_value: val,
+            action_type: actionSel.value,
+            action_value: actionSel.value === 'set_priority' ? prioritySel.value : null,
+          }),
         }).then(function (r) {
-          if (r.success) { nameInput.value = ''; valInput.value = ''; api('/api/email/rules').then(function (d) { renderRules(d.rules || []); }); }
-          else alert('Error: ' + (r.error || 'unknown'));
-        }).catch(function () { alert('Request failed'); });
+          addBtn.disabled = false;
+          if (r.success) {
+            nameInput.value = '';
+            valInput.value = '';
+            setStatus('Rule created', true);
+            reloadRules();
+          } else {
+            setStatus('Error: ' + (r.error || 'unknown'), false);
+          }
+        }).catch(function () {
+          addBtn.disabled = false;
+          setStatus('Request failed', false);
+        });
       });
 
-      form.appendChild(row('Rule Name', nameInput));
-      form.appendChild(row('If field', fieldSel));
-      form.appendChild(row('Operator', opSel));
-      form.appendChild(row('Value', valInput));
-      form.appendChild(row('Then', actionSel));
+      form.appendChild(mkRow('Rule Name', nameInput));
+      if (allMailboxes.length) form.appendChild(mkRow('Mailbox', mbSel));
+      form.appendChild(mkRow('If field', fieldSel));
+      form.appendChild(mkRow('Operator', opSel));
+      form.appendChild(mkRow('Value', valInput));
+      form.appendChild(mkRow('Then', actionSel));
       form.appendChild(priorityRow);
       form.appendChild(addBtn);
+      form.appendChild(statusDiv);
       container.appendChild(form);
 
-      if (!rules.length) {
-        var empty = document.createElement('div');
-        empty.className = 'em-list-empty';
-        empty.textContent = 'No rules yet';
-        container.appendChild(empty);
-        return;
+      if (allMailboxes.length) {
+        var filterBar = document.createElement('div');
+        filterBar.style.cssText = 'padding:6px 10px;display:flex;align-items:center;gap:6px;border-bottom:1px solid #1a1a2e;';
+        var filterLbl = document.createElement('span');
+        filterLbl.style.cssText = 'font-size:9px;color:#64748b;text-transform:uppercase;white-space:nowrap;';
+        filterLbl.textContent = 'Filter:';
+        var filterSel = document.createElement('select');
+        filterSel.className = 'em-view-select';
+        filterSel.style.flex = '1';
+        var allFOpt = document.createElement('option');
+        allFOpt.value = '';
+        allFOpt.textContent = 'All mailboxes';
+        filterSel.appendChild(allFOpt);
+        allMailboxes.forEach(function (mb) {
+          var o = document.createElement('option');
+          o.value = mb.id;
+          o.textContent = mb.address;
+          filterSel.appendChild(o);
+        });
+        filterSel.addEventListener('change', function () {
+          filterMailboxId = filterSel.value ? parseInt(filterSel.value) : null;
+          renderList(cachedRules);
+        });
+        filterBar.appendChild(filterLbl);
+        filterBar.appendChild(filterSel);
+        container.appendChild(filterBar);
       }
 
-      rules.forEach(function (r) {
-        var row_ = document.createElement('div');
-        row_.className = 'em-msg-row';
-        row_.style.padding = '8px 10px';
-
-        var top = document.createElement('div');
-        top.className = 'em-msg-top';
-
-        var name = document.createElement('span');
-        name.className = 'em-msg-from-text';
-        name.textContent = r.name;
-
-        var status = document.createElement('span');
-        status.className = 'em-priority-chip ' + (r.is_active ? 'em-priority-info' : 'em-priority-review');
-        status.textContent = r.is_active ? 'active' : 'off';
-        status.style.cursor = 'pointer';
-        status.title = 'Toggle';
-        status.addEventListener('click', function (e) {
-          e.stopPropagation();
-          apiPost('/api/email/rules/' + r.id, null, 'PATCH').then(function () {
-            api('/api/email/rules').then(function (d) { renderRules(d.rules || []); });
-          }).catch(function () {});
-        });
-
-        top.appendChild(name);
-        top.appendChild(status);
-
-        var desc = document.createElement('div');
-        desc.className = 'em-msg-preview-text';
-        desc.textContent = r.condition_field + ' ' + r.condition_op + ' "' + r.condition_value + '" → ' + r.action_type + (r.action_value ? ' (' + r.action_value + ')' : '');
-
-        var delBtn = document.createElement('button');
-        delBtn.className = 'em-text-btn';
-        delBtn.style.color = '#ef4444';
-        delBtn.textContent = 'Delete';
-        delBtn.addEventListener('click', function (e) {
-          e.stopPropagation();
-          if (!confirm('Delete rule "' + r.name + '"?')) return;
-          apiDelete('/api/email/rules/' + r.id).then(function () {
-            api('/api/email/rules').then(function (d) { renderRules(d.rules || []); });
-          }).catch(function () {});
-        });
-
-        var acts = document.createElement('div');
-        acts.className = 'em-msg-bottom';
-        acts.style.marginTop = '4px';
-        acts.appendChild(delBtn);
-
-        row_.appendChild(top);
-        row_.appendChild(desc);
-        row_.appendChild(acts);
-        container.appendChild(row_);
-      });
+      container.appendChild(listDiv);
     }
 
-    // PATCH helper for rules toggle
-    function apiPost(path, body, method) {
-      return api(path, {
-        method: method || 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body || {}),
+    Promise.all([
+      api('/api/email/rules').catch(function () { return { rules: [] }; }),
+      api('/api/email/mailboxes').catch(function () { return { mailboxes: [] }; }),
+    ]).then(function (results) {
+      allMailboxes = (results[1].mailboxes || []).sort(function (a, b) {
+        return (a.address || '').localeCompare(b.address || '');
       });
-    }
-
-    api('/api/email/rules').then(function (d) {
-      renderRules(d.rules || []);
+      cachedRules = results[0].rules || [];
+      buildForm();
+      renderList(cachedRules);
     }).catch(function () {
       var err = document.createElement('div');
       err.className = 'em-list-empty';

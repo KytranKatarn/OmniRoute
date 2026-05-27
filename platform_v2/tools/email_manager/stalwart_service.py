@@ -54,6 +54,13 @@ def _auth() -> tuple:
     return (_USER, _PASS)
 
 
+def _check_password() -> dict | None:
+    """Return an error dict if admin password is not configured, else None."""
+    if not _PASS:
+        return {"ok": False, "error": "STALWART_ADMIN_PASSWORD not set in environment"}
+    return None
+
+
 def _get(path: str, params: dict = None, timeout: int = 10) -> requests.Response | None:
     """Internal GET helper. Returns None on connection error."""
     try:
@@ -111,6 +118,9 @@ def grant_default_permissions(address: str) -> bool:
     Must be called after create_mailbox (or for any account created without permissions).
     Returns True on success.
     """
+    if _check_password():
+        logger.error("Stalwart grant_permissions skipped — admin password not configured")
+        return False
     local_part = address.split("@")[0]
     ops = [{"action": "addItem", "field": "enabledPermissions", "value": p} for p in _MAILBOX_PERMISSIONS]
     try:
@@ -136,6 +146,9 @@ def create_mailbox(address: str, display_name: str = "", password: str = None, q
     Returns {ok: bool, password: str, error: str}.
     The generated password is returned so the caller can store it.
     """
+    err = _check_password()
+    if err:
+        return err
     local_part = address.split("@")[0]
     _password = password or secrets.token_urlsafe(20)
 
@@ -169,6 +182,9 @@ def create_mailbox(address: str, display_name: str = "", password: str = None, q
 
 def delete_mailbox(address: str) -> dict:
     """Remove a mailbox from Stalwart. Returns {ok: bool, error: str}."""
+    err = _check_password()
+    if err:
+        return err
     local_part = address.split("@")[0]
     try:
         resp = requests.delete(
@@ -191,6 +207,9 @@ def update_password(address: str, password: str = None) -> dict:
 
     Returns {ok: bool, password: str, error: str}.
     """
+    err = _check_password()
+    if err:
+        return err
     local_part = address.split("@")[0]
     _password = password or secrets.token_urlsafe(20)
     try:

@@ -562,7 +562,15 @@
       // This avoids innerHTML on untrusted content while still rendering HTML email.
       var clean = DOMPurify.sanitize(msg.body_html, {
         FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form'],
-        FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'action'],
+        // Block inline style (CSS tracking pixels / url() exfil) and bare src on
+        // non-img elements. Also block all remaining event handlers.
+        FORBID_ATTR: [
+          'onerror', 'onload', 'onclick', 'onmouseover', 'action',
+          'style', 'background', 'dynsrc', 'lowsrc',
+        ],
+        // Strip external resource loads — images that phone home
+        FORCE_BODY: true,
+        ADD_TAGS: ['#text'],
       });
       var parser = new DOMParser();
       var parsed = parser.parseFromString(clean, 'text/html');

@@ -126,38 +126,43 @@ def register_email_messages_routes(bp, admin_required):
         search = (request.args.get("search") or "").strip()
         offset = (page - 1) * _PAGE_SIZE
 
-        conditions = ["is_archived = FALSE"]
+        # All conditions use the "em" alias to avoid ambiguity when
+        # LEFT JOIN email_threads is added to the main SELECT query.
+        conditions = ["em.is_archived = FALSE"]
         params: list = []
 
         if mailbox_id:
-            conditions.append("mailbox_id = %s")
+            conditions.append("em.mailbox_id = %s")
             params.append(mailbox_id)
 
         if view == "unread":
-            conditions.append("is_read = FALSE")
+            conditions.append("em.is_read = FALSE")
         elif view == "action":
-            conditions.append("ai_priority = 'action'")
+            conditions.append("em.ai_priority = 'action'")
         elif view == "review":
-            conditions.append("ai_priority = 'review'")
+            conditions.append("em.ai_priority = 'review'")
         elif view == "starred":
-            conditions.append("is_starred = TRUE")
+            conditions.append("em.is_starred = TRUE")
 
         if search:
-            conditions.append("(subject ILIKE %s OR from_address ILIKE %s OR body_preview ILIKE %s)")
+            conditions.append("(em.subject ILIKE %s OR em.from_address ILIKE %s OR em.body_preview ILIKE %s)")
             like = f"%{search}%"
             params.extend([like, like, like])
 
         where = " AND ".join(conditions)
 
         with get_db_cursor() as (conn, cur):
-            cur.execute("SELECT COUNT(*) AS total FROM email_messages WHERE " + where, params)
+            cur.execute("SELECT COUNT(*) AS total FROM email_messages em WHERE " + where, params)
             total = cur.fetchone()["total"]
 
             cur.execute(
-                "SELECT id, mailbox_id, from_address, to_address, subject,"
-                " body_preview, received_at, is_read, is_starred,"
-                " is_archived, has_attachments, ai_priority, ai_suggestion, size_bytes"
-                " FROM email_messages WHERE " + where + " ORDER BY received_at DESC LIMIT %s OFFSET %s",
+                "SELECT em.id, em.mailbox_id, em.from_address, em.to_address, em.subject,"
+                " em.body_preview, em.received_at, em.is_read, em.is_starred,"
+                " em.is_archived, em.has_attachments, em.ai_priority, em.ai_suggestion,"
+                " em.size_bytes, em.thread_id, COALESCE(t.message_count, 1) AS thread_count"
+                " FROM email_messages em"
+                " LEFT JOIN email_threads t ON t.id = em.thread_id"
+                " WHERE " + where + " ORDER BY em.received_at DESC LIMIT %s OFFSET %s",
                 params + [_PAGE_SIZE, offset],
             )
             messages = [_msg_row(dict(r)) for r in cur.fetchall()]
@@ -176,9 +181,11 @@ def register_email_messages_routes(bp, admin_required):
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """SELECT m.*, mb.address AS mailbox_address, mb.mailbox_type,
-                          mb.display_name AS mailbox_display_name
+                          mb.display_name AS mailbox_display_name,
+                          COALESCE(t.message_count, 1) AS thread_count
                    FROM email_messages m
                    JOIN email_mailboxes mb ON mb.id = m.mailbox_id
+                   LEFT JOIN email_threads t ON t.id = m.thread_id
                    WHERE m.id = %s""",
                 (message_id,),
             )
@@ -233,7 +240,7 @@ def register_email_messages_routes(bp, admin_required):
 
         mailbox_type = row["mailbox_type"]
         if mailbox_type not in ("owner", "business"):
-            return jsonify({"error": f"Draft reply not available for {mailbox_type} mailboxes"})
+            return jsonify({"error": f"Draft reply not available for {mailbox_type} mailboxes"}), 400
 
         body_snippet = (row["body_text"] or row["body_preview"] or "")[:1000]
 
@@ -336,7 +343,7 @@ def register_email_messages_routes(bp, admin_required):
     def email_batch_read():
         """Mark a list of message IDs as read. Body: {ids: [int, ...]}"""
         data = request.get_json() or {}
-        ids = [int(i) for i in (data.get("ids") or []) if str(i).isdigit()]
+        ids = [i for i in (data.get("ids") or []) if isinstance(i, int) and i > 0]
         if not ids:
             return jsonify({"error": "ids required"}), 400
         with get_db_cursor(commit=True) as (conn, cur):

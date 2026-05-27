@@ -56,7 +56,19 @@ def _row_to_user(row) -> Optional[User]:
             role=row.get("role"),
         )
     # Tuple order: id, username, password_hash, is_admin, is_active, created_at, last_login_at, sso_sub, email, display_name, role
-    id_, username, _hash, is_admin, is_active, _c, _l, sso_sub, email, display_name, role = row
+    (
+        id_,
+        username,
+        _hash,
+        is_admin,
+        is_active,
+        _c,
+        _l,
+        sso_sub,
+        email,
+        display_name,
+        role,
+    ) = row
     return User(
         id=id_,
         username=username,
@@ -127,12 +139,21 @@ def upsert_sso_user(sso_data: dict) -> Optional[User]:
         return None
     sub = str(sub)
 
-    username = (sso_data.get("username") or sso_data.get("name") or sso_data.get("email") or f"sso-{sub}").strip()
+    username = (
+        sso_data.get("username")
+        or sso_data.get("name")
+        or sso_data.get("email")
+        or f"sso-{sub}"
+    ).strip()
     email = sso_data.get("email")
     display_name = sso_data.get("name")
     role = sso_data.get("role") or "user"
     product_tiers = sso_data.get("product_tiers") or {}
-    is_admin = role == "admin"
+    # Only canonical platform roles are treated as admin. Non-standard strings
+    # like "owner"/"kytran" and the is_owner boolean are omitted — they are not
+    # issued by the platform IdP and would be spoofable via a crafted SSO payload.
+    _ADMIN_ROLES = frozenset({"admin", "super_admin"})
+    is_admin = (role or "").lower() in _ADMIN_ROLES
 
     with get_db_cursor(cursor_factory=None, commit=True) as (_conn, cur):
         # Avoid username collision: if a local user already owns this username,
@@ -209,7 +230,9 @@ def list_users() -> list:
 
 def count_admins() -> int:
     with get_db_cursor(cursor_factory=None) as (_c, cur):
-        cur.execute("SELECT COUNT(*) FROM media_hub_users WHERE is_admin = TRUE AND is_active = TRUE")
+        cur.execute(
+            "SELECT COUNT(*) FROM media_hub_users WHERE is_admin = TRUE AND is_active = TRUE"
+        )
         return cur.fetchone()[0]
 
 

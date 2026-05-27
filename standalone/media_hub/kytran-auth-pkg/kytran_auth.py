@@ -51,10 +51,18 @@ class KytranAuth:
     def init_app(self, app):
         """Configure OAuth settings and register auth routes."""
         self.app = app
-        self.client_id = app.config.get("KYTRAN_CLIENT_ID") or os.environ.get("KYTRAN_CLIENT_ID", "")
-        self.client_secret = app.config.get("KYTRAN_CLIENT_SECRET") or os.environ.get("KYTRAN_CLIENT_SECRET", "")
-        self.auth_url = app.config.get("KYTRAN_AUTH_URL") or os.environ.get("KYTRAN_AUTH_URL", "https://platform.kytranempowerment.com")
-        self.redirect_uri = app.config.get("KYTRAN_REDIRECT_URI") or os.environ.get("KYTRAN_REDIRECT_URI", "")
+        self.client_id = app.config.get("KYTRAN_CLIENT_ID") or os.environ.get(
+            "KYTRAN_CLIENT_ID", ""
+        )
+        self.client_secret = app.config.get("KYTRAN_CLIENT_SECRET") or os.environ.get(
+            "KYTRAN_CLIENT_SECRET", ""
+        )
+        self.auth_url = app.config.get("KYTRAN_AUTH_URL") or os.environ.get(
+            "KYTRAN_AUTH_URL", "https://platform.kytranempowerment.com"
+        )
+        self.redirect_uri = app.config.get("KYTRAN_REDIRECT_URI") or os.environ.get(
+            "KYTRAN_REDIRECT_URI", ""
+        )
         self.internal_url = (
             app.config.get("KYTRAN_AUTH_INTERNAL_URL")
             or os.environ.get("KYTRAN_AUTH_INTERNAL_URL", "")
@@ -74,6 +82,7 @@ class KytranAuth:
             # NOTE: "kytran_user" alone is not enough — a previous failed _on_login
             # can leave it set without completing Flask-Login. Rely on Flask-Login.
             from flask_login import current_user as _cu
+
             if "kytran_user" in session and _cu.is_authenticated:
                 next_url = request.args.get("next", "/maven/discover")
                 return redirect(next_url)
@@ -142,7 +151,8 @@ class KytranAuth:
 
             # Retrieve PKCE verifier (from state store, fall back to session)
             code_verifier = (
-                state_data.get("code_verifier") if state_data
+                state_data.get("code_verifier")
+                if state_data
                 else session.pop("oauth_code_verifier", None)
             )
 
@@ -176,7 +186,9 @@ class KytranAuth:
                     ), 400
                 token_data = token_resp.json()
                 _refresh_token_val = token_data.get("refresh_token", "")
-                _access_token_exp = int(time.time()) + token_data.get("expires_in", 28800)
+                _access_token_exp = int(time.time()) + token_data.get(
+                    "expires_in", 28800
+                )
             except Exception as e:
                 return (
                     "<h2>Login Failed</h2>"
@@ -209,7 +221,11 @@ class KytranAuth:
             entitlements = userinfo.get("entitlements", [])
             if sdk.client_id not in entitlements:
                 # Check if any entitlement starts with the base product name
-                base = sdk.client_id.replace("-viewer", "").replace("-pro", "").replace("-ai", "")
+                base = (
+                    sdk.client_id.replace("-viewer", "")
+                    .replace("-pro", "")
+                    .replace("-ai", "")
+                )
                 has_access = any(e.startswith(base) for e in entitlements)
                 if not has_access and userinfo.get("role") != "admin":
                     return (
@@ -264,12 +280,14 @@ class KytranAuth:
 
     def login_required(self, f):
         """Decorator: check session for Kytran SSO user, redirect if not found."""
+
         @wraps(f)
         def decorated(*args, **kwargs):
             if "kytran_user" not in session:
                 return redirect(url_for("kytran_login", next=request.url))
             self._refresh_if_needed()
             return f(*args, **kwargs)
+
         return decorated
 
     def get_current_user(self):
@@ -298,8 +316,12 @@ class KytranAuth:
             if resp.status_code == 200:
                 data = resp.json()
                 session["kytran_user"]["access_token"] = data["access_token"]
-                session["kytran_user"]["refresh_token"] = data.get("refresh_token", refresh_token)
-                session["kytran_user"]["access_token_exp"] = int(time.time()) + data.get("expires_in", 28800)
+                session["kytran_user"]["refresh_token"] = data.get(
+                    "refresh_token", refresh_token
+                )
+                session["kytran_user"]["access_token_exp"] = int(
+                    time.time()
+                ) + data.get("expires_in", 28800)
                 session.modified = True
         except Exception:
             pass  # Fail silently — token expiry will handle it on the next request

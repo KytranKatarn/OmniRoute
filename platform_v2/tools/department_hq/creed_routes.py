@@ -12,6 +12,7 @@ import logging
 import time
 
 from flask import jsonify, request
+from flask_login import current_user, login_required
 
 from database import get_db_cursor
 
@@ -1149,6 +1150,134 @@ def register_creed_routes(bp, admin_required):
             return jsonify({"success": True, **result})
         except Exception as e:
             logger.error("Erasure process %s failed: %s", request_id, e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ── Consent management / data portability (T3274) ────────────────────────
+
+    @bp.route("/api/creed/v1/my-data")
+    @login_required
+    def creed_my_data():
+        """Authenticated user: see what personal data the platform holds about them.
+
+        Returns row counts per table and account metadata — no raw values.
+        Use POST /api/creed/v1/my-data/export for a full GDPR Art.20 dump.
+        """
+        try:
+            summary = _build_user_data_summary(current_user.id)
+            if summary.get("error"):
+                return jsonify({"success": False, "error": summary["error"]}), 500
+            return jsonify({"success": True, **summary})
+        except Exception as e:
+            logger.error("my-data user=%s: %s", getattr(current_user, "id", "?"), e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/creed/v1/my-consents")
+    @login_required
+    def creed_my_consents():
+        """Authenticated user: active consent categories, agent consent flags,
+        and any erasure requests they have previously submitted.
+        """
+        try:
+            user_id = current_user.id
+            with get_db_cursor(commit=False) as (conn, cur):
+                # User's own erasure request history
+                cur.execute(
+                    """
+                    SELECT id, status, legal_basis, requested_at, processed_at
+                    FROM creed_erasure_requests
+                    WHERE user_id = %s
+                    ORDER BY requested_at DESC
+                    LIMIT 10
+                    """,
+                    (user_id,),
+                )
+                erasure_requests = [
+                    {
+                        "id": r["id"],
+                        "status": r["status"],
+                        "legal_basis": r["legal_basis"],
+                        "requested_at": r["requested_at"].isoformat() if r["requested_at"] else None,
+                        "processed_at": r["processed_at"].isoformat() if r["processed_at"] else None,
+                    }
+                    for r in cur.fetchall()
+                ]
+                # Agent consent flags — aggregate view, no PII
+                cur.execute(
+                    """
+                    SELECT capability,
+                           COUNT(*) AS agent_count,
+                           array_agg(DISTINCT discomfort_level) AS levels
+                    FROM agent_task_consent
+                    WHERE active = TRUE
+                    GROUP BY capability
+                    ORDER BY capability
+                    """
+                )
+                agent_consent_flags = [
+                    {
+                        "capability": r["capability"],
+                        "agents_with_flag": r["agent_count"],
+                        "discomfort_levels": r["levels"],
+                    }
+                    for r in cur.fetchall()
+                ]
+            return jsonify(
+                {
+                    "success": True,
+                    "user_id": user_id,
+                    "platform_consents": [
+                        {
+                            "category": "data_processing",
+                            "description": (
+                                "Core platform functionality — account management," " authentication, session handling"
+                            ),
+                            "legal_basis": "contract_performance",
+                            "can_withdraw": False,
+                            "note": "Required for platform access",
+                        },
+                        {
+                            "category": "analytics",
+                            "description": "Usage analytics — activity logs, session time, feature usage",
+                            "legal_basis": "legitimate_interest",
+                            "can_withdraw": True,
+                            "withdraw_via": "erasure request",
+                        },
+                        {
+                            "category": "ai_interactions",
+                            "description": "AI conversation history used to improve response quality",
+                            "legal_basis": "legitimate_interest",
+                            "can_withdraw": True,
+                            "withdraw_via": "erasure request",
+                        },
+                        {
+                            "category": "billing",
+                            "description": ("Billing records retained for legal/financial compliance"),
+                            "legal_basis": "legal_obligation",
+                            "can_withdraw": False,
+                            "note": "Anonymized on erasure; transaction records retained per PIPEDA",
+                        },
+                    ],
+                    "agent_consent_flags": agent_consent_flags,
+                    "your_erasure_requests": erasure_requests,
+                    "erasure_submit_url": "/tools/department-hq/api/creed/erasure-requests",
+                    "policy_url": "/tools/department-hq/api/creed/v1/erasure-policy",
+                }
+            )
+        except Exception as e:
+            logger.error("my-consents user=%s: %s", getattr(current_user, "id", "?"), e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/creed/v1/my-data/export", methods=["POST"])
+    @login_required
+    def creed_my_data_export():
+        """Authenticated user: export all personal data as JSON (GDPR Art.20 portability)."""
+        try:
+            export = _build_user_data_export(current_user.id)
+            if export.get("error"):
+                return jsonify({"success": False, "error": export["error"]}), 500
+            return jsonify({"success": True, "export": export})
+        except Exception as e:
+            logger.error("my-data/export user=%s: %s", getattr(current_user, "id", "?"), e)
             return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2673,3 +2802,232 @@ def _execute_erasure(request_id: int) -> dict:
         except Exception:
             pass
         raise
+
+
+# ── Consent management helpers (T3274) ───────────────────────────────────────
+
+
+def _build_user_data_summary(user_id: int) -> dict:
+    """Return row counts per personal-data table for a given user.
+
+    Used by GET /api/creed/v1/my-data.  Returns counts only — no raw values.
+    Tables that don't exist or have schema differences return None.
+    """
+    try:
+        counts: dict = {}
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Tables keyed by user_id
+            for table in (
+                "sessions",
+                "active_sessions",
+                "conversations",
+                "social_accounts",
+                "user_activity_log",
+                "user_language_preferences",
+                "user_session_time",
+                "user_oauth_connections",
+            ):
+                try:
+                    cur.execute(
+                        f"SELECT COUNT(*) FROM {table} WHERE user_id = %s",  # noqa: S608
+                        (user_id,),
+                    )
+                    counts[table] = cur.fetchone()[0]
+                except Exception:
+                    counts[table] = None
+
+            # google_accounts uses owner_id
+            try:
+                cur.execute(
+                    "SELECT COUNT(*) FROM google_accounts WHERE owner_id = %s",
+                    (user_id,),
+                )
+                counts["google_accounts"] = cur.fetchone()[0]
+            except Exception:
+                counts["google_accounts"] = None
+
+            # billing subscriptions
+            try:
+                cur.execute(
+                    "SELECT COUNT(*) FROM billing_subscriptions WHERE user_id = %s",
+                    (user_id,),
+                )
+                counts["billing_subscriptions"] = cur.fetchone()[0]
+            except Exception:
+                counts["billing_subscriptions"] = None
+
+            # Pending / past erasure requests
+            try:
+                cur.execute(
+                    "SELECT COUNT(*) FROM creed_erasure_requests WHERE user_id = %s",
+                    (user_id,),
+                )
+                counts["erasure_requests"] = cur.fetchone()[0]
+            except Exception:
+                counts["erasure_requests"] = None
+
+            # Account metadata
+            cur.execute(
+                "SELECT created_at, last_login FROM users WHERE id = %s",
+                (user_id,),
+            )
+            u = cur.fetchone()
+
+        total = sum(v for v in counts.values() if isinstance(v, int))
+        return {
+            "user_id": user_id,
+            "account_created": u["created_at"].isoformat() if u and u["created_at"] else None,
+            "last_login": (u["last_login"].isoformat() if u and u.get("last_login") else None),
+            "data_held": counts,
+            "total_records": total,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _build_user_data_export(user_id: int) -> dict:
+    """Build a full personal data export for GDPR Art.20 / PIPEDA right of access.
+
+    Returns a dict suitable for JSON serialisation.  Conversation content is
+    included (up to 200 most recent); activity log capped at 200 rows to keep
+    response size manageable.
+    """
+    import datetime
+
+    export: dict = {
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "user_id": user_id,
+        "legal_note": (
+            "Exported under GDPR Article 20 / PIPEDA Principle 9 right of access. "
+            "Contains personal data held by the A.R.C.H.I.E. platform."
+        ),
+    }
+
+    with get_db_cursor(commit=False) as (conn, cur):
+        # ── Account record ────────────────────────────────────────────────────
+        cur.execute(
+            "SELECT id, username, email, created_at, last_login, role FROM users WHERE id = %s",
+            (user_id,),
+        )
+        u = cur.fetchone()
+        export["account"] = (
+            {
+                "id": u["id"],
+                "username": u["username"],
+                "email": u["email"],
+                "role": u["role"],
+                "created_at": u["created_at"].isoformat() if u["created_at"] else None,
+                "last_login": (u["last_login"].isoformat() if u.get("last_login") else None),
+            }
+            if u
+            else {}
+        )
+
+        # ── Conversation metadata (no message content — kept separate) ────────
+        try:
+            cur.execute(
+                """
+                SELECT id, title, created_at, updated_at
+                FROM conversations
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                LIMIT 200
+                """,
+                (user_id,),
+            )
+            export["conversations"] = [
+                {
+                    "id": r["id"],
+                    "title": r["title"],
+                    "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                    "updated_at": r["updated_at"].isoformat() if r.get("updated_at") else None,
+                }
+                for r in cur.fetchall()
+            ]
+        except Exception:
+            export["conversations"] = []
+
+        # ── Activity log ──────────────────────────────────────────────────────
+        try:
+            cur.execute(
+                """
+                SELECT action, created_at
+                FROM user_activity_log
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                LIMIT 200
+                """,
+                (user_id,),
+            )
+            export["activity_log"] = [
+                {
+                    "action": r["action"],
+                    "at": r["created_at"].isoformat() if r["created_at"] else None,
+                }
+                for r in cur.fetchall()
+            ]
+        except Exception:
+            export["activity_log"] = []
+
+        # ── Language preferences ──────────────────────────────────────────────
+        try:
+            cur.execute(
+                """
+                SELECT language_code, preference_type
+                FROM user_language_preferences
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            )
+            export["language_preferences"] = [dict(r) for r in cur.fetchall()]
+        except Exception:
+            export["language_preferences"] = []
+
+        # ── Billing subscriptions ─────────────────────────────────────────────
+        try:
+            cur.execute(
+                """
+                SELECT module, status, billing_cycle, tier_name, created_at
+                FROM billing_subscriptions
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            )
+            export["billing_subscriptions"] = [
+                {
+                    "module": r["module"],
+                    "status": r["status"],
+                    "billing_cycle": r["billing_cycle"],
+                    "tier_name": r["tier_name"],
+                    "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                }
+                for r in cur.fetchall()
+            ]
+        except Exception:
+            export["billing_subscriptions"] = []
+
+        # ── Erasure request history ───────────────────────────────────────────
+        try:
+            cur.execute(
+                """
+                SELECT id, status, legal_basis, requested_at, processed_at
+                FROM creed_erasure_requests
+                WHERE user_id = %s
+                ORDER BY requested_at DESC
+                """,
+                (user_id,),
+            )
+            export["erasure_requests"] = [
+                {
+                    "id": r["id"],
+                    "status": r["status"],
+                    "legal_basis": r["legal_basis"],
+                    "requested_at": r["requested_at"].isoformat() if r["requested_at"] else None,
+                    "processed_at": r["processed_at"].isoformat() if r["processed_at"] else None,
+                }
+                for r in cur.fetchall()
+            ]
+        except Exception:
+            export["erasure_requests"] = []
+
+    return export

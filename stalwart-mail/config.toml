@@ -4,6 +4,10 @@ hostname = "mail.kytranempowerment.com"
 [server.listener.smtp]
 bind = "[::]:25"
 protocol = "smtp"
+# Trust Docker bridge subnets so Stalwart's own local delivery loop (self-SMTP
+# on port 25) is never auto-banned.  The gateway of any Docker network attached
+# to this container appears as a 172.x or 10.x source IP.
+trusted-networks = ["127.0.0.0/8", "172.16.0.0/12", "10.0.0.0/8", "100.64.0.0/10"]
 
 [server.listener.submission]
 bind = "[::]:587"
@@ -96,14 +100,51 @@ sign = [ { if = "is_local_domain('', sender_domain)", then = "'rsa-' + sender_do
 mechanisms = [ { if = "listener != 'smtp'", then = "[plain, login]" },
                { else = false } ]
 
-# Outbound routing — relay all external mail through US outpost VPS
+# Outbound routing
+# Local domains: route through loopback SMTP so delivery comes from 127.0.0.1
+# (never banned) rather than via MX → 192.168.1.200 → Docker bridge 172.27.0.1
+# (which was auto-banned from auth-test failures).  Port 25 inbound path delivers
+# directly to the mailbox without re-queuing, so no infinite loop.
+# External domains: relay through US outpost VPS.
 [queue.outbound]
-next-hop = [ { if = "is_local_domain('', rcpt_domain)", then = false },
+next-hop = [ { if = "is_local_domain('', rcpt_domain)", then = "'local_smtp'" },
              { else = "'relay'" } ]
 
 [queue.outbound.tls]
 mta-sts = "disable"
 allow-invalid-certs = true
+
+# Loopback delivery — connects to Stalwart's own port-25 inbound listener
+# Source IP is 127.0.0.1 (never blocked), no TLS needed on loopback
+[remote."local_smtp"]
+address = "localhost"
+port = 25
+protocol = "smtp"
+ip-lookup = "ipv4_only"
+
+[remote."local_smtp".tls]
+implicit = false
+allow-invalid-certs = true
+
+# Raise connection rate limit for loopback so burst local delivery (multiple
+# simultaneous messages) doesn't get throttled.  Default Stalwart limit is
+# 5 connections/1000ms per IP; 127.0.0.1 is our own delivery queue — not an
+# external client — so a much higher limit is safe.
+[[session.throttle]]
+match = "remote_ip = '127.0.0.1'"
+key = ["remote_ip"]
+rate = "500/1s"
+
+# Raise the inbound queue rate limit for the loopback IP so burst local
+# delivery (multiple simultaneous messages from Stalwart's own queue to
+# port 25) isn't throttled.  Default is 5/1s which is fine for external
+# senders but too low for Stalwart's own delivery loop on 127.0.0.1.
+# External IPs each have their own bucket so this doesn't weaken
+# protection against external floods.
+[queue.limiter.inbound.ip]
+enable = true
+key = "remote_ip"
+rate = "500/1s"
 
 [remote."relay"]
 address = "relay.kytranempowerment.com"

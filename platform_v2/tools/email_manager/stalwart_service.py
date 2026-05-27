@@ -27,6 +27,28 @@ _BASE = os.getenv("STALWART_ADMIN_URL", "http://stalwart_mail:8080")
 _USER = os.getenv("STALWART_ADMIN_USER", "admin")
 _PASS = os.getenv("STALWART_ADMIN_PASSWORD") or ""
 
+# Permissions required for IMAP + SMTP access on every provisioned mailbox.
+# Without these, Stalwart authenticates the password but then rejects the session
+# with "Unauthorized access (security.unauthorized) details = authenticate".
+_MAILBOX_PERMISSIONS = [
+    "authenticate",
+    "imap-authenticate",
+    "email-send",
+    "imap-select",
+    "imap-examine",
+    "imap-fetch",
+    "imap-search",
+    "imap-list",
+    "imap-lsub",
+    "imap-store",
+    "imap-expunge",
+    "imap-idle",
+    "imap-copy",
+    "imap-move",
+    "imap-namespace",
+    "imap-append",
+]
+
 
 def _auth() -> tuple:
     return (_USER, _PASS)
@@ -80,6 +102,31 @@ def list_accounts() -> list:
     return []
 
 
+def grant_default_permissions(address: str) -> bool:
+    """Grant IMAP + SMTP permissions to an existing Stalwart mailbox.
+
+    Must be called after create_mailbox (or for any account created without permissions).
+    Returns True on success.
+    """
+    local_part = address.split("@")[0]
+    ops = [{"action": "addItem", "field": "enabledPermissions", "value": p} for p in _MAILBOX_PERMISSIONS]
+    try:
+        resp = requests.patch(
+            f"{_BASE}/api/principal/{local_part}",
+            auth=_auth(),
+            json=ops,
+            timeout=10,
+        )
+        if resp.status_code in (200, 204):
+            logger.info("Stalwart: granted permissions to %s", address)
+            return True
+        logger.error("Stalwart grant_permissions failed for %s: %s %s", address, resp.status_code, resp.text[:200])
+        return False
+    except Exception as exc:
+        logger.error("Stalwart grant_permissions error for %s: %s", address, exc)
+        return False
+
+
 def create_mailbox(address: str, display_name: str = "", password: str = None, quota_gb: int = 1) -> dict:
     """Provision a new mailbox in Stalwart.
 
@@ -105,6 +152,7 @@ def create_mailbox(address: str, display_name: str = "", password: str = None, q
         )
         if resp.status_code in (200, 201):
             logger.info("Stalwart: provisioned mailbox %s", address)
+            grant_default_permissions(address)
             return {"ok": True, "password": _password}
         err = resp.text[:300]
         logger.error("Stalwart create_mailbox failed for %s: %s %s", address, resp.status_code, err)

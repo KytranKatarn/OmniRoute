@@ -21,6 +21,14 @@ from database import get_db_cursor
 log = logging.getLogger(__name__)
 
 
+def _count_admins(cur) -> int:
+    """Count active admins using an already-open cursor (tuple-style)."""
+    cur.execute(
+        "SELECT COUNT(*) FROM media_hub_users WHERE is_admin = TRUE AND is_active = TRUE"
+    )
+    return cur.fetchone()[0]
+
+
 @dataclass
 class User(UserMixin):
     id: int
@@ -164,6 +172,18 @@ def upsert_sso_user(sso_data: dict) -> Optional[User]:
         )
         if cur.fetchone():
             username = f"{username}@kytran"
+
+        # Preserve last-admin invariant — prevent self-lockout if IdP returns wrong role
+        if not is_admin:
+            cur.execute(
+                "SELECT is_admin FROM media_hub_users WHERE sso_sub = %s", (sub,)
+            )
+            existing = cur.fetchone()
+            if existing and existing[0] and _count_admins(cur) <= 1:
+                is_admin = True
+                log.warning(
+                    "SSO would demote last admin %s — preserving admin flag", username
+                )
 
         cur.execute(
             """

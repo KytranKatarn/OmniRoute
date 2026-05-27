@@ -3838,6 +3838,11 @@ async function openVideoPlayer(item) {
 
         currentStreamInfo = data.stream;
 
+        // Notify cast module (no-op if Cast SDK not loaded)
+        if (typeof window.castSetCurrentItem === 'function') {
+            window.castSetCurrentItem(item);
+        }
+
         // Resume position (in seconds)
         const resumePosition = data.stream.resume_position_seconds || 0;
 
@@ -3977,6 +3982,11 @@ function closeVideoPlayer() {
 
     modal.classList.remove('active');
     currentStreamInfo = null;
+
+    // Notify cast module (no-op if Cast SDK not loaded)
+    if (typeof window.castClearCurrentItem === 'function') {
+        window.castClearCurrentItem();
+    }
 }
 
 function formatDuration(seconds) {

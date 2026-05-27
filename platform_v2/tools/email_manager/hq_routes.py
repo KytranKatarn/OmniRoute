@@ -120,7 +120,16 @@ def run_resolve_oversight(threshold_hours: int = 24) -> dict:
     return {"scanned": scanned, "flagged": flagged, "tickets_created": tickets, "already_processed": already}
 
 
-def register_hq_routes(bp, admin_required):
+def register_hq_routes(bp, admin_required, real_admin_required=None):
+    """Register HQ routes.
+
+    admin_required  — email_access_required (COLLABORATOR + ADMIN): unified-inbox, stats, rules,
+                      oversight/unanswered.
+    real_admin_required — strict admin-only (ADMIN_ACCESS only): assign, oversight/scan,
+                          oversight/tickets.  Defaults to admin_required when not supplied.
+    """
+    if real_admin_required is None:
+        real_admin_required = admin_required
 
     @bp.route("/api/hq/unified-inbox", methods=["GET"])
     @login_required
@@ -197,14 +206,33 @@ def register_hq_routes(bp, admin_required):
 
     @bp.route("/api/hq/assign", methods=["POST"])
     @login_required
-    @admin_required
+    @real_admin_required
     def hq_assign():
+        """Assign an email to an agent.
+
+        Admin-only (real_admin_required). Defense-in-depth: if the caller is somehow
+        a COLLABORATOR, the scope guard below still blocks cross-dept assignments.
+        """
         data = request.get_json(silent=True) or {}
         email_id = data.get("email_id")
         agent_name = str(data.get("agent_name", "")).strip()
         notes = str(data.get("notes", "")).strip()[:500]
         if not email_id or not agent_name:
             return jsonify({"error": "email_id and agent_name required"}), 400
+
+        # Scope guard: verify the email belongs to a visible mailbox.
+        visible = get_visible_mailbox_ids(current_user)
+        if visible is not None:
+            with get_db_cursor() as (_, cur):
+                cur.execute(
+                    """SELECT m.id FROM email_activity_log al
+                       JOIN email_mailboxes m ON m.address = al.mailbox_address
+                       WHERE al.id = %s AND m.id = ANY(%s)""",
+                    (email_id, visible),
+                )
+                if not cur.fetchone():
+                    abort(403)
+
         with get_db_cursor(commit=True) as (_, cur):
             cur.execute(
                 """
@@ -376,9 +404,9 @@ def register_hq_routes(bp, admin_required):
 
     @bp.route("/api/hq/oversight/scan", methods=["POST"])
     @login_required
-    @admin_required
+    @real_admin_required
     def hq_oversight_scan():
-        """Trigger a manual R.E.S.O.L.V.E. oversight scan."""
+        """Trigger a manual R.E.S.O.L.V.E. oversight scan. Admin-only — scans platform-wide."""
         data = request.get_json(silent=True) or {}
         threshold = int(data.get("threshold_hours", 24))
         result = run_resolve_oversight(threshold_hours=threshold)
@@ -386,9 +414,9 @@ def register_hq_routes(bp, admin_required):
 
     @bp.route("/api/hq/oversight/tickets", methods=["GET"])
     @login_required
-    @admin_required
+    @real_admin_required
     def hq_oversight_tickets():
-        """List unified_tasks auto-created by R.E.S.O.L.V.E. oversight."""
+        """List unified_tasks auto-created by R.E.S.O.L.V.E. oversight. Admin-only — cross-dept data."""
         limit = min(int(request.args.get("limit", 50)), 200)
         with get_db_cursor() as (_, cur):
             cur.execute(

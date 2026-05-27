@@ -38,9 +38,10 @@ from .compose_routes import register_compose_routes  # noqa: F401, E402
 register_compose_routes(email_manager_bp, email_access_required)
 
 # Email HQ routes — scoped by get_visible_mailbox_ids() (T3283)
+# real_admin_required keeps assign/oversight-scan/oversight-tickets strictly admin-only
 from .hq_routes import register_hq_routes  # noqa: F401, E402
 
-register_hq_routes(email_manager_bp, email_access_required)
+register_hq_routes(email_manager_bp, email_access_required, admin_required)
 
 # Email messages API (three-panel layout — sidebar, list, body, actions)
 # User-facing; queries are filtered by get_visible_mailbox_ids() inside.

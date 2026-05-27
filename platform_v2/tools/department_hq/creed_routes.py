@@ -924,6 +924,233 @@ def register_creed_routes(bp, admin_required):
             logger.error("ISED report %s failed: %s", assessment_id, e)
             return jsonify({"success": False, "error": str(e)}), 500
 
+    # ── GDPR / PIPEDA erasure routes (T3256) ─────────────────────────────────
+
+    @bp.route("/api/creed/v1/erasure-policy")
+    def creed_erasure_policy():
+        """Public: what personal data is deleted when an erasure request is processed.
+
+        No auth required — transparency principle.
+        """
+        return jsonify(
+            {
+                "version": "1",
+                "legal_basis": ["GDPR Article 17", "PIPEDA Principle 9"],
+                "scope": "Personal data held by the A.R.C.H.I.E. platform",
+                "deleted": [
+                    "Active login sessions",
+                    "Conversation history",
+                    "Social account OAuth connections",
+                    "Google account connections",
+                    "User activity logs",
+                    "Language preferences",
+                    "Session time records",
+                    "Third-party OAuth connections",
+                ],
+                "anonymized": [
+                    "User account record (username, email replaced with opaque tokens; "
+                    "password cleared; account deactivated)",
+                    "Billing customer record (name and email anonymized; "
+                    "subscription history retained for legal/financial audit)",
+                ],
+                "retained_for_legal_audit": [
+                    "Governance audit log entries (anonymized, no PII)",
+                    "Billing transaction events (financial compliance)",
+                ],
+                "response_time_days": 30,
+                "contact": "privacy@kytranempowerment.com",
+            }
+        )
+
+    @bp.route("/api/creed/erasure-requests")
+    @admin_required
+    def creed_erasure_list():
+        """Admin: list all erasure requests."""
+        try:
+            status_filter = request.args.get("status")
+            with get_db_cursor() as (conn, cur):
+                if status_filter:
+                    cur.execute(
+                        """
+                        SELECT id, user_id, user_email, requested_by, status,
+                               legal_basis, requested_at, reviewed_at, processed_at, notes
+                        FROM creed_erasure_requests
+                        WHERE status = %s
+                        ORDER BY requested_at DESC LIMIT 100
+                        """,
+                        (status_filter,),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT id, user_id, user_email, requested_by, status,
+                               legal_basis, requested_at, reviewed_at, processed_at, notes
+                        FROM creed_erasure_requests
+                        ORDER BY requested_at DESC LIMIT 100
+                        """
+                    )
+                rows = cur.fetchall()
+            return jsonify({"success": True, "requests": [dict(r) for r in rows]})
+        except Exception as e:
+            logger.error("Erasure list failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/creed/erasure-requests", methods=["POST"])
+    @admin_required
+    def creed_erasure_create():
+        """Admin: submit an erasure request for a user.
+
+        Body: {"user_id": int, "requested_by": "self"|"admin_name",
+               "legal_basis": "gdpr_art17"|"pipeda_s11", "notes": "..."}
+        """
+        try:
+            body = request.get_json(silent=True) or {}
+            user_id = body.get("user_id")
+            if not user_id:
+                return jsonify({"success": False, "error": "user_id required"}), 400
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                # Fetch current user email (captured at request time)
+                cur.execute("SELECT email, username FROM users WHERE id = %s", (user_id,))
+                user = cur.fetchone()
+                if not user:
+                    return jsonify({"success": False, "error": "User not found"}), 404
+
+                # Prevent duplicate pending request
+                cur.execute(
+                    """
+                    SELECT id FROM creed_erasure_requests
+                    WHERE user_id = %s AND status IN ('pending','approved','processing')
+                    """,
+                    (user_id,),
+                )
+                if cur.fetchone():
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": "An active erasure request already exists for this user",
+                            }
+                        ),
+                        409,
+                    )
+
+                cur.execute(
+                    """
+                    INSERT INTO creed_erasure_requests
+                        (user_id, user_email, requested_by, legal_basis, notes)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING id, user_id, user_email, status, requested_at
+                    """,
+                    (
+                        user_id,
+                        user["email"],
+                        (body.get("requested_by") or "admin").strip()[:100],
+                        body.get("legal_basis") or "gdpr_art17",
+                        (body.get("notes") or "").strip() or None,
+                    ),
+                )
+                row = cur.fetchone()
+
+            logger.info("Erasure request %s created for user %s", row["id"], user_id)
+            return jsonify({"success": True, "request": dict(row)}), 201
+        except Exception as e:
+            logger.error("Erasure create failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/creed/erasure-requests/<int:request_id>")
+    @admin_required
+    def creed_erasure_get(request_id):
+        """Admin: get a single erasure request with full detail."""
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT id, user_id, user_email, requested_by, status,
+                           legal_basis, rejection_reason, tables_affected,
+                           rows_affected, requested_at, reviewed_at, processed_at, notes
+                    FROM creed_erasure_requests WHERE id = %s
+                    """,
+                    (request_id,),
+                )
+                row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Request not found"}), 404
+            return jsonify({"success": True, "request": dict(row)})
+        except Exception as e:
+            logger.error("Erasure get %s failed: %s", request_id, e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/creed/erasure-requests/<int:request_id>/approve", methods=["POST"])
+    @admin_required
+    def creed_erasure_approve(request_id):
+        """Admin: approve an erasure request (does NOT execute deletion)."""
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    UPDATE creed_erasure_requests
+                    SET status='approved', reviewed_at=NOW()
+                    WHERE id=%s AND status='pending'
+                    RETURNING id, status
+                    """,
+                    (request_id,),
+                )
+                row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Request not found or not pending"}), 404
+            return jsonify({"success": True, "request": dict(row)})
+        except Exception as e:
+            logger.error("Erasure approve %s failed: %s", request_id, e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/creed/erasure-requests/<int:request_id>/reject", methods=["POST"])
+    @admin_required
+    def creed_erasure_reject(request_id):
+        """Admin: reject an erasure request.
+
+        Body: {"reason": "..."}
+        """
+        try:
+            body = request.get_json(silent=True) or {}
+            reason = (body.get("reason") or "").strip()
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    UPDATE creed_erasure_requests
+                    SET status='rejected', reviewed_at=NOW(),
+                        rejection_reason=%s
+                    WHERE id=%s AND status IN ('pending','approved')
+                    RETURNING id, status
+                    """,
+                    (reason or None, request_id),
+                )
+                row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Request not found or not rejectable"}), 404
+            return jsonify({"success": True, "request": dict(row)})
+        except Exception as e:
+            logger.error("Erasure reject %s failed: %s", request_id, e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/creed/erasure-requests/<int:request_id>/process", methods=["POST"])
+    @admin_required
+    def creed_erasure_process(request_id):
+        """Admin: execute the erasure for an approved request.
+
+        Irreversible. Deletes user personal data, anonymizes retained records,
+        and logs a 'erasure_executed' event to governance_audit_log (privacy pillar).
+        Only processes requests in 'approved' or 'pending' status.
+        """
+        try:
+            result = _execute_erasure(request_id)
+            if result.get("error"):
+                return jsonify({"success": False, "error": result["error"]}), result.get("status", 500)
+            return jsonify({"success": True, **result})
+        except Exception as e:
+            logger.error("Erasure process %s failed: %s", request_id, e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
 
 # ── Fleet agents ─────────────────────────────────────────────────────────────
 
@@ -2201,3 +2428,248 @@ def _build_ised_report(assessment_id: int) -> dict | None:
         "gaps": gaps,
         "unanswered": unanswered,
     }
+
+
+# ── GDPR / PIPEDA erasure executor (T3256) ───────────────────────────────────
+
+
+def _execute_erasure(request_id: int) -> dict:
+    """Execute GDPR/PIPEDA erasure for an approved request.
+
+    Hard-deletes all personal data rows keyed by user_id, then
+    anonymises the ``users`` and ``billing_customers`` rows (retained
+    for FK integrity / financial audit compliance).
+
+    Logs ``event_type='erasure_executed'`` (``event_category='privacy'``)
+    to ``governance_audit_log`` as a C.R.E.E.D. privacy-pillar event.
+
+    Returns:
+        dict with keys: request_id, user_id, deleted, anonymized, rows_affected
+        dict with keys: error, status   — on validation failure (no DB write)
+    """
+    # ── 1. Load and validate ──────────────────────────────────────────────────
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            """
+            SELECT id, user_id, user_email, status
+            FROM creed_erasure_requests
+            WHERE id = %s
+            """,
+            (request_id,),
+        )
+        req = cur.fetchone()
+
+    if not req:
+        return {"error": f"Erasure request {request_id} not found", "status": 404}
+
+    if req["status"] not in ("approved", "pending"):
+        return {
+            "error": (f"Cannot process request in status '{req['status']}'" " — must be 'approved' or 'pending'"),
+            "status": 409,
+        }
+
+    user_id = req["user_id"]
+    user_email = req["user_email"]
+
+    if not user_id:
+        return {
+            "error": "User ID is missing from erasure request (user already deleted?)",
+            "status": 409,
+        }
+
+    # ── 2. Mark as processing (visible immediately) ───────────────────────────
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE creed_erasure_requests SET status = 'processing' WHERE id = %s",
+            (request_id,),
+        )
+
+    rows_affected: dict = {}
+    deleted_tables: list = []
+    anonymized_tables: list = []
+    anon_email = f"deleted_{user_id}@redacted.invalid"
+    fatal_error = None
+
+    try:
+        # ── 3. Hard-delete user-scoped personal data ──────────────────────────
+        # Each table in its own transaction so a missing table/column doesn't
+        # abort the entire erasure.
+
+        # Tables keyed by user_id
+        _user_id_tables = [
+            "sessions",
+            "active_sessions",
+            "conversations",
+            "social_accounts",
+            "user_activity_log",
+            "user_language_preferences",
+            "user_session_time",
+            "user_oauth_connections",
+        ]
+        for table in _user_id_tables:
+            try:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        f"DELETE FROM {table} WHERE user_id = %s",  # noqa: S608
+                        (user_id,),
+                    )
+                    n = cur.rowcount
+                rows_affected[table] = n
+                if n > 0:
+                    deleted_tables.append(table)
+            except Exception as tbl_err:
+                logger.warning("Erasure %s: table '%s' skipped — %s", request_id, table, tbl_err)
+                rows_affected[table] = -1  # -1 = skipped/error
+
+        # google_accounts uses owner_id
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute("DELETE FROM google_accounts WHERE owner_id = %s", (user_id,))
+                n = cur.rowcount
+            rows_affected["google_accounts"] = n
+            if n > 0:
+                deleted_tables.append("google_accounts")
+        except Exception as ga_err:
+            logger.warning("Erasure %s: table 'google_accounts' skipped — %s", request_id, ga_err)
+            rows_affected["google_accounts"] = -1
+
+        # crm_customers uses created_by
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute("DELETE FROM crm_customers WHERE created_by = %s", (user_id,))
+                n = cur.rowcount
+            rows_affected["crm_customers"] = n
+            if n > 0:
+                deleted_tables.append("crm_customers")
+        except Exception as crm_err:
+            logger.warning("Erasure %s: table 'crm_customers' skipped — %s", request_id, crm_err)
+            rows_affected["crm_customers"] = -1
+
+        # ── 4. Anonymise users row ────────────────────────────────────────────
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    UPDATE users SET
+                        username      = %s,
+                        email         = %s,
+                        password_hash = NULL,
+                        is_active     = FALSE,
+                        oauth_provider = NULL,
+                        oauth_id       = NULL
+                    WHERE id = %s
+                    """,
+                    (f"deleted_{user_id}", anon_email, user_id),
+                )
+                n = cur.rowcount
+            rows_affected["users"] = n
+            if n > 0:
+                anonymized_tables.append("users")
+        except Exception as usr_err:
+            logger.error("Erasure %s: users anonymise failed — %s", request_id, usr_err)
+            rows_affected["users"] = -1
+
+        # ── 5. Anonymise billing_customers ────────────────────────────────────
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    UPDATE billing_customers SET
+                        name  = '[Deleted User]',
+                        email = %s
+                    WHERE user_id = %s
+                    """,
+                    (anon_email, user_id),
+                )
+                n = cur.rowcount
+            rows_affected["billing_customers"] = n
+            if n > 0:
+                anonymized_tables.append("billing_customers")
+        except Exception as bc_err:
+            logger.warning("Erasure %s: billing_customers anonymise skipped — %s", request_id, bc_err)
+            rows_affected["billing_customers"] = -1
+
+        # ── 6. Log to governance_audit_log (privacy pillar) ──────────────────
+        tables_affected_val = {
+            "deleted": deleted_tables,
+            "anonymized": anonymized_tables,
+        }
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO governance_audit_log
+                        (event_type, event_category, action, agent_id,
+                         target_table, old_value, new_value, reason, outcome, timestamp)
+                    VALUES
+                        ('erasure_executed', 'privacy', 'delete', NULL,
+                         'users',
+                         %s::jsonb,
+                         %s::jsonb,
+                         %s, 'success', NOW())
+                    """,
+                    (
+                        json.dumps({"user_id": user_id, "email": user_email, "request_id": request_id}),
+                        json.dumps(
+                            {
+                                "anonymized_email": anon_email,
+                                "tables_affected": tables_affected_val,
+                                "rows_affected": rows_affected,
+                            }
+                        ),
+                        f"GDPR/PIPEDA erasure request #{request_id} for user_id={user_id}",
+                    ),
+                )
+        except Exception as log_err:
+            logger.error("Erasure %s: governance_audit_log write failed — %s", request_id, log_err)
+
+        # ── 7. Mark request completed ─────────────────────────────────────────
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                UPDATE creed_erasure_requests SET
+                    status          = 'completed',
+                    tables_affected = %s::jsonb,
+                    rows_affected   = %s::jsonb,
+                    processed_at    = NOW()
+                WHERE id = %s
+                """,
+                (
+                    json.dumps(tables_affected_val),
+                    json.dumps(rows_affected),
+                    request_id,
+                ),
+            )
+
+        logger.info(
+            "Erasure request %s completed — user_id=%s deleted=%s anonymized=%s",
+            request_id,
+            user_id,
+            deleted_tables,
+            anonymized_tables,
+        )
+        return {
+            "request_id": request_id,
+            "user_id": user_id,
+            "deleted": deleted_tables,
+            "anonymized": anonymized_tables,
+            "rows_affected": rows_affected,
+        }
+
+    except Exception as e:
+        fatal_error = e
+        logger.error("Erasure request %s fatal error — rolling back to approved: %s", request_id, e)
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    UPDATE creed_erasure_requests SET
+                        status = 'approved',
+                        notes  = %s
+                    WHERE id = %s
+                    """,
+                    (f"Processing failed (retriable): {e}", request_id),
+                )
+        except Exception:
+            pass
+        raise

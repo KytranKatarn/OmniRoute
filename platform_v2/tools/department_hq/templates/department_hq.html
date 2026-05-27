@@ -766,7 +766,7 @@
           <div style="height:12px;background:#00ffff;border-radius:20px 20px 0 0;"></div>
         </div>
         <div class="bm-content">
-          <div class="bm-header" style="background:#00ffff;color:#010409;font-family:'Antonio',sans-serif;letter-spacing:2px;font-size:0.9rem;padding:10px 16px;">
+          <div id="addNodeModalHeader" class="bm-header" style="background:#00ffff;color:#010409;font-family:'Antonio',sans-serif;letter-spacing:2px;font-size:0.9rem;padding:10px 16px;">
             ENLIST NEW STARSHIP NODE
             <span style="float:right;cursor:pointer;font-size:1rem;" onclick="closeAddNodeModal()">✕</span>
           </div>
@@ -784,7 +784,7 @@
               </div>
               <div style="margin-bottom:14px;">
                 <label style="font-size:0.7rem;letter-spacing:1px;color:var(--dhq-text-dim,#aaa);font-family:'IBM Plex Mono',monospace;">NODE TYPE</label>
-                <select id="addNodeDeployMode" style="width:100%;margin-top:6px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.25);color:#e0e0e0;padding:8px 12px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;box-sizing:border-box;">
+                <select id="addNodeDeployMode" onchange="updateAddNodeModal()" style="width:100%;margin-top:6px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.25);color:#e0e0e0;padding:8px 12px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;box-sizing:border-box;">
                   <option value="starship">Starship (LAN — GPU laptop/desktop)</option>
                   <option value="starbase_outpost">Outpost (VPS — remote CPU node)</option>
                 </select>
@@ -808,7 +808,7 @@
             <div id="addNodeStep2" style="display:none;">
               <div style="margin-bottom:12px;font-size:0.75rem;color:#10b981;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;">✓ NODE REGISTERED — AWAITING APPROVAL</div>
               <div style="margin-bottom:6px;font-size:0.7rem;color:var(--dhq-text-dim,#aaa);font-family:'IBM Plex Mono',monospace;">NODE ID: <span id="addNodeResultId" style="color:#00ffff;"></span></div>
-              <div style="margin-bottom:12px;font-size:0.7rem;color:var(--dhq-text-dim,#aaa);font-family:'IBM Plex Mono',monospace;letter-spacing:1px;">RUN THIS ON THE TARGET MACHINE (PowerShell as Admin):</div>
+              <div id="addNodeStep2Instruction" style="margin-bottom:12px;font-size:0.7rem;color:var(--dhq-text-dim,#aaa);font-family:'IBM Plex Mono',monospace;letter-spacing:1px;">RUN THIS ON THE TARGET MACHINE (PowerShell as Admin):</div>
               <div style="position:relative;">
                 <textarea id="addNodeCommand" readonly rows="4"
                   style="width:100%;background:#050d0d;border:1px solid rgba(0,255,255,0.2);color:#a3e635;padding:10px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:0.72rem;line-height:1.5;resize:none;box-sizing:border-box;"></textarea>
@@ -822,11 +822,34 @@
       </div>
     </div>
     <script>
+    function updateAddNodeModal() {
+      const mode = (document.getElementById('addNodeDeployMode') || {}).value || 'starship';
+      const isOutpost = mode === 'starbase_outpost';
+      const hdr = document.getElementById('addNodeModalHeader');
+      if (hdr) {
+        const closeBtn = hdr.querySelector('span');
+        hdr.textContent = isOutpost ? 'ENLIST NEW OUTPOST NODE' : 'ENLIST NEW STARSHIP NODE';
+        if (closeBtn) hdr.appendChild(closeBtn);
+      }
+      // Step2 instruction reflects the OS/mode combination
+      const osEl = document.querySelector('input[name="addNodeOs"]:checked');
+      const os = osEl ? osEl.value : 'linux';
+      const instrEl = document.getElementById('addNodeStep2Instruction');
+      if (instrEl) {
+        if (isOutpost || os === 'linux') {
+          instrEl.textContent = 'RUN THIS ON THE TARGET MACHINE (bash as root / sudo):';
+        } else {
+          instrEl.textContent = 'RUN THIS ON THE TARGET MACHINE (PowerShell as Admin):';
+        }
+      }
+    }
     function openAddNodeModal() {
       document.getElementById('addNodeModal').style.display = 'flex';
       document.getElementById('addNodeStep1').style.display = 'block';
       document.getElementById('addNodeStep2').style.display = 'none';
       document.getElementById('addNodeName').value = '';
+      document.getElementById('addNodeDeployMode').value = 'starship';
+      updateAddNodeModal();
       document.getElementById('addNodeName').focus();
     }
     function closeAddNodeModal() {
@@ -848,6 +871,7 @@
         if (!data.success) throw new Error(data.error || 'Unknown error');
         document.getElementById('addNodeResultId').textContent = data.node_id;
         document.getElementById('addNodeCommand').value = os === 'windows' ? data.command_windows : data.command_linux;
+        updateAddNodeModal();
         document.getElementById('addNodeStep1').style.display = 'none';
         document.getElementById('addNodeStep2').style.display = 'block';
       } catch(e) {

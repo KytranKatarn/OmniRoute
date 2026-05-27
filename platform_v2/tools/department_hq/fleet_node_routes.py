@@ -3,6 +3,7 @@
 Admin node management (from Starbase) + user-facing node management (from Starship).
 """
 
+import base64
 import hashlib
 from hmac import compare_digest
 import json
@@ -172,7 +173,35 @@ def _generate_bash_installer(hub_url: str, node_id: str, token: str) -> str:
 
 
 def _generate_setup_ps1(hub_url: str, node_id: str, token: str, node_name: str) -> str:
-    """Return a self-contained PowerShell node setup script."""
+    """Return a self-contained PowerShell node setup script.
+
+    Reads deploy-node.ps1 from NODE_CLIENT_DIR and embeds it as base64 so the
+    generated script needs no hub connectivity to fetch the deployment logic.
+    Falls back to a runtime Invoke-WebRequest if the file is not on disk.
+    """
+    _node_client_dir = os.environ.get("NODE_CLIENT_DIR", "/mnt/archie_brain/node_client")
+    _ps1_path = os.path.join(_node_client_dir, "deploy-node.ps1")
+    try:
+        with open(_ps1_path, "rb") as _f:
+            _encoded = base64.b64encode(_f.read()).decode("ascii")
+        _embed_block = (
+            'Write-Host "Extracting embedded deploy script..." -ForegroundColor Cyan\n'
+            f'$EncodedScript = "{_encoded}"\n'
+            "[System.Text.Encoding]::UTF8.GetString("
+            "[System.Convert]::FromBase64String($EncodedScript)"
+            ') | Out-File -FilePath "deploy-node.ps1" -Encoding UTF8'
+        )
+    except (FileNotFoundError, IOError) as _err:
+        logging.warning(
+            "deploy-node.ps1 not found at %s (%s) — falling back to hub download in generated script",
+            _ps1_path,
+            _err,
+        )
+        _embed_block = (
+            'Write-Host "WARNING: Embedded script unavailable — downloading from hub..." -ForegroundColor Yellow\n'
+            'Invoke-WebRequest -Uri "$HubUrl/tools/department-hq/api/nodes/deploy-node.ps1" '
+            '-OutFile "deploy-node.ps1" -UseBasicParsing'
+        )
     return f"""# A.R.C.H.I.E. Starship Node — Auto Setup
 # Generated for: {node_name} ({node_id})
 $ErrorActionPreference = "Stop"
@@ -189,8 +218,7 @@ Write-Host "============================================" -ForegroundColor Cyan 
 if (-not (Test-Path $InstallDir)) {{ New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null }}
 Set-Location $InstallDir
 
-Write-Host "Downloading deploy script..." -ForegroundColor Cyan
-Invoke-WebRequest -Uri "$HubUrl/tools/department-hq/api/nodes/deploy-node.ps1" -OutFile "deploy-node.ps1" -UseBasicParsing
+{_embed_block}
 
 Write-Host "Running deployment..." -ForegroundColor Cyan
 Set-ExecutionPolicy Bypass -Scope Process -Force
@@ -236,6 +264,23 @@ def _generate_setup_sh(
     headscale_login_server = "https://mesh.kytranempowerment.com"
     safe_name = node_name.replace('"', "").replace("'", "")
     _is_outpost = deployment_mode in ("starbase_outpost", "outpost")
+
+    # For starship nodes: pre-load docker-compose.node.yml from disk and embed
+    # it as a bash heredoc in step 9 so the compose file is bundled in the
+    # setup script — no post-enrollment OTA fetch required (Fix T2930).
+    _compose_content = None
+    if not _is_outpost:
+        _node_client_dir = os.environ.get("NODE_CLIENT_DIR", "/mnt/archie_brain/node_client")
+        _compose_path = os.path.join(_node_client_dir, "docker-compose.node.yml")
+        try:
+            with open(_compose_path, "r") as _cf:
+                _compose_content = _cf.read().rstrip("\n")
+        except (FileNotFoundError, IOError) as _err:
+            logging.warning(
+                "docker-compose.node.yml not found at %s (%s) — starship step 9 will OTA download",
+                _compose_path,
+                _err,
+            )
 
     # Pre-compute step 9 bash block — outpost (VPS/CPU) vs starship (LAN/GPU).
     # Inference on these outpost nodes routes through department_dispatcher →
@@ -330,7 +375,38 @@ fi"""
   2. Node sends heartbeats every 60 s — status flips online automatically
   3. DHQ dispatcher will delegate agent work to this node"""
     else:
-        _step9 = r"""# ── 9. Download and start archie-node stack ────────────────────────────────
+        if _compose_content is not None:
+            # Embed docker-compose.node.yml as a quoted bash heredoc so the
+            # compose file is bundled in the script — no OTA curl needed.
+            # Quoted 'COMPOSE_EOF' preserves all ${VAR} refs for docker-compose.
+            _step9 = (
+                "# ── 9. Write and start archie-node stack"
+                " ────────────────────────────────\n"
+                'info "Step 9/9 — Writing archie-node stack files (compose embedded)..."\n'
+                "for FILE in Dockerfile.node node_api.py node_sync.py requirements.txt; do\n"
+                '  curl -fsSL "$HUB_URL/tools/department-hq/api/nodes/vps/$FILE" \\\n'
+                '    -o "$INSTALL_DIR/$FILE" --max-time 60 \\\n'
+                '    && ok "  $FILE" \\\n'
+                '    || warn "  $FILE — download failed (non-fatal, check mesh reachability)"\n'
+                "done\n"
+                "\n"
+                "# Write embedded docker-compose.yml (no OTA download required)\n"
+                "cat > \"$INSTALL_DIR/docker-compose.yml\" << 'COMPOSE_EOF'\n"
+                + _compose_content
+                + "\nCOMPOSE_EOF\n"
+                + 'ok "  docker-compose.yml (embedded)"\n'
+                + "\n"
+                + 'info "Starting archie-node stack..."\n'
+                + 'cd "$INSTALL_DIR"\n'
+                + "docker compose up -d --build \\\n"
+                + '  && ok "archie-node stack started" \\\n'
+                + '  || warn "Stack start failed — check: docker compose logs in $INSTALL_DIR"\n'
+                + "cd -"
+            )
+        else:
+            # Fallback: OTA download (original behaviour, used if compose file
+            # is not present in NODE_CLIENT_DIR on the hub at generation time).
+            _step9 = r"""# ── 9. Download and start archie-node stack ────────────────────────────────
 info "Step 9/9 — Downloading archie-node stack files from hub..."
 for FILE in Dockerfile.node node_api.py node_sync.py requirements.txt; do
   curl -fsSL "$HUB_URL/tools/department-hq/api/nodes/vps/$FILE" \
@@ -348,7 +424,7 @@ cd "$INSTALL_DIR"
 docker compose up -d --build \
   && ok "archie-node stack started" \
   || warn "Stack start failed — check: docker compose logs in $INSTALL_DIR"
-cd - """
+cd -"""
         _next_steps = """\
   1. Approve at https://platform.kytranempowerment.com
      → Department HQ → Fleet tab → approve this node

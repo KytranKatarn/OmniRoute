@@ -16,7 +16,7 @@
 param(
     [switch]$Fresh,
     [string]$NodeId,
-    [string]$HubUrl = "http://100.64.0.1:3000",
+    [string]$HubUrl = "http://100.64.0.4:3000",
     [string]$HubApiKey,
     [string]$DbPassword = "archie_node_default",
     [string]$InstallDir = "C:\archie-node"

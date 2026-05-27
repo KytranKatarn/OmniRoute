@@ -43,9 +43,16 @@ def _write_push_event(mailbox_id: int, count: int) -> None:
 def _idle_loop(mailbox_id: int, address: str, password: str) -> None:
     """Blocking IMAP IDLE loop for one mailbox. Reconnects forever on error."""
     username = address.split("@")[0]
+    # Stalwart mail uses a Let's Encrypt cert (for mail.kytranempowerment.com).
+    # The system CA bundle trusts Let's Encrypt, so CERT_REQUIRED works without
+    # any pinning file.  check_hostname stays False because we connect to the
+    # Docker-internal hostname "stalwart_mail", not the cert's CN — hostname
+    # verification would always fail here regardless of cert validity.
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
+    # CERT_REQUIRED is the default for create_default_context(); stated explicitly
+    # so the intent is obvious and a future reader cannot accidentally revert it.
+    ctx.verify_mode = ssl.CERT_REQUIRED
 
     while True:
         imap = None

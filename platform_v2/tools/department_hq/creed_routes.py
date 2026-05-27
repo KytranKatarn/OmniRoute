@@ -1459,6 +1459,35 @@ def register_creed_routes(bp, admin_required):
             logger.error("coordination-chain-detail %s: %s", chain_id, e)
             return jsonify({"success": False, "error": str(e)}), 500
 
+    # ── AIDA / Bill C-27 readiness (T3268) ───────────────────────────────────
+
+    @bp.route("/api/creed/v1/aida-readiness")
+    def aida_readiness_public():
+        """Public: AIDA / Bill C-27 readiness summary — no auth required."""
+        assessment = _build_aida_assessment()
+        return jsonify(
+            {
+                "success": True,
+                "bill": "C-27 (Artificial Intelligence and Data Act — AIDA, Part 3)",
+                "status": assessment["status"],
+                "overall_score": assessment["overall_score"],
+                "compliant_count": assessment["compliant_count"],
+                "partial_count": assessment["partial_count"],
+                "gap_count": assessment["gap_count"],
+                "key_compliant": assessment["key_compliant"],
+                "key_gaps": assessment["key_gaps"],
+                "last_assessed": assessment["last_assessed"],
+                "regulatory_note": assessment["regulatory_note"],
+            }
+        )
+
+    @bp.route("/api/creed/aida-assessment")
+    @admin_required
+    def aida_assessment_admin():
+        """Admin: full AIDA / Bill C-27 gap analysis with per-section scoring."""
+        assessment = _build_aida_assessment()
+        return jsonify({"success": True, **assessment})
+
 
 # ── Fleet agents ─────────────────────────────────────────────────────────────
 
@@ -3358,5 +3387,228 @@ def log_coordination_event(
                 )
         except Exception as e:
             logger.error("[safety] governance_audit_log insert chain=%s: %s", chain_id, e)
+
+
+# ── AIDA / Bill C-27 readiness helpers (T3268) ───────────────────────────────
+
+_AIDA_SECTIONS = [
+    {
+        "section": "s.5–6",
+        "title": "High-Impact AI System Classification",
+        "description": (
+            "Identify whether AI systems meet 'high-impact' criteria per AIDA "
+            "regulations (to be set by Governor in Council)."
+        ),
+        "status": "partial",
+        "evidence": [
+            "34 AI agents catalogued in Department HQ with worker_type, capabilities, and welfare state",
+            "C.R.E.E.D. agent welfare monitoring tracks all deployed AI systems",
+            "T3249 model cards published for transparency pillar",
+        ],
+        "gaps": [
+            "No formal 'high-impact' designation workflow pending Minister's forthcoming regulations",
+            "Classification criteria depend on final AIDA regulations (expected 2025-2026)",
+        ],
+        "weight": 10,
+        "score": 5,
+    },
+    {
+        "section": "s.7",
+        "title": "Risk Assessment",
+        "description": ("Conduct and document risk assessments before deployment of " "high-impact AI systems."),
+        "status": "partial",
+        "evidence": [
+            "T3275 coordination risk scoring (loop detection, depth escalation, cost escalation)",
+            "T3253 prompt injection detection at dispatch layer",
+            "governance_audit_log captures all risk events with event_category='safety'",
+        ],
+        "gaps": [
+            "No formal pre-deployment risk assessment document per AIDA s.7",
+            "Risk documentation not yet linked to deployment approval workflow",
+        ],
+        "weight": 15,
+        "score": 8,
+    },
+    {
+        "section": "s.8",
+        "title": "Mitigation Measures",
+        "description": ("Implement measures to mitigate identified risks of harm or " "biased output."),
+        "status": "partial",
+        "evidence": [
+            "K.I.N. welfare gate blocks dispatch when agent stress > 80%",
+            "T3275 agentic safety: outcome=blocked for loop_detected or depth≥8",
+            "Tier-2 human approval required for mass activation events (>5 agents)",
+            "T3255 agent consent fairness hook at dispatch layer",
+        ],
+        "gaps": [
+            "No formal mitigation register mapping risk → measure → verification",
+            "Prompt injection detection is non-blocking (flag + log only)",
+        ],
+        "weight": 15,
+        "score": 10,
+    },
+    {
+        "section": "s.9",
+        "title": "Human Oversight",
+        "description": ("Establish measures to ensure appropriate human oversight of " "high-impact AI systems."),
+        "status": "compliant",
+        "evidence": [
+            "Tier-2 human approval via Telegram for contractor dispatch and mass activation",
+            "Autonomy approval queue with approve/deny/escalate controls",
+            "All agent actions logged to task_execution_log with full audit trail",
+            "C.R.E.E.D. governance dashboard provides real-time oversight visibility",
+        ],
+        "gaps": [],
+        "weight": 15,
+        "score": 15,
+    },
+    {
+        "section": "s.10",
+        "title": "Monitoring for Anomalous Outcomes",
+        "description": ("Monitor the AI system for anomalous outcomes and take corrective " "action."),
+        "status": "compliant",
+        "evidence": [
+            "Agent welfare monitoring loop (stress, energy, fatigue) runs every 30 min",
+            "T3275 multi-agent coordination risk logging with real-time outcome tracking",
+            "governance_audit_log captures all flagged/blocked events",
+            "K.I.N. auto-rest at >80% capacity with Telegram alert",
+        ],
+        "gaps": [],
+        "weight": 10,
+        "score": 10,
+    },
+    {
+        "section": "s.11",
+        "title": "Record Keeping",
+        "description": (
+            "Maintain records of the AI system, risk assessments, mitigation " "measures, and monitoring results."
+        ),
+        "status": "compliant",
+        "evidence": [
+            "governance_audit_log: immutable audit trail for all governance events",
+            "task_execution_log: agent dispatch history with model, cost, duration",
+            "creed_coordination_chains: multi-agent coordination hop records (T3275)",
+            "creed_erasure_requests: GDPR/PIPEDA data subject request records (T3256)",
+        ],
+        "gaps": [],
+        "weight": 10,
+        "score": 10,
+    },
+    {
+        "section": "s.12–13",
+        "title": "Plain-Language Descriptions",
+        "description": ("Publish plain-language descriptions of high-impact AI systems " "available to the public."),
+        "status": "partial",
+        "evidence": [
+            "T3249 model cards published for all AI agents (transparency pillar)",
+            "Public ethics API at /api/creed/v1/score with SVG badge embed (T3259)",
+            "creed-ai.org standalone governance site publicly accessible",
+        ],
+        "gaps": [
+            "No per-system plain-language description formatted to AIDA s.12 requirements",
+            "Model cards exist but not surfaced at a public AIDA-designated disclosure endpoint",
+        ],
+        "weight": 10,
+        "score": 6,
+    },
+    {
+        "section": "s.14",
+        "title": "Bias and Discrimination Prevention",
+        "description": (
+            "Take measures to identify and mitigate risks of biased output "
+            "that could adversely affect individuals on protected grounds."
+        ),
+        "status": "partial",
+        "evidence": [
+            "T3255 agent consent framework with fairness pillar dispatch hook",
+            "C.R.E.E.D. CATEGORY_MAP tracks fairness as a scored ethics dimension",
+            "Welfare monitoring tracks mood and stress to prevent degraded-agent outputs",
+        ],
+        "gaps": [
+            "No formal bias audit process for model outputs against protected grounds",
+            "No demographic impact assessment for agent decisions",
+            "Fairness hook is non-blocking (flag + log, not hard stop)",
+        ],
+        "weight": 10,
+        "score": 5,
+    },
+    {
+        "section": "s.15",
+        "title": "Accountability Designation",
+        "description": (
+            "Designate a person responsible for ensuring compliance with AIDA "
+            "and maintain contact information available to the Minister."
+        ),
+        "status": "compliant",
+        "evidence": [
+            "Kytran Katarn (Kytran Empowerment Inc.) designated as responsible executive",
+            "A.R.C.H.I.E. (COO, Executive Office) oversees day-to-day AI governance",
+            "C.R.E.E.D. Ethics Roadmap 2026-2027 under active governance",
+        ],
+        "gaps": [],
+        "weight": 5,
+        "score": 5,
+    },
+    {
+        "section": "s.16–17",
+        "title": "Anomalous Outcome Reporting",
+        "description": (
+            "Notify the Minister of Innovation, Science and Industry (ISED) "
+            "of anomalous outcomes from high-impact AI systems."
+        ),
+        "status": "gap",
+        "evidence": [
+            "Anomalous outcomes logged internally to governance_audit_log",
+        ],
+        "gaps": [
+            "No formal mechanism to notify the Minister of ISED of anomalous outcomes",
+            "No regulatory contact process or reporting timeline established",
+            "Anomalous outcome definition pending final AIDA regulations",
+        ],
+        "weight": 5,
+        "score": 1,
+    },
+]
+
+
+def _build_aida_assessment() -> dict:
+    """Build the full AIDA / Bill C-27 readiness assessment.
+
+    Returns a dict with overall_score (0-100), per-section detail,
+    and plain-language gap summary.
+    """
+    total_weight = sum(s["weight"] for s in _AIDA_SECTIONS)
+    total_score = sum(s["score"] for s in _AIDA_SECTIONS)
+    overall_pct = round(total_score / total_weight * 100, 1) if total_weight else 0.0
+
+    compliant = [s for s in _AIDA_SECTIONS if s["status"] == "compliant"]
+    partial = [s for s in _AIDA_SECTIONS if s["status"] == "partial"]
+    gap = [s for s in _AIDA_SECTIONS if s["status"] == "gap"]
+
+    return {
+        "status": "partial",
+        "overall_score": overall_pct,
+        "compliant_count": len(compliant),
+        "partial_count": len(partial),
+        "gap_count": len(gap),
+        "key_compliant": [s["title"] for s in compliant],
+        "key_gaps": [
+            {
+                "section": s["section"],
+                "title": s["title"],
+                "gaps": s["gaps"],
+            }
+            for s in (partial + gap)
+            if s["gaps"]
+        ],
+        "sections": _AIDA_SECTIONS,
+        "last_assessed": "2026-05-26",
+        "regulatory_note": (
+            "Bill C-27 received Royal Assent for Parts 1–2 (CPPA + PTPTA). "
+            "Part 3 (AIDA) was tabled in 2022; final regulations are forthcoming. "
+            "Compliance targets are based on tabled bill text and the proposed "
+            "regulatory framework published by ISED."
+        ),
+    }
 
     return assessment

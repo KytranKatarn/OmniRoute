@@ -711,3 +711,20 @@
 .em-bulk-btn { padding: 5px 14px; border: 1px solid #22c55e; color: #22c55e; border-radius: 4px; font-size: 11px; cursor: pointer; background: transparent; }
 .em-bulk-btn:hover { opacity: .8; }
 .em-empty { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--archie-muted, #64748b); font-size: 13px; }
+
+/* ── Refresh button spin animation ───────────────────────────────────── */
+@keyframes em-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Toast notifications ─────────────────────────────────────────────── */
+.em-toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  padding: 10px 18px; border-radius: 6px; font-size: 12px; font-weight: 500;
+  opacity: 1; transition: opacity .4s ease;
+  max-width: 360px; pointer-events: none;
+}
+.em-toast--success { background: #0f2d1a; color: #22c55e; border: 1px solid #22c55e; }
+.em-toast--error   { background: #2d0f0f; color: #ef4444; border: 1px solid #ef4444; }
+.em-toast--info    { background: #0f1a2d; color: #7eb8f7; border: 1px solid #7eb8f7; }

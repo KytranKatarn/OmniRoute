@@ -345,6 +345,10 @@
     state.currentMailboxName = name;
     state.currentView = 'inbox';
     state.currentPage = 1;
+    // Clear read pane — old message should not persist across mailbox switches.
+    state.currentMessageId = null;
+    hide('em-read-content');
+    show('em-read-empty');
     setActiveNav(null, mailboxId);
     setText('em-list-context', name);
     var viewSel = el('em-view-select');
@@ -375,8 +379,14 @@
 
     api(path).then(function (d) {
       state.currentTotal = d.total || (d.messages || []).length;
-      renderMessageList(d.messages || []);
+      var messages = d.messages || [];
+      renderMessageList(messages);
       renderPagination(d.total, d.page, d.page_size);
+      // Auto-open the first message whenever the read pane is empty
+      // (e.g. after switching mailboxes). Skip if user already has one open.
+      if (messages.length && !state.currentMessageId) {
+        selectMessage(messages[0].id);
+      }
     }).catch(function () {
       while (list.firstChild) list.removeChild(list.firstChild);
       var err = document.createElement('div'); err.className = 'em-list-empty'; err.textContent = 'Failed to load'; list.appendChild(err);
@@ -1021,6 +1031,47 @@
     if (panel === 'read') workspace.classList.add('em-panel--read');
   }
 
+  // ── Toast notifications ───────────────────────────────────────────────
+  function showToast(msg, type) {
+    var t = document.createElement('div');
+    t.className = 'em-toast em-toast--' + (type || 'info');
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function () {
+      t.style.opacity = '0';
+      setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 400);
+    }, 3500);
+  }
+
+  // ── Manual bulk refresh ───────────────────────────────────────────────
+  function refreshAllMailboxes() {
+    var btn = el('em-refresh-btn');
+    var icon = el('em-refresh-icon');
+    if (btn && btn.dataset.syncing) return; // debounce — ignore double-clicks
+    if (btn) btn.dataset.syncing = '1';
+
+    // Spin the icon while running
+    if (icon) icon.style.animation = 'em-spin 1s linear infinite';
+
+    api('/api/email/sync/bulk', { method: 'POST' })
+      .then(function (d) {
+        loadSidebar();
+        loadCounts();
+        var msg = d.new_messages > 0
+          ? '↻ Synced ' + d.synced + ' mailbox' + (d.synced !== 1 ? 'es' : '') +
+            ' — ' + d.new_messages + ' new message' + (d.new_messages !== 1 ? 's' : '')
+          : '↻ All mailboxes up to date (' + d.synced + ' checked)';
+        showToast(msg, 'success');
+      })
+      .catch(function () {
+        showToast('Sync failed — check logs', 'error');
+      })
+      .finally(function () {
+        if (icon) icon.style.animation = '';
+        if (btn) delete btn.dataset.syncing;
+      });
+  }
+
   // ── Auto-refresh ──────────────────────────────────────────────────────
   function startRefresh() {
     state.refreshTimer = setInterval(function () { loadCounts(); loadSidebar(); }, 30000);
@@ -1053,6 +1104,7 @@
     wire('em-forward-btn', forwardMessage);
     wire('em-draft-reply-btn', draftReply);
     wire('em-provision-owner-btn', provisionOwner);
+    wire('em-refresh-btn', refreshAllMailboxes);
     wire('em-compose-open', function () { openCompose(); });
     wire('em-compose-close', closeCompose);
     wire('em-compose-cancel', closeCompose);

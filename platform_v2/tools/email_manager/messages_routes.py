@@ -479,6 +479,65 @@ def register_email_messages_routes(bp, admin_required):
         new_count = sync_single_mailbox_full(row["id"], row["address"], row["imap_password"])
         return jsonify({"success": True, "new_messages": new_count})
 
+    @bp.route("/api/email/sync/bulk", methods=["POST"])
+    @login_required
+    @access_required
+    def email_sync_bulk():
+        """Sync IMAP for the caller's visible mailboxes.
+
+        Admins:        full sync across all active provisioned mailboxes (same
+                       as the scheduled job — uses run_email_imap_sync()).
+        COLLABORATORs: their department + explicit-grant mailboxes only.
+
+        Returns JSON: {success, synced, new_messages, errors}
+        """
+        from .sync_jobs import run_email_imap_sync, sync_single_mailbox_full
+
+        visible = get_visible_mailbox_ids(current_user)
+
+        if visible is None:
+            # Admin fast path — delegate to the full sync job.
+            result = run_email_imap_sync()
+            return jsonify(
+                {
+                    "success": True,
+                    "synced": result["mailboxes"],
+                    "new_messages": result["new_messages"],
+                    "errors": result["errors"],
+                }
+            )
+
+        # COLLABORATOR: only their department + granted mailboxes.
+        if not visible:
+            return jsonify({"success": True, "synced": 0, "new_messages": 0, "errors": 0})
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT id, address, imap_password FROM email_mailboxes "
+                "WHERE id = ANY(%s) AND provisioned = TRUE AND active = TRUE"
+                " AND imap_password IS NOT NULL",
+                (visible,),
+            )
+            rows = cur.fetchall()
+
+        total_new = 0
+        errors = 0
+        for row in rows:
+            try:
+                total_new += sync_single_mailbox_full(row["id"], row["address"], row["imap_password"])
+            except Exception:
+                logger.exception("Bulk sync error for mailbox %s", row["address"])
+                errors += 1
+
+        return jsonify(
+            {
+                "success": True,
+                "synced": len(rows),
+                "new_messages": total_new,
+                "errors": errors,
+            }
+        )
+
     # ------------------------------------------------------------------
     # Thread view
     # ------------------------------------------------------------------

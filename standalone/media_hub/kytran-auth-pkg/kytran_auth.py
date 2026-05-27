@@ -217,8 +217,9 @@ class KytranAuth:
             except Exception as e:
                 return f"Userinfo error: {e}", 500
 
-            # Check entitlements — can be disabled per-product via env var
-            # (e.g. KYTRAN_AUTH_ENFORCE_ENTITLEMENT=false for family/open-access products)
+            # Check entitlements — can be disabled per-product via env var set in
+            # docker-compose.yml (container-level config, not user-controllable).
+            # E.g. KYTRAN_AUTH_ENFORCE_ENTITLEMENT=false for family/open-access products.
             _enforce = os.environ.get(
                 "KYTRAN_AUTH_ENFORCE_ENTITLEMENT", "true"
             ).lower() not in ("false", "0", "no")
@@ -232,7 +233,8 @@ class KytranAuth:
                     .replace("-pro", "")
                     .replace("-ai", "")
                 )
-                has_access = any(e.startswith(base) for e in entitlements)
+                # Exact membership check — not prefix match — to prevent unanchored bypass.
+                has_access = base in entitlements
                 _role = (userinfo.get("role") or "").lower()
                 if not has_access and _role not in ("admin", "super_admin"):
                     return (

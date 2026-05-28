@@ -2097,7 +2097,8 @@ def register_dashboard_routes(bp, auth_decorator):
             now_utc = datetime.now(timezone.utc)
 
             with get_db_cursor() as (_, cur):
-                # Per-agent dispatch stats from last 1 hour (WTF module sources).
+                # Per-agent dispatch stats from last 2 hours — ALL agents, all modules.
+                # Expanded from WTF-only to show full fleet activity (FLEET AGENT STATUS panel).
                 # CTE resolves fleet-agent-{id} fallback names via node_agents join.
                 cur.execute(
                     """
@@ -2112,7 +2113,8 @@ def register_dashboard_routes(bp, auth_decorator):
                             ) AS agent_name,
                             t.duration_ms,
                             t.created_at,
-                            t.node_used_id
+                            t.node_used_id,
+                            t.module_source
                         FROM task_execution_log t
                         LEFT JOIN node_agents na ON (
                             na.hub_agent_id = (CASE WHEN t.agent_name ~ '^fleet-agent-[0-9]+$'
@@ -2120,11 +2122,9 @@ def register_dashboard_routes(bp, auth_decorator):
                                                END)
                         )
                         LEFT JOIN agents a_na ON a_na.id = na.hub_agent_id
-                        WHERE t.created_at > NOW() - INTERVAL '1 hour'
-                          AND t.module_source IN ('wtf_hub', 'wtf_hub_quick',
-                                                  'wtf_dhq_llm', 'wtf_dhq_geo',
-                                                  'wtf_dhq_factcheck', 'wtf_dhq_scout')
+                        WHERE t.created_at > NOW() - INTERVAL '2 hours'
                           AND t.agent_name IS NOT NULL
+                          AND t.agent_name != ''
                     )
                     SELECT
                         agent_name,
@@ -2137,6 +2137,7 @@ def register_dashboard_routes(bp, auth_decorator):
                     FROM resolved
                     GROUP BY agent_name
                     ORDER BY calls_1h DESC
+                    LIMIT 25
                     """
                 )
                 agent_rows = cur.fetchall() or []

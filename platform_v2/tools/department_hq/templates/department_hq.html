@@ -530,10 +530,11 @@
       </div>
 
       <!-- CLUSTER SECTION: Cluster Activity + Queue/Models + WTF Status -->
-      <div id="armadaSection-cluster">
-
       <!-- Fleet Network Content: map + usage + providers. Moved into armadaSection-network on first open. -->
-      <div id="fleetNetworkContent">
+      <!-- Placed OUTSIDE armadaSection-cluster to prevent radar bleed-through into cluster tab. -->
+      <div id="fleetNetworkContent" style="display:none;">
+
+      <div id="armadaSection-cluster">
 
       <!-- Fleet Map -->
       <div class="dhq-dispatch-section">
@@ -629,18 +630,14 @@
         <div id="loadedModelsPanel" style="font-size:0.78rem;min-height:24px;"></div>
       </div>
 
-      <!-- WTF Agent Status — News & Media fleet pipeline (Project #350) -->
+      <!-- Fleet Agent Status — all active agents across fleet (expanded from WTF-only, Project #350) -->
       <div class="dhq-dispatch-section" id="wtfAgentStatusSection">
         <div class="dhq-section-title" style="color:#00ffff;">
-          WTF AGENT STATUS
-          <span id="wtfBacklogBadge" style="margin-left:8px;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--dhq-text-dim);">--</span>
+          FLEET AGENT STATUS
+          <span id="wtfBacklogBadge" style="margin-left:8px;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--dhq-text-dim);"></span>
           <button onclick="loadWtfAgentStatus()" style="float:right;background:none;border:1px solid rgba(0,255,255,0.3);color:#00ffff;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">↻ REFRESH</button>
         </div>
         <div id="wtfAgentPanel" style="font-size:0.78rem;min-height:32px;"></div>
-        <div style="margin-top:8px;height:4px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;">
-          <div id="wtfBacklogBar" style="height:100%;width:0%;background:linear-gradient(90deg,#00ffff,#0088aa);border-radius:2px;transition:width 0.5s;"></div>
-        </div>
-        <div id="wtfBacklogLabel" style="font-size:0.65rem;color:var(--dhq-text-dim);margin-top:4px;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;"></div>
       </div>
 
       <!-- Config Drawer (fixed-position overlay, accessible from any subtab) -->

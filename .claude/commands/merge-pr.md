@@ -134,8 +134,34 @@ git fetch origin && git reset --hard origin/main
 
 ---
 
+### Step 8: Queue documentation (MANDATORY — never skip)
+
+**Always queue documentation after every merge — even if there's no time to write it now.**
+C.O.D.E.X. processes it async via the fleet. Nothing gets lost.
+
+```python
+mcp__archie__delegate_task(
+    capability='documentation',
+    reason=f'Document PR #{PR_NUMBER}: {title} — store user-doc + coder-doc vault_notes in Consciousness KB',
+    delegation_source='claude',
+    args={
+        'pr_number': PR_NUMBER,
+        'pr_title': title,
+        'repo': repo,
+        'auto_store': True,
+    }
+)
+```
+
+This routes through DHQ → C.O.D.E.X. (Documentation & Knowledge dept) → best available fleet node (outpost nodes handle text work). C.O.D.E.X. reads the PR description + changed files → stores TWO vault_notes (user-doc + coder-doc) → Consciousness Knowledge tab.
+
+**Rule: NEVER skip this step. If no time to document now → queue it. The queue clears asynchronously via the fleet.**
+
+---
+
 ### Notes
 
 - **Claude (CLI)**: runs as implicit `claude` admin — tracked in Repair Bay by the `pr_review_service` layer
 - **A.R.C.H.I.E. Chat**: when F.O.R.G.E. overlay calls analyze/merge, it authenticates as `archie` (admin) via session auth — same pipeline, different principal
 - After merge, Repair Bay `sync_closed_prs()` will mark the PR closed on the next poll cycle (every 4h) or immediately via F.O.R.G.E. chat action
+- **Documentation**: Step 8 queues C.O.D.E.X. to store vault_notes for the PR. Check Consciousness → Knowledge tab to verify after ~5 minutes.

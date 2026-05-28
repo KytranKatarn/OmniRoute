@@ -416,12 +416,26 @@ def _do_request(title: str, media_type: str) -> Dict:
     except Exception as e:
         return {"ok": False, "message": f"Overseerr search failed: {e}"}
 
-    # Pick best match — "auto" takes the top result regardless of type
-    if media_type == "auto":
-        match = results[0] if results else None
-    else:
-        want = "tv" if media_type == "tv" else "movie"
-        match = next((x for x in results if x.get("mediaType") == want), None)
+    # Pick best match — ranked: exact title+type > exact title > correct type > first result
+    norm_query = search_query.strip().lower()
+    want = None if media_type == "auto" else ("tv" if media_type == "tv" else "movie")
+    match = None
+    # 1. Exact title match with correct type
+    for r in results:
+        r_title = (r.get("title") or r.get("name") or "").strip().lower()
+        if r_title == norm_query and (want is None or r.get("mediaType") == want):
+            match = r
+            break
+    # 2. Exact title match, any type
+    if not match:
+        for r in results:
+            if (r.get("title") or r.get("name") or "").strip().lower() == norm_query:
+                match = r
+                break
+    # 3. First result of correct type
+    if not match and want:
+        match = next((r for r in results if r.get("mediaType") == want), None)
+    # 4. First result (last resort)
     if not match:
         match = results[0] if results else None
     if not match:

@@ -3521,7 +3521,10 @@ function switchArmadaSection(s) {
         _armadaMounted.network = true;
         var networkTarget = document.getElementById('armadaSection-network');
         var networkSrc = document.getElementById('fleetNetworkContent');
-        if (networkTarget && networkSrc) networkTarget.appendChild(networkSrc);
+        if (networkTarget && networkSrc) {
+            networkTarget.appendChild(networkSrc);
+            networkSrc.style.display = '';  // clear display:none set in template to prevent cluster bleed
+        }
         // Leaflet only initialises once (guard: if (fleetMap) return).
         // If map was already init'd in cluster view, invalidate so it re-renders in new container.
         loadFleetData(); initFleetMap(); loadFleetUsage();

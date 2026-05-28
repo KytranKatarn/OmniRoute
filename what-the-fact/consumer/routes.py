@@ -773,7 +773,24 @@ def proxy_articles_geo():
     if province:
         where.append("a.province_code = :province"); params["province"] = province
     with _db().begin() as c:
-        rows = c.execute(text(f"""
+        # Aggregate province counts (no LIMIT — accurate totals for cluster circles)
+        prov_where = ["a.province_code IS NOT NULL", "a.lat IS NOT NULL"]
+        if beat and beat != "all":
+            prov_where.append("a.beat = :beat")
+        if province:
+            prov_where.append("a.province_code = :province")
+        prov_rows = c.execute(text(f"""
+            SELECT a.province_code, COUNT(*) AS cnt,
+                   MODE() WITHIN GROUP (ORDER BY b.band) AS dominant_band
+            FROM {S}.articles a
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE {' AND '.join(prov_where)}
+            GROUP BY a.province_code
+        """), params).mappings().all()
+        province_counts = {r["province_code"]: {"count": r["cnt"], "band": r["dominant_band"]} for r in prov_rows}
+
+        # Individual pins for article dots (limited for performance)
+        pin_rows = c.execute(text(f"""
             SELECT a.id, a.title, a.lat, a.lng, a.province_code, a.ai_analyzed,
                    s.name AS source_name, b.band AS bias_band
             FROM {S}.articles a
@@ -786,15 +803,17 @@ def proxy_articles_geo():
     import json as _json
     from flask import Response as _Resp
     return _Resp(
-        _json.dumps({"ok": True, "articles": [
-            {"id": r["id"], "title": r["title"],
-             "lat": float(r["lat"]), "lng": float(r["lng"]),
-             "province_code": r["province_code"],
-             "source_name": r["source_name"],
-             "bias_band": r["bias_band"],
-             "ai_analyzed": bool(r["ai_analyzed"])}
-            for r in rows
-        ]}),
+        _json.dumps({"ok": True,
+            "province_counts": province_counts,
+            "articles": [
+                {"id": r["id"], "title": r["title"],
+                 "lat": float(r["lat"]), "lng": float(r["lng"]),
+                 "province_code": r["province_code"],
+                 "source_name": r["source_name"],
+                 "bias_band": r["bias_band"],
+                 "ai_analyzed": bool(r["ai_analyzed"])}
+                for r in pin_rows
+            ]}),
         mimetype="application/json",
         headers={"Access-Control-Allow-Origin": "*"},
     )
@@ -2311,12 +2330,19 @@ def api_v1_articles():
         rows = c.execute(text(f"""
             SELECT a.id, a.title, a.url, a.published_at, a.province_code,
                    a.country_code, a.geo_scope, a.analysis_tier,
+                   a.ai_analyzed, a.cluster_id,
+                   sc.article_count AS cluster_size,
                    s.slug AS source_slug, s.name AS source_name,
                    s.bias_lean AS source_bias_lean,
-                   b.band AS bias_band, b.score AS bias_score
+                   b.band AS bias_band, b.score AS bias_score,
+                   (SELECT STRING_AGG(m.name, ', ' ORDER BY m.name)
+                    FROM {S}.article_mp_tags t
+                    JOIN parliament.mps m ON m.id = t.mp_id
+                    WHERE t.article_id = a.id) AS mp_mentions
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            LEFT JOIN {S}.story_clusters sc ON sc.id = a.cluster_id
             WHERE {where_clause}
             ORDER BY a.published_at DESC NULLS LAST
             LIMIT :limit OFFSET :offset
@@ -2340,6 +2366,10 @@ def api_v1_articles():
                         "country_code": r["country_code"],
                         "scope": r["geo_scope"]},
                 "analysis_tier": r["analysis_tier"],
+                "ai_analyzed": bool(r["ai_analyzed"]),
+                "cluster_id": r["cluster_id"],
+                "cluster_size": r["cluster_size"],
+                "mp_mentions": r["mp_mentions"],
             }
             for r in rows
         ],

@@ -219,6 +219,7 @@ var currentBeat = 'all';
 var currentProvince = null;
 var _lastMapData = null;
 var _lastGeo = null;
+var IS_SUBSCRIBER = {{ is_subscriber | tojson }};
 
 function esc(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -377,25 +378,18 @@ function loadArticlesGeo() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var articles = data.articles || [];
-      // Client-side province filter (fallback in case tech API doesn't support ?province=)
-      if (currentProvince) {
-        articles = articles.filter(function(a) { return a.province_code === currentProvince; });
-      }
+      // Province counts come from server aggregate (accurate totals, no LIMIT bias)
+      var provinceCounts = data.province_counts || {};
 
-      // Layer 2: Province cluster badges
+      // Layer 2: Province cluster badges (use aggregate counts)
       if (clusterLayer) map.removeLayer(clusterLayer);
       clusterLayer = L.layerGroup();
-      var provinceCounts = {};
-      articles.forEach(function(a) {
-        if (a.province_code) {
-          provinceCounts[a.province_code] = (provinceCounts[a.province_code] || 0) + 1;
-        }
-      });
       Object.keys(provinceCounts).forEach(function(pc) {
         var centroid = PROVINCE_CENTROIDS[pc];
         if (!centroid) return;
-        var count = provinceCounts[pc];
-        var radius = Math.min(6 + count * 0.4, 20);
+        var pcData = provinceCounts[pc];
+        var count = typeof pcData === 'object' ? pcData.count : pcData;
+        var radius = Math.min(6 + Math.sqrt(count) * 1.5, 20);
         var colour = PROVINCE_COLOURS[pc] || "#9ca3af";
         var circle = L.circleMarker(centroid, {
           pane: 'clusterPane',
@@ -405,15 +399,15 @@ function loadArticlesGeo() {
           color: "#ffffff",
           weight: 1.5,
         });
-        circle.bindTooltip(pc + " · " + count + " stories");
-        circle.on("click", function() { map.setView(centroid, 6); });
+        circle.bindTooltip(pc + " · " + count.toLocaleString() + " stories");
+        circle.on("click", function() { setProvince(pc); map.fitBounds(provinceLayer && (function(){ var b=null; provinceLayer.eachLayer(function(l){ if((PROVINCE_CODES[l.feature&&l.feature.properties&&l.feature.properties.name]||'')=== pc) b=l.getBounds(); }); return b; }()) || map.getBounds(), {padding:[20,20]}); });
         clusterLayer.addLayer(circle);
         var label = L.marker(centroid, {
           icon: L.divIcon({
-            html: "<div style='font-size:9px;font-family:monospace;color:#fff;text-align:center;line-height:1;margin-top:-3px;'>" + count + "</div>",
+            html: "<div style='font-size:9px;font-family:monospace;color:#fff;text-align:center;line-height:1;margin-top:-3px;'>" + count.toLocaleString() + "</div>",
             className: "",
-            iconSize: [20, 12],
-            iconAnchor: [10, 6],
+            iconSize: [28, 12],
+            iconAnchor: [14, 6],
           }),
           interactive: false,
         });
@@ -581,13 +575,25 @@ function loadArticleFeed() {
         return;
       }
       container.innerHTML = articles.map(function(a) {
-        var band = (a.bias_band || 'center').replace(/ /g,'-');
+        var band = ((a.bias && a.bias.band) || 'center').replace(/ /g,'-');
         var src = (a.source && a.source.name) ? esc(a.source.name) : '';
-        var prov = a.province_code ? ' &middot; ' + esc(a.province_code) : '';
+        var prov = (a.geo && a.geo.province_code) ? ' &middot; ' + esc(a.geo.province_code) : '';
+        var badges = '';
+        if (IS_SUBSCRIBER) {
+          if (a.ai_analyzed) badges += '<span class="wtf-card-badge wtf-badge-ai">AI Analyzed</span>';
+          if (a.cluster_size && a.cluster_size > 1) {
+            badges += '<a href="/cluster/' + parseInt(a.cluster_id) + '" class="wtf-card-badge" style="background:#0a2a3a;color:#0af;border:1px solid #0af3;text-decoration:none;" title="' + a.cluster_size + ' outlets covering this story">📰 ' + a.cluster_size + ' sources</a>';
+          }
+          if (a.mp_mentions) {
+            var mp = esc(a.mp_mentions.length > 40 ? a.mp_mentions.slice(0,40) + '…' : a.mp_mentions);
+            badges += '<span class="wtf-card-badge" style="background:#0a1a2a;color:#a78bfa;border:1px solid #4c1d9544;font-size:9px;" title="' + esc(a.mp_mentions) + '">🏛 ' + mp + '</span>';
+          }
+        }
         return '<div class="wtf-article-card wtf-article-card--' + esc(band) + '">' +
           '<div class="wtf-card-meta"><span>' + src + prov + '</span>' +
-          '<span class="wtf-bias-pill wtf-bias-' + esc(band) + '">' + band.toUpperCase() + '</span></div>' +
+          (IS_SUBSCRIBER ? '<span class="wtf-bias-pill wtf-bias-' + esc(band) + '">' + band.toUpperCase() + '</span>' : '') + '</div>' +
           '<a class="wtf-card-title" href="/article/' + a.id + '">' + esc(a.title) + '</a>' +
+          (badges ? '<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;">' + badges + '</div>' : '') +
           '</div>';
       }).join('');
     })

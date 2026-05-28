@@ -1,0 +1,219 @@
+suite:
+  name: "media-hub-standalone-smoke"
+  description: "Media Hub standalone (port 8105) — health, auth gates, M.A.V.E.N. routes, watchlist, preferences"
+  base_url: "http://192.168.1.200:8105"
+
+tests:
+  # ── Public surface ────────────────────────────────────────────────────────────
+  - name: "health endpoint"
+    type: api
+    method: GET
+    path: /health
+    skip_auth: true
+    expect:
+      status: [200]
+
+  - name: "home redirects or loads"
+    type: api
+    method: GET
+    path: /
+    skip_auth: true
+    expect:
+      status: [200, 302]
+
+  - name: "login page loads"
+    type: api
+    method: GET
+    path: /login
+    skip_auth: true
+    expect:
+      status: [200]
+
+  - name: "SSO login redirect"
+    type: api
+    method: GET
+    path: /auth/kytran/login
+    skip_auth: true
+    expect:
+      status: [200, 302]
+
+  - name: "assetlinks.json (TWA)"
+    type: api
+    method: GET
+    path: /.well-known/assetlinks.json
+    skip_auth: true
+    expect:
+      status: [200, 404]
+
+  - name: "agent page gated"
+    type: api
+    method: GET
+    path: /agent
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  # ── Auth API ──────────────────────────────────────────────────────────────────
+  - name: "me endpoint gated"
+    type: api
+    method: GET
+    path: /api/me
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403, 404]
+
+  - name: "unified alerts gated"
+    type: api
+    method: GET
+    path: /api/alerts/unified
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "ops summary dispatch gated"
+    type: api
+    method: GET
+    path: /tools/department-hq/api/dispatch/ops-summary
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  # ── Watchlist API ─────────────────────────────────────────────────────────────
+  - name: "watchlist GET gated"
+    type: api
+    method: GET
+    path: /api/watchlist
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  # ── Preferences API ───────────────────────────────────────────────────────────
+  - name: "preferences GET gated"
+    type: api
+    method: GET
+    path: /api/preferences
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  # ── M.A.V.E.N. HTML pages ─────────────────────────────────────────────────────
+  - name: "MAVEN troubleshoot page gated"
+    type: api
+    method: GET
+    path: /maven/troubleshoot
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "MAVEN discover page gated"
+    type: api
+    method: GET
+    path: /maven/discover
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "MAVEN upgrades page gated"
+    type: api
+    method: GET
+    path: /maven/upgrades
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "MAVEN duplicates page gated"
+    type: api
+    method: GET
+    path: /maven/duplicates
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "MAVEN chat page gated"
+    type: api
+    method: GET
+    path: /maven/chat
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "MAVEN series page gated"
+    type: api
+    method: GET
+    path: /maven/series
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  # ── M.A.V.E.N. JSON APIs ──────────────────────────────────────────────────────
+  - name: "MAVEN status API gated"
+    type: api
+    method: GET
+    path: /maven/api/status
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "MAVEN troubleshoot API gated"
+    type: api
+    method: GET
+    path: /maven/api/troubleshoot
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "MAVEN discover API gated"
+    type: api
+    method: GET
+    path: /maven/api/discover
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "MAVEN search API gated (no query)"
+    type: api
+    method: GET
+    path: /maven/api/search
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "MAVEN search API gated (with query)"
+    type: api
+    method: GET
+    path: /maven/api/search?q=test
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "MAVEN upgrades API gated"
+    type: api
+    method: GET
+    path: /maven/api/upgrades
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "MAVEN duplicates API gated"
+    type: api
+    method: GET
+    path: /maven/api/duplicates
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "MAVEN quality report API gated"
+    type: api
+    method: GET
+    path: /maven/api/quality-report
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]
+
+  - name: "MAVEN series API gated"
+    type: api
+    method: GET
+    path: /maven/api/series
+    skip_auth: true
+    expect:
+      status: [200, 302, 401, 403]

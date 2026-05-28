@@ -1,0 +1,62 @@
+{% extends "maven_base.html" %}
+{% block title %}Series{% endblock %}
+{% block content %}
+<h1>Series Completeness</h1>
+<p class="byline">
+    Episode file coverage across your Sonarr library — sorted least complete first.
+    Source: Sonarr <code>/api/v3/series</code>.
+</p>
+
+<div class="summary">
+    <span class="pill {{ 'ok' if report.complete_series == report.total_series else 'warning' }}">
+        {{ report.complete_series }} / {{ report.total_series }} complete
+    </span>
+    <span class="stat">
+        {{ report.total_episode_files }} / {{ report.total_episode_count }} episodes on disk
+        · {{ report.total_size_gb }} GB
+    </span>
+</div>
+
+{% if report.series %}
+<div style="margin-top:1.5rem;">
+{% for s in report.series %}
+<div class="card" style="margin-bottom:0.75rem;">
+    <div class="title-row" style="flex-wrap:wrap; gap:0.4rem;">
+        <span class="pill {{ 'ok' if s.percent >= 100 else ('warning' if s.percent >= 50 else 'danger') }}"
+              style="flex-shrink:0;">
+            {{ s.percent | int }}%
+        </span>
+        <h3 style="margin:0; font-size:1rem; flex:1;">{{ s.title }}</h3>
+        <span class="pill {{ 'ok' if s.status == 'ended' else 'info' }}"
+              style="flex-shrink:0; font-size:0.75rem;">
+            {{ s.status }}
+        </span>
+    </div>
+
+    {# Progress bar #}
+    <div style="margin:0.5rem 0 0.35rem; height:6px; background:var(--archie-surface-alt, #1e2230);
+                border-radius:3px; overflow:hidden;">
+        <div style="height:100%; width:{{ [s.percent, 100] | min }}%;
+                    background:{{ '#00c853' if s.percent >= 100 else ('#f59e0b' if s.percent >= 50 else '#ef4444') }};
+                    border-radius:3px; transition:width 0.3s;"></div>
+    </div>
+
+    <div class="detail" style="display:flex; gap:1rem; flex-wrap:wrap; font-size:0.82rem;">
+        <span>{{ s.episode_file_count }} / {{ s.episode_count }} episodes</span>
+        {% if s.total_episode_count > s.episode_count %}
+        <span class="dim">{{ s.total_episode_count - s.episode_count }} unaired</span>
+        {% endif %}
+        <span>{{ s.season_count }} season{{ 's' if s.season_count != 1 }}</span>
+        {% if s.size_gb %}
+        <span class="dim">{{ s.size_gb }} GB</span>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+</div>
+{% else %}
+<div class="card">
+    <div class="detail">No series found — is Sonarr configured under Services?</div>
+</div>
+{% endif %}
+{% endblock %}

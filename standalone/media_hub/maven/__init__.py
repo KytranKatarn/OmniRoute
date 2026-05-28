@@ -20,3 +20,4 @@ from . import recommendations # noqa: E402, F401
 from . import chat            # noqa: E402, F401
 from . import duplicates      # noqa: E402, F401
 from . import quality         # noqa: E402, F401
+from . import series          # noqa: E402, F401

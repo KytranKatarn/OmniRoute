@@ -530,11 +530,10 @@
       </div>
 
       <!-- CLUSTER SECTION: Cluster Activity + Queue/Models + WTF Status -->
-      <!-- Fleet Network Content: map + usage + providers. Moved into armadaSection-network on first open. -->
-      <!-- Placed OUTSIDE armadaSection-cluster to prevent radar bleed-through into cluster tab. -->
-      <div id="fleetNetworkContent" style="display:none;">
-
       <div id="armadaSection-cluster">
+
+      <!-- Fleet Network Content: map + usage + providers. Hidden until NETWORK tab opens. -->
+      <div id="fleetNetworkContent" style="display:none;">
 
       <!-- Fleet Map -->
       <div class="dhq-dispatch-section">
@@ -633,7 +632,7 @@
       <!-- Fleet Agent Status — all active agents across fleet (expanded from WTF-only, Project #350) -->
       <div class="dhq-dispatch-section" id="wtfAgentStatusSection">
         <div class="dhq-section-title" style="color:#00ffff;">
-          FLEET AGENT STATUS
+          AGENT STATUS
           <span id="wtfBacklogBadge" style="margin-left:8px;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--dhq-text-dim);"></span>
           <button onclick="loadWtfAgentStatus()" style="float:right;background:none;border:1px solid rgba(0,255,255,0.3);color:#00ffff;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">↻ REFRESH</button>
         </div>

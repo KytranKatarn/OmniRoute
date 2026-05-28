@@ -5,6 +5,20 @@
     .discover-card { cursor: pointer; transition: border-color 0.15s; }
     .discover-card:hover { border-color: var(--archie-blue, #3b82f6); }
 
+    /* Search bar */
+    .search-wrap { display:flex; gap:0.5rem; margin-bottom:2rem; }
+    .search-input { flex:1; background:var(--archie-bg-elevated,#1e293b);
+                    border:1px solid var(--archie-border-subtle,#334155); border-radius:10px;
+                    color:var(--archie-text-primary,#e2e8f0); padding:0.6rem 1rem;
+                    font-size:1rem; font-family:inherit; outline:none; }
+    .search-input:focus { border-color:var(--archie-blue,#3b82f6); }
+    .search-clear { background:var(--archie-bg-elevated,#1e293b);
+                    border:1px solid var(--archie-border-subtle,#334155); border-radius:10px;
+                    color:var(--archie-text-muted,#94a3b8); padding:0.6rem 0.9rem;
+                    cursor:pointer; font-size:0.95rem; display:none; }
+    .search-status { color:var(--archie-text-muted,#94a3b8); font-size:0.85rem;
+                     margin-bottom:1rem; min-height:1.2em; }
+
     /* Detail modal */
     .disc-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000;
                     display:flex; align-items:center; justify-content:center; padding:1rem; }
@@ -39,6 +53,23 @@
         <span class="dim" style="font-weight:400;">for {{ report.user.display_name or report.user.username }}</span>
     {% endif %}
 </h1>
+
+<div class="search-wrap">
+    <input id="searchInput" class="search-input" type="search"
+           placeholder="Search movies &amp; TV shows…" autocomplete="off"
+           oninput="onSearchInput(this.value)">
+    <button class="search-clear" id="searchClear" onclick="clearSearch()">✕</button>
+</div>
+<div class="search-status" id="searchStatus"></div>
+
+<!-- Search results (hidden when empty) -->
+<div id="searchResults" style="display:none">
+    <h2 style="margin:0 0 1rem;">Results</h2>
+    <div class="grid" id="searchGrid"></div>
+</div>
+
+<!-- Trending (hidden while searching) -->
+<div id="trendingSection">
 <p class="byline">{{ report.note }}</p>
 
 {% if report.movies %}
@@ -93,6 +124,7 @@
     </div>
 </div>
 {% endif %}
+</div>{# /trendingSection #}
 
 <!-- Detail modal -->
 <div id="discoverOverlay" class="disc-overlay" style="display:none" onclick="closeDiscover(event)">
@@ -115,11 +147,101 @@
 
 <script>
 let _discItem = {};
+let _searchTimer = null;
 
+// ── Search ───────────────────────────────────────────────────────────────────
+function onSearchInput(val) {
+    clearTimeout(_searchTimer);
+    const clear = document.getElementById('searchClear');
+    clear.style.display = val ? 'block' : 'none';
+    if (!val.trim()) { showTrending(); return; }
+    document.getElementById('searchStatus').textContent = 'Searching…';
+    _searchTimer = setTimeout(() => doSearch(val.trim()), 400);
+}
+
+function clearSearch() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('searchClear').style.display = 'none';
+    showTrending();
+}
+
+function showTrending() {
+    document.getElementById('searchResults').style.display = 'none';
+    document.getElementById('trendingSection').style.display = '';
+    document.getElementById('searchStatus').textContent = '';
+}
+
+async function doSearch(q) {
+    try {
+        const r = await fetch('/maven/api/search?q=' + encodeURIComponent(q));
+        const d = await r.json();
+        const results = d.results || [];
+        document.getElementById('searchStatus').textContent =
+            results.length ? results.length + ' result' + (results.length !== 1 ? 's' : '') : 'No results found.';
+        document.getElementById('trendingSection').style.display = 'none';
+        document.getElementById('searchResults').style.display = '';
+        const grid = document.getElementById('searchGrid');
+        grid.innerHTML = '';
+        results.forEach(function(item) {
+            grid.appendChild(makeCard(item));
+        });
+    } catch (e) {
+        document.getElementById('searchStatus').textContent = 'Search error — try again.';
+    }
+}
+
+function makeCard(item) {
+    const card = document.createElement('div');
+    card.className = 'card discover-card';
+    card.style.padding = '0.75rem';
+    card.onclick = function() {
+        openDiscover(item.tmdb_id, item.media_type, item.title, item.year,
+                     item.vote_average, item.poster, item.overview);
+    };
+    const posterDiv = document.createElement('div');
+    posterDiv.className = 'poster';
+    if (item.poster) posterDiv.style.backgroundImage = "url('https://image.tmdb.org/t/p/w342" + item.poster + "')";
+    card.appendChild(posterDiv);
+
+    const row = document.createElement('div');
+    row.className = 'title-row';
+    const h3 = document.createElement('h3');
+    h3.style.fontSize = '1rem';
+    h3.textContent = item.title + (item.year ? ' (' + item.year + ')' : '');
+    row.appendChild(h3);
+
+    // Already-requested badge
+    if (item.request_status) {
+        const pill = document.createElement('span');
+        pill.className = 'pill ok';
+        pill.style.fontSize = '0.7rem';
+        pill.textContent = item.request_status;
+        row.appendChild(pill);
+    }
+    card.appendChild(row);
+
+    if (item.vote_average) {
+        const stat = document.createElement('div');
+        stat.className = 'stat';
+        stat.textContent = '⭐ ' + item.vote_average.toFixed(1);
+        card.appendChild(stat);
+    }
+    if (item.overview) {
+        const det = document.createElement('div');
+        det.className = 'detail';
+        det.style.fontSize = '0.85rem';
+        det.style.marginTop = '0.4rem';
+        det.textContent = item.overview.length > 120 ? item.overview.slice(0, 120) + '…' : item.overview;
+        card.appendChild(det);
+    }
+    return card;
+}
+
+// ── Modal ────────────────────────────────────────────────────────────────────
 function openDiscover(tmdb_id, media_type, title, year, rating, poster, overview) {
     _discItem = { tmdb_id, media_type, title, year, rating, poster, overview };
     document.getElementById('discTitle').textContent = title + (year ? ' (' + year + ')' : '');
-    document.getElementById('discMeta').textContent = (rating ? '⭐ ' + rating.toFixed(1) : '') +
+    document.getElementById('discMeta').textContent = (rating ? '⭐ ' + Number(rating).toFixed(1) : '') +
         (media_type === 'tv' ? '  ·  TV Series' : '  ·  Movie');
     document.getElementById('discOverview').textContent = overview || 'No overview available.';
     const posterEl = document.getElementById('discPoster');
@@ -140,7 +262,7 @@ async function requestDiscover() {
     btn.disabled = true;
     btn.textContent = 'Requesting…';
     try {
-        const r = await fetch('/tools/media-hub/api/requests', {
+        const r = await fetch('/maven/api/request', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({media_type: _discItem.media_type, tmdb_id: _discItem.tmdb_id})

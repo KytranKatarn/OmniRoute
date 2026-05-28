@@ -20,13 +20,25 @@ import logging
 from typing import Dict, List, Optional
 
 import requests
-from flask import jsonify, render_template
+from flask import jsonify, render_template, request
 from flask_login import current_user, login_required
 
 from . import maven_bp
 from .troubleshoot import _decrypt_key, _rows_for_type
 
 log = logging.getLogger("media_hub.maven.recommendations")
+
+
+def _overseerr_client():
+    """Return (scheme, host, port, key) for the first Overseerr/Jellyseerr, or None."""
+    rows = _rows_for_type("overseerr", "jellyseerr")
+    if not rows:
+        return None
+    sid, stype, name, host, port, use_ssl, enc, *_ = rows[0]
+    key = _decrypt_key(enc)
+    if not key:
+        return None
+    return ("https" if use_ssl else "http"), host, port, key
 
 
 def _overseerr_discover(path: str, limit: int = 20) -> List[Dict]:
@@ -143,3 +155,58 @@ def api_discover():
 def discover_page():
     report = run_discover()
     return render_template("maven_discover.html", report=report)
+
+
+@maven_bp.route("/api/search")
+@login_required
+def api_search():
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 2:
+        return jsonify({"results": []})
+    client = _overseerr_client()
+    if not client:
+        return jsonify({"results": [], "error": "Overseerr not configured"})
+    scheme, host, port, key = client
+    url = f"{scheme}://{host}:{port}/api/v1/search"
+    try:
+        r = requests.get(url, headers={"X-Api-Key": key},
+                         params={"query": q, "page": 1}, timeout=10)
+        if r.status_code != 200:
+            return jsonify({"results": [], "error": f"HTTP {r.status_code}"})
+        results = []
+        for item in r.json().get("results", [])[:20]:
+            mt = item.get("mediaType", "movie")
+            if mt not in ("movie", "tv"):
+                continue
+            results.append(_shape(item, mt))
+        return jsonify({"results": results})
+    except Exception as e:
+        log.exception("search error: %s", e)
+        return jsonify({"results": [], "error": str(e)})
+
+
+@maven_bp.route("/api/request", methods=["POST"])
+@login_required
+def api_request():
+    data = request.get_json(force=True) or {}
+    media_type = data.get("media_type") or data.get("mediaType")
+    tmdb_id = data.get("tmdb_id") or data.get("mediaId")
+    if media_type not in ("movie", "tv") or not tmdb_id:
+        return jsonify({"success": False, "error": "Invalid params"}), 400
+    client = _overseerr_client()
+    if not client:
+        return jsonify({"success": False, "error": "Overseerr not configured"}), 503
+    scheme, host, port, key = client
+    url = f"{scheme}://{host}:{port}/api/v1/request"
+    payload: dict = {"mediaType": media_type, "mediaId": int(tmdb_id)}
+    if media_type == "tv":
+        payload["seasons"] = "all"
+    try:
+        r = requests.post(url, headers={"X-Api-Key": key}, json=payload, timeout=15)
+        if r.status_code in (200, 201):
+            return jsonify({"success": True})
+        msg = (r.json().get("message") if r.content else None) or f"HTTP {r.status_code}"
+        return jsonify({"success": False, "error": msg}), 400
+    except Exception as e:
+        log.exception("request error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500

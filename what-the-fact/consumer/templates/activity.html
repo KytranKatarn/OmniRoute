@@ -164,24 +164,23 @@
     {% for label, count, color, hint in [
       ('Pending',              stats.tier_pending,          '#6b7280', 'awaiting first-pass analysis'),
       ('Tier 1 only (quick)',  stats.tier_quick_v1,         '#3b82f6', 'fast triage — band/claims/geo via qwen2.5:1.5b'),
-      ('Tier 1 + Full',        stats.tier_quick_v1_full,    '#10b981', 'gated to deep review — rationale + verdicts + sources'),
-      ('Tier 1 failed',        stats.tier_quick_v1_failed,  '#ef4444', 'tier-1 dispatch failed'),
+      ('Tier 1 + Full',        stats.tier_quick_v1_full,    '#10b981', 'deep review complete — rationale + verdicts + sources'),
+      ('Tier 2 pending',       stats.tier2_pending_count,   '#f59e0b', 'qualified for deep review — awaiting Tier-2 dispatch'),
+      ('Tier 2 failed',        stats.tier2_failed,          '#ef4444', 'deep review dispatch failed — will retry'),
+      ('Tier 1 failed',        stats.tier_quick_v1_failed,  '#7f1d1d', 'tier-1 dispatch failed'),
     ] %}
+    {% if count %}
     {% set pct = ((count / tier_total * 100) | int) if tier_total else 0 %}
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:0.7rem;color:#9ca3af;">
       <div style="width:160px;flex-shrink:0;">{{ label }}</div>
       <div style="flex:1;background:#060d14;border-radius:2px;height:14px;min-width:80px;">
-        <div style="background:{{ color }};height:14px;border-radius:2px;width:{{ pct }}%;"></div>
+        <div style="background:{{ color }};height:14px;border-radius:2px;width:{{ [pct, 2] | max }}%;"></div>
       </div>
       <div style="width:60px;text-align:right;color:#e0e0e0;">{{ "{:,}".format(count or 0) }}</div>
       <div style="width:200px;color:#6b7280;font-size:0.6rem;">{{ hint }}</div>
     </div>
-    {% endfor %}
-    {% if stats.tier2_pending_count and stats.tier2_pending_count > 0 %}
-    <div style="margin-top:8px;padding-top:8px;border-top:1px dashed #1a2a3a;font-size:0.65rem;color:#f59e0b;">
-      ⏳ {{ "{:,}".format(stats.tier2_pending_count) }} article(s) awaiting Tier-2 upgrade (hub rate-limited or transiently failed)
-    </div>
     {% endif %}
+    {% endfor %}
   </div>
 
   <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:20px;">

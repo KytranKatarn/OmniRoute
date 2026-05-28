@@ -240,8 +240,8 @@ class OverseerrClient(RequestServiceInterface):
         overseerr_type = "tv" if media_type == "show" else media_type
         data = {"mediaType": overseerr_type, "mediaId": tmdb_id}
 
-        if overseerr_type == "tv" and seasons:
-            data["seasons"] = seasons
+        if overseerr_type == "tv":
+            data["seasons"] = seasons if seasons else "all"
 
         result = self._request("/request", method="POST", json_data=data)
         return result if result else {"success": False, "error": "Request failed"}

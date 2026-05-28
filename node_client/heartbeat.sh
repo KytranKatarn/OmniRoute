@@ -310,6 +310,21 @@ while true; do
     hw_gpu_model=$(get_gpu_model_name)
     hw_gpu_vram_gb=$(get_gpu_vram_gb)
 
+    # OS detection — works from inside Docker container
+    # WSL2/Docker Desktop on Windows exposes "microsoft" in /proc/version
+    if grep -qi "microsoft\|wsl" /proc/version 2>/dev/null; then
+        hw_os_type="windows"
+        hw_os_name="Windows (Docker Desktop)"
+    elif [ -f /etc/os-release ]; then
+        hw_os_type=$(grep '^ID=' /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"')
+        hw_os_name=$(grep '^PRETTY_NAME=' /etc/os-release 2>/dev/null | cut -d= -f2- | tr -d '"')
+        [ -z "$hw_os_type" ] && hw_os_type="linux"
+        [ -z "$hw_os_name" ] && hw_os_name="Linux"
+    else
+        hw_os_type="linux"
+        hw_os_name="Linux"
+    fi
+
     # Build JSON payload
     payload=$(jq -n \
         --arg status "online" \
@@ -326,6 +341,8 @@ while true; do
         --arg hw_ram_gb "$hw_ram_gb" \
         --arg hw_gpu_model "$hw_gpu_model" \
         --arg hw_gpu_vram_gb "$hw_gpu_vram_gb" \
+        --arg hw_os_type "$hw_os_type" \
+        --arg hw_os_name "$hw_os_name" \
         '{
             status: $status,
             current_load: ($cpu | tonumber),
@@ -340,6 +357,8 @@ while true; do
             ram_gb: (if $hw_ram_gb == "null" then null else ($hw_ram_gb | tonumber) end),
             gpu_model: (if $hw_gpu_model == "null" then null else $hw_gpu_model end),
             gpu_vram_gb: (if $hw_gpu_vram_gb == "null" then null else ($hw_gpu_vram_gb | tonumber) end),
+            os_type: $hw_os_type,
+            os_name: $hw_os_name,
             details: {
                 uptime: $uptime,
                 hostname: $hname

@@ -1794,6 +1794,25 @@ def register_node_routes(bp, login_required, admin_required):
                     ),
                 )
 
+                # Persist OS info into extra_capabilities when provided
+                os_type = data.get("os_type", "")
+                os_name = data.get("os_name", "")
+                if os_type:
+                    import json as _json
+
+                    cur.execute(
+                        """
+                        UPDATE remote_nodes
+                        SET extra_capabilities = COALESCE(extra_capabilities, '{}'::jsonb)
+                            || %s::jsonb
+                        WHERE id = %s
+                        """,
+                        (
+                            _json.dumps({"os": os_type, "os_name": os_name}),
+                            node["id"],
+                        ),
+                    )
+
                 # Log heartbeat
                 cur.execute(
                     """

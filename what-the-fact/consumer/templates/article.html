@@ -274,7 +274,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
         </div>
         {% elif a.overall_verdict == 'unverifiable' %}
         <div style="font-size:10px;color:#6b7280;margin-top:4px;line-height:1.5;">
-          No independently verifiable claims were detected in this article. This may indicate descriptive reporting without specific assertions.
+          V.E.R.I.F.Y. found no specific factual claims to check — no statistics, attributed quotes, or verifiable assertions were detected. This is common in market summaries, breaking news dispatches, and syndicated wire copy. It does <em style="color:#9ca3af;">not</em> indicate the article is inaccurate.
         </div>
         {% endif %}
       </div>
@@ -717,10 +717,21 @@ async function wtfSubmitFlag(flagType) {
 (function() {
   var title = {{ a.title | tojson }};
   if (!title) return;
+  // Only show tenders with meaningful keyword overlap (prevent generic word matches)
+  var _stopW = new Set(['the','a','an','in','on','at','to','for','of','and','or','with','by','from','is','are','was','were','be','been','have','has','had','this','that','these','those','its','their','they','we','our','will','could','would','keep','make','says','said','amid','amid','over','some','been','were','into','than','more']);
+  var _titleKws = title.toLowerCase().split(/\W+/).filter(function(w){ return w.length > 4 && !_stopW.has(w); });
+
   fetch('/api/cross-watch/procurement?title=' + encodeURIComponent(title))
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (!d || !d.count || !d.tenders || !d.tenders.length) return;
+      // Filter to tenders that share at least 1 meaningful keyword with the article title
+      var relevant = d.tenders.filter(function(t) {
+        var txt = ((t.headline || '') + ' ' + (t.entity_name || '')).toLowerCase();
+        return _titleKws.some(function(kw){ return txt.includes(kw); });
+      });
+      if (!relevant.length) return;
+      d.tenders = relevant;
       var section = document.getElementById('wtf-tenders-section');
       var ul = document.getElementById('wtf-tenders-list');
       if (!section || !ul) return;

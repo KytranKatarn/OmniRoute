@@ -4,11 +4,11 @@
 :root {
   --wtf-bg: #0a0a12;
   --wtf-accent: #0af;
-  --wtf-left: #3b82f6;
-  --wtf-center-left: #93c5fd;
-  --wtf-center: #9ca3af;
-  --wtf-center-right: #fca5a5;
-  --wtf-right: #ef4444;
+  --wtf-left: #dc2626;
+  --wtf-center-left: #f97316;
+  --wtf-center: #22c55e;
+  --wtf-center-right: #0ea5e9;
+  --wtf-right: #2563eb;
 }
 body { background: var(--wtf-bg); color: #e0e0e0; font-family: 'IBM Plex Mono', monospace, sans-serif; margin: 0; }
 #wtf-map-zone { background: #050d1a; padding: 12px; border-bottom: 1px solid #112233; }
@@ -36,11 +36,11 @@ body { background: var(--wtf-bg); color: #e0e0e0; font-family: 'IBM Plex Mono', 
 .wtf-badge-ai { background: #0a2a1a; color: #4a9; }
 .wtf-badge-quick { background: #1a1a0a; color: #aa9; }
 .wtf-bias-pill { font-size: 9px; padding: 2px 6px; border-radius: 2px; }
-.wtf-bias-left { background: #0a1a40; color: var(--wtf-left); }
-.wtf-bias-center-left { background: #0a1530; color: var(--wtf-center-left); }
-.wtf-bias-center { background: #1a1a1a; color: var(--wtf-center); }
-.wtf-bias-center-right { background: #2a1010; color: var(--wtf-center-right); }
-.wtf-bias-right { background: #2a0a0a; color: var(--wtf-right); }
+.wtf-bias-left { background: #2d0a0a; color: var(--wtf-left); }
+.wtf-bias-center-left { background: #2d1100; color: var(--wtf-center-left); }
+.wtf-bias-center { background: #0a2010; color: var(--wtf-center); }
+.wtf-bias-center-right { background: #062030; color: var(--wtf-center-right); }
+.wtf-bias-right { background: #0a1540; color: var(--wtf-right); }
 .wtf-map-toggle { display:flex; gap:6px; }
 .wtf-map-btn { font-family:inherit; font-size:9px; letter-spacing:2px; padding:4px 10px; border-radius:2px; border:1px solid #1a3a5a; background:#050d1a; color:#6b7280; cursor:pointer; text-transform:uppercase; }
 .wtf-map-btn.active { background:#0a1f3a; color:var(--wtf-accent); border-color:var(--wtf-accent); }
@@ -195,8 +195,8 @@ var PROVINCE_CODES = {
   "Saskatchewan":"SK","Yukon":"YT","Yukon Territory":"YT"
 };
 var BIAS_COLOURS = {
-  "left":"#3b82f6","center-left":"#93c5fd","center":"#9ca3af",
-  "center-right":"#fca5a5","right":"#ef4444"
+  "left":"#dc2626","center-left":"#f97316","center":"#22c55e",
+  "center-right":"#0ea5e9","right":"#2563eb"
 };
 
 var map = L.map("wtf-canada-map", {

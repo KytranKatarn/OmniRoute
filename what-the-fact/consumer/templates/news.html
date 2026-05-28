@@ -18,8 +18,8 @@
     {% set lean = s.bias_lean or s.bias_band or 'center' %}
     {% set lean_cls = lean | replace(' ', '-') | lower %}
     {% set colors = {
-      'left': '#3b82f6', 'center-left': '#93c5fd',
-      'center': '#6b7280', 'center-right': '#fca5a5', 'right': '#ef4444'
+      'left': '#3b82f6', 'center-left': '#f97316',
+      'center': '#6b7280', 'center-right': '#0ea5e9', 'right': '#ef4444'
     } %}
     {% set col = colors.get(lean_cls, '#6b7280') %}
     <div style="text-align:center;min-width:72px;cursor:pointer;"
@@ -54,7 +54,7 @@
       {{ total }} articles &middot; page {{ page }} / {{ total_pages }}
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;">
-      {% set bands = [('all','All',''),('left','Left','#3b82f6'),('center-left','Ctr-Left','#93c5fd'),('center','Center',''),('center-right','Ctr-Right','#fca5a5'),('right','Right','#ef4444')] %}
+      {% set bands = [('all','All',''),('left','Left','#3b82f6'),('center-left','Ctr-Left','#f97316'),('center','Center',''),('center-right','Ctr-Right','#0ea5e9'),('right','Right','#ef4444')] %}
       {% for val, label, col in bands %}
       <a href="/news?band={{ val }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page=1"
          class="wtf-act-filter {% if band_filter == val %}wtf-act-filter--active{% endif %}"

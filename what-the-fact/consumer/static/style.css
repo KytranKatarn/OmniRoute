@@ -11,11 +11,11 @@
   --wtf-accent:       #dc2626;
   --wtf-map-bg:       #0d1117;
 
-  --wtf-left:         #3b82f6;
-  --wtf-center-left:  #93c5fd;
-  --wtf-center:       #9ca3af;
-  --wtf-center-right: #fca5a5;
-  --wtf-right:        #ef4444;
+  --wtf-left:         #dc2626;
+  --wtf-center-left:  #f97316;
+  --wtf-center:       #22c55e;
+  --wtf-center-right: #0ea5e9;
+  --wtf-right:        #2563eb;
 
   --wtf-fact:    #dc2626;
   --wtf-bias:    #f59e0b;
@@ -397,11 +397,11 @@ a { color: inherit; }
   padding: 2px 6px;
   border-radius: 2px;
 }
-.wtf-bias-left        { background: #0a1a40; color: var(--wtf-left); }
-.wtf-bias-center-left { background: #0a1530; color: var(--wtf-center-left); }
-.wtf-bias-center      { background: var(--wtf-bg-panel); color: var(--wtf-center); }
-.wtf-bias-center-right{ background: #2a1010; color: var(--wtf-center-right); }
-.wtf-bias-right       { background: #2a0a0a; color: var(--wtf-right); }
+.wtf-bias-left        { background: #2d0a0a; color: var(--wtf-left); }
+.wtf-bias-center-left { background: #2d1100; color: var(--wtf-center-left); }
+.wtf-bias-center      { background: #0a2010; color: var(--wtf-center); }
+.wtf-bias-center-right{ background: #062030; color: var(--wtf-center-right); }
+.wtf-bias-right       { background: #0a1540; color: var(--wtf-right); }
 
 /* Team page */
 .wtf-team-hero {

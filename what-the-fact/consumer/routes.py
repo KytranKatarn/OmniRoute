@@ -1397,6 +1397,7 @@ def cluster_comparison(cluster_id: int):
             SELECT a.id, a.title, a.url, a.published_at,
                    LEFT(a.body, 400) AS excerpt,
                    s.name AS source_name, s.slug AS source_slug, s.bias_lean,
+                   s.language AS source_language,
                    b.band AS bias_band, b.score AS bias_score,
                    b.rationale AS bias_rationale, b.analyzed_by,
                    fc.overall_verdict, fc.analyzed_by AS fc_analyzed_by

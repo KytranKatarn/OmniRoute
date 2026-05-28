@@ -11,11 +11,11 @@
 {% block content %}
 
 {% set BAND_COLOURS = {
-  'left': '#ef4444',
+  'left': '#dc2626',
   'center-left': '#f97316',
   'center': '#22c55e',
-  'center-right': '#3b82f6',
-  'right': '#8b5cf6'
+  'center-right': '#0ea5e9',
+  'right': '#2563eb'
 } %}
 {% set VERDICT_COLOURS = {
   'verified': '#22c55e',
@@ -50,9 +50,11 @@
 .wtf-cluster-card-date { font-size: 10px; color: #4b5563; }
 .wtf-cluster-card-link { font-size: 11px; color: #0af; text-decoration: none; margin-top: auto; }
 .wtf-cluster-card-link:hover { text-decoration: underline; }
-.wtf-bias-bar-mini { height: 4px; border-radius: 2px; background: linear-gradient(to right,#ef4444,#6b7280,#8b5cf6); position: relative; margin: 4px 0; }
+.wtf-bias-bar-mini { height: 4px; border-radius: 2px; background: linear-gradient(to right,#dc2626,#f97316,#22c55e,#0ea5e9,#2563eb); position: relative; margin: 4px 0; }
 .wtf-bias-dot { position: absolute; top: -3px; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid #060d14; transform: translateX(-50%); }
 @media (max-width: 600px) { .wtf-cluster-grid { grid-template-columns: 1fr; } }
+.wtf-cluster-grid > *:last-child:nth-child(odd) { grid-column: 1 / -1; max-width: 420px; }
+.wtf-lang-badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; background: #0a1a2a; color: #6b7280; border: 1px solid #1a3a5a; }
 /* AI Summary box */
 .wtf-cluster-summary { background: #060d14; border: 1px solid #1a3a5a; border-left: 3px solid #22c55e; border-radius: 4px; padding: 14px 16px; margin-bottom: 16px; }
 /* Coverage section */
@@ -76,20 +78,28 @@
     &nbsp;·&nbsp; {{ distinct_source_count }} outlet{{ 's' if distinct_source_count != 1 else '' }} · Story cluster #{{ cluster.id }}
   </div>
   <h1 class="wtf-cluster-title">{{ cluster.representative_title or 'Story Cluster' }}</h1>
-  <div class="wtf-cluster-meta">How different outlets framed the same story — bias, verdict, and framing side by side.</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:6px;">
+    <div class="wtf-cluster-meta">How different outlets framed the same story — bias, verdict, and framing side by side.</div>
+    <button onclick="navigator.clipboard.writeText(window.location.href).then(function(){this.textContent='✓ Copied!';setTimeout(function(){document.querySelector('[data-share]').textContent='Share comparison ↗';},2000)}.bind(this))" data-share style="background:none;border:1px solid #1a3a5a;color:#6b7280;font-size:10px;padding:3px 10px;border-radius:3px;cursor:pointer;font-family:inherit;white-space:nowrap;">Share comparison ↗</button>
+  </div>
 </div>
 
 <!-- ── AI SUMMARY ─────────────────────────────────────────────────── -->
-{% if cluster_summary and (cluster_summary.headline or cluster_summary.brief) %}
+{% if cluster_summary %}
+{% set _brief = cluster_summary.brief or '' %}
+{% set _headline = cluster_summary.headline or '' %}
+{% set _brief_ok = _brief|length > 80 and _brief != _headline and _brief[:40] != _headline[:40] %}
+{% if _brief_ok or (_headline and _headline|length > 20 and _headline != cluster.representative_title) %}
 <div class="wtf-cluster-summary">
   <div style="font-size:10px;color:#22c55e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">🤖 D.R.A.F.T. Summary</div>
-  {% if cluster_summary.headline %}
-  <div style="font-size:13px;color:#e5e7eb;font-weight:600;line-height:1.5;margin-bottom:4px;">{{ cluster_summary.headline }}</div>
+  {% if _headline and _headline != cluster.representative_title %}
+  <div style="font-size:13px;color:#e5e7eb;font-weight:600;line-height:1.5;margin-bottom:4px;">{{ _headline }}</div>
   {% endif %}
-  {% if cluster_summary.brief %}
-  <div style="font-size:12px;color:#9ca3af;line-height:1.6;">{{ cluster_summary.brief }}</div>
+  {% if _brief_ok %}
+  <div style="font-size:12px;color:#9ca3af;line-height:1.6;">{{ _brief }}</div>
   {% endif %}
 </div>
+{% endif %}
 {% endif %}
 
 <!-- ── COVERAGE SECTION ───────────────────────────────────────────── -->
@@ -157,6 +167,9 @@
       {% if art.source_slug %}
       <a href="/source/{{ art.source_slug }}" style="color:inherit;text-decoration:none;">{{ art.source_name or art.source_slug }}</a>
       {% else %}{{ art.source_name or '—' }}{% endif %}
+      {% if art.source_language and art.source_language != 'en' %}
+      <span class="wtf-lang-badge">🇫🇷 FR</span>
+      {% endif %}
     </div>
 
     <a class="wtf-cluster-card-title" href="/article/{{ art.id }}">{{ art.title or 'Untitled' }}</a>
@@ -187,55 +200,36 @@
   {% endfor %}
 </div>
 
-<!-- ── COVERAGE TIMELINE ──────────────────────────────────────────── -->
-<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:14px 16px;margin-top:16px;">
-  <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">⏱ Coverage Timeline</div>
-  <div id="wtf-timeline-body" style="font-size:12px;color:#6b7280;"></div>
+<!-- ── COVERAGE TIMELINE — inline from template data ─────────────── -->
+{% if articles|length > 1 %}
+{% set first = articles[0] %}
+{% set last = articles[-1] %}
+<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px 16px;margin-top:16px;">
+  <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">⏱ Coverage Spread</div>
+  <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap;">
+    {% for art in articles %}
+    {% set bc = BAND_COLOURS.get(art.bias_band or '', '#6b7280') %}
+    <div style="display:flex;align-items:center;gap:6px;{% if not loop.last %}margin-right:0;{% endif %}">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <span style="width:10px;height:10px;border-radius:50%;background:{{ bc }};display:inline-block;border:2px solid #0a1520;"></span>
+        <span style="font-size:9px;color:#6b7280;white-space:nowrap;">{{ art.published_at.strftime('%H:%M') if art.published_at else '—' }}</span>
+      </div>
+      <span style="font-size:10px;color:#9ca3af;font-weight:600;white-space:nowrap;">{{ art.source_name or '?' }}</span>
+      {% if not loop.last %}<span style="color:#1a3a5a;margin:0 8px;font-size:12px;">→</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% if first.published_at and last.published_at and first != last %}
+  {% set gap_secs = (last.published_at - first.published_at).total_seconds()|int %}
+  {% set gap_h = (gap_secs // 3600)|int %}
+  {% set gap_m = ((gap_secs % 3600) // 60)|int %}
+  <div style="font-size:10px;color:#4b5563;margin-top:8px;">
+    First reported by <strong style="color:#9ca3af;">{{ first.source_name }}</strong>
+    {% if gap_h > 0 %} — {{ last.source_name }} followed {{ gap_h }}h{{ ' ' + gap_m|string + 'm' if gap_m else '' }} later{% endif %}
+  </div>
+  {% endif %}
 </div>
-<script>
-(function(){
-  var BC={'left':'#ef4444','center-left':'#f97316','center':'#22c55e','center-right':'#3b82f6','right':'#8b5cf6'};
-  var el=document.getElementById('wtf-timeline-body');
-  function mkEl(tag,css){var e=document.createElement(tag);if(css)e.style.cssText=css;return e;}
-  function msg(txt){var d=mkEl('div','color:#4b5563;font-size:11px;');d.textContent=txt;el.appendChild(d);}
-  msg('Loading…');
-  fetch('/api/clusters/{{ cluster.id }}/timeline')
-    .then(function(r){return r.json();})
-    .then(function(d){
-      while(el.firstChild)el.removeChild(el.firstChild);
-      if(!d.articles||!d.articles.length){msg('No timeline data.');return;}
-      var spine=mkEl('div','position:relative;padding-left:18px;');
-      var line=mkEl('div','position:absolute;left:6px;top:0;bottom:0;width:1px;background:#1a3a5a;');
-      spine.appendChild(line);
-      d.articles.forEach(function(a,i){
-        var c=BC[a.bias_band]||'#374151';
-        var row=mkEl('div','position:relative;'+(i<d.articles.length-1?'margin-bottom:12px;':''));
-        row.appendChild(mkEl('div','position:absolute;left:-12px;top:5px;width:7px;height:7px;border-radius:50%;background:'+c+';'));
-        var meta=mkEl('div','display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;');
-        var dt=mkEl('span','font-size:9px;color:#4b5563;white-space:nowrap;');
-        dt.textContent=(a.published_at||'—').slice(0,16).replace('T',' ');
-        meta.appendChild(dt);
-        if(a.source_name){
-          var srcEl=a.source_slug?mkEl('a','font-size:10px;color:#9ca3af;text-decoration:none;font-weight:600;'):mkEl('span','font-size:10px;color:#9ca3af;font-weight:600;');
-          if(a.source_slug) srcEl.href='/source/'+encodeURIComponent(a.source_slug);
-          srcEl.textContent=a.source_name; meta.appendChild(srcEl);
-        }
-        if(a.bias_band){
-          var pill=mkEl('span','font-size:9px;padding:1px 6px;border-radius:8px;background:'+c+'22;color:'+c+';border:1px solid '+c+'44;');
-          pill.textContent=a.bias_band.replace('-',' '); meta.appendChild(pill);
-        }
-        row.appendChild(meta);
-        var titleA=mkEl('a','font-size:11px;color:#d1d5db;text-decoration:none;line-height:1.4;display:block;margin-top:2px;');
-        titleA.href='/article/'+encodeURIComponent(String(a.id));
-        titleA.textContent=(a.title||'').slice(0,100)+((a.title||'').length>100?'…':'');
-        row.appendChild(titleA);
-        spine.appendChild(row);
-      });
-      el.appendChild(spine);
-    })
-    .catch(function(){while(el.firstChild)el.removeChild(el.firstChild);msg('Could not load timeline.');});
-})();
-</script>
+{% endif %}
 
 <!-- ── F.A.C.T. FRAMING — collapsed by default ───────────────────── -->
 <details class="wtf-framing-details">
@@ -289,8 +283,5 @@ async function wtfReframe() {
 </div>
 {% endif %}
 
-<div style="margin-top:32px;padding-top:16px;border-top:1px solid #1a3a5a;font-size:10px;color:#374151;text-align:center;">
-  Built on radical transparency. <a href="/methodology" style="color:#6b7280;text-decoration:none;">How we score bias →</a>
-</div>
 
 {% endblock %}

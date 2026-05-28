@@ -56,7 +56,7 @@
       Your bias distribution
     </div>
     {% set max_n = distribution.values()|max %}
-    {% for band, color in [('left', '#ef4444'), ('center-left', '#fb923c'), ('center', '#10b981'), ('center-right', '#3b82f6'), ('right', '#8b5cf6'), ('unscored', '#6b7280')] %}
+    {% for band, color in [('left', '#dc2626'), ('center-left', '#f97316'), ('center', '#22c55e'), ('center-right', '#0ea5e9'), ('right', '#2563eb'), ('unscored', '#6b7280')] %}
     {% set n = distribution.get(band, 0) %}
     {% set pct = ((n / max_n * 100) | int) if max_n else 0 %}
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:0.72rem;color:#9ca3af;">
@@ -94,7 +94,7 @@
           <td style="padding:6px 8px;color:#9ca3af;font-size:0.65rem;">{{ r.source_name }}</td>
           <td style="padding:6px 8px;">
             {% if r.band %}
-            <span style="font-size:0.6rem;padding:1px 6px;border-radius:2px;color:#0a0f0a;background:{% if r.band == 'left' %}#ef4444{% elif r.band == 'center-left' %}#fb923c{% elif r.band == 'center' %}#10b981{% elif r.band == 'center-right' %}#3b82f6{% else %}#8b5cf6{% endif %};">{{ r.band }}</span>
+            <span style="font-size:0.6rem;padding:1px 6px;border-radius:2px;color:#0a0f0a;background:{% if r.band == 'left' %}#dc2626{% elif r.band == 'center-left' %}#f97316{% elif r.band == 'center' %}#22c55e{% elif r.band == 'center-right' %}#0ea5e9{% else %}#2563eb{% endif %};">{{ r.band }}</span>
             {% else %}<span style="color:#4b5563;font-size:0.6rem;">unscored</span>{% endif %}
           </td>
           <td style="padding:6px 8px;color:#6b7280;font-size:0.6rem;text-align:right;font-family:'IBM Plex Mono', monospace;">{{ r.last_view_at.strftime('%m-%d %H:%M') }}</td>

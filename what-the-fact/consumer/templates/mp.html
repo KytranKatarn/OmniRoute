@@ -174,7 +174,7 @@
 <div class="wtf-mp-section">
   <div class="wtf-mp-section-title">📰 In the media</div>
   {% if articles %}
-    {% set BAND_COLOURS = {'left': '#ef4444', 'center-left': '#f97316', 'center': '#22c55e', 'center-right': '#3b82f6', 'right': '#8b5cf6'} %}
+    {% set BAND_COLOURS = {'left': '#ef4444', 'center-left': '#f97316', 'center': '#22c55e', 'center-right': '#0ea5e9', 'right': '#2563eb'} %}
     {% for a in articles %}
     <div class="wtf-mp-article">
       <div class="wtf-mp-article-band" style="background:{{ BAND_COLOURS.get(a.bias_band or '', '#6b7280') }};"></div>

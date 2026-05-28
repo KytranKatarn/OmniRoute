@@ -46,6 +46,13 @@
     .btn-cancel  { background:transparent; color:var(--archie-text-muted,#94a3b8);
                    border:1px solid var(--archie-border-subtle,#334155);
                    padding:0.55rem 1.1rem; border-radius:8px; cursor:pointer; font-size:0.9rem; }
+    .btn-watchlist { background:transparent; color:var(--archie-text-muted,#94a3b8);
+                     border:1px solid var(--archie-border-subtle,#334155);
+                     padding:0.55rem 1.1rem; border-radius:8px; cursor:pointer; font-size:0.9rem;
+                     transition:color .15s, border-color .15s; }
+    .btn-watchlist:hover:not(:disabled) { color:var(--archie-blue,#3b82f6); border-color:var(--archie-blue,#3b82f6); }
+    .btn-watchlist.in-list { color:var(--archie-blue,#3b82f6); border-color:var(--archie-blue,#3b82f6); }
+    .btn-watchlist:disabled { opacity:.55; cursor:default; }
 </style>
 
 <h1>Discover
@@ -138,6 +145,7 @@
         <div id="discOverview" class="disc-modal-overview"></div>
         <div class="disc-modal-actions">
           <button id="discRequestBtn" class="btn-request" onclick="requestDiscover()">Request</button>
+          <button id="discWatchlistBtn" class="btn-watchlist" onclick="addToWatchlist()">♡ Watchlist</button>
           <button class="btn-cancel" onclick="closeDiscover(null)">Cancel</button>
         </div>
       </div>
@@ -249,12 +257,46 @@ function openDiscover(tmdb_id, media_type, title, year, rating, poster, overview
     const btn = document.getElementById('discRequestBtn');
     btn.disabled = false;
     btn.textContent = 'Request';
+    const wBtn = document.getElementById('discWatchlistBtn');
+    wBtn.disabled = false;
+    wBtn.textContent = '♡ Watchlist';
+    wBtn.classList.remove('in-list');
     document.getElementById('discoverOverlay').style.display = 'flex';
 }
 
 function closeDiscover(e) {
     if (e && e.target !== document.getElementById('discoverOverlay')) return;
     document.getElementById('discoverOverlay').style.display = 'none';
+}
+
+async function addToWatchlist() {
+    const wBtn = document.getElementById('discWatchlistBtn');
+    wBtn.disabled = true;
+    wBtn.textContent = 'Saving…';
+    try {
+        const r = await fetch('/api/watchlist', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                media_id: String(_discItem.tmdb_id),
+                media_type: _discItem.media_type,
+                title: _discItem.title,
+                year: _discItem.year,
+                poster_url: _discItem.poster || ''
+            })
+        });
+        const d = await r.json();
+        if (r.ok && !d.error) {
+            wBtn.textContent = '♥ Saved';
+            wBtn.classList.add('in-list');
+        } else {
+            wBtn.textContent = d.error || 'Error';
+            wBtn.disabled = false;
+        }
+    } catch (e) {
+        wBtn.textContent = 'Error';
+        wBtn.disabled = false;
+    }
 }
 
 async function requestDiscover() {

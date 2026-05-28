@@ -29,9 +29,9 @@
     <span title="Articles where L.O.C.A.L. gave up — no Canadian province or country match"><b style="color:#f59e0b;">{{ "{:,}".format(stats.geo_unmappable_24h) }}</b> geo unmappable (24h) · {{ "{:,}".format(stats.geo_unmappable) }} total</span>
     <span title="Articles without geo coords, still in L.O.C.A.L. backlog"><b style="color:#9ca3af;">{{ "{:,}".format(stats.geo_pending) }}</b> geo pending</span>
     <span title="S.C.O.U.T. body rescues completed in last 24h"><b style="color:#10b981;">{{ "{:,}".format(stats.scout_body_done_24h) }}</b> scout rescued (24h)</span>
-    {% if stats.scout_body_failed > 0 %}<span title="S.C.O.U.T. jobs that permanently failed"><b style="color:#ef4444;">{{ "{:,}".format(stats.scout_body_failed) }}</b> scout failed</span>{% endif %}
-    <span title="Articles with DistilBERT ML v2 bias score"><b style="color:#a78bfa;">{{ "{:,}".format(stats.bias_v2_scored) }}</b> ML v2 scored</span>
-    {% if stats.tier2_failed > 0 %}<span title="Articles where LLM Tier-2 analysis failed"><b style="color:#ef4444;">{{ "{:,}".format(stats.tier2_failed) }}</b> tier-2 failed</span>{% endif %}
+    {% if stats.scout_body_failed > 0 %}<span title="Scout = body text scraper. Failed = couldn't extract full article text."><b style="color:#ef4444;">{{ "{:,}".format(stats.scout_body_failed) }}</b> scout failed</span>{% endif %}
+    <span title="ML v2 = machine learning bias model v2. Scored = articles processed."><b style="color:#a78bfa;">{{ "{:,}".format(stats.bias_v2_scored) }}</b> ML v2 scored</span>
+    {% if stats.tier2_failed > 0 %}<span title="Tier-2 = deep AI analysis (bias + fact-check). Failed = hub timeout or model error."><b style="color:#ef4444;">{{ "{:,}".format(stats.tier2_failed) }}</b> tier-2 failed</span>{% endif %}
   </div>
   {% set n = stats.total_articles %}
   {% set rows = [
@@ -103,7 +103,7 @@
             <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;">Bias</th>
             <th style="text-align:right;padding:6px 8px;border-bottom:1px solid #112233;">7d</th>
             <th style="text-align:right;padding:6px 8px;border-bottom:1px solid #112233;">Total</th>
-            <th style="text-align:right;padding:6px 8px;border-bottom:1px solid #112233;">Body %</th>
+            <th style="text-align:right;padding:6px 8px;border-bottom:1px solid #112233;" title="% of articles with full body text extracted. Lower % = less complete analysis.">Body %</th>
             <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;">Last</th>
           </tr>
         </thead>
@@ -113,12 +113,12 @@
           {% set owner_color = '#f59e0b' if src.ownership_type == 'corporate' else ('#3b82f6' if src.ownership_type == 'public' else '#10b981') %}
           <tr style="border-bottom:1px solid #0d1a26;">
             <td style="padding:5px 8px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{{ status_color }};"></span></td>
-            <td style="padding:5px 8px;color:#e0e0e0;">{{ src.slug }}</td>
+            <td style="padding:5px 8px;color:#e0e0e0;">{{ src.name }}</td>
             <td style="padding:5px 8px;color:{{ owner_color }};">{{ src.owner }}</td>
             <td style="padding:5px 8px;color:#6b7280;">{{ src.bias_lean }}</td>
             <td style="padding:5px 8px;text-align:right;color:{% if src.articles_7d > 0 %}#e0e0e0{% else %}#444{% endif %};">{{ "{:,}".format(src.articles_7d) }}</td>
             <td style="padding:5px 8px;text-align:right;color:#6b7280;">{{ "{:,}".format(src.articles_total) }}</td>
-            <td style="padding:5px 8px;text-align:right;color:{% if src.body_pct >= 70 %}#10b981{% elif src.body_pct >= 30 %}#f59e0b{% else %}#6b7280{% endif %};">{{ src.body_pct }}%</td>
+            <td style="padding:5px 8px;text-align:right;color:{% if src.body_pct >= 75 %}#10b981{% elif src.body_pct >= 50 %}#f59e0b{% else %}#ef4444{% endif %};">{{ src.body_pct }}%</td>
             <td style="padding:5px 8px;color:#6b7280;font-size:0.65rem;">{{ src.last_article }}</td>
           </tr>
           {% endfor %}

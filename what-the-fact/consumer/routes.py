@@ -293,22 +293,33 @@ def news():
             WHERE 1=1 {band_where}
         """), params).scalar() or 0
         rows = c.execute(text(f"""
-            SELECT a.id, a.title, a.url, a.published_at,
-                   s.name AS source, b.band, a.ai_analyzed, a.province_code,
-                   a.beat, a.geo_scope,
-                   a.cluster_id, sc.article_count AS cluster_size,
-                   fc.overall_verdict,
-                   (SELECT STRING_AGG(m.name, ', ' ORDER BY m.name)
-                    FROM {S}.article_mp_tags t
-                    JOIN parliament.mps m ON m.id = t.mp_id
-                    WHERE t.article_id = a.id) AS mp_mentions
-            FROM {S}.articles a
-            JOIN {S}.sources s ON s.id = a.source_id
-            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-            LEFT JOIN {S}.story_clusters sc ON sc.id = a.cluster_id
-            LEFT JOIN {S}.fact_checks fc ON fc.article_id = a.id AND fc.checker NOT LIKE 'GoogleFCT%%'
-            WHERE 1=1 {band_where}
-            ORDER BY a.published_at DESC
+            SELECT * FROM (
+                SELECT a.id, a.title, a.url, a.published_at,
+                       s.name AS source, s.id AS source_id, b.band, a.ai_analyzed, a.province_code,
+                       a.beat, a.geo_scope,
+                       a.cluster_id, sc.article_count AS cluster_size,
+                       fc.overall_verdict,
+                       (SELECT STRING_AGG(m.name, ', ' ORDER BY m.name)
+                        FROM {S}.article_mp_tags t
+                        JOIN parliament.mps m ON m.id = t.mp_id
+                        WHERE t.article_id = a.id) AS mp_mentions,
+                       ROW_NUMBER() OVER (PARTITION BY s.id ORDER BY a.published_at DESC) AS src_rank
+                FROM {S}.articles a
+                JOIN {S}.sources s ON s.id = a.source_id
+                LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+                LEFT JOIN {S}.story_clusters sc ON sc.id = a.cluster_id
+                LEFT JOIN {S}.fact_checks fc ON fc.article_id = a.id AND fc.checker NOT LIKE 'GoogleFCT%%'
+                WHERE 1=1 {band_where}
+                AND (a.cluster_id IS NULL OR a.id = (
+                    SELECT a2.id FROM {S}.articles a2
+                    WHERE a2.cluster_id = a.cluster_id
+                    ORDER BY a2.published_at DESC LIMIT 1
+                ))
+                ORDER BY a.published_at DESC
+                LIMIT {PAGE_SIZE * 6}
+            ) diverse
+            WHERE src_rank <= {max(PAGE_SIZE // 4, 3)}
+            ORDER BY published_at DESC
             LIMIT {PAGE_SIZE} OFFSET {offset}
         """), params).mappings().all()
 
@@ -527,6 +538,7 @@ def activity():
         source_health_rows = c.execute(text(f"""
             SELECT
                 s.slug,
+                s.name,
                 s.bias_lean,
                 s.owner_name,
                 s.owner_type,
@@ -555,6 +567,7 @@ def activity():
             status = "active"
         source_health.append({
             "slug": r["slug"],
+            "name": r["name"] or r["slug"],
             "bias_lean": r["bias_lean"] or "?",
             "owner": owner,
             "ownership_type": ownership_type,

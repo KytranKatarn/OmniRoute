@@ -99,7 +99,10 @@
     <div class="wtf-card-meta">
       <span>{{ a.source or '' }}{% if a.province_code %} &middot; {{ a.province_code }}{% endif %}</span>
       <span style="color:#555;font-size:0.65rem;">{{ a.published_at.strftime('%b %d %H:%M') if a.published_at else '' }}</span>
-      <span class="wtf-bias-pill wtf-bias-{{ band }}">{{ band.upper() }}</span>
+      {%- set _dot_pos = {'left': '5%', 'center-left': '30%', 'center': '50%', 'center-right': '70%', 'right': '95%'}.get(band, '50%') -%}
+      <span title="{{ band.upper() }}" style="display:inline-block;width:50px;height:6px;border-radius:3px;background:linear-gradient(to right,#3b82f6,#94a3b8,#ef4444);position:relative;vertical-align:middle;" aria-label="Bias: {{ band }}">
+        <span style="position:absolute;top:50%;left:{{ _dot_pos }};transform:translate(-50%,-50%);width:8px;height:8px;border-radius:50%;background:#fff;box-shadow:0 0 2px rgba(0,0,0,0.6);"></span>
+      </span>
     </div>
     <a class="wtf-card-title" href="/article/{{ a.id }}">{{ a.title }}</a>
     <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">

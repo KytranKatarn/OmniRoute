@@ -765,34 +765,58 @@ def proxy_articles_geo():
     if beat not in _VALID_BEATS:
         beat = "all"
     province = (request.args.get("province") or "").strip().upper()[:2]
+    scope = (request.args.get("scope") or "canada").strip()[:10]
     S = _schema()
     where = ["a.lat IS NOT NULL", "a.lng IS NOT NULL"]
     params: dict = {}
     if beat and beat != "all":
         where.append("a.beat = :beat"); params["beat"] = beat
-    if province:
-        where.append("a.province_code = :province"); params["province"] = province
-    with _db().begin() as c:
-        # Aggregate province counts (no LIMIT — accurate totals for cluster circles)
-        prov_where = ["a.province_code IS NOT NULL", "a.lat IS NOT NULL"]
-        if beat and beat != "all":
-            prov_where.append("a.beat = :beat")
+    if scope == "canada":
         if province:
-            prov_where.append("a.province_code = :province")
-        prov_rows = c.execute(text(f"""
-            SELECT a.province_code, COUNT(*) AS cnt,
-                   MODE() WITHIN GROUP (ORDER BY b.band) AS dominant_band
-            FROM {S}.articles a
-            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-            WHERE {' AND '.join(prov_where)}
-            GROUP BY a.province_code
-        """), params).mappings().all()
-        province_counts = {r["province_code"]: {"count": r["cnt"], "band": r["dominant_band"]} for r in prov_rows}
+            where.append("a.province_code = :province"); params["province"] = province
 
-        # Individual pins for article dots (limited for performance)
+    with _db().begin() as c:
+        if scope == "world":
+            # Country aggregate (accurate totals, no LIMIT)
+            agg_where = ["a.lat IS NOT NULL", "a.country_code IS NOT NULL"]
+            if beat and beat != "all":
+                agg_where.append("a.beat = :beat")
+            agg_rows = c.execute(text(f"""
+                SELECT a.country_code, COUNT(*) AS cnt,
+                       AVG(a.lat) AS lat, AVG(a.lng) AS lng,
+                       MODE() WITHIN GROUP (ORDER BY b.band) AS dominant_band
+                FROM {S}.articles a
+                LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+                WHERE {' AND '.join(agg_where)}
+                GROUP BY a.country_code
+            """), params).mappings().all()
+            province_counts = {r["country_code"]: {
+                "count": r["cnt"],
+                "lat": float(r["lat"]) if r["lat"] else None,
+                "lng": float(r["lng"]) if r["lng"] else None,
+                "band": r["dominant_band"],
+            } for r in agg_rows}
+        else:
+            # Province aggregate for Canada mode
+            prov_where = ["a.province_code IS NOT NULL", "a.lat IS NOT NULL"]
+            if beat and beat != "all":
+                prov_where.append("a.beat = :beat")
+            if province:
+                prov_where.append("a.province_code = :province")
+            prov_rows = c.execute(text(f"""
+                SELECT a.province_code, COUNT(*) AS cnt,
+                       MODE() WITHIN GROUP (ORDER BY b.band) AS dominant_band
+                FROM {S}.articles a
+                LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+                WHERE {' AND '.join(prov_where)}
+                GROUP BY a.province_code
+            """), params).mappings().all()
+            province_counts = {r["province_code"]: {"count": r["cnt"], "band": r["dominant_band"]} for r in prov_rows}
+
+        # Individual pins (limited for performance)
         pin_rows = c.execute(text(f"""
-            SELECT a.id, a.title, a.lat, a.lng, a.province_code, a.ai_analyzed,
-                   s.name AS source_name, b.band AS bias_band
+            SELECT a.id, a.title, a.lat, a.lng, a.province_code, a.country_code,
+                   a.ai_analyzed, s.name AS source_name, b.band AS bias_band
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id

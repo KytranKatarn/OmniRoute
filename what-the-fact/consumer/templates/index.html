@@ -375,48 +375,72 @@ var PROVINCE_COLOURS = {
 };
 
 function loadArticlesGeo() {
-  var _geoUrl = "/api/proxy/articles/geo?beat=" + encodeURIComponent(currentBeat);
-  if (currentProvince) _geoUrl += "&province=" + encodeURIComponent(currentProvince);
+  var _scope = (mapMode === 'world') ? 'world' : 'canada';
+  var _geoUrl = "/api/proxy/articles/geo?beat=" + encodeURIComponent(currentBeat) + "&scope=" + _scope;
+  if (_scope === 'canada' && currentProvince) _geoUrl += "&province=" + encodeURIComponent(currentProvince);
   fetch(_geoUrl)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var articles = data.articles || [];
-      // Province counts come from server aggregate (accurate totals, no LIMIT bias)
-      var provinceCounts = data.province_counts || {};
+      var aggregateCounts = data.province_counts || {};
 
-      // Layer 2: Province cluster badges (use aggregate counts)
-      if (clusterLayer) map.removeLayer(clusterLayer);
-      clusterLayer = L.layerGroup();
-      Object.keys(provinceCounts).forEach(function(pc) {
-        var centroid = PROVINCE_CENTROIDS[pc];
-        if (!centroid) return;
-        var pcData = provinceCounts[pc];
-        var count = typeof pcData === 'object' ? pcData.count : pcData;
-        var radius = Math.min(6 + Math.sqrt(count) * 1.5, 20);
-        var colour = PROVINCE_COLOURS[pc] || "#9ca3af";
-        var circle = L.circleMarker(centroid, {
-          pane: 'clusterPane',
-          radius: radius,
-          fillColor: colour,
-          fillOpacity: 0.85,
-          color: "#ffffff",
-          weight: 1.5,
+      if (mapMode === 'world') {
+        // WORLD MODE: replace world layer with local-data country circles
+        if (worldLayer) map.removeLayer(worldLayer);
+        worldLayer = L.layerGroup();
+        Object.keys(aggregateCounts).forEach(function(cc) {
+          var cd = aggregateCounts[cc];
+          var count = cd.count || 0;
+          var lat = cd.lat, lng = cd.lng;
+          if (!lat || !lng) return;
+          var colour = BIAS_COLOURS[cd.band] || BIAS_COLOURS['center'];
+          var radius = Math.min(6 + Math.sqrt(count) * 1.8, 26);
+          var circle = L.circleMarker([lat, lng], {
+            pane: 'clusterPane', radius: radius,
+            fillColor: colour, fillOpacity: 0.8, color: '#fff', weight: 1.5,
+          });
+          circle.bindTooltip(cc + ' · ' + count.toLocaleString() + ' stories · ' + (cd.band || 'center'));
+          circle.on('click', function() {
+            loadArticleFeed_country(cc);
+          });
+          worldLayer.addLayer(circle);
+          worldLayer.addLayer(L.marker([lat, lng], {
+            icon: L.divIcon({
+              html: "<div style='font-size:9px;font-family:monospace;color:#fff;text-align:center;line-height:1;margin-top:-3px;'>" + count.toLocaleString() + "</div>",
+              className: '', iconSize: [30, 12], iconAnchor: [15, 6],
+            }),
+            interactive: false,
+          }));
         });
-        circle.bindTooltip(pc + " · " + count.toLocaleString() + " stories");
-        circle.on("click", function() { setProvince(pc); map.fitBounds(provinceLayer && (function(){ var b=null; provinceLayer.eachLayer(function(l){ if((PROVINCE_CODES[l.feature&&l.feature.properties&&l.feature.properties.name]||'')=== pc) b=l.getBounds(); }); return b; }()) || map.getBounds(), {padding:[20,20]}); });
-        clusterLayer.addLayer(circle);
-        var label = L.marker(centroid, {
-          icon: L.divIcon({
-            html: "<div style='font-size:9px;font-family:monospace;color:#fff;text-align:center;line-height:1;margin-top:-3px;'>" + count.toLocaleString() + "</div>",
-            className: "",
-            iconSize: [28, 12],
-            iconAnchor: [14, 6],
-          }),
-          interactive: false,
+        worldLayer.addTo(map);
+      } else {
+        // CANADA MODE: province cluster badges (use aggregate counts)
+        if (clusterLayer) map.removeLayer(clusterLayer);
+        clusterLayer = L.layerGroup();
+        Object.keys(aggregateCounts).forEach(function(pc) {
+          var centroid = PROVINCE_CENTROIDS[pc];
+          if (!centroid) return;
+          var pcData = aggregateCounts[pc];
+          var count = typeof pcData === 'object' ? pcData.count : pcData;
+          var radius = Math.min(6 + Math.sqrt(count) * 1.5, 20);
+          var colour = PROVINCE_COLOURS[pc] || "#9ca3af";
+          var circle = L.circleMarker(centroid, {
+            pane: 'clusterPane', radius: radius,
+            fillColor: colour, fillOpacity: 0.85, color: "#ffffff", weight: 1.5,
+          });
+          circle.bindTooltip(pc + " · " + count.toLocaleString() + " stories");
+          circle.on("click", function() { setProvince(pc); map.fitBounds(provinceLayer && (function(){ var b=null; provinceLayer.eachLayer(function(l){ if((PROVINCE_CODES[l.feature&&l.feature.properties&&l.feature.properties.name]||'')=== pc) b=l.getBounds(); }); return b; }()) || map.getBounds(), {padding:[20,20]}); });
+          clusterLayer.addLayer(circle);
+          clusterLayer.addLayer(L.marker(centroid, {
+            icon: L.divIcon({
+              html: "<div style='font-size:9px;font-family:monospace;color:#fff;text-align:center;line-height:1;margin-top:-3px;'>" + count.toLocaleString() + "</div>",
+              className: "", iconSize: [28, 12], iconAnchor: [14, 6],
+            }),
+            interactive: false,
+          }));
         });
-        clusterLayer.addLayer(label);
-      });
-      clusterLayer.addTo(map);
+        clusterLayer.addTo(map);
+      }
 
       // Layer 3: Individual bias pins (hidden at zoom < 5)
       if (pinLayer) map.removeLayer(pinLayer);
@@ -470,9 +494,33 @@ function setMapMode(mode) {
     if (provinceLayer) { map.removeLayer(provinceLayer); provinceLayer = null; }
     if (clusterLayer) { map.removeLayer(clusterLayer); clusterLayer = null; }
     if (pinLayer) { map.removeLayer(pinLayer); pinLayer = null; }
-    if (_lastMapData) renderWorldMap(_lastMapData);
-    else loadMapData();
+    loadArticlesGeo();  // builds world country circles + global pins from local DB
+    loadArticleFeed();  // refresh feed for world scope
   }
+}
+
+function loadArticleFeed_country(cc) {
+  // Filter article feed by country code when clicking world map circle
+  var url = '/api/v1/articles?limit=15&country=' + encodeURIComponent(cc);
+  if (currentBeat && currentBeat !== 'all') url += '&beat=' + encodeURIComponent(currentBeat);
+  var container = document.getElementById('wtf-feed-articles');
+  if (!container) return;
+  container.innerHTML = '<div style="color:#555;font-size:11px;padding:8px 0;">Loading ' + esc(cc) + ' articles...</div>';
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var articles = data.articles || [];
+      if (!articles.length) { container.innerHTML = '<div style="color:#555;font-size:11px;padding:8px 0;">No articles for ' + esc(cc) + '.</div>'; return; }
+      container.innerHTML = articles.map(function(a) {
+        var band = ((a.bias && a.bias.band) || 'center').replace(/ /g,'-');
+        var src = (a.source && a.source.name) ? esc(a.source.name) : '';
+        return '<div class="wtf-article-card wtf-article-card--' + esc(band) + '">' +
+          '<div class="wtf-card-meta"><span>' + src + ' &middot; ' + esc(cc) + '</span>' +
+          (IS_SUBSCRIBER ? '<span class="wtf-bias-pill wtf-bias-' + esc(band) + '">' + band.toUpperCase() + '</span>' : '') + '</div>' +
+          '<a class="wtf-card-title" href="/article/' + a.id + '">' + esc(a.title) + '</a></div>';
+      }).join('');
+    })
+    .catch(function(e) { console.warn('Country feed failed:', e); });
 }
 
 function renderWorldMap(data) {

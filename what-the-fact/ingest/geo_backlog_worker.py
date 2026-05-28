@@ -28,6 +28,9 @@ _BATCH_SIZE = int(os.environ.get("WTF_GEO_BACKLOG_BATCH_SIZE", "50"))
 _DISPATCH_SLEEP_SEC = float(os.environ.get("WTF_GEO_BACKLOG_DISPATCH_SLEEP_SEC", "3"))
 _MAX_AGE_DAYS = int(os.environ.get("WTF_GEO_BACKLOG_MAX_AGE_DAYS", "7"))
 _MAX_RUNS_PER_NIGHT = int(os.environ.get("WTF_GEO_BACKLOG_MAX_RUNS_PER_NIGHT", "500"))
+# Hard wall-clock cap — prevents geo from blocking the main ingest loop forever
+# when L.O.C.A.L. agent is slow/unavailable. Default 10 min.
+_MAX_DURATION_SECS = int(os.environ.get("WTF_GEO_BACKLOG_MAX_DURATION_SECS", "600"))
 
 _ALLOWED_SCHEMAS = frozenset({"wtf"})
 
@@ -102,10 +105,18 @@ def run_backlog(engine, schema: str = "wtf") -> dict:
     if not _ENABLED:
         return {"processed": 0, "failed": 0, "stopped": "disabled"}
 
+    deadline = time.monotonic() + _MAX_DURATION_SECS
     processed = 0
     unmapped = 0
     failed = 0
     while processed + unmapped + failed < _MAX_RUNS_PER_NIGHT:
+        if time.monotonic() > deadline:
+            logger.warning(
+                "[geo_backlog] max_duration %ds reached — yielding to main loop",
+                _MAX_DURATION_SECS,
+            )
+            return {"processed": processed, "unmapped": unmapped, "failed": failed,
+                    "stopped": "max_duration"}
         batch = _fetch_batch(engine, schema, _BATCH_SIZE)
         if not batch:
             return {"processed": processed, "unmapped": unmapped, "failed": failed,
@@ -115,6 +126,13 @@ def run_backlog(engine, schema: str = "wtf") -> dict:
             if processed + unmapped + failed >= _MAX_RUNS_PER_NIGHT:
                 return {"processed": processed, "unmapped": unmapped, "failed": failed,
                         "stopped": "max_runs"}
+            if time.monotonic() > deadline:
+                logger.warning(
+                    "[geo_backlog] max_duration %ds reached mid-batch — yielding",
+                    _MAX_DURATION_SECS,
+                )
+                return {"processed": processed, "unmapped": unmapped, "failed": failed,
+                        "stopped": "max_duration"}
 
             # extract_geo() always returns a dict — terminal geo_scope is its contract.
             result = extract_geo(article["id"], article["title"] or "", article["body"] or "")

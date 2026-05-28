@@ -110,6 +110,28 @@ _COUNTRY_PATTERNS = {
 }
 
 
+def _sanitize(result: dict) -> dict:
+    """Convert LLM string 'null'/'none' to Python None; coerce lat/lng to float.
+
+    L.O.C.A.L. occasionally returns the literal string "null" for fields it
+    can't populate (e.g. city="null", lat="null"). Passing those to a numeric
+    Postgres column raises InvalidTextRepresentation. This sanitizer runs once
+    on every LLM result before any downstream use.
+    """
+    cleaned = {}
+    for k, v in result.items():
+        if isinstance(v, str) and v.strip().lower() in ("null", "none", ""):
+            cleaned[k] = None
+        elif k in ("lat", "lng") and isinstance(v, str):
+            try:
+                cleaned[k] = float(v)
+            except (ValueError, TypeError):
+                cleaned[k] = None
+        else:
+            cleaned[k] = v
+    return cleaned
+
+
 def extract_geo(article_id, title, body, source_slug=None):
     """Extract geo info via L.O.C.A.L. agent. Falls back to heuristic if agent unavailable.
 
@@ -122,6 +144,8 @@ def extract_geo(article_id, title, body, source_slug=None):
     geo_scope='international' and lat/lng from _COUNTRY_CENTROIDS where known.
     """
     result = analyze("geo", article_id, title, body)
+    if result and isinstance(result, dict):
+        result = _sanitize(result)
     # Canadian province path (existing behaviour)
     if result and isinstance(result, dict) and result.get("province_code") in VALID_PROVINCES:
         pc = result["province_code"]

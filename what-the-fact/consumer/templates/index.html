@@ -51,7 +51,7 @@ body { background: var(--wtf-bg); color: #e0e0e0; font-family: 'IBM Plex Mono', 
 <!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
 
-<!-- Beat Filter Pills -->
+<!-- Beat Filter Pills — update map + article panel in place (like CANADA/WORLD toggle) -->
 <div id="wtf-beat-strip" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;background:#050d1a;border-bottom:1px solid #112233;">
   <button class="wtf-beat-pill active" data-beat="all" onclick="setBeat(this,'all')">ALL</button>
   <button class="wtf-beat-pill" data-beat="sports" onclick="setBeat(this,'sports')">SPORTS</button>
@@ -495,6 +495,7 @@ function setBeat(el, beat) {
   document.querySelectorAll('.wtf-beat-pill').forEach(function(b) { b.classList.remove('active'); });
   el.classList.add('active');
   loadMapData();
+  loadArticlesGeo();
 }
 </script>
 

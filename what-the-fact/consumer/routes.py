@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import time
+import urllib.parse
 import urllib.request
 
 from flask import Blueprint, render_template, abort, Response, request, jsonify, session
@@ -736,9 +737,21 @@ def _proxy_tech(path: str, method: str = "GET", body: bytes = None, timeout: int
         return Response(json.dumps({"error": str(exc)}), status=502, content_type="application/json")
 
 
+_VALID_BEATS = {"all","sports","healthcare","climate","crime","parliament","business","economy",
+                "municipal","transit","sci-tech","arts","education","indigenous","foreign",
+                "justice","immigration","housing","labour"}
+_VALID_SCOPES = {"all","national","provincial","international"}
+
+
 @bp.get("/api/proxy/map-data")
 def proxy_map_data():
-    return _proxy_tech("/api/v1/map-data")
+    beat = request.args.get("beat", "all")
+    scope = request.args.get("scope", "all")
+    if beat not in _VALID_BEATS:
+        beat = "all"
+    if scope not in _VALID_SCOPES:
+        scope = "all"
+    return _proxy_tech("/api/v1/map-data?" + urllib.parse.urlencode({"beat": beat, "scope": scope}))
 
 
 @bp.get("/api/proxy/agent-activity")
@@ -748,7 +761,10 @@ def proxy_agent_activity():
 
 @bp.get("/api/proxy/articles/geo")
 def proxy_articles_geo():
-    return _proxy_tech("/api/v1/articles/geo")
+    beat = request.args.get("beat", "all")
+    if beat not in _VALID_BEATS:
+        beat = "all"
+    return _proxy_tech("/api/v1/articles/geo?" + urllib.parse.urlencode({"beat": beat}))
 
 
 @bp.post("/api/proxy/articles/<int:article_id>/analyze")
@@ -2097,10 +2113,8 @@ def featured_story():
     if not allowed:
         return _api_cors_response({"error": "rate limited"}, 429)
     S = _schema()
-    with _db() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            f"""
+    with _db().begin() as c:
+        row = c.execute(text(f"""
             SELECT sc.id, sc.representative_title, sc.article_count, sc.source_count,
                    sc.coverage_gap_score, sc.certainty_label, sc.latest_published_at,
                    sm.headline, sm.brief
@@ -2110,9 +2124,7 @@ def featured_story():
               AND sc.article_count >= 3
             ORDER BY sc.article_count DESC, sc.latest_published_at DESC
             LIMIT 1
-            """
-        )
-        row = cur.fetchone()
+        """)).fetchone()
     if not row:
         return _api_cors_response({"story": None})
     keys = ["id", "representative_title", "article_count", "source_count",

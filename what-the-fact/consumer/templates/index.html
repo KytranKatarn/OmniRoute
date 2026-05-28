@@ -63,6 +63,13 @@ body { background: var(--wtf-bg); color: #e0e0e0; font-family: 'IBM Plex Mono', 
   <button class="wtf-beat-pill" data-beat="economy" onclick="setBeat(this,'economy')">💰 ECONOMY</button>
 </div>
 
+<!-- Beat context banner — shown when a non-ALL beat is active -->
+<div id="wtf-beat-banner" style="display:none;padding:7px 14px;border-bottom:1px solid #112233;align-items:center;justify-content:space-between;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:10px;transition:background 0.2s;">
+  <span id="wtf-beat-banner-label" style="font-weight:700;letter-spacing:0.08em;color:#fff;"></span>
+  <span style="color:#9ca3af;font-size:9px;">Showing filtered results — map + feed updated</span>
+  <a id="wtf-beat-banner-link" href="#" style="color:#fff;text-decoration:none;border:1px solid currentColor;padding:2px 8px;border-radius:3px;font-size:9px;white-space:nowrap;opacity:0.85;">View full feed →</a>
+</div>
+
 <!-- Featured Story Strip -->
 <div id="wtf-featured-strip" style="display:none;padding:8px 12px;background:#050d1a;border-bottom:1px solid #112233;border-left:3px solid var(--wtf-accent);max-height:80px;box-sizing:border-box;overflow:hidden;">
   <div style="display:flex;align-items:baseline;gap:10px;">
@@ -202,6 +209,11 @@ L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
   subdomains: "abcd", maxZoom: 19
 }).addTo(map);
 
+// Custom panes so clusters + pins always sit above province polygons
+map.createPane('provincePane'); map.getPane('provincePane').style.zIndex = 400;
+map.createPane('clusterPane');  map.getPane('clusterPane').style.zIndex  = 450;
+map.createPane('pinPane');      map.getPane('pinPane').style.zIndex      = 500;
+
 var provinceLayer = null;
 var clusterLayer = null;
 var pinLayer = null;
@@ -276,6 +288,7 @@ function loadMapData() {
 
     if (provinceLayer) map.removeLayer(provinceLayer);
     provinceLayer = L.geoJSON(geo, {
+      pane: 'provincePane',
       style: function(feature) {
         var name = feature.properties.name || "";
         var pc = PROVINCE_CODES[name] || "";
@@ -369,6 +382,7 @@ function loadArticlesGeo() {
         var radius = Math.min(6 + count * 0.4, 20);
         var colour = PROVINCE_COLOURS[pc] || "#9ca3af";
         var circle = L.circleMarker(centroid, {
+          pane: 'clusterPane',
           radius: radius,
           fillColor: colour,
           fillOpacity: 0.85,
@@ -400,6 +414,7 @@ function loadArticlesGeo() {
         if (!a.lat || !a.lng) return;
         var colour = BIAS_COLOURS[a.bias_band] || BIAS_COLOURS["center"];
         var pin = L.circleMarker([a.lat, a.lng], {
+          pane: 'pinPane',
           radius: 5,
           fillColor: colour,
           fillOpacity: pinOpacity,
@@ -490,10 +505,37 @@ setInterval(loadMapData, 1800000);      // refresh map every 30 min
 setInterval(loadAgentActivity, 60000);  // refresh activity every 1 min
 setInterval(loadArticlesGeo, 1800000);  // refresh geo pins every 30 min
 
+var BEAT_CONFIG = {
+  'sports':     { color: '#f97316', label: '🏒 SPORTS MODE',     path: '/news?beat=sports' },
+  'healthcare': { color: '#10b981', label: '🏥 HEALTH MODE',      path: '/news?beat=healthcare' },
+  'climate':    { color: '#3b82f6', label: '🌍 CLIMATE MODE',     path: '/news?beat=climate' },
+  'crime':      { color: '#ef4444', label: '⚖️ CRIME MODE',       path: '/news?beat=crime' },
+  'parliament': { color: '#8b5cf6', label: '🏛️ PARLIAMENT MODE',  path: '/news?beat=parliament' },
+  'business':   { color: '#f59e0b', label: '📊 BUSINESS MODE',    path: '/news?beat=business' },
+  'economy':    { color: '#06b6d4', label: '💰 ECONOMY MODE',     path: '/news?beat=economy' },
+};
+
 function setBeat(el, beat) {
   currentBeat = beat;
   document.querySelectorAll('.wtf-beat-pill').forEach(function(b) { b.classList.remove('active'); });
   el.classList.add('active');
+
+  var banner = document.getElementById('wtf-beat-banner');
+  var cfg = BEAT_CONFIG[beat];
+  if (cfg) {
+    banner.style.display = 'flex';
+    banner.style.background = cfg.color + '18';
+    banner.style.borderLeft = '3px solid ' + cfg.color;
+    document.getElementById('wtf-beat-banner-label').textContent = cfg.label;
+    document.getElementById('wtf-beat-banner-label').style.color = cfg.color;
+    var link = document.getElementById('wtf-beat-banner-link');
+    link.href = cfg.path;
+    link.style.color = cfg.color;
+    link.style.borderColor = cfg.color;
+  } else {
+    banner.style.display = 'none';
+  }
+
   loadMapData();
   loadArticlesGeo();
 }

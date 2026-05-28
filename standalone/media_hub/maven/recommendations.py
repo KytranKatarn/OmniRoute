@@ -22,6 +22,7 @@ from typing import Dict, List, Optional
 import requests
 from flask import jsonify, render_template, request
 from flask_login import current_user, login_required
+from urllib.parse import quote
 
 from . import maven_bp
 from .troubleshoot import _decrypt_key, _rows_for_type
@@ -167,10 +168,10 @@ def api_search():
     if not client:
         return jsonify({"results": [], "error": "Overseerr not configured"})
     scheme, host, port, key = client
-    url = f"{scheme}://{host}:{port}/api/v1/search"
+    # Overseerr rejects spaces encoded as '+' (requests default) — must use %20.
+    url = f"{scheme}://{host}:{port}/api/v1/search?query={quote(q)}&page=1"
     try:
-        r = requests.get(url, headers={"X-Api-Key": key},
-                         params={"query": q, "page": 1}, timeout=10)
+        r = requests.get(url, headers={"X-Api-Key": key}, timeout=10)
         if r.status_code != 200:
             return jsonify({"results": [], "error": f"HTTP {r.status_code}"})
         results = []

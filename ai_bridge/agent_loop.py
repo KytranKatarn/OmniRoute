@@ -235,6 +235,21 @@ def request_approval(
             logger.error(f"Approval request validation failed: {validation_error}")
             return None
 
+        # Skip cloud escalation for 0% ping jobs — these are orphaned fleet
+        # dispatch handshakes left over from platform restarts, not real capacity
+        # issues. Sending Telegram for every restart generates noise spam.
+        if action_type == "cloud_throughput_escalation":
+            busy = action_data.get("busy_job", {})
+            if (
+                busy.get("progress_pct", -1) == 0
+                and "ping" in busy.get("description", "").lower()
+            ):
+                logger.info(
+                    "[request_approval] Dropping cloud escalation — orphaned ping job: %s",
+                    busy.get("description", "")[:80],
+                )
+                return None
+
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 

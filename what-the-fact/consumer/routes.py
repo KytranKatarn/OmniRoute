@@ -765,10 +765,39 @@ def proxy_articles_geo():
     if beat not in _VALID_BEATS:
         beat = "all"
     province = (request.args.get("province") or "").strip().upper()[:2]
-    params = {"beat": beat}
+    S = _schema()
+    where = ["a.lat IS NOT NULL", "a.lng IS NOT NULL"]
+    params: dict = {}
+    if beat and beat != "all":
+        where.append("a.beat = :beat"); params["beat"] = beat
     if province:
-        params["province"] = province
-    return _proxy_tech("/api/v1/articles/geo?" + urllib.parse.urlencode(params))
+        where.append("a.province_code = :province"); params["province"] = province
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT a.id, a.title, a.lat, a.lng, a.province_code, a.ai_analyzed,
+                   s.name AS source_name, b.band AS bias_band
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE {' AND '.join(where)}
+            ORDER BY a.published_at DESC NULLS LAST
+            LIMIT 500
+        """), params).mappings().all()
+    import json as _json
+    from flask import Response as _Resp
+    return _Resp(
+        _json.dumps({"ok": True, "articles": [
+            {"id": r["id"], "title": r["title"],
+             "lat": float(r["lat"]), "lng": float(r["lng"]),
+             "province_code": r["province_code"],
+             "source_name": r["source_name"],
+             "bias_band": r["bias_band"],
+             "ai_analyzed": bool(r["ai_analyzed"])}
+            for r in rows
+        ]}),
+        mimetype="application/json",
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
 
 
 @bp.post("/api/proxy/articles/<int:article_id>/analyze")

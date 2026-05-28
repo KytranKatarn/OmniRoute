@@ -257,6 +257,7 @@ def news():
     province_filter = (_req.args.get("province") or "all").upper()
     beat_filter = _req.args.get("beat", "all")
     scope_filter = _req.args.get("scope", "all")
+    riding_filter = (_req.args.get("riding") or "all").strip()
     if band_filter not in VALID_BANDS:
         band_filter = "all"
     if province_filter not in VALID_PROVINCES:
@@ -285,6 +286,13 @@ def news():
         if scope_filter != "all":
             where_clauses.append("a.geo_scope = :scope")
             params["scope"] = scope_filter
+        if riding_filter != "all":
+            where_clauses.append(
+                "EXISTS (SELECT 1 FROM wtf.article_mp_tags t"
+                " JOIN parliament.mps m ON m.id = t.mp_id"
+                " WHERE t.article_id = a.id AND m.riding_name = :riding)"
+            )
+            params["riding"] = riding_filter
         band_where = ("AND " + " AND ".join(where_clauses)) if where_clauses else ""
         total = c.execute(text(f"""
             SELECT COUNT(*) FROM {S}.articles a
@@ -334,12 +342,26 @@ def news():
             ORDER BY COUNT(a.id) DESC
         """)).mappings().all()
 
+        # Ridings that have at least one tagged article — for filter dropdown
+        riding_rows = c.execute(text(f"""
+            SELECT m.riding_name, m.province_code, COUNT(t.article_id) AS article_count
+            FROM parliament.mps m
+            JOIN {S}.article_mp_tags t ON t.mp_id = m.id
+            WHERE m.riding_name IS NOT NULL AND m.is_current = true
+            GROUP BY m.riding_name, m.province_code
+            HAVING COUNT(t.article_id) >= 5
+            ORDER BY COUNT(t.article_id) DESC
+            LIMIT 80
+        """)).mappings().all()
+        ridings = [dict(r) for r in riding_rows]
+
     total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     return render_template("news.html", articles=rows, source_count=source_count,
                            total=total, page=page, total_pages=total_pages,
                            page_size=PAGE_SIZE, band_filter=band_filter,
                            province_filter=province_filter,
                            beat_filter=beat_filter, scope_filter=scope_filter,
+                           riding_filter=riding_filter, ridings=ridings,
                            beat_meta=BEAT_META,
                            sources=[dict(s) for s in sources],
                            is_subscriber=is_subscriber())
@@ -2028,6 +2050,40 @@ def sitemap_xml():
     return Response("\n".join(lines), mimetype="application/xml")
 
 
+@bp.get("/api/v1/featured-story")
+def featured_story():
+    """Return the single most-covered story cluster from the last 24 hours."""
+    allowed, retry = _api_rate_ok(request.remote_addr)
+    if not allowed:
+        return _api_cors_response({"error": "rate limited"}, 429)
+    S = _schema()
+    with _db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"""
+            SELECT sc.id, sc.representative_title, sc.article_count, sc.source_count,
+                   sc.coverage_gap_score, sc.certainty_label, sc.latest_published_at,
+                   sm.headline, sm.brief
+            FROM {S}.story_clusters sc
+            LEFT JOIN {S}.summaries sm ON sm.cluster_id = sc.id
+            WHERE sc.latest_published_at > NOW() - INTERVAL '24 hours'
+              AND sc.article_count >= 3
+            ORDER BY sc.article_count DESC, sc.latest_published_at DESC
+            LIMIT 1
+            """
+        )
+        row = cur.fetchone()
+    if not row:
+        return _api_cors_response({"story": None})
+    keys = ["id", "representative_title", "article_count", "source_count",
+            "coverage_gap_score", "certainty_label", "latest_published_at",
+            "headline", "brief"]
+    story = {}
+    for k, v in zip(keys, row):
+        story[k] = v.isoformat() if hasattr(v, "isoformat") else v
+    return _api_cors_response({"story": story})
+
+
 @bp.route("/api/health")
 def health():
     from datetime import datetime, timezone
@@ -2435,6 +2491,64 @@ def api_v1_divergence():
             "en_only": bool(r["en_only"]),
             "fr_only": bool(r["fr_only"]),
         } for r in rows],
+    })
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# T3005 — Riding-level geo-filter API
+# ───────────────────────────────────────────────────────────────────────────
+
+
+@bp.get("/api/v1/ridings")
+def api_v1_ridings():
+    """Return ridings that have tagged articles, with counts.
+
+    Query params:
+      province   — filter by province code (e.g. ON, BC). Default: all.
+      min_count  — minimum article count to include (default 1).
+      limit      — max results (default 100, max 338 = total Canadian ridings).
+    """
+    from flask import request as _req
+
+    province = (_req.args.get("province") or "all").strip().upper()
+    try:
+        min_count = max(1, int(_req.args.get("min_count", 1)))
+    except (ValueError, TypeError):
+        min_count = 1
+    try:
+        limit = min(338, max(1, int(_req.args.get("limit", 100))))
+    except (ValueError, TypeError):
+        limit = 100
+
+    S = _schema()
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT m.riding_name,
+                   m.province_code,
+                   COUNT(t.article_id) AS article_count
+            FROM parliament.mps m
+            JOIN {S}.article_mp_tags t ON t.mp_id = m.id
+            WHERE m.riding_name IS NOT NULL
+              AND m.is_current = true
+              AND (:province = 'ALL' OR m.province_code = :province)
+            GROUP BY m.riding_name, m.province_code
+            HAVING COUNT(t.article_id) >= :min_count
+            ORDER BY COUNT(t.article_id) DESC
+            LIMIT :limit
+        """), {"province": province, "min_count": min_count, "limit": limit}).mappings().all()
+
+    return _api_cors_response({
+        "ok": True,
+        "count": len(rows),
+        "province_filter": province,
+        "ridings": [
+            {
+                "riding_name": r["riding_name"],
+                "province_code": r["province_code"],
+                "article_count": r["article_count"],
+            }
+            for r in rows
+        ],
     })
 
 

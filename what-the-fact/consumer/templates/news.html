@@ -56,7 +56,7 @@
     <div style="display:flex;flex-wrap:wrap;gap:6px;">
       {% set bands = [('all','All',''),('left','Left','#3b82f6'),('center-left','Ctr-Left','#93c5fd'),('center','Center',''),('center-right','Ctr-Right','#fca5a5'),('right','Right','#ef4444')] %}
       {% for val, label, col in bands %}
-      <a href="/news?band={{ val }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&page=1"
+      <a href="/news?band={{ val }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page=1"
          class="wtf-act-filter {% if band_filter == val %}wtf-act-filter--active{% endif %}"
          style="text-decoration:none;{% if col %}color:{{ col }};{% endif %}">{{ label }}</a>
       {% endfor %}
@@ -67,7 +67,7 @@
   <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">
     {% set provinces = [('all','All'), ('AB','AB'), ('BC','BC'), ('MB','MB'), ('NB','NB'), ('NL','NL'), ('NS','NS'), ('ON','ON'), ('PE','PE'), ('QC','QC'), ('SK','SK'), ('YT','YT'), ('NT','NT'), ('NU','NU')] %}
     {% for val, label in provinces %}
-    <a href="/news?band={{ band_filter }}&province={{ val }}&beat={{ beat_filter }}&scope={{ scope_filter }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ val }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page=1"
        class="wtf-act-filter {% if province_filter == val %}wtf-act-filter--active{% endif %}"
        style="text-decoration:none;font-size:0.62rem;">{{ label }}</a>
     {% endfor %}
@@ -77,21 +77,37 @@
   <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;align-items:center;">
     <span style="font-size:0.6rem;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-right:4px;">SCOPE</span>
     {% for val, label in [('all','🌐 All'), ('national','🇨🇦 National'), ('provincial','📍 Provincial'), ('international','🌍 International')] %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ val }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ val }}&riding={{ riding_filter }}&page=1"
        class="wtf-act-filter {% if scope_filter == val %}wtf-act-filter--active{% endif %}"
        style="text-decoration:none;font-size:0.62rem;">{{ label }}</a>
     {% endfor %}
   </div>
 
   <!-- Beat / category filter -->
-  <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px;align-items:center;">
+  <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;align-items:center;">
     <span style="font-size:0.6rem;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-right:4px;">BEAT</span>
     {% for val, label, col in beat_meta %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ val }}&scope={{ scope_filter }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ val }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page=1"
        class="wtf-act-filter {% if beat_filter == val %}wtf-act-filter--active{% endif %}"
        style="text-decoration:none;font-size:0.62rem;{% if col and beat_filter == val %}color:{{ col }};border-color:{{ col }};{% endif %}">{{ label }}</a>
     {% endfor %}
   </div>
+
+  <!-- Riding / constituency filter (T3005) -->
+  {% if ridings %}
+  <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px;align-items:center;">
+    <span style="font-size:0.6rem;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-right:4px;">RIDING</span>
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding=all&page=1"
+       class="wtf-act-filter {% if riding_filter == 'all' %}wtf-act-filter--active{% endif %}"
+       style="text-decoration:none;font-size:0.62rem;">All</a>
+    {% for r in ridings %}
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ r.riding_name | urlencode }}&page=1"
+       class="wtf-act-filter {% if riding_filter == r.riding_name %}wtf-act-filter--active{% endif %}"
+       title="{{ r.riding_name }} ({{ r.province_code }}) — {{ r.article_count }} articles"
+       style="text-decoration:none;font-size:0.62rem;">{{ r.riding_name }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
 
   {% for a in articles %}
   {% set band = (a.band or 'center') | replace(' ', '-') %}
@@ -139,11 +155,11 @@
   {% if total_pages > 1 %}
   <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:24px 0;">
     {% if page > 1 %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&page={{ page - 1 }}" class="wtf-act-filter" style="text-decoration:none;">← Prev</a>
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page={{ page - 1 }}" class="wtf-act-filter" style="text-decoration:none;">← Prev</a>
     {% endif %}
     <span style="color:#6b7280;font-size:0.7rem;">Page {{ page }} of {{ total_pages }} &middot; {{ total }} articles</span>
     {% if page < total_pages %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&page={{ page + 1 }}" class="wtf-act-filter" style="text-decoration:none;">Next →</a>
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page={{ page + 1 }}" class="wtf-act-filter" style="text-decoration:none;">Next →</a>
     {% endif %}
   </div>
   {% endif %}

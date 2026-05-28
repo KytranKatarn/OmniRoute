@@ -154,8 +154,9 @@ def analyze():
         ),
         "classify_beat": (
             f"Classify this Canadian news article into exactly one beat topic.\n\n"
-            f"Valid beats: climate, crime, economy, education, foreign-policy, "
-            f"healthcare, housing, immigration, indigenous, parliament\n"
+            f"Valid beats: arts-culture, business, climate, crime, economy, education, "
+            f"foreign-policy, healthcare, housing, immigration, indigenous, justice, "
+            f"labour, municipal, parliament, science-tech, sports, transportation\n"
             f'Use "none" if no beat fits.\n\n'
             f"Title: {title}\nBody: {body[:1000]}\n\n"
             'Return ONLY valid JSON: {"beat": "healthcare"}'

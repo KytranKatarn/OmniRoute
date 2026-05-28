@@ -29,9 +29,11 @@ _MAX_PER_RUN = int(os.environ.get("WTF_BEAT_BACKLOG_MAX_PER_RUN", "50"))
 _ALLOWED_SCHEMAS = frozenset({"wtf"})
 
 VALID_BEATS = frozenset({
-    "climate", "crime", "economy", "education",
-    "foreign-policy", "healthcare", "housing",
-    "immigration", "indigenous", "parliament",
+    "arts-culture", "business", "climate", "crime",
+    "economy", "education", "foreign-policy", "healthcare",
+    "housing", "immigration", "indigenous", "justice",
+    "labour", "municipal", "parliament", "science-tech",
+    "sports", "transportation",
 })
 
 __name__ = "beat_backlog_worker"

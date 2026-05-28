@@ -764,7 +764,11 @@ def proxy_articles_geo():
     beat = request.args.get("beat", "all")
     if beat not in _VALID_BEATS:
         beat = "all"
-    return _proxy_tech("/api/v1/articles/geo?" + urllib.parse.urlencode({"beat": beat}))
+    province = (request.args.get("province") or "").strip().upper()[:2]
+    params = {"beat": beat}
+    if province:
+        params["province"] = province
+    return _proxy_tech("/api/v1/articles/geo?" + urllib.parse.urlencode(params))
 
 
 @bp.post("/api/proxy/articles/<int:article_id>/analyze")

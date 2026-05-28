@@ -361,10 +361,16 @@ var PROVINCE_COLOURS = {
 };
 
 function loadArticlesGeo() {
-  fetch("/api/proxy/articles/geo?beat=" + encodeURIComponent(currentBeat))
+  var _geoUrl = "/api/proxy/articles/geo?beat=" + encodeURIComponent(currentBeat);
+  if (currentProvince) _geoUrl += "&province=" + encodeURIComponent(currentProvince);
+  fetch(_geoUrl)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var articles = data.articles || [];
+      // Client-side province filter (fallback in case tech API doesn't support ?province=)
+      if (currentProvince) {
+        articles = articles.filter(function(a) { return a.province_code === currentProvince; });
+      }
 
       // Layer 2: Province cluster badges
       if (clusterLayer) map.removeLayer(clusterLayer);
@@ -587,6 +593,15 @@ function setProvince(pc) {
   if (banner) {
     banner.style.display = 'flex';
     document.getElementById('wtf-province-banner-label').textContent = '📍 ' + pname.toUpperCase();
+  }
+  // Zoom map to province bounds (works whether triggered by click or dropdown)
+  if (provinceLayer) {
+    provinceLayer.eachLayer(function(layer) {
+      var name = layer.feature && layer.feature.properties && layer.feature.properties.name;
+      if ((PROVINCE_CODES[name] || '') === pc) {
+        map.fitBounds(layer.getBounds(), {padding: [20, 20]});
+      }
+    });
   }
   loadArticlesGeo();
   loadArticleFeed();

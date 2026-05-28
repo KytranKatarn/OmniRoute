@@ -215,6 +215,36 @@ def join():
                            total_articles=total_articles)
 
 
+VALID_BEATS = {
+    "all", "sports", "municipal", "business", "healthcare", "science-tech",
+    "transportation", "arts-culture", "crime", "education", "indigenous",
+    "foreign-policy", "climate", "economy", "parliament", "justice",
+    "immigration", "housing", "labour",
+}
+BEAT_META = [
+    ("all",            "All Beats",      ""),
+    ("sports",         "⚽ Sports",       "#f59e0b"),
+    ("municipal",      "🏙 Municipal",    "#60a5fa"),
+    ("business",       "💼 Business",     "#34d399"),
+    ("healthcare",     "🏥 Health",       "#f472b6"),
+    ("science-tech",   "🔬 Sci-Tech",     "#a78bfa"),
+    ("transportation", "🚌 Transit",      "#94a3b8"),
+    ("arts-culture",   "🎭 Arts",         "#fb923c"),
+    ("crime",          "🚨 Crime",        "#ef4444"),
+    ("education",      "📚 Education",    "#38bdf8"),
+    ("indigenous",     "🪶 Indigenous",   "#86efac"),
+    ("foreign-policy", "🌍 Foreign",      "#fbbf24"),
+    ("climate",        "🌱 Climate",      "#4ade80"),
+    ("economy",        "📈 Economy",      "#f97316"),
+    ("parliament",     "🏛 Parliament",   "#818cf8"),
+    ("justice",        "⚖️ Justice",     "#c084fc"),
+    ("immigration",    "🛂 Immigration",  "#67e8f9"),
+    ("housing",        "🏠 Housing",      "#fcd34d"),
+    ("labour",         "⚒️ Labour",      "#a3e635"),
+]
+VALID_SCOPES = {"all", "national", "provincial", "international"}
+
+
 @bp.get("/news")
 def news():
     from flask import request as _req
@@ -225,34 +255,47 @@ def news():
     VALID_PROVINCES = {"all", "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"}
     band_filter = _req.args.get("band", "all")
     province_filter = (_req.args.get("province") or "all").upper()
+    beat_filter = _req.args.get("beat", "all")
+    scope_filter = _req.args.get("scope", "all")
     if band_filter not in VALID_BANDS:
         band_filter = "all"
     if province_filter not in VALID_PROVINCES:
         province_filter = "all"
+    if beat_filter not in VALID_BEATS:
+        beat_filter = "all"
+    if scope_filter not in VALID_SCOPES:
+        scope_filter = "all"
     offset = (page - 1) * PAGE_SIZE
 
     with _db().begin() as c:
         source_count = c.execute(
             text(f"SELECT COUNT(*) FROM {S}.sources")
         ).scalar() or 0
-        band_params = {}
+        params = {}
         where_clauses = []
         if band_filter != "all":
             where_clauses.append("b.band = :band")
-            band_params["band"] = band_filter
+            params["band"] = band_filter
         if province_filter != "all":
             where_clauses.append("a.province_code = :province")
-            band_params["province"] = province_filter
+            params["province"] = province_filter
+        if beat_filter != "all":
+            where_clauses.append("a.beat = :beat")
+            params["beat"] = beat_filter
+        if scope_filter != "all":
+            where_clauses.append("a.geo_scope = :scope")
+            params["scope"] = scope_filter
         band_where = ("AND " + " AND ".join(where_clauses)) if where_clauses else ""
         total = c.execute(text(f"""
             SELECT COUNT(*) FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
             WHERE 1=1 {band_where}
-        """), band_params).scalar() or 0
+        """), params).scalar() or 0
         rows = c.execute(text(f"""
             SELECT a.id, a.title, a.url, a.published_at,
                    s.name AS source, b.band, a.ai_analyzed, a.province_code,
+                   a.beat, a.geo_scope,
                    a.cluster_id, sc.article_count AS cluster_size,
                    fc.overall_verdict,
                    (SELECT STRING_AGG(m.name, ', ' ORDER BY m.name)
@@ -267,7 +310,7 @@ def news():
             WHERE 1=1 {band_where}
             ORDER BY a.published_at DESC
             LIMIT {PAGE_SIZE} OFFSET {offset}
-        """), band_params).mappings().all()
+        """), params).mappings().all()
 
         sources = c.execute(text(f"""
             SELECT s.name, s.url, s.bias_lean,
@@ -285,7 +328,45 @@ def news():
                            total=total, page=page, total_pages=total_pages,
                            page_size=PAGE_SIZE, band_filter=band_filter,
                            province_filter=province_filter,
+                           beat_filter=beat_filter, scope_filter=scope_filter,
+                           beat_meta=BEAT_META,
                            sources=[dict(s) for s in sources],
+                           is_subscriber=is_subscriber())
+
+
+@bp.get("/weather")
+def weather():
+    """A.U.R.O.R.A. — Weather & Climate Intelligence page.
+
+    Aggregates climate + science-tech beat articles, Environment Canada
+    context, and weather-relevant provincial stories.
+    """
+    S = _schema()
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT a.id, a.title, a.url, a.published_at,
+                   s.name AS source, b.band, a.province_code, a.beat,
+                   a.cluster_id, sc.article_count AS cluster_size
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            LEFT JOIN {S}.story_clusters sc ON sc.id = a.cluster_id
+            WHERE a.beat IN ('climate', 'science-tech')
+            ORDER BY a.published_at DESC
+            LIMIT 60
+        """)).mappings().all()
+
+        climate_count = c.execute(text(
+            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'climate'"
+        )).scalar() or 0
+        sci_count = c.execute(text(
+            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'science-tech'"
+        )).scalar() or 0
+
+    return render_template("weather.html",
+                           articles=rows,
+                           climate_count=climate_count,
+                           sci_count=sci_count,
                            is_subscriber=is_subscriber())
 
 
@@ -2341,9 +2422,16 @@ def api_map_data():
     """JSON pin data for /map. Aggregates by (lat, lng) cluster to avoid
     1,700+ stacked dots at province centroids. Returns up to 3 sample
     article titles + a total count per pin.
+
+    Supports ?beat=<slug> to filter pins by news beat (category).
     """
-    from flask import jsonify
+    from flask import jsonify, request as _req
     S = _schema()
+    beat = _req.args.get("beat", "all")
+    if beat not in VALID_BEATS:
+        beat = "all"
+    beat_where = "AND a.beat = :beat" if beat != "all" else ""
+    params = {"beat": beat} if beat != "all" else {}
     with _db().begin() as c:
         rows = c.execute(text(f"""
             SELECT
@@ -2360,10 +2448,11 @@ def api_map_data():
             JOIN {S}.sources s ON s.id = a.source_id
             WHERE a.lat IS NOT NULL AND a.lng IS NOT NULL
               AND a.published_at > NOW() - INTERVAL '7 days'
+              {beat_where}
             GROUP BY 1, 2, 3, 4
             ORDER BY article_count DESC
             LIMIT 500
-        """)).mappings().all()
+        """), params).mappings().all()
     pins = []
     for r in rows:
         pins.append({

@@ -137,21 +137,21 @@ body { background: var(--wtf-bg); color: #e0e0e0; font-family: 'IBM Plex Mono', 
   <div id="wtf-editorial">
     <div class="wtf-section-label">EDITORIAL DESK</div>
 
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;">
-      <div class="wtf-section-label">LIVE AGENT ACTIVITY</div>
-      <a href="/activity" style="font-size:0.6rem;letter-spacing:1px;color:#6b7280;text-decoration:none;text-transform:uppercase;">View all &rarr;</a>
-    </div>
-    <div id="wtf-activity-feed" style="max-height:520px;overflow-y:auto;">
-      <div class="wtf-activity-item" style="color:#555;font-size:11px;">Loading agent activity...</div>
-    </div>
-
-    <div class="wtf-section-label" style="margin-top:14px;">F.A.C.T. TOP STORIES</div>
+    <div class="wtf-section-label" style="margin-top:10px;color:#dc2626;">F.A.C.T. TOP STORIES</div>
     <div id="wtf-top-stories">
       {% for a in articles[:5] %}
       <div class="wtf-top-story">
         <a href="/article/{{ a.id }}" style="color:#ccc;text-decoration:none;">{{ a.title[:80] }}</a>
       </div>
       {% endfor %}
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;">
+      <div class="wtf-section-label">LIVE AGENT ACTIVITY</div>
+      <a href="/activity" style="font-size:0.6rem;letter-spacing:1px;color:#6b7280;text-decoration:none;text-transform:uppercase;">View all &rarr;</a>
+    </div>
+    <div id="wtf-activity-feed" style="max-height:400px;overflow-y:auto;">
+      <div class="wtf-activity-item" style="color:#555;font-size:11px;">Loading agent activity...</div>
     </div>
   </div>
 
@@ -225,15 +225,25 @@ function esc(s) {
 }
 
 function buildActivityItem(ev) {
-  var AGENT_COLOURS = {"B.I.A.S.":"#f80","V.E.R.I.F.Y.":"#4a9","L.O.C.A.L.":"#0af"};
+  var AGENT_COLOURS = {
+    "F.A.C.T.":    "#dc2626",
+    "B.I.A.S.":    "#f59e0b",
+    "V.E.R.I.F.Y.":"#10b981",
+    "L.O.C.A.L.":  "#3b82f6",
+    "I.N.K.":      "#ec4899",
+    "D.R.A.F.T.":  "#06b6d4",
+    "P.U.B.L.I.S.H.":"#f97316",
+    "A.U.R.O.R.A.":"#7c3aed",
+  };
   var AGENT_TOOLTIPS = {
-    "I.N.K.":     "I.N.K. — Story Clustering. Groups related articles from different outlets into unified stories.",
-    "B.I.A.S.":   "B.I.A.S. — Bias Scoring. Rates political lean of each article on a left-to-right spectrum.",
-    "D.R.A.F.T.": "D.R.A.F.T. — Story Summarization. Writes concise summaries of each news cluster.",
-    "F.A.C.T.":   "F.A.C.T. — Article Ingestion. Fetches and indexes articles from 46 Canadian news sources.",
+    "F.A.C.T.":    "F.A.C.T. — Article Ingestion. Fetches and indexes articles from 46+ Canadian news sources.",
+    "B.I.A.S.":    "B.I.A.S. — Bias Scoring. Rates political lean of each article on a left-to-right spectrum.",
     "V.E.R.I.F.Y.":"V.E.R.I.F.Y. — Fact-Checking. Evaluates claims in articles against available evidence.",
-    "L.O.C.A.L.": "L.O.C.A.L. — Geo-Mapping. Identifies where each story is geographically located in Canada.",
-    "A.U.R.O.R.A.":"A.U.R.O.R.A. — Weather Intelligence. Tracks climate and science stories across Canadian outlets."
+    "L.O.C.A.L.":  "L.O.C.A.L. — Geo-Mapping. Identifies where each story is geographically located in Canada.",
+    "I.N.K.":      "I.N.K. — Story Clustering. Groups related articles from different outlets into unified stories.",
+    "D.R.A.F.T.":  "D.R.A.F.T. — Story Summarization. Writes concise summaries of each news cluster.",
+    "P.U.B.L.I.S.H.":"P.U.B.L.I.S.H. — Broadcast Editor. Pushes top stories to social media and newsletters.",
+    "A.U.R.O.R.A.":"A.U.R.O.R.A. — Weather Intelligence. Tracks climate and science stories across Canadian outlets.",
   };
   var col = AGENT_COLOURS[ev.agent] || "#888";
   var tooltip = AGENT_TOOLTIPS[ev.agent] || "";

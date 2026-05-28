@@ -158,7 +158,7 @@ def find_best_node_for_model(model: str, home_node_db_id: Optional[int] = None) 
                 """
                 SELECT id, node_id, node_name, gpu_available, gpu_vram_gb,
                        ram_gb, current_load, max_concurrent, priority,
-                       last_heartbeat, extra_capabilities
+                       last_heartbeat, extra_capabilities, deployment_mode
                 FROM remote_nodes
                 WHERE is_active = TRUE
                   AND status = 'online'
@@ -170,11 +170,22 @@ def find_best_node_for_model(model: str, home_node_db_id: Optional[int] = None) 
     except Exception:
         return home_node_db_id
 
+    # Suppress starship nodes during the hardware rest window (8PM–6AM).
+    _rest_active = False
+    try:
+        from tools.department_hq.fleet_helpers import is_fleet_rest_active
+
+        _rest_active = is_fleet_rest_active()
+    except Exception:
+        pass
+
     best_db_id = home_node_db_id
     best_score: Optional[float] = None
     home_score: Optional[float] = None
 
     for node in nodes:
+        if node.get("deployment_mode") == "starship" and _rest_active:
+            continue
         score = score_node_for_model(node, model)
         if score is None:
             continue

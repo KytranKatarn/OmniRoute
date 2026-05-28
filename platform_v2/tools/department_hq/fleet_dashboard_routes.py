@@ -1736,6 +1736,34 @@ def register_dashboard_routes(bp, auth_decorator):
             logger.error("api_fleet_dispatch_mode: %s", exc)
             return jsonify({"success": False, "error": str(exc)}), 500
 
+    @bp.route("/api/fleet/rest-mode", methods=["GET", "POST"])
+    @auth_decorator
+    def api_fleet_rest_mode():
+        """Get or set fleet hardware rest schedule (suppresses starship dispatch 8PM–6AM)."""
+        from .fleet_helpers import get_fleet_rest_config, set_fleet_rest_config, is_fleet_rest_active
+
+        try:
+            if request.method == "GET":
+                cfg = get_fleet_rest_config()
+                return jsonify(
+                    success=True,
+                    enabled=cfg.get("enabled", False),
+                    start_hour=cfg.get("start_hour", 20),
+                    end_hour=cfg.get("end_hour", 6),
+                    active_now=is_fleet_rest_active(),
+                )
+            data = request.get_json(silent=True) or {}
+            enabled = bool(data.get("enabled", False))
+            set_fleet_rest_config(
+                enabled=enabled,
+                start_hour=int(data.get("start_hour", 20)),
+                end_hour=int(data.get("end_hour", 6)),
+            )
+            return jsonify(success=True, enabled=enabled, active_now=is_fleet_rest_active())
+        except Exception as exc:
+            logger.error("api_fleet_rest_mode: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
     @bp.route("/api/fleet/cluster-activity")
     @auth_decorator
     def api_fleet_cluster_activity():
@@ -2033,6 +2061,9 @@ def register_dashboard_routes(bp, auth_decorator):
                     }
                 )
 
+            from .fleet_helpers import get_fleet_rest_config, is_fleet_rest_active
+
+            rest_cfg = get_fleet_rest_config()
             return jsonify(
                 success=True,
                 nodes_with_work=nodes_out,  # kept for JS compat
@@ -2043,6 +2074,8 @@ def register_dashboard_routes(bp, auth_decorator):
                 last_run_by_node=last_run_by_node,
                 throughput_by_node=throughput_by_node,
                 throughput_total=throughput_total,
+                rest_enabled=rest_cfg.get("enabled", False),
+                rest_active=is_fleet_rest_active(),
             )
         except Exception as exc:
             logger.error("api_fleet_cluster_activity: %s", exc)

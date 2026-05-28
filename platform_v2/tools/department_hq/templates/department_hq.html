@@ -598,6 +598,11 @@
             <button id="fleetModeNews" onclick="setFleetDispatchMode('news')" title="News mode: WTF/News agents → outpost-us first; platform agents → Starship-246" style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">📰 NEWS</button>
             <button id="fleetModePlatform" onclick="setFleetDispatchMode('platform')" title="Platform mode: F.O.R.G.E./K.I.N./S.H.I.E.L.D. get Starship-246; News agents use outpost-us" style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">🖥 PLATFORM</button>
           </span>
+          <span style="display:inline-flex;align-items:center;gap:4px;margin-left:12px;font-size:0.63rem;letter-spacing:1px;color:var(--dhq-text-dim);">
+            HARDWARE REST
+            <button id="restModeBtn" data-enabled="false" onclick="toggleRestMode()" title="Schedule: 8PM–6AM ET — pauses dispatch to Starship-245 &amp; Starship-246 to reduce heat" style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">🌙 REST</button>
+            <span id="restModeStatus" style="font-size:0.6rem;color:var(--dhq-text-dim);"></span>
+          </span>
           <span id="fleetLiveIndicator" style="float:right;display:inline-flex;align-items:center;gap:5px;font-size:0.65rem;color:#10b981;">
             <span class="sc-live" style="font-size:0.5rem;">●</span> LIVE
             <span id="fleetLastRefresh" style="color:var(--dhq-text-dim);margin-left:4px;"></span>

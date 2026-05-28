@@ -542,3 +542,48 @@ def auto_assign_agents_for_model(node_id_str: str, model_name: str) -> int:
             "auto_assign_agents_for_model failed for %s/%s: %s", node_id_str, model_name, exc
         )
         return 0
+
+
+# ── Hardware Rest Mode ────────────────────────────────────────────────────────
+
+
+def get_fleet_rest_config() -> dict:
+    """Return rest config from system_config. Defaults: enabled=False, start=20, end=6."""
+    try:
+        with get_db_cursor(commit=False) as (_, cur):
+            cur.execute("SELECT value FROM system_config WHERE key = 'fleet_hardware_rest'")
+            row = cur.fetchone()
+        if row:
+            return json.loads(row["value"])
+    except Exception:
+        pass
+    return {"enabled": False, "start_hour": 20, "end_hour": 6}
+
+
+def set_fleet_rest_config(enabled: bool, start_hour: int = 20, end_hour: int = 6) -> None:
+    """Persist rest config to system_config."""
+    import pytz
+
+    value = json.dumps({"enabled": enabled, "start_hour": start_hour, "end_hour": end_hour})
+    with get_db_cursor(commit=True) as (_, cur):
+        cur.execute(
+            """INSERT INTO system_config (key, value, updated_at)
+               VALUES ('fleet_hardware_rest', %s, NOW())
+               ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()""",
+            (value,),
+        )
+
+
+def is_fleet_rest_active() -> bool:
+    """True if rest mode enabled AND current time is inside the rest window (America/Toronto)."""
+    import pytz
+
+    cfg = get_fleet_rest_config()
+    if not cfg.get("enabled"):
+        return False
+    tz = pytz.timezone("America/Toronto")
+    hour = datetime.now(tz).hour
+    start, end = int(cfg.get("start_hour", 20)), int(cfg.get("end_hour", 6))
+    if start > end:  # crosses midnight
+        return hour >= start or hour < end
+    return start <= hour < end

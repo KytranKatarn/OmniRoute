@@ -3952,6 +3952,11 @@ function loadClusterActivity() {
                     }
                 }
             }
+
+            // Sync rest mode button state from cluster-activity response
+            if (typeof data.rest_enabled !== 'undefined') {
+                updateRestModeUI({enabled: data.rest_enabled, active_now: data.rest_active});
+            }
         })
         .catch(function() {});
     // Sync toggle state with server on each load
@@ -4021,6 +4026,62 @@ function setFleetDispatchMode(mode) {
         }
     })
     .catch(function() {});
+}
+
+async function toggleRestMode() {
+    var btn = document.getElementById('restModeBtn');
+    if (!btn) return;
+    var currentlyEnabled = btn.dataset.enabled === 'true';
+    try {
+        var r = await fetch('/tools/department-hq/api/fleet/rest-mode', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({enabled: !currentlyEnabled})
+        });
+        var d = await r.json();
+        if (d.success) updateRestModeUI(d);
+    } catch(e) { console.error('[Fleet] rest mode toggle failed', e); }
+}
+
+function updateRestModeUI(data) {
+    var btn = document.getElementById('restModeBtn');
+    var status = document.getElementById('restModeStatus');
+    if (!btn) return;
+    btn.dataset.enabled = data.enabled ? 'true' : 'false';
+    if (data.enabled && data.active_now) {
+        // RESTING — blue glow, pulsing dot
+        btn.style.color = '#60a5fa';
+        btn.style.borderColor = '#60a5fa';
+        btn.style.boxShadow = '0 0 6px #60a5fa66';
+        if (status) {
+            status.style.display = 'inline-block';
+            status.style.whiteSpace = 'pre-line';
+            status.style.lineHeight = '1.3';
+            status.style.color = '#60a5fa';
+            status.textContent = '● RESTING';
+        }
+    } else if (data.enabled) {
+        // SCHEDULED — amber, armed but waiting
+        btn.style.color = '#f59e0b';
+        btn.style.borderColor = '#f59e0b';
+        btn.style.boxShadow = 'none';
+        if (status) {
+            status.style.display = 'inline-block';
+            status.style.whiteSpace = 'pre-line';
+            status.style.lineHeight = '1.3';
+            status.style.color = '#f59e0b';
+            status.textContent = '🕐 SCHEDULED\n8PM–6AM ET';
+        }
+    } else {
+        // OFF — dim, no indicator
+        btn.style.color = '#94a3b8';
+        btn.style.borderColor = '#334155';
+        btn.style.boxShadow = 'none';
+        if (status) {
+            status.style.display = 'none';
+            status.textContent = '';
+        }
+    }
 }
 
 function initFleetMap() {

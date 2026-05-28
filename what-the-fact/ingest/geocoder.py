@@ -1,7 +1,14 @@
 """geocoder.py — L.O.C.A.L. geo extraction wrapper with province centroid fallback."""
+import os
 import re
 
 from .ai_dispatcher import analyze
+
+# When true, skip the LLM call entirely and use heuristic-only geo.
+# Set WTF_GEO_LIVE_SKIP=true when the fleet is under backlog load to prevent
+# the ingest thread from blocking 240s per article. The geo backlog worker
+# (WTF_GEO_BACKLOG_ENABLED) handles LLM geo for articles marked pending.
+_GEO_LIVE_SKIP = os.environ.get("WTF_GEO_LIVE_SKIP", "false").lower() == "true"
 
 PROVINCE_CENTROIDS = {
     "AB": (53.9333, -116.5765),
@@ -143,9 +150,11 @@ def extract_geo(article_id, title, body, source_slug=None):
     is about a foreign country. country_code='US'/'GB'/'FR'/etc. with
     geo_scope='international' and lat/lng from _COUNTRY_CENTROIDS where known.
     """
-    result = analyze("geo", article_id, title, body)
-    if result and isinstance(result, dict):
-        result = _sanitize(result)
+    result = None
+    if not _GEO_LIVE_SKIP:
+        result = analyze("geo", article_id, title, body)
+        if result and isinstance(result, dict):
+            result = _sanitize(result)
     # Canadian province path (existing behaviour)
     if result and isinstance(result, dict) and result.get("province_code") in VALID_PROVINCES:
         pc = result["province_code"]

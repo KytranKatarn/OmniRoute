@@ -23,6 +23,7 @@ services:
       WTF_BIAS_V2_ENABLED: "true"
       WTF_BIAS_V2_MAX_AGE_DAYS: "90"
       WTF_GEO_BACKLOG_MAX_RUNS_PER_NIGHT: "500"
+      WTF_GEO_LIVE_SKIP: "true"
   wtf-consumer:
     build: {context: ., dockerfile: Dockerfile.consumer}
     image: ghcr.io/kytrankatarn/wtf-consumer:0.1.0

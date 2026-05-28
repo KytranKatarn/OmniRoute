@@ -70,6 +70,13 @@ body { background: var(--wtf-bg); color: #e0e0e0; font-family: 'IBM Plex Mono', 
   <a id="wtf-beat-banner-link" href="#" style="color:#fff;text-decoration:none;border:1px solid currentColor;padding:2px 8px;border-radius:3px;font-size:9px;white-space:nowrap;opacity:0.85;">View full feed →</a>
 </div>
 
+<!-- Province context banner — shown when a province is selected -->
+<div id="wtf-province-banner" style="display:none;padding:5px 14px;border-bottom:1px solid #0af3;background:#00aaff0d;align-items:center;justify-content:space-between;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:10px;">
+  <span id="wtf-province-banner-label" style="font-weight:700;letter-spacing:0.08em;color:#0af;"></span>
+  <span style="color:#9ca3af;font-size:9px;">Map + feed filtered to this province</span>
+  <button onclick="clearProvince()" style="background:none;border:1px solid #0af6;color:#0af;font-family:inherit;font-size:9px;padding:2px 8px;border-radius:3px;cursor:pointer;">✕ Clear</button>
+</div>
+
 <!-- Featured Story Strip -->
 <div id="wtf-featured-strip" style="display:none;padding:8px 12px;background:#050d1a;border-bottom:1px solid #112233;border-left:3px solid var(--wtf-accent);max-height:80px;box-sizing:border-box;overflow:hidden;">
   <div style="display:flex;align-items:baseline;gap:10px;">
@@ -106,9 +113,18 @@ body { background: var(--wtf-bg); color: #e0e0e0; font-family: 'IBM Plex Mono', 
 <div id="wtf-map-zone">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
     <h2 id="wtf-map-label" style="margin:0;">LIVE — CANADA NEWS MAP</h2>
-    <div class="wtf-map-toggle">
-      <button id="btn-canada" class="wtf-map-btn active" onclick="setMapMode('canada')">🍁 CANADA</button>
-      <button id="btn-world" class="wtf-map-btn" onclick="setMapMode('world')">🌍 WORLD</button>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <!-- Province selector -->
+      <div style="position:relative;" id="wtf-province-selector">
+        <button id="wtf-province-btn" class="wtf-map-btn" onclick="toggleProvinceDropdown(event)">📍 PROVINCE ▾</button>
+        <div id="wtf-province-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#0a1520;border:1px solid #1a3a5a;border-radius:3px;z-index:9999;min-width:160px;max-height:220px;overflow-y:auto;box-shadow:0 4px 12px #00000080;">
+          <div onclick="clearProvince()" style="padding:7px 12px;font-size:9px;letter-spacing:1px;cursor:pointer;color:#6b7280;border-bottom:1px solid #112233;" onmouseover="this.style.background='#1a2a3a'" onmouseout="this.style.background='transparent'">ALL PROVINCES</div>
+        </div>
+      </div>
+      <div class="wtf-map-toggle">
+        <button id="btn-canada" class="wtf-map-btn active" onclick="setMapMode('canada')">🍁 CANADA</button>
+        <button id="btn-world" class="wtf-map-btn" onclick="setMapMode('world')">🌍 WORLD</button>
+      </div>
     </div>
   </div>
   <div id="wtf-canada-map"></div>
@@ -149,28 +165,8 @@ body { background: var(--wtf-bg); color: #e0e0e0; font-family: 'IBM Plex Mono', 
         <a href="/divergence" style="font-size:0.6rem;letter-spacing:1px;color:#a855f7;text-decoration:none;text-transform:uppercase;border:1px solid #a855f740;padding:1px 6px;border-radius:3px;">🇨🇦 FR/EN</a>
       </div>
     </div>
-    <div style="max-height:900px;overflow-y:auto;">
-      {% for a in articles[:10] %}
-      {% set band = (a.band or 'center') | replace(' ', '-') %}
-      <div class="wtf-article-card wtf-article-card--{{ band }}">
-        <div class="wtf-card-meta">
-          <span>{{ a.source or '' }}{% if a.province_code %} &middot; {{ a.province_code }}{% endif %}</span>
-          {% if is_subscriber %}<span class="wtf-bias-pill wtf-bias-{{ band }}">{{ band.upper() }}</span>{% endif %}
-        </div>
-        <a class="wtf-card-title" href="/article/{{ a.id }}">{{ a.title }}</a>
-        <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
-          {% if is_subscriber %}
-          {% if a.ai_analyzed %}<span class="wtf-card-badge wtf-badge-ai">AI Analyzed</span>{% endif %}
-          {% if a.cluster_size and a.cluster_size > 1 %}
-          <a href="/cluster/{{ a.cluster_id }}" class="wtf-card-badge" style="background:#0a2a3a;color:#0af;border:1px solid #0af3;text-decoration:none;" title="{{ a.cluster_size }} Canadian outlets are covering this story">📰 {{ a.cluster_size }} sources</a>
-          {% endif %}
-          {% if a.mp_mentions %}
-          <span class="wtf-card-badge" style="background:#0a1a2a;color:#a78bfa;border:1px solid #4c1d9544;font-size:9px;" title="{{ a.mp_mentions }}">🏛 {{ a.mp_mentions[:40] }}{% if a.mp_mentions|length > 40 %}…{% endif %}</span>
-          {% endif %}
-          {% endif %}
-        </div>
-      </div>
-      {% endfor %}
+    <div id="wtf-feed-articles" style="max-height:900px;overflow-y:auto;">
+      <div style="color:#555;font-size:11px;padding:8px 0;">Loading...</div>
     </div>
     {% if not is_subscriber %}
     <div style="margin-top:12px;padding:14px 16px;background:#060d14;border:1px solid #2a1a00;border-radius:6px;text-align:center;">
@@ -220,6 +216,7 @@ var pinLayer = null;
 var worldLayer = null;
 var mapMode = 'canada';
 var currentBeat = 'all';
+var currentProvince = null;
 var _lastMapData = null;
 var _lastGeo = null;
 
@@ -309,7 +306,10 @@ function loadMapData() {
           );
         }
         layer.on("click", function() {
-          if (pc) window.location = "/?province=" + encodeURIComponent(pc);
+          if (pc) {
+            setProvince(pc);
+            map.fitBounds(layer.getBounds(), {padding: [20, 20]});
+          }
         });
       }
     }).addTo(map);
@@ -361,7 +361,7 @@ var PROVINCE_COLOURS = {
 };
 
 function loadArticlesGeo() {
-  fetch("/api/proxy/articles/geo")
+  fetch("/api/proxy/articles/geo?beat=" + encodeURIComponent(currentBeat))
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var articles = data.articles || [];
@@ -515,6 +515,14 @@ var BEAT_CONFIG = {
   'economy':    { color: '#06b6d4', label: '💰 ECONOMY MODE',     path: '/news?beat=economy' },
 };
 
+var PROVINCE_LIST = [
+  {code:'AB',name:'Alberta'},{code:'BC',name:'British Columbia'},{code:'MB',name:'Manitoba'},
+  {code:'NB',name:'New Brunswick'},{code:'NL',name:'Newfoundland & Labrador'},
+  {code:'NS',name:'Nova Scotia'},{code:'NT',name:'NW Territories'},{code:'NU',name:'Nunavut'},
+  {code:'ON',name:'Ontario'},{code:'PE',name:'PEI'},{code:'QC',name:'Quebec'},
+  {code:'SK',name:'Saskatchewan'},{code:'YT',name:'Yukon'},
+];
+
 function setBeat(el, beat) {
   currentBeat = beat;
   document.querySelectorAll('.wtf-beat-pill').forEach(function(b) { b.classList.remove('active'); });
@@ -538,7 +546,98 @@ function setBeat(el, beat) {
 
   loadMapData();
   loadArticlesGeo();
+  loadArticleFeed();
 }
+
+function loadArticleFeed() {
+  var url = '/api/v1/articles?limit=15';
+  if (currentBeat && currentBeat !== 'all') url += '&beat=' + encodeURIComponent(currentBeat);
+  if (currentProvince) url += '&province=' + encodeURIComponent(currentProvince);
+  var container = document.getElementById('wtf-feed-articles');
+  if (!container) return;
+  container.innerHTML = '<div style="color:#555;font-size:11px;padding:8px 0;">Loading...</div>';
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var articles = data.articles || [];
+      if (!articles.length) {
+        container.innerHTML = '<div style="color:#555;font-size:11px;padding:8px 0;">No articles for this filter.</div>';
+        return;
+      }
+      container.innerHTML = articles.map(function(a) {
+        var band = (a.bias_band || 'center').replace(/ /g,'-');
+        var src = (a.source && a.source.name) ? esc(a.source.name) : '';
+        var prov = a.province_code ? ' &middot; ' + esc(a.province_code) : '';
+        return '<div class="wtf-article-card wtf-article-card--' + esc(band) + '">' +
+          '<div class="wtf-card-meta"><span>' + src + prov + '</span>' +
+          '<span class="wtf-bias-pill wtf-bias-' + esc(band) + '">' + band.toUpperCase() + '</span></div>' +
+          '<a class="wtf-card-title" href="/article/' + a.id + '">' + esc(a.title) + '</a>' +
+          '</div>';
+      }).join('');
+    })
+    .catch(function(e) { console.warn('Feed load failed:', e); });
+}
+
+function setProvince(pc) {
+  currentProvince = pc;
+  var pname = (PROVINCE_LIST.find(function(p){ return p.code === pc; }) || {}).name || pc;
+  var btn = document.getElementById('wtf-province-btn');
+  if (btn) btn.textContent = '📍 ' + pc + ' ▾';
+  var banner = document.getElementById('wtf-province-banner');
+  if (banner) {
+    banner.style.display = 'flex';
+    document.getElementById('wtf-province-banner-label').textContent = '📍 ' + pname.toUpperCase();
+  }
+  loadArticlesGeo();
+  loadArticleFeed();
+}
+
+function clearProvince() {
+  currentProvince = null;
+  var btn = document.getElementById('wtf-province-btn');
+  if (btn) btn.textContent = '📍 PROVINCE ▾';
+  var banner = document.getElementById('wtf-province-banner');
+  if (banner) banner.style.display = 'none';
+  var dd = document.getElementById('wtf-province-dropdown');
+  if (dd) dd.style.display = 'none';
+  map.setView([60, -96], 3);
+  loadArticlesGeo();
+  loadArticleFeed();
+}
+
+function toggleProvinceDropdown(e) {
+  e.stopPropagation();
+  var dd = document.getElementById('wtf-province-dropdown');
+  if (dd.style.display === 'none') {
+    // populate if empty (only "ALL" row present)
+    if (dd.children.length < 2) {
+      PROVINCE_LIST.forEach(function(p) {
+        var item = document.createElement('div');
+        item.style.cssText = 'padding:7px 12px;font-size:9px;letter-spacing:1px;cursor:pointer;color:#94a3b8;';
+        item.textContent = p.code + ' — ' + p.name;
+        item.onmouseover = function(){ this.style.background='#1a2a3a'; };
+        item.onmouseout  = function(){ this.style.background='transparent'; };
+        item.onclick = function(ev) {
+          ev.stopPropagation();
+          dd.style.display = 'none';
+          setProvince(p.code);
+          if (mapMode !== 'canada') setMapMode('canada');
+        };
+        dd.appendChild(item);
+      });
+    }
+    dd.style.display = 'block';
+    document.addEventListener('click', function closeDD() {
+      dd.style.display = 'none';
+      document.removeEventListener('click', closeDD);
+    });
+  } else {
+    dd.style.display = 'none';
+  }
+}
+
+// Initial article feed load
+loadArticleFeed();
 </script>
 
 <footer style="border-top:1px solid #1f2937;padding:20px 24px;margin-top:40px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#6b7280;">

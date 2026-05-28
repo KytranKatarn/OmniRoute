@@ -2248,6 +2248,9 @@ def api_v1_articles():
     province = (_req.args.get("province") or "").strip().upper()[:2]
     country = (_req.args.get("country") or "").strip().upper()[:2]
     since = (_req.args.get("since") or "").strip()[:25]  # ISO 8601 stub
+    beat = (_req.args.get("beat") or "all").strip()[:20]
+    if beat not in _VALID_BEATS:
+        beat = "all"
     try:
         limit = min(100, max(1, int(_req.args.get("limit", 50))))
         offset = max(0, int(_req.args.get("offset", 0)))
@@ -2267,6 +2270,8 @@ def api_v1_articles():
         where.append("a.country_code = :country"); params["country"] = country
     if since:
         where.append("a.published_at >= :since::timestamp"); params["since"] = since
+    if beat and beat != "all":
+        where.append("a.beat = :beat"); params["beat"] = beat
     where_clause = " AND ".join(where)
 
     with _db().begin() as c:

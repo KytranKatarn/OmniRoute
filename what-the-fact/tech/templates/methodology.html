@@ -67,7 +67,7 @@ body { background: #0a0a12; color: #e0e0e0; font-family: 'IBM Plex Mono', monosp
       <p>Every article receives up to three independent bias signals. The ensemble average is the displayed band — more signals = more defensible measurement.</p>
       <ul>
         <li><strong>Signal 1 — Heuristic (v1/v3):</strong> Keyword frequency analysis against a weighted trigger-phrase list. Fast, runs on every article at ingest.</li>
-        <li><strong>Signal 2 — LLM Tier-1:</strong> B.I.A.S. (qwen2.5:1.5b via DHQ) reads title + body and returns a structured score with rationale and trigger phrases. Runs on priority articles.</li>
+        <li><strong>Signal 2 — LLM Tier-1:</strong> B.I.A.S. (qwen2.5:7b via DHQ) reads title + body and returns a structured score with rationale and trigger phrases. Uses Canadian political context (Liberal/NDP/Conservative spectrum). Runs on priority articles.</li>
         <li><strong>Signal 3 — ML v2 (DistilBERT zero-shot):</strong> <code style="font-size:9px;">valhalla/distilbart-mnli-12-3</code> runs NLI classification against left/center/right labels. CPU-only, independent of the LLM path. Backlog worker scores ~50 articles per 30-min cycle. US-trained — Canadian political framing (NDP/Liberal/Conservative) may not map cleanly; treated as a second opinion, not ground truth.</li>
         <li><strong>Ensemble:</strong> <code style="font-size:9px;">0.5 × heuristic_score + 0.5 × ml_v2_score</code> (where both are available). Band derived from same thresholds as single-signal scoring.</li>
       </ul>
@@ -75,16 +75,16 @@ body { background: #0a0a12; color: #e0e0e0; font-family: 'IBM Plex Mono', monosp
 
     <div class="wtf-method-block">
       <h4>Bias Band Thresholds</h4>
-      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#0a1a40;color:#3b82f6">LEFT</span><span style="color:#888">score &lt; &minus;0.6</span></div>
-      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#0a1530;color:#93c5fd">CENTER-LEFT</span><span style="color:#888">&minus;0.6 &le; score &lt; &minus;0.2</span></div>
-      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#1a1a1a;color:#9ca3af">CENTER</span><span style="color:#888">&minus;0.2 &le; score &lt; 0.2</span></div>
-      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#2a1010;color:#fca5a5">CENTER-RIGHT</span><span style="color:#888">0.2 &le; score &lt; 0.6</span></div>
-      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#2a0a0a;color:#ef4444">RIGHT</span><span style="color:#888">score &ge; 0.6</span></div>
+      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#2d0a0a;color:#dc2626">LEFT</span><span style="color:#888">score &lt; &minus;0.6 &mdash; NDP, labour, progressive</span></div>
+      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#2d1100;color:#f97316">CENTER-LEFT</span><span style="color:#888">&minus;0.6 &le; score &lt; &minus;0.2 &mdash; Liberal, CBC framing</span></div>
+      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#0a2010;color:#22c55e">CENTER</span><span style="color:#888">&minus;0.2 &le; score &lt; 0.2 &mdash; neutral/factual reporting</span></div>
+      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#062030;color:#0ea5e9">CENTER-RIGHT</span><span style="color:#888">0.2 &le; score &lt; 0.6 &mdash; fiscal conservatism, business</span></div>
+      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#0a1540;color:#2563eb">RIGHT</span><span style="color:#888">score &ge; 0.6 &mdash; Conservative base, Postmedia editorial</span></div>
     </div>
 
     <div class="wtf-method-block">
       <h4>F.A.C.T. Priority Scoring</h4>
-      <p>F.A.C.T. (gemma3:12b) assigns a priority score to each article each cycle. Articles scoring &ge; 1 join the AI analysis queue (up to 10 per cycle):</p>
+      <p>F.A.C.T. (gemma3:12b) assigns a priority score to each article each cycle. Articles scoring &ge; 1 join the AI analysis queue (up to 20 per cycle):</p>
       <div class="wtf-code">score += 3  # same story in 3+ outlets
 score += 2  # heuristic bias |score| &gt; 0.5
 score += 1  # breaking keyword in title</div>
@@ -101,9 +101,10 @@ score += 1  # breaking keyword in title</div>
         <li><strong>verified</strong> — claim confirmed by public record or widely accepted source</li>
         <li><strong>mixed</strong> — claim is partly true or requires context</li>
         <li><strong>disputed</strong> — claim contradicts known evidence</li>
-        <li><strong>unverifiable</strong> — claim cannot be confirmed or denied with available sources</li>
+        <li><strong>unverifiable</strong> — specific claim exists but cannot be checked with available evidence</li>
+        <li><strong>descriptive_reporting</strong> — article contains no specific factual assertions (market summaries, sports scores, breaking dispatches). This is not a quality judgment.</li>
       </ul>
-      <p>V.E.R.I.F.Y. does not have internet access. Verdicts are based on the model's training data. We flag this limitation prominently.</p>
+      <p>V.E.R.I.F.Y. does not have internet access. Verdicts are based on the model's training data (cutoff 2024). We flag this limitation prominently on every article.</p>
     </div>
   </div>
 
@@ -129,14 +130,14 @@ score += 1  # breaking keyword in title</div>
 
     <div class="wtf-agent-card" style="border-color:#f80;">
       <h4 style="color:#f80;">B.I.A.S. &mdash; Bias Analyst</h4>
-      <div class="model">gemma2:9b &middot; News &amp; Media dept</div>
-      <div class="prompt-preview">"Analyze the bias of this Canadian news article. Return ONLY valid JSON: {score: float -1 to 1, band: string, rationale: string, trigger_phrases: list, confidence: float}"</div>
+      <div class="model">qwen2.5:7b &middot; News &amp; Media dept &middot; upgraded 2026-05-28</div>
+      <div class="prompt-preview">"You are a Canadian political bias analyst. Score this article's political framing on the Canadian spectrum (LEFT=NDP/labour, CENTER-LEFT=Liberal/CBC, CENTER=neutral, CENTER-RIGHT=fiscal conservative, RIGHT=Conservative/Postmedia). Avoid defaulting to 0.0 — make a decision even if uncertain. Return ONLY valid JSON: {score, band, rationale, trigger_phrases, confidence}"</div>
     </div>
 
     <div class="wtf-agent-card" style="border-color:#4a9;">
       <h4 style="color:#4a9;">V.E.R.I.F.Y. &mdash; Fact-Checker</h4>
       <div class="model">gemma2:9b &middot; News &amp; Media dept</div>
-      <div class="prompt-preview">"Fact-check the claims in this Canadian news article. Return ONLY valid JSON: {claims: [{text, verdict, reasoning}], overall_verdict: string, confidence: float}"</div>
+      <div class="prompt-preview">"Extract FACTUAL ASSERTIONS only (statistics, historical events, attributed quotes, study results). SKIP opinions and descriptive reporting. If article contains no factual claims, return overall_verdict='descriptive_reporting'. Return ONLY valid JSON: {claims: [{text, verdict, reasoning, confidence}], overall_verdict, confidence}"</div>
     </div>
 
     <div class="wtf-agent-card">
@@ -151,11 +152,13 @@ score += 1  # breaking keyword in title</div>
     <div class="wtf-section-title">KNOWN LIMITATIONS</div>
     <div class="wtf-method-block">
       <ul>
-        <li>LLM analysis is based on training data &mdash; models do not have internet access or real-time fact databases.</li>
-        <li>Bias scoring reflects the LLM's interpretation, which may not match human expert consensus.</li>
-        <li>Geolocation misses international stories and articles with no explicit location mention.</li>
-        <li>Not all articles receive full AI analysis &mdash; only priority articles (top 10/cycle) get LLM treatment.</li>
-        <li>Outlet bias profiles are rolling averages; new outlets may be miscategorized early.</li>
+        <li>LLM analysis is based on training data (cutoff 2024) &mdash; models do not have internet access or real-time fact databases.</li>
+        <li>Bias scoring reflects the LLM's interpretation of language patterns; it may not match human expert consensus in all cases.</li>
+        <li>Geolocation uses source province as fallback when AI confidence is low (&lt;0.5).</li>
+        <li>Not all articles receive full AI analysis &mdash; only priority articles (top 20/cycle) get LLM treatment; all others receive heuristic + source-editorial bias scoring.</li>
+        <li>Outlet bias profiles are rolling averages; new outlets are seeded from editorial stance data and refined over time.</li>
+        <li>Paywalled articles (Postmedia, Torstar) have limited body text — AI analysis relies on title + Open Graph description only.</li>
+        <li>DistilBERT Signal 3 (US-trained NLI model) may not map cleanly to Canadian political framing; treated as a second opinion, not ground truth.</li>
       </ul>
     </div>
   </div>
@@ -168,12 +171,10 @@ score += 1  # breaking keyword in title</div>
       <p>WTF can only analyze outlets that publish open RSS feeds. Several major Canadian news operations have discontinued public RSS access, making their journalism invisible to independent algorithmic scrutiny. We document every gap — because transparency about what we <em>cannot</em> see is as important as what we can.</p>
     </div>
 
-    <div class="wtf-method-block" style="border-color:#f44;">
-      <h4 style="color:#f44;">CTV News — Bell Media</h4>
-      <p><strong>Status:</strong> RSS discontinued. All feed URLs return 404 as of 2026-04-29.</p>
-      <p><strong>Why it matters:</strong> CTV News is Canada&rsquo;s largest private broadcaster. Bell Media (parent) operates CTV News, BNN Bloomberg, TSN, and 35+ radio stations. Their editorial decisions reach millions of Canadians daily &mdash; and are now invisible to public algorithmic fact-checking. WTF cannot score, audit, or track bias trends in CTV News journalism.</p>
-      <p><strong>Likely reason:</strong> Bell Media has been aggressively moving content to ctv.ca and their app to serve pre-roll ads and track engagement. Open RSS reduces that leverage.</p>
-      <p><strong>What we&rsquo;re investigating:</strong> Alternative ingest paths (structured web data, API partnerships, community submission). No timeline.</p>
+    <div class="wtf-method-block" style="border-color:#4a9;">
+      <h4 style="color:#4a9;">CTV News — Bell Media ✓ ACTIVE</h4>
+      <p><strong>Status:</strong> <strong style="color:#4a9;">Restored and active</strong> as of 2026-05. CTV News RSS feeds are functional and ingesting successfully (~867 articles/week).</p>
+      <p><strong>Coverage note:</strong> CTV News is Canada&rsquo;s largest private broadcaster. Bell Media (parent) also operates BNN Bloomberg, TSN, and 35+ radio stations. CTV articles receive full B.I.A.S. + V.E.R.I.F.Y. analysis. Outlet editorial stance: center.</p>
     </div>
 
     <div class="wtf-method-block" style="border-color:#fa0;">
@@ -192,18 +193,10 @@ score += 1  # breaking keyword in title</div>
     </div>
 
     <div class="wtf-method-block">
-      <h4>Active sources (as of 2026-04-29)</h4>
-      <p>WTF currently ingests from 7 active Canadian sources:</p>
-      <ul>
-        <li><strong>CBC English</strong> &mdash; public broadcaster, center-left</li>
-        <li><strong>Global News</strong> &mdash; Corus Entertainment, center</li>
-        <li><strong>National Post</strong> &mdash; Postmedia, right-leaning</li>
-        <li><strong>The Globe and Mail</strong> &mdash; independent, center</li>
-        <li><strong>iPolitics</strong> &mdash; independent, Ottawa-focused</li>
-        <li><strong>The Narwhal</strong> &mdash; independent, investigative, environment-focused</li>
-        <li><strong>Canadaland</strong> &mdash; independent, media criticism, left-leaning</li>
-      </ul>
-      <p style="color:#555;font-size:10px;">We are actively seeking additional sources across the political spectrum and in French. If you represent a Canadian outlet with an open RSS feed, contact us.</p>
+      <h4>Active sources (as of 2026-05-28)</h4>
+      <p>WTF currently ingests from <strong style="color:#0af;">{{ stats.total_sources or 46 }} active Canadian sources</strong> across English and French, spanning major metro dailies, public broadcasters, regional outlets, Indigenous press, and independent investigative media.</p>
+      <p style="font-size:10px;color:#666;">Sources span the full political spectrum: left (Halifax Examiner, Ricochet, NB Media Co-op, PressProgress), center-left (CBC English/French, Radio-Canada, Le Devoir, Toronto Star), center (Globe and Mail, Global News, The Tyee, Canadaland), center-right (National Post, BNN Bloomberg, Financial Post, Postmedia regional), and right (National Post editorial). 18 beats monitored including Parliament, climate, crime, healthcare, and Indigenous affairs.</p>
+      <p style="color:#555;font-size:10px;">Seeking additional sources: Quebec French-language press (Le Soleil, Journal de Montréal), Atlantic regional, and Northern/Indigenous-owned media. Contact <a href="mailto:hello@what-the-fact.com" style="color:#a0f;">hello@what-the-fact.com</a> if you represent a Canadian outlet with an open RSS feed.</p>
     </div>
   </div>
 

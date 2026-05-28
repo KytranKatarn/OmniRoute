@@ -114,27 +114,46 @@ def analyze():
 
     prompts = {
         "bias": (
-            f"Analyze the bias of this Canadian news article.\n\n"
-            f"Source: {source_slug}\nTitle: {title}\nBody: {body}\n\n"
-            'Return ONLY valid JSON: {"score": float -1 to 1, "band": string, '
-            '"rationale": string, "trigger_phrases": list[str], "confidence": float}'
+            f"You are a Canadian political bias analyst. Score this article's political framing on the Canadian spectrum.\n\n"
+            f"Source outlet: {source_slug}\nHeadline: {title}\nBody excerpt: {body[:2500]}\n\n"
+            "Canadian political spectrum context:\n"
+            "- LEFT: NDP, Green, labour unions, Indigenous rights, anti-corporate\n"
+            "- CENTER-LEFT: Liberal Party, CBC framing, progressive but establishment\n"
+            "- CENTER: Factual/neutral reporting, no clear partisan framing\n"
+            "- CENTER-RIGHT: Conservative-friendly, fiscal conservatism, business-focus\n"
+            "- RIGHT: Conservative Party base, Postmedia editorial line, anti-government\n\n"
+            "Score thresholds: left < -0.6 | center-left -0.6 to -0.2 | center -0.2 to 0.2 | center-right 0.2 to 0.6 | right > 0.6\n\n"
+            'Return ONLY valid JSON: {"score": float, "band": string, "rationale": string, "trigger_phrases": [string], "confidence": float}\n\n'
+            "IMPORTANT: If article is clearly from a left-leaning or right-leaning outlet, reflect that in your score. "
+            "Avoid defaulting to 0.0 — make a decision even if uncertain."
         ),
         "factcheck": (
-            f"Fact-check the claims in this Canadian news article.\n\n"
-            f"Title: {title}\nBody: {body}\n\n"
-            'Return ONLY valid JSON: {"claims": [{"text": str, "verdict": str, "reasoning": str}], '
-            '"overall_verdict": string, "confidence": float}. '
-            "Verdicts: verified | mixed | disputed | unverifiable"
+            f"You are a Canadian fact-checker. Extract and verify specific factual claims from this article.\n\n"
+            f"Title: {title}\nBody: {body[:2000]}\n\n"
+            "ONLY extract FACTUAL ASSERTIONS (statistics, historical events, attributed quotes, study results, government actions).\n"
+            "SKIP opinions, predictions, descriptions of ongoing events, and editorial commentary.\n\n"
+            "For each factual claim, assign a verdict:\n"
+            "- verified: claim is accurate and independently checkable\n"
+            "- mixed: partially true but missing important context\n"
+            "- disputed: available evidence contradicts the claim\n"
+            "- unverifiable: specific claim exists but cannot be checked with available evidence\n\n"
+            "IMPORTANT: If the article contains NO specific factual assertions "
+            "(e.g., market summary, breaking dispatch, sports score, weather report, wire copy):\n"
+            '  Return: {"claims": [], "overall_verdict": "descriptive_reporting", "confidence": 0.9}\n\n'
+            'Return ONLY valid JSON: {"claims": [{"text": str, "verdict": str, "reasoning": str, "confidence": float}], '
+            '"overall_verdict": string, "confidence": float}'
         ),
         "geo": (
-            f"Extract the primary geographic location this news article is about.\n\n"
-            f"Title: {title}\nBody: {body[:1000]}\n\n"
+            f"Extract the PRIMARY geographic location this news article is ABOUT.\n\n"
+            f"Title: {title}\nBody: {body[:2000]}\n\n"
             "Rules:\n"
+            "  - Identify WHERE the story is happening, not where it is merely mentioned.\n"
+            "  - If article mentions multiple locations, pick the MAIN one the story is about.\n"
             "  - If primarily Canadian, set country_code='CA' AND province_code (e.g. 'ON', 'QC').\n"
             "  - If primarily another country, set country_code (ISO 3166-1 alpha-2: 'US', 'GB', 'FR'...) "
             "and leave province_code null.\n"
             "  - geo_scope: 'national' (Canada-wide), 'provincial', 'municipal', or 'international' (non-Canada).\n"
-            "  - If unclear, return all-null with geo_scope='international' and country_code=null.\n\n"
+            "  - If confidence < 0.5 or truly unclear, return all-null with geo_scope='international'.\n\n"
             'Return ONLY valid JSON: {"province_code": "ON" or null, "country_code": "CA"|"US"|... or null, '
             '"city": "Toronto" or null, "lat": float or null, "lng": float or null, '
             '"geo_scope": "national|provincial|municipal|international", "geo_confidence": 0.0-1.0}'

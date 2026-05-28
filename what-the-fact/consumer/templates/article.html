@@ -265,16 +265,21 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
     <div class="wtf-factcheck-panel">
       <div class="wtf-panel-label">V.E.R.I.F.Y. FACT-CHECK</div>
       {% if a.overall_verdict %}
-      {% set verdict_colour = '#22c55e' if a.overall_verdict == 'verified' else '#84cc16' if a.overall_verdict == 'mostly_true' else '#f59e0b' if a.overall_verdict == 'mixed' else '#f97316' if a.overall_verdict == 'disputed' else '#6b7280' %}
+      {% set verdict_colour = '#22c55e' if a.overall_verdict == 'verified' else '#84cc16' if a.overall_verdict == 'mostly_true' else '#f59e0b' if a.overall_verdict == 'mixed' else '#f97316' if a.overall_verdict == 'disputed' else '#9ca3af' if a.overall_verdict == 'descriptive_reporting' else '#6b7280' %}
+      {% set verdict_display = 'Descriptive Reporting' if a.overall_verdict == 'descriptive_reporting' else (a.overall_verdict.replace('_',' ').title() if a.overall_verdict else '') %}
       <div style="margin-bottom:8px;font-size:12px;color:#aaa;">
-        Overall: <strong style="color:{{ verdict_colour }};">{{ a.overall_verdict.replace('_',' ').title() }}</strong>
-        {% if a.overall_verdict == 'unverifiable' and article_type == 'opinion' %}
+        Overall: <strong style="color:{{ verdict_colour }};">{{ verdict_display }}</strong>
+        {% if a.overall_verdict == 'descriptive_reporting' %}
         <div style="font-size:10px;color:#6b7280;margin-top:4px;line-height:1.5;">
-          This is an opinion/letter piece. V.E.R.I.F.Y. found no specific factual claims to check — this is expected for editorial content, not a sign of dishonesty.
+          Descriptive reporting — V.E.R.I.F.Y. found no specific factual claims to check. Wire copy, market summaries, and sports dispatches typically have no verifiable assertions. This is not a quality judgment.
+        </div>
+        {% elif a.overall_verdict == 'unverifiable' and article_type == 'opinion' %}
+        <div style="font-size:10px;color:#6b7280;margin-top:4px;line-height:1.5;">
+          This is an opinion/letter piece. V.E.R.I.F.Y. found no specific factual claims to check — expected for editorial content.
         </div>
         {% elif a.overall_verdict == 'unverifiable' %}
         <div style="font-size:10px;color:#6b7280;margin-top:4px;line-height:1.5;">
-          V.E.R.I.F.Y. found no specific factual claims to check — no statistics, attributed quotes, or verifiable assertions were detected. This is common in market summaries, breaking news dispatches, and syndicated wire copy. It does <em style="color:#9ca3af;">not</em> indicate the article is inaccurate.
+          V.E.R.I.F.Y. found claims but could not independently verify them with available evidence. This does <em style="color:#9ca3af;">not</em> mean the article is inaccurate.
         </div>
         {% endif %}
       </div>

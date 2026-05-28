@@ -17,6 +17,8 @@ services:
       WTF_LLM_BACKLOG_ENABLED: "true"
       WTF_LLM_BACKLOG_MAX_AGE_DAYS: "14"
       WTF_LLM_BACKLOG_MAX_RUNS_PER_NIGHT: "100"
+      WTF_BIAS_V2_ENABLED: "true"
+      WTF_BIAS_V2_MAX_AGE_DAYS: "90"
   wtf-consumer:
     build: {context: ., dockerfile: Dockerfile.consumer}
     image: ghcr.io/kytrankatarn/wtf-consumer:0.1.0

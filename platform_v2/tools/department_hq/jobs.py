@@ -2495,10 +2495,16 @@ def _register_own_jobs(scheduler, flask_app):
             with _wll_db(commit=True) as (_, _wll_cur):
                 _wll_cur.execute(
                     """INSERT INTO task_execution_log
-                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, module_source, node_used_id)
                        VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
-                               %s, 'internal', %s, true, %s, 68)""",
-                    ("F.A.C.T.", "F.A.C.T.", int((_wll_t.time() - _wll_start) * 1000), "analysis"),
+                               %s, 'internal', %s, true, %s, %s, 68)""",
+                    (
+                        "F.A.C.T.",
+                        "F.A.C.T.",
+                        int((_wll_t.time() - _wll_start) * 1000),
+                        "wtf_llm_orchestration",
+                        "wtf_dhq_llm",
+                    ),
                 )
         except Exception as _tel:
             logger.debug("[WTFLLMJob] task_execution_log write failed: %s", _tel)
@@ -2650,10 +2656,16 @@ def _register_own_jobs(scheduler, flask_app):
             with _wgeo_db(commit=True) as (_, _wgeo_cur):
                 _wgeo_cur.execute(
                     """INSERT INTO task_execution_log
-                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, module_source, node_used_id)
                        VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
-                               %s, 'internal', %s, true, %s, 68)""",
-                    ("F.A.C.T.", "F.A.C.T.", int((_wgeo_t.time() - _wgeo_start) * 1000), "analysis"),
+                               %s, 'internal', %s, true, %s, %s, 68)""",
+                    (
+                        "F.A.C.T.",
+                        "F.A.C.T.",
+                        int((_wgeo_t.time() - _wgeo_start) * 1000),
+                        "wtf_geo_orchestration",
+                        "wtf_dhq_geo",
+                    ),
                 )
         except Exception as _tel:
             logger.debug("[WTFGeoJob] task_execution_log write failed: %s", _tel)
@@ -2835,10 +2847,16 @@ def _register_own_jobs(scheduler, flask_app):
             with _wfc_db(commit=True) as (_, _wfc_cur):
                 _wfc_cur.execute(
                     """INSERT INTO task_execution_log
-                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, module_source, node_used_id)
                        VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
-                               %s, 'internal', %s, true, %s, 68)""",
-                    ("F.A.C.T.", "F.A.C.T.", int((_wfc_t.time() - _wfc_start) * 1000), "analysis"),
+                               %s, 'internal', %s, true, %s, %s, 68)""",
+                    (
+                        "F.A.C.T.",
+                        "F.A.C.T.",
+                        int((_wfc_t.time() - _wfc_start) * 1000),
+                        "wtf_factcheck_orchestration",
+                        "wtf_dhq_factcheck",
+                    ),
                 )
         except Exception as _tel:
             logger.debug("[WTFFactcheckJob] task_execution_log write failed: %s", _tel)
@@ -3012,10 +3030,16 @@ def _register_own_jobs(scheduler, flask_app):
             with _wfcb_db(commit=True) as (_, _wfcb_cur):
                 _wfcb_cur.execute(
                     """INSERT INTO task_execution_log
-                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, module_source, node_used_id)
                        VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
-                               %s, 'internal', %s, true, %s, 68)""",
-                    ("F.A.C.T.", "F.A.C.T.", int((_wfcb_t.time() - _wfcb_start) * 1000), "analysis"),
+                               %s, 'internal', %s, true, %s, %s, 68)""",
+                    (
+                        "F.A.C.T.",
+                        "F.A.C.T.",
+                        int((_wfcb_t.time() - _wfcb_start) * 1000),
+                        "wtf_factcheck_backlog_orchestration",
+                        "wtf_dhq_factcheck",
+                    ),
                 )
         except Exception as _tel:
             logger.debug("[WTFFactcheckBacklog] task_execution_log write failed: %s", _tel)
@@ -3431,10 +3455,16 @@ def _register_own_jobs(scheduler, flask_app):
             with _wsc_db(commit=True) as (_, _wsc_cur):
                 _wsc_cur.execute(
                     """INSERT INTO task_execution_log
-                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
+                       (agent_id, agent_name, model_used, duration_ms, success, capability, module_source, node_used_id)
                        VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
-                               %s, 'internal', %s, true, %s, 68)""",
-                    ("F.A.C.T.", "F.A.C.T.", int((_wsc_t.time() - _wsc_start) * 1000), "analysis"),
+                               %s, 'internal', %s, true, %s, %s, 68)""",
+                    (
+                        "F.A.C.T.",
+                        "F.A.C.T.",
+                        int((_wsc_t.time() - _wsc_start) * 1000),
+                        "wtf_scout_orchestration",
+                        "wtf_dhq_scout",
+                    ),
                 )
         except Exception as _tel:
             logger.debug("[WTFScoutJob] task_execution_log write failed: %s", _tel)

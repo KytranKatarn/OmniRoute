@@ -230,8 +230,8 @@ def agent_stats():
     """Per-agent dispatch stats over last 24h for WTF traffic.
 
     Powers the consumer activity-page dispatch-path subtitle (#2956).
-    Subset of task_execution_log filtered to module_source IN
-    ('wtf_hub', 'wtf_hub_quick', 'wtf-ingest') for News & Media agents.
+    Subset of task_execution_log filtered to module_source IN wtf_hub/wtf_hub_quick/
+    wtf-ingest/wtf-tech/wtf_dhq_* for News & Media agents (incl. F.A.C.T. orchestration).
 
     Returns {agent_name: {count, success_rate, avg_ms, last_model, last_node}}.
     """
@@ -253,7 +253,11 @@ def agent_stats():
                 FROM task_execution_log tel
                 LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
                 WHERE tel.created_at > NOW() - INTERVAL '24 hours'
-                  AND tel.module_source IN ('wtf_hub', 'wtf_hub_quick', 'wtf-ingest', 'wtf-tech')
+                  AND tel.module_source IN (
+                      'wtf_hub', 'wtf_hub_quick', 'wtf-ingest', 'wtf-tech',
+                      'wtf_dhq_llm', 'wtf_dhq_geo', 'wtf_dhq_factcheck', 'wtf_dhq_scout',
+                      'wtf_dhq_geo_backlog', 'wtf_dhq_llm_backlog'
+                  )
                   AND tel.agent_name IS NOT NULL
                 GROUP BY tel.agent_name
                 ORDER BY total DESC

@@ -485,6 +485,8 @@ def activity():
               (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier='quick_v1+full') AS tier_quick_v1_full,
               (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier IN ('quick_v1_failed', 'quick_v1_failed+full', 'quick_v1+failed')) AS tier_quick_v1_failed,
               (SELECT COUNT(*) FROM {S}.articles WHERE tier2_pending=true) AS tier2_pending_count,
+              (SELECT COUNT(DISTINCT article_id) FROM {S}.fact_checks) AS verify_total,
+              (SELECT COUNT(*) FROM {S}.articles WHERE province_code IS NOT NULL OR country_code IS NOT NULL) AS geo_mapped,
               -- Pipeline health counters (#2955) — surfaces skipped/backlog
               -- alongside the done/failed split workers already log to stdout.
               (SELECT COUNT(*) FROM {S}.failed_ingest
@@ -506,6 +508,63 @@ def activity():
               (SELECT COUNT(*) FROM {S}.bias_scores WHERE computed_at BETWEEN NOW() - INTERVAL '48 hours' AND NOW() - INTERVAL '24 hours') AS bias_yesterday,
               (SELECT COUNT(DISTINCT article_id) FROM {S}.fact_checks WHERE checked_at BETWEEN NOW() - INTERVAL '48 hours' AND NOW() - INTERVAL '24 hours') AS verify_yesterday
         """)).mappings().first()
+
+        # --- Extra analytics queries (activity page enrichments) ---
+        # Beat breakdown
+        beat_rows = conn.execute(text(f"""
+            SELECT COALESCE(beat,'unknown') AS beat, COUNT(*) AS cnt
+            FROM {S}.articles
+            WHERE beat IS NOT NULL AND beat != ''
+            GROUP BY beat ORDER BY cnt DESC LIMIT 12
+        """)).mappings().all()
+        beat_breakdown = [{"beat": r["beat"], "cnt": int(r["cnt"])} for r in beat_rows]
+
+        # Top stories today (clusters with most articles in last 24h)
+        top_story_rows = conn.execute(text(f"""
+            SELECT sc.headline, sc.id AS cluster_id,
+                   COUNT(a.id) AS article_count,
+                   COUNT(DISTINCT s.id) AS outlet_count
+            FROM {S}.story_clusters sc
+            JOIN {S}.articles a ON a.cluster_id = sc.id
+            JOIN {S}.sources s ON s.id = a.source_id
+            WHERE a.published_at > NOW() - INTERVAL '24 hours'
+              AND sc.headline IS NOT NULL
+            GROUP BY sc.id, sc.headline
+            ORDER BY article_count DESC, outlet_count DESC
+            LIMIT 5
+        """)).mappings().all()
+        top_stories = [{"headline": r["headline"][:80], "articles": int(r["article_count"]),
+                        "outlets": int(r["outlet_count"]), "id": r["cluster_id"]} for r in top_story_rows]
+
+        # Throughput sparkline — LLM analyses per 2h bucket, last 24h
+        sparkline_rows = conn.execute(text(f"""
+            SELECT date_trunc('hour', completed_at) -
+                   MOD(EXTRACT(HOUR FROM completed_at)::int, 2) * INTERVAL '1 hour' AS bucket,
+                   COUNT(*) AS cnt
+            FROM {S}.llm_analyses
+            WHERE completed_at > NOW() - INTERVAL '24 hours'
+            GROUP BY bucket ORDER BY bucket
+        """)).mappings().all()
+        throughput_sparkline = [{"t": r["bucket"].isoformat(), "cnt": int(r["cnt"])} for r in sparkline_rows]
+
+        # Source bias spectrum
+        bias_spectrum_rows = conn.execute(text(f"""
+            SELECT COALESCE(bias_lean, 'unknown') AS lean, COUNT(*) AS cnt
+            FROM {S}.sources
+            WHERE status = 'active'
+            GROUP BY lean ORDER BY cnt DESC
+        """)).mappings().all()
+        bias_spectrum = [{"lean": r["lean"], "cnt": int(r["cnt"])} for r in bias_spectrum_rows]
+
+        # Estimated completion rates (articles/hr from last 6h)
+        rate_rows = conn.execute(text(f"""
+            SELECT
+                (SELECT COUNT(*) FROM {S}.llm_analyses WHERE completed_at > NOW() - INTERVAL '6 hours') / 6.0 AS llm_hr,
+                (SELECT COUNT(*) FROM {S}.articles WHERE geo_confidence > 0 AND published_at > NOW() - INTERVAL '6 hours') / 6.0 AS geo_hr,
+                (SELECT COUNT(DISTINCT article_id) FROM {S}.fact_checks WHERE checked_at > NOW() - INTERVAL '6 hours') / 6.0 AS fc_hr
+        """)).mappings().first()
+        llm_rate = float(rate_rows["llm_hr"] or 0)
+        geo_rate = float(rate_rows["geo_hr"] or 0)
 
         # Compute 24h trend deltas (today vs yesterday, >10% = show indicator)
         def _trend_pct(today, yesterday):
@@ -667,6 +726,11 @@ def activity():
     ]
     total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
 
+    llm_pending_count = int(stats.get("llm_pending") or 0)
+    geo_pending_count = int(stats.get("geo_pending") or 0)
+    llm_days_left = round(llm_pending_count / (llm_rate * 24), 1) if llm_rate > 0 else None
+    geo_days_left = round(geo_pending_count / (geo_rate * 24), 1) if geo_rate > 0 else None
+
     return render_template("activity.html", events=events, source_count=source_count,
                            total=total, page=page, total_pages=total_pages,
                            page_size=PAGE_SIZE, agent_filter=agent_filter,
@@ -674,6 +738,13 @@ def activity():
                            sparklines=sparklines,
                            agent_stats=_fetch_agent_stats(),
                            trends=trends,
+                           beat_breakdown=beat_breakdown,
+                           top_stories=top_stories,
+                           throughput_sparkline=throughput_sparkline,
+                           bias_spectrum=bias_spectrum,
+                           llm_days_left=llm_days_left,
+                           geo_days_left=geo_days_left,
+                           llm_rate=round(llm_rate, 1),
                            is_subscriber=is_subscriber())
 
 

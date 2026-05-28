@@ -15,7 +15,7 @@
   <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
     <a href="/billing/checkout/starter"
        style="background:var(--wtf-accent);color:#fff;padding:14px 36px;border-radius:5px;text-decoration:none;font-family:Georgia,serif;font-size:0.9rem;letter-spacing:1px;font-weight:600;">
-      Subscribe Now — $19/mo →
+      Subscribe Now — $4.99/mo →
     </a>
     <a href="/login"
        style="background:transparent;border:1px solid #334455;color:#9ca3af;padding:14px 28px;border-radius:5px;text-decoration:none;font-size:0.85rem;">
@@ -55,17 +55,23 @@
 
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-bottom:52px;">
     {% set features = [
-      ('🗞️', 'Live News Feed', 'Real-time articles from 15 Canadian outlets — Global News, CBC, Globe and Mail, National Post and more.'),
+      ('🗞️', 'Live News Feed', 'Real-time articles from ' ~ source_count ~ ' Canadian outlets — Global News, CBC, La Presse, Toronto Star, National Post and more.'),
       ('⚖️', 'Bias Scoring', 'Every article scored Left → Right by B.I.A.S. Heuristic tier runs instantly. Full LLM analysis on priority stories.'),
       ('✅', 'Fact-Checking', 'V.E.R.I.F.Y. extracts claims and returns verdicts: verified, mixed, disputed, or unverifiable.'),
-      ('📍', 'Geographic Intelligence', 'L.O.C.A.L. maps every story to a Canadian province. Identify news deserts and regional coverage gaps.'),
-      ('🗺️', 'Canada News Map', 'Interactive live map — see where stories are breaking, coloured by bias band.'),
+      ('📍', 'Geographic Intelligence', 'L.O.C.A.L. maps every story to a Canadian province. Filter by province, riding, or geo scope.'),
+      ('🗺️', 'Canada News Map', 'Interactive live map — see where stories are breaking, coloured by bias band and filterable by news beat.'),
       ('🔬', 'Story Clusters', 'I.N.K. groups related articles. See how the same story is told differently across outlets, side by side.'),
       ('📋', 'AI Summaries', 'D.R.A.F.T. writes plain-language summaries of every story cluster.'),
-      ('📊', 'Agent Activity Log', 'Full audit trail — every score, verdict, and cluster created by every agent. 9,000+ events and growing.'),
-      ('📡', 'Source Bias Profiles', 'Rolling bias averages per outlet. Track how each outlet drifts over time.'),
+      ('🏷️', '18 News Beats', 'Filter all stories by topic: Politics, Health, Climate, Crime, Sports, Economy, Indigenous, Housing, and more.'),
+      ('👁️', 'Blindspot Feed', 'Stories covered by only 1–2 outlets while the rest of the press stays silent. The stories editors didn\'t assign.'),
+      ('🇨🇦', 'FR/EN Divergence', 'Stories where French and English Canadian press tell a completely different story — the two solitudes, measured.'),
+      ('🌱', 'Weather & Climate', 'A.U.R.O.R.A. tracks climate and science stories across all ' ~ source_count ~ ' outlets. Because in Canada, the weather IS the news.'),
+      ('💰', 'Economy & Markets', 'Business and economy news bias-scored and cross-referenced with Market Watch for financial context.'),
+      ('🏛️', 'Riding-Level Filter', 'Filter stories by federal riding. See MP mentions in coverage of your constituency.'),
+      ('🏢', 'Media Ownership Map', 'Who owns Canadian news? See every outlet owner, their bias, and their share of the media landscape.'),
+      ('📈', 'Bias Drift Tracker', 'See how outlet bias shifts over 12 months — elections, ownership changes, editorial decisions.'),
+      ('📡', 'Source Bias Profiles', 'Rolling bias averages per outlet, updated after every ingest cycle.'),
       ('🔍', 'Score Any URL', 'Submit any Canadian news URL for full bias + fact-check analysis on demand.'),
-      ('📬', 'Weekly Bias Digest', 'Email report — top stories, outlet comparisons, and the political spectrum map for the week.'),
       ('🔔', 'Breaking Alerts', 'Get notified when stories break in your province or from your tracked outlets.'),
     ] %}
     {% for icon, title, desc in features %}
@@ -80,7 +86,7 @@
   <!-- Pricing CTA -->
   <div style="background:#0a0f1a;border:1px solid rgba(220,38,38,0.25);border-radius:8px;padding:40px;text-align:center;margin-bottom:52px;">
     <div style="font-size:0.6rem;letter-spacing:2px;color:var(--wtf-accent);text-transform:uppercase;margin-bottom:12px;">What The Fact — Starter</div>
-    <div style="font-family:Georgia,serif;font-size:2.2rem;color:#f0f0f0;font-weight:700;margin:0 0 4px;">$19 <span style="font-size:1rem;color:#6b7280;">CAD / month</span></div>
+    <div style="font-family:Georgia,serif;font-size:2.2rem;color:#f0f0f0;font-weight:700;margin:0 0 4px;">$4.99 <span style="font-size:1rem;color:#6b7280;">CAD / month</span></div>
     <p style="color:#555;font-size:0.72rem;margin:0 0 6px;">Full access. Every feature. Cancel anytime.</p>
     <p style="color:#444;font-size:0.65rem;margin:0 0 28px;">Secure checkout powered by Stripe.</p>
     <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
@@ -126,7 +132,7 @@
     <p style="color:#555;font-size:0.72rem;margin:0 0 28px;">Subscribe to What The Fact. Know how your news is being told.</p>
     <a href="/billing/checkout/starter"
        style="background:var(--wtf-accent);color:#fff;padding:14px 40px;border-radius:5px;text-decoration:none;font-size:0.82rem;letter-spacing:1px;">
-      Subscribe Now — $19/mo →
+      Subscribe Now — $4.99/mo →
     </a>
   </div>
 </div>

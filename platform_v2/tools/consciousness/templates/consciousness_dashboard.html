@@ -3693,44 +3693,18 @@
         </div>
 
         <div class="cs-panel" id="panel-knowledge">
-          <!-- Knowledge Operations Terminal (like Languages pattern) -->
-          <div style="--frame-color:#22d3ee; --frame-rgb:34,211,238; margin-bottom:20px;">
-            <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;">
-              <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
-                <div class="lcars-elbow-top" style="height:52px !important;background:#22d3ee !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
-                <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#22d3ee !important;flex-shrink:0 !important;"></div>
-                <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#06b6d4 !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
-                <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#22d3ee;box-shadow:0 0 8px #22d3ee;"></div>
-                <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;"></div>
-                <div class="lcars-seg-fill" style="flex:1 !important;background:rgba(34,211,238,0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
-                <div class="lcars-elbow-bottom" style="height:36px !important;background:#22d3ee !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
-              </div>
-              <div class="lcars-content" style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
-                <div class="lcars-bar" style="background:#22d3ee !important;height:14px !important;min-height:14px !important;flex-shrink:0 !important;border-radius:0 20px 20px 0 !important;"></div>
-                <div class="lcars-body" style="flex:1;padding:16px;">
-          <div class="cs-ops-terminal" id="kbOpsTerminal">
-            <div class="cs-ops-header">
-              <div class="cs-ops-elbow"></div>
-              <div class="cs-ops-title">C.O.D.E.X. OPERATIONS</div>
-              <div class="cs-ops-status" id="kbOpsOnline">
-                <span class="cs-ops-dot"></span> ONLINE
-              </div>
+          <!-- C.O.D.E.X. Operations — compact status bar -->
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 14px;background:#0a1117;border:1px solid rgba(34,211,238,0.25);border-radius:6px;margin-bottom:14px;font-family:'IBM Plex Mono',monospace;" id="kbOpsTerminal">
+            <span style="width:8px;height:8px;border-radius:50%;background:#22d3ee;box-shadow:0 0 6px #22d3ee;flex-shrink:0;" class="cs-ops-dot"></span>
+            <span style="font-size:0.65rem;letter-spacing:2px;color:#22d3ee;text-transform:uppercase;" id="kbOpsOnline">C.O.D.E.X. · ONLINE</span>
+            <div style="flex:1;font-size:0.65rem;color:#374151;" id="kbOpsAgents"></div>
+            <div style="font-size:0.65rem;color:#374151;" id="kbOpsJobs"></div>
+            <div style="display:flex;gap:6px;align-items:center;" id="kbOpsCommands"></div>
+            <div id="kbActiveJob" style="display:none;font-size:0.72rem;color:#22d3ee;"></div>
+            <div id="kbJobProgress" style="display:none;">
+              <div id="kbJobProgressInner" style="font-size:0.72rem;"></div>
             </div>
-            <div class="cs-ops-body">
-              <div id="kbOpsAgents"></div>
-              <div id="kbOpsJobs"></div>
-              <div class="cs-ops-commands" id="kbOpsCommands"></div>
-              <div id="kbActiveJob" style="display:none; margin-top:10px; font-size:0.82rem;"></div>
-              <div id="kbJobProgress" style="display:none; margin-top:10px;">
-                <div id="kbJobProgressInner" style="font-size:0.82rem;"></div>
-              </div>
-              <div id="procResult" style="margin-top:8px;"></div>
-            </div>
-          </div>
-                </div>
-                <div class="lcars-footer-bar" style="background:#22d3ee !important;height:10px !important;min-height:10px !important;flex-shrink:0 !important;border-radius:0 20px 20px 0 !important;"></div>
-              </div>
-            </div>
+            <div id="procResult" style="font-size:0.72rem;"></div>
           </div>
 
             <div style="--frame-color:#22d3ee; --frame-rgb:34,211,238; margin-bottom:20px;">
@@ -3847,41 +3821,14 @@
         <!-- Languages Panel — Single-page LCARS layout                -->
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-languages">
-          <!-- LCARS Operations Terminal (top) -->
-          <div style="--frame-color:#10b981; --frame-rgb:16,185,129; margin-bottom:20px;">
-            <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;">
-              <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
-                <div class="lcars-elbow-top" style="height:52px !important;background:#10b981 !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
-                <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#10b981 !important;flex-shrink:0 !important;"></div>
-                <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#059669 !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
-                <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#10b981;box-shadow:0 0 8px #10b981;"></div>
-                <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;"></div>
-                <div class="lcars-seg-fill" style="flex:1 !important;background:rgba(16,185,129,0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
-                <div class="lcars-elbow-bottom" style="height:36px !important;background:#10b981 !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
-              </div>
-              <div class="lcars-content" style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
-                <div class="lcars-bar" style="background:#10b981 !important;height:14px !important;min-height:14px !important;flex-shrink:0 !important;border-radius:0 20px 20px 0 !important;"></div>
-                <div class="lcars-body" style="flex:1;padding:16px;">
-          <div class="cs-ops-terminal" id="langOpsTerminal">
-            <div class="cs-ops-header">
-              <div class="cs-ops-elbow"></div>
-              <div class="cs-ops-title">LANGUAGES OPERATIONS</div>
-              <div class="cs-ops-status" id="langOpsOnline">
-                <span class="cs-ops-dot"></span> ONLINE
-              </div>
-            </div>
-            <div class="cs-ops-body">
-              <div id="langOpsAgents"></div>
-              <div id="langOpsJobs"></div>
-              <div class="cs-ops-commands" id="langOpsCommands"></div>
-              <!-- Job progress rendered by DepartmentOps in langOpsJobs above -->
-              <div id="langScanStatus" style="display:none; margin-top:8px; font-size:0.82rem; color:rgba(255,255,255,0.6);"></div>
-            </div>
-          </div>
-                </div>
-                <div class="lcars-footer-bar" style="background:#10b981 !important;height:10px !important;min-height:10px !important;flex-shrink:0 !important;border-radius:0 20px 20px 0 !important;"></div>
-              </div>
-            </div>
+          <!-- Languages Operations — compact status bar -->
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 14px;background:#0a1117;border:1px solid rgba(16,185,129,0.25);border-radius:6px;margin-bottom:14px;font-family:'IBM Plex Mono',monospace;" id="langOpsTerminal">
+            <span style="width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 6px #10b981;flex-shrink:0;"></span>
+            <span style="font-size:0.65rem;letter-spacing:2px;color:#10b981;text-transform:uppercase;" id="langOpsOnline">LANGUAGES · ONLINE</span>
+            <div style="flex:1;font-size:0.65rem;color:#374151;" id="langOpsAgents"></div>
+            <div style="font-size:0.65rem;color:#374151;" id="langOpsJobs"></div>
+            <div style="display:flex;gap:6px;" id="langOpsCommands"></div>
+            <div id="langScanStatus" style="display:none;font-size:0.72rem;color:#10b981;"></div>
           </div>
 
           <!-- Coverage Health Card (#232) -->
@@ -4086,38 +4033,14 @@
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-github">
 
-            <!-- GitHub Operations Terminal (Station Crew pattern) -->
-            <div style="--frame-color:#8b5cf6; --frame-rgb:139,92,246; margin-bottom:20px;">
-              <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;">
-                <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
-                  <div class="lcars-elbow-top" style="height:52px !important;background:#8b5cf6 !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
-                  <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#8b5cf6 !important;flex-shrink:0 !important;"></div>
-                  <div class="lcars-seg" style="height:28px !important;border-radius:0 8px 8px 0 !important;background:#7c3aed !important;opacity:0.6 !important;flex-shrink:0 !important;"></div>
-                  <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#8b5cf6;box-shadow:0 0 8px #8b5cf6;"></div>
-                  <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;"></div>
-                  <div class="lcars-seg-fill" style="flex:1 !important;background:rgba(139,92,246,0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div>
-                  <div class="lcars-elbow-bottom" style="height:36px !important;background:#8b5cf6 !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div>
-                </div>
-                <div class="lcars-content" style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
-                  <div class="lcars-bar" style="background:#8b5cf6 !important;height:14px !important;min-height:14px !important;flex-shrink:0 !important;border-radius:0 20px 20px 0 !important;"></div>
-                  <div class="lcars-body" style="flex:1;padding:16px;">
-            <div class="cs-ops-terminal" id="ghOpsTerminal">
-              <div class="cs-ops-header">
-                <div class="cs-ops-elbow"></div>
-                <div class="cs-ops-title">GITHUB OPERATIONS</div>
-                <div class="cs-ops-status" id="ghOpsOnline">
-                  <span class="cs-ops-dot"></span> ONLINE
-                </div>
-              </div>
-              <div class="cs-ops-body">
-                <div id="ghOpsAgents"></div>
-                <div id="ghOpsJobs"></div>
-                <div class="cs-ops-commands" id="ghOpsCommands"></div>
-                <div id="ghActiveJob" style="display:none; margin-top:10px; font-size:0.82rem;"></div>
-              </div>
-            </div>
-                  </div>
-                  <div class="lcars-footer-bar" style="background:#8b5cf6 !important;height:10px !important;min-height:10px !important;flex-shrink:0 !important;border-radius:0 20px 20px 0 !important;"></div>
+            <!-- GitHub Operations — compact status bar -->
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 14px;background:#0a1117;border:1px solid rgba(139,92,246,0.25);border-radius:6px;margin-bottom:14px;font-family:'IBM Plex Mono',monospace;" id="ghOpsTerminal">
+              <span style="width:8px;height:8px;border-radius:50%;background:#8b5cf6;box-shadow:0 0 6px #8b5cf6;flex-shrink:0;"></span>
+              <span style="font-size:0.65rem;letter-spacing:2px;color:#8b5cf6;text-transform:uppercase;" id="ghOpsOnline">GITHUB · ONLINE</span>
+              <div style="flex:1;font-size:0.65rem;color:#374151;" id="ghOpsAgents"></div>
+              <div style="font-size:0.65rem;color:#374151;" id="ghOpsJobs"></div>
+              <div style="display:flex;gap:6px;" id="ghOpsCommands"></div>
+              <div id="ghActiveJob" style="display:none;font-size:0.72rem;color:#8b5cf6;"></div>
                 </div>
               </div>
             </div>

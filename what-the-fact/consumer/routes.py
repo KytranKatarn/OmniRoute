@@ -512,6 +512,7 @@ def activity():
         # --- Extra analytics queries (activity page enrichments) ---
         beat_breakdown, top_stories, throughput_sparkline, bias_spectrum = [], [], [], []
         llm_rate, geo_rate = 0.0, 0.0
+        c.execute(text("SAVEPOINT extra_analytics"))
         try:
             beat_rows = c.execute(text(f"""
                 SELECT COALESCE(beat,'unknown') AS beat, COUNT(*) AS cnt
@@ -546,7 +547,7 @@ def activity():
 
             bias_spectrum_rows = c.execute(text(f"""
                 SELECT COALESCE(bias_lean, 'unknown') AS lean, COUNT(*) AS cnt
-                FROM {S}.sources WHERE status = 'active'
+                FROM {S}.sources
                 GROUP BY lean ORDER BY cnt DESC
             """)).mappings().all()
             bias_spectrum = [{"lean": r["lean"], "cnt": int(r["cnt"])} for r in bias_spectrum_rows]
@@ -560,6 +561,11 @@ def activity():
             geo_rate = float(rate_rows["geo_hr"] or 0)
         except Exception as _e:
             import logging; logging.getLogger(__name__).warning("Extra analytics queries failed: %s", _e)
+            try: c.execute(text("ROLLBACK TO SAVEPOINT extra_analytics"))
+            except Exception: pass
+        else:
+            try: c.execute(text("RELEASE SAVEPOINT extra_analytics"))
+            except Exception: pass
 
         # Compute 24h trend deltas (today vs yesterday, >10% = show indicator)
         def _trend_pct(today, yesterday):

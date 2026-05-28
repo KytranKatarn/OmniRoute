@@ -403,6 +403,46 @@ def weather():
                            is_subscriber=is_subscriber())
 
 
+@bp.get("/economy")
+def economy():
+    """M.A.R.K.E.T. — Economy & Markets Intelligence page.
+
+    Aggregates economy + business + foreign-policy beat articles and
+    surfaces them alongside Market Watch context.
+    """
+    S = _schema()
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT a.id, a.title, a.url, a.published_at,
+                   s.name AS source, b.band, a.province_code, a.beat,
+                   a.cluster_id, sc.article_count AS cluster_size
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            LEFT JOIN {S}.story_clusters sc ON sc.id = a.cluster_id
+            WHERE a.beat IN ('economy', 'business', 'foreign-policy')
+            ORDER BY a.published_at DESC
+            LIMIT 60
+        """)).mappings().all()
+
+        economy_count = c.execute(text(
+            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'economy'"
+        )).scalar() or 0
+        business_count = c.execute(text(
+            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'business'"
+        )).scalar() or 0
+        foreign_count = c.execute(text(
+            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'foreign-policy'"
+        )).scalar() or 0
+
+    return render_template("economy.html",
+                           articles=rows,
+                           economy_count=economy_count,
+                           business_count=business_count,
+                           foreign_count=foreign_count,
+                           is_subscriber=is_subscriber())
+
+
 @bp.get("/activity")
 def activity():
     from flask import request as _req
@@ -2833,6 +2873,319 @@ def upgrade_tier2(article_id: int):
         "bias_summary": bias_summary,
         "claims_count": len(claims),
     })
+
+
+# ---------------------------------------------------------------------------
+# T3016 — Institutional Licensing: Education API for Media Literacy
+# Public, no-auth endpoints for classrooms, journalism courses, research.
+# Rate limit: reuses _api_rate_check() (same bucket as /api/v1 — abusers
+# cannot bypass limits by switching to /api/edu paths).
+# ---------------------------------------------------------------------------
+
+_EDU_MAX_LIMIT = 50
+
+
+@bp.get("/edu")
+def edu_landing():
+    """Education API landing page — explains the API and institutional licensing."""
+    return render_template("edu.html", is_subscriber=is_subscriber())
+
+
+@bp.get("/api/edu/v1/articles")
+def edu_api_articles():
+    """Paginated article list with bias scores for classroom use.
+
+    Params: beat, province, bias_band, days (default 7), page (1-based), limit (max 50)
+    Returns: id, title, url, source_name, published_at, bias_band, bias_score,
+             province_code, beat, fact_check_verdict
+    """
+    from flask import request as _req
+    rate_err = _api_rate_check()
+    if rate_err:
+        return rate_err
+
+    beat = (_req.args.get("beat") or "").strip()[:60]
+    province = (_req.args.get("province") or "").strip().upper()[:2]
+    bias_band = (_req.args.get("bias_band") or "").strip()[:20]
+    try:
+        days = max(1, min(90, int(_req.args.get("days", 7))))
+        page = max(1, int(_req.args.get("page", 1)))
+        limit = max(1, min(_EDU_MAX_LIMIT, int(_req.args.get("limit", 20))))
+    except (TypeError, ValueError):
+        return _api_cors_response({"ok": False, "error": "invalid numeric param"}, status=400)
+
+    offset = (page - 1) * limit
+    S = _schema()
+    where = ["a.published_at > NOW() - :days * INTERVAL '1 day'"]
+    params: dict = {"limit": limit, "offset": offset, "days": days}
+
+    if beat:
+        where.append("a.beat = :beat")
+        params["beat"] = beat
+    if province:
+        where.append("a.province_code = :province")
+        params["province"] = province
+    if bias_band:
+        where.append("b.band = :bias_band")
+        params["bias_band"] = bias_band
+
+    where_clause = " AND ".join(where)
+
+    with _db().begin() as c:
+        total = c.execute(text(f"""
+            SELECT COUNT(*)
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE {where_clause}
+        """), params).scalar() or 0
+
+        rows = c.execute(text(f"""
+            SELECT a.id, a.title, a.url, a.published_at,
+                   a.province_code, a.beat,
+                   s.name AS source_name, s.slug AS source_slug,
+                   b.band AS bias_band, b.score AS bias_score,
+                   fc.overall_verdict AS fact_check_verdict
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            LEFT JOIN {S}.fact_checks fc
+                ON fc.article_id = a.id AND fc.checker NOT LIKE 'GoogleFCT%%'
+            WHERE {where_clause}
+            ORDER BY a.published_at DESC NULLS LAST
+            LIMIT :limit OFFSET :offset
+        """), params).mappings().all()
+
+    return _api_cors_response({
+        "ok": True,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "pages": max(1, -(-total // limit)),  # ceiling division
+        "days": days,
+        "articles": [
+            {
+                "id": r["id"],
+                "title": r["title"],
+                "url": r["url"],
+                "source_name": r["source_name"],
+                "source_slug": r["source_slug"],
+                "published_at": r["published_at"].isoformat() if r.get("published_at") else None,
+                "bias_band": r["bias_band"],
+                "bias_score": float(r["bias_score"]) if r.get("bias_score") is not None else None,
+                "province_code": r["province_code"],
+                "beat": r["beat"],
+                "fact_check_verdict": r["fact_check_verdict"],
+            }
+            for r in rows
+        ],
+    })
+
+
+@bp.get("/api/edu/v1/sources")
+def edu_api_sources():
+    """All tracked sources with bias info for media literacy context.
+
+    Returns: slug, name, bias_lean, avg_score, band, outlet_count, owner_name
+    """
+    rate_err = _api_rate_check()
+    if rate_err:
+        return rate_err
+
+    S = _schema()
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT s.slug, s.name, s.url, s.bias_lean, s.owner_name, s.owner_type,
+                   s.country, s.language,
+                   obs.avg_score, obs.band,
+                   COUNT(a.id) AS outlet_count
+            FROM {S}.sources s
+            LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = s.id
+            LEFT JOIN {S}.articles a ON a.source_id = s.id
+            GROUP BY s.id, s.slug, s.name, s.url, s.bias_lean, s.owner_name,
+                     s.owner_type, s.country, s.language, obs.avg_score, obs.band
+            ORDER BY s.name
+        """)).mappings().all()
+
+    return _api_cors_response({
+        "ok": True,
+        "count": len(rows),
+        "sources": [
+            {
+                "slug": r["slug"],
+                "name": r["name"],
+                "url": r["url"],
+                "bias_lean": r["bias_lean"],
+                "avg_score": float(r["avg_score"]) if r.get("avg_score") is not None else None,
+                "band": r["band"],
+                "outlet_count": int(r["outlet_count"]),
+                "owner_name": r["owner_name"],
+                "owner_type": r["owner_type"],
+                "country": r["country"],
+                "language": r["language"],
+            }
+            for r in rows
+        ],
+    })
+
+
+@bp.get("/api/edu/v1/story/<int:cluster_id>")
+def edu_api_story(cluster_id: int):
+    """Full story cluster for classroom discussion.
+
+    Returns cluster metadata + all articles + bias distribution + fact check verdicts.
+    """
+    rate_err = _api_rate_check()
+    if rate_err:
+        return rate_err
+
+    S = _schema()
+    with _db().begin() as c:
+        meta = c.execute(text(f"""
+            SELECT id, representative_title, article_count,
+                   created_at, framing_summary, coverage_gap_score
+            FROM {S}.story_clusters
+            WHERE id = :cid
+        """), {"cid": cluster_id}).mappings().first()
+
+    if not meta:
+        return _api_cors_response({"ok": False, "error": "cluster not found"}, status=404)
+
+    with _db().begin() as c:
+        articles = c.execute(text(f"""
+            SELECT a.id, a.title, a.url, a.published_at, a.province_code,
+                   s.name AS source_name, s.slug AS source_slug, s.bias_lean,
+                   b.band AS bias_band, b.score AS bias_score,
+                   fc.overall_verdict AS fact_check_verdict
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            LEFT JOIN {S}.fact_checks fc
+                ON fc.article_id = a.id AND fc.checker NOT LIKE 'GoogleFCT%%'
+            WHERE a.cluster_id = :cid
+            ORDER BY a.published_at ASC
+        """), {"cid": cluster_id}).mappings().all()
+
+        band_rows = c.execute(text(f"""
+            SELECT COALESCE(b.band, 'unscored') AS band, COUNT(*) AS n
+            FROM {S}.articles a
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE a.cluster_id = :cid
+            GROUP BY 1 ORDER BY 2 DESC
+        """), {"cid": cluster_id}).mappings().all()
+
+        verdict_rows = c.execute(text(f"""
+            SELECT fc.overall_verdict, COUNT(*) AS n
+            FROM {S}.fact_checks fc
+            JOIN {S}.articles a ON a.id = fc.article_id
+            WHERE a.cluster_id = :cid
+              AND fc.checker NOT LIKE 'GoogleFCT%%'
+              AND fc.overall_verdict IS NOT NULL
+            GROUP BY 1 ORDER BY 2 DESC
+        """), {"cid": cluster_id}).mappings().all()
+
+    bias_distribution = {r["band"]: int(r["n"]) for r in band_rows}
+    fact_check_summary = {r["overall_verdict"]: int(r["n"]) for r in verdict_rows}
+
+    return _api_cors_response({
+        "ok": True,
+        "cluster": {
+            "id": meta["id"],
+            "title": meta["representative_title"],
+            "article_count": meta["article_count"],
+            "created_at": meta["created_at"].isoformat() if meta.get("created_at") else None,
+            "framing_summary": meta["framing_summary"],
+            "coverage_gap_score": float(meta["coverage_gap_score"]) if meta.get("coverage_gap_score") is not None else None,
+            "bias_distribution": bias_distribution,
+            "fact_check_summary": fact_check_summary,
+        },
+        "articles": [
+            {
+                "id": r["id"],
+                "title": r["title"],
+                "url": r["url"],
+                "published_at": r["published_at"].isoformat() if r.get("published_at") else None,
+                "province_code": r["province_code"],
+                "source_name": r["source_name"],
+                "source_slug": r["source_slug"],
+                "source_bias_lean": r["bias_lean"],
+                "bias_band": r["bias_band"],
+                "bias_score": float(r["bias_score"]) if r.get("bias_score") is not None else None,
+                "fact_check_verdict": r["fact_check_verdict"],
+            }
+            for r in articles
+        ],
+    })
+
+
+@bp.get("/api/edu/v1/stats")
+def edu_api_stats():
+    """Platform-level stats for media literacy discussions.
+
+    Returns: total_sources, total_articles, bias_distribution (%), top_stories_this_week
+    """
+    rate_err = _api_rate_check()
+    if rate_err:
+        return rate_err
+
+    S = _schema()
+    with _db().begin() as c:
+        total_sources = c.execute(
+            text(f"SELECT COUNT(*) FROM {S}.sources")
+        ).scalar() or 0
+
+        total_articles = c.execute(
+            text(f"SELECT COUNT(*) FROM {S}.articles")
+        ).scalar() or 0
+
+        band_rows = c.execute(text(f"""
+            SELECT b.band, COUNT(*) AS n
+            FROM {S}.bias_scores b
+            WHERE b.band IS NOT NULL
+            GROUP BY b.band
+            ORDER BY n DESC
+        """)).mappings().all()
+
+        total_scored = sum(int(r["n"]) for r in band_rows)
+        bias_distribution = {
+            r["band"]: {
+                "count": int(r["n"]),
+                "pct": round(int(r["n"]) / total_scored * 100, 1) if total_scored else 0.0,
+            }
+            for r in band_rows
+        }
+
+        top_rows = c.execute(text(f"""
+            SELECT sc.id, sc.representative_title, sc.article_count,
+                   sc.created_at, sc.coverage_gap_score
+            FROM {S}.story_clusters sc
+            WHERE sc.created_at > NOW() - INTERVAL '7 days'
+            ORDER BY sc.article_count DESC
+            LIMIT 10
+        """)).mappings().all()
+
+    return _api_cors_response({
+        "ok": True,
+        "total_sources": total_sources,
+        "total_articles": total_articles,
+        "scored_articles": total_scored,
+        "bias_distribution": bias_distribution,
+        "top_stories_this_week": [
+            {
+                "id": r["id"],
+                "title": r["representative_title"],
+                "article_count": r["article_count"],
+                "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+                "coverage_gap_score": float(r["coverage_gap_score"]) if r.get("coverage_gap_score") is not None else None,
+            }
+            for r in top_rows
+        ],
+    })
+
+
+# ---------------------------------------------------------------------------
+# End T3016 Education API
+# ---------------------------------------------------------------------------
 
 
 @bp.route("/api/internal/set-tier", methods=["POST"])

@@ -36,6 +36,40 @@
   </div>
 </div>
 
+{# ── Concentration summary strip ─────────────────────────────────────────── #}
+{% set corporate_owners = owners | selectattr('owner_type', 'equalto', 'corporate') | list %}
+{% set public_owners    = owners | selectattr('owner_type', 'equalto', 'public')    | list %}
+{% set nonprofit_owners = owners | selectattr('owner_type', 'equalto', 'non_profit') | list %}
+{% set indie_owners     = owners | selectattr('owner_type', 'equalto', 'independent') | list %}
+{% set corp_outlets  = corporate_owners | sum(attribute='outlet_count') %}
+{% set pub_outlets   = public_owners    | sum(attribute='outlet_count') %}
+{% set indie_outlets = indie_owners     | sum(attribute='outlet_count') %}
+{% set corp_pct  = ((corp_outlets  / source_count * 100) | round(0) | int) if source_count else 0 %}
+{% set pub_pct   = ((pub_outlets   / source_count * 100) | round(0) | int) if source_count else 0 %}
+{% set indie_pct = ((indie_outlets / source_count * 100) | round(0) | int) if source_count else 0 %}
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;">
+  <div style="flex:1;min-width:130px;background:#060d14;border:1px solid #ef444433;border-left:3px solid #ef4444;border-radius:6px;padding:12px 14px;">
+    <div style="font-size:22px;font-family:'IBM Plex Mono',monospace;color:#ef4444;font-weight:700;">{{ corporate_owners|length }}</div>
+    <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-top:2px;">Corporate</div>
+    <div style="font-size:11px;color:#6b7280;margin-top:4px;">{{ corp_outlets }} outlets · {{ corp_pct }}% of tracked</div>
+  </div>
+  <div style="flex:1;min-width:130px;background:#060d14;border:1px solid #3b82f633;border-left:3px solid #3b82f6;border-radius:6px;padding:12px 14px;">
+    <div style="font-size:22px;font-family:'IBM Plex Mono',monospace;color:#3b82f6;font-weight:700;">{{ public_owners|length }}</div>
+    <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-top:2px;">Public</div>
+    <div style="font-size:11px;color:#6b7280;margin-top:4px;">{{ pub_outlets }} outlets · {{ pub_pct }}% of tracked</div>
+  </div>
+  <div style="flex:1;min-width:130px;background:#060d14;border:1px solid #22c55e33;border-left:3px solid #22c55e;border-radius:6px;padding:12px 14px;">
+    <div style="font-size:22px;font-family:'IBM Plex Mono',monospace;color:#22c55e;font-weight:700;">{{ nonprofit_owners|length }}</div>
+    <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-top:2px;">Non-profit</div>
+    <div style="font-size:11px;color:#6b7280;margin-top:4px;">{{ (nonprofit_owners | sum(attribute='outlet_count')) }} outlets</div>
+  </div>
+  <div style="flex:1;min-width:130px;background:#060d14;border:1px solid #a78bfa33;border-left:3px solid #a78bfa;border-radius:6px;padding:12px 14px;">
+    <div style="font-size:22px;font-family:'IBM Plex Mono',monospace;color:#a78bfa;font-weight:700;">{{ indie_owners|length }}</div>
+    <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-top:2px;">Independent</div>
+    <div style="font-size:11px;color:#6b7280;margin-top:4px;">{{ indie_outlets }} outlets · {{ indie_pct }}% of tracked</div>
+  </div>
+</div>
+
 {# ── Type filter tabs ──────────────────────────────────────────────────── #}
 <div class="wtf-own-filters">
   <a class="wtf-own-filter active" href="/owners">All</a>

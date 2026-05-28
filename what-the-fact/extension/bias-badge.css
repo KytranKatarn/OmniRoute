@@ -1,0 +1,47 @@
+/**
+ * What The Fact — Bias Badge Styles
+ * T3014: Bias Ratings on Social Media
+ *
+ * Small coloured dot injected next to news article links on social media.
+ * Kept minimal to avoid interfering with host page styles.
+ */
+
+.wtf-bias-badge {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-left: 5px;
+  vertical-align: middle;
+  cursor: help;
+  flex-shrink: 0;
+  position: relative;
+  top: -1px;
+  /* Subtle border so it's visible on both light and dark backgrounds */
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+  transition: transform 0.15s ease;
+}
+
+.wtf-bias-badge:hover {
+  transform: scale(1.4);
+}
+
+/* Left-leaning — blue */
+.wtf-bias-left {
+  background-color: #3b82f6;
+}
+
+/* Centre / balanced — grey */
+.wtf-bias-centre {
+  background-color: #9ca3af;
+}
+
+/* Right-leaning — red */
+.wtf-bias-right {
+  background-color: #ef4444;
+}
+
+/* Unrated / unknown — yellow */
+.wtf-bias-unknown {
+  background-color: #f59e0b;
+}

@@ -1251,6 +1251,19 @@ def _register_own_jobs(scheduler, flask_app):
                         """,
                         (recovered_ids,),
                     )
+                    # Reset stress/energy so welfare check doesn't immediately re-trigger
+                    # winding_down (stress threshold is 0.70 — recovery must clear it)
+                    cur.execute(
+                        """
+                        UPDATE agent_emotional_state
+                           SET stress_level = 0.20,
+                               energy_level = 0.80,
+                               current_mood = 'focused',
+                               timestamp = NOW()
+                         WHERE agent_id = ANY(%s)
+                        """,
+                        (recovered_ids,),
+                    )
                     if cur.rowcount:
                         logger.info(
                             "[DeptHQ] Rest reaper: restored %d agent(s) to active after rest",

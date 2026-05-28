@@ -1274,6 +1274,15 @@ def transition_cleared_cooldowns():
                 "UPDATE agents SET shift_state = 'active' WHERE id = %s",
                 (agent["id"],),
             )
+            # Reset stress/energy — without this, welfare check re-fires winding_down
+            # immediately after recovery since stress threshold is only 0.70
+            cur.execute(
+                """UPDATE agent_emotional_state
+                      SET stress_level = 0.20, energy_level = 0.80,
+                          current_mood = 'focused', timestamp = NOW()
+                    WHERE agent_id = %s""",
+                (agent["id"],),
+            )
 
             # Log the rotation
             cur.execute(

@@ -16,14 +16,17 @@ services:
       TZ: America/Toronto
       WTF_LLM_BACKLOG_ENABLED: "true"
       WTF_LLM_BACKLOG_MAX_AGE_DAYS: "30"
-      WTF_LLM_BACKLOG_MAX_RUNS_PER_NIGHT: "500"
-      WTF_LLM_BACKLOG_CONCURRENCY: "1"
-      WTF_LLM_BACKLOG_DISPATCH_SLEEP_SEC: "3"
+      WTF_LLM_BACKLOG_MAX_RUNS_PER_NIGHT: "2000"
+      WTF_LLM_BACKLOG_CONCURRENCY: "4"
+      WTF_LLM_BACKLOG_DISPATCH_SLEEP_SEC: "1"
       WTF_HUB_TIMEOUT: "240"
       WTF_BIAS_V2_ENABLED: "true"
       WTF_BIAS_V2_MAX_AGE_DAYS: "90"
       WTF_GEO_BACKLOG_MAX_RUNS_PER_NIGHT: "500"
       WTF_GEO_LIVE_SKIP: "true"
+      WTF_FACTCHECK_BACKLOG_ENABLED: "true"
+      WTF_FACTCHECK_BACKLOG_MAX_RUNS_PER_NIGHT: "2000"
+      WTF_FACTCHECK_BACKLOG_CONCURRENCY: "4"
   wtf-consumer:
     build: {context: ., dockerfile: Dockerfile.consumer}
     image: ghcr.io/kytrankatarn/wtf-consumer:0.1.0

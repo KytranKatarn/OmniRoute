@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}{{ (cluster.representative_title or 'Story Cluster')|truncate(70) }} — Outlet Comparison · What The Fact{% endblock %}
 {% block meta %}
-<meta name="description" content="{{ articles|length }} outlets covered this story. Compare bias, framing, and fact-check verdicts side by side.">
+<meta name="description" content="{{ distinct_source_count }} outlets covered this story. Compare bias, framing, and fact-check verdicts side by side.">
 <meta property="og:title" content="Outlet Comparison: {{ (cluster.representative_title or 'Story Cluster')|truncate(60) }}">
-<meta property="og:description" content="{{ articles|length }} Canadian outlets covered this story. See how bias and framing differ.">
+<meta property="og:description" content="{{ distinct_source_count }} Canadian outlets covered this story. See how bias and framing differ.">
 <meta property="og:url" content="https://what-the-fact.com/cluster/{{ cluster.id }}">
 <meta property="og:type" content="article">
 <meta name="twitter:card" content="summary">
@@ -25,9 +25,17 @@
   'unverifiable': '#6b7280',
   'unverified': '#6b7280'
 } %}
+{% set VERDICT_LABELS = {
+  'verified': 'Verified',
+  'mostly_true': 'Mostly True',
+  'mixed': 'Mixed',
+  'disputed': 'Disputed',
+  'unverifiable': 'Not yet verified',
+  'unverified': 'Not yet verified'
+} %}
 
 <style>
-.wtf-cluster-header { padding: 20px 0 14px; border-bottom: 1px solid #1a3a5a; margin-bottom: 20px; }
+.wtf-cluster-header { padding: 20px 0 14px; border-bottom: 1px solid #1a3a5a; margin-bottom: 16px; }
 .wtf-cluster-title { font-family: 'Orbitron', sans-serif; font-size: 16px; color: #e5e7eb; margin: 0 0 6px; line-height: 1.4; }
 .wtf-cluster-meta { font-size: 11px; color: #6b7280; }
 .wtf-cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
@@ -45,123 +53,142 @@
 .wtf-bias-bar-mini { height: 4px; border-radius: 2px; background: linear-gradient(to right,#ef4444,#6b7280,#8b5cf6); position: relative; margin: 4px 0; }
 .wtf-bias-dot { position: absolute; top: -3px; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid #060d14; transform: translateX(-50%); }
 @media (max-width: 600px) { .wtf-cluster-grid { grid-template-columns: 1fr; } }
-/* Coverage Gap Score widget (#3010) */
-.wtf-coverage-bar { display:flex; align-items:center; gap:10px; padding:10px 14px; background:#060d14; border:1px solid #1a3a5a; border-radius:4px; margin-bottom:14px; flex-wrap:wrap; }
-.wtf-coverage-label { font-size:10px; color:#6b7280; text-transform:uppercase; letter-spacing:.06em; white-space:nowrap; }
-.wtf-coverage-bands { display:flex; gap:4px; align-items:center; }
-.wtf-coverage-band { width:26px; height:22px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; letter-spacing:.04em; border:1px solid transparent; transition:opacity .2s; }
-.wtf-coverage-band.filled { opacity:1; }
-.wtf-coverage-band.empty  { opacity:0.22; }
-.wtf-coverage-band-left        { background:#ef4444; color:#fff; border-color:#ef4444; }
-.wtf-coverage-band-center-left { background:#f97316; color:#fff; border-color:#f97316; }
-.wtf-coverage-band-center      { background:#22c55e; color:#000; border-color:#22c55e; }
-.wtf-coverage-band-center-right{ background:#3b82f6; color:#fff; border-color:#3b82f6; }
-.wtf-coverage-band-right       { background:#8b5cf6; color:#fff; border-color:#8b5cf6; }
-.wtf-gap-badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; white-space:nowrap; }
-.wtf-gap-green  { background:#052e16; color:#22c55e; border:1px solid #166534; }
-.wtf-gap-amber  { background:#2d1a00; color:#f59e0b; border:1px solid #92400e; }
-.wtf-gap-red    { background:#2d0a0a; color:#ef4444; border:1px solid #7f1d1d; }
-.wtf-coverage-tooltip { font-size:10px; color:#4b5563; }
+/* AI Summary box */
+.wtf-cluster-summary { background: #060d14; border: 1px solid #1a3a5a; border-left: 3px solid #22c55e; border-radius: 4px; padding: 14px 16px; margin-bottom: 16px; }
+/* Coverage section */
+.wtf-coverage-section { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 14px 16px; margin-bottom: 16px; }
+.wtf-coverage-outlets { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 8px; }
+.wtf-outlet-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 3px 10px; border-radius: 10px; background: #0a1520; border: 1px solid #1a3a5a; color: #d1d5db; }
+.wtf-coverage-gap-note { font-size: 10px; color: #6b7280; margin-top: 6px; }
+.wtf-perspectives { display: flex; gap: 4px; margin-top: 8px; }
+.wtf-perspective-band { height: 4px; flex: 1; border-radius: 2px; }
+/* F.A.C.T. framing panel — collapsible */
+.wtf-framing-details { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; margin-top: 20px; }
+.wtf-framing-summary-toggle { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: .06em; padding: 12px 16px; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+.wtf-framing-summary-toggle::-webkit-details-marker { display: none; }
+.wtf-framing-body { padding: 0 16px 14px; border-top: 1px solid #1a3a5a; }
 </style>
 
+<!-- ── HEADER ─────────────────────────────────────────────────────── -->
 <div class="wtf-cluster-header">
   <div class="wtf-cluster-meta">
     <a href="/news" style="color:#6b7280;text-decoration:none;">← Back to News</a>
-    &nbsp;·&nbsp; {{ articles|length }} outlet{{ 's' if articles|length != 1 else '' }} · Story cluster #{{ cluster.id }}
+    &nbsp;·&nbsp; {{ distinct_source_count }} outlet{{ 's' if distinct_source_count != 1 else '' }} · Story cluster #{{ cluster.id }}
   </div>
   <h1 class="wtf-cluster-title">{{ cluster.representative_title or 'Story Cluster' }}</h1>
-  <div class="wtf-cluster-meta">
-    How different outlets framed the same story — bias, verdict, and framing side by side.
-  </div>
+  <div class="wtf-cluster-meta">How different outlets framed the same story — bias, verdict, and framing side by side.</div>
 </div>
 
-{% if coverage_data %}
-{% set gap = coverage_data.gap_score %}
-{% set covered = coverage_data.covered_bands %}
-{% set gap_class = 'wtf-gap-green' if gap < 0.4 else ('wtf-gap-amber' if gap <= 0.7 else 'wtf-gap-red') %}
+<!-- ── AI SUMMARY ─────────────────────────────────────────────────── -->
+{% if cluster_summary and (cluster_summary.headline or cluster_summary.brief) %}
+<div class="wtf-cluster-summary">
+  <div style="font-size:10px;color:#22c55e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">🤖 D.R.A.F.T. Summary</div>
+  {% if cluster_summary.headline %}
+  <div style="font-size:13px;color:#e5e7eb;font-weight:600;line-height:1.5;margin-bottom:4px;">{{ cluster_summary.headline }}</div>
+  {% endif %}
+  {% if cluster_summary.brief %}
+  <div style="font-size:12px;color:#9ca3af;line-height:1.6;">{{ cluster_summary.brief }}</div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- ── COVERAGE SECTION ───────────────────────────────────────────── -->
+{% if articles %}
 {% set BAND_LABELS = [
-  ('left',         'L',  'wtf-coverage-band-left',         'Left'),
-  ('center-left',  'CL', 'wtf-coverage-band-center-left',  'Centre-Left'),
-  ('center',       'C',  'wtf-coverage-band-center',       'Centre'),
-  ('center-right', 'CR', 'wtf-coverage-band-center-right', 'Centre-Right'),
-  ('right',        'R',  'wtf-coverage-band-right',        'Right'),
+  ('left',         'L',  'Left'),
+  ('center-left',  'CL', 'Centre-Left'),
+  ('center',       'C',  'Centre'),
+  ('center-right', 'CR', 'Centre-Right'),
+  ('right',        'R',  'Right'),
 ] %}
-<div class="wtf-coverage-bar" title="{{ coverage_data.bias_coverage_count }} of 5 political perspectives covered this story">
-  <span class="wtf-coverage-label">Coverage</span>
-  <span class="wtf-coverage-bands">
-    {% for band_key, band_short, band_css, band_long in BAND_LABELS %}
-    <span class="wtf-coverage-band {{ band_css }} {{ 'filled' if band_key in covered else 'empty' }}"
-          title="{{ band_long }}{{ ' — covered' if band_key in covered else ' — not covered' }}">{{ band_short }}</span>
+<div class="wtf-coverage-section">
+  <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;">Outlets covering this story</div>
+
+  <div class="wtf-coverage-outlets">
+    {% for art in articles %}
+    {% set bc = BAND_COLOURS.get(art.bias_band or '', '#6b7280') %}
+    <span class="wtf-outlet-pill" style="border-color:{{ bc }}44;">
+      <span style="width:7px;height:7px;border-radius:50%;background:{{ bc }};flex-shrink:0;display:inline-block;"></span>
+      {% if art.source_slug %}
+      <a href="/source/{{ art.source_slug }}" style="color:inherit;text-decoration:none;">{{ art.source_name or art.source_slug }}</a>
+      {% else %}{{ art.source_name or '—' }}{% endif %}
+      {% if art.bias_band %}<span style="font-size:9px;color:{{ bc }};font-weight:700;">{{ art.bias_band.replace('-',' ').upper() }}</span>{% endif %}
+    </span>
     {% endfor %}
-  </span>
-  <span class="wtf-gap-badge {{ gap_class }}">{{ '%.2f'|format(gap) }} gap</span>
-  <span class="wtf-coverage-tooltip">{{ coverage_data.bias_coverage_count }} of 5 perspectives covered</span>
+  </div>
+
+  {% if coverage_data %}
+  {% set gap = coverage_data.gap_score %}
+  {% set covered = coverage_data.covered_bands %}
+  <div class="wtf-perspectives">
+    {% for band_key, band_short, band_long in BAND_LABELS %}
+    <div class="wtf-perspective-band" style="background:{{ BAND_COLOURS.get(band_key,'#6b7280') }};opacity:{{ '1' if band_key in covered else '0.15' }};" title="{{ band_long }}{{ ' — covered' if band_key in covered else ' — not covered' }}"></div>
+    {% endfor %}
+  </div>
+  <div class="wtf-coverage-gap-note">
+    {% if coverage_data.bias_coverage_count == 1 %}
+      Only one perspective covered this story — no diversity detected
+    {% elif coverage_data.bias_coverage_count == 2 %}
+      2 of 5 perspectives covered — limited perspective range
+    {% elif coverage_data.bias_coverage_count >= 4 %}
+      {{ coverage_data.bias_coverage_count }} of 5 perspectives covered — strong coverage diversity
+    {% else %}
+      {{ coverage_data.bias_coverage_count }} of 5 perspectives covered
+    {% endif %}
+  </div>
+  {% endif %}
 </div>
 {% endif %}
 
 {% if is_subscriber %}
-<!-- F.A.C.T. Framing Comparison -->
-<div id="wtf-framing-panel" style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:14px 16px;margin-bottom:20px;">
-  <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">🤖 F.A.C.T. Framing Analysis</div>
-  {% if framing_summary %}
-  <div id="wtf-framing-text" style="font-size:13px;color:#e5e7eb;line-height:1.7;">{{ framing_summary }}</div>
-  <div style="font-size:10px;color:#374151;margin-top:8px;">Generated by F.A.C.T. · <a onclick="wtfReframe()" href="#" style="color:#0af;text-decoration:none;">Regenerate</a></div>
-  {% else %}
-  <div id="wtf-framing-text" style="font-size:12px;color:#6b7280;line-height:1.6;">
-    Compare how different outlets framed this story — emphasis, language, what was highlighted or left out.
-  </div>
-  <div style="margin-top:10px;">
-    <button id="wtf-frame-btn" onclick="wtfReframe()" style="background:#0a2a3a;border:1px solid #0af;color:#0af;padding:7px 16px;border-radius:3px;font-size:11px;cursor:pointer;font-family:inherit;">
-      🤖 Generate framing comparison
-    </button>
-  </div>
-  {% endif %}
-</div>
-{% else %}
-<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:8px;padding:24px;text-align:center;margin-bottom:20px;">
-  <div style="font-size:18px;margin-bottom:8px;">📰</div>
-  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">Side-by-Side Outlet Comparison — Starter+</div>
-  <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">See how {{ articles|length }} outlets framed this story — bias by source, F.A.C.T. framing analysis, and verdict side by side.</div>
-  <a href="/login?next=/cluster/{{ cluster.id }}" style="display:inline-block;background:#0af;color:#000;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
-  <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
-</div>
-{% endif %}
+<!-- ── ARTICLE CARDS ───────────────────────────────────────────────── -->
+<div class="wtf-cluster-grid">
+  {% for art in articles %}
+  {% set band = art.bias_band or '' %}
+  {% set band_colour = BAND_COLOURS.get(band, '#6b7280') %}
+  {% set verdict = art.overall_verdict or '' %}
+  {% set verdict_colour = VERDICT_COLOURS.get(verdict, '#6b7280') %}
+  {% set verdict_label = VERDICT_LABELS.get(verdict, verdict.replace('_',' ').title() if verdict else '') %}
+  {% set score = art.bias_score or 0 %}
+  {% set pct = [[(score + 1) / 2 * 100, 5]|max, 95]|min %}
+  <div class="wtf-cluster-card">
+    <div class="wtf-cluster-card-source">
+      <span style="width:8px;height:8px;border-radius:50%;background:{{ band_colour }};flex-shrink:0;display:inline-block;"></span>
+      {% if art.source_slug %}
+      <a href="/source/{{ art.source_slug }}" style="color:inherit;text-decoration:none;">{{ art.source_name or art.source_slug }}</a>
+      {% else %}{{ art.source_name or '—' }}{% endif %}
+    </div>
 
-<script>
-async function wtfReframe() {
-  var btn = document.getElementById('wtf-frame-btn');
-  var txt = document.getElementById('wtf-framing-text');
-  if (btn) { btn.disabled = true; btn.textContent = 'Analyzing…'; }
-  if (txt) txt.textContent = 'F.A.C.T. is comparing how each outlet framed this story — up to 90s…';
-  try {
-    var resp = await fetch('/api/clusters/{{ cluster.id }}/frame', {
-      method: 'POST', headers: {'Content-Type': 'application/json'}
-    });
-    var data = await resp.json();
-    if (data.ok && data.summary) {
-      if (txt) txt.textContent = data.summary;
-      var panel = document.getElementById('wtf-framing-panel');
-      if (panel && btn) {
-        var note = document.createElement('div');
-        note.style = 'font-size:10px;color:#374151;margin-top:8px;';
-        note.textContent = 'Generated by F.A.C.T.';
-        panel.appendChild(note);
-        btn.remove();
-      }
-    } else {
-      if (txt) txt.textContent = 'Analysis failed — ' + (data.error || 'try again later');
-      if (btn) { btn.disabled = false; btn.textContent = '🤖 Generate framing comparison'; }
-    }
-  } catch(e) {
-    if (txt) txt.textContent = 'Network error: ' + e.message;
-    if (btn) { btn.disabled = false; btn.textContent = '🤖 Generate framing comparison'; }
-  }
-}
-</script>
+    <a class="wtf-cluster-card-title" href="/article/{{ art.id }}">{{ art.title or 'Untitled' }}</a>
 
-{% if articles and is_subscriber %}
-<!-- T3011 — Story Timeline -->
-<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:14px 16px;margin-bottom:16px;">
+    {% if art.excerpt %}
+    <div class="wtf-cluster-card-excerpt">{{ art.excerpt[:280] }}{% if (art.excerpt or '')|length >= 280 %}…{% endif %}</div>
+    {% endif %}
+
+    <div class="wtf-bias-bar-mini">
+      <div class="wtf-bias-dot" style="left:{{ pct }}%;background:{{ band_colour }};"></div>
+    </div>
+
+    <div class="wtf-cluster-card-meta">
+      {% if band %}
+      <span class="wtf-band-pill" style="background:{{ band_colour }}22;color:{{ band_colour }};border:1px solid {{ band_colour }}44;">{{ band.replace('-',' ') }}</span>
+      {% endif %}
+      {% if verdict and verdict not in ('unverifiable','unverified') %}
+      <span class="wtf-verdict-pill" style="background:{{ verdict_colour }}22;color:{{ verdict_colour }};border:1px solid {{ verdict_colour }}44;">{{ verdict_label }}</span>
+      {% endif %}
+      <span class="wtf-cluster-card-date">{{ art.published_at.strftime('%b %-d · %H:%M') if art.published_at else '—' }}</span>
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:center;margin-top:4px;">
+      <a class="wtf-cluster-card-link" href="/article/{{ art.id }}">Read full analysis →</a>
+      <a href="{{ art.url }}" target="_blank" rel="nofollow noopener" style="font-size:10px;color:#4b5563;text-decoration:none;">Source ↗</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ── COVERAGE TIMELINE ──────────────────────────────────────────── -->
+<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:14px 16px;margin-top:16px;">
   <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">⏱ Coverage Timeline</div>
   <div id="wtf-timeline-body" style="font-size:12px;color:#6b7280;"></div>
 </div>
@@ -183,34 +210,21 @@ async function wtfReframe() {
       d.articles.forEach(function(a,i){
         var c=BC[a.bias_band]||'#374151';
         var row=mkEl('div','position:relative;'+(i<d.articles.length-1?'margin-bottom:12px;':''));
-        var dot=mkEl('div','position:absolute;left:-12px;top:5px;width:7px;height:7px;border-radius:50%;background:'+c+';');
-        row.appendChild(dot);
-        /* meta line: date + source + band */
+        row.appendChild(mkEl('div','position:absolute;left:-12px;top:5px;width:7px;height:7px;border-radius:50%;background:'+c+';'));
         var meta=mkEl('div','display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;');
         var dt=mkEl('span','font-size:9px;color:#4b5563;white-space:nowrap;');
-        var dateStr=a.published_at?a.published_at.slice(0,10):'—';
-        var timeStr=a.published_at&&a.published_at.length>16?a.published_at.slice(11,16):'';
-        dt.textContent=dateStr+(timeStr?' '+timeStr:'');
+        dt.textContent=(a.published_at||'—').slice(0,16).replace('T',' ');
         meta.appendChild(dt);
         if(a.source_name){
-          if(a.source_slug){
-            var srcA=mkEl('a','font-size:10px;color:#9ca3af;text-decoration:none;font-weight:600;');
-            srcA.href='/source/'+encodeURIComponent(a.source_slug);
-            srcA.textContent=a.source_name;
-            meta.appendChild(srcA);
-          }else{
-            var srcS=mkEl('span','font-size:10px;color:#9ca3af;font-weight:600;');
-            srcS.textContent=a.source_name;
-            meta.appendChild(srcS);
-          }
+          var srcEl=a.source_slug?mkEl('a','font-size:10px;color:#9ca3af;text-decoration:none;font-weight:600;'):mkEl('span','font-size:10px;color:#9ca3af;font-weight:600;');
+          if(a.source_slug) srcEl.href='/source/'+encodeURIComponent(a.source_slug);
+          srcEl.textContent=a.source_name; meta.appendChild(srcEl);
         }
         if(a.bias_band){
           var pill=mkEl('span','font-size:9px;padding:1px 6px;border-radius:8px;background:'+c+'22;color:'+c+';border:1px solid '+c+'44;');
-          pill.textContent=a.bias_band.replace('-',' ');
-          meta.appendChild(pill);
+          pill.textContent=a.bias_band.replace('-',' '); meta.appendChild(pill);
         }
         row.appendChild(meta);
-        /* article title link */
         var titleA=mkEl('a','font-size:11px;color:#d1d5db;text-decoration:none;line-height:1.4;display:block;margin-top:2px;');
         titleA.href='/article/'+encodeURIComponent(String(a.id));
         titleA.textContent=(a.title||'').slice(0,100)+((a.title||'').length>100?'…':'');
@@ -223,76 +237,60 @@ async function wtfReframe() {
 })();
 </script>
 
-<div class="wtf-cluster-grid">
-  {% for art in articles %}
-  {% set band = art.bias_band or '' %}
-  {% set band_colour = BAND_COLOURS.get(band, '#6b7280') %}
-  {% set verdict = art.overall_verdict or '' %}
-  {% set verdict_colour = VERDICT_COLOURS.get(verdict, '#6b7280') %}
-  {% set score = art.bias_score or 0 %}
-  {% set pct = [[(score + 1) / 2 * 100, 5]|max, 95]|min %}
-  <div class="wtf-cluster-card">
-    <div class="wtf-cluster-card-source">
-      <span style="width:8px;height:8px;border-radius:50%;background:{{ band_colour }};flex-shrink:0;display:inline-block;"></span>
-      {% if art.source_slug %}
-      <a href="/source/{{ art.source_slug }}" style="color:inherit;text-decoration:none;">{{ art.source_name or art.source_slug }}</a>
-      {% else %}
-      {{ art.source_name or '—' }}
-      {% endif %}
+<!-- ── F.A.C.T. FRAMING — collapsed by default ───────────────────── -->
+<details class="wtf-framing-details">
+  <summary class="wtf-framing-summary-toggle">
+    <span>🤖</span> F.A.C.T. Framing Analysis
+    <span style="color:#4b5563;font-size:9px;margin-left:4px;">▸ expand</span>
+  </summary>
+  <div class="wtf-framing-body" style="padding-top:12px;">
+    {% if framing_summary %}
+    <div id="wtf-framing-text" style="font-size:13px;color:#e5e7eb;line-height:1.7;">{{ framing_summary }}</div>
+    <div style="font-size:10px;color:#374151;margin-top:8px;">Generated by F.A.C.T. · <a onclick="wtfReframe()" href="#" style="color:#0af;text-decoration:none;">Regenerate</a></div>
+    {% else %}
+    <div id="wtf-framing-text" style="font-size:12px;color:#6b7280;line-height:1.6;">Compare how different outlets framed this story — emphasis, language, what was highlighted or left out.</div>
+    <div style="margin-top:10px;">
+      <button id="wtf-frame-btn" onclick="wtfReframe()" style="background:#0a2a3a;border:1px solid #0af;color:#0af;padding:7px 16px;border-radius:3px;font-size:11px;cursor:pointer;font-family:inherit;">🤖 Generate framing comparison</button>
     </div>
-
-    <a class="wtf-cluster-card-title" href="/article/{{ art.id }}">
-      {{ art.title or 'Untitled' }}
-    </a>
-
-    {% if art.excerpt %}
-    <div class="wtf-cluster-card-excerpt">{{ art.excerpt[:300] }}{% if (art.excerpt or '')|length >= 300 %}…{% endif %}</div>
     {% endif %}
-
-    <div class="wtf-bias-bar-mini">
-      <div class="wtf-bias-dot" style="left:{{ pct }}%;background:{{ band_colour }};"></div>
-    </div>
-
-    <div class="wtf-cluster-card-meta">
-      {% if band %}
-      <span class="wtf-band-pill" style="background:{{ band_colour }}22;color:{{ band_colour }};border:1px solid {{ band_colour }}44;">
-        {{ band.replace('-',' ') }}
-      </span>
-      {% else %}
-      <span class="wtf-band-pill" style="background:#1a1a1a;color:#6b7280;border:1px solid #333;">unscored</span>
-      {% endif %}
-
-      {% if verdict %}
-      <span class="wtf-verdict-pill" style="background:{{ verdict_colour }}22;color:{{ verdict_colour }};border:1px solid {{ verdict_colour }}44;">
-        V.E.R.I.F.Y.: {{ verdict.replace('_',' ') }}
-      </span>
-      {% endif %}
-
-      <span class="wtf-cluster-card-date">
-        {{ art.published_at.strftime('%b %-d') if art.published_at else '—' }}
-      </span>
-    </div>
-
-    <div style="display:flex;gap:10px;align-items:center;margin-top:4px;">
-      <a class="wtf-cluster-card-link" href="/article/{{ art.id }}">Read full analysis →</a>
-      <a href="{{ art.url }}" target="_blank" rel="nofollow noopener" style="font-size:10px;color:#4b5563;text-decoration:none;">Source ↗</a>
-    </div>
   </div>
-  {% endfor %}
-</div>
-
-{% if not is_subscriber %}
-<div style="margin-top:24px;background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:16px;text-align:center;font-size:12px;color:#9ca3af;">
-  🔒 <strong style="color:#e5e7eb;">Subscribers</strong> see full bias rationale, trigger phrases, and V.E.R.I.F.Y. evidence for every outlet in this comparison.
-  <br><br>
-  <a href="/billing/checkout/starter" style="background:#0a2a3a;border:1px solid #0af;color:#0af;padding:8px 18px;border-radius:3px;text-decoration:none;font-size:12px;">Subscribe — $4.99/mo</a>
-  &nbsp;&nbsp;
-  <a href="/login?next=/cluster/{{ cluster.id }}" style="font-size:11px;color:#6b7280;text-decoration:none;">Already subscribed? Sign in →</a>
-</div>
-{% endif %}
+</details>
+<script>
+async function wtfReframe() {
+  var btn = document.getElementById('wtf-frame-btn');
+  var txt = document.getElementById('wtf-framing-text');
+  if (btn) { btn.disabled = true; btn.textContent = 'Analyzing…'; }
+  if (txt) txt.textContent = 'F.A.C.T. is comparing how each outlet framed this story — up to 90s…';
+  try {
+    var resp = await fetch('/api/clusters/{{ cluster.id }}/frame', { method: 'POST', headers: {'Content-Type': 'application/json'} });
+    var data = await resp.json();
+    if (data.ok && data.summary) {
+      if (txt) txt.textContent = data.summary;
+      if (btn) btn.remove();
+    } else {
+      if (txt) txt.textContent = 'Analysis failed — ' + (data.error || 'try again later');
+      if (btn) { btn.disabled = false; btn.textContent = '🤖 Generate framing comparison'; }
+    }
+  } catch(e) {
+    if (txt) txt.textContent = 'Network error: ' + e.message;
+    if (btn) { btn.disabled = false; btn.textContent = '🤖 Generate framing comparison'; }
+  }
+}
+</script>
 
 {% else %}
-<div style="color:#6b7280;font-size:13px;padding:40px 0;text-align:center;">No articles found in this cluster.</div>
+<!-- Non-subscriber upsell -->
+<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:8px;padding:24px;text-align:center;margin-bottom:20px;">
+  <div style="font-size:18px;margin-bottom:8px;">📰</div>
+  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">Side-by-Side Outlet Comparison — Starter+</div>
+  <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">See how {{ distinct_source_count }} outlets framed this story — bias by source, F.A.C.T. framing analysis, and verdict side by side.</div>
+  <a href="/login?next=/cluster/{{ cluster.id }}" style="display:inline-block;background:#0af;color:#000;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
+  <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
+</div>
 {% endif %}
+
+<div style="margin-top:32px;padding-top:16px;border-top:1px solid #1a3a5a;font-size:10px;color:#374151;text-align:center;">
+  Built on radical transparency. <a href="/methodology" style="color:#6b7280;text-decoration:none;">How we score bias →</a>
+</div>
 
 {% endblock %}

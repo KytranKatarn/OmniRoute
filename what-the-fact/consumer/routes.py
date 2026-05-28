@@ -1392,6 +1392,7 @@ def cluster_comparison(cluster_id: int):
     if not meta:
         abort(404)
     with _db().begin() as c:
+        # LATERAL subquery prevents duplicate rows when article has multiple fact_checks
         articles = c.execute(text(f"""
             SELECT a.id, a.title, a.url, a.published_at,
                    LEFT(a.body, 400) AS excerpt,
@@ -1402,14 +1403,30 @@ def cluster_comparison(cluster_id: int):
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-            LEFT JOIN {S}.fact_checks fc
-                ON fc.article_id = a.id AND fc.checker NOT LIKE 'GoogleFCT%%'
+            LEFT JOIN LATERAL (
+                SELECT overall_verdict, analyzed_by
+                FROM {S}.fact_checks
+                WHERE article_id = a.id AND checker NOT LIKE 'GoogleFCT%%'
+                ORDER BY created_at DESC LIMIT 1
+            ) fc ON true
             WHERE a.cluster_id = :cid
             ORDER BY a.published_at ASC
         """), {"cid": cluster_id}).mappings().all()
+
+        # AI summary for this cluster (from summaries table)
+        summary_row = c.execute(text(f"""
+            SELECT headline, brief, generated_by
+            FROM {S}.summaries
+            WHERE cluster_id = :cid
+            ORDER BY created_at DESC LIMIT 1
+        """), {"cid": cluster_id}).mappings().first()
+        cluster_summary = dict(summary_row) if summary_row else None
+
         source_count = c.execute(
             text(f"SELECT COUNT(*) FROM {S}.sources")
         ).scalar() or 0
+        distinct_source_count = len({a["source_name"] for a in articles})
+
         # Coverage Gap Score — distinct bias_lean bands that covered this cluster (#3010)
         _ALL_BANDS = ["left", "center-left", "center", "center-right", "right"]
         band_rows = c.execute(text(f"""
@@ -1422,7 +1439,6 @@ def cluster_comparison(cluster_id: int):
         """), {"cid": cluster_id}).fetchall()
         covered_bands = {r[0] for r in band_rows} & set(_ALL_BANDS)
         bias_coverage_count = len(covered_bands)
-        # Prefer pre-computed value from story_clusters; fall back to on-the-fly calc
         stored_gap = meta.get("coverage_gap_score")
         if stored_gap is not None:
             gap_score = round(float(stored_gap), 3)
@@ -1437,6 +1453,8 @@ def cluster_comparison(cluster_id: int):
     return render_template("cluster.html",
                            cluster=dict(meta),
                            articles=[dict(r) for r in articles],
+                           distinct_source_count=distinct_source_count,
+                           cluster_summary=cluster_summary,
                            source_count=source_count,
                            is_subscriber=is_subscriber(),
                            framing_summary=dict(meta).get("framing_summary"),

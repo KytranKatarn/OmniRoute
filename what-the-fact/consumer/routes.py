@@ -1415,7 +1415,7 @@ def cluster_comparison(cluster_id: int):
 
         # AI summary for this cluster (from summaries table)
         summary_row = c.execute(text(f"""
-            SELECT headline, brief, generated_by
+            SELECT headline, brief, summarizer
             FROM {S}.summaries
             WHERE cluster_id = :cid
             ORDER BY created_at DESC LIMIT 1

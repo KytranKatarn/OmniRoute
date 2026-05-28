@@ -5509,12 +5509,12 @@ async function loadClusterStats() {
                 var loadPct = n.max_conc > 0 ? Math.round(n.load / n.max_conc * 100) : 0;
                 var loadColor = loadPct > 150 ? '#ef4444' : loadPct > 80 ? '#f59e0b' : '#10b981';
                 return '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">' +
-                    '<td style="padding:3px 6px;font-weight:600;white-space:nowrap;">' + n.name + '</td>' +
+                    '<td style="padding:3px 6px;font-weight:600;white-space:nowrap;">' + _escWtf(n.name) + '</td>' +
                     '<td style="padding:3px 6px;text-align:center;">' + tier + '</td>' +
-                    '<td style="padding:3px 6px;color:var(--dhq-text-dim);text-align:right;">' + n.ram_gb.toFixed(0) + 'GB</td>' +
-                    '<td style="padding:3px 6px;text-align:right;">' + n.models + ' 📦</td>' +
-                    '<td style="padding:3px 6px;text-align:right;color:' + loadColor + ';">' + n.disp_5m + '/5m</td>' +
-                    '<td style="padding:3px 6px;text-align:right;color:' + hbColor + ';font-size:0.65rem;">' + hbAge + '</td>' +
+                    '<td style="padding:3px 6px;color:var(--dhq-text-dim);text-align:right;">' + _escWtf(n.ram_gb.toFixed(0)) + 'GB</td>' +
+                    '<td style="padding:3px 6px;text-align:right;">' + _escWtf(n.models) + ' 📦</td>' +
+                    '<td style="padding:3px 6px;text-align:right;color:' + loadColor + ';">' + _escWtf(n.disp_5m) + '/5m</td>' +
+                    '<td style="padding:3px 6px;text-align:right;color:' + hbColor + ';font-size:0.65rem;">' + _escWtf(hbAge) + '</td>' +
                     '</tr>';
             }).join('');
             ht.innerHTML = '<table style="width:100%;border-collapse:collapse;font-family:\'IBM Plex Mono\',monospace;">' +
@@ -5534,7 +5534,7 @@ async function loadClusterStats() {
                 var pct = Math.round(c.cnt / maxCnt * 100);
                 var okColor = c.ok_rate > 0.95 ? '#10b981' : c.ok_rate > 0.8 ? '#f59e0b' : '#ef4444';
                 return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
-                    '<span style="width:110px;font-size:0.65rem;color:#e2e8f0;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + c.cap + '">' + c.cap + '</span>' +
+                    '<span style="width:110px;font-size:0.65rem;color:#e2e8f0;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + _escWtf(c.cap) + '">' + _escWtf(c.cap) + '</span>' +
                     '<div style="flex:1;background:rgba(0,220,170,0.08);border-radius:2px;height:10px;">' +
                     '<div style="width:' + pct + '%;height:100%;background:rgba(0,220,170,0.5);border-radius:2px;"></div></div>' +
                     '<span style="font-size:0.62rem;color:' + okColor + ';width:28px;text-align:right;">' + c.cnt + '</span>' +
@@ -5550,7 +5550,7 @@ async function loadClusterStats() {
                 var pct = Math.round(m.cnt / modMax * 100);
                 var srcShort = m.src.replace('wtf_dhq_', 'wtf.').replace('_backlog', '↩').replace('fleet_warmup', '🔥warmup');
                 return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
-                    '<span style="width:90px;font-size:0.62rem;color:#94a3b8;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + m.src + '">' + srcShort + '</span>' +
+                    '<span style="width:90px;font-size:0.62rem;color:#94a3b8;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + _escWtf(m.src) + '">' + _escWtf(srcShort) + '</span>' +
                     '<div style="flex:1;background:rgba(0,255,255,0.06);border-radius:2px;height:10px;">' +
                     '<div style="width:' + pct + '%;height:100%;background:rgba(0,255,255,0.35);border-radius:2px;"></div></div>' +
                     '<span style="font-size:0.62rem;color:var(--dhq-text-dim);width:28px;text-align:right;">' + m.cnt + '</span>' +

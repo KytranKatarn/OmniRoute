@@ -2248,7 +2248,7 @@ def register_dashboard_routes(bp, auth_decorator):
                 cur.execute(
                     """
                     SELECT date_trunc('minute', created_at) -
-                           (EXTRACT(MINUTE FROM created_at)::int %% 2) * INTERVAL '1 minute' AS bucket,
+                           MOD(EXTRACT(MINUTE FROM created_at)::int, 2) * INTERVAL '1 minute' AS bucket,
                            COUNT(*) AS cnt
                     FROM task_execution_log
                     WHERE created_at > NOW() - INTERVAL '30 minutes'

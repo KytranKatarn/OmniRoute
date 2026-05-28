@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
 from database import get_db_cursor
@@ -25,10 +26,12 @@ from psycopg2.extras import RealDictCursor
 
 log = logging.getLogger("platform.model_dispatch")
 
-# Max tasks claimed per model per cycle — prevents one model monopolising a cycle
-MAX_TASKS_PER_MODEL = 3
-# Max total tasks per cycle across all models
-MAX_TASKS_PER_CYCLE = 8
+# Max tasks claimed per model per node per cycle
+MAX_TASKS_PER_MODEL = 8
+# Max total tasks dispatched per cycle across all models + nodes
+MAX_TASKS_PER_CYCLE = 20
+# Thread pool for concurrent CPU-model dispatches (prevents blocking the worker thread)
+_CPU_EXECUTOR = ThreadPoolExecutor(max_workers=6, thread_name_prefix="mdw_cpu")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -74,6 +77,38 @@ def _get_warm_models_nodes() -> dict[str, int]:
                     result[name] = row["id"]
     except Exception as exc:
         log.debug("model_dispatch: node warm-model check failed: %s", exc)
+    return result
+
+
+def _get_all_warm_nodes_for_models() -> dict[str, list[Optional[int]]]:
+    """Return {model_name: [node_id_or_None, ...]} for ALL warm nodes per model.
+
+    None = hub. Enables parallel dispatch to multiple nodes when the same model
+    is warm on several nodes simultaneously — each gets its own task batch instead
+    of first-wins monopolising all work for a given model.
+    """
+    hub_warm = _get_warm_models_hub()
+    result: dict[str, list] = {m: [None] for m in hub_warm}  # None = hub
+    try:
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                """
+                SELECT rn.id, m.model_name
+                FROM node_ollama_models m
+                JOIN remote_nodes rn ON rn.node_id = m.node_id
+                WHERE rn.is_active = TRUE
+                  AND rn.last_heartbeat > NOW() - INTERVAL '3 minutes'
+                  AND rn.ollama_available = TRUE
+                  AND m.is_available = TRUE
+                ORDER BY rn.bridge_priority DESC, rn.current_load ASC
+                """
+            )
+            for row in cur.fetchall():
+                name = row.get("model_name")
+                if name:
+                    result.setdefault(name, []).append(row["id"])
+    except Exception as exc:
+        log.debug("model_dispatch: all-nodes warm-model check failed: %s", exc)
     return result
 
 
@@ -723,47 +758,72 @@ def model_dispatch_worker() -> None:
 
     Drains dispatch_pending_queue by routing tasks to whichever hub or
     fleet node has the required model already warm. Minimises VRAM swaps.
+
+    Multi-node improvement (ADR-017): when the same model is warm on multiple
+    nodes simultaneously, tasks are dispatched to ALL warm nodes in parallel
+    via _CPU_EXECUTOR — one task per node per model per cycle. This prevents
+    the old pattern where hub monopolised all work for a given model while
+    outpost nodes with the same model sat idle.
     """
     start = time.time()
     total_executed = 0
+    futures = []
 
     # 1. Expire stale tasks
     expired = _expire_stale_tasks()
     if expired:
         log.info("model_dispatch: expired %d stale task(s)", expired)
 
-    # 2. Discover warm models — hub first, then fleet nodes
-    hub_warm = _get_warm_models_hub()
-    node_warm = _get_warm_models_nodes()  # {model_name: node_id}
-    all_warm = {**{m: None for m in hub_warm}, **node_warm}
-    # Hub takes priority — if model is warm on both hub and node, hub wins
-    for m in hub_warm:
-        all_warm[m] = None
+    # 2. Discover warm models across ALL nodes — {model: [node_id_or_None, ...]}
+    all_warm_by_model = _get_all_warm_nodes_for_models()
+    if all_warm_by_model:
+        log.debug("model_dispatch: warm across fleet — %s", {m: len(nodes) for m, nodes in all_warm_by_model.items()})
 
-    if all_warm:
-        log.debug("model_dispatch: warm models — hub: %s | nodes: %s", hub_warm, node_warm)
-
-    # 3. Drain queued tasks for warm models
-    for model_name, node_id in all_warm.items():
+    # 3. Drain queued tasks — dispatch to ALL warm nodes for each model in parallel.
+    #    Each node gets its own claimed task batch (one claim per node so tasks don't
+    #    duplicate). CPU and GPU tasks both go through the thread pool to avoid
+    #    blocking the 15-second worker thread.
+    for model_name, node_ids in all_warm_by_model.items():
         if total_executed >= MAX_TASKS_PER_CYCLE:
             break
-        # CPU-only models block the worker thread for the full inference duration
-        # (10-15 min for a 9B model). Cap at 1 per cycle so one slow task can't
-        # starve GPU tasks on the next iteration. Fix A in the dispatcher ensures
-        # most CPU dispatches pre-queue, so this is the serialisation gate.
-        _per_model_limit = 1 if "-cpu" in model_name.lower() else MAX_TASKS_PER_MODEL
-        remaining = min(_per_model_limit, MAX_TASKS_PER_CYCLE - total_executed)
-        tasks = _claim_tasks(model_name, limit=remaining)
-        for task in tasks:
-            _execute_task(task, node_id=node_id)
-            total_executed += 1
+        for node_id in node_ids:
+            if total_executed >= MAX_TASKS_PER_CYCLE:
+                break
+            # Claim a batch of tasks for this model+node combination
+            per_node_limit = min(MAX_TASKS_PER_MODEL, MAX_TASKS_PER_CYCLE - total_executed)
+            tasks = _claim_tasks(model_name, limit=per_node_limit)
+            for task in tasks:
+                node_label = f"node:{node_id}" if node_id else "hub"
+                log.debug("model_dispatch: submitting %s→%s to thread pool", model_name, node_label)
+                fut = _CPU_EXECUTOR.submit(_execute_task, task, node_id)
+                futures.append(fut)
+                total_executed += 1
+
+    # Wait for all submitted tasks to complete (or fail) before returning
+    # so the next cycle doesn't double-claim still-running tasks.
+    if futures:
+        completed = 0
+        for fut in as_completed(futures, timeout=300):
+            try:
+                fut.result()
+                completed += 1
+            except Exception as exc:
+                log.warning("model_dispatch: task execution raised: %s", exc)
+        log.info("model_dispatch: parallel drain — %d/%d tasks completed", completed, len(futures))
 
     # 3.5 Drain tasks pinned to fleet nodes (cold-load acceptable)
     if total_executed < MAX_TASKS_PER_CYCLE:
-        preferred_tasks = _claim_preferred_node_tasks(limit=2)
+        preferred_tasks = _claim_preferred_node_tasks(limit=4)
+        pref_futures = []
         for task in preferred_tasks:
-            _execute_task(task)  # node_id resolved from task["preferred_node_id"]
+            fut = _CPU_EXECUTOR.submit(_execute_task, task)
+            pref_futures.append(fut)
             total_executed += 1
+        for fut in as_completed(pref_futures, timeout=300):
+            try:
+                fut.result()
+            except Exception as exc:
+                log.warning("model_dispatch: preferred-node task raised: %s", exc)
 
     # 4. If capacity remaining and nothing was warm for the queue,
     #    clear RAM if needed then load the highest-priority model batch

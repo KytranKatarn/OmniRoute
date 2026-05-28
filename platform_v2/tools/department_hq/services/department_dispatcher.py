@@ -310,6 +310,22 @@ CAPABILITY_DEPARTMENT_MAP = {
     "regulatory_review": "Legal & Regulatory",
     "privacy_review": "Legal & Regulatory",
     "risk_assessment": "Legal & Regulatory",
+    # News & Media — WTF pipeline (B.I.A.S., V.E.R.I.F.Y., L.O.C.A.L., F.A.C.T., S.C.O.U.T.)
+    # Without these entries the capabilities fall through to Engineering & Technology default,
+    # causing P.R.O.B.E. (qwen2.5-coder:7b) to be selected for bias/geo tasks instead.
+    "bias_analysis": "News & Media",
+    "bias_quick": "News & Media",
+    "bias_backlog": "News & Media",
+    "geo_extraction": "News & Media",
+    "geo_backlog": "News & Media",
+    "fact_check": "News & Media",
+    "factcheck_quick": "News & Media",
+    "fact_check_quick": "News & Media",
+    "classify_beat": "News & Media",
+    "news_analysis": "News & Media",
+    "media_analysis": "News & Media",
+    "news_summary": "News & Media",
+    "news_clustering": "News & Media",
 }
 
 # ============================================================================

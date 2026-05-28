@@ -227,14 +227,15 @@
             <p class="watch-hero__subtitle">AI-powered news analysis for independent thinkers. Bias scoring, automated fact-checking, and multi-source story clustering across Canadian media — so you see the full picture, not just one outlet's angle.</p>
             <div class="watch-cta" style="margin-top:2rem;">
                 <a href="https://what-the-fact.com" class="watch-cta__primary">Read the News</a>
-                <a href="membership.html" class="watch-cta__secondary">See Plans</a>
+                <a href="https://what-the-fact.com/join" class="watch-cta__secondary">See Plans</a>
             </div>
         </section>
 
-        <section class="watch-stats" style="display:flex;justify-content:center;gap:3rem;padding:2.5rem 1rem;border-top:1px solid rgba(255,255,255,0.06);border-bottom:1px solid rgba(255,255,255,0.06);">
-            <div class="watch-stat"><div class="watch-stat__value">10+</div><div class="watch-stat__label">Canadian Sources</div></div>
+        <section class="watch-stats" style="display:flex;justify-content:center;gap:3rem;padding:2.5rem 1rem;border-top:1px solid rgba(255,255,255,0.06);border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;">
+            <div class="watch-stat"><div class="watch-stat__value">46</div><div class="watch-stat__label">Canadian Sources</div></div>
+            <div class="watch-stat"><div class="watch-stat__value">22K+</div><div class="watch-stat__label">Articles Analyzed</div></div>
+            <div class="watch-stat"><div class="watch-stat__value">18</div><div class="watch-stat__label">News Beats</div></div>
             <div class="watch-stat"><div class="watch-stat__value">Live</div><div class="watch-stat__label">Bias Scoring</div></div>
-            <div class="watch-stat"><div class="watch-stat__value">AI</div><div class="watch-stat__label">Fact-Checked</div></div>
             <div class="watch-stat"><div class="watch-stat__value">30 min</div><div class="watch-stat__label">Ingest Cycle</div></div>
         </section>
 
@@ -281,6 +282,36 @@
                     <h3 class="watch-feature__title">FR/EN Divergence</h3>
                     <p class="watch-feature__text">Stories where French and English Canadian outlets tell a completely different story — either by ignoring it or framing it with opposite political lean. The two solitudes, measured.</p>
                 </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#127381;</div>
+                    <h3 class="watch-feature__title">18 News Beats</h3>
+                    <p class="watch-feature__text">Filter all 22,000+ articles by topic: Sports, Health, Climate, Crime, Parliament, Economy, Education, Indigenous, Housing, Justice, and more. Every story categorized by AI.</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#127807;</div>
+                    <h3 class="watch-feature__title">Weather &amp; Climate Intelligence</h3>
+                    <p class="watch-feature__text">A.U.R.O.R.A. tracks climate and science stories across all 46 Canadian outlets — because in Canada, the weather IS the news. Bias-scored and geo-mapped.</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#128176;</div>
+                    <h3 class="watch-feature__title">Economy &amp; Markets</h3>
+                    <p class="watch-feature__text">Business, economy, and foreign policy news filtered and bias-scored — cross-referenced with Market Watch for financial context behind every headline.</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#127968;</div>
+                    <h3 class="watch-feature__title">Riding-Level Filter</h3>
+                    <p class="watch-feature__text">Filter stories by federal riding. See which MPs are mentioned in coverage of your constituency — powered by parliamentary record linkage across all 46 sources.</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#128202;</div>
+                    <h3 class="watch-feature__title">Bias Drift Tracker</h3>
+                    <p class="watch-feature__text">See how outlet bias shifts over 12 months — elections, ownership changes, editorial decisions. Data, not opinion. Updated after every ingest cycle.</p>
+                </div>
+                <div class="watch-feature">
+                    <div class="watch-feature__icon">&#127968;</div>
+                    <h3 class="watch-feature__title">Media Ownership Map</h3>
+                    <p class="watch-feature__text">Who controls Canadian news? Postmedia owns 20% of tracked outlets. See every owner, their outlets, their average bias, and their share of the Canadian media landscape.</p>
+                </div>
             </div>
         </section>
 
@@ -301,7 +332,19 @@
                     </div>
                     <div style="text-align:center;">
                         <div style="font-family:'Orbitron',sans-serif;font-size:0.75rem;color:#60a5fa;letter-spacing:2px;">F.A.C.T.</div>
-                        <div style="font-size:0.7rem;color:#6b7280;margin-top:0.2rem;">News Director</div>
+                        <div style="font-size:0.7rem;color:#6b7280;margin-top:0.2rem;">News Ingestion</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-family:'Orbitron',sans-serif;font-size:0.75rem;color:#60a5fa;letter-spacing:2px;">I.N.K.</div>
+                        <div style="font-size:0.7rem;color:#6b7280;margin-top:0.2rem;">Story Clustering</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-family:'Orbitron',sans-serif;font-size:0.75rem;color:#60a5fa;letter-spacing:2px;">D.R.A.F.T.</div>
+                        <div style="font-size:0.7rem;color:#6b7280;margin-top:0.2rem;">Summarization</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-family:'Orbitron',sans-serif;font-size:0.75rem;color:#7c3aed;letter-spacing:2px;">A.U.R.O.R.A.</div>
+                        <div style="font-size:0.7rem;color:#6b7280;margin-top:0.2rem;">Weather Intelligence</div>
                     </div>
                 </div>
             </div>
@@ -315,30 +358,33 @@
                     <div class="watch-pricing-card__badge">FREE</div>
                     <div class="watch-pricing-card__tier">Reader</div>
                     <div class="watch-pricing-card__price">$0<span>/mo</span></div>
-                    <div class="watch-pricing-card__desc">News with bias band — no account required</div>
+                    <div class="watch-pricing-card__desc">News with bias scoring — no account required</div>
                     <ul class="watch-pricing-card__list">
-                        <li class="watch-pricing-card__item">Full article feed — all 10+ sources</li>
-                        <li class="watch-pricing-card__item">Bias band (left ← center → right)</li>
+                        <li class="watch-pricing-card__item">Full article feed — all 46 Canadian sources</li>
+                        <li class="watch-pricing-card__item">Bias spectrum (left ← center → right)</li>
                         <li class="watch-pricing-card__item">Story clustering &amp; cross-source grouping</li>
-                        <li class="watch-pricing-card__item">Outlet rolling bias averages</li>
-                        <li class="watch-pricing-card__item">Daily digest (top stories)</li>
+                        <li class="watch-pricing-card__item">18 topic beats + geo scope filters</li>
+                        <li class="watch-pricing-card__item">Blindspot Feed &amp; FR/EN Divergence alerts</li>
+                        <li class="watch-pricing-card__item">Media ownership map (who controls what)</li>
+                        <li class="watch-pricing-card__item">Riding-level story filter</li>
                     </ul>
                     <a href="https://what-the-fact.com" class="watch-pricing-card__cta" style="background:rgba(59,130,246,0.15);color:#3b82f6;border:1px solid #3b82f644;">Start Reading Free</a>
                 </div>
                 <div class="watch-pricing-card watch-pricing-card--featured" style="max-width:340px;width:100%">
                     <div class="watch-pricing-card__badge">STARTER</div>
                     <div class="watch-pricing-card__tier">Analyst</div>
-                    <div class="watch-pricing-card__price">$19<span>/mo</span></div>
+                    <div class="watch-pricing-card__price">$4.99<span>/mo</span></div>
                     <div class="watch-pricing-card__desc">The full intelligence layer — cancel anytime</div>
                     <ul class="watch-pricing-card__list">
                         <li class="watch-pricing-card__item">Everything in Reader</li>
                         <li class="watch-pricing-card__item">Bias rationale &amp; trigger phrase breakdown</li>
                         <li class="watch-pricing-card__item">V.E.R.I.F.Y. deep fact-check panel</li>
                         <li class="watch-pricing-card__item">Deep Dive — full AI story analysis</li>
-                        <li class="watch-pricing-card__item">Geographic variation detection</li>
+                        <li class="watch-pricing-card__item">Reading diet &amp; bubble score</li>
                         <li class="watch-pricing-card__item">Email alerts on breaking stories</li>
+                        <li class="watch-pricing-card__item">Beat micro-subscriptions ($2/mo per topic)</li>
                     </ul>
-                    <a href="https://what-the-fact.com/billing/checkout/starter" class="watch-pricing-card__cta">Subscribe Now</a>
+                    <a href="https://what-the-fact.com/join" class="watch-pricing-card__cta">Subscribe Now</a>
                     <div style="text-align:center;margin-top:10px;font-size:0.8rem;color:#9ca3af">
                       Already subscribed? <a href="https://what-the-fact.com" style="color:var(--accent,#22d3ee)">Read Now →</a>
                     </div>
@@ -347,31 +393,32 @@
         </section>
 
         <section class="watch-coming" style="max-width:960px;margin:0 auto;padding:3rem 1.5rem;">
-            <h2 class="watch-features__heading">Coming Soon</h2>
+            <h2 class="watch-features__heading">What's Next</h2>
+            <p style="text-align:center;color:#9ca3af;font-size:0.82rem;margin-bottom:2rem;">Already shipped: 46 sources, beat categories, weather, economy, riding filter, education API, bias drift tracker, media ownership map, reading diet, and more.</p>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem;margin-top:1.5rem;">
                 <div class="watch-coming__card">
-                    <span class="watch-coming__badge">Q2 2026</span>
-                    <div><h4 class="watch-coming__title">Source Expansion</h4><p class="watch-coming__text">25+ Canadian sources including regional outlets, Indigenous media, and French-language press.</p></div>
-                </div>
-                <div class="watch-coming__card">
-                    <span class="watch-coming__badge">Q2 2026</span>
-                    <div><h4 class="watch-coming__title">Custom Alerts</h4><p class="watch-coming__text">Track specific topics, politicians, or keywords across all sources with real-time notifications.</p></div>
+                    <span class="watch-coming__badge">Q3 2026</span>
+                    <div><h4 class="watch-coming__title">Browser Extension</h4><p class="watch-coming__text">See bias ratings on news links while you scroll Twitter/X, Facebook, LinkedIn, and Reddit — without leaving the page.</p></div>
                 </div>
                 <div class="watch-coming__card">
                     <span class="watch-coming__badge">Q3 2026</span>
-                    <div><h4 class="watch-coming__title">Media Literacy Score</h4><p class="watch-coming__text">Your personal reading diet analysis — how balanced is your news consumption? Track it over time.</p></div>
+                    <div><h4 class="watch-coming__title">Journalist Profiles</h4><p class="watch-coming__text">Track individual bylines — their beat history, outlet changes, and consistent framing patterns over time.</p></div>
                 </div>
                 <div class="watch-coming__card">
                     <span class="watch-coming__badge">Q3 2026</span>
-                    <div><h4 class="watch-coming__title">Historical Bias Trends</h4><p class="watch-coming__text">See how outlet bias has shifted over time — elections, ownership changes, editorial shifts.</p></div>
+                    <div><h4 class="watch-coming__title">Municipal News Layer</h4><p class="watch-coming__text">City council, planning decisions, and local government coverage — filtered by municipality and geo-mapped across Canada.</p></div>
                 </div>
                 <div class="watch-coming__card">
                     <span class="watch-coming__badge">Q4 2026</span>
-                    <div><h4 class="watch-coming__title">Journalist Profiles</h4><p class="watch-coming__text">Track individual bylines — their beat, their outlet history, their consistent framing patterns.</p></div>
+                    <div><h4 class="watch-coming__title">Cross-Watch Intelligence</h4><p class="watch-coming__text">When a WTF story connects to a Gov Watch procurement, Legal Watch ruling, or Market Watch data — you'll see it, automatically.</p></div>
                 </div>
                 <div class="watch-coming__card">
                     <span class="watch-coming__badge">Q4 2026</span>
-                    <div><h4 class="watch-coming__title">API Access</h4><p class="watch-coming__text">RESTful API for researchers, educators, and civic tech builders who need structured news data.</p></div>
+                    <div><h4 class="watch-coming__title">iOS &amp; Android App</h4><p class="watch-coming__text">The full WTF experience — bias-scored news, beat filters, blindspot feed, and divergence alerts — in your pocket.</p></div>
+                </div>
+                <div class="watch-coming__card">
+                    <span class="watch-coming__badge">2027</span>
+                    <div><h4 class="watch-coming__title">Promise Tracker</h4><p class="watch-coming__text">Track politician promises against actual votes, legislation, and public records — automated, cross-referenced, and fact-checked.</p></div>
                 </div>
             </div>
         </section>
@@ -386,7 +433,7 @@
 
         <div class="watch-cta">
             <a href="https://what-the-fact.com" class="watch-cta__primary">Open What The Fact</a>
-            <a href="membership.html" class="watch-cta__secondary">See Plans</a>
+            <a href="https://what-the-fact.com/join" class="watch-cta__secondary">See Plans</a>
         </div>
 
       </div>

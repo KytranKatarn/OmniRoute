@@ -216,15 +216,14 @@ def analyze():
     try:
         from tools.department_hq.services.department_dispatcher import dispatch
 
-        # Geo extraction is a lightweight structured task — pin to qwen2.5:1.5b so
-        # it never lands on a 7b model (OOM on hub Quadro M4000 → 90s timeout).
-        # model_override=None for non-geo tasks is a no-op in the dispatcher.
+        # L.O.C.A.L. agent has model=qwen2.5:1.5b set in agents table — DHQ
+        # fleet routing distributes across hub + Starship nodes automatically.
+        # No model_override needed; let the dispatcher select the best available node.
         result = dispatch(
             capability=capabilities[task],
             prompt=prompts[task],
             module_id="wtf_hub",
             json_mode=True,
-            model_override="qwen2.5:1.5b" if task == "geo" else None,
         )
         if result.success:
             try:

@@ -2184,21 +2184,28 @@ def sitemap_xml():
 
 @bp.get("/api/v1/featured-story")
 def featured_story():
-    """Return the single most-covered story cluster from the last 24 hours."""
+    """Return the top story cluster ranked by distinct outlets (not raw article count)."""
     allowed, retry = _api_rate_ok(request.remote_addr)
     if not allowed:
         return _api_cors_response({"error": "rate limited"}, 429)
     S = _schema()
     with _db().begin() as c:
         row = c.execute(text(f"""
-            SELECT sc.id, sc.representative_title, sc.article_count, sc.source_count,
+            SELECT sc.id, sc.representative_title, sc.article_count,
+                   COUNT(DISTINCT a.source_id) AS real_source_count,
                    sc.coverage_gap_score, sc.certainty_label, sc.latest_published_at,
                    sm.headline, sm.brief
             FROM {S}.story_clusters sc
+            JOIN {S}.articles a ON a.cluster_id = sc.id
             LEFT JOIN {S}.summaries sm ON sm.cluster_id = sc.id
             WHERE sc.latest_published_at > NOW() - INTERVAL '24 hours'
               AND sc.article_count >= 3
-            ORDER BY sc.article_count DESC, sc.latest_published_at DESC
+            GROUP BY sc.id, sc.representative_title, sc.article_count,
+                     sc.coverage_gap_score, sc.certainty_label, sc.latest_published_at,
+                     sm.headline, sm.brief
+            HAVING COUNT(DISTINCT a.source_id) >= 2
+            ORDER BY COUNT(DISTINCT a.source_id) DESC, sc.article_count DESC,
+                     sc.latest_published_at DESC
             LIMIT 1
         """)).fetchone()
     if not row:

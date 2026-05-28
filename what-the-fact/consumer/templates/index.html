@@ -101,7 +101,11 @@ body { background: var(--wtf-bg); color: #e0e0e0; font-family: 'IBM Plex Mono', 
       var brief = document.getElementById('wtf-featured-brief');
       headline.textContent = s.headline || s.representative_title || '';
       headline.href = s.id ? '/cluster/' + s.id : '#';
-      sources.textContent = (s.source_count || s.article_count || '') + ' sources';
+      var sc = parseInt(s.source_count) || 0;
+      var ac = parseInt(s.article_count) || 0;
+      sources.textContent = sc > 0
+        ? sc + ' outlet' + (sc !== 1 ? 's' : '') + ' covering this'
+        : ac + ' article' + (ac !== 1 ? 's' : '');
       if(s.brief) brief.textContent = s.brief;
       strip.style.display = 'block';
     })

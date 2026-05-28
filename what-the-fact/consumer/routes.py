@@ -2197,6 +2197,12 @@ def api_v1_blindspot():
               AND sc.coverage_gap_score <= :max_gap
               AND sc.article_count >= 2
               AND sc.latest_published_at >= NOW() - INTERVAL '1 day' * :days
+              AND EXISTS (
+                  SELECT 1 FROM {S}.articles a
+                  WHERE a.cluster_id = sc.id
+                    AND (a.country_code = 'CA'
+                         OR a.geo_scope IN ('national', 'provincial'))
+              )
             ORDER BY sc.coverage_gap_score ASC, sc.latest_published_at DESC
             LIMIT :n
         """), {"max_gap": max_gap, "days": days, "n": limit}).mappings().all()
@@ -2284,8 +2290,17 @@ def api_v1_divergence():
                 (cl.en_count = 0)       AS fr_only
             FROM cluster_lang cl
             JOIN {S}.story_clusters sc ON sc.id = cl.cluster_id
-            WHERE (cl.en_count > 0 OR cl.fr_count > 0)
-              AND ABS(COALESCE(cl.en_avg_score, 0) - COALESCE(cl.fr_avg_score, 0)) >= :min_div
+            WHERE (
+                -- True bias gap: both sides have meaningful coverage
+                (cl.en_count >= 2 AND cl.fr_count >= 2
+                 AND ABS(COALESCE(cl.en_avg_score, 0) - COALESCE(cl.fr_avg_score, 0)) >= :min_div)
+                OR
+                -- EN only: significant English presence, French press silent
+                (cl.en_count >= 3 AND cl.fr_count = 0)
+                OR
+                -- FR only: significant French presence, English press silent
+                (cl.fr_count >= 3 AND cl.en_count = 0)
+            )
             ORDER BY divergence_score DESC, sc.latest_published_at DESC
             LIMIT :n
         """), {"days": days, "min_div": min_div, "n": limit}).mappings().all()

@@ -179,7 +179,7 @@
     {% endfor %}
     {% if stats.tier2_pending_count and stats.tier2_pending_count > 0 %}
     <div style="margin-top:8px;padding-top:8px;border-top:1px dashed #1a2a3a;font-size:0.65rem;color:#f59e0b;">
-      &uarr; {{ "{:,}".format(stats.tier2_pending_count) }} article(s) awaiting Tier-2 upgrade (hub rate-limited or transiently failed)
+      ⏳ {{ "{:,}".format(stats.tier2_pending_count) }} article(s) awaiting Tier-2 upgrade (hub rate-limited or transiently failed)
     </div>
     {% endif %}
   </div>

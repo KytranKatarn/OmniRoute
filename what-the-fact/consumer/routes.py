@@ -437,8 +437,26 @@ def activity():
               (SELECT COUNT(*) FROM {S}.articles
                  WHERE geo_scope = 'unmappable' AND published_at > NOW() - INTERVAL '24 hours') AS geo_unmappable_24h,
               (SELECT COUNT(*) FROM {S}.articles WHERE bias_v2_score IS NOT NULL) AS bias_v2_scored,
-              (SELECT COUNT(*) FROM {S}.articles WHERE tier2_failures > 0) AS tier2_failed
+              (SELECT COUNT(*) FROM {S}.articles WHERE tier2_failures > 0) AS tier2_failed,
+              -- 24h trend: yesterday window (24-48h ago) for delta calculation
+              (SELECT COUNT(*) FROM {S}.audit_trail WHERE event_type='ingested' AND created_at BETWEEN NOW() - INTERVAL '48 hours' AND NOW() - INTERVAL '24 hours') AS articles_yesterday,
+              (SELECT COUNT(*) FROM {S}.bias_scores WHERE computed_at BETWEEN NOW() - INTERVAL '48 hours' AND NOW() - INTERVAL '24 hours') AS bias_yesterday,
+              (SELECT COUNT(DISTINCT article_id) FROM {S}.fact_checks WHERE checked_at BETWEEN NOW() - INTERVAL '48 hours' AND NOW() - INTERVAL '24 hours') AS verify_yesterday
         """)).mappings().first()
+
+        # Compute 24h trend deltas (today vs yesterday, >10% = show indicator)
+        def _trend_pct(today, yesterday):
+            y = yesterday or 0
+            t = today or 0
+            if y == 0:
+                return None
+            return round((t - y) / y * 100)
+
+        trends = {
+            "ingested": _trend_pct(stats["articles_24h"], stats["articles_yesterday"]),
+            "bias": _trend_pct(stats["bias_24h"], stats["bias_yesterday"]),
+            "verify": _trend_pct(stats["verify_24h"], stats["verify_yesterday"]),
+        }
 
         # Build unified event query per agent type, then union + paginate
         agent_queries = {
@@ -592,6 +610,7 @@ def activity():
                            stats=dict(stats), source_health=source_health,
                            sparklines=sparklines,
                            agent_stats=_fetch_agent_stats(),
+                           trends=trends,
                            is_subscriber=is_subscriber())
 
 

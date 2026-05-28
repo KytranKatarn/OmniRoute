@@ -29,7 +29,7 @@
 </style>
 
 <div class="wtf-own-header">
-  <h1 class="wtf-own-title">🏢 Media Ownership Map</h1>
+  <h1 class="wtf-own-title">◈ Media Ownership Map</h1>
   <div class="wtf-own-sub">
     Who controls Canadian news — {{ owners|length }} owners · {{ source_count }} outlets tracked
     {% if unattributed %} · {{ unattributed }} outlets unattributed{% endif %}
@@ -64,9 +64,9 @@
         <span class="wtf-own-type-pill" style="background:{{ tc }}22;color:{{ tc }};border:1px solid {{ tc }}44;">
           {{ (o.owner_type or 'unknown') | replace('_',' ') | title }}
         </span>
-        <span>{{ o.outlet_count }} outlet{{ 's' if o.outlet_count != 1 else '' }}</span>
+        <span>{{ o.outlet_count }} outlet{{ 's' if o.outlet_count != 1 else '' }} ({{ ((o.outlet_count / 46) * 100) | round(0) | int }}% of tracked)</span>
         {% if o.avg_bias is not none %}
-        <span style="color:#6b7280;">Avg bias: <strong style="color:#e5e7eb;">{{ '%+.2f'|format(o.avg_bias|float) }}</strong></span>
+        <span style="color:#6b7280;">Avg bias: <strong style="color:#e5e7eb;">{% if o.bias_band %}{{ o.bias_band | upper }}{% elif o.avg_bias is not none %}{{ "%.2f"|format(o.avg_bias|float) }}{% endif %}</strong></span>
         {% endif %}
       </div>
     </div>

@@ -629,6 +629,32 @@
         <div id="loadedModelsPanel" style="font-size:0.78rem;min-height:24px;"></div>
       </div>
 
+      <!-- NODE HEALTH TABLE -->
+      <div class="dhq-dispatch-section" id="clusterNodeHealthSection">
+        <div class="dhq-section-title">NODE HEALTH
+          <button onclick="loadClusterStats()" style="float:right;background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">↻ REFRESH</button>
+        </div>
+        <div id="nodeHealthTable" style="font-size:0.75rem;min-height:24px;overflow-x:auto;"></div>
+      </div>
+
+      <!-- TOP CAPABILITIES + THROUGHPUT SPARKLINE + MODULE BREAKDOWN -->
+      <div class="dhq-dispatch-section" id="clusterInsightsSection">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <div class="dhq-section-title" style="font-size:0.7rem;">TOP CAPABILITIES <span id="totalDispatchBadge" style="color:var(--dhq-text-dim);margin-left:4px;font-size:0.65rem;"></span></div>
+            <div id="topCapabilitiesBar" style="min-height:80px;font-size:0.72rem;"></div>
+          </div>
+          <div>
+            <div class="dhq-section-title" style="font-size:0.7rem;">MODULE LOAD</div>
+            <div id="moduleBreakdownBar" style="min-height:80px;font-size:0.72rem;"></div>
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <div class="dhq-section-title" style="font-size:0.7rem;">THROUGHPUT — LAST 30 MIN <span id="sparklinePeak" style="color:var(--dhq-text-dim);font-size:0.65rem;margin-left:6px;"></span></div>
+          <div id="throughputSparkline" style="height:48px;margin-top:4px;"></div>
+        </div>
+      </div>
+
       <!-- Fleet Agent Status — all active agents across fleet (expanded from WTF-only, Project #350) -->
       <div class="dhq-dispatch-section" id="wtfAgentStatusSection">
         <div class="dhq-section-title" style="color:#00ffff;">

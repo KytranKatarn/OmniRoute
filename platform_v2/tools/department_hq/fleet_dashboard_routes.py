@@ -2201,3 +2201,127 @@ def register_dashboard_routes(bp, auth_decorator):
         except Exception as exc:
             logger.error("api_fleet_wtf_status: %s", exc)
             return jsonify(success=False, error=str(exc)[:200]), 500
+
+    @bp.route("/api/fleet/cluster-stats")
+    @auth_decorator
+    def api_fleet_cluster_stats():
+        """Cluster tab enrichment — top capabilities, throughput sparkline, module breakdown, node health.
+
+        Powers four new panels in the Cluster sub-tab:
+        - Top capabilities bar (what the fleet is doing)
+        - Throughput sparkline (dispatches/min over last 30 min)
+        - Module source breakdown (which products drive load)
+        - Node health table (per-node RAM/models/rate/heartbeat)
+        """
+        try:
+            from database import get_db_cursor
+            from datetime import datetime, timezone
+
+            with get_db_cursor(commit=False) as (_, cur):
+
+                # 1. Top capabilities — last 1h, top 10
+                cur.execute(
+                    """
+                    SELECT capability, COUNT(*) AS cnt,
+                           ROUND(AVG(duration_ms)/1000.0, 1) AS avg_sec,
+                           SUM(CASE WHEN success THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*),0) AS ok_rate
+                    FROM task_execution_log
+                    WHERE created_at > NOW() - INTERVAL '1 hour'
+                      AND capability IS NOT NULL AND capability != ''
+                    GROUP BY capability
+                    ORDER BY cnt DESC
+                    LIMIT 10
+                """
+                )
+                top_capabilities = [
+                    {
+                        "cap": r["capability"],
+                        "cnt": int(r["cnt"]),
+                        "avg_sec": float(r["avg_sec"] or 0),
+                        "ok_rate": round(float(r["ok_rate"] or 0), 3),
+                    }
+                    for r in (cur.fetchall() or [])
+                ]
+                total_dispatches = sum(c["cnt"] for c in top_capabilities)
+
+                # 2. Throughput sparkline — 2-min buckets, last 30 min
+                cur.execute(
+                    """
+                    SELECT date_trunc('minute', created_at) -
+                           (EXTRACT(MINUTE FROM created_at)::int %% 2) * INTERVAL '1 minute' AS bucket,
+                           COUNT(*) AS cnt
+                    FROM task_execution_log
+                    WHERE created_at > NOW() - INTERVAL '30 minutes'
+                    GROUP BY bucket
+                    ORDER BY bucket
+                """
+                )
+                sparkline = [{"t": r["bucket"].isoformat(), "cnt": int(r["cnt"])} for r in (cur.fetchall() or [])]
+
+                # 3. Module source breakdown — last 1h, top 8 sources
+                cur.execute(
+                    """
+                    SELECT COALESCE(module_source, 'unknown') AS src,
+                           COUNT(*) AS cnt
+                    FROM task_execution_log
+                    WHERE created_at > NOW() - INTERVAL '1 hour'
+                    GROUP BY src
+                    ORDER BY cnt DESC
+                    LIMIT 8
+                """
+                )
+                modules = [{"src": r["src"], "cnt": int(r["cnt"])} for r in (cur.fetchall() or [])]
+                module_total = sum(m["cnt"] for m in modules)
+
+                # 4. Node health table — online nodes with model count + dispatch rate
+                cur.execute(
+                    """
+                    SELECT rn.node_name, rn.gpu_available, rn.ram_gb, rn.gpu_vram_gb,
+                           rn.current_load, rn.max_concurrent, rn.last_heartbeat,
+                           COALESCE(
+                               (SELECT COUNT(*) FROM model_load_state mls WHERE mls.node_db_id = rn.id), 0
+                           ) AS models_loaded,
+                           COALESCE(
+                               (SELECT COUNT(*) FROM task_execution_log tel
+                                WHERE tel.node_used_id = rn.id
+                                  AND tel.created_at > NOW() - INTERVAL '5 minutes'), 0
+                           ) AS dispatches_5m
+                    FROM remote_nodes rn
+                    WHERE rn.status = 'online'
+                    ORDER BY rn.node_name
+                """
+                )
+                now_utc = datetime.now(timezone.utc)
+                node_health = []
+                for r in cur.fetchall() or []:
+                    hb = r["last_heartbeat"]
+                    if hb and hb.tzinfo is None:
+                        hb = hb.replace(tzinfo=timezone.utc)
+                    hb_age = int((now_utc - hb).total_seconds()) if hb else None
+                    node_health.append(
+                        {
+                            "name": r["node_name"],
+                            "gpu": bool(r["gpu_available"]),
+                            "ram_gb": float(r["ram_gb"] or 0),
+                            "vram_gb": float(r["gpu_vram_gb"] or 0),
+                            "load": int(r["current_load"] or 0),
+                            "max_conc": int(r["max_concurrent"] or 5),
+                            "models": int(r["models_loaded"] or 0),
+                            "disp_5m": int(r["dispatches_5m"] or 0),
+                            "hb_age_s": hb_age,
+                            "stale": hb_age is None or hb_age > 120,
+                        }
+                    )
+
+            return jsonify(
+                success=True,
+                top_capabilities=top_capabilities,
+                total_dispatches=total_dispatches,
+                sparkline=sparkline,
+                modules=modules,
+                module_total=module_total,
+                node_health=node_health,
+            )
+        except Exception as exc:
+            logger.error("api_fleet_cluster_stats: %s", exc)
+            return jsonify(success=False, error=str(exc)[:200]), 500

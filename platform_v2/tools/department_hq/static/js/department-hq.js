@@ -3530,7 +3530,7 @@ function switchArmadaSection(s) {
 
     // CLUSTER: refresh live data
     if (s === 'cluster') {
-        loadQueueStatus(); loadClusterActivity();
+        loadQueueStatus(); loadClusterActivity(); loadClusterStats(); loadWtfAgentStatus();
     }
 
     // ORCHESTRATION: move cluster-orchestration-panel into its section on first open
@@ -5455,45 +5455,130 @@ function _escWtf(v) {
 async function loadWtfAgentStatus() {
     var panel = document.getElementById('wtfAgentPanel');
     var badge = document.getElementById('wtfBacklogBadge');
-    var bar   = document.getElementById('wtfBacklogBar');
-    var lbl   = document.getElementById('wtfBacklogLabel');
     if (!panel) return;
+    if (badge) badge.textContent = '';  // cleared — no WTF-specific backlog metric here
 
     try {
         var resp = await fetch('/tools/department-hq/api/fleet/wtf-status');
         var data = await resp.json();
-        if (!data.success) {
-            panel.textContent = 'Error loading WTF status';
-            return;
-        }
-
-        var pct = data.backlog_pct || 0;
-        if (badge) badge.textContent = pct + '% analyzed';
-        if (bar)   bar.style.width   = pct + '%';
-        if (lbl)   lbl.textContent   =
-            (data.analyzed_articles || 0).toLocaleString() + ' / ' +
-            (data.total_articles || 0).toLocaleString() + ' articles analyzed';
+        if (!data.success) { panel.textContent = 'Error loading agent status'; return; }
 
         if (!data.agents || !data.agents.length) {
-            panel.textContent = 'No dispatches in last hour — waiting for first DHQ job run.';
+            panel.textContent = 'No dispatches in last 2h — fleet may be idle.';
             return;
         }
 
         panel.innerHTML = data.agents.map(function(a) {
             var staleColor = a.node_stale ? '#f59e0b' : '#00ffff';
-            var failback   = a.node_stale
-                ? ' <span style="color:#f59e0b;font-size:0.65rem;">→ failback</span>' : '';
-            return '<div style="display:flex;align-items:center;gap:12px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.06);">' +
-                '<span style="width:8px;height:8px;border-radius:50%;background:' + staleColor + ';flex-shrink:0;"></span>' +
-                '<span style="flex:1;font-weight:600;">' + _escWtf(a.name) + '</span>' +
+            var failback   = a.node_stale ? ' <span style="color:#f59e0b;font-size:0.65rem;">→ failback</span>' : '';
+            // Cold-load warning: avg > 60s means model is cold-loading or overloaded
+            var coldWarn   = a.avg_sec > 60 && a.avg_sec < 600
+                ? ' <span style="color:#f59e0b;font-size:0.6rem;" title="Slow response — model may be cold-loading">⏳</span>' : '';
+            var very_slow  = a.avg_sec >= 600
+                ? ' <span style="color:#ef4444;font-size:0.6rem;" title="Cold-loading from disk (>10 min avg)">🔴</span>' : '';
+            var avgColor   = a.avg_sec >= 600 ? '#ef4444' : (a.avg_sec > 60 ? '#f59e0b' : 'var(--dhq-text-dim)');
+            return '<div style="display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.06);">' +
+                '<span style="width:7px;height:7px;border-radius:50%;background:' + staleColor + ';flex-shrink:0;"></span>' +
+                '<span style="flex:1;font-weight:600;font-size:0.8rem;">' + _escWtf(a.name) + coldWarn + very_slow + '</span>' +
                 '<span style="color:' + staleColor + ';font-size:0.7rem;">' + _escWtf(a.node) + failback + '</span>' +
-                '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;color:var(--dhq-text-dim);">' +
-                    _escWtf(a.calls_1h) + ' calls &middot; ' + _escWtf(a.avg_sec) + 's avg</span>' +
-                '<span style="font-size:0.65rem;color:var(--dhq-text-dim);">' + _escWtf(a.last_seen) + '</span>' +
+                '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;color:var(--dhq-text-dim);">' +
+                    _escWtf(a.calls_1h) + ' calls</span>' +
+                '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;color:' + avgColor + ';">' +
+                    _escWtf(a.avg_sec) + 's avg</span>' +
+                '<span style="font-size:0.6rem;color:var(--dhq-text-dim);">' + _escWtf(a.last_seen) + '</span>' +
                 '</div>';
         }).join('');
     } catch (e) {
-        panel.textContent = 'Failed to load WTF status';
+        panel.textContent = 'Failed to load agent status';
+    }
+}
+
+async function loadClusterStats() {
+    try {
+        var resp = await fetch('/tools/department-hq/api/fleet/cluster-stats');
+        var d = await resp.json();
+        if (!d.success) return;
+
+        // 1. Node Health Table
+        var ht = document.getElementById('nodeHealthTable');
+        if (ht && d.node_health && d.node_health.length) {
+            var rows = d.node_health.map(function(n) {
+                var tier = n.gpu ? '<span style="color:#a3e635;font-size:0.65rem;">GPU</span>' : '<span style="color:#94a3b8;font-size:0.65rem;">CPU</span>';
+                var hbColor = n.stale ? '#f59e0b' : '#10b981';
+                var hbAge = n.hb_age_s != null ? (n.hb_age_s < 60 ? n.hb_age_s + 's' : Math.round(n.hb_age_s/60) + 'm') : '?';
+                var loadPct = n.max_conc > 0 ? Math.round(n.load / n.max_conc * 100) : 0;
+                var loadColor = loadPct > 150 ? '#ef4444' : loadPct > 80 ? '#f59e0b' : '#10b981';
+                return '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">' +
+                    '<td style="padding:3px 6px;font-weight:600;white-space:nowrap;">' + n.name + '</td>' +
+                    '<td style="padding:3px 6px;text-align:center;">' + tier + '</td>' +
+                    '<td style="padding:3px 6px;color:var(--dhq-text-dim);text-align:right;">' + n.ram_gb.toFixed(0) + 'GB</td>' +
+                    '<td style="padding:3px 6px;text-align:right;">' + n.models + ' 📦</td>' +
+                    '<td style="padding:3px 6px;text-align:right;color:' + loadColor + ';">' + n.disp_5m + '/5m</td>' +
+                    '<td style="padding:3px 6px;text-align:right;color:' + hbColor + ';font-size:0.65rem;">' + hbAge + '</td>' +
+                    '</tr>';
+            }).join('');
+            ht.innerHTML = '<table style="width:100%;border-collapse:collapse;font-family:\'IBM Plex Mono\',monospace;">' +
+                '<thead><tr style="color:rgba(0,220,170,0.5);font-size:0.6rem;letter-spacing:1px;">' +
+                '<th style="padding:2px 6px;text-align:left;">NODE</th><th>TYPE</th><th style="text-align:right;">RAM</th>' +
+                '<th style="text-align:right;">MODELS</th><th style="text-align:right;">RATE</th><th style="text-align:right;">HB</th>' +
+                '</tr></thead><tbody>' + rows + '</tbody></table>';
+        }
+
+        // 2. Top Capabilities Bar
+        var capEl = document.getElementById('topCapabilitiesBar');
+        var totalEl = document.getElementById('totalDispatchBadge');
+        if (capEl && d.top_capabilities && d.top_capabilities.length) {
+            if (totalEl) totalEl.textContent = '(' + (d.total_dispatches || 0).toLocaleString() + ' dispatches/hr)';
+            var maxCnt = d.top_capabilities[0].cnt || 1;
+            capEl.innerHTML = d.top_capabilities.slice(0, 8).map(function(c) {
+                var pct = Math.round(c.cnt / maxCnt * 100);
+                var okColor = c.ok_rate > 0.95 ? '#10b981' : c.ok_rate > 0.8 ? '#f59e0b' : '#ef4444';
+                return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+                    '<span style="width:110px;font-size:0.65rem;color:#e2e8f0;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + c.cap + '">' + c.cap + '</span>' +
+                    '<div style="flex:1;background:rgba(0,220,170,0.08);border-radius:2px;height:10px;">' +
+                    '<div style="width:' + pct + '%;height:100%;background:rgba(0,220,170,0.5);border-radius:2px;"></div></div>' +
+                    '<span style="font-size:0.62rem;color:' + okColor + ';width:28px;text-align:right;">' + c.cnt + '</span>' +
+                    '</div>';
+            }).join('');
+        }
+
+        // 3. Module Source Breakdown
+        var modEl = document.getElementById('moduleBreakdownBar');
+        if (modEl && d.modules && d.modules.length) {
+            var modMax = d.modules[0].cnt || 1;
+            modEl.innerHTML = d.modules.slice(0, 6).map(function(m) {
+                var pct = Math.round(m.cnt / modMax * 100);
+                var srcShort = m.src.replace('wtf_dhq_', 'wtf.').replace('_backlog', '↩').replace('fleet_warmup', '🔥warmup');
+                return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+                    '<span style="width:90px;font-size:0.62rem;color:#94a3b8;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + m.src + '">' + srcShort + '</span>' +
+                    '<div style="flex:1;background:rgba(0,255,255,0.06);border-radius:2px;height:10px;">' +
+                    '<div style="width:' + pct + '%;height:100%;background:rgba(0,255,255,0.35);border-radius:2px;"></div></div>' +
+                    '<span style="font-size:0.62rem;color:var(--dhq-text-dim);width:28px;text-align:right;">' + m.cnt + '</span>' +
+                    '</div>';
+            }).join('');
+        }
+
+        // 4. Throughput Sparkline (SVG)
+        var spkEl = document.getElementById('throughputSparkline');
+        var spkPeak = document.getElementById('sparklinePeak');
+        if (spkEl && d.sparkline && d.sparkline.length > 1) {
+            var vals = d.sparkline.map(function(b) { return b.cnt; });
+            var peak = Math.max.apply(null, vals);
+            var minV = Math.min.apply(null, vals);
+            if (spkPeak) spkPeak.textContent = 'peak ' + peak + '/2min';
+            var W = 400, H = 40, pad = 2;
+            var pts = vals.map(function(v, i) {
+                var x = pad + (i / (vals.length - 1)) * (W - 2*pad);
+                var y = H - pad - ((v - minV) / Math.max(peak - minV, 1)) * (H - 2*pad);
+                return x.toFixed(1) + ',' + y.toFixed(1);
+            }).join(' ');
+            spkEl.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" style="width:100%;height:48px;">' +
+                '<polyline points="' + pts + '" fill="none" stroke="rgba(0,220,170,0.7)" stroke-width="1.5" stroke-linejoin="round"/>' +
+                '<polyline points="' + pad + ',' + H + ' ' + pts + ' ' + (W-pad) + ',' + H + '" fill="rgba(0,220,170,0.1)" stroke="none"/>' +
+                '</svg>';
+        }
+    } catch (e) {
+        console.warn('loadClusterStats error:', e);
     }
 }
 

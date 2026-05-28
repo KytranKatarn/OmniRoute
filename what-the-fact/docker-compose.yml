@@ -15,8 +15,9 @@ services:
     environment:
       TZ: America/Toronto
       WTF_LLM_BACKLOG_ENABLED: "true"
-      WTF_LLM_BACKLOG_MAX_AGE_DAYS: "14"
-      WTF_LLM_BACKLOG_MAX_RUNS_PER_NIGHT: "100"
+      WTF_LLM_BACKLOG_MAX_AGE_DAYS: "30"
+      WTF_LLM_BACKLOG_MAX_RUNS_PER_NIGHT: "500"
+      WTF_LLM_BACKLOG_CONCURRENCY: "2"
       WTF_BIAS_V2_ENABLED: "true"
       WTF_BIAS_V2_MAX_AGE_DAYS: "90"
   wtf-consumer:

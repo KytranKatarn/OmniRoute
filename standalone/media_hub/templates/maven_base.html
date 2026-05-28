@@ -157,5 +157,9 @@
     })();
 </script>
 
+{% if request.path != '/maven/chat' %}
+<script src="{{ url_for('static', filename='js/media-hub-chat.js') }}"></script>
+{% endif %}
+
 </body>
 </html>

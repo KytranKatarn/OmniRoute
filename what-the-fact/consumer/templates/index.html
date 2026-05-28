@@ -224,6 +224,9 @@ var IS_SUBSCRIBER = {{ is_subscriber | tojson }};
 function esc(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
+function escAttr(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
 
 function buildActivityItem(ev) {
   var AGENT_COLOURS = {
@@ -586,7 +589,7 @@ function loadArticleFeed() {
           }
           if (a.mp_mentions) {
             var mp = esc(a.mp_mentions.length > 40 ? a.mp_mentions.slice(0,40) + '…' : a.mp_mentions);
-            badges += '<span class="wtf-card-badge" style="background:#0a1a2a;color:#a78bfa;border:1px solid #4c1d9544;font-size:9px;" title="' + esc(a.mp_mentions) + '">🏛 ' + mp + '</span>';
+            badges += '<span class="wtf-card-badge" style="background:#0a1a2a;color:#a78bfa;border:1px solid #4c1d9544;font-size:9px;" title="' + escAttr(a.mp_mentions) + '">🏛 ' + mp + '</span>';
           }
         }
         return '<div class="wtf-article-card wtf-article-card--' + esc(band) + '">' +

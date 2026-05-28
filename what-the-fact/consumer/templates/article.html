@@ -52,7 +52,7 @@
 .wtf-band-label { font-size: 13px; font-weight: bold; margin-bottom: 6px; }
 .wtf-rationale { font-size: 11px; color: #888; line-height: 1.5; margin: 6px 0; }
 .wtf-trigger-phrase { display: inline-block; background: #1a1020; color: #f80; font-size: 10px; padding: 2px 6px; border-radius: 2px; margin: 2px; }
-.wtf-band-left         { color: #3b82f6; }
+.wtf-band-left         { color: #dc2626; }
 .wtf-band-center-left  { color: #f97316; }
 .wtf-band-center       { color: #9ca3af; }
 .wtf-band-center-right { color: #0ea5e9; }
@@ -243,12 +243,12 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
         <polyline
           points="{% for pt in sparkline %}{{ loop.index0 * (140/(n-1)) | round(1) }},{{ (16 - pt.score * 14) | round(1) }} {% endfor %}"
           fill="none"
-          stroke="{% set _b = sparkline[-1].band %}{% if _b == 'right' %}#2563eb{% elif _b == 'left' %}#ef4444{% elif _b == 'center-right' %}#0ea5e9{% elif _b == 'center-left' %}#f97316{% else %}#22c55e{% endif %}"
+          stroke="{% set _b = sparkline[-1].band %}{% if _b == 'right' %}#2563eb{% elif _b == 'left' %}#dc2626{% elif _b == 'center-right' %}#0ea5e9{% elif _b == 'center-left' %}#f97316{% else %}#22c55e{% endif %}"
           stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
         {% endif %}
         {% for pt in sparkline %}
         <circle cx="{{ loop.index0 * (140/(n-1 if n > 1 else 1)) | round(1) }}" cy="{{ (16 - pt.score * 14) | round(1) }}" r="2"
-          fill="{% if pt.band == 'right' %}#2563eb{% elif pt.band == 'left' %}#ef4444{% elif pt.band == 'center-right' %}#0ea5e9{% elif pt.band == 'center-left' %}#f97316{% else %}#22c55e{% endif %}"/>
+          fill="{% if pt.band == 'right' %}#2563eb{% elif pt.band == 'left' %}#dc2626{% elif pt.band == 'center-right' %}#0ea5e9{% elif pt.band == 'center-left' %}#f97316{% else %}#22c55e{% endif %}"/>
         {% endfor %}
       </svg>
       <div style="display:flex;justify-content:space-between;font-size:9px;color:#374151;margin-top:2px;">
@@ -511,7 +511,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
     {% for ca in cluster_articles[:5] %}
     <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #0d1f2d;{% if loop.last %}border-bottom:none;{% endif %}">
       {% set _cb = ca.bias_band or '' %}
-      {% set _cc = '#ef4444' if _cb == 'right' else '#3b82f6' if _cb == 'left' else '#f59e0b' if 'center-' in _cb else '#6b7280' %}
+      {% set _cc = '#2563eb' if _cb == 'right' else '#dc2626' if _cb == 'left' else '#f97316' if _cb == 'center-left' else '#0ea5e9' if _cb == 'center-right' else '#22c55e' if _cb == 'center' else '#6b7280' %}
       <span style="width:8px;height:8px;border-radius:50%;background:{{ _cc }};flex-shrink:0;"></span>
       <a href="/article/{{ ca.id }}" style="color:#ccc;text-decoration:none;font-size:12px;flex:1;line-height:1.4;">{{ (ca.title or '')[:90] }}{% if (ca.title or '')|length > 90 %}…{% endif %}</a>
       <span style="font-size:10px;color:#6b7280;flex-shrink:0;">{{ ca.source_name or '' }}</span>

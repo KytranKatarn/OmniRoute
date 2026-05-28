@@ -47,7 +47,7 @@
 .wtf-bias-panel { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 14px; margin-bottom: 14px; }
 .wtf-panel-label { font-size: 10px; letter-spacing: 2px; color: #0af; margin-bottom: 10px; }
 .wtf-bias-bar-wrap { background: #0a1520; border-radius: 3px; height: 8px; margin: 8px 0; position: relative; overflow: visible; }
-.wtf-bias-bar { height: 8px; border-radius: 3px; background: linear-gradient(to right,#3b82f6,#9ca3af,#ef4444); }
+.wtf-bias-bar { height: 8px; border-radius: 3px; background: linear-gradient(to right,#dc2626,#f97316,#22c55e,#0ea5e9,#2563eb); }
 .wtf-bias-marker { position: absolute; top: -4px; width: 2px; height: 16px; background: #fff; border-radius: 1px; transform: translateX(-50%); }
 .wtf-band-label { font-size: 13px; font-weight: bold; margin-bottom: 6px; }
 .wtf-rationale { font-size: 11px; color: #888; line-height: 1.5; margin: 6px 0; }
@@ -220,7 +220,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
       </div>
       <div style="text-align:right;flex-shrink:0;">
         {% set ob = a.outlet_rolling_band or a.source_bias_lean or '' %}
-        {% set ob_colour = '#ef4444' if ob == 'right' else '#3b82f6' if ob == 'left' else '#f97316' if ob == 'center-right' else '#f59e0b' if ob == 'center-left' else '#22c55e' %}
+        {% set ob_colour = '#2563eb' if ob == 'right' else '#dc2626' if ob == 'left' else '#0ea5e9' if ob == 'center-right' else '#f97316' if ob == 'center-left' else '#22c55e' %}
         {% if ob %}
         <div style="font-size:10px;color:#6b7280;margin-bottom:4px;">Rolling outlet bias</div>
         <div style="font-size:13px;font-weight:600;color:{{ ob_colour }};">{{ ob.upper().replace('-',' ') }}</div>

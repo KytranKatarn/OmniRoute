@@ -18,6 +18,49 @@ def register_qa_routes(bp, admin_required):
 
     from services import qa_service, qa_report_service
 
+    _APP_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    _SCREENSHOT_ALLOWED_DIRS = [
+        os.path.realpath("/tmp/qa_screenshots"),
+        os.path.realpath(os.path.join(_APP_ROOT, "static", "qa_screenshots")),
+    ]
+    _SCREENSHOT_ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+
+    @bp.route("/api/qa/screenshot")
+    @login_required
+    @admin_required
+    def qa_screenshot_serve():
+        """Serve a QA screenshot — allowlist-only, no path traversal.
+
+        Only bare filenames are accepted from the client.  The server
+        searches each allowed screenshot directory and rejects anything
+        that resolves outside those directories.
+        """
+        import mimetypes
+
+        raw_path = request.args.get("path", "").strip()
+        if not raw_path:
+            return jsonify({"error": "path is required"}), 400
+
+        # Strip any directory component the client provides — use basename only.
+        filename = os.path.basename(raw_path)
+        if not filename or filename.startswith("."):
+            return jsonify({"error": "invalid filename"}), 400
+
+        # Enforce image extension allowlist.
+        _, ext = os.path.splitext(filename)
+        if ext.lower() not in _SCREENSHOT_ALLOWED_EXTS:
+            return jsonify({"error": "file type not allowed"}), 400
+
+        # Search allowlisted directories only.
+        for allowed_dir in _SCREENSHOT_ALLOWED_DIRS:
+            candidate = os.path.realpath(os.path.join(allowed_dir, filename))
+            # Verify the resolved path stays within the allowed directory.
+            if candidate.startswith(allowed_dir + os.sep) and os.path.isfile(candidate):
+                mime, _ = mimetypes.guess_type(candidate)
+                return send_file(candidate, mimetype=mime or "image/png")
+
+        return jsonify({"error": "screenshot not found"}), 404
+
     @bp.route("/api/qa/suites")
     @login_required
     @admin_required
@@ -441,4 +484,63 @@ def register_qa_routes(bp, admin_required):
             return jsonify({"success": True, "regression_id": regression_id})
         except Exception as e:
             logger.exception("Failed to accept regression #%s", regression_id)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ------------------------------------------------------------------
+    # Module Health overview — latest run per suite (P.R.O.B.E. dashboard)
+    # ------------------------------------------------------------------
+
+    @bp.route("/api/qa/suite-health")
+    @login_required
+    @admin_required
+    def qa_suite_health():
+        """Return the latest run summary per active suite.
+
+        Response:
+            [{suite_id, suite_name, suite_type, last_run_status,
+              last_pass_rate, last_run_at, total_runs}]
+
+        ``last_run_status`` is one of: 'completed', 'failed', 'running', or None
+        when the suite has never been run.
+        ``last_pass_rate`` is a float 0–100 rounded to 1 dp, or None.
+        """
+        from database import get_db_cursor
+
+        try:
+            with get_db_cursor() as (_conn, cur):
+                cur.execute(
+                    """
+                    SELECT
+                        s.id          AS suite_id,
+                        s.name        AS suite_name,
+                        s.suite_type,
+                        r.status      AS last_run_status,
+                        CASE
+                            WHEN r.total_tests > 0
+                            THEN ROUND(r.passed::numeric / r.total_tests * 100, 1)
+                            ELSE NULL
+                        END           AS last_pass_rate,
+                        r.started_at  AS last_run_at,
+                        COALESCE(cnt.total_runs, 0) AS total_runs
+                    FROM qa_test_suites s
+                    LEFT JOIN LATERAL (
+                        SELECT status, total_tests, passed, started_at
+                        FROM qa_test_runs
+                        WHERE suite_id = s.id
+                        ORDER BY started_at DESC
+                        LIMIT 1
+                    ) r ON true
+                    LEFT JOIN (
+                        SELECT suite_id, COUNT(*) AS total_runs
+                        FROM qa_test_runs
+                        GROUP BY suite_id
+                    ) cnt ON cnt.suite_id = s.id
+                    WHERE s.is_active = true
+                    ORDER BY s.name
+                    """
+                )
+                rows = [dict(row) for row in cur.fetchall()]
+            return jsonify({"success": True, "suites": rows})
+        except Exception as e:
+            logger.exception("Failed to load suite health")
             return jsonify({"success": False, "error": str(e)}), 500

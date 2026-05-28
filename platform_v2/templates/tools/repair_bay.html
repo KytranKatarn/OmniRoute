@@ -30,7 +30,7 @@
     ("scan", "Diagnose", "shield-check"),
     ("sandbox", "Test Bay", "test-tube-2"),
     ("deploy", "Ship", "rocket"),
-    ("qa", "QA", "check-circle"),
+    ("qa", "P.R.O.B.E.", "check-circle"),
     ("pushes", "Pushes", "git-branch"),
     ("module-review", "Module Review", "layout-grid")
 ] %}
@@ -699,6 +699,27 @@
             <div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div>
           </div>
           <div style="flex:1 !important;padding:16px !important;">
+        <!-- P.R.O.B.E. Pass-Rate Trend Chart (last 20 runs) -->
+        <div id="probe-trend-chart" style="margin-bottom:16px;background:rgba(0,0,0,0.25);border:1px solid rgba(0,255,65,0.15);border-radius:6px;padding:10px 14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.68rem;letter-spacing:1px;color:#94a3b8;text-transform:uppercase;">Pass Rate Trend — Last 20 Runs</span>
+            <span id="probe-trend-label" style="font-family:'IBM Plex Mono',monospace;font-size:0.68rem;color:#94a3b8;"></span>
+          </div>
+          <div style="position:relative;">
+            <svg id="probe-trend-svg" width="100%" height="60" viewBox="0 0 400 60" preserveAspectRatio="none" style="display:block;overflow:visible;">
+              <line x1="0" y1="12" x2="400" y2="12" stroke="rgba(16,185,129,0.2)" stroke-width="1" stroke-dasharray="4,4"/>
+              <line x1="0" y1="30" x2="400" y2="30" stroke="rgba(245,158,11,0.2)" stroke-width="1" stroke-dasharray="4,4"/>
+              <text x="402" y="15" fill="rgba(16,185,129,0.5)" font-size="8" font-family="IBM Plex Mono">100%</text>
+              <text x="402" y="33" fill="rgba(245,158,11,0.4)" font-size="8" font-family="IBM Plex Mono">80%</text>
+              <text x="402" y="57" fill="rgba(239,68,68,0.4)" font-size="8" font-family="IBM Plex Mono">0%</text>
+              <polyline id="probe-trend-line" points="" fill="none" stroke="#10b981" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+              <g id="probe-trend-dots"></g>
+            </svg>
+            <div id="probe-trend-tooltip" style="display:none;position:absolute;background:rgba(0,0,0,0.85);border:1px solid rgba(255,255,255,0.15);border-radius:4px;padding:4px 8px;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:#e2e8f0;pointer-events:none;white-space:nowrap;z-index:10;"></div>
+          </div>
+          <div id="probe-trend-empty" style="display:none;text-align:center;padding:10px 0;color:#94a3b8;font-size:0.8rem;font-family:'IBM Plex Mono',monospace;">No run data yet</div>
+        </div>
+
         <div class="dp-stats" style="margin-bottom:16px;">
             <div class="dp-stat-card" style="--card-accent: #00ff41;">
                 <div class="dp-stat-label">Suite</div>
@@ -712,6 +733,17 @@
                 <div class="dp-stat-label">Pass Rate</div>
                 <div class="dp-stat-value" id="qaPassRate">—</div>
             </div>
+        </div>
+
+        <!-- MODULE HEALTH — per-suite status grid -->
+        <div style="margin-bottom:20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:0.68rem;letter-spacing:1px;color:#94a3b8;text-transform:uppercase;">Module Health</span>
+            <button onclick="loadModuleHealth()" style="background:none;border:1px solid rgba(0,212,255,0.3);color:#00d4ff;font-family:'IBM Plex Mono',monospace;font-size:0.65rem;padding:3px 10px;border-radius:4px;cursor:pointer;letter-spacing:1px;">↻ Refresh</button>
+          </div>
+          <div id="moduleHealthGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;">
+            <div style="color:#94a3b8;font-family:'IBM Plex Mono',monospace;font-size:0.75rem;padding:16px;text-align:center;">Loading suite health…</div>
+          </div>
         </div>
 
         <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
@@ -1258,12 +1290,109 @@
     }catch(e){}
   }
 
+  /* --- P.R.O.B.E. Pass-Rate Trend Chart --- */
+  async function renderTrendChart() {
+    var svg = document.getElementById('probe-trend-svg');
+    var dotsG = document.getElementById('probe-trend-dots');
+    var line = document.getElementById('probe-trend-line');
+    var tooltip = document.getElementById('probe-trend-tooltip');
+    var emptyEl = document.getElementById('probe-trend-empty');
+    var label = document.getElementById('probe-trend-label');
+    if (!svg || !line || !dotsG) return;
+
+    var data;
+    try {
+      var resp = await fetch('/tools/repair-bay/api/qa/runs?limit=20');
+      data = await resp.json();
+    } catch(e) { return; }
+
+    var runs = (data.runs || []).filter(function(r) {
+      return r.total_tests != null && r.total_tests > 0;
+    }).reverse(); // oldest → newest
+
+    if (!runs.length) {
+      svg.style.display = 'none';
+      if (emptyEl) emptyEl.style.display = 'block';
+      return;
+    }
+    svg.style.display = 'block';
+    if (emptyEl) emptyEl.style.display = 'none';
+
+    var W = 400, H = 60, PAD = 8;
+    var rates = runs.map(function(r) {
+      return Math.round((r.passed / r.total_tests) * 100);
+    });
+
+    // colour based on rate
+    function rateColor(rate) {
+      if (rate >= 80) return '#10b981';
+      if (rate >= 50) return '#f59e0b';
+      return '#ef4444';
+    }
+
+    // Dominant colour for polyline = last run's colour
+    line.setAttribute('stroke', rateColor(rates[rates.length - 1]));
+
+    // Map rate (0-100) to SVG Y (high rate = low Y, with padding)
+    function toY(rate) { return PAD + (1 - rate / 100) * (H - PAD * 2); }
+    function toX(i) {
+      if (runs.length === 1) return W / 2;
+      return (i / (runs.length - 1)) * W;
+    }
+
+    var pts = rates.map(function(r, i) { return toX(i) + ',' + toY(r); }).join(' ');
+    line.setAttribute('points', pts);
+
+    // Remove old dots
+    while (dotsG.firstChild) dotsG.removeChild(dotsG.firstChild);
+
+    runs.forEach(function(run, i) {
+      var rate = rates[i];
+      var cx = toX(i), cy = toY(rate);
+      var circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', cx);
+      circle.setAttribute('cy', cy);
+      circle.setAttribute('r', 3.5);
+      circle.setAttribute('fill', rateColor(rate));
+      circle.setAttribute('stroke', '#0d1117');
+      circle.setAttribute('stroke-width', '1.5');
+      circle.style.cursor = 'pointer';
+
+      // Tooltip on hover
+      circle.addEventListener('mouseenter', function(ev) {
+        var chartRect = svg.closest('[style*="position:relative"]').getBoundingClientRect();
+        var svgRect = svg.getBoundingClientRect();
+        var scaleX = svgRect.width / W;
+        var scaleY = svgRect.height / H;
+        var tx = cx * scaleX - 10;
+        var ty = (cy - 14) * scaleY;
+        tooltip.style.left = tx + 'px';
+        tooltip.style.top = ty + 'px';
+        tooltip.textContent = 'Run #' + run.id + ' — ' + rate + '% (' + run.passed + '/' + run.total_tests + ')';
+        tooltip.style.display = 'block';
+      });
+      circle.addEventListener('mouseleave', function() {
+        tooltip.style.display = 'none';
+      });
+
+      dotsG.appendChild(circle);
+    });
+
+    // Summary label: latest rate
+    var latest = rates[rates.length - 1];
+    if (label) {
+      label.textContent = 'Latest: ' + latest + '%';
+      label.style.color = rateColor(latest);
+    }
+  }
+
   document.addEventListener('click',function(e){
-    if(e.target.closest&&e.target.closest('[data-tab="qa"]'))setTimeout(function(){loadQaRegressions('pending');},100);
+    if(e.target.closest&&e.target.closest('[data-tab="qa"]'))setTimeout(function(){loadQaRegressions('pending');renderTrendChart();},100);
     if(e.target.closest&&e.target.closest('[data-tab="proposals"]'))setTimeout(function(){loadRepairQueue('open');},100);
   });
   window.loadQaRegressions=loadQaRegressions;window.loadQaBaselines=loadQaBaselines;window.qaRegAction=qaRegAction;
   window.loadRepairQueue=loadRepairQueue;window.rqTriage=rqTriage;window.startMultiAgentReview=startMultiAgentReview;
+  window.renderTrendChart=renderTrendChart;
 })();
 </script>
 

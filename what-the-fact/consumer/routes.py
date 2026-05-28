@@ -636,12 +636,12 @@ def activity():
     for r in source_health_rows:
         owner = r["owner_name"] or "Unknown"
         ownership_type = r["owner_type"] or "unknown"
-        total = r["articles_total"] or 0
-        recent = r["articles_7d"] or 0
-        with_body = r["articles_with_body"] or 0
-        if total == 0:
+        src_total = r["articles_total"] or 0
+        src_recent = r["articles_7d"] or 0
+        src_with_body = r["articles_with_body"] or 0
+        if src_total == 0:
             status = "dead"
-        elif recent == 0:
+        elif src_recent == 0:
             status = "stalled"
         else:
             status = "active"
@@ -651,9 +651,9 @@ def activity():
             "bias_lean": r["bias_lean"] or "?",
             "owner": owner,
             "ownership_type": ownership_type,
-            "articles_total": total,
-            "articles_7d": recent,
-            "body_pct": int(with_body / total * 100) if total else 0,
+            "articles_total": src_total,
+            "articles_7d": src_recent,
+            "body_pct": int(src_with_body / src_total * 100) if src_total else 0,
             "last_article": r["last_article"].isoformat() if r["last_article"] else "—",
             "status": status,
         })

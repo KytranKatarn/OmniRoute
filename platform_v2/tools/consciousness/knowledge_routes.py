@@ -266,7 +266,8 @@ def register_knowledge_routes(bp, admin_required):
             params.extend([limit, offset])
 
             cur.execute(query, params)
-            entries = cur.fetchall()
+            raw_entries = cur.fetchall()
+            entries = [dict(e) for e in raw_entries]
 
             # Get total count
             count_query = "SELECT COUNT(*) FROM knowledge_base WHERE 1=1"
@@ -283,17 +284,19 @@ def register_knowledge_routes(bp, admin_required):
 
             cur.execute(count_query, count_params)
             total = cur.fetchone()["count"]
-            return jsonify(
-                {
-                    "success": True,
-                    "entries": [dict(e) for e in entries],
-                    "total": total,
-                    "limit": limit,
-                    "offset": offset,
-                }
+            import json as _json
+            from flask import Response as _Response
+
+            payload = _json.dumps(
+                {"success": True, "entries": entries, "total": total, "limit": limit, "offset": offset},
+                default=str,
             )
+            return _Response(payload, mimetype="application/json")
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            import json as _json
+            from flask import Response as _Response
+
+            return _Response(_json.dumps({"error": str(e)}), status=500, mimetype="application/json")
         finally:
 
             cur.close()

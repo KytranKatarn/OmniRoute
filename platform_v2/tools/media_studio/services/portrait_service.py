@@ -729,10 +729,44 @@ def _step_muse_synthesize(
         return {"error": str(exc)}
 
 
+def _run_with_timeout(fn, timeout_s: int, default, label: str):
+    """Run fn() with a hard wall-clock timeout; return default on timeout/error.
+
+    The refine pipeline runs in a max_instances=1 worker. Pre-orchestration,
+    each step dispatched synchronously with NO timeout, so a step whose LLM/
+    vision dispatch never returned (cold-load stall on the hub GPU) wedged the
+    whole feature — every later refine was skipped 'max instances reached'
+    (observed 2026-05-29, task 3453 hung 6+ min). A try/except can't catch a
+    hang. This bounds each step: on timeout the worker thread returns the
+    fallback and frees its slot. The orphaned sub-thread is harmless and ends
+    when the dispatch finally returns.
+
+    NOTE: do NOT use ThreadPoolExecutor as a context manager — its __exit__
+    calls shutdown(wait=True), which would block on the hung task and defeat
+    the timeout. shutdown(wait=False) returns immediately.
+    """
+    import concurrent.futures
+
+    _ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    fut = _ex.submit(fn)
+    try:
+        return fut.result(timeout=timeout_s)
+    except concurrent.futures.TimeoutError:
+        logger.warning("[Refine] %s timed out after %ss — using fallback", label, timeout_s)
+        return default
+    except Exception as exc:
+        logger.warning("[Refine] %s failed: %s — using fallback", label, exc)
+        return default
+    finally:
+        _ex.shutdown(wait=False)
+
+
 def refine_identity_prompt(agent_id: int, feedback: str, history: Optional[list] = None) -> Dict:
     """Full M.U.S.E. portrait refinement pipeline (synchronous).
 
     Steps: vision analysis → agent self-consultation → M.U.S.E. synthesis.
+    Each step is time-bounded (see _run_with_timeout) so a stalled dispatch
+    cannot wedge the single-instance worker.
     Returns {refined_prompt, explanation, vision_description, agent_perspective,
     original_prompt} or {error}.
     """
@@ -749,24 +783,43 @@ def refine_identity_prompt(agent_id: int, feedback: str, history: Optional[list]
 
     agent_name = ctx.get("display_name") or ctx.get("name") or f"Agent {agent_id}"
 
-    vision_desc = _step_vision_analysis(ctx.get("canonical_image_path") or "")
-    agent_perspective = _step_consult_agent(
-        agent_name=agent_name,
-        model=ctx.get("model") or "qwen2.5:7b",
-        system_prompt=ctx.get("system_prompt") or "",
-        title=ctx.get("title") or "",
-        department=ctx.get("department") or "",
-        current_prompt=current_prompt,
-        vision_desc=vision_desc,
-        feedback=feedback,
+    # Vision is optional — if it stalls/cold-loads too long, proceed without it.
+    vision_desc = _run_with_timeout(
+        lambda: _step_vision_analysis(ctx.get("canonical_image_path") or ""),
+        90,
+        "",
+        "vision analysis",
     )
-    synthesis = _step_muse_synthesize(
-        agent_name=agent_name,
-        current_prompt=current_prompt,
-        vision_desc=vision_desc,
-        agent_perspective=agent_perspective,
-        feedback=feedback,
-        history=history or [],
+    # Agent self-consultation is optional context — empty on timeout.
+    agent_perspective = _run_with_timeout(
+        lambda: _step_consult_agent(
+            agent_name=agent_name,
+            model=ctx.get("model") or "qwen2.5:7b",
+            system_prompt=ctx.get("system_prompt") or "",
+            title=ctx.get("title") or "",
+            department=ctx.get("department") or "",
+            current_prompt=current_prompt,
+            vision_desc=vision_desc,
+            feedback=feedback,
+        ),
+        120,
+        "",
+        "agent consultation",
+    )
+    # M.U.S.E. synthesis is the required step — on timeout, fail cleanly so the
+    # task is marked failed (and the worker freed) rather than hanging forever.
+    synthesis = _run_with_timeout(
+        lambda: _step_muse_synthesize(
+            agent_name=agent_name,
+            current_prompt=current_prompt,
+            vision_desc=vision_desc,
+            agent_perspective=agent_perspective,
+            feedback=feedback,
+            history=history or [],
+        ),
+        150,
+        {"error": "M.U.S.E. synthesis timed out — model may be cold-loading, try again shortly"},
+        "M.U.S.E. synthesis",
     )
     if "error" in synthesis:
         return synthesis

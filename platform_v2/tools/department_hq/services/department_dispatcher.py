@@ -5093,9 +5093,34 @@ class DepartmentDispatcher:
         _sbr = bool(prefer_agent or job_id)
 
         # 1a. If prefer_agent is set, force-select that specific agent
-        #     (used by benchmarks to test each agent individually).
-        if prefer_agent and prefer_agent in self._agent_cache:
-            agent = self._agent_cache[prefer_agent]
+        #     (used by benchmarks + the portrait-refine agent consultation).
+        _pinned_agent = None
+        if prefer_agent:
+            if prefer_agent in self._agent_cache:
+                _pinned_agent = self._agent_cache[prefer_agent]
+            else:
+                # #3462: the dispatcher's local _agent_cache can omit active
+                # agents (TTL/build gaps), which silently dropped prefer_agent
+                # and misrouted — e.g. the portrait-refine consult landed on
+                # P.R.O.B.E. instead of the profile agent (W.A.R.D.E.N./V.I.G.I.L.).
+                # Fall back to the authoritative agent_service cache so
+                # prefer_agent reliably pins. Downstream agent.get(...) calls and
+                # the int/dict skills handling tolerate this cache shape.
+                try:
+                    from services.agent_service import get_agent_cache as _svc_agent_cache
+
+                    _svc_cache = _svc_agent_cache()
+                    if prefer_agent in _svc_cache:
+                        _pinned_agent = _svc_cache[prefer_agent]
+                        logger.info(
+                            "[BridgeDispatcher] prefer_agent=%s pinned via agent_service "
+                            "fallback (missing from local _agent_cache)",
+                            prefer_agent,
+                        )
+                except Exception as _pin_err:
+                    logger.debug("[BridgeDispatcher] prefer_agent fallback lookup failed: %s", _pin_err)
+        if _pinned_agent is not None:
+            agent = _pinned_agent
             dispatch_department = agent.get("department", capability_department)
         else:
             # 1b. Department-based routing (primary path)

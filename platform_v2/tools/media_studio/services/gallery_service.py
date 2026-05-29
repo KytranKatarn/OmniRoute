@@ -36,6 +36,16 @@ def _serialize_row(row: dict) -> dict:
     return d
 
 
+# Allowed sort modes → ORDER BY clause. User input is mapped through this
+# whitelist — never interpolated into SQL directly.
+_GALLERY_SORTS = {
+    "newest": "created_at DESC",
+    "oldest": "created_at ASC",
+    "favorites": "is_favorite DESC, created_at DESC",
+    "cost": "cost DESC NULLS LAST, created_at DESC",
+}
+
+
 def get_gallery(
     owner_type: str,
     owner_id: int,
@@ -44,8 +54,11 @@ def get_gallery(
     page: int = 1,
     per_page: int = 20,
     show_versions: bool = False,
+    asset_type: Optional[str] = None,
+    search: Optional[str] = None,
+    sort: str = "newest",
 ) -> Dict:
-    """Paginated media library query with filters."""
+    """Paginated media library query with filters, search, and sort."""
     offset = (page - 1) * per_page
     conditions = ["is_deleted = false", "owner_type = %s", "owner_id = %s"]
     params = [owner_type, owner_id]
@@ -55,8 +68,15 @@ def get_gallery(
         params.append(media_type)
     if favorites_only:
         conditions.append("is_favorite = true")
+    if asset_type:
+        conditions.append("metadata->>'asset_type' = %s")
+        params.append(asset_type)
+    if search:
+        conditions.append("prompt ILIKE %s")
+        params.append(f"%{search.strip()}%")
 
     where = " AND ".join(conditions)
+    order_by = _GALLERY_SORTS.get((sort or "newest").lower(), _GALLERY_SORTS["newest"])
 
     with get_db_cursor() as (conn, cur):
         cur.execute(f"SELECT COUNT(*) as total FROM media_library WHERE {where}", params)
@@ -69,7 +89,7 @@ def get_gallery(
                    is_favorite, metadata, created_at
             FROM media_library
             WHERE {where}
-            ORDER BY created_at DESC
+            ORDER BY {order_by}
             LIMIT %s OFFSET %s
             """,
             params + [per_page, offset],

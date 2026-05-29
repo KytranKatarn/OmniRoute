@@ -319,6 +319,9 @@ def api_gallery():
         page=page,
         per_page=per_page,
         show_versions=show_versions,
+        asset_type=request.args.get("asset_type"),
+        search=request.args.get("q") or request.args.get("search"),
+        sort=request.args.get("sort", "newest"),
     )
     return jsonify(result)
 

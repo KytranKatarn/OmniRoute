@@ -3529,7 +3529,11 @@ class DepartmentDispatcher:
                 (
                     result.agent_id,
                     result.agent_name,
-                    module_id,
+                    # module_source: fall back to capability when the caller didn't
+                    # tag a module_id, so internal agent-loop dispatches (knowledge_analysis,
+                    # workforce_planning, welfare_monitoring, …) are attributed by what
+                    # they do instead of collapsing into a useless "unknown" bucket. (2026-05-29)
+                    (module_id if module_id and module_id != "unknown" else (result.capability or "unknown")),
                     result.capability,  # task_type = capability
                     result.capability,
                     result.model_used,

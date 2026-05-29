@@ -359,7 +359,15 @@ def _claim_tasks(model_needed: str, limit: int = MAX_TASKS_PER_MODEL) -> list[di
                 WHERE id IN (
                     SELECT id FROM dispatch_pending_queue
                     WHERE status = 'queued'
-                      AND model_needed = %s
+                      -- Ollama treats a bare name as ':latest', but the warm
+                      -- inventory registers the tagged form. Match both ways so
+                      -- a queue row 'minicpm-v-cpu' is claimed when the warm
+                      -- model is 'minicpm-v-cpu:latest' (and vice-versa).
+                      -- Only equates bare<->:latest — does NOT cross-match other
+                      -- tags (qwen2.5:7b vs qwen2.5:1.5b stay distinct). (#3469)
+                      AND (model_needed = %s
+                           OR model_needed = %s || ':latest'
+                           OR model_needed || ':latest' = %s)
                       AND preferred_node_id IS NULL
                       AND (expires_at IS NULL OR expires_at > NOW())
                     ORDER BY priority DESC, queued_at ASC
@@ -368,7 +376,7 @@ def _claim_tasks(model_needed: str, limit: int = MAX_TASKS_PER_MODEL) -> list[di
                 )
                 RETURNING *
                 """,
-                (model_needed, limit),
+                (model_needed, model_needed, model_needed, limit),
             )
             return [dict(r) for r in cur.fetchall()]
     except Exception as exc:

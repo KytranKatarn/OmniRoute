@@ -45,29 +45,23 @@ else:
 
 ### Step 3: Trigger analysis if pending
 
-If status is `pending` or `not_tracked`, trigger F.O.R.G.E. analysis:
+If status is `pending` or `not_tracked`, trigger a **diff-grounded** F.O.R.G.E. review.
+
+**Always use `review_pr()`** — it fetches the REAL unified diff and puts it in the
+prompt. Do NOT hand-roll a `dispatch(prompt=f'...Diff: {diff_url}...')` — the local
+model can't fetch a URL, so a bare diff_url yields generic, ungrounded "reviews".
+
 ```bash
 docker exec archie_platform python3 -c "
 import sys; sys.path.insert(0, '/app')
-from tools.repair_bay.services.pr_review_service import get_review, mark_review_started, mark_review_done, mark_review_skipped
-from tools.department_hq.services.department_dispatcher import dispatch
-r = get_review(PR_NUMBER)
-if not r:
-    print('PR not found'); exit(1)
-mark_review_started(PR_NUMBER)
-result = dispatch(
-    capability='code_review',
-    prompt=f'Review PR #{r[\"pr_number\"]}: {r[\"title\"]}. Diff: {r.get(\"diff_url\",\"\")}. VERDICT (APPROVED/NEEDS REVIEW/REJECT), SUMMARY, ISSUES.',
-    context={'pr_number': r['pr_number'], 'repo': r['repo'], 'title': r['title']}
-)
-if result.success:
-    mark_review_done(PR_NUMBER, result.response)
-    print('REVIEWED:', result.response[:300])
-else:
-    mark_review_skipped(PR_NUMBER)
-    print('DISPATCH_FAILED — skipped:', result.error)
+from tools.repair_bay.services.pr_diff_analyzer import review_pr
+r = review_pr(PR_NUMBER)
+print('OK:', r.get('ok'), '| VERDICT:', r.get('verdict'), '| ERR:', r.get('error'))
+print('SUMMARY:', (r.get('summary') or 'none')[:300])
 "
 ```
+If it returns `ok=False` with `empty/queued review`, the model was cold — wait ~60s
+and re-run (the diff is already cached on the row).
 
 ---
 
@@ -106,23 +100,20 @@ Verdict: <APPROVED / FLAGGED / PENDING>
 
 ### Step 6: Merge via Repair Bay service layer
 
+Use `github_service.merge_pr` — do NOT put an inline `requests.put(...)` in the bash
+command: the context-mode hook blocks inline HTTP literals and the call will be
+cancelled. The service wraps the GitHub merge API inside the container.
+
 ```bash
 docker exec archie_platform python3 -c "
-import sys, os, requests; sys.path.insert(0, '/app')
-from tools.repair_bay.services.pr_review_service import get_review
-r = get_review(PR_NUMBER)
-repo = (r or {}).get('repo', 'KytranKatarn/archie-platform')
-title = (r or {}).get('title', 'PR #PR_NUMBER')
-token = os.getenv('GITHUB_TOKEN', '')
-resp = requests.put(
-    f'https://api.github.com/repos/{repo}/pulls/PR_NUMBER/merge',
-    headers={'Authorization': f'token {token}', 'Accept': 'application/vnd.github.v3+json'},
-    json={'commit_title': f'Merge PR #PR_NUMBER: {title}', 'merge_method': 'squash'},
-    timeout=15
-)
-print('MERGE:', resp.status_code, resp.json().get('message',''))
+import sys; sys.path.insert(0, '/app')
+from tools.repair_bay.services.github_service import merge_pr
+res = merge_pr(PR_NUMBER, 'squash')
+print('MERGE:', 'merged' if res.get('merged') else 'FAILED', '|', res.get('error',''))
 "
 ```
+If the service path is unavailable, fall back to the `gh` CLI:
+`gh pr merge PR_NUMBER --squash --delete-branch`
 
 ---
 

@@ -427,6 +427,9 @@ def list_all_prs_enriched(state: str = "open") -> Dict:
             "html_url": pr.get("html_url"),
             "diff_url": f"https://api.github.com/repos/{REPO_FULL}/pulls/{pr.get('number')}",
             "draft": pr.get("draft", False),
+            "additions": None,
+            "deletions": None,
+            "changed_files": None,
             "mergeable": "UNKNOWN",
             "review_decision": "NONE",
             "checks": {},
@@ -448,6 +451,12 @@ def list_all_prs_enriched(state: str = "open") -> Dict:
             elif mergeable is False:
                 pr["mergeable"] = "CONFLICTING"
             # else leave UNKNOWN (still computing)
+            # Diff size — the /pulls/{num} detail call carries these; the list
+            # endpoint does not. Populating them feeds the F.O.R.G.E. review
+            # prompt header + PR Review tab size badges (were always NULL).
+            pr["additions"] = det.get("additions")
+            pr["deletions"] = det.get("deletions")
+            pr["changed_files"] = det.get("changed_files")
 
         # Reviews → review decision
         rev_ok, reviews = _api_get(f"/repos/{REPO_FULL}/pulls/{num}/reviews", timeout=8)

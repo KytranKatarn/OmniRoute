@@ -13,15 +13,68 @@ import requests
 
 from tools.repair_bay.services.pr_review_service import (
     get_pending_reviews,
+    get_review,
     mark_review_done,
     mark_review_pending,
     mark_review_started,
+    poll_open_prs,
 )
 
 logger = logging.getLogger(__name__)
 
 _GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 _DIFF_MAX_CHARS = 6000
+
+
+def review_pr(pr_number: int, repo: str = None) -> dict:
+    """Grounded on-demand review of a single PR.
+
+    Single entry point for diff-grounded F.O.R.G.E. review: fetches the REAL
+    unified diff, builds the prompt with it, dispatches, and stores the result.
+    Use this instead of hand-rolling a prompt from just the title + diff_url —
+    a bare diff_url passed as prompt text is not fetchable by the local model
+    and produces generic, ungrounded "reviews" (the failure mode behind the
+    boilerplate OWASP verdicts).
+
+    Returns:
+        dict: {ok, pr_number, verdict, summary, error}
+    """
+    review = get_review(pr_number, repo)
+    if not review:
+        # Not tracked yet — poll once, then retry.
+        poll_open_prs(repo)
+        review = get_review(pr_number, repo)
+    if not review:
+        return {"ok": False, "pr_number": pr_number, "error": "PR not tracked"}
+
+    _repo = review.get("repo") or repo
+    diff_url = review.get("diff_url")
+    if not diff_url:
+        return {"ok": False, "pr_number": pr_number, "error": "no diff_url"}
+
+    try:
+        mark_review_started(pr_number, _repo)
+        diff = _fetch_diff(diff_url)
+        summary = _run_forge_review(_build_prompt(review, diff))
+        if not summary:
+            mark_review_pending(pr_number, _repo)
+            return {"ok": False, "pr_number": pr_number, "error": "empty/queued review"}
+        mark_review_done(pr_number, summary, _repo)
+        _notify_pr_reviewed(pr_number, _repo, review.get("title", ""), summary)
+        verdict = "REVIEWED"
+        u = summary.upper()
+        for v in ("APPROVE", "REQUEST CHANGES", "NEEDS REVIEW"):
+            if f"VERDICT: {v}" in u:
+                verdict = v
+                break
+        return {"ok": True, "pr_number": pr_number, "verdict": verdict, "summary": summary}
+    except Exception as exc:
+        logger.error("[PR Review] review_pr #%s failed: %s", pr_number, exc)
+        try:
+            mark_review_pending(pr_number, _repo)
+        except Exception:
+            pass
+        return {"ok": False, "pr_number": pr_number, "error": str(exc)}
 
 
 def analyze_pending_prs(max_prs: int = 3) -> dict:

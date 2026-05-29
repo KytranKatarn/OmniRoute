@@ -1305,6 +1305,7 @@
     var gallerySearchTimeout = null;
     var currentCollectionFilter = null;
     var lastSelectedIndex = -1;
+    var gallerySort = 'newest';
 
     // ─── Search ─────────────────────────────────────────────────────
     var searchInput = document.getElementById('msGallerySearch');
@@ -1317,6 +1318,11 @@
             }, 300);
         });
     }
+
+    // Sort for the active subject-grid gallery (_tab_gallery.html) is wired
+    // in ms-gallery.js via msGallery.setSort(). The legacy loadGallery() path
+    // below targets msGalleryGrid/msGallerySearch, which are not in the active
+    // DOM — kept only for any remaining legacy callers. (T3441)
 
     // ─── Filter Helpers ─────────────────────────────────────────────
     window.setGalleryFilter = function(key, value, btn) {
@@ -1344,6 +1350,7 @@
         currentGalleryPage = page;
         var params = '?page=' + page + '&per_page=20';
         if (gallerySearchQuery) params += '&q=' + encodeURIComponent(gallerySearchQuery);
+        if (gallerySort && gallerySort !== 'newest') params += '&sort=' + gallerySort;
         if (galleryFilters.type && galleryFilters.type !== 'all') params += '&type=' + galleryFilters.type;
         if (galleryFilters.model) params += '&model=' + encodeURIComponent(galleryFilters.model);
         if (galleryFilters.provider) params += '&provider=' + encodeURIComponent(galleryFilters.provider);

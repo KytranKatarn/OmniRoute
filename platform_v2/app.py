@@ -55,7 +55,10 @@ class UTCAwareDatetimeProvider(_DefaultJSONProvider):
                 return (o.isoformat() + "Z") if o.tzinfo is None else o.isoformat()
             if isinstance(o, _date):
                 return o.isoformat()
-            return _DefaultJSONProvider._default(o)
+            # Flask 3.x exposes the fallback as the public static method
+            # `default` (not `_default`). It serializes Decimal/UUID/dataclass
+            # and raises TypeError for genuinely unserializable types.
+            return _DefaultJSONProvider.default(o)
 
         kwargs.setdefault("default", _utc_default)
         return json.dumps(obj, **kwargs)

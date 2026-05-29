@@ -245,6 +245,14 @@ def api_gallery():
             conditions.append("media_type = %s")
             params.append(media_type)
         where = " AND ".join(conditions)
+        # Honor the sort param via the same whitelist as the user gallery
+        # (never interpolate raw user input into SQL).
+        from .services.gallery_service import _GALLERY_SORTS
+
+        order_by = _GALLERY_SORTS.get(
+            (request.args.get("sort", "newest") or "newest").lower(),
+            _GALLERY_SORTS["newest"],
+        )
         with get_db_cursor() as (conn, cur):
             cur.execute(f"SELECT COUNT(*) as total FROM media_library WHERE {where}", params)
             total = cur.fetchone()["total"]
@@ -255,7 +263,7 @@ def api_gallery():
                        is_favorite, metadata, created_at
                 FROM media_library
                 WHERE {where}
-                ORDER BY created_at DESC
+                ORDER BY {order_by}
                 LIMIT %s OFFSET %s
                 """,
                 params + [per_page, (page - 1) * per_page],

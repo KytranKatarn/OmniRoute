@@ -3,6 +3,7 @@
   var _API = '/tools/media-studio';
   var _subject = null;
   var _assetFilter = 'all';
+  var _sort = 'newest';
   var _subjectName = '';
 
   function _get(path) {
@@ -129,7 +130,10 @@
       var filterEl = document.querySelector('.ms-gallery-type-tab');
       if (gridEl) gridEl.style.display = '';
       if (themeEl) themeEl.style.display = 'none';
-      if (filterEl) filterEl.closest('div') && (filterEl.closest('[style*="border-bottom"]') || {style: {}}).style.display = '';
+      if (filterEl) {
+        var filterRow = filterEl.closest('[style*="border-bottom"]');
+        if (filterRow) filterRow.style.display = '';
+      }
       var el = _el('msGallerySubjectGrid');
       var headerEl = _el('msGallerySubjectHeader');
       if (el) {
@@ -154,6 +158,7 @@
       }
 
       if (_assetFilter !== 'all') params += '&asset_type=' + _assetFilter;
+      if (_sort && _sort !== 'newest') params += '&sort=' + _sort;
 
       _get('/api/gallery' + params).then(function (data) {
         msGallery._renderGrid(data.items || []);
@@ -317,6 +322,11 @@
       document.querySelectorAll('.ms-gallery-type-tab').forEach(function (el) {
         el.classList.toggle('active', el.dataset.filter === filter);
       });
+      msGallery.loadAssets();
+    },
+
+    setSort: function (sort) {
+      _sort = sort || 'newest';
       msGallery.loadAssets();
     }
   };

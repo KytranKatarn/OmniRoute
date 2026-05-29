@@ -677,6 +677,14 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
             (queue_id,),
         )
 
+    # VRAM coordination state — set when a fleet GPU node is chosen below.
+    # Starship-245/246 run Ollama with --gpus all, so ComfyUI must free that
+    # node's Ollama VRAM first (via the DHQ dispatcher's node-aware swap) and
+    # restore it after, in the finally. No-op on hub/contractor paths. (T3438, ADR)
+    _vram_disp = None
+    _vram_unloaded = []
+    _vram_node_id = None
+
     try:
         import requests as _http
         import random
@@ -708,6 +716,33 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
                     "UPDATE media_generation_queue SET params = params || %s::jsonb WHERE id = %s",
                     (json.dumps({"fleet_node": fleet_node}), queue_id),
                 )
+
+        # Free the chosen fleet node's Ollama VRAM before ComfyUI runs, so they
+        # don't contend on the shared GPU (Starship-245/246 = Ollama --gpus all).
+        # DHQ-coordinated via the dispatcher's node-aware swap; restored in finally.
+        if is_fleet:
+            try:
+                with get_db_cursor() as (_c2, _cu2):
+                    _cu2.execute(
+                        "SELECT id FROM remote_nodes WHERE node_name = %s "
+                        "AND gpu_available = TRUE AND status = 'online'",
+                        (fleet_node,),
+                    )
+                    _nrow = _cu2.fetchone()
+                if _nrow:
+                    _vram_node_id = _nrow["id"]
+                    from tools.department_hq.services.department_dispatcher import get_dispatcher
+
+                    _vram_disp = get_dispatcher()
+                    _vram_unloaded = _vram_disp._vram_swap_for_comfyui(_vram_node_id) or []
+                    if _vram_unloaded:
+                        logger.info(
+                            "[MediaStudio] VRAM swap on %s freed %d Ollama model(s) for ComfyUI",
+                            fleet_node,
+                            len(_vram_unloaded),
+                        )
+            except Exception as _se:
+                logger.warning("[MediaStudio] VRAM swap skipped on %s: %s", fleet_node, _se)
 
         if is_fleet:
             if seed < 0:
@@ -808,6 +843,15 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
         logger.error(f"ComfyUI generation failed for queue {queue_id}: {e}")
         on_generation_failed(queue_id, str(e))
         return None
+    finally:
+        # Restore the fleet node's Ollama GPU models after ComfyUI is done
+        # (the dispatcher frees ComfyUI VRAM first). No-op on hub/contractor
+        # paths where nothing was unloaded. Runs on success, timeout, and error. (T3438)
+        if _vram_disp is not None and _vram_unloaded:
+            try:
+                _vram_disp._vram_restore_after_comfyui(_vram_unloaded, _vram_node_id)
+            except Exception as _re:
+                logger.warning("[MediaStudio] VRAM restore failed: %s", _re)
 
 
 def generate_video_via_comfyui(queue_id: int) -> Optional[int]:

@@ -8425,32 +8425,20 @@ class DepartmentDispatcher:
             for m in cap.get("loaded_models", []):
                 if m.get("vram_gb", 0) > 0:
                     mname = m["name"]
-                    _swap_opts = build_options(
-                        model=mname,
-                        target_node=None,
-                        keep_alive=0,
-                    )
-                    _swap_url = f"{_node_url(_swap_opts['target_node_id'])}/api/generate"
-                    _swap_payload = {
-                        "model": _swap_opts["model"],
-                        "keep_alive": _swap_opts["keep_alive"],
-                    }
+                    # Unload on the ACTUAL target node's Ollama (fleet or hub).
+                    # Previously used build_options(target_node=None) which always
+                    # resolved to the hub via _node_url — so a fleet-node swap never
+                    # freed the fleet node's VRAM (latent bug). ollama_url is the
+                    # node's real endpoint from _get_node_capacity. (2026-05-29)
                     _req.post(
-                        _swap_url,
-                        json=_swap_payload,
+                        f"{ollama_url}/api/generate",
+                        json={"model": mname, "keep_alive": 0},
                         timeout=10,
                     )
                     unloaded.append(mname)
                     logger.info(
                         f"[BridgeDispatcher] VRAM swap: unloaded {mname} "
-                        f"on {'node ' + str(node_db_id) if node_db_id else 'hub'}"
-                    )
-                    logger.debug(
-                        "placement: node=%s model=%s placement=%s reason=%s",
-                        _swap_opts["target_node_id"],
-                        _swap_opts["model"],
-                        _swap_opts["placement"],
-                        _swap_opts["reason"],
+                        f"on {'node ' + str(node_db_id) if node_db_id else 'hub'} ({ollama_url})"
                     )
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] VRAM swap failed: {e}")
@@ -8483,30 +8471,14 @@ class DepartmentDispatcher:
 
             # Reload models on GPU
             for mname in model_names:
-                _reload_opts = build_options(
-                    model=mname,
-                    target_node=None,
-                    keep_alive="5m",
-                )
-                _reload_url = f"{_node_url(_reload_opts['target_node_id'])}/api/generate"
-                _reload_payload = {
-                    "model": _reload_opts["model"],
-                    "prompt": "",
-                    "keep_alive": _reload_opts["keep_alive"],
-                }
+                # Reload on the ACTUAL target node's Ollama (fleet or hub), not
+                # always the hub. Mirrors the swap-side fix above. (2026-05-29)
                 _req.post(
-                    _reload_url,
-                    json=_reload_payload,
+                    f"{ollama_url}/api/generate",
+                    json={"model": mname, "prompt": "", "keep_alive": "5m"},
                     timeout=30,
                 )
-                logger.info(f"[BridgeDispatcher] VRAM swap: reloaded {mname} on {target}")
-                logger.debug(
-                    "placement: node=%s model=%s placement=%s reason=%s",
-                    _reload_opts["target_node_id"],
-                    _reload_opts["model"],
-                    _reload_opts["placement"],
-                    _reload_opts["reason"],
-                )
+                logger.info(f"[BridgeDispatcher] VRAM swap: reloaded {mname} on {target} ({ollama_url})")
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] VRAM restore failed: {e}")
 

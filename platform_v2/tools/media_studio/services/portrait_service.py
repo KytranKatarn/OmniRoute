@@ -598,6 +598,35 @@ def _step_vision_analysis(canonical_image_path: str) -> str:
         return ""
 
 
+def _poll_dispatch_queue(queue_id: int, timeout_s: int = 200) -> Optional[str]:
+    """Poll dispatch_pending_queue for a cold-load-queued dispatch's result.
+
+    Shared by _fleet_dispatch and the vision path (describe_portrait). When a
+    model is cold the dispatcher defers the work to the fleet queue; the
+    model_dispatch_worker routes it to a warm node and writes result_response.
+    Returns the response text on 'done', or None on failed/expired/timeout.
+    """
+    import time as _t
+    from database import get_db_cursor
+
+    deadline = _t.time() + timeout_s
+    while _t.time() < deadline:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT status, result_response FROM dispatch_pending_queue WHERE id = %s",
+                (queue_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return None
+        if row["status"] == "done":
+            return (row["result_response"] or "").strip()
+        if row["status"] in ("failed", "expired"):
+            return None
+        _t.sleep(3)
+    return None
+
+
 def _fleet_dispatch(
     capability: str,
     prompt: str,
@@ -605,6 +634,7 @@ def _fleet_dispatch(
     json_mode: bool = False,
     context: Optional[Dict] = None,
     prefer_model: Optional[str] = None,
+    prefer_agent: Optional[str] = None,
     poll_timeout_s: int = 200,
 ) -> str:
     """Dispatch an LLM step through DHQ with fleet-aware cold-load handling.
@@ -639,6 +669,7 @@ def _fleet_dispatch(
         module_id="media_studio",
         context=context or {"task": "portrait_refinement"},
         prefer_model=prefer_model,
+        prefer_agent=prefer_agent,
         # local_only: portrait refinement is a background, non-urgent task. Never
         # escalate it to paid cloud (minimax-m2.5:cloud) when the local agent is
         # busy — that produces spurious Telegram approval prompts for what should
@@ -711,6 +742,10 @@ def _step_consult_agent(
     )
 
     try:
+        # prefer_agent pins the consultation to the agent whose profile is open
+        # (e.g. V.I.G.I.L.), so the agent answers in their OWN voice on their
+        # own model and shows in A.R.M.A.D.A. as that agent — instead of a
+        # generic 'general' agent (P.R.O.B.E.) merely role-playing the persona.
         return _fleet_dispatch(
             capability="general",
             prompt=consultation_prompt,
@@ -720,6 +755,7 @@ def _step_consult_agent(
                 "preferred_model": model,
             },
             prefer_model=model,
+            prefer_agent=agent_name,
             poll_timeout_s=120,
         )
     except Exception as exc:
@@ -1032,12 +1068,25 @@ def describe_portrait(image_source: str) -> Dict:
             prompt=VISION_DESCRIBE_PROMPT,
             module_id="portrait_service",
             images=[b64],
+            local_only=True,
         )
     except Exception as e:
         logger.exception("DHQ vision dispatch for describe_portrait failed")
         return {"success": False, "prompt": "", "model": vision_model, "error": str(e)}
 
-    if not result.success:
+    # Cold vision model → deferred to the fleet cold-load queue. Poll for the
+    # worker's result (routes to whichever node has the VLM warm) instead of
+    # dropping it as a failure — R.E.T.I.N.A.'s vision was silently returning
+    # empty before this, so it never reached the M.U.S.E. synthesis.
+    _polled = None
+    if not result.success and getattr(result, "queued", False):
+        import re as _re
+
+        _m = _re.search(r"id=(\d+)", result.error or "")
+        if _m:
+            _polled = _poll_dispatch_queue(int(_m.group(1)), timeout_s=120)
+
+    if not result.success and not _polled:
         return {
             "success": False,
             "prompt": "",
@@ -1045,7 +1094,7 @@ def describe_portrait(image_source: str) -> Dict:
             "error": result.error or "DHQ vision dispatch returned failure",
         }
 
-    desc = (result.response or "").strip()
+    desc = (_polled if _polled else (result.response or "")).strip()
     # Strip surrounding quotes if the model added them
     if len(desc) > 2 and desc[0] in ('"', "'") and desc[-1] == desc[0]:
         desc = desc[1:-1].strip()

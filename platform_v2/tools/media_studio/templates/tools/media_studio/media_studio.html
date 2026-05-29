@@ -2900,47 +2900,61 @@
             }
         }
 
-        // Consume SSE via fetch + ReadableStream (EventSource doesn't support POST)
-        // AbortController lets openPortraitDetail() cancel this if user switches agents mid-stream
-        if (_activeRefineAbort) { _activeRefineAbort.abort(); }
-        var _abort = new AbortController();
-        _activeRefineAbort = _abort;
+        // Queue + poll (NOT a long-lived stream). The old SSE /refine-stream held one
+        // multi-minute connection open, which the owner's proxy chain (CDN/NPM/AdGuard/
+        // loop-proxy, ~60s caps) cut → '⚠ network error'. Instead we POST /refine-prompt
+        // (returns instantly), then poll /refine-status — no long connection for any proxy
+        // to drop. The worker stores the full result (vision/agent/refined_prompt) so we
+        // render all three 👁🤖🎨 on completion. (T3473)
+        var _agentForRefine = _currentAgentId;
+        var _cancelled = false;
+        if (_activeRefineAbort) { try { _activeRefineAbort.abort(); } catch (_e) {} }
+        _activeRefineAbort = { abort: function () { _cancelled = true; } };
 
-        fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/refine-stream', {
+        // Steps show 'running' while the DHQ worker processes the queued task.
+        _onStep({step: 'vision', status: 'running', label: 'Queued in Department HQ...'});
+        _onStep({step: 'agent', status: 'running', label: 'Queued...'});
+        _onStep({step: 'muse', status: 'running', label: 'Queued...'});
+
+        function _refineFail(msg) {
+            if (_cancelled || _currentAgentId !== _agentForRefine) return;
+            _onStep({step: 'error', error: msg});
+            if (streamEl) streamEl.style.display = 'none';
+        }
+
+        fetch(API_BASE + '/api/portraits/' + _agentForRefine + '/refine-prompt', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({feedback: feedback, history: _refineHistory}),
-            signal: _abort.signal
-        }).then(function(resp) {
-            if (!resp.ok) {
-                return resp.json().then(function(d) { throw new Error(d.error || 'Request failed'); });
-            }
-            var reader = resp.body.getReader();
-            var decoder = new TextDecoder();
-            var buf = '';
-            function pump() {
-                return reader.read().then(function(ref) {
-                    if (ref.done) {
-                        if (btn && btn.disabled) { btn.disabled = false; btn.textContent = 'ASK M.U.S.E.'; }
-                        return;
-                    }
-                    buf += decoder.decode(ref.value, {stream: true});
-                    var parts = buf.split('\n\n');
-                    buf = parts.pop();
-                    parts.forEach(function(chunk) {
-                        if (chunk.indexOf('data: ') === 0) {
-                            try { _onStep(JSON.parse(chunk.slice(6))); } catch(_) {}
+            body: JSON.stringify({feedback: feedback, history: _refineHistory})
+        }).then(function (r) { return r.json(); }).then(function (d) {
+            if (!d || !d.task_id) { _refineFail((d && d.error) || 'Could not queue refinement'); return; }
+            var taskId = d.task_id;
+            var deadline = Date.now() + 8 * 60 * 1000;  // 8-min cap; worker keeps going regardless
+            function poll() {
+                if (_cancelled || _currentAgentId !== _agentForRefine) return;  // agent switched
+                fetch(API_BASE + '/api/portraits/' + _agentForRefine + '/refine-status/' + taskId)
+                    .then(function (r) { return r.json(); })
+                    .then(function (s) {
+                        if (_cancelled || _currentAgentId !== _agentForRefine) return;
+                        if (s.status === 'completed') {
+                            _onStep({step: 'vision', status: 'done', result: s.vision_description || ''});
+                            _onStep({step: 'agent', status: 'done', result: s.agent_perspective || ''});
+                            _onStep({step: 'complete', refined_prompt: s.refined_prompt || '', explanation: s.explanation || ''});
+                            return;
                         }
+                        if (s.status === 'failed') { _refineFail(s.error || 'M.U.S.E. synthesis failed'); return; }
+                        if (Date.now() > deadline) { _refineFail('Still running in Department HQ — check History shortly.'); return; }
+                        setTimeout(poll, 3000);  // pending / in_progress → keep polling
+                    })
+                    .catch(function () {
+                        // transient poll hiccup — retry until the deadline (no long connection to lose)
+                        if (Date.now() < deadline && !_cancelled) { setTimeout(poll, 4000); }
+                        else { _refineFail('Lost connection while polling M.U.S.E.'); }
                     });
-                    return pump();
-                });
             }
-            return pump();
-        }).catch(function(err) {
-            if (err && err.name === 'AbortError') return; // agent switched — suppress error
-            if (btn) { btn.disabled = false; btn.textContent = 'ASK M.U.S.E.'; }
-            if (statusEl) statusEl.textContent = '⚠ ' + err.message;
-            if (streamEl) streamEl.style.display = 'none';
+            setTimeout(poll, 2000);
+        }).catch(function (err) {
+            _refineFail((err && err.message) || 'Could not reach Department HQ');
         });
     };
 

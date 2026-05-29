@@ -639,6 +639,12 @@ def _fleet_dispatch(
         module_id="media_studio",
         context=context or {"task": "portrait_refinement"},
         prefer_model=prefer_model,
+        # local_only: portrait refinement is a background, non-urgent task. Never
+        # escalate it to paid cloud (minimax-m2.5:cloud) when the local agent is
+        # busy — that produces spurious Telegram approval prompts for what should
+        # be local CPU/GPU work. routing_mode='local_only' makes the dispatcher
+        # queue for local instead of firing cloud_throughput_escalation.
+        local_only=True,
         user_id=None,
     )
     if result.success:

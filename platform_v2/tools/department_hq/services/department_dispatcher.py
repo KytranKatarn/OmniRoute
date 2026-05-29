@@ -2014,7 +2014,7 @@ class DepartmentDispatcher:
                 SELECT na.model,
                        COALESCE(na.display_name, a.display_name, a.name) AS display_name,
                        rn.id as node_id, rn.node_name,
-                       rn.hostname, rn.port, rn.vpn_ip,
+                       rn.hostname, rn.port, rn.vpn_ip, rn.mesh_ip,
                        rn.bridge_priority,
                        COALESCE(load_5m.task_count, 0) AS recent_load
                 FROM node_agents na
@@ -2055,7 +2055,12 @@ class DepartmentDispatcher:
 
             agent_name = row["display_name"] or f"fleet-agent-{hub_agent_id}"
             model = row["model"] or "qwen2.5:7b"
-            hostname = row["vpn_ip"] or row["hostname"] or ""
+            # Canonical mesh transport first (matches _find_fleet_agent). vpn_ip is
+            # empty for outpost nodes, so the old `vpn_ip or hostname` fell back to
+            # hostname = the PUBLIC IP, where Ollama:11434 is firewalled → dispatch
+            # timed out → C.O.D.E.X. documentation (and any outpost-stationed hub
+            # agent) tasks blocked. mesh_ip (100.64.0.x) is always reachable. (2026-05-29)
+            hostname = row["mesh_ip"] or row["vpn_ip"] or row["hostname"] or ""
             port = row["port"] or 11434
 
             if not hostname:

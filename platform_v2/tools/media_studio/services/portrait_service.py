@@ -805,22 +805,19 @@ def _step_muse_synthesize(
     try:
         import json as _json
 
-        # #3454: synthesis reliability. M.U.S.E. was assigned mistral:7b, which
-        # cold-loads/evicts on the 8GB hub Quadro (6 models competing) —
-        # task_execution_log showed creative synthesis ranging 25s–619s, and the
-        # 619s/257s cold outliers blew past the 240s worker cap = the "M.U.S.E.
-        # synthesis timed out" the user hit. The SAME synthesis on qwen2.5:7b
-        # (a primary always-warm hub model, stronger at the strict JSON contract)
-        # runs in ~3.5s. The dispatcher binds model→agent and prefer_model/
-        # prefer_agent are NOT reliably honored (#3462), so the only dependable
-        # lever is M.U.S.E.'s assigned model: she is reassigned to qwen2.5:7b.
-        # capability='creative' reliably routes to M.U.S.E. (verified), so this
-        # call now resolves to M.U.S.E.@qwen2.5:7b with no fragile prefer_* hints.
+        # T3481/#3454: synthesis reliability — COMPLETION over speed (owner
+        # directive). capability='creative' routes to M.U.S.E. on mistral:7b. With
+        # the geo_backlog flood fixed (geo no longer hogs hub mistral) synthesis
+        # runs INLINE and completes — but mistral is variable on the 8GB hub
+        # Quadro: ~20-25s when GPU-resident, ~260s when CPU-resident/contended
+        # (observed 261s inline-success that the old 240s cap killed 21s short).
+        # So give it room to FINISH: poll up to 540s. The fast case still returns
+        # in ~25s and never approaches this ceiling.
         raw = _fleet_dispatch(
             capability="creative",
             prompt=synthesis_prompt,
             context={"agent_id": None, "task": "prompt_synthesis"},
-            poll_timeout_s=200,
+            poll_timeout_s=540,
         )
         # Try to parse JSON response
         try:
@@ -930,8 +927,8 @@ def refine_identity_prompt(agent_id: int, feedback: str, history: Optional[list]
             feedback=feedback,
             history=history or [],
         ),
-        240,
-        {"error": "M.U.S.E. synthesis timed out — model may be cold-loading, try again shortly"},
+        600,
+        {"error": "M.U.S.E. synthesis timed out after 10 min — the hub model may be wedged; check History shortly"},
         "M.U.S.E. synthesis",
     )
     if "error" in synthesis:

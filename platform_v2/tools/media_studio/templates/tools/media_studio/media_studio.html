@@ -2929,7 +2929,7 @@
         }).then(function (r) { return r.json(); }).then(function (d) {
             if (!d || !d.task_id) { _refineFail((d && d.error) || 'Could not queue refinement'); return; }
             var taskId = d.task_id;
-            var deadline = Date.now() + 8 * 60 * 1000;  // 8-min cap; worker keeps going regardless
+            var deadline = Date.now() + 10 * 60 * 1000;  // 10-min live cap — covers a slow (CPU-resident) mistral synthesis (~260s+, T3481); worker keeps going + stores to History regardless
             function poll() {
                 if (_cancelled || _currentAgentId !== _agentForRefine) return;  // agent switched
                 fetch(API_BASE + '/api/portraits/' + _agentForRefine + '/refine-status/' + taskId)

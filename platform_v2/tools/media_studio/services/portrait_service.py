@@ -598,6 +598,79 @@ def _step_vision_analysis(canonical_image_path: str) -> str:
         return ""
 
 
+def _fleet_dispatch(
+    capability: str,
+    prompt: str,
+    system_prompt: Optional[str] = None,
+    json_mode: bool = False,
+    context: Optional[Dict] = None,
+    prefer_model: Optional[str] = None,
+    poll_timeout_s: int = 200,
+) -> str:
+    """Dispatch an LLM step through DHQ with fleet-aware cold-load handling.
+
+    request_work() runs inline when the needed model is warm on ANY node — the
+    diagnostic showed capability='creative' served from M.U.S.E.@outpost-uk in
+    3.5s, not the hub. When the model is cold it ENQUEUES to
+    dispatch_pending_queue and returns queued=True; the model_dispatch_worker
+    then routes that row to whichever node has the model warm (multi-node,
+    ADR-017) and writes result_response.
+
+    The pre-orchestration refine code treated queued=True as a FAILURE, so a
+    cold model meant the whole refine failed. This instead POLLS the queue for
+    the worker's result — so each stage round-trips across the fleet and the
+    traffic appears in A.R.M.A.D.A. Dispatches, exactly like image generation.
+
+    Returns the response text. Raises on hard failure / poll timeout; callers
+    decide the fallback (vision/agent steps fall back to empty, M.U.S.E.
+    synthesis surfaces the error so the task fails cleanly rather than hangs).
+    """
+    import time as _t
+    import re as _re
+    from tools.department_hq.services.department_dispatcher import get_dispatcher
+    from database import get_db_cursor
+
+    dispatcher = get_dispatcher()
+    result = dispatcher.request_work(
+        capability=capability,
+        prompt=prompt,
+        system_prompt=system_prompt,
+        json_mode=json_mode,
+        module_id="media_studio",
+        context=context or {"task": "portrait_refinement"},
+        prefer_model=prefer_model,
+        user_id=None,
+    )
+    if result.success:
+        return (result.response or "").strip()
+    if not getattr(result, "queued", False):
+        raise RuntimeError(result.error or "dispatch failed")
+
+    # Queued to the fleet cold-load queue — poll for the worker's result so the
+    # task routes to a warm node instead of being treated as a failure.
+    m = _re.search(r"id=(\d+)", result.error or "")
+    if not m:
+        raise RuntimeError(f"queued without a parseable queue id: {result.error}")
+    qid = int(m.group(1))
+    deadline = _t.time() + poll_timeout_s
+    while _t.time() < deadline:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT status, result_response, error FROM dispatch_pending_queue WHERE id = %s",
+                (qid,),
+            )
+            row = cur.fetchone()
+        if not row:
+            raise RuntimeError(f"fleet queue row {qid} disappeared")
+        status = row["status"]
+        if status == "done":
+            return (row["result_response"] or "").strip()
+        if status in ("failed", "expired"):
+            raise RuntimeError(f"fleet dispatch {status}: {row.get('error') or ''}")
+        _t.sleep(3)
+    raise TimeoutError(f"fleet dispatch poll timed out after {poll_timeout_s}s (queue id={qid}, cap={capability})")
+
+
 def _step_consult_agent(
     agent_name: str,
     model: str,
@@ -632,23 +705,17 @@ def _step_consult_agent(
     )
 
     try:
-        from tools.department_hq.services.department_dispatcher import get_dispatcher
-
-        dispatcher = get_dispatcher()
-        result = dispatcher.request_work(
+        return _fleet_dispatch(
             capability="general",
             prompt=consultation_prompt,
-            module_id="media_studio",
             context={
                 "task": "agent_portrait_consultation",
                 "agent_name": agent_name,
                 "preferred_model": model,
             },
-            user_id=None,
+            prefer_model=model,
+            poll_timeout_s=120,
         )
-        if result.success:
-            return (result.response or "").strip()
-        logger.warning("[Refine] agent consultation dispatch failed: %s", result.error)
     except Exception as exc:
         logger.warning("[Refine] agent consultation failed for %s: %s", agent_name, exc)
     return ""
@@ -694,21 +761,14 @@ def _step_muse_synthesize(
     synthesis_prompt = "\n".join(parts)
 
     try:
-        from tools.department_hq.services.department_dispatcher import get_dispatcher
         import json as _json
 
-        dispatcher = get_dispatcher()
-        result = dispatcher.request_work(
+        raw = _fleet_dispatch(
             capability="creative",
             prompt=synthesis_prompt,
-            module_id="media_studio",
             context={"agent_id": None, "task": "prompt_synthesis"},
-            user_id=None,
+            poll_timeout_s=200,
         )
-        if not result.success:
-            return {"error": f"M.U.S.E. dispatch failed: {result.error}"}
-
-        raw = (result.response or "").strip()
         # Try to parse JSON response
         try:
             start = raw.find("{")
@@ -802,7 +862,7 @@ def refine_identity_prompt(agent_id: int, feedback: str, history: Optional[list]
             vision_desc=vision_desc,
             feedback=feedback,
         ),
-        120,
+        150,
         "",
         "agent consultation",
     )
@@ -817,7 +877,7 @@ def refine_identity_prompt(agent_id: int, feedback: str, history: Optional[list]
             feedback=feedback,
             history=history or [],
         ),
-        150,
+        240,
         {"error": "M.U.S.E. synthesis timed out — model may be cold-loading, try again shortly"},
         "M.U.S.E. synthesis",
     )

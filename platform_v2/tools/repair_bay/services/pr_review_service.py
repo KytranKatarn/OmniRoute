@@ -119,9 +119,21 @@ def sync_closed_prs(repo: str = None) -> int:
     updated = 0
     try:
         with get_db_cursor(commit=True) as (conn, cur):
+            # Mark the PR closed AND finalize any unresolved review_status. A PR
+            # that left GitHub's open set will never be reviewed again, so rows
+            # stuck at 'pending'/'in_progress' must be terminated to 'skipped' —
+            # otherwise they accumulate forever and pollute the PR Review queue
+            # (get_pending_reviews only retries OPEN in_progress rows). #3449.
             cur.execute(
                 """
-                UPDATE pr_reviews SET state = 'closed', updated_at = NOW()
+                UPDATE pr_reviews
+                SET state = 'closed',
+                    review_status = CASE
+                        WHEN review_status IN ('pending', 'in_progress')
+                        THEN 'skipped'
+                        ELSE review_status
+                    END,
+                    updated_at = NOW()
                 WHERE repo = %s AND state = 'open'
                   AND pr_number NOT IN %s
                 """,

@@ -39,12 +39,6 @@ def _git(*args, check=False):
         return ""
 
 
-def is_freeze_active(today=None):
-    """True if GitHub push freeze is still in effect (before 2026-05-01)."""
-    today = today or date.today()
-    return today < FREEZE_LIFT_DATE
-
-
 def scan_pending_pushes():
     """
     Scan all local branches; return rows where local is ahead of origin.

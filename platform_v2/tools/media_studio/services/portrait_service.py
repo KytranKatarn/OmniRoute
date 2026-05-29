@@ -385,6 +385,7 @@ def generate_canonical(agent_id: int, prompt_override: Optional[str] = None) -> 
             "cfg": 7.0,
             "sampler": "euler_ancestral",
             "seed": seed,
+            "asset_type": "portrait",
         },
         owner_type="agent",
         owner_id=agent_id,
@@ -467,6 +468,7 @@ def generate_variant(
         # IP-Adapter face anchoring only works on local ComfyUI today
         params["ip_adapter_ref"] = row["ip_adapter_ref_path"]
         params["ip_adapter_weight"] = 0.85
+    params.setdefault("asset_type", "portrait")
 
     return submit_generation(
         user_id=None,
@@ -538,6 +540,7 @@ def generate_fanout(
             "cfg": 7.0,
             "sampler": "euler_ancestral",
             "seed": -1,
+            "asset_type": "portrait",
         }
         if parsed["provider"]:
             params["provider"] = parsed["provider"]

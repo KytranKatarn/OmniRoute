@@ -277,6 +277,17 @@ def on_generation_complete(
     except Exception as e:
         logger.warning(f"Thumbnail generation failed: {e}")
 
+    # Carry classification metadata from the generation params into the
+    # media_library row so the gallery asset-type tabs can filter on it.
+    # Without this, asset_type set by flows (portrait/lifestyle/social) was
+    # silently dropped and every asset rendered as untyped (gallery T3441).
+    entry_metadata: Dict = {}
+    if params.get("asset_type"):
+        entry_metadata["asset_type"] = params["asset_type"]
+    for _k in ("theme_id", "scene_id"):
+        if params.get(_k) is not None:
+            entry_metadata[_k] = params[_k]
+
     # Insert into media_library
     media_id = create_media_entry(
         owner_type=queue_row["owner_type"],
@@ -293,6 +304,7 @@ def on_generation_complete(
         width=params.get("width"),
         height=params.get("height"),
         duration_ms=duration_ms,
+        metadata=entry_metadata or None,
     )
 
     # Auto-tag and embed prompt

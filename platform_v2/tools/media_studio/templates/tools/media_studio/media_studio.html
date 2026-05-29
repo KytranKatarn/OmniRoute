@@ -2691,7 +2691,7 @@
                 if (cpmSel && cpmSel.style.display !== 'none' && cpmSel.value) {
                     canonicalProviderModel = cpmSel.value;
                 }
-                fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/generate-fanout', {
+                fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/generate-canonical', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -2703,13 +2703,13 @@
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (btn) { btn.disabled = false; btn.textContent = 'Generate'; }
-                    if (!data.success) {
+                    if (data.error || data.success === false) {
                         var s = document.getElementById('ms-refine-status');
                         if (s) { s.style.color = 'rgba(239,68,68,0.9)'; s.textContent = '⚠ ' + (data.error || 'Generation failed'); }
                         return;
                     }
                     var s = document.getElementById('ms-refine-status');
-                    if (s) { s.style.color = 'rgba(34,197,94,0.9)'; s.textContent = '✓ ' + data.count + ' portraits queued — check Queue tab (~3-5 min each)'; }
+                    if (s) { s.style.color = 'rgba(34,197,94,0.9)'; s.textContent = '✓ Portrait queued — check Queue tab (~3-5 min)'; }
                 })
                 .catch(function(err) {
                     if (btn) { btn.disabled = false; btn.textContent = 'Generate'; }

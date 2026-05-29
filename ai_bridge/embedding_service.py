@@ -42,7 +42,7 @@ if not _embedding_host.startswith("http"):
 OLLAMA_HOST = _embedding_host
 EMBEDDING_MODEL = os.getenv("OLLAMA_EMBEDDING_MODEL", "arctic-embed-cpu")
 EMBEDDING_DIMENSIONS = 768
-REQUEST_TIMEOUT = 60  # seconds — bumped from 30s to handle cold-start load time
+REQUEST_TIMEOUT = 120  # seconds — 2 min for arctic-embed-cpu cold-start load
 
 
 @dataclass

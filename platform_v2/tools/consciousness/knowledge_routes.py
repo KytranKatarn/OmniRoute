@@ -232,7 +232,7 @@ def register_knowledge_routes(bp, admin_required):
         knowledge_type = request.args.get("type")
         search = request.args.get("search")
         try:
-            limit = min(int(request.args.get("limit", 50)), 200)
+            limit = min(int(request.args.get("limit", 50)), 500)
             offset = max(int(request.args.get("offset", 0)), 0)
         except (ValueError, TypeError):
             limit, offset = 50, 0
@@ -255,14 +255,29 @@ def register_knowledge_routes(bp, admin_required):
                 params.extend([category, category + "/%"])
 
             if knowledge_type and knowledge_type != "all":
-                query += " AND knowledge_type = %s"
-                params.append(knowledge_type)
+                if knowledge_type == "knowledge_card":
+                    # Match all knowledge_card_* subtypes
+                    query += " AND knowledge_type LIKE 'knowledge_card%%'"
+                else:
+                    query += " AND knowledge_type = %s"
+                    params.append(knowledge_type)
 
             if search:
                 query += " AND (title ILIKE %s OR content ILIKE %s)"
                 params.extend([f"%{search}%", f"%{search}%"])
 
-            query += " ORDER BY updated_at DESC NULLS LAST LIMIT %s OFFSET %s"
+            query += """
+             ORDER BY
+               CASE knowledge_type
+                 WHEN 'mistake_learned'     THEN 1
+                 WHEN 'vault_note'          THEN 2
+                 WHEN 'code_snippet'        THEN 3
+                 WHEN 'conversation_memory' THEN 99
+                 WHEN 'github_file'         THEN 100
+                 ELSE 4
+               END,
+               importance_score DESC NULLS LAST
+             LIMIT %s OFFSET %s"""
             params.extend([limit, offset])
 
             cur.execute(query, params)
@@ -276,8 +291,11 @@ def register_knowledge_routes(bp, admin_required):
                 count_query += " AND (category = %s OR category LIKE %s)"
                 count_params.extend([category, category + "/%"])
             if knowledge_type and knowledge_type != "all":
-                count_query += " AND knowledge_type = %s"
-                count_params.append(knowledge_type)
+                if knowledge_type == "knowledge_card":
+                    count_query += " AND knowledge_type LIKE 'knowledge_card%%'"
+                else:
+                    count_query += " AND knowledge_type = %s"
+                    count_params.append(knowledge_type)
             if search:
                 count_query += " AND (title ILIKE %s OR content ILIKE %s)"
                 count_params.extend([f"%{search}%", f"%{search}%"])
@@ -307,7 +325,7 @@ def register_knowledge_routes(bp, admin_required):
     @login_required
     @admin_required
     def get_categories():
-        """Get all categories with counts"""
+        """Get all categories with counts, plus cross-table virtual categories."""
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -319,17 +337,79 @@ def register_knowledge_routes(bp, admin_required):
                 WHERE category IS NOT NULL AND category != ''
                 GROUP BY category
                 ORDER BY count DESC
-            """
+                """
             )
+            categories = [dict(c) for c in cur.fetchall()]
 
-            categories = cur.fetchall()
-            return jsonify({"success": True, "categories": [dict(c) for c in categories]})
+            # Virtual cross-table categories (Dev HQ + Languages tabs)
+            cur.execute("SELECT COUNT(*) FROM project_decisions")
+            dec_count = cur.fetchone()["count"]
+            cur.execute("SELECT COUNT(*) FROM translations")
+            trans_count = cur.fetchone()["count"]
+
+            virtual = [
+                {
+                    "category": "Dev HQ Decisions",
+                    "count": dec_count,
+                    "virtual": True,
+                    "link_tab": "devhq",
+                    "description": "ADRs & architectural decisions",
+                },
+                {
+                    "category": "Languages / Translations",
+                    "count": trans_count,
+                    "virtual": True,
+                    "link_tab": "languages",
+                    "description": "8 languages, all UI strings",
+                },
+            ]
+            return jsonify({"success": True, "categories": virtual + categories})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
         finally:
 
             cur.close()
 
+            conn.close()
+
+    # ==================================================================
+    # TYPE STATS (for browser quick-filter chips)
+    # ==================================================================
+
+    @bp.route("/knowledge/type-stats", methods=["GET"])
+    @login_required
+    @admin_required
+    def get_type_stats():
+        """Return per-type counts for the browser quick-filter chips."""
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """
+                SELECT
+                    CASE
+                        WHEN knowledge_type = 'github_file'        THEN 'github_file'
+                        WHEN knowledge_type = 'conversation_memory' THEN 'conversation_memory'
+                        WHEN knowledge_type = 'vault_note'         THEN 'vault_note'
+                        WHEN knowledge_type LIKE 'knowledge_card%%' THEN 'knowledge_card'
+                        WHEN knowledge_type = 'api_endpoint'       THEN 'api_endpoint'
+                        WHEN knowledge_type = 'mistake_learned'    THEN 'mistake_learned'
+                        WHEN knowledge_type = 'code_snippet'       THEN 'code_snippet'
+                        WHEN knowledge_type = 'upgrade_suggestion' THEN 'upgrade_suggestion'
+                        ELSE 'other'
+                    END AS type_group,
+                    COUNT(*) AS count
+                FROM knowledge_base
+                GROUP BY type_group
+                ORDER BY count DESC
+                """
+            )
+            rows = cur.fetchall()
+            return jsonify({"success": True, "types": [dict(r) for r in rows]})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
             conn.close()
 
     # ==================================================================
@@ -758,7 +838,9 @@ def register_knowledge_routes(bp, admin_required):
             conn.close()
 
     # ==================================================================
-    # KNOWLEDGE GRAPH (Task #1133)
+    # KNOWLEDGE GRAPH — Full Consciousness Coverage
+    # Sources: knowledge_base (all types) + project_decisions (Dev HQ)
+    #          + translations (Languages) + unified_projects (Dev HQ)
     # ==================================================================
 
     @bp.route("/api/knowledge/graph", methods=["GET"])
@@ -767,41 +849,179 @@ def register_knowledge_routes(bp, admin_required):
     def knowledge_graph():
         """
         Return knowledge graph data for D3.js force-directed visualization.
+        Covers all Consciousness module sources proportionally.
 
-        GET /api/knowledge/graph?limit=100
+        GET /api/knowledge/graph?limit=500
 
-        Returns { nodes: [...], edges: [...] } where:
-        - nodes = top KB entries by importance (id, title, type, importance)
-        - edges = relationships between those nodes (source, target, type, strength)
+        Node IDs are strings: 'kb-{id}', 'dec-{id}', 'trans-{id}', 'proj-{id}'
         """
-        try:
-            limit = min(int(request.args.get("limit", 100)), 500)
-        except (ValueError, TypeError):
-            limit = 100
-
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         try:
-            # Get top entries by importance
+            cur.execute("SELECT COUNT(*) FROM knowledge_base")
+            total_kb = cur.fetchone()["count"]
+            cur.execute("SELECT COUNT(*) FROM knowledge_relationships")
+            total_rels = cur.fetchone()["count"]
+
+            # ── knowledge_base: proportional by knowledge_type bucket ─
+            # Budget ~370 nodes. Caps per bucket ensure every type appears.
             cur.execute(
                 """
-                SELECT id, title, knowledge_type, category, importance_score,
-                       (embedding IS NOT NULL) as has_embedding
-                FROM knowledge_base
-                WHERE title IS NOT NULL AND title != ''
-                ORDER BY importance_score DESC, updated_at DESC NULLS LAST
-                LIMIT %s
-                """,
-                (limit,),
+                WITH bucketed AS (
+                    SELECT id, title, knowledge_type, category,
+                           importance_score, source_type,
+                           (embedding IS NOT NULL) AS has_embedding,
+                           CASE
+                             WHEN knowledge_type = 'mistake_learned'     THEN 'mistake_learned'
+                             WHEN knowledge_type = 'vault_note'          THEN 'vault_note'
+                             WHEN knowledge_type = 'code_snippet'        THEN 'code_snippet'
+                             WHEN knowledge_type LIKE 'knowledge_card%%' THEN 'knowledge_card'
+                             WHEN knowledge_type = 'conversation_memory' THEN 'conversation_memory'
+                             WHEN source_type    = 'github_tree'         THEN 'github_tree'
+                             ELSE 'other'
+                           END AS bucket,
+                           ROW_NUMBER() OVER (
+                             PARTITION BY CASE
+                               WHEN knowledge_type = 'mistake_learned'     THEN 'mistake_learned'
+                               WHEN knowledge_type = 'vault_note'          THEN 'vault_note'
+                               WHEN knowledge_type = 'code_snippet'        THEN 'code_snippet'
+                               WHEN knowledge_type LIKE 'knowledge_card%%' THEN 'knowledge_card'
+                               WHEN knowledge_type = 'conversation_memory' THEN 'conversation_memory'
+                               WHEN source_type    = 'github_tree'         THEN 'github_tree'
+                               ELSE 'other'
+                             END
+                             ORDER BY importance_score DESC NULLS LAST
+                           ) AS rn
+                    FROM knowledge_base
+                    WHERE title IS NOT NULL AND title != ''
+                )
+                SELECT id, title, knowledge_type, category,
+                       importance_score, has_embedding,
+                       'knowledge_base' AS source_table
+                FROM bucketed
+                WHERE (bucket = 'mistake_learned'    AND rn <= 50)
+                   OR (bucket = 'vault_note'         AND rn <= 50)
+                   OR (bucket = 'code_snippet'       AND rn <= 30)
+                   OR (bucket = 'knowledge_card'     AND rn <= 100)
+                   OR (bucket = 'conversation_memory' AND rn <= 30)
+                   OR (bucket = 'github_tree'        AND rn <= 40)
+                   OR (bucket = 'other'              AND rn <= 70)
+                LIMIT 370
+                """
             )
-            entries = cur.fetchall()
-            node_ids = [e["id"] for e in entries]
+            kb_entries = cur.fetchall()
 
-            if not node_ids:
-                return jsonify({"success": True, "nodes": [], "edges": []})
+            # ── project_decisions (Dev HQ) ────────────────────────────
+            cur.execute(
+                """
+                SELECT id,
+                       COALESCE(NULLIF(title, ''), LEFT(decision, 80)) AS title,
+                       'decision'          AS knowledge_type,
+                       'Dev HQ'            AS category,
+                       0.88               AS importance_score,
+                       (embedding IS NOT NULL) AS has_embedding,
+                       'project_decisions' AS source_table
+                FROM project_decisions
+                WHERE (title IS NOT NULL AND title != '')
+                   OR (decision IS NOT NULL AND decision != '')
+                ORDER BY decided_at DESC NULLS LAST, created_at DESC
+                LIMIT 50
+                """
+            )
+            dec_entries = cur.fetchall()
 
-            # Get relationships between these entries
+            # ── translations (Languages tab — EN keys only) ───────────
+            cur.execute(
+                """
+                SELECT id, key AS title,
+                       'translation'  AS knowledge_type,
+                       'Languages'    AS category,
+                       0.75          AS importance_score,
+                       (embedding IS NOT NULL) AS has_embedding,
+                       'translations' AS source_table
+                FROM translations
+                WHERE language = 'en' AND text IS NOT NULL
+                ORDER BY id DESC
+                LIMIT 30
+                """
+            )
+            trans_entries = cur.fetchall()
+
+            # ── unified_projects (Dev HQ) ─────────────────────────────
+            cur.execute(
+                """
+                SELECT id, name AS title,
+                       'project'           AS knowledge_type,
+                       'Dev HQ'            AS category,
+                       GREATEST(0.1, LEAST(1.0, priority::float / 10.0)) AS importance_score,
+                       (embedding IS NOT NULL) AS has_embedding,
+                       'unified_projects'  AS source_table
+                FROM unified_projects
+                WHERE name IS NOT NULL AND status NOT IN ('cancelled')
+                ORDER BY priority DESC NULLS LAST, created_at DESC
+                LIMIT 20
+                """
+            )
+            proj_entries = cur.fetchall()
+
+            all_entries = list(kb_entries) + list(dec_entries) + list(trans_entries) + list(proj_entries)
+
+            if not all_entries:
+                return jsonify(
+                    {
+                        "success": True,
+                        "nodes": [],
+                        "edges": [],
+                        "total_kb_entries": total_kb,
+                        "total_relationships": total_rels,
+                    }
+                )
+
+            # ── Build nodes with string node_key ─────────────────────
+            _prefix = {
+                "knowledge_base": "kb",
+                "project_decisions": "dec",
+                "translations": "trans",
+                "unified_projects": "proj",
+            }
+
+            nodes = []
+            node_map = {}
+            kb_embed_ids, dec_embed_ids, trans_embed_ids, proj_embed_ids = [], [], [], []
+
+            for e in all_entries:
+                tbl = e["source_table"]
+                nkey = f"{_prefix.get(tbl, 'x')}-{e['id']}"
+                if nkey in node_map:
+                    continue
+                node_map[nkey] = True
+                nodes.append(
+                    {
+                        "id": nkey,
+                        "node_key": nkey,
+                        "numeric_id": e["id"],
+                        "source_table": tbl,
+                        "title": (e["title"] or "")[:80],
+                        "type": e["knowledge_type"] or "unknown",
+                        "category": e["category"] or "uncategorized",
+                        "importance": float(e["importance_score"] or 0),
+                        "hasEmbedding": bool(e["has_embedding"]),
+                        "isConnected": False,
+                    }
+                )
+                if e["has_embedding"]:
+                    if tbl == "knowledge_base":
+                        kb_embed_ids.append(e["id"])
+                    elif tbl == "project_decisions":
+                        dec_embed_ids.append(e["id"])
+                    elif tbl == "translations":
+                        trans_embed_ids.append(e["id"])
+                    elif tbl == "unified_projects":
+                        proj_embed_ids.append(e["id"])
+
+            # ── Explicit KB↔KB relationships → string keys ───────────
+            kb_numeric_ids = [e["id"] for e in kb_entries]
             cur.execute(
                 """
                 SELECT from_id, to_id, relationship_type, strength
@@ -809,32 +1029,87 @@ def register_knowledge_routes(bp, admin_required):
                 WHERE from_id = ANY(%s) AND to_id = ANY(%s)
                 ORDER BY strength DESC
                 """,
-                (node_ids, node_ids),
+                (kb_numeric_ids, kb_numeric_ids),
             )
             rels = cur.fetchall()
 
-            # Build response
-            nodes = [
-                {
-                    "id": e["id"],
-                    "title": e["title"][:80] if e["title"] else f"Entry {e['id']}",
-                    "type": e["knowledge_type"] or "unknown",
-                    "category": e["category"] or "uncategorized",
-                    "importance": float(e["importance_score"] or 0),
-                    "hasEmbedding": bool(e["has_embedding"]),
-                }
-                for e in entries
-            ]
+            connected_keys = set()
+            for r in rels:
+                connected_keys.add(f"kb-{r['from_id']}")
+                connected_keys.add(f"kb-{r['to_id']}")
+            for n in nodes:
+                if n["node_key"] in connected_keys:
+                    n["isConnected"] = True
 
             edges = [
                 {
-                    "source": r["from_id"],
-                    "target": r["to_id"],
+                    "source": f"kb-{r['from_id']}",
+                    "target": f"kb-{r['to_id']}",
                     "type": r["relationship_type"],
                     "strength": float(r["strength"] or 0.5),
+                    "kind": "explicit",
                 }
                 for r in rels
             ]
+            explicit_pairs = {(f"kb-{r['from_id']}", f"kb-{r['to_id']}") for r in rels}
+            explicit_pairs |= {(f"kb-{r['to_id']}", f"kb-{r['from_id']}") for r in rels}
+
+            # ── Semantic similarity — cross-table ─────────────────────
+            # Table names are hardcoded constants, not user input — f-string safe.
+            def _sim_query(tbl_a, ids_a, pfx_a, tbl_b, ids_b, pfx_b, cap):
+                if not ids_a or not ids_b:
+                    return []
+                same = tbl_a == tbl_b
+                join = "ON a.id < b.id" if same else "ON TRUE"
+                cur.execute(
+                    f"""
+                    SELECT a.id AS a_id, b.id AS b_id,
+                           1 - (a.embedding <=> b.embedding) AS similarity
+                    FROM {tbl_a} a
+                    JOIN {tbl_b} b {join}
+                    WHERE a.id = ANY(%s) AND b.id = ANY(%s)
+                      AND 1 - (a.embedding <=> b.embedding) > 0.65
+                    ORDER BY similarity DESC
+                    LIMIT %s
+                    """,
+                    (ids_a, ids_b, cap),
+                )
+                result = []
+                for r in cur.fetchall():
+                    a_key = f"{pfx_a}-{r['a_id']}"
+                    b_key = f"{pfx_b}-{r['b_id']}"
+                    if (a_key, b_key) not in explicit_pairs and (b_key, a_key) not in explicit_pairs:
+                        result.append(
+                            {
+                                "source": a_key,
+                                "target": b_key,
+                                "type": "semantic_similarity",
+                                "strength": float(r["similarity"]),
+                                "kind": "semantic",
+                            }
+                        )
+                return result
+
+            sem_edges = []
+            sem_edges += _sim_query("knowledge_base", kb_embed_ids, "kb", "knowledge_base", kb_embed_ids, "kb", 600)
+            sem_edges += _sim_query(
+                "knowledge_base", kb_embed_ids, "kb", "project_decisions", dec_embed_ids, "dec", 300
+            )
+            sem_edges += _sim_query("knowledge_base", kb_embed_ids, "kb", "translations", trans_embed_ids, "trans", 200)
+            sem_edges += _sim_query(
+                "knowledge_base", kb_embed_ids, "kb", "unified_projects", proj_embed_ids, "proj", 100
+            )
+            sem_edges += _sim_query(
+                "project_decisions", dec_embed_ids, "dec", "project_decisions", dec_embed_ids, "dec", 100
+            )
+            sem_edges += _sim_query(
+                "project_decisions", dec_embed_ids, "dec", "unified_projects", proj_embed_ids, "proj", 80
+            )
+            sem_edges = sem_edges[:1500]
+            edges += sem_edges
+
+            explicit_count = sum(1 for e in edges if e["kind"] == "explicit")
+            semantic_count = sum(1 for e in edges if e["kind"] == "semantic")
 
             return jsonify(
                 {
@@ -842,7 +1117,10 @@ def register_knowledge_routes(bp, admin_required):
                     "nodes": nodes,
                     "edges": edges,
                     "node_count": len(nodes),
-                    "edge_count": len(edges),
+                    "edge_count": explicit_count,
+                    "semantic_edge_count": semantic_count,
+                    "total_kb_entries": total_kb,
+                    "total_relationships": total_rels,
                 }
             )
         except Exception as e:

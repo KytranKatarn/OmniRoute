@@ -675,9 +675,15 @@ def _run_embedding_job(item_ids_and_data, job_id):
             logger.warning(f"[Embedding] Model not healthy, attempting warmup: {health}")
             import requests as _req
 
-            ollama_host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+            # Use same host resolution as embedding_service.py
+            _h = os.getenv("OLLAMA_EMBEDDING_HOST", "") or os.getenv("OLLAMA_PRIMARY", "host.docker.internal:11434")
+            if not _h.startswith("http"):
+                _h = f"http://{_h}"
+            _model = os.getenv("OLLAMA_EMBEDDING_MODEL", "arctic-embed-cpu")
             _req.post(
-                f"{ollama_host}/api/embeddings", json={"model": "arctic-embed-cpu", "prompt": "warmup"}, timeout=60
+                f"{_h}/api/embed",
+                json={"model": _model, "input": "warmup", "keep_alive": "35m"},
+                timeout=120,  # 2 min for cold-start load
             )
             logger.info("[Embedding] Model warmup complete")
     except Exception as warmup_err:

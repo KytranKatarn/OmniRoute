@@ -76,6 +76,7 @@ CAPABILITY_DEPARTMENT_MAP = {
     "summarization": "Documentation & Knowledge",
     "translate": "Documentation & Knowledge",
     "embedding": "Documentation & Knowledge",
+    "embedding_generation": "Documentation & Knowledge",
     "creative": "Creative & Design",
     "image": "Creative & Design",
     "image_generation": "Creative & Design",

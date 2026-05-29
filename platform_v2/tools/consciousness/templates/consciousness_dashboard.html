@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="/static/css/consciousness-dashboard-v2.css">
-<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://d3js.org/d3.v7.min.js" onerror="window._d3LoadFailed=true; var el=document.getElementById('graphLoading'); if(el) el.textContent='Graph unavailable — CDN unreachable. Reload when online.';"></script>
 {% endblock %}
 
 {% block title %}Consciousness - A.R.C.H.I.E.{% endblock %}
@@ -1857,7 +1857,9 @@
     background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
     color: rgba(255,255,255,0.5); cursor: pointer; transition: all 0.2s;
 }
+.cs-type-chip { cursor: pointer; }
 .cs-type-chip:hover { border-color: rgba(var(--cat-accent-rgb),0.3); color: #fff; }
+.cs-type-chip.active { background: rgba(var(--cat-accent-rgb),0.12); border-color: rgba(var(--cat-accent-rgb),0.55) !important; color: #fff; }
 .cs-type-chip .chip-count {
     font-family: 'Orbitron', sans-serif; font-size: 0.6rem; font-weight: 700;
 }
@@ -1871,6 +1873,12 @@
 .cs-type-chip.code .chip-count    { color: #f59e0b; }
 .cs-type-chip.api      { border-color: rgba(6,182,212,0.2); }
 .cs-type-chip.api .chip-count     { color: #06b6d4; }
+.cs-type-chip.mistake  { border-color: rgba(239,68,68,0.2); }
+.cs-type-chip.mistake .chip-count { color: #ef4444; }
+.cs-type-chip.cards    { border-color: rgba(244,114,182,0.2); }
+.cs-type-chip.cards .chip-count   { color: #f472b6; }
+.cs-type-chip.upgrade  { border-color: rgba(163,230,53,0.2); }
+.cs-type-chip.upgrade .chip-count { color: #a3e635; }
 
 /* --- Pagination --- */
 .cs-pagination {
@@ -3749,15 +3757,25 @@
               </div>
               <select id="kbFilterType" onchange="_cache.knowledge=false; loadKnowledgeBrowser()">
                 <option value="">All Types</option>
-                <option value="vault_note">Vault Notes</option>
-                <option value="conversation_memory">Conversations</option>
-                <option value="github_file">GitHub Files</option>
-                <option value="code_snippet">Code Snippets</option>
-                <option value="api_endpoint">API Endpoints</option>
-                <option value="knowledge_card_concept">Knowledge Cards</option>
-                <option value="improvement">Improvements</option>
-                <option value="mistake_learned">Mistakes Learned</option>
-                <option value="upgrade_suggestion">Upgrades</option>
+                <optgroup label="── High Value ──">
+                  <option value="mistake_learned">Mistakes Learned</option>
+                  <option value="vault_note">Vault Notes</option>
+                  <option value="code_snippet">Code Snippets</option>
+                  <option value="upgrade_suggestion">Upgrades &amp; Improvements</option>
+                </optgroup>
+                <optgroup label="── Knowledge Cards ──">
+                  <option value="knowledge_card">All Knowledge Cards</option>
+                  <option value="knowledge_card_concept">· Concept</option>
+                  <option value="knowledge_card_problem-solution">· Problem-Solution</option>
+                  <option value="knowledge_card_pattern">· Pattern</option>
+                  <option value="knowledge_card_reference">· Reference</option>
+                  <option value="knowledge_card_example">· Example</option>
+                </optgroup>
+                <optgroup label="── Sources ──">
+                  <option value="conversation_memory">Conversations</option>
+                  <option value="github_file">GitHub Files</option>
+                  <option value="api_endpoint">API Endpoints</option>
+                </optgroup>
               </select>
             </div>
             <div class="cs-card">

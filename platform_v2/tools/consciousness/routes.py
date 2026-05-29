@@ -1096,27 +1096,11 @@ def unified_recent_activity():
 
 
 # ============================================================================
-# KNOWLEDGE GRAPH & BACKLINKS (Migrated from Obsidian)
+# KNOWLEDGE GRAPH & BACKLINKS
 # ============================================================================
-
-
-@consciousness_bp.route("/knowledge/graph", methods=["GET"])
-@login_required
-@admin_required
-def get_knowledge_graph():
-    """
-    Get knowledge link graph for D3.js visualization.
-    Returns nodes and edges of all knowledge connections.
-    """
-    # TODO: Task #1806 — Knowledge Graph with wikilink/backlink relationships
-    return jsonify(
-        {
-            "success": True,
-            "graph": {"nodes": [], "edges": []},
-            "node_count": 0,
-            "edge_count": 0,
-        }
-    )
+# NOTE: Knowledge graph is served by knowledge_routes.py at
+# GET /api/knowledge/graph — this stub was removed (returned empty data).
+# ============================================================================
 
 
 @consciousness_bp.route("/brain-map/data", methods=["GET"])

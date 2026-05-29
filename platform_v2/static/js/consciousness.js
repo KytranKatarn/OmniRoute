@@ -571,21 +571,26 @@ function loadKnowledgeGraph() {
   var width = container.clientWidth || 800;
   var height = container.clientHeight || 500;
 
-  api("/api/knowledge/graph?limit=100").then(function(data) {
+  api("/api/knowledge/graph?limit=500").then(function(data) {
     if (!data.success || !data.nodes || !data.nodes.length) {
       setHtml("graphLoading", '<span style="color:rgba(255,255,255,0.4);">No graph data available. Add knowledge relationships to see connections.</span>');
       return;
     }
     document.getElementById("graphLoading").style.display = "none";
-    setHtml("graphNodeCount", data.node_count);
-    setHtml("graphEdgeCount", data.edge_count);
+    var totalEntries = data.total_kb_entries ? data.total_kb_entries.toLocaleString() : "?";
+    var totalRels = data.total_relationships ? data.total_relationships.toLocaleString() : "?";
+    var semCount = data.semantic_edge_count || 0;
+    setHtml("graphNodeCount", data.node_count + " / " + totalEntries);
+    setHtml("graphEdgeCount", data.edge_count + "+" + semCount + " / " + totalRels);
     _graphLoaded = true;
 
-    // Color by knowledge_type
     var typeColors = {
+      // knowledge_base types
       vault_note: "#8b5cf6", conversation_memory: "#3b82f6", github_file: "#22d3ee",
       code_snippet: "#f97316", api_endpoint: "#10b981", mistake_learned: "#ef4444",
-      improvement: "#a3e635", knowledge_card_concept: "#f472b6", upgrade_suggestion: "#fbbf24"
+      improvement: "#a3e635", knowledge_card_concept: "#f472b6", upgrade_suggestion: "#fbbf24",
+      // cross-table types (Dev HQ + Languages)
+      decision: "#fb923c", project: "#fbbf24", translation: "#10b981",
     };
     function nodeColor(d) { return typeColors[d.type] || "#6b7280"; }
 
@@ -594,31 +599,45 @@ function loadKnowledgeGraph() {
 
     var g = svg.append("g");
 
-    // Zoom
-    svg.call(d3.zoom().scaleExtent([0.2, 4]).on("zoom", function(e) {
+    svg.call(d3.zoom().scaleExtent([0.1, 6]).on("zoom", function(e) {
       g.attr("transform", e.transform);
     }));
 
-    // Build simulation
     var nodes = data.nodes.map(function(n) { return Object.assign({}, n); });
-    var edges = data.edges.filter(function(e) {
-      return nodes.find(function(n) { return n.id === e.source; }) &&
-             nodes.find(function(n) { return n.id === e.target; });
+    var nodeMap = {};
+    nodes.forEach(function(n) { nodeMap[n.id] = true; });
+
+    // Split explicit relationships (solid purple) from semantic similarity (dashed teal)
+    var explicitEdges = data.edges.filter(function(e) {
+      return e.kind === "explicit" && nodeMap[e.source] && nodeMap[e.target];
+    });
+    var semanticEdges = data.edges.filter(function(e) {
+      return e.kind === "semantic" && nodeMap[e.source] && nodeMap[e.target];
     });
 
+    // Two link forces: explicit pulls nodes close (strong), semantic creates
+    // cross-cluster web at larger distance (weak) — gives the interconnected look
     var simulation = d3.forceSimulation(nodes)
-      .force("link", d3.forceLink(edges).id(function(d) { return d.id; }).distance(80).strength(function(d) { return d.strength || 0.3; }))
-      .force("charge", d3.forceManyBody().strength(-120))
+      .force("explicit", d3.forceLink(explicitEdges).id(function(d) { return d.id; }).distance(60).strength(0.5))
+      .force("semantic", d3.forceLink(semanticEdges).id(function(d) { return d.id; }).distance(140).strength(0.06))
+      .force("charge", d3.forceManyBody().strength(-80))
       .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide().radius(function(d) { return 6 + d.importance * 14; }));
+      .force("collision", d3.forceCollide().radius(function(d) { return 5 + d.importance * 12; }));
 
-    // Edges
+    // Semantic similarity edges — drawn first so explicit renders on top
+    var semLink = g.append("g").attr("class", "graph-semantic-links")
+      .selectAll("line").data(semanticEdges).join("line")
+      .attr("stroke", "rgba(34,211,238,0.13)")
+      .attr("stroke-width", 0.6)
+      .attr("stroke-dasharray", "3,5");
+
+    // Explicit relationship edges — solid, width scaled to strength
     var link = g.append("g").attr("class", "graph-links")
-      .selectAll("line").data(edges).join("line")
-      .attr("stroke", "rgba(139,92,246,0.25)")
-      .attr("stroke-width", function(d) { return 1 + (d.strength || 0.5) * 3; });
+      .selectAll("line").data(explicitEdges).join("line")
+      .attr("stroke", "rgba(139,92,246,0.35)")
+      .attr("stroke-width", function(d) { return 1 + (d.strength || 0.5) * 2.5; });
 
-    // Nodes
+    // Nodes rendered on top of all edges
     var node = g.append("g").attr("class", "graph-nodes")
       .selectAll("circle").data(nodes).join("circle")
       .attr("r", function(d) { return 4 + d.importance * 12; })
@@ -631,27 +650,26 @@ function loadKnowledgeGraph() {
         .on("end", function(e, d) { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
       );
 
-    // Tooltips
     node.append("title").text(function(d) { return d.title; });
 
-    // Click to show details
     node.on("click", function(e, d) {
       var detail = document.getElementById("graphNodeDetail");
       detail.style.display = "block";
       setHtml("graphNodeTitle", escHtml(d.title));
-      setHtml("graphNodeMeta", "Type: " + escHtml(d.type) + " | Category: " + escHtml(d.category) + " | Importance: " + d.importance.toFixed(2));
+      var src = d.source_table ? " [" + escHtml(d.source_table) + "]" : "";
+      setHtml("graphNodeMeta", "Type: " + escHtml(d.type) + src + " | Category: " + escHtml(d.category) + " | Importance: " + d.importance.toFixed(2));
     });
 
-    // Labels for high-importance nodes
     g.append("g").attr("class", "graph-labels")
       .selectAll("text").data(nodes.filter(function(d) { return d.importance >= 0.8; })).join("text")
       .text(function(d) { return d.title.length > 25 ? d.title.substring(0, 22) + "..." : d.title; })
       .attr("font-size", "9px").attr("fill", "rgba(255,255,255,0.6)")
       .attr("font-family", "'IBM Plex Mono', monospace")
-      .attr("dx", 12).attr("dy", 4)
-      .each(function(d) { d._label = this; });
+      .attr("dx", 12).attr("dy", 4);
 
     simulation.on("tick", function() {
+      semLink.attr("x1", function(d) { return d.source.x; }).attr("y1", function(d) { return d.source.y; })
+             .attr("x2", function(d) { return d.target.x; }).attr("y2", function(d) { return d.target.y; });
       link.attr("x1", function(d) { return d.source.x; }).attr("y1", function(d) { return d.source.y; })
           .attr("x2", function(d) { return d.target.x; }).attr("y2", function(d) { return d.target.y; });
       node.attr("cx", function(d) { return d.x; }).attr("cy", function(d) { return d.y; });
@@ -679,33 +697,52 @@ function loadKnowledge() {
   _loadTypeSummary();
 }
 
+/* Chip click: toggle filter on/off, update active state, reload browser */
+window._kbChipClick = function(filterType) {
+  var sel = document.getElementById("kbFilterType");
+  if (sel) sel.value = (sel.value === filterType) ? "" : filterType;
+  _cache.knowledge = false;
+  document.querySelectorAll("#kbTypeSummary .cs-type-chip").forEach(function(c) {
+    c.classList.toggle("active", c.dataset.filter === (sel ? sel.value : ""));
+  });
+  loadKnowledgeBrowser();
+};
+
 function _loadTypeSummary() {
-  api("/knowledge/categories").then(function(data) {
-    var cats = data.categories || [];
-    var typeMap = {};
-    cats.forEach(function(c) {
-      var name = (c.category || c.name || "").toLowerCase();
-      if (name === "github") typeMap.github = (typeMap.github || 0) + (c.count || 0);
-      else if (name === "conversation") typeMap.convo = (typeMap.convo || 0) + (c.count || 0);
-      else if (name.indexOf("api") === 0) typeMap.api = (typeMap.api || 0) + (c.count || 0);
-      else if (name === "code_scan") typeMap.code = (typeMap.code || 0) + (c.count || 0);
-    });
+  var CHIPS = [
+    { group: "github_file",         filter: "github_file",         cls: "github",  label: "GitHub" },
+    { group: "conversation_memory", filter: "conversation_memory", cls: "convo",   label: "Conversations" },
+    { group: "vault_note",          filter: "vault_note",          cls: "vault",   label: "Vault Notes" },
+    { group: "knowledge_card",      filter: "knowledge_card",      cls: "cards",   label: "Knowledge Cards" },
+    { group: "mistake_learned",     filter: "mistake_learned",     cls: "mistake", label: "Mistakes" },
+    { group: "api_endpoint",        filter: "api_endpoint",        cls: "api",     label: "API" },
+    { group: "code_snippet",        filter: "code_snippet",        cls: "code",    label: "Code" },
+    { group: "upgrade_suggestion",  filter: "upgrade_suggestion",  cls: "upgrade", label: "Upgrades" },
+  ];
+  api("/knowledge/type-stats").then(function(data) {
+    var countMap = {};
+    (data.types || []).forEach(function(t) { countMap[t.type_group] = t.count; });
     var el = document.getElementById("kbTypeSummary");
     if (!el) return;
-    var html = '<span class="cs-type-chip github"><span class="chip-count">' + (typeMap.github || 0).toLocaleString() + '</span> GitHub</span>' +
-      '<span class="cs-type-chip convo"><span class="chip-count">' + (typeMap.convo || 0).toLocaleString() + '</span> Conversations</span>' +
-      '<span class="cs-type-chip api"><span class="chip-count">' + (typeMap.api || 0).toLocaleString() + '</span> API</span>' +
-      '<span class="cs-type-chip code"><span class="chip-count">' + (typeMap.code || 0).toLocaleString() + '</span> Code</span>';
+    var html = "";
+    CHIPS.forEach(function(chip) {
+      var cnt = countMap[chip.group] || 0;
+      if (!cnt) return;
+      html += '<span class="cs-type-chip ' + chip.cls + '" data-filter="' + chip.filter + '" ' +
+        'onclick="_kbChipClick(\'' + chip.filter + '\')" title="Filter: ' + chip.label + '">' +
+        '<span class="chip-count">' + cnt.toLocaleString() + "</span> " + chip.label + "</span>";
+    });
     setHtml(el, html);
   }).catch(function(err) {
-    console.error("API error:", err);
+    console.error("[TypeSummary]", err);
   });
 }
 
 function loadKnowledgeBrowser() {
   var search = document.getElementById("kbSearch");
   var typeFilter = document.getElementById("kbFilterType");
-  var params = "?limit=200";
+  var hasFilter = (typeFilter && typeFilter.value) || (search && search.value.trim());
+  var params = "?limit=" + (hasFilter ? 500 : 200);
   if (typeFilter && typeFilter.value) params += "&type=" + encodeURIComponent(typeFilter.value);
   if (search && search.value) params += "&search=" + encodeURIComponent(search.value);
 
@@ -731,7 +768,7 @@ function _renderKbPage() {
   var start = (_kbPage - 1) * _kbPageSize;
   var slice = _kbEntries.slice(start, start + _kbPageSize);
 
-  var html = '<div class="cs-table-wrap"><table class="cs-table"><thead><tr>' +
+  var html = '<div class="cs-table-wrap" style="overflow-x:auto;"><table class="cs-table" style="min-width:640px;"><thead><tr>' +
     '<th>Title</th><th>Type</th><th>Category</th><th class="center">Embedded</th><th>Created</th>' +
     '</tr></thead><tbody>';
   slice.forEach(function(e) {
@@ -771,11 +808,26 @@ function loadCategories() {
       setHtml("categoryGrid", '<div class="cs-empty">No categories found</div>');
       return;
     }
-    /* Sort by count descending */
-    cats.sort(function(a, b) { return (b.count || 0) - (a.count || 0); });
-    var maxCount = cats[0].count || 1;
+    // Separate virtual cross-table entries (project_decisions, translations)
+    // from regular knowledge_base categories
+    var virtual = cats.filter(function(c) { return c.virtual; });
+    var regular = cats.filter(function(c) { return !c.virtual; });
+    regular.sort(function(a, b) { return (b.count || 0) - (a.count || 0); });
+    var maxCount = regular.length ? (regular[0].count || 1) : 1;
     var html = '<div class="cs-cat-grid">';
-    cats.forEach(function(c) {
+
+    // Virtual categories at top — link to their own tabs, not browser filter
+    virtual.forEach(function(c) {
+      var cnt = c.count || 0;
+      html += '<div class="cs-cat-card tier-1" style="border-color:rgba(251,146,60,0.35);cursor:pointer;" onclick="switchConsciousnessTab(\'' + escHtml(c.link_tab || "knowledge") + '\')">' +
+        '<div class="cat-name" style="color:#fb923c;">' + escHtml(c.category) + ' ↗</div>' +
+        '<div class="cat-count">' + cnt.toLocaleString() + ' entries</div>' +
+        (c.description ? '<div style="font-size:0.7rem;color:rgba(255,255,255,0.35);margin-top:2px;">' + escHtml(c.description) + '</div>' : '') +
+        '</div>';
+    });
+
+    // Regular knowledge_base categories — click filters the browser
+    regular.forEach(function(c) {
       var cnt = c.count || 0;
       var tier = cnt >= 1000 ? "tier-1" : cnt >= 100 ? "tier-2" : cnt >= 10 ? "tier-3" : "tier-4";
       var barW = Math.max(5, Math.round(cnt / maxCount * 100));

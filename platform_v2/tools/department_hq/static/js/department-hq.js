@@ -5511,11 +5511,18 @@ async function loadClusterStats() {
                 var hbAge = n.hb_age_s != null ? (n.hb_age_s < 60 ? n.hb_age_s + 's' : Math.round(n.hb_age_s/60) + 'm') : '?';
                 var loadPct = n.max_conc > 0 ? Math.round(n.load / n.max_conc * 100) : 0;
                 var loadColor = loadPct > 150 ? '#ef4444' : loadPct > 80 ? '#f59e0b' : '#10b981';
+                // Models cell: "X avail · Y loaded". Available = on-disk, ready to
+                // serve (live-reconciled). Loaded = warm in RAM now (0 when idle is
+                // normal). Available colored red only when genuinely 0 (real problem).
+                var avail = (n.models_available != null) ? n.models_available : 0;
+                var availColor = avail > 0 ? '#e2e8f0' : '#ef4444';
+                var modelsCell = '<span style="color:' + availColor + ';font-weight:600;">' + _escWtf(avail) + '</span>' +
+                    '<span style="color:var(--dhq-text-dim);font-size:0.6rem;"> avail · ' + _escWtf(n.models) + ' loaded</span>';
                 return '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">' +
                     '<td style="padding:3px 6px;font-weight:600;white-space:nowrap;">' + _escWtf(n.name) + '</td>' +
                     '<td style="padding:3px 6px;text-align:center;">' + tier + '</td>' +
                     '<td style="padding:3px 6px;color:var(--dhq-text-dim);text-align:right;">' + _escWtf(n.ram_gb.toFixed(0)) + 'GB</td>' +
-                    '<td style="padding:3px 6px;text-align:right;">' + _escWtf(n.models) + ' 📦</td>' +
+                    '<td style="padding:3px 6px;text-align:right;white-space:nowrap;">' + modelsCell + '</td>' +
                     '<td style="padding:3px 6px;text-align:right;color:' + loadColor + ';">' + _escWtf(n.disp_5m) + '/5m</td>' +
                     '<td style="padding:3px 6px;text-align:right;color:' + hbColor + ';font-size:0.65rem;">' + _escWtf(hbAge) + '</td>' +
                     '</tr>';

@@ -250,6 +250,75 @@ def warmup_fleet_models():
     except Exception as e:
         logger.warning("[warmup_fleet] cycle failed: %s", e)
 
+    # Per-node pilot lights — guarantee ≥1 warm model on EVERY online node.
+    _warm_node_pilot_lights()
+
+
+def _warm_node_pilot_lights():
+    """Keep a small 'pilot light' model warm on every online fleet node.
+
+    The capability warmups above route via the dispatcher, which only warms the
+    node it happens to pick — an idle outpost the dispatcher never selects goes
+    cold and its next first dispatch eats a multi-minute cold load. This enqueues
+    a low-priority warmup task pinned to EACH online node (preferred_node_id), so
+    model_dispatch_worker dispatches it to that exact node, loading its smallest
+    model and resetting keep_alive (30m, > the 20-min warmup interval).
+
+    Fully ADR-013 compliant: routed through dispatch_pending_queue → the worker →
+    the dispatcher (visible in task_execution_log) — never a direct Ollama call.
+    priority=1 so real work always preempts; deduped + 5-min expiry so pilots
+    never pile up.
+    """
+    from database import get_db_cursor
+
+    # Smallest-first: cheapest useful always-ready engine per node.
+    PILOT_PREFERENCE = ["qwen2.5:1.5b", "llama3.2:3b", "nomic-embed-text"]
+    try:
+        with get_db_cursor(commit=True) as (_c, cur):
+            cur.execute(
+                """
+                SELECT rn.id, rn.node_name,
+                       array_agg(nom.model_name) FILTER (WHERE nom.is_available) AS models
+                FROM remote_nodes rn
+                LEFT JOIN node_ollama_models nom ON nom.node_id = rn.node_id
+                WHERE rn.is_active = TRUE
+                  AND rn.status = 'online'
+                  AND rn.last_heartbeat > NOW() - INTERVAL '2 minutes'
+                  AND rn.deployment_mode IS DISTINCT FROM 'starbase'
+                GROUP BY rn.id, rn.node_name
+                """
+            )
+            nodes = cur.fetchall()
+            queued = 0
+            for n in nodes:
+                models = n.get("models") or []
+                if not models:
+                    continue
+                pilot = next((m for m in PILOT_PREFERENCE if m in models), models[0])
+                # Skip if a pilot is already pending/running for this node.
+                cur.execute(
+                    """SELECT 1 FROM dispatch_pending_queue
+                       WHERE preferred_node_id = %s AND module_id = 'fleet_pilot'
+                         AND status IN ('queued', 'running') LIMIT 1""",
+                    (n["id"],),
+                )
+                if cur.fetchone():
+                    continue
+                cur.execute(
+                    """
+                    INSERT INTO dispatch_pending_queue
+                        (capability, model_needed, prompt, preferred_node_id,
+                         priority, module_id, source_product, expires_at)
+                    VALUES ('warmup', %s, 'ping', %s, 1, 'fleet_pilot', 'fleet_pilot',
+                            NOW() + INTERVAL '5 minutes')
+                    """,
+                    (pilot, n["id"]),
+                )
+                queued += 1
+        logger.debug("[warmup_fleet] pilot lights queued for %d node(s)", queued)
+    except Exception as exc:
+        logger.warning("[warmup_fleet] pilot-light enqueue failed: %s", exc)
+
 
 def save_model_state():
     """Job #46: Save current loaded models to DB for restart recovery."""

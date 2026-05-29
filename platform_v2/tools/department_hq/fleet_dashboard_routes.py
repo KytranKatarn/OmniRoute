@@ -2282,6 +2282,10 @@ def register_dashboard_routes(bp, auth_decorator):
                                (SELECT COUNT(*) FROM model_load_state mls WHERE mls.node_db_id = rn.id), 0
                            ) AS models_loaded,
                            COALESCE(
+                               (SELECT COUNT(*) FROM node_ollama_models nom
+                                WHERE nom.node_id = rn.node_id AND nom.is_available = TRUE), 0
+                           ) AS models_available,
+                           COALESCE(
                                (SELECT COUNT(*) FROM task_execution_log tel
                                 WHERE tel.node_used_id = rn.id
                                   AND tel.created_at > NOW() - INTERVAL '5 minutes'), 0
@@ -2307,6 +2311,7 @@ def register_dashboard_routes(bp, auth_decorator):
                             "load": int(r["current_load"] or 0),
                             "max_conc": int(r["max_concurrent"] or 5),
                             "models": int(r["models_loaded"] or 0),
+                            "models_available": int(r["models_available"] or 0),
                             "disp_5m": int(r["dispatches_5m"] or 0),
                             "hb_age_s": hb_age,
                             "stale": hb_age is None or hb_age > 120,

@@ -2227,7 +2227,11 @@ class DepartmentDispatcher:
                 "model": model,
                 "prompt": prompt,
                 "stream": False,
-                "keep_alive": "5m",
+                # 30m (was 5m) — keep the node's model warm between bursty
+                # dispatches so backlog work doesn't reload it every few minutes.
+                # Paired with the per-node pilot-light warmup (20-min cycle) this
+                # keeps every node continuously ready. (2026-05-29)
+                "keep_alive": "30m",
             }
             if system_prompt:
                 payload["system"] = system_prompt

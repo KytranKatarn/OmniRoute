@@ -16,11 +16,13 @@ dispatch_pending_queue. This worker is the single consumer.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
+import requests
 from database import get_db_cursor
 from psycopg2.extras import RealDictCursor
 
@@ -112,6 +114,240 @@ def _get_all_warm_nodes_for_models() -> dict[str, list[Optional[int]]]:
     return result
 
 
+# ── Fleet model reconciliation + auto-heal (2026-05-29) ───────────────────────
+# Three inventory sources drift out of sync with what a node's Ollama actually
+# holds:
+#   • remote_nodes.extra_capabilities.ollama_models  → BridgeDispatcher routing
+#   • node_ollama_models.is_available                → model_dispatch_worker
+#   • model_load_state / ARMADA panel                → operator visibility
+# When a node loses its models (e.g. Windows Docker Desktop volume reset on
+# Starship-246, 2026-05-29) the stale lists keep advertising models it no longer
+# has, so the dispatcher routes into a 404 black hole and the panel shows wrong
+# counts. This reconciler probes each online fleet node's live /api/tags hub-side
+# (canonical mesh transport) and makes the DB the truth, then auto-heals
+# genuinely-missing *registered* models via /api/pull — tier-gated so we never
+# pull a 7B onto a CPU outpost.
+
+_RECONCILE_INTERVAL_SEC = 60
+_last_reconcile_ts = 0.0
+# Per (node_db_id, model) re-pull cooldown — don't retry a stuck pull every cycle.
+_heal_cooldown: dict[str, float] = {}
+_HEAL_COOLDOWN_SEC = 1800  # 30 min between heal attempts per node+model
+_HEAL_MAX_PER_NODE_PER_CYCLE = 2  # cap concurrent re-pulls per node
+# Custom Modelfile models not in the public registry — /api/pull would 404.
+_NON_PULLABLE_PREFIXES = (
+    "qwen25-classify",
+    "qwen2.5-auditor",
+    "arctic-embed",
+    "dolphin3-8k",
+    "mistral-cpu",
+    "gemma2-cpu",
+    "minicpm-v-cpu",
+)
+_runtime_unpullable: set[str] = set()
+
+
+def _node_live_models(mesh_ip: str, port: int) -> Optional[set[str]]:
+    """Live model-name set from a node's Ollama /api/tags.
+
+    Returns None if unreachable (distinct from an empty set, which means the
+    node is up but holds zero models — the wipe case worth healing).
+    """
+    try:
+        resp = requests.get(f"http://{mesh_ip}:{port}/api/tags", timeout=4)
+        if resp.status_code == 200:
+            return {m.get("name", "") for m in resp.json().get("models", []) if m.get("name")}
+    except Exception as exc:
+        log.debug("reconcile: %s:%s /api/tags unreachable: %s", mesh_ip, port, exc)
+    return None
+
+
+def _is_pullable(model: str) -> bool:
+    if model in _runtime_unpullable:
+        return False
+    return not any(model.startswith(p) for p in _NON_PULLABLE_PREFIXES)
+
+
+def _heal_pull_model(mesh_ip: str, port: int, model: str, node_str_id: str, node_db_id: int) -> None:
+    """Background re-pull of a missing registered model on a fleet node.
+
+    Runs in _CPU_EXECUTOR. On success, flips node_ollama_models.is_available back
+    on so dispatch resumes. On a registry error (custom model), records the model
+    as unpullable so we stop retrying it.
+    """
+    try:
+        log.warning("reconcile: auto-heal pulling %s on node_db=%s (%s)", model, node_db_id, mesh_ip)
+        resp = requests.post(
+            f"http://{mesh_ip}:{port}/api/pull",
+            json={"name": model},
+            timeout=2400,
+            stream=True,
+        )
+        ok = False
+        for raw in resp.iter_lines():
+            if not raw:
+                continue
+            try:
+                evt = json.loads(raw)
+            except Exception:
+                continue
+            if evt.get("error"):
+                _runtime_unpullable.add(model)
+                log.warning("reconcile: %s not pullable on %s: %s", model, mesh_ip, evt.get("error"))
+                return
+            if evt.get("status") == "success":
+                ok = True
+        if ok:
+            log.info("reconcile: auto-heal restored %s on node_db=%s", model, node_db_id)
+            try:
+                with get_db_cursor(commit=True) as (_c, cur):
+                    cur.execute(
+                        "UPDATE node_ollama_models SET is_available = TRUE " "WHERE node_id = %s AND model_name = %s",
+                        (node_str_id, model),
+                    )
+            except Exception:
+                pass
+    except Exception as exc:
+        log.warning("reconcile: auto-heal pull %s on %s failed: %s", model, mesh_ip, exc)
+
+
+def reconcile_fleet_models() -> None:
+    """Sync each online fleet node's advertised models against live /api/tags.
+
+    Authoritative, hub-side. Updates all three inventory sources so the
+    dispatcher (BridgeDispatcher + model_dispatch_worker) and the ARMADA panel
+    see live truth, then auto-heals genuinely-missing registered models
+    (tier-gated, throttled). Hub is excluded — its models are managed via the
+    warm-set health check, not the fleet node registry.
+
+    Throttled to probe at most once per _RECONCILE_INTERVAL_SEC; safe to call
+    every worker cycle.
+    """
+    global _last_reconcile_ts
+    now = time.time()
+    if now - _last_reconcile_ts < _RECONCILE_INTERVAL_SEC:
+        return
+    _last_reconcile_ts = now
+
+    try:
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                """
+                SELECT id, node_id, node_name, mesh_ip, COALESCE(port, 11434) AS port,
+                       gpu_available, gpu_vram_gb, ram_gb, current_load,
+                       max_concurrent, priority, last_heartbeat,
+                       extra_capabilities, deployment_mode
+                FROM remote_nodes
+                WHERE is_active = TRUE
+                  AND status = 'online'
+                  AND last_heartbeat > NOW() - INTERVAL '2 minutes'
+                  AND mesh_ip IS NOT NULL
+                  AND deployment_mode IS DISTINCT FROM 'starbase'
+                  AND mesh_ip NOT IN ('host.docker.internal', '127.0.0.1', 'localhost')
+                """
+            )
+            nodes = [dict(r) for r in cur.fetchall()]
+    except Exception as exc:
+        log.warning("reconcile: node list query failed: %s", exc)
+        return
+
+    try:
+        from services.fleet_resource_router import score_node_for_model
+    except Exception:
+        score_node_for_model = None  # type: ignore
+
+    for node in nodes:
+        node_db_id = node["id"]
+        node_str_id = node["node_id"]
+        live = _node_live_models(node["mesh_ip"], node["port"])
+
+        if live is None:
+            # Unreachable — flag ollama unavailable, leave model lists intact
+            # (a brief blip must not erase a node's whole inventory).
+            try:
+                with get_db_cursor(commit=True) as (_c, cur):
+                    cur.execute(
+                        "UPDATE remote_nodes SET ollama_available = FALSE WHERE id = %s",
+                        (node_db_id,),
+                    )
+            except Exception:
+                pass
+            continue
+
+        missing: list[str] = []
+        try:
+            with get_db_cursor(commit=True) as (_c, cur):
+                # 1. Advertised list + availability flag (BridgeDispatcher source)
+                cur.execute(
+                    """
+                    UPDATE remote_nodes
+                    SET ollama_available = %s,
+                        extra_capabilities = jsonb_set(
+                            COALESCE(extra_capabilities, '{}'::jsonb),
+                            '{ollama_models}', %s::jsonb, true)
+                    WHERE id = %s
+                    """,
+                    (len(live) > 0, json.dumps(sorted(live)), node_db_id),
+                )
+                # 2. Upsert live models (model_dispatch_worker source)
+                for m in live:
+                    cur.execute(
+                        """
+                        INSERT INTO node_ollama_models (node_id, model_name, is_available)
+                        VALUES (%s, %s, TRUE)
+                        ON CONFLICT (node_id, model_name)
+                        DO UPDATE SET is_available = TRUE
+                        """,
+                        (node_str_id, m),
+                    )
+                # 3. Registered-but-not-live → mark unavailable; collect for heal
+                cur.execute(
+                    "SELECT model_name FROM node_ollama_models WHERE node_id = %s",
+                    (node_str_id,),
+                )
+                registered = [r["model_name"] for r in cur.fetchall()]
+                missing = [m for m in registered if m not in live]
+                if missing:
+                    cur.execute(
+                        "UPDATE node_ollama_models SET is_available = FALSE "
+                        "WHERE node_id = %s AND model_name = ANY(%s)",
+                        (node_str_id, missing),
+                    )
+        except Exception as exc:
+            log.warning("reconcile: DB sync failed for %s: %s", node["node_name"], exc)
+            continue
+
+        # 4. Auto-heal: re-pull registered models that vanished (tier-gated)
+        if not missing:
+            continue
+        healed = 0
+        for m in missing:
+            if healed >= _HEAL_MAX_PER_NODE_PER_CYCLE:
+                break
+            if not _is_pullable(m):
+                continue
+            if score_node_for_model is not None:
+                try:
+                    if score_node_for_model(node, m) is None:
+                        continue  # model can't fit this node's tier — skip
+                except Exception:
+                    pass
+            key = f"{node_db_id}:{m}"
+            if now - _heal_cooldown.get(key, 0) < _HEAL_COOLDOWN_SEC:
+                continue
+            _heal_cooldown[key] = now
+            _CPU_EXECUTOR.submit(_heal_pull_model, node["mesh_ip"], node["port"], m, node_str_id, node_db_id)
+            healed += 1
+        log.warning(
+            "reconcile: %s missing %d/%d registered models live (healing %d): %s",
+            node["node_name"],
+            len(missing),
+            len(registered),
+            healed,
+            missing,
+        )
+
+
 def _claim_tasks(model_needed: str, limit: int = MAX_TASKS_PER_MODEL) -> list[dict]:
     """Atomically claim up to `limit` queued tasks for a given model."""
     try:
@@ -124,6 +360,7 @@ def _claim_tasks(model_needed: str, limit: int = MAX_TASKS_PER_MODEL) -> list[di
                     SELECT id FROM dispatch_pending_queue
                     WHERE status = 'queued'
                       AND model_needed = %s
+                      AND preferred_node_id IS NULL
                       AND (expires_at IS NULL OR expires_at > NOW())
                     ORDER BY priority DESC, queued_at ASC
                     LIMIT %s
@@ -768,6 +1005,14 @@ def model_dispatch_worker() -> None:
     start = time.time()
     total_executed = 0
     futures = []
+
+    # 0. Keep fleet inventory honest before routing (throttled to 60s internally).
+    #    Prevents routing into a node whose advertised models are stale (the
+    #    Starship-246 wipe case) and auto-heals genuinely-missing models.
+    try:
+        reconcile_fleet_models()
+    except Exception as exc:
+        log.debug("model_dispatch: reconcile skipped: %s", exc)
 
     # 1. Expire stale tasks
     expired = _expire_stale_tasks()

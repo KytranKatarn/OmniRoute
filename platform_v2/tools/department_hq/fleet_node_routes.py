@@ -1752,7 +1752,14 @@ def register_node_routes(bp, login_required, admin_required):
                         gpu_model = COALESCE(%s, gpu_model),
                         gpu_vram_gb = COALESCE(%s, gpu_vram_gb),
                         -- AI Service availability (Phase 72)
-                        ollama_available = COALESCE(%s, ollama_available),
+                        -- Heartbeat may only turn ollama_available ON. The false
+                        -- decision is owned by the hub-side live /api/tags probe in
+                        -- model_dispatch_service.reconcile_fleet_models() — some nodes
+                        -- (Windows Docker Desktop starships) wrongly self-report
+                        -- ollama_available=false while Ollama is up with models, which
+                        -- excluded them from the warm-node dispatch path (2026-05-29).
+                        ollama_available = CASE WHEN %s IS TRUE THEN TRUE
+                                                ELSE ollama_available END,
                         foocus_available = COALESCE(%s, foocus_available),
                         comfyui_available = COALESCE(%s, comfyui_available),
                         auto1111_available = COALESCE(%s, auto1111_available),

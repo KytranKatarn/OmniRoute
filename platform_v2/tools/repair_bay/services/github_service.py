@@ -335,12 +335,13 @@ def merge_pr(pr_number: int, method: str = "squash") -> Dict:
         if resp.status_code >= 300:
             return {
                 "success": False,
+                "merged": False,
                 "error": f"Merge failed: HTTP {resp.status_code} - {resp.text[:200]}",
             }
         ok = True
         data = resp.json()
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "merged": False, "error": str(e)}
 
     # Delete the branch after merge
     if ok:
@@ -359,9 +360,13 @@ def merge_pr(pr_number: int, method: str = "squash") -> Dict:
 
     return {
         "success": True,
+        # GitHub's merge response carries "merged": true; default True since a
+        # <300 status already confirmed the merge. Callers check .get("merged").
+        "merged": bool(data.get("merged", True)),
         "pr_number": pr_number,
         "method": method,
         "sha": data.get("sha", ""),
+        "message": data.get("message", ""),
     }
 
 

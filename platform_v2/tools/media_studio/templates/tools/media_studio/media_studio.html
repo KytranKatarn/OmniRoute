@@ -1859,6 +1859,42 @@
             addMeta("created", "Created", item.created_at, true);
             body.appendChild(metaGrid);
 
+            // Category selector — change this asset's gallery type (asset_type).
+            // Lets you move a picture between the Portraits / Lifestyle / Social
+            // tabs. Calls PUT /api/gallery/<id>/asset-type then refreshes the grid.
+            var catRow = document.createElement("div");
+            catRow.className = "ms-modal-meta";
+            var catLabel = document.createElement("span");
+            catLabel.className = "ms-modal-meta-label";
+            catLabel.textContent = "Category";
+            catRow.appendChild(catLabel);
+            var catSel = document.createElement("select");
+            catSel.className = "ms-modal-meta-value";
+            catSel.style.cssText = "background:#0d1117;color:#c9d1d9;border:1px solid rgba(236,72,153,0.3);border-radius:6px;padding:4px 8px;font-size:0.75rem;cursor:pointer;";
+            var _curType = (item.metadata && item.metadata.asset_type) || "";
+            [["", "— Uncategorized —"], ["portrait", "Portraits"], ["lifestyle", "Lifestyle"], ["social", "Social"], ["brand", "Brand"]].forEach(function(o) {
+                var opt = document.createElement("option");
+                opt.value = o[0]; opt.textContent = o[1];
+                if (o[0] === _curType) opt.selected = true;
+                catSel.appendChild(opt);
+            });
+            catSel.addEventListener("change", function() {
+                var newType = catSel.value;
+                if (!newType) return;  // PUT endpoint rejects empty; ignore the placeholder
+                catSel.disabled = true;
+                api("PUT", "/api/gallery/" + item.id + "/asset-type", { asset_type: newType }).then(function() {
+                    item.metadata = item.metadata || {};
+                    item.metadata.asset_type = newType;
+                    catSel.disabled = false;
+                    if (window.msGallery && typeof msGallery.loadAssets === "function") msGallery.loadAssets();
+                }).catch(function(err) {
+                    catSel.disabled = false;
+                    alert("Failed to change category: " + (err.message || err));
+                });
+            });
+            catRow.appendChild(catSel);
+            body.appendChild(catRow);
+
             // Negative prompt (optional)
             if (item.negative_prompt) {
                 var negGrid = document.createElement("div");

@@ -805,6 +805,17 @@ def _step_muse_synthesize(
     try:
         import json as _json
 
+        # #3454: synthesis reliability. M.U.S.E. was assigned mistral:7b, which
+        # cold-loads/evicts on the 8GB hub Quadro (6 models competing) —
+        # task_execution_log showed creative synthesis ranging 25s–619s, and the
+        # 619s/257s cold outliers blew past the 240s worker cap = the "M.U.S.E.
+        # synthesis timed out" the user hit. The SAME synthesis on qwen2.5:7b
+        # (a primary always-warm hub model, stronger at the strict JSON contract)
+        # runs in ~3.5s. The dispatcher binds model→agent and prefer_model/
+        # prefer_agent are NOT reliably honored (#3462), so the only dependable
+        # lever is M.U.S.E.'s assigned model: she is reassigned to qwen2.5:7b.
+        # capability='creative' reliably routes to M.U.S.E. (verified), so this
+        # call now resolves to M.U.S.E.@qwen2.5:7b with no fragile prefer_* hints.
         raw = _fleet_dispatch(
             capability="creative",
             prompt=synthesis_prompt,

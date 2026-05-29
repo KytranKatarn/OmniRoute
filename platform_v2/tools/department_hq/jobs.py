@@ -2573,6 +2573,14 @@ def _register_own_jobs(scheduler, flask_app):
                 if not isinstance(parsed, dict):
                     parsed = {}
                 try:
+                    _prov = parsed.get("province_code")
+                    _city = parsed.get("city")
+                    # T3481 retry-cap: if the model finds NO mappable location
+                    # (no province AND no city), the row would stay province_code
+                    # IS NULL and be re-fetched every cycle forever. Mark it
+                    # geo_scope='unmappable' (already a valid CHECK value) so the
+                    # geo SELECTs permanently exclude it — lets the backlog drain.
+                    _gs = "unmappable" if (not _prov and not _city) else (parsed.get("geo_scope") or "national")
                     with _wtf_cur(commit=True) as cur:
                         cur.execute(
                             """
@@ -2582,11 +2590,11 @@ def _register_own_jobs(scheduler, flask_app):
                             WHERE id = %s AND province_code IS NULL
                             """,
                             (
-                                parsed.get("province_code"),
-                                parsed.get("city"),
+                                _prov,
+                                _city,
                                 parsed.get("lat"),
                                 parsed.get("lng"),
-                                parsed.get("geo_scope") or "national",
+                                _gs,
                                 aid,
                             ),
                         )
@@ -2610,6 +2618,7 @@ def _register_own_jobs(scheduler, flask_app):
                         FROM wtf.articles a
                         WHERE a.province_code IS NULL
                           AND a.city IS NULL
+                          AND a.geo_scope <> 'unmappable'
                           AND a.published_at > NOW() - INTERVAL '90 days'
                           AND a.id != ALL(%s)
                         ORDER BY a.published_at DESC
@@ -2623,7 +2632,9 @@ def _register_own_jobs(scheduler, flask_app):
                     break
 
                 _workers, _qdepth, _by_model = _wtf_cluster_slots()
-                _geo_queued = _by_model.get("llama3.2:3b", {}).get("queued", 0)
+                _geo_queued = _by_model.get("qwen2.5:1.5b", {}).get(
+                    "queued", 0
+                )  # T3481: L.O.C.A.L. runs qwen2.5:1.5b, not llama3.2:3b
                 if _geo_queued > 10:
                     # L.O.C.A.L.'s model is cold — adding more dispatches just grows the backlog.
                     # The model_dispatch_worker will drain the existing queue; retry next cycle.
@@ -3263,8 +3274,14 @@ def _register_own_jobs(scheduler, flask_app):
                     '"city": "Toronto" or null, "lat": float or null, "lng": float or null, '
                     '"geo_scope": "national|provincial|municipal|international", "geo_confidence": 0.0-1.0}'
                 )
+                # T3481: dispatch capability='geo_extraction' (REGISTERED — L.O.C.A.L.
+                # has it at Lv5, routes to News & Media on a small fleet model). The
+                # old 'geo_backlog' string is NOT a registered capability/skill, so it
+                # failed skill-matching and misrouted to F.O.R.G.E./P.R.O.B.E. on the
+                # hub's mistral:7b (47-521s each, 253 fails/cycle), saturating the hub
+                # GPU and starving interactive work (portrait synthesis, #3454).
                 result = dispatch(
-                    capability="geo_backlog",
+                    capability="geo_extraction",
                     prompt=prompt,
                     module_id="wtf_dhq_geo_backlog",
                     json_mode=True,
@@ -3280,6 +3297,14 @@ def _register_own_jobs(scheduler, flask_app):
                 if not isinstance(parsed, dict):
                     parsed = {}
                 try:
+                    _prov = parsed.get("province_code")
+                    _city = parsed.get("city")
+                    # T3481 retry-cap: if the model finds NO mappable location
+                    # (no province AND no city), the row would stay province_code
+                    # IS NULL and be re-fetched every cycle forever. Mark it
+                    # geo_scope='unmappable' (already a valid CHECK value) so the
+                    # geo SELECTs permanently exclude it — lets the backlog drain.
+                    _gs = "unmappable" if (not _prov and not _city) else (parsed.get("geo_scope") or "national")
                     with _wtf_cur(commit=True) as cur:
                         cur.execute(
                             """
@@ -3289,11 +3314,11 @@ def _register_own_jobs(scheduler, flask_app):
                             WHERE id = %s AND province_code IS NULL
                             """,
                             (
-                                parsed.get("province_code"),
-                                parsed.get("city"),
+                                _prov,
+                                _city,
                                 parsed.get("lat"),
                                 parsed.get("lng"),
-                                parsed.get("geo_scope") or "national",
+                                _gs,
                                 aid,
                             ),
                         )
@@ -3317,6 +3342,7 @@ def _register_own_jobs(scheduler, flask_app):
                         FROM wtf.articles a
                         WHERE a.province_code IS NULL
                           AND a.city IS NULL
+                          AND a.geo_scope <> 'unmappable'
                           AND a.published_at > NOW() - INTERVAL '90 days'
                           AND a.id != ALL(%s)
                         ORDER BY a.published_at ASC
@@ -3331,7 +3357,9 @@ def _register_own_jobs(scheduler, flask_app):
                     break
 
                 _workers, _qdepth, _by_model = _wtf_cluster_slots()
-                _geo_queued = _by_model.get("llama3.2:3b", {}).get("queued", 0)
+                _geo_queued = _by_model.get("qwen2.5:1.5b", {}).get(
+                    "queued", 0
+                )  # T3481: L.O.C.A.L. runs qwen2.5:1.5b, not llama3.2:3b
                 if _geo_queued > 10:
                     logger.info("[WTFGeoBacklog] L.O.C.A.L. model cold (%d items queued) — deferring", _geo_queued)
                     return

@@ -187,31 +187,44 @@ def setup_logging(app_name: str = "archie_platform", debug: bool = False) -> log
     console_handler.setFormatter(console_formatter)
     logger.addHandler(console_handler)
 
-    # File handlers with rotation (30-day retention)
-    # Rotate logs daily, keep 30 days
+    # File handlers with SIZE-BASED rotation.
+    #
+    # CRITICAL (#3471): these logs live on a 64MB tmpfs (see docker-compose.yml
+    # `/mnt/archie_brain/logs:size=64m` on archie_platform + archie_scheduler).
+    # The previous TimedRotatingFileHandler(when="midnight") only rotated once a
+    # day and had NO size cap — a high-volume day (e.g. per-request info logging)
+    # or an error cascade filled the tmpfs long before midnight, so EVERY write
+    # then failed with OSError [Errno 28] No space left on device, cascading into
+    # DB/log/API failures and "network error" in the browser even though host
+    # disk had GB free. KB #269302.
+    #
+    # Size-based rotation hard-caps each file regardless of time. Worst-case
+    # footprint per file = max_mb * (backup_count + 1). The budget below sums to
+    # ~45MB worst case, leaving comfortable headroom under the 64MB tmpfs.
+    ROTATION_BUDGET = {
+        # level_name: (max_mb_per_file, backup_count)
+        "debug": (2, 1),
+        "info": (4, 2),
+        "warning": (2, 1),
+        "error": (3, 2),
+        "critical": (2, 1),
+        "audit": (4, 2),
+    }
     for level_name, log_file in LOG_FILES.items():
+        max_mb, backups = ROTATION_BUDGET.get(level_name, (3, 1))
+        file_handler = logging.handlers.RotatingFileHandler(
+            filename=log_file,
+            maxBytes=max_mb * 1024 * 1024,
+            backupCount=backups,
+            encoding="utf-8",
+        )
         if level_name == "audit":
             # Audit log gets all levels
-            file_handler = logging.handlers.TimedRotatingFileHandler(
-                filename=log_file,
-                when="midnight",
-                interval=1,
-                backupCount=30,
-                encoding="utf-8",
-            )
             file_handler.setLevel(logging.DEBUG)
         else:
-            # Regular logs by level
+            # Regular logs by level — only this level and above
             level = getattr(logging, level_name.upper())
-            file_handler = logging.handlers.TimedRotatingFileHandler(
-                filename=log_file,
-                when="midnight",
-                interval=1,
-                backupCount=30,
-                encoding="utf-8",
-            )
             file_handler.setLevel(level)
-            # Only log this level and above
             file_handler.addFilter(lambda record, lvl=level: record.levelno >= lvl)
 
         file_handler.setFormatter(json_formatter)

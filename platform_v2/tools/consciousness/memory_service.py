@@ -3,7 +3,7 @@ Memory Service - Phase 9: Long-Term Memory
 Provides semantic search, memory collections, and decay management
 
 Features:
-- Embedding generation via Ollama (nomic-embed-text)
+- Embedding generation via the fleet-aware embedding service (arctic-embed-cpu, 768-dim, #3525)
 - Semantic similarity search
 - Memory collections CRUD
 - Memory associations

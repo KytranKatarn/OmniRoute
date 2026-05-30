@@ -52,9 +52,12 @@ _HOSTS_CACHE_TTL = 30  # seconds — cap DB lookups during bulk KB indexing
 
 
 def _resolve_embedding_hosts() -> list[str]:
-    """Ordered list of embedding endpoints: online fleet nodes that have the
-    embedding model available (mesh IPs), then OLLAMA_HOST (hub) as final
-    fallback. Fully defensive — any error returns just [OLLAMA_HOST]."""
+    """Ordered list of embedding endpoints, tier-first: GPU/Starship fleet
+    nodes, then CPU outposts, then OLLAMA_HOST (hub) as final fallback. Within
+    a tier, least-loaded first. The embedder runs num_gpu:0 (CPU) on every
+    node, so the GPU-first preference is about node tier / keeping the hub free
+    for large models — not GPU acceleration of the embed itself.
+    Fully defensive — any error returns just [OLLAMA_HOST]."""
     import time
 
     now = time.time()
@@ -77,7 +80,15 @@ def _resolve_embedding_hosts() -> list[str]:
                   AND r.is_active = TRUE
                   AND r.last_heartbeat > NOW() - INTERVAL '3 minutes'
                   AND r.mesh_ip IS NOT NULL
-                ORDER BY r.current_load ASC NULLS LAST, random()
+                  -- Exclude the hub (starbase) here — it is appended last as
+                  -- the OLLAMA_HOST fallback, so the pool prefers fleet nodes
+                  -- and keeps the hub free for large models.
+                  AND r.deployment_mode IS DISTINCT FROM 'starbase'
+                -- Tier-first (#3): GPU/Starship nodes before CPU outposts,
+                -- least-loaded within a tier. Hub is appended last below.
+                ORDER BY r.gpu_available DESC NULLS LAST,
+                         r.current_load ASC NULLS LAST,
+                         random()
                 """,
                 (EMBEDDING_MODEL,),
             )

@@ -2232,15 +2232,19 @@ class DepartmentDispatcher:
         # Call the node's Ollama API directly via mesh_ip — no local warm-boot
         # check; Ollama loads models on-demand and the timeout covers cold load.
         try:
+            # keep_alive is node-aware (2026-05-30): GPU fleet nodes (Starships,
+            # 4-8 GB VRAM) can only hold one 7B at a time, so pinning it 30m
+            # starves the GPU for any other work — keep them warm only 5m so the
+            # GPU frees up between bursts. CPU outposts have no VRAM pressure, so
+            # keep their small models warm 30m (cheap to hold, avoids reloads).
+            # locals().get guards the case where node_row was never assigned.
+            _nr = locals().get("node_row")
+            _node_keep_alive = "5m" if (_nr and _nr.get("gpu_available")) else "30m"
             payload = {
                 "model": model,
                 "prompt": prompt,
                 "stream": False,
-                # 30m (was 5m) — keep the node's model warm between bursty
-                # dispatches so backlog work doesn't reload it every few minutes.
-                # Paired with the per-node pilot-light warmup (20-min cycle) this
-                # keeps every node continuously ready. (2026-05-29)
-                "keep_alive": "30m",
+                "keep_alive": _node_keep_alive,
             }
             if system_prompt:
                 payload["system"] = system_prompt

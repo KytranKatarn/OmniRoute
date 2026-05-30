@@ -2976,6 +2976,39 @@ _startup_mcp_sync_and_health()
 
 
 # ============================================================================
+# FLEET PING CLEANUP - Clear orphaned fleet handshake jobs on startup
+# ============================================================================
+def _clear_stale_fleet_ping_jobs():
+    """Mark orphaned fleet 'ping' handshake jobs as failed on boot (Dev HQ task #3339).
+
+    Fleet warmup/pilot handshakes create bridge_jobs 'running' rows that never
+    complete when archie_platform restarts mid-handshake. Left as 'running',
+    the busy-detector treats them as capacity pressure and triggers spurious
+    cloud-throughput escalations. This scopes the cleanup to stale fleet-ping
+    'running' rows older than 5 minutes. Mirrors scan_service auto-recovery.
+    Wrapped so it can never block boot.
+    """
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (_, cur):
+            cur.execute(
+                """UPDATE bridge_jobs SET status='failed', error_message='Cleared on restart'
+                   WHERE status='running'
+                     AND (module_source IN ('fleet_pilot', 'fleet_warmup') OR description ILIKE '%ping%')
+                     AND created_at < NOW() - INTERVAL '5 minutes'"""
+            )
+            cleared = cur.rowcount
+        if cleared:
+            logger.info(f"[fleet] Cleared {cleared} stale fleet ping job(s) on startup")
+    except Exception as e:
+        logger.warning(f"[fleet] Stale ping cleanup failed: {e}")
+
+
+_clear_stale_fleet_ping_jobs()
+
+
+# ============================================================================
 # SANDBOX MODE CONTEXT PROCESSOR
 # ============================================================================
 

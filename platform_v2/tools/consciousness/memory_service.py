@@ -152,6 +152,16 @@ def semantic_search(
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
+        # Recall fix: pgvector's default ivfflat.probes=1 scans a single list, so
+        # it routinely misses the BEST match — including freshly-embedded entries
+        # (e.g. KB #269331 had the top cosine sim 0.605 yet never surfaced at
+        # probes=1). Probing more lists restores recall; cost is negligible on a
+        # ~30K-row index. try/except keeps non-ivfflat / older pgvector safe.
+        try:
+            cur.execute("SET ivfflat.probes = 10")
+        except Exception:
+            pass
+
         # pgvector native similarity search — uses IVFFlat index (idx_kb_embedding)
         # 1 - (embedding <=> query) converts cosine distance → cosine similarity
         if source_types:

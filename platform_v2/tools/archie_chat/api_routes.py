@@ -9,7 +9,7 @@ import logging
 import time
 
 from flask import request, jsonify
-from flask_login import login_required
+from flask_login import login_required, current_user
 
 from .auth_middleware import (
     chat_auth_required,

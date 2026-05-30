@@ -3209,6 +3209,28 @@ def edu_api_sources():
             ORDER BY s.name
         """)).mappings().all()
 
+    def _domain_from_url(u):
+        """Derive a bare matchable domain from a source url.
+
+        Browser-extension keys link matching strictly on `domain`, so every
+        source must expose one. urlparse handles urls with/without scheme.
+        """
+        if not u:
+            return None
+        try:
+            netloc = urllib.parse.urlparse(u).hostname
+            if not netloc:
+                # url stored without scheme (e.g. "cbc.ca/news") — fall back
+                netloc = urllib.parse.urlparse("//" + u).hostname
+            if not netloc:
+                return None
+            netloc = netloc.lower()
+            if netloc.startswith("www."):
+                netloc = netloc[4:]
+            return netloc
+        except Exception:
+            return None
+
     return _api_cors_response({
         "ok": True,
         "count": len(rows),
@@ -3217,8 +3239,11 @@ def edu_api_sources():
                 "slug": r["slug"],
                 "name": r["name"],
                 "url": r["url"],
+                "domain": _domain_from_url(r["url"]),
                 "bias_lean": r["bias_lean"],
                 "avg_score": float(r["avg_score"]) if r.get("avg_score") is not None else None,
+                # alias for browser extension which expects numeric src.bias_score
+                "bias_score": float(r["avg_score"]) if r.get("avg_score") is not None else None,
                 "band": r["band"],
                 "outlet_count": int(r["outlet_count"]),
                 "owner_name": r["owner_name"],

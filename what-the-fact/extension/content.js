@@ -59,6 +59,23 @@ const CANADIAN_NEWS_DOMAINS = new Set([
   "rcinet.ca",
 ]);
 
+// Map a categorical WTF bias_lean label to a CSS class name.
+// The API exposes labels like: left, center-left, center, center-right, right.
+function biasLeanToClass(lean) {
+  if (!lean) return null;
+  const l = String(lean).toLowerCase().replace(/_/g, "-").trim();
+  if (l === "left" || l === "center-left" || l === "centre-left") {
+    return "wtf-bias-left";
+  }
+  if (l === "right" || l === "center-right" || l === "centre-right") {
+    return "wtf-bias-right";
+  }
+  if (l === "center" || l === "centre" || l === "balanced" || l === "mixed") {
+    return "wtf-bias-centre";
+  }
+  return null;
+}
+
 // Map WTF bias scores to CSS class names
 // WTF uses a numeric scale; we bucket into left/centre/right
 function biasScoreToClass(score) {
@@ -66,6 +83,15 @@ function biasScoreToClass(score) {
   if (score < -0.2) return "wtf-bias-left";
   if (score > 0.2) return "wtf-bias-right";
   return "wtf-bias-centre";
+}
+
+// Resolve the best bias class for a source: prefer the categorical
+// bias_lean label (renders even when avg_score is NULL), fall back to
+// the numeric bias_score bucket.
+function resolveBiasClass(score, lean) {
+  const leanClass = biasLeanToClass(lean);
+  if (leanClass) return leanClass;
+  return biasScoreToClass(score);
 }
 
 // Extract root domain from a URL string
@@ -113,14 +139,17 @@ async function getSources() {
   });
 }
 
-// Build a lookup map: domain → bias_score
+// Build a lookup map: domain → { score, lean }
 function buildBiasMap(sources) {
   const map = {};
   for (const src of sources) {
     if (src.domain) {
       // Normalise domain
       const domain = src.domain.replace(/^www\./, "").toLowerCase();
-      map[domain] = src.bias_score ?? null;
+      map[domain] = {
+        score: src.bias_score ?? src.avg_score ?? null,
+        lean: src.bias_lean ?? null,
+      };
     }
   }
   return map;
@@ -189,8 +218,10 @@ async function scanLinks(biasMap, sourcesArray) {
 
     if (!matched) continue;
 
-    const score = biasMap[matchedDomain] ?? null;
-    const biasClass = biasScoreToClass(score);
+    const entry = biasMap[matchedDomain] || null;
+    const score = entry ? entry.score ?? null : null;
+    const lean = entry ? entry.lean ?? null : null;
+    const biasClass = resolveBiasClass(score, lean);
     const outletName = nameMap[matchedDomain] || matchedDomain;
 
     injectBadge(link, biasClass, outletName, score);

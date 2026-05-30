@@ -325,6 +325,14 @@ function loadMapData() {
         }
         layer.on("click", function() {
           if (pc) {
+            var pcount = pd ? pd.articles : 0;
+            var phtml =
+              "<div style='font-family:monospace;font-size:13px;color:#fff;text-align:center;'>" +
+              "<b>" + esc(pcount.toLocaleString()) + " article" + (pcount === 1 ? "" : "s") + "</b><br>" +
+              "from " + esc(name) +
+              "<br><a href='/news?province=" + escAttr(pc) + "' style='color:#0af;text-decoration:none;font-weight:bold;'>View all &rarr;</a>" +
+              "</div>";
+            layer.bindPopup(phtml).openPopup();
             setProvince(pc);
             map.fitBounds(layer.getBounds(), {padding: [20, 20]});
           }
@@ -433,7 +441,15 @@ function loadArticlesGeo() {
             fillColor: colour, fillOpacity: 0.85, color: "#ffffff", weight: 1.5,
           });
           circle.bindTooltip(pc + " · " + count.toLocaleString() + " stories");
-          circle.on("click", function() { setProvince(pc); map.fitBounds(provinceLayer && (function(){ var b=null; provinceLayer.eachLayer(function(l){ if((PROVINCE_CODES[l.feature&&l.feature.properties&&l.feature.properties.name]||'')=== pc) b=l.getBounds(); }); return b; }()) || map.getBounds(), {padding:[20,20]}); });
+          var pname = (PROVINCE_LIST.find(function(p){ return p.code === pc; }) || {}).name || pc;
+          var cpopup =
+            "<div style='font-family:monospace;font-size:13px;color:#fff;text-align:center;'>" +
+            "<b>" + esc(count.toLocaleString()) + " article" + (count === 1 ? "" : "s") + "</b><br>" +
+            "from " + esc(pname) +
+            "<br><a href='/news?province=" + escAttr(pc) + "' style='color:#0af;text-decoration:none;font-weight:bold;'>View all &rarr;</a>" +
+            "</div>";
+          circle.bindPopup(cpopup);
+          circle.on("click", function() { circle.openPopup(); setProvince(pc); map.fitBounds(provinceLayer && (function(){ var b=null; provinceLayer.eachLayer(function(l){ if((PROVINCE_CODES[l.feature&&l.feature.properties&&l.feature.properties.name]||'')=== pc) b=l.getBounds(); }); return b; }()) || map.getBounds(), {padding:[20,20]}); });
           clusterLayer.addLayer(circle);
           clusterLayer.addLayer(L.marker(centroid, {
             icon: L.divIcon({

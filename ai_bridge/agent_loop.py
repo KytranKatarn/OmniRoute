@@ -386,6 +386,14 @@ class AgentLoop:
         )
 
         self.scheduler.add_job(
+            with_app_context(self._keep_embeddings_warm),
+            trigger=IntervalTrigger(minutes=25),
+            id="agent_embedding_keepwarm",
+            name="Agent Loop: Embedding Keep-Warm",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
             with_app_context(self._process_scheduled_tasks),
             trigger=IntervalTrigger(seconds=30),
             id="agent_scheduled_tasks",
@@ -2212,6 +2220,21 @@ class AgentLoop:
     # ------------------------------------------------------------------
     # Email Queue Processor
     # ------------------------------------------------------------------
+
+    def _keep_embeddings_warm(self):
+        """Keep arctic-embed-cpu loaded on every fleet node so it never
+        cold-loads (#3525). Runs every 25 min — shorter than the 35m keep_alive
+        — pinging each node in the embedding pool with a tiny embed."""
+        try:
+            from ai_bridge.embedding_service import warm_all_nodes
+
+            results = warm_all_nodes()
+            ok = sum(1 for v in results.values() if v == "ok")
+            logger.info(
+                "[Agent Loop] Embedding keep-warm: %d/%d nodes warm", ok, len(results)
+            )
+        except Exception as e:
+            logger.warning("[Agent Loop] Embedding keep-warm failed: %s", e)
 
     def _process_email_queue(self):
         """Process pending emails from the email_queue table."""

@@ -292,6 +292,33 @@ def embedding_health_check() -> dict:
     return service.health_check()
 
 
+def warm_all_nodes() -> dict:
+    """Ping every node in the embedding pool with a tiny embed to refresh its
+    keep_alive timer, so arctic-embed-cpu never cold-loads (#3525). Run by the
+    keep-warm scheduled job more often than the 35m keep_alive. Bypasses the
+    30s host cache so it always sees the current fleet."""
+    _HOSTS_CACHE["hosts"] = None
+    results: dict = {}
+    for host in _resolve_embedding_hosts():
+        try:
+            resp = requests.post(
+                f"{host}/api/embed",
+                json={
+                    "model": EMBEDDING_MODEL,
+                    "input": "warm",
+                    "keep_alive": "35m",
+                    "options": {"num_gpu": 0},
+                },
+                timeout=20,
+            )
+            results[host] = "ok" if resp.status_code == 200 else f"http_{resp.status_code}"
+        except Exception as e:  # noqa: BLE001 — keep-warm must never raise
+            results[host] = f"err_{type(e).__name__}"
+    ok = sum(1 for v in results.values() if v == "ok")
+    logger.info("embedding keep-warm: %d/%d nodes warm — %s", ok, len(results), results)
+    return results
+
+
 if __name__ == "__main__":
     # Test when run directly
     logging.basicConfig(level=logging.INFO)

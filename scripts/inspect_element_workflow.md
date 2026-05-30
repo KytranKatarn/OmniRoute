@@ -71,3 +71,39 @@ python3 scripts/inspect_element.py http://192.168.1.200:3000 --xy "720,50"
 ```bash
 python3 scripts/inspect_element.py http://192.168.1.200:3000 --selector "body" --output /tmp/element.json
 ```
+
+## Compare two elements — "make A look like B"
+
+`scripts/compare_elements.py` extends the inspector: it inspects two elements
+(A = the target/broken element, B = the reference), diffs their computed CSS, and
+emits a CSS rule block that makes A match B. It reuses the same `get_element_details`,
+`draw_highlight`, and brainstorm-display plumbing as `inspect_element.py`, plus a
+widened property list (align-items, justify-content, line-height, letter-spacing,
+text-align, border-*, min/max-width/height).
+
+**Two elements on the same page** (`url_b` defaults to `url_a`):
+```bash
+python3 scripts/compare_elements.py http://192.168.1.200:3000/tools/department-hq \
+    --selector-a ".broken-card" --selector-b ".reference-card"
+```
+
+**Two elements on different pages:**
+```bash
+python3 scripts/compare_elements.py <urlA> <urlB> \
+    --selector-a ".broken" --selector-b ".reference"
+```
+
+**By page coordinates:**
+```bash
+python3 scripts/compare_elements.py <url> --xy-a "100,200" --xy-b "300,400"
+```
+
+**With side-by-side highlighted screenshots and saved JSON:**
+```bash
+python3 scripts/compare_elements.py <url> \
+    --selector-a ".broken" --selector-b ".reference" \
+    --screenshots --output /tmp/compare.json
+```
+
+Output: a readable diff table + generated CSS on stderr, and JSON
+`{elementA, elementB, diff, generated_css}` on stdout (and `--output FILE`).

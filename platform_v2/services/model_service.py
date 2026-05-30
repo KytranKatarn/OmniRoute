@@ -268,16 +268,22 @@ class ModelService:
             logger.error("model_service: unload %s failed — %s", model, exc)
             return False
 
-    def ensure_ready(self, model: str, needed_gb: float = 8.0) -> bool:
+    def ensure_ready(self, model: str, needed_gb: float = None) -> bool:
         """
         Ensure *model* is loaded and ready.
 
         Steps: check loaded → ensure capacity → load.
         Returns True on success.
+
+        ``needed_gb`` defaults to the model's estimated RAM size (e.g.
+        arctic-embed-cpu = 0.3 GB) rather than a flat 8 GB — otherwise tiny
+        models like the CPU embedder get RAM-gated off the 8 GB outposts.
         """
         if self.is_model_loaded(model):
             self._last_used[model] = time.time()
             return True
+        if needed_gb is None:
+            needed_gb = self.estimate_model_size(model)
         if not self.ensure_capacity(needed_gb):
             logger.warning("model_service: not enough RAM for %s (need %.1f GB)", model, needed_gb)
             return False

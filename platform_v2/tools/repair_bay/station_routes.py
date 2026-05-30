@@ -14,7 +14,9 @@ agent_service.
 """
 
 import logging
+import os
 
+import requests
 from flask import jsonify, request
 from flask_login import login_required
 
@@ -22,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 STATION_CODE = "ENGINEERING"
 MODULE_SOURCE = "repair_bay"
+_HUB_BASE = os.getenv("ARCHIE_HUB_URL", "http://192.168.1.200:3000")
 
 
 def register_station_routes(bp, admin_required):
@@ -32,9 +35,7 @@ def register_station_routes(bp, admin_required):
     def station_crew():
         """Get ENGINEERING station crew from Starbase."""
         try:
-            import requests as req
-
-            resp = req.get("http://192.168.1.200:3000/tools/department-hq/api/stations", timeout=5)
+            resp = requests.get(f"{_HUB_BASE}/tools/department-hq/api/stations", timeout=5)
             if resp.status_code != 200:
                 return jsonify({"success": False, "error": "Starbase unavailable"}), 502
 
@@ -80,11 +81,9 @@ def register_station_routes(bp, admin_required):
     def station_jobs():
         """Get active Repair Bay jobs from Starbase."""
         try:
-            import requests as req
-
             status_filter = request.args.get("status", "running")
-            resp = req.get(
-                f"http://192.168.1.200:3000/tools/department-hq/api/bridge/jobs?status={status_filter}",
+            resp = requests.get(
+                f"{_HUB_BASE}/tools/department-hq/api/bridge/jobs?status={status_filter}",
                 timeout=5,
             )
             if resp.status_code != 200:
@@ -115,10 +114,8 @@ def register_station_routes(bp, admin_required):
     def station_job_detail(job_id):
         """Get single job progress from Starbase."""
         try:
-            import requests as req
-
-            resp = req.get(
-                f"http://192.168.1.200:3000/tools/department-hq/api/bridge/jobs/{job_id}",
+            resp = requests.get(
+                f"{_HUB_BASE}/tools/department-hq/api/bridge/jobs/{job_id}",
                 timeout=5,
             )
             if resp.status_code != 200:

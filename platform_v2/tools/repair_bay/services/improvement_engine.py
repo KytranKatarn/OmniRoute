@@ -93,173 +93,175 @@ def detect_improvement_opportunities() -> List[Dict]:
         List of improvement opportunities
     """
     conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    opportunities = []
+        opportunities = []
 
-    # 1. Detect repeated errors (low trust, negative sentiment)
-    cur.execute(
+        # 1. Detect repeated errors (low trust, negative sentiment)
+        cur.execute(
+            """
+            SELECT
+                tags,
+                COUNT(*) as occurrence_count,
+                AVG((metadata->>'trust_impact')::float) as avg_trust,
+                AVG(importance_score) as avg_importance,
+                STRING_AGG(content::text, ' | ' ORDER BY created_at DESC) as sample_conversations
+            FROM long_term_memory
+            WHERE memory_type = 'conversation'
+            AND metadata->>'sentiment' = 'negative'
+            AND created_at > NOW() - INTERVAL '30 days'
+            GROUP BY tags
+            HAVING COUNT(*) >= 3  -- At least 3 occurrences
+            AND AVG((metadata->>'trust_impact')::float) < -0.1
+            ORDER BY occurrence_count DESC
+            LIMIT 10;
         """
-        SELECT
-            tags,
-            COUNT(*) as occurrence_count,
-            AVG((metadata->>'trust_impact')::float) as avg_trust,
-            AVG(importance_score) as avg_importance,
-            STRING_AGG(content::text, ' | ' ORDER BY created_at DESC) as sample_conversations
-        FROM long_term_memory
-        WHERE memory_type = 'conversation'
-        AND metadata->>'sentiment' = 'negative'
-        AND created_at > NOW() - INTERVAL '30 days'
-        GROUP BY tags
-        HAVING COUNT(*) >= 3  -- At least 3 occurrences
-        AND AVG((metadata->>'trust_impact')::float) < -0.1
-        ORDER BY occurrence_count DESC
-        LIMIT 10;
-    """
-    )
-
-    for row in cur.fetchall():
-        opportunities.append(
-            {
-                "type": "repeated_error",
-                "priority": "high",
-                "tags": row["tags"],
-                "occurrence_count": row["occurrence_count"],
-                "avg_trust_impact": row["avg_trust"],
-                "description": f"Repeated negative interactions with tags: {', '.join(row['tags'][:3])}. Occurred {row['occurrence_count']} times.",
-                "suggested_action": "Analyze these conversations to identify the root cause and improve responses.",
-                "category": "quality",
-            }
         )
 
-    # 2. Detect frequently asked questions (optimization targets)
-    cur.execute(
+        for row in cur.fetchall():
+            opportunities.append(
+                {
+                    "type": "repeated_error",
+                    "priority": "high",
+                    "tags": row["tags"],
+                    "occurrence_count": row["occurrence_count"],
+                    "avg_trust_impact": row["avg_trust"],
+                    "description": f"Repeated negative interactions with tags: {', '.join(row['tags'][:3])}. Occurred {row['occurrence_count']} times.",
+                    "suggested_action": "Analyze these conversations to identify the root cause and improve responses.",
+                    "category": "quality",
+                }
+            )
+
+        # 2. Detect frequently asked questions (optimization targets)
+        cur.execute(
+            """
+            SELECT
+                unnest(tags) as tag,
+                COUNT(*) as question_count,
+                AVG(importance_score) as avg_importance
+            FROM long_term_memory
+            WHERE memory_type = 'conversation'
+            AND created_at > NOW() - INTERVAL '30 days'
+            GROUP BY tag
+            HAVING COUNT(*) >= 5
+            ORDER BY question_count DESC
+            LIMIT 10;
         """
-        SELECT
-            unnest(tags) as tag,
-            COUNT(*) as question_count,
-            AVG(importance_score) as avg_importance
-        FROM long_term_memory
-        WHERE memory_type = 'conversation'
-        AND created_at > NOW() - INTERVAL '30 days'
-        GROUP BY tag
-        HAVING COUNT(*) >= 5
-        ORDER BY question_count DESC
-        LIMIT 10;
-    """
-    )
-
-    for row in cur.fetchall():
-        opportunities.append(
-            {
-                "type": "frequently_asked",
-                "priority": "medium",
-                "tag": row["tag"],
-                "question_count": row["question_count"],
-                "description": f"Topic '{row['tag']}' asked {row['question_count']} times. Could benefit from optimization.",
-                "suggested_action": "Create specialized knowledge base or FAQ for this topic.",
-                "category": "efficiency",
-            }
         )
 
-    # 3. Detect knowledge gaps (questions with low confidence)
-    cur.execute(
+        for row in cur.fetchall():
+            opportunities.append(
+                {
+                    "type": "frequently_asked",
+                    "priority": "medium",
+                    "tag": row["tag"],
+                    "question_count": row["question_count"],
+                    "description": f"Topic '{row['tag']}' asked {row['question_count']} times. Could benefit from optimization.",
+                    "suggested_action": "Create specialized knowledge base or FAQ for this topic.",
+                    "category": "efficiency",
+                }
+            )
+
+        # 3. Detect knowledge gaps (questions with low confidence)
+        cur.execute(
+            """
+            SELECT
+                tags,
+                COUNT(*) as gap_count,
+                AVG(importance_score) as avg_importance,
+                content
+            FROM long_term_memory
+            WHERE memory_type = 'conversation'
+            AND metadata->>'user_emotion' IN ('confused', 'frustrated')
+            AND created_at > NOW() - INTERVAL '30 days'
+            GROUP BY tags, content
+            HAVING COUNT(*) >= 2
+            ORDER BY gap_count DESC
+            LIMIT 5;
         """
-        SELECT
-            tags,
-            COUNT(*) as gap_count,
-            AVG(importance_score) as avg_importance,
-            content
-        FROM long_term_memory
-        WHERE memory_type = 'conversation'
-        AND metadata->>'user_emotion' IN ('confused', 'frustrated')
-        AND created_at > NOW() - INTERVAL '30 days'
-        GROUP BY tags, content
-        HAVING COUNT(*) >= 2
-        ORDER BY gap_count DESC
-        LIMIT 5;
-    """
-    )
-
-    for row in cur.fetchall():
-        opportunities.append(
-            {
-                "type": "knowledge_gap",
-                "priority": "high",
-                "tags": row["tags"],
-                "gap_count": row["gap_count"],
-                "description": f"Users frequently confused about: {', '.join(row['tags'][:2])}",
-                "suggested_action": "Expand knowledge base or improve explanations for these topics.",
-                "category": "knowledge",
-            }
         )
 
-    # 4. Detect underutilized models (agents not being used)
-    cur.execute(
+        for row in cur.fetchall():
+            opportunities.append(
+                {
+                    "type": "knowledge_gap",
+                    "priority": "high",
+                    "tags": row["tags"],
+                    "gap_count": row["gap_count"],
+                    "description": f"Users frequently confused about: {', '.join(row['tags'][:2])}",
+                    "suggested_action": "Expand knowledge base or improve explanations for these topics.",
+                    "category": "knowledge",
+                }
+            )
+
+        # 4. Detect underutilized models (agents not being used)
+        cur.execute(
+            """
+            SELECT
+                a.name,
+                a.department,
+                a.model,
+                a.worker_type,
+                COALESCE(a.last_used, a.created_at) as last_used,
+                0 as usage_count
+            FROM agents a
+            WHERE a.status = 'active'
+            AND a.worker_type = 'internal'
+            AND (a.last_used IS NULL OR a.last_used < NOW() - INTERVAL '7 days')
+            ORDER BY last_used ASC NULLS FIRST
+            LIMIT 10;
         """
-        SELECT
-            a.name,
-            a.department,
-            a.model,
-            a.worker_type,
-            COALESCE(a.last_used, a.created_at) as last_used,
-            0 as usage_count
-        FROM agents a
-        WHERE a.status = 'active'
-        AND a.worker_type = 'internal'
-        AND (a.last_used IS NULL OR a.last_used < NOW() - INTERVAL '7 days')
-        ORDER BY last_used ASC NULLS FIRST
-        LIMIT 10;
-    """
-    )
-
-    for row in cur.fetchall():
-        opportunities.append(
-            {
-                "type": "underutilized_agent",
-                "priority": "low",
-                "agent_name": row["name"],
-                "department": row["department"],
-                "model": row["model"],
-                "usage_count": row["usage_count"] or 0,
-                "last_used": (row["last_used"].isoformat() if row["last_used"] else "Never"),
-                "description": f"Agent '{row['name']}' ({row['model']}) rarely used. Only {row['usage_count'] or 0} executions.",
-                "suggested_action": "Consider reassigning this agent or promoting its capabilities.",
-                "category": "resource_optimization",
-            }
         )
 
-    # 5. Detect personality drift (check if personality needs rebalancing)
-    personality = get_archie_personality()
+        for row in cur.fetchall():
+            opportunities.append(
+                {
+                    "type": "underutilized_agent",
+                    "priority": "low",
+                    "agent_name": row["name"],
+                    "department": row["department"],
+                    "model": row["model"],
+                    "usage_count": row["usage_count"] or 0,
+                    "last_used": (row["last_used"].isoformat() if row["last_used"] else "Never"),
+                    "description": f"Agent '{row['name']}' ({row['model']}) rarely used. Only {row['usage_count'] or 0} executions.",
+                    "suggested_action": "Consider reassigning this agent or promoting its capabilities.",
+                    "category": "resource_optimization",
+                }
+            )
 
-    if personality.get("cautiousness", 0.5) > 0.8:
-        opportunities.append(
-            {
-                "type": "personality_drift",
-                "priority": "medium",
-                "trait": "cautiousness",
-                "value": personality["cautiousness"],
-                "description": f"Cautiousness level is very high ({personality['cautiousness']:.2f}). A.R.C.H.I.E. may be too hesitant.",
-                "suggested_action": "Balance with more positive interactions or adjust trait calculation.",
-                "category": "personality",
-            }
-        )
+        # 5. Detect personality drift (check if personality needs rebalancing)
+        personality = get_archie_personality()
 
-    if personality.get("confidence_level", 0.5) < 0.3:
-        opportunities.append(
-            {
-                "type": "personality_drift",
-                "priority": "medium",
-                "trait": "confidence",
-                "value": personality["confidence_level"],
-                "description": f"Confidence level is low ({personality['confidence_level']:.2f}). May need more positive reinforcement.",
-                "suggested_action": "Encourage more positive feedback loops or adjust confidence calculation.",
-                "category": "personality",
-            }
-        )
+        if personality.get("cautiousness", 0.5) > 0.8:
+            opportunities.append(
+                {
+                    "type": "personality_drift",
+                    "priority": "medium",
+                    "trait": "cautiousness",
+                    "value": personality["cautiousness"],
+                    "description": f"Cautiousness level is very high ({personality['cautiousness']:.2f}). A.R.C.H.I.E. may be too hesitant.",
+                    "suggested_action": "Balance with more positive interactions or adjust trait calculation.",
+                    "category": "personality",
+                }
+            )
 
-    cur.close()
-    conn.close()
+        if personality.get("confidence_level", 0.5) < 0.3:
+            opportunities.append(
+                {
+                    "type": "personality_drift",
+                    "priority": "medium",
+                    "trait": "confidence",
+                    "value": personality["confidence_level"],
+                    "description": f"Confidence level is low ({personality['confidence_level']:.2f}). May need more positive reinforcement.",
+                    "suggested_action": "Encourage more positive feedback loops or adjust confidence calculation.",
+                    "category": "personality",
+                }
+            )
+
+        cur.close()
+    finally:
+        conn.close()
 
     return opportunities
 
@@ -299,50 +301,52 @@ def propose_improvement(
         Created proposal dict with team and steps info
     """
     conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    proposal_metadata = {
-        "auto_detected": auto_detected,
-        "detection_timestamp": datetime.now().isoformat(),
-        "agent_id": agent_id,
-        **(metadata or {}),
-    }
+        proposal_metadata = {
+            "auto_detected": auto_detected,
+            "detection_timestamp": datetime.now().isoformat(),
+            "agent_id": agent_id,
+            **(metadata or {}),
+        }
 
-    # Auto-calculate complexity based on category
-    complexity = "medium"
-    high_complexity_categories = ["security", "architecture", "database", "performance"]
-    low_complexity_categories = ["documentation", "knowledge"]
+        # Auto-calculate complexity based on category
+        complexity = "medium"
+        high_complexity_categories = ["security", "architecture", "database", "performance"]
+        low_complexity_categories = ["documentation", "knowledge"]
 
-    if category in high_complexity_categories:
-        complexity = "high"
-    elif category in low_complexity_categories:
-        complexity = "low"
+        if category in high_complexity_categories:
+            complexity = "high"
+        elif category in low_complexity_categories:
+            complexity = "low"
 
-    cur.execute(
-        """
-        INSERT INTO improvement_proposals
-        (title, description, category, priority, proposed_by, proposed_at,
-         status, metadata, complexity)
-        VALUES (%s, %s, %s, %s, %s, NOW(), 'proposed', %s, %s)
-        RETURNING id, title, category, priority, status, proposed_at, complexity;
-    """,
-        (
-            title,
-            description,
-            category,
-            priority,
-            proposed_by_user_id,
-            json.dumps(proposal_metadata),
-            complexity,
-        ),
-    )
+        cur.execute(
+            """
+            INSERT INTO improvement_proposals
+            (title, description, category, priority, proposed_by, proposed_at,
+             status, metadata, complexity)
+            VALUES (%s, %s, %s, %s, %s, NOW(), 'proposed', %s, %s)
+            RETURNING id, title, category, priority, status, proposed_at, complexity;
+        """,
+            (
+                title,
+                description,
+                category,
+                priority,
+                proposed_by_user_id,
+                json.dumps(proposal_metadata),
+                complexity,
+            ),
+        )
 
-    result = dict(cur.fetchone())
-    proposal_id = result["id"]
+        result = dict(cur.fetchone())
+        proposal_id = result["id"]
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
 
     # PHASE 3: Auto-assign team if enabled
     if auto_assign_team:
@@ -409,23 +413,25 @@ def propose_improvement(
 
             # Store diff in proposal
             conn = get_db()
-            cur = conn.cursor()
-            cur.execute(
-                """
-                UPDATE improvement_proposals
-                SET code_diff = %s,
-                    code_changes = %s
-                WHERE id = %s
-            """,
-                (
-                    json.dumps(diff_result),
-                    code_changes[0].get("after", "") if len(code_changes) > 0 else "",
-                    proposal_id,
-                ),
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    UPDATE improvement_proposals
+                    SET code_diff = %s,
+                        code_changes = %s
+                    WHERE id = %s
+                """,
+                    (
+                        json.dumps(diff_result),
+                        code_changes[0].get("after", "") if len(code_changes) > 0 else "",
+                        proposal_id,
+                    ),
+                )
+                conn.commit()
+                cur.close()
+            finally:
+                conn.close()
 
             result["diff_generated"] = True
             result["files_changed"] = diff_result["summary"]["total_files"]
@@ -476,28 +482,30 @@ def generate_diff_for_proposal(proposal_id: int, code_changes: List[Dict]) -> Di
 
         # Store in database
         conn = get_db()
-        cur = conn.cursor()
+        try:
+            cur = conn.cursor()
 
-        # Concatenate all 'after' content for code_changes field
-        all_after_code = "\n\n".join(
-            [f"# File: {change.get('path', 'unknown')}\n{change.get('after', '')}" for change in code_changes]
-        )
+            # Concatenate all 'after' content for code_changes field
+            all_after_code = "\n\n".join(
+                [f"# File: {change.get('path', 'unknown')}\n{change.get('after', '')}" for change in code_changes]
+            )
 
-        cur.execute(
-            """
-            UPDATE improvement_proposals
-            SET code_diff = %s,
-                code_changes = %s
-            WHERE id = %s
-            RETURNING id, title
-        """,
-            (json.dumps(diff_result), all_after_code, proposal_id),
-        )
+            cur.execute(
+                """
+                UPDATE improvement_proposals
+                SET code_diff = %s,
+                    code_changes = %s
+                WHERE id = %s
+                RETURNING id, title
+            """,
+                (json.dumps(diff_result), all_after_code, proposal_id),
+            )
 
-        result = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
+            result = cur.fetchone()
+            conn.commit()
+            cur.close()
+        finally:
+            conn.close()
 
         if result:
             return {
@@ -525,11 +533,13 @@ def analyze_proposal_with_agents(proposal) -> Dict:
     # Support both dict and int (proposal_id) for backwards compatibility
     if isinstance(proposal, int):
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM improvement_proposals WHERE id = %s", (proposal,))
-        proposal = cur.fetchone()
-        cur.close()
-        conn.close()
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("SELECT * FROM improvement_proposals WHERE id = %s", (proposal,))
+            proposal = cur.fetchone()
+            cur.close()
+        finally:
+            conn.close()
         if not proposal:
             return {"error": "Proposal not found"}
         category = proposal.get("category", "general")
@@ -569,19 +579,26 @@ def analyze_proposal_with_agents(proposal) -> Dict:
     if proposal_id:
         try:
             conn = get_db()
-            cur = conn.cursor()
-            cur.execute(
-                "UPDATE improvement_proposals SET metadata = metadata || %s::jsonb WHERE id = %s",
-                (
-                    json.dumps(
-                        {"agent_analysis": {"perspectives": perspectives, "analyzed_at": datetime.now().isoformat()}}
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    "UPDATE improvement_proposals SET metadata = metadata || %s::jsonb WHERE id = %s",
+                    (
+                        json.dumps(
+                            {
+                                "agent_analysis": {
+                                    "perspectives": perspectives,
+                                    "analyzed_at": datetime.now().isoformat(),
+                                }
+                            }
+                        ),
+                        proposal_id,
                     ),
-                    proposal_id,
-                ),
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
+                )
+                conn.commit()
+                cur.close()
+            finally:
+                conn.close()
         except Exception:
             pass
 
@@ -605,36 +622,38 @@ def get_recent_proposals(limit: int = 20, status: Optional[str] = None, category
         List of proposals
     """
     conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    query = """
-        SELECT
-            ip.*,
-            u.username as proposed_by_username,
-            a.username as approved_by_username
-        FROM improvement_proposals ip
-        LEFT JOIN users u ON ip.proposed_by = u.id
-        LEFT JOIN users a ON ip.approved_by = a.id
-        WHERE 1=1
-    """
-    params = []
+        query = """
+            SELECT
+                ip.*,
+                u.username as proposed_by_username,
+                a.username as approved_by_username
+            FROM improvement_proposals ip
+            LEFT JOIN users u ON ip.proposed_by = u.id
+            LEFT JOIN users a ON ip.approved_by = a.id
+            WHERE 1=1
+        """
+        params = []
 
-    if status:
-        query += " AND ip.status = %s"
-        params.append(status)
+        if status:
+            query += " AND ip.status = %s"
+            params.append(status)
 
-    if category:
-        query += " AND ip.category = %s"
-        params.append(category)
+        if category:
+            query += " AND ip.category = %s"
+            params.append(category)
 
-    query += " ORDER BY ip.proposed_at DESC LIMIT %s"
-    params.append(limit)
+        query += " ORDER BY ip.proposed_at DESC LIMIT %s"
+        params.append(limit)
 
-    cur.execute(query, params)
-    proposals = cur.fetchall()
+        cur.execute(query, params)
+        proposals = cur.fetchall()
 
-    cur.close()
-    conn.close()
+        cur.close()
+    finally:
+        conn.close()
 
     return [dict(p) for p in proposals]
 

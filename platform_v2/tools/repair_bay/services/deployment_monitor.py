@@ -94,9 +94,9 @@ class DeploymentMonitor:
             }
         """
         conn = self.get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
         try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
             # Get deployment details
             cur.execute(
                 """
@@ -138,10 +138,6 @@ class DeploymentMonitor:
                         reason=rollback_reason,
                         auto_triggered=True,
                     )
-
-                    cur.close()
-                    conn.close()
-
                     return {
                         "success": True,
                         "deployment_id": deployment_id,
@@ -153,8 +149,6 @@ class DeploymentMonitor:
                     }
                 else:
                     # Can't rollback without manager
-                    cur.close()
-                    conn.close()
                     return {
                         "success": False,
                         "error": "Rollback triggered but rollback manager not available",
@@ -172,9 +166,6 @@ class DeploymentMonitor:
             )
             conn.commit()
 
-            cur.close()
-            conn.close()
-
             # Determine overall status
             all_healthy = all(checks.values())
             status = "healthy" if all_healthy else "degraded"
@@ -189,9 +180,9 @@ class DeploymentMonitor:
             }
 
         except Exception as e:
-            cur.close()
-            conn.close()
             return {"success": False, "error": str(e)}
+        finally:
+            conn.close()
 
     def _run_monitoring_checks(self, deployment_id: int) -> Dict:
         """
@@ -303,9 +294,9 @@ class DeploymentMonitor:
             }
         """
         conn = self.get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
         try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
             cur.execute(
                 """
                 SELECT
@@ -320,7 +311,6 @@ class DeploymentMonitor:
 
             deployment = cur.fetchone()
             cur.close()
-            conn.close()
 
             if not deployment:
                 return {
@@ -354,6 +344,8 @@ class DeploymentMonitor:
 
         except Exception as e:
             return {"success": False, "error": str(e)}
+        finally:
+            conn.close()
 
     def get_active_monitors(self) -> Dict:
         """
@@ -375,9 +367,9 @@ class DeploymentMonitor:
             }
         """
         conn = self.get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
         try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
             # Get deployments within monitoring window
             monitoring_cutoff = datetime.now() - timedelta(hours=self.thresholds["monitoring_duration_hours"])
 
@@ -397,7 +389,6 @@ class DeploymentMonitor:
 
             deployments = cur.fetchall()
             cur.close()
-            conn.close()
 
             monitors = []
             for deployment in deployments:
@@ -421,6 +412,8 @@ class DeploymentMonitor:
 
         except Exception as e:
             return {"success": False, "error": str(e)}
+        finally:
+            conn.close()
 
 
 # ============================================================================

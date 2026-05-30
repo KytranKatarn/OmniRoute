@@ -40,6 +40,7 @@ def register_scan_routes(bp, admin_required):
 
     @bp.route("/api/scan/status")
     @login_required
+    @admin_required
     def scan_status():
         """Scan module health + Bridge routing status."""
         ai = scan_service.check_ai_status()

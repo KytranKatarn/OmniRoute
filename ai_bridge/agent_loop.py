@@ -5131,6 +5131,15 @@ class AgentLoop:
             from tools.repair_bay.services.repo_health_service import run_health_checks
 
             result = run_health_checks()
+            self._log_autonomy_action(
+                action_type="repo_health_check",
+                details={
+                    "checked": result.get("checked", 0),
+                    "healthy": result.get("healthy", 0),
+                    "unhealthy": result.get("unhealthy", 0),
+                },
+                success=True,
+            )
             logger.info(
                 "repo_health_check: checked=%d healthy=%d unhealthy=%d",
                 result.get("checked"),
@@ -5139,6 +5148,11 @@ class AgentLoop:
             )
         except Exception as e:
             logger.error("repo_health_check failed: %s", e)
+            self._log_autonomy_action(
+                action_type="repo_health_check",
+                details={"error": str(e)},
+                success=False,
+            )
 
     def _run_dep_drift_audit(self):
         """Daily drift audit — requirements.txt vs running container pip freeze.
@@ -5379,6 +5393,14 @@ class AgentLoop:
             from tools.repair_bay.services.github_presence_service import run_presence_audit
 
             result = run_presence_audit()
+            self._log_autonomy_action(
+                action_type="github_presence_audit",
+                details={
+                    "repo_count": result.get("repo_count", 0),
+                    "success": result.get("success", False),
+                },
+                success=True,
+            )
             logger.info(
                 "github_presence_audit: repos=%d success=%s",
                 result.get("repo_count"),
@@ -5386,6 +5408,11 @@ class AgentLoop:
             )
         except Exception as e:
             logger.error("github_presence_audit failed: %s", e)
+            self._log_autonomy_action(
+                action_type="github_presence_audit",
+                details={"error": str(e)},
+                success=False,
+            )
 
     # ------------------------------------------------------------------
     # Tiered PR Merge Authority (Project #244 / feat/tiered-pr-merge-authority)

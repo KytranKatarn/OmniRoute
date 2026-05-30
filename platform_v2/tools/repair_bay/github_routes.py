@@ -284,7 +284,7 @@ def register_github_routes(bp, admin_required):
         # Verify webhook signature — reject if misconfigured or unsigned
         webhook_secret = os.getenv("GITHUB_WEBHOOK_SECRET", "")
         if not webhook_secret:
-            return jsonify({"error": "Webhook secret not configured"}), 500
+            return jsonify({"error": "Webhook not configured"}), 401
         signature = request.headers.get("X-Hub-Signature-256", "")
         if not signature:
             return jsonify({"error": "Missing webhook signature"}), 401

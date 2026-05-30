@@ -2,6 +2,7 @@
 
 import logging
 from flask import jsonify, request
+from flask_login import login_required
 
 logger = logging.getLogger(__name__)
 
@@ -10,6 +11,7 @@ def register_repair_routes(bp, admin_required):
     """Register repair queue routes on the repair_bay blueprint."""
 
     @bp.route("/api/repair/queue")
+    @login_required
     @admin_required
     def repair_queue_list():
         from tools.repair_bay.services.dependabot_service import get_repair_queue
@@ -21,6 +23,7 @@ def register_repair_routes(bp, admin_required):
         return jsonify(result)
 
     @bp.route("/api/repair/queue/<int:item_id>", methods=["PATCH"])
+    @login_required
     @admin_required
     def repair_queue_update(item_id):
         from tools.repair_bay.services.dependabot_service import update_repair_item
@@ -30,6 +33,7 @@ def register_repair_routes(bp, admin_required):
         return jsonify(result)
 
     @bp.route("/api/repair/queue/<int:item_id>/triage", methods=["POST"])
+    @login_required
     @admin_required
     def repair_queue_triage(item_id):
         from tools.repair_bay.services.dependabot_service import get_repair_queue
@@ -43,6 +47,7 @@ def register_repair_routes(bp, admin_required):
         return jsonify(result)
 
     @bp.route("/api/repair/poll", methods=["POST"])
+    @login_required
     @admin_required
     def repair_poll_now():
         from tools.repair_bay.services.dependabot_service import poll_and_ingest
@@ -51,6 +56,7 @@ def register_repair_routes(bp, admin_required):
         return jsonify(result)
 
     @bp.route("/api/repair/manifests")
+    @login_required
     @admin_required
     def repair_manifests():
         from tools.repair_bay.services.dependabot_service import discover_manifests
@@ -59,6 +65,7 @@ def register_repair_routes(bp, admin_required):
         return jsonify({"success": True, "manifests": manifests, "count": len(manifests)})
 
     @bp.route("/api/repair/stats")
+    @login_required
     @admin_required
     def repair_stats():
         from tools.repair_bay.services.dependabot_service import get_repair_queue

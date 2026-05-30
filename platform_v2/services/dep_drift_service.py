@@ -45,7 +45,21 @@ from typing import Any, Dict, List, Tuple
 logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-DEFAULT_REQUIREMENTS = REPO_ROOT / "platform_v2" / "requirements.txt"
+
+# requirements.txt location varies by context:
+#   • Inside the container: /app/requirements.txt  (COPY . . puts it at repo root)
+#   • On the host / dev: /mnt/archie_brain/platform_v2/requirements.txt
+# Probe all known locations in priority order; fall back to the first candidate
+# so callers receive a meaningful "file not found" rather than requirements_count=0.
+_REQUIREMENTS_CANDIDATES = [
+    REPO_ROOT / "requirements.txt",  # container: /app/requirements.txt
+    REPO_ROOT / "platform_v2" / "requirements.txt",  # host dev tree
+    Path("/app/requirements.txt"),  # explicit container fallback
+]
+DEFAULT_REQUIREMENTS = next(
+    (p for p in _REQUIREMENTS_CANDIDATES if p.exists()),
+    _REQUIREMENTS_CANDIDATES[0],  # keep first as sentinel so error message is clear
+)
 
 # Container name to introspect when we're not inside Docker ourselves.
 CONTAINER_NAME = os.getenv("ARCHIE_PLATFORM_CONTAINER", "archie_platform")

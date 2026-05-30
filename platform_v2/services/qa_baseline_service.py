@@ -56,7 +56,9 @@ def _fetch_recent_response_times(suite_id: int, test_name: str, limit: int) -> l
                 """,
                 (suite_id, test_name, limit),
             )
-            return [row[0] for row in cur.fetchall()]
+            # get_db_cursor() returns RealDictCursor → rows are dicts, not tuples.
+            # row[0] raises KeyError('0'); use the column name instead (KB #268832).
+            return [row["response_time_ms"] for row in cur.fetchall()]
     except Exception as exc:
         logger.warning(
             "_fetch_recent_response_times failed for suite=%s test=%s: %s",
@@ -207,7 +209,8 @@ def _count_recent_regressions(suite_id: int, test_name: str) -> int:
                 (suite_id, test_name),
             )
             row = cur.fetchone()
-            return row[0] if row else 0
+            # RealDictCursor → row is a dict; row[0] raises KeyError('0').
+            return row["count"] if row else 0
     except Exception as exc:
         logger.warning("_count_recent_regressions %s/%s: %s", suite_id, test_name, exc)
         return 0

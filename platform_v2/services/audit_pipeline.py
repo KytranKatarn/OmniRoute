@@ -14,6 +14,8 @@ import logging
 import os
 import sys
 
+import psycopg2
+
 from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
@@ -329,6 +331,19 @@ def process_audit_findings(module_name, issues_list):
             proposal_id = _create_audit_proposal(issue, module_name, file_path)
             if proposal_id:
                 proposals_created += 1
+        except psycopg2.Error as db_err:
+            # Systemic DB failure (missing table, wrong column, etc.) — this would
+            # fail for EVERY issue, so don't bury it as a per-issue warning. Surface
+            # it loudly with a traceback and abort the batch so the breakage is
+            # visible (the caller in agent_loop wraps this call in its own handler).
+            logger.error(
+                "Audit pipeline DB error writing proposal for %s/%s — aborting batch: %s",
+                module_name,
+                issue.get("code"),
+                db_err,
+                exc_info=True,
+            )
+            raise
         except Exception as e:
             logger.warning(
                 "Failed to create audit proposal for %s/%s: %s",

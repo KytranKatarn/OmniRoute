@@ -18,6 +18,59 @@ logger = logging.getLogger(__name__)
 _DEFAULT_REPO = os.getenv("GITHUB_REPO", "KytranKatarn/archie-platform")
 
 
+# ---------------------------------------------------------------------------
+# Verdict parsing — SINGLE SOURCE OF TRUTH
+# ---------------------------------------------------------------------------
+#
+# The review prompt (pr_diff_analyzer._build_prompt) instructs F.O.R.G.E. to
+# emit `VERDICT: APPROVE | REQUEST CHANGES | NEEDS REVIEW`. Every consumer
+# (auto-merge gate, tier classifier, notifications) MUST parse the verdict via
+# this one function so the emitted token and the checked token can never drift.
+#
+# Backward compatibility: older stored summaries may contain `APPROVED`, so the
+# approval pattern accepts both `APPROVE` and `APPROVED`. Word boundaries
+# (\bAPPROVED?\b) prevent false positives — `\bAPPROVE\b` does NOT match inside
+# `NOT APPROVED`'s surrounding text incorrectly, and REQUEST CHANGES / REJECT
+# are checked FIRST so a "NOT APPROVED — request changes" summary classifies as
+# a change request rather than an approval.
+
+# Order matters: rejection/change patterns are evaluated before approval so that
+# negative verdicts can never be mis-read as an approval.
+_VERDICT_REJECT_RE = re.compile(r"VERDICT\s*[:\-—]\s*(?:REQUEST\s+CHANGES|REJECT)", re.IGNORECASE)
+_VERDICT_NEEDS_RE = re.compile(r"VERDICT\s*[:\-—]\s*NEEDS\s+REVIEW", re.IGNORECASE)
+# \bAPPROVED?\b matches the emitted "APPROVE" and legacy "APPROVED" only as a
+# whole word — it will not match a substring inside another token.
+_VERDICT_APPROVE_RE = re.compile(r"VERDICT\s*[:\-—]\s*APPROVED?\b", re.IGNORECASE)
+
+
+def parse_verdict(summary_or_text: str | None) -> str:
+    """Parse a F.O.R.G.E. review summary into a canonical verdict token.
+
+    Returns one of:
+        "APPROVE" | "REQUEST CHANGES" | "NEEDS REVIEW" | "REVIEWED"
+
+    "REVIEWED" is the fallback when no explicit VERDICT line is present.
+    Accepts both the emitted "APPROVE" and the legacy "APPROVED" token on the
+    read side; the emit side is always "APPROVE".
+    """
+    if not summary_or_text:
+        return "REVIEWED"
+    text = summary_or_text
+    # Check negative verdicts first so they can never be misread as approval.
+    if _VERDICT_REJECT_RE.search(text):
+        return "REQUEST CHANGES"
+    if _VERDICT_NEEDS_RE.search(text):
+        return "NEEDS REVIEW"
+    if _VERDICT_APPROVE_RE.search(text):
+        return "APPROVE"
+    return "REVIEWED"
+
+
+def verdict_is_approved(summary_or_text: str | None) -> bool:
+    """True only when the canonical verdict is an explicit approval."""
+    return parse_verdict(summary_or_text) == "APPROVE"
+
+
 def get_tracked_repos() -> list:
     """Return repos to poll. Reads GITHUB_REPOS (comma-separated) or falls back to GITHUB_REPO."""
     repos_env = os.getenv("GITHUB_REPOS", "").strip()
@@ -197,16 +250,21 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
     if not auto_merge:
         return
 
-    # Auto-merge when F.O.R.G.E. explicitly approves the PR
-    if not re.search(r"VERDICT\s*[:—]\s*APPROVED", summary, re.IGNORECASE):
+    # Auto-merge when F.O.R.G.E. explicitly approves the PR.
+    # parse_verdict() is the single source of truth — it matches the token the
+    # analyzer actually emits ("APPROVE") and tolerates legacy "APPROVED".
+    if not verdict_is_approved(summary):
         return
 
     try:
         from .github_service import merge_pr
 
         result = merge_pr(pr_number, "squash")
-        if result.get("success") and result.get("sha"):
-            logger.info("[F.O.R.G.E.] PR #%s auto-merged after approval (sha=%s)", pr_number, result["sha"][:8])
+        # PR #1278 added a "merged" success key; rely on that rather than "sha"
+        # (a successful squash-merge may not echo the commit sha back).
+        if result.get("merged"):
+            sha = result.get("sha") or ""
+            logger.info("[F.O.R.G.E.] PR #%s auto-merged after approval (sha=%s)", pr_number, sha[:8])
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
                     "INSERT INTO system_notifications (title, message, type, source, visibility) "
@@ -310,7 +368,9 @@ def classify_pr_tier(review: dict) -> int:
 
     # --- Tier 1 gates ---
     small = total < 300 and changed_files < 10
-    approved = "APPROVED" in summary
+    # Use the shared verdict parser so Tier-1 classification matches the token
+    # the analyzer emits ("APPROVE") and the auto-merge gate checks.
+    approved = verdict_is_approved(review.get("ai_summary"))
     auto_label = "auto-merge" in (meta.get("labels") or [])
     if small and (approved or auto_label):
         return 1

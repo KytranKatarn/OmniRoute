@@ -3814,11 +3814,11 @@ class AgentLoop:
     def _run_dependabot_scan(self):
         """Agent Loop Job: Poll Dependabot alerts and triage pending repairs."""
         try:
-            from tools.dev_pipeline.services.dependabot_service import (
+            from tools.repair_bay.services.dependabot_service import (
                 poll_and_ingest,
                 sync_manifest_registry,
             )
-            from tools.dev_pipeline.services.forge_triage import triage_pending_queue
+            from tools.repair_bay.services.forge_triage import triage_pending_queue
 
             sync_manifest_registry()
             poll_result = poll_and_ingest()

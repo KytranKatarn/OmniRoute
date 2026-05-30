@@ -152,16 +152,22 @@ def register_module_review_routes(bp, admin_required):
                     )
                     qa_rows = cur.fetchall() or []
 
-                # Latest code metrics snapshot per module
+                # Latest code metrics snapshot per module — per_module is a JSONB
+                # column keyed by module name; there is no module_name scalar column.
                 cur.execute(
                     """
-                    SELECT DISTINCT ON (module_name)
-                        module_name,
-                        total_files,
-                        total_lines,
-                        scanned_at
-                    FROM code_metrics_snapshots
-                    ORDER BY module_name, scanned_at DESC
+                    SELECT
+                        kv.key   AS module_name,
+                        (kv.value->>'files')::int  AS total_files,
+                        (kv.value->>'lines')::int  AS total_lines,
+                        s.scanned_at
+                    FROM (
+                        SELECT id, per_module, scanned_at
+                        FROM code_metrics_snapshots
+                        ORDER BY scanned_at DESC
+                        LIMIT 1
+                    ) s,
+                    jsonb_each(s.per_module) AS kv
                     """
                 )
                 metrics_rows = cur.fetchall() or []

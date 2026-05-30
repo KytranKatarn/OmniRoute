@@ -123,6 +123,8 @@ CAPABILITY_DEPARTMENT_MAP = {
     "code": "Engineering & Technology",
     "code_analysis": "Engineering & Technology",
     "code_review": "Engineering & Technology",
+    "code_fix": "Engineering & Technology",  # Repair Bay dep-fix triage (forge_triage.py)
+    "debug": "Engineering & Technology",  # alias of debugging
     "testing": "Engineering & Technology",
     "debugging": "Engineering & Technology",
     "schema_design": "Engineering & Technology",
@@ -233,11 +235,13 @@ CAPABILITY_DEPARTMENT_MAP = {
     "accessible_ui_design": "Creative & Design",
     "dashboard_design": "Creative & Design",
     # Documentation & Knowledge
+    "documentation": "Documentation & Knowledge",  # sandbox_queue + general doc work
     "knowledge_base_curation": "Documentation & Knowledge",
     "information_design": "Documentation & Knowledge",
     "briefing_preparation": "Documentation & Knowledge",
     "api_documentation": "Documentation & Knowledge",
     # Research & Development
+    "research": "Research & Development",  # improvement_engine + general research
     "experimental_design": "Research & Development",
     "comparative_research": "Research & Development",
     "competitive_research": "Research & Development",

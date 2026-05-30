@@ -17,6 +17,7 @@ from tools.repair_bay.services.pr_review_service import (
     mark_review_done,
     mark_review_pending,
     mark_review_started,
+    parse_verdict,
     poll_open_prs,
 )
 
@@ -61,12 +62,8 @@ def review_pr(pr_number: int, repo: str = None) -> dict:
             return {"ok": False, "pr_number": pr_number, "error": "empty/queued review"}
         mark_review_done(pr_number, summary, _repo)
         _notify_pr_reviewed(pr_number, _repo, review.get("title", ""), summary)
-        verdict = "REVIEWED"
-        u = summary.upper()
-        for v in ("APPROVE", "REQUEST CHANGES", "NEEDS REVIEW"):
-            if f"VERDICT: {v}" in u:
-                verdict = v
-                break
+        # Single source of truth — same parser the merge gate + tier classifier use.
+        verdict = parse_verdict(summary)
         return {"ok": True, "pr_number": pr_number, "verdict": verdict, "summary": summary}
     except Exception as exc:
         logger.error("[PR Review] review_pr #%s failed: %s", pr_number, exc)
@@ -214,15 +211,8 @@ def _notify_pr_reviewed(pr_number: int, repo: str, title: str, ai_summary: str) 
     import re as _re
     from services.director_report_service import submit_via_inbox
 
-    verdict = "REVIEWED"
-    if ai_summary:
-        u = ai_summary.upper()
-        if "VERDICT: APPROVE" in u:
-            verdict = "APPROVE"
-        elif "VERDICT: REQUEST CHANGES" in u:
-            verdict = "REQUEST CHANGES"
-        elif "VERDICT: NEEDS REVIEW" in u:
-            verdict = "NEEDS REVIEW"
+    # Single source of truth — same parser the merge gate + tier classifier use.
+    verdict = parse_verdict(ai_summary)
 
     snippet = ""
     if ai_summary:

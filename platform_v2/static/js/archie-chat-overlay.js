@@ -458,7 +458,16 @@ class ArchieOverlay {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    if (!window.location.pathname.startsWith('/tools/archie-chat')) {
+    // The chat overlay is a per-module assistant. Skip the dedicated chat page
+    // and the main dashboard/landing page (all-modules grid) — the launcher
+    // belongs inside individual modules, not on the landing page.
+    var p = window.location.pathname;
+    var noOverlay =
+        p.startsWith('/tools/archie-chat') ||
+        p === '/' ||
+        p === '/dashboard' ||
+        p === '/dashboard/';
+    if (!noOverlay) {
         window.archieOverlay = new ArchieOverlay();
         window.archieOverlay.init();
     }

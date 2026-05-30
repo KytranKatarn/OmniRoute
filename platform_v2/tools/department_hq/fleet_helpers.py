@@ -80,6 +80,22 @@ DEFAULT_NODE_PORT = 11434  # integer fallback for remote-node DB rows
 DEFAULT_CLIENT_VERSION = "3.0.0"
 LATEST_CLIENT_VERSION = "3.0.0"
 
+# Canonical hub display label. The hub node carries several legacy aliases
+# ("Archie Starbase" was the pre-cluster name; node_id is "archie-starbase").
+# All of them collapse to "Hub" for display so A.R.M.A.D.A. traffic/model
+# panels don't show the hub as two separate nodes. Node *IDs* are NOT touched.
+HUB_DISPLAY_LABEL = "Hub"
+_HUB_NODE_ALIASES = {"archie starbase", "archie-starbase", "archie-hub", "hub"}
+
+
+def normalize_node_label(node_name):
+    """Map any hub alias to the canonical 'Hub' display label; pass other
+    node names through unchanged. Safe on None/empty."""
+    if not node_name:
+        return node_name
+    return HUB_DISPLAY_LABEL if str(node_name).strip().lower() in _HUB_NODE_ALIASES else node_name
+
+
 # ---------------------------------------------------------------------------
 # Starship node constants (from starship/helpers.py)
 # ---------------------------------------------------------------------------

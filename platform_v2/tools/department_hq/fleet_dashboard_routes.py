@@ -38,6 +38,7 @@ from .fleet_helpers import (
     _get_user_nodes,
     _compute_node_status,
     push_agent_event,
+    normalize_node_label,
 )
 
 try:
@@ -328,7 +329,7 @@ def register_dashboard_routes(bp, auth_decorator):
                     """
                 )
                 for r in cur.fetchall() or []:
-                    node = r["node_name"]
+                    node = normalize_node_label(r["node_name"])
                     entry = {
                         "name": r["model_used"],
                         "node": node,
@@ -1630,7 +1631,7 @@ def register_dashboard_routes(bp, auth_decorator):
                     )
                     for row in cur2.fetchall():
                         n = row["node_name"] or ""
-                        short = n.replace("Starship-", ".").replace("Archie Starbase", "Hub").strip() or n
+                        short = normalize_node_label(n).replace("Starship-", ".").strip() or n
                         fleet_loaded.append(
                             {
                                 "name": row["model_name"],

@@ -409,6 +409,15 @@ COOLDOWN_BUDGET_PCT = 0.95  # 95% budget -> cooldown
 COOLDOWN_STRESS = 0.85  # stress >= 0.85 -> cooldown
 WINDING_DOWN_SCORE_PENALTY = 0.30  # 30% score penalty when winding down
 
+# Demand-aware fleet keep_alive (#3532 v1). Tracks recent dispatch times per
+# (node_id, model) so GPU fleet nodes (Starships, constrained VRAM) keep a 7B
+# warm during a burst of agents but free the GPU quickly when demand is a
+# one-off. In-memory + per-process (fleet dispatches come from the scheduler
+# loops); v2 moves this signal into K.I.N. for cross-process orchestration.
+_NODE_MODEL_DISPATCH_TS: Dict[tuple, List[float]] = {}
+_DISPATCH_BURST_WINDOW_SEC = 600  # 10 min lookback
+_DISPATCH_BURST_THRESHOLD = 2  # >=2 dispatches in the window => sustained demand
+
 
 # Module-level cache so we only hit Ollama /api/tags once per process.
 _INSTALLED_MODELS_CACHE = {"names": None, "fetched_at": 0}
@@ -2239,7 +2248,19 @@ class DepartmentDispatcher:
             # keep their small models warm 30m (cheap to hold, avoids reloads).
             # locals().get guards the case where node_row was never assigned.
             _nr = locals().get("node_row")
-            _node_keep_alive = "5m" if (_nr and _nr.get("gpu_available")) else "30m"
+            if _nr and _nr.get("gpu_available"):
+                # GPU fleet node (Starship): demand-aware (#3532 v1). Record this
+                # dispatch, prune to the window, and keep the 7B warm 30m if a
+                # burst of agents is hitting this node+model, else 5m to free the
+                # constrained GPU. Miscount-tolerant (no lock) — heuristic only.
+                _now = time.time()
+                _key = (node_id, model)
+                _hist = [_t for _t in _NODE_MODEL_DISPATCH_TS.get(_key, []) if _now - _t < _DISPATCH_BURST_WINDOW_SEC]
+                _hist.append(_now)
+                _NODE_MODEL_DISPATCH_TS[_key] = _hist
+                _node_keep_alive = "30m" if len(_hist) >= _DISPATCH_BURST_THRESHOLD else "5m"
+            else:
+                _node_keep_alive = "30m"
             payload = {
                 "model": model,
                 "prompt": prompt,

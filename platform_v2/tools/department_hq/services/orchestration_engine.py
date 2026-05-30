@@ -1452,6 +1452,14 @@ class OrchestrationEngine:
                 timeout=120,
                 project_id=project_id,
                 prefer_agent=agent.get("name") if agent else None,
+                # Chat-only model override (e.g. route C.O.D.E.X. chat to a lighter,
+                # always-warm model). None for normal callers — the agent's roster
+                # model (used for jobs/documentation) is unaffected.
+                model_override=(user_context or {}).get("chat_model_override"),
+                # Keep chat on the hub (warm, interactive-priority) instead of
+                # escalating to a contended fleet node — fleet routing was adding
+                # ~260s of queue wait behind WTF 7B traffic on the Starships.
+                local_only=bool((user_context or {}).get("chat_model_override")),
                 images=_images if _images else None,
             )
             if result.success and result.response:

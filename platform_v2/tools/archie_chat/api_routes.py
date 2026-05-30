@@ -117,6 +117,15 @@ _AGENT_ACCOUNTS = {
     "kytran": {"display_name": "Kytran", "portrait": None},
 }
 
+# Shared chat engine: every agent's CHAT runs on this single, always-warm model
+# so replies are never blocked on a cold heavy model (e.g. C.O.D.E.X.'s gemma3:12b
+# took ~277s to cold-load). Agent identity/personality comes from the per-agent
+# briefing + system prompt injected per message — not the base model. Real work
+# (jobs, documentation, skills) dispatches WITHOUT this override, so each agent
+# keeps its full roster model there. Skipped when images are attached (vision
+# needs a vision-capable model). (cold-start fix)
+CHAT_MODEL = "qwen2.5:7b"
+
 
 def _error(code, message, status=400):
     """Return a standardised error JSON response."""
@@ -926,6 +935,9 @@ def register_routes(bp, admin_required):
                     "username": user.get("username", ""),
                     "conversation_history": conversation_history,
                     "original_message": message,
+                    # Run chat on the shared always-warm model (no cold-start);
+                    # skip for vision so an image goes to a vision-capable model.
+                    "chat_model_override": (CHAT_MODEL if not images else None),
                 },
                 images=images if images else None,
             )

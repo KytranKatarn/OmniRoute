@@ -988,7 +988,10 @@ def register_routes(bp, admin_required):
             "assistant",
             assistant_response,
             thinking_steps=thinking_dicts,
-            agent_used=result.agent_used,
+            # Always attribute the response to the resolved agent — even when
+            # orchestration returns an empty agent_used (e.g. an empty/errored
+            # model reply), so history never shows a generic "assistant". (#chat-identity)
+            agent_used=result.agent_used or effective_target,
             model_used=result.model_used,
             station_code=agent_station,
             governance_events=governance_dicts,

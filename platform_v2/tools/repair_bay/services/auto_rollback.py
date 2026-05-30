@@ -208,9 +208,23 @@ class AutoRollbackManager:
             rollback_script = os.path.join(backup_path, "rollback.sh")
 
             if not os.path.exists(rollback_script):
+                # M-7: real Backup Manager backups do NOT ship a rollback.sh, so
+                # this is the common case — not an edge case — which means the
+                # legacy script path silently made every auto-rollback fail.
+                # Fall back to the Backup Manager's restore_components(), but ONLY
+                # when explicitly enabled: restoring code over the live platform
+                # is destructive and cannot be safely auto-tested here.
+                if os.getenv("AUTO_ROLLBACK_RESTORE_ENABLED", "false").lower() == "true":
+                    return self._restore_via_backup_manager(backup_name)
                 return {
                     "success": False,
-                    "error": f"Rollback script not found: {rollback_script}",
+                    "needs_manual": True,
+                    "error": (
+                        f"No rollback.sh in backup '{backup_name}'. Auto-restore is "
+                        f"disabled (set AUTO_ROLLBACK_RESTORE_ENABLED=true to allow "
+                        f"Backup Manager restore_components). Restore manually via "
+                        f"/tools/backup-manager (backup at {backup_path})."
+                    ),
                 }
 
             # Make script executable
@@ -242,6 +256,30 @@ class AutoRollbackManager:
             return {"success": False, "error": "Rollback timed out after 10 minutes"}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    def _restore_via_backup_manager(self, backup_name: str) -> Dict:
+        """M-7 fallback used when a backup has no rollback.sh.
+
+        Restores code + config from the named backup via the Backup Manager.
+        DESTRUCTIVE — overwrites live platform files — so it is gated behind
+        AUTO_ROLLBACK_RESTORE_ENABLED and is intentionally NOT auto-tested here.
+        """
+        try:
+            from tools.backup_manager._shared import restore_components
+
+            result = restore_components(backup_name, ["code", "config"])
+            ok = bool(result.get("success")) if isinstance(result, dict) else bool(result)
+            return {
+                "success": ok,
+                "components_restored": ["code", "config"] if ok else [],
+                "output": str(result)[:500],
+                "error": None if ok else f"Backup Manager restore failed: {result}",
+            }
+        except Exception as e:  # noqa: BLE001 — fallback must surface a clean error
+            return {
+                "success": False,
+                "error": f"Backup Manager restore unavailable: {e}",
+            }
 
     def _parse_rollback_output(self, output: str) -> list:
         """

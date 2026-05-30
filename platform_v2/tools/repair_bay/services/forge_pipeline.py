@@ -2,7 +2,7 @@
 
 Scan → AI Fix → Sandbox Test → GitHub Branch → PR → CodeRabbit Review → Merge
 
-Called by safe_deployment_protocol when a proposal is ready for deployment.
+Entry points: github_routes (deploy_via_merge) and forge_self_heal.
 Instead of applying changes directly, pushes to a branch and opens a PR.
 """
 

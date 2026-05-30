@@ -15,7 +15,7 @@ def _build_consciousness_briefing() -> str:
             cur.execute(
                 "SELECT COUNT(*) AS total, "
                 "COUNT(*) FILTER (WHERE embedding IS NOT NULL) AS embedded "
-                "FROM knowledge_base WHERE is_archived=false"
+                "FROM knowledge_base"
             )
             row = cur.fetchone() or {}
             total = row.get("total", 0)
@@ -25,23 +25,17 @@ def _build_consciousness_briefing() -> str:
 
             cur.execute(
                 "SELECT knowledge_type, COUNT(*) AS cnt FROM knowledge_base "
-                "WHERE is_archived=false GROUP BY knowledge_type ORDER BY cnt DESC LIMIT 5"
+                "GROUP BY knowledge_type ORDER BY cnt DESC LIMIT 5"
             )
             types = cur.fetchall()
             type_summary = " | ".join(f"{r['knowledge_type']}: {r['cnt']}" for r in types)
             lines.append(f"By type — {type_summary}")
 
-            cur.execute(
-                "SELECT COUNT(*) AS cnt FROM knowledge_base "
-                "WHERE is_archived=false AND created_at > NOW() - INTERVAL '24 hours'"
-            )
+            cur.execute("SELECT COUNT(*) AS cnt FROM knowledge_base " "WHERE created_at > NOW() - INTERVAL '24 hours'")
             recent = (cur.fetchone() or {}).get("cnt", 0)
             lines.append(f"New entries (24h): {recent}")
 
-            cur.execute(
-                "SELECT knowledge_type, title FROM knowledge_base "
-                "WHERE is_archived=false ORDER BY created_at DESC LIMIT 3"
-            )
+            cur.execute("SELECT knowledge_type, title FROM knowledge_base " "ORDER BY created_at DESC LIMIT 3")
             latest = cur.fetchall()
             if latest:
                 lines.append("Recent entries:")

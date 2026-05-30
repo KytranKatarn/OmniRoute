@@ -692,6 +692,18 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # P.R.O.B.E. — daily agent-briefing health check (mistake #269358).
+        # 04:15 UTC. Runs every chat briefing; flags any returning a swallowed
+        # error (schema drift) instead of live module state, so the silent
+        # briefing-breakage class (PRs #1301-1303) can't recur undetected.
+        self.scheduler.add_job(
+            with_app_context(self._run_briefing_health),
+            trigger=IntervalTrigger(hours=24, start_date="2026-01-01 04:15:00"),
+            id="probe_briefing_health",
+            name="Agent Loop: P.R.O.B.E. Briefing Health Check",
+            replace_existing=True,
+        )
+
         # F.O.R.G.E. — PR review polling (Project #247 Phase 1 / Task #1799).
         # Polls GitHub every 5 min for new/changed open PRs; upserts pr_reviews.
         self.scheduler.add_job(
@@ -5176,6 +5188,45 @@ class AgentLoop:
                 details={"error": str(e)},
                 success=False,
             )
+
+    def _run_briefing_health(self):
+        """Daily P.R.O.B.E. check — runs every agent chat briefing and flags any
+        returning a swallowed error (schema drift) instead of live module state.
+
+        Delegates to ``services.briefing_health_service.check_briefing_health``
+        (single source of truth). Surfaces via autonomy_loop_log (always) and a
+        warning log on failure; items_failed > 0 also makes it appear in the
+        session_briefing anomalies feed on next boot. See mistake_learned #269358.
+        """
+        start = time.time()
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from services.briefing_health_service import (
+                check_briefing_health,
+                format_alert_message,
+            )
+
+            result = check_briefing_health()
+            duration_ms = int((time.time() - start) * 1000)
+
+            self._log_cycle(
+                job_name="probe_briefing_health",
+                items_processed=result["total"],
+                items_failed=result["anomaly_count"],
+                duration_ms=duration_ms,
+                details={
+                    "severity": result["severity"],
+                    "summary_metrics": result["summary_metrics"],
+                    "reasons": result["reasons"],
+                },
+            )
+
+            if result["severity"] in ("warning", "error"):
+                logger.warning("[ProbeBriefingHealth] %s", format_alert_message(result))
+        except Exception as e:
+            logger.error("[ProbeBriefingHealth] check failed: %s", e)
 
     def _run_dep_drift_audit(self):
         """Daily drift audit — requirements.txt vs running container pip freeze.

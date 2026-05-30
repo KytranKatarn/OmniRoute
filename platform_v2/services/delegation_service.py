@@ -38,6 +38,7 @@ KNOWN_TOOL_CAPABILITIES = {
     "health_check",
     "check_platform_health",
     "check_dep_drift",
+    "run_briefing_health",  # P.R.O.B.E. — run all agent chat briefings, flag schema drift
     "run_misroute_to_proposal_adapter",
     "deploy_static",
     "deploy_vps",
@@ -379,6 +380,19 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
                 f"Dep drift: missing={len(result.get('missing', []))} "
                 f"extra={len(result.get('extra', []))} "
                 f"mismatched={len(result.get('mismatched', []))}"
+            ),
+            "result": result,
+        }
+
+    if capability == "run_briefing_health":
+        from services.briefing_health_service import check_briefing_health
+
+        result = check_briefing_health()
+        return {
+            "success": result["severity"] == "ok",
+            "summary": (
+                f"Briefing health: {result['ok']}/{result['total']} OK"
+                + ("" if not result["failed"] else " — broken: " + ", ".join(f["module"] for f in result["failed"]))
             ),
             "result": result,
         }

@@ -965,6 +965,15 @@ def register_routes(bp, admin_required):
         elif effective_target == "F.O.R.G.E." and result.success:
             assistant_response = _inject_forge_action(message, assistant_response)
 
+        # Never hand back an empty bubble. If the model was still cold-loading
+        # after the warm retries, say so plainly so a resend lands on a warm model.
+        if not (assistant_response or "").strip():
+            _who = agent_display_name or effective_target
+            assistant_response = (
+                f"⏳ {_who}'s model is still warming up. Please resend your message "
+                "in a few seconds — it'll be ready."
+            )
+
         # Save assistant message
         governance_dicts = (
             [

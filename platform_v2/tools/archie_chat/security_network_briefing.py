@@ -51,14 +51,23 @@ def _build_security_network_briefing() -> str:
             try:
                 cur.execute(
                     """
-                    SELECT rule_pack, pass_count, fail_count, score_pct,
-                           scanned_at
-                    FROM compliance_scan_results
-                    WHERE scanned_at = (
-                        SELECT MAX(scanned_at) FROM compliance_scan_results r2
-                        WHERE r2.rule_pack = compliance_scan_results.rule_pack
+                    WITH latest_scan AS (
+                        SELECT DISTINCT ON (pack_id) pack_id, scan_id
+                        FROM compliance_scan_results
+                        ORDER BY pack_id, scanned_at DESC
                     )
-                    ORDER BY score_pct ASC
+                    SELECT c.pack_id AS rule_pack,
+                           COUNT(*) FILTER (WHERE c.status = 'pass') AS pass_count,
+                           COUNT(*) FILTER (WHERE c.status = 'fail') AS fail_count,
+                           COALESCE(ROUND(
+                               100.0 * COUNT(*) FILTER (WHERE c.status = 'pass')
+                               / NULLIF(COUNT(*) FILTER (WHERE c.status IN ('pass', 'fail')), 0)
+                           ), 0)::float AS score_pct
+                    FROM compliance_scan_results c
+                    JOIN latest_scan ls
+                      ON ls.pack_id = c.pack_id AND ls.scan_id = c.scan_id
+                    GROUP BY c.pack_id
+                    ORDER BY score_pct ASC NULLS LAST
                     LIMIT 5
                     """
                 )

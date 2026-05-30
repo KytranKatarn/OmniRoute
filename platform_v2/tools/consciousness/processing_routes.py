@@ -672,20 +672,20 @@ def _run_embedding_job(item_ids_and_data, job_id):
         svc = get_embedding_service()
         health = svc.health_check()
         if health.get("status") != "healthy":
-            logger.warning(f"[Embedding] Model not healthy, attempting warmup: {health}")
-            import requests as _req
+            logger.warning(f"[Embedding] Model not healthy, attempting fleet-wide warmup: {health}")
+            # Fleet-aware: warm arctic on EVERY node in the embedding pool
+            # (failover), not just the hub. Per-item generation below already
+            # fails over via generate_embedding(). (#3525)
+            from ai_bridge.embedding_service import warm_all_nodes
 
-            # Use same host resolution as embedding_service.py
-            _h = os.getenv("OLLAMA_EMBEDDING_HOST", "") or os.getenv("OLLAMA_PRIMARY", "host.docker.internal:11434")
-            if not _h.startswith("http"):
-                _h = f"http://{_h}"
-            _model = os.getenv("OLLAMA_EMBEDDING_MODEL", "arctic-embed-cpu")
-            _req.post(
-                f"{_h}/api/embed",
-                json={"model": _model, "input": "warmup", "keep_alive": "35m"},
-                timeout=120,  # 2 min for cold-start load
+            warm_results = warm_all_nodes()
+            _ok = sum(1 for v in warm_results.values() if v == "ok")
+            logger.info(
+                "[Embedding] Fleet warmup complete: %d/%d nodes warm — %s",
+                _ok,
+                len(warm_results),
+                warm_results,
             )
-            logger.info("[Embedding] Model warmup complete")
     except Exception as warmup_err:
         logger.warning(f"[Embedding] Model warmup failed: {warmup_err}")
 

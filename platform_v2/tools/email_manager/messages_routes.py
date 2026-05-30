@@ -295,6 +295,104 @@ def register_email_messages_routes(bp, admin_required):
         agent = result.get("agent_name") or "R.E.S.O.L.V.E."
         return jsonify({"draft": draft, "agent": agent})
 
+    @bp.route("/api/email/messages/<int:message_id>/create-task", methods=["POST"])
+    @login_required
+    @admin_required
+    def email_create_task(message_id):
+        """Convert an email into a Dev HQ unified_task.
+
+        Dispatches the email to C.O.D.E.X. (capability='documentation') to extract
+        a concise task title + summary, then inserts a row into unified_tasks linked
+        back to the source email via metadata JSONB. Fails soft — if dispatch fails
+        the raw subject is used as the title.
+
+        Returns {success, task_id, title} or {error}.
+        """
+        from psycopg2.extras import Json
+        from tools.department_hq.services.department_dispatcher import dispatch_json
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT m.subject, m.from_address, m.body_text, m.body_preview,
+                          m.mailbox_id, mb.mailbox_type, mb.address AS mailbox_address
+                   FROM email_messages m
+                   JOIN email_mailboxes mb ON mb.id = m.mailbox_id
+                   WHERE m.id = %s""",
+                (message_id,),
+            )
+            row = cur.fetchone()
+
+        if not row:
+            return jsonify({"error": "Message not found"}), 404
+
+        # Guard: COLLABORATOR must not create tasks from inaccessible mailboxes.
+        visible = get_visible_mailbox_ids(current_user)
+        if visible is not None and row["mailbox_id"] not in visible:
+            return jsonify({"error": "Access denied"}), 403
+
+        subject = (row["subject"] or "").strip() or "(no subject)"
+        from_address = row["from_address"] or ""
+        mailbox_address = row["mailbox_address"] or ""
+        body_snippet = (row["body_text"] or row["body_preview"] or "")[:1500]
+
+        # Ask C.O.D.E.X. to extract a concise actionable title + summary.
+        prompt = (
+            f"Extract a concise, actionable task from this email.\n\n"
+            f"From: {from_address}\n"
+            f"Subject: {subject}\n"
+            f"Body:\n{body_snippet}\n\n"
+            f"Respond with exactly two lines:\n"
+            f"TITLE: <a short imperative task title, max 80 chars>\n"
+            f"SUMMARY: <one or two sentences describing what needs to be done>"
+        )
+
+        title = subject[:200]
+        summary = ""
+        try:
+            result = dispatch_json(capability="documentation", prompt=prompt)
+            if result.get("success"):
+                text = (result.get("response") or "").strip()
+                for line in text.splitlines():
+                    stripped = line.strip()
+                    upper = stripped.upper()
+                    if upper.startswith("TITLE:"):
+                        extracted = stripped.split(":", 1)[1].strip()
+                        if extracted:
+                            title = extracted[:200]
+                    elif upper.startswith("SUMMARY:"):
+                        summary = stripped.split(":", 1)[1].strip()
+        except Exception:
+            logger.exception("create-task dispatch failed for message %s", message_id)
+
+        description_parts = []
+        if summary:
+            description_parts.append(summary)
+        description_parts.append(f"From: {from_address}")
+        description_parts.append(f"Mailbox: {mailbox_address}")
+        if body_snippet:
+            description_parts.append("\n--- Email excerpt ---\n" + body_snippet[:800])
+        description = "\n".join(description_parts)
+
+        metadata = {
+            "source": "email",
+            "email_message_id": message_id,
+            "mailbox_address": mailbox_address,
+            "from_address": from_address,
+        }
+
+        # Project #359 = Email HQ. Priority 5 = default (INTEGER).
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO unified_tasks
+                       (project_id, title, description, task_type, priority, metadata)
+                   VALUES (%s, %s, %s, %s, %s, %s)
+                   RETURNING id""",
+                (359, title, description, "email", 5, Json(metadata)),
+            )
+            task_id = cur.fetchone()["id"]
+
+        return jsonify({"success": True, "task_id": task_id, "title": title})
+
     # ------------------------------------------------------------------
     # Message actions
     # ------------------------------------------------------------------

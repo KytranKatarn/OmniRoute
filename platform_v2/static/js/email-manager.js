@@ -563,6 +563,13 @@
       if (draftLabel) draftLabel.textContent = 'Draft Reply';
       draftBtn.disabled = false;
     }
+
+    // Reset Create Task button; re-surface a previously created task link if any.
+    var taskBtn = el('em-create-task-btn');
+    var taskLabel = el('em-create-task-label');
+    if (taskBtn) { taskBtn.disabled = false; }
+    if (taskLabel) taskLabel.textContent = 'Create Task';
+    renderTaskLink(msg.created_task_id || null);
   }
 
   function renderBody(msg) {
@@ -1138,6 +1145,45 @@
     });
   }
 
+  function renderTaskLink(taskId) {
+    var span = el('em-task-link');
+    if (!span) return;
+    while (span.firstChild) span.removeChild(span.firstChild);
+    if (!taskId) { span.style.display = 'none'; return; }
+    span.appendChild(document.createTextNode('✓ Task '));
+    var link = document.createElement('a');
+    link.href = '/tools/consciousness#devhq';
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.style.color = '#38bdf8';
+    link.textContent = '#' + taskId;
+    span.appendChild(link);
+    span.style.display = '';
+  }
+
+  function createTaskFromEmail() {
+    if (!state.currentMessageId) return;
+    var btn = el('em-create-task-btn');
+    var label = el('em-create-task-label');
+    if (btn) btn.disabled = true;
+    if (label) label.textContent = 'Creating…';
+
+    apiPost('/api/email/messages/' + state.currentMessageId + '/create-task').then(function (d) {
+      if (label) label.textContent = 'Create Task';
+      if (btn) btn.disabled = false;
+      if (d.success && d.task_id) {
+        if (state.currentMsg) state.currentMsg.created_task_id = d.task_id;
+        renderTaskLink(d.task_id);
+      } else {
+        alert('Could not create task: ' + (d.error || 'unknown'));
+      }
+    }).catch(function () {
+      if (label) label.textContent = 'Create Task';
+      if (btn) btn.disabled = false;
+      alert('Dispatch failed — agent may be offline');
+    });
+  }
+
   function replyMessage() {
     var fromEl = el('em-read-from');
     var subjEl = el('em-read-subject');
@@ -1361,6 +1407,7 @@
     wire('em-reply-btn', replyMessage);
     wire('em-forward-btn', forwardMessage);
     wire('em-draft-reply-btn', draftReply);
+    wire('em-create-task-btn', createTaskFromEmail);
     wire('em-provision-owner-btn', provisionOwner);
     wire('em-refresh-btn', refreshAllMailboxes);
     wire('em-compose-open', function () { openCompose(); });

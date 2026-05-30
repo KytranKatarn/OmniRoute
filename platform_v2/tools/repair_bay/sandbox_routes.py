@@ -69,7 +69,14 @@ def register_sandbox_routes(bp, admin_required):
     @login_required
     @admin_required
     def sandbox_config_get():
-        return jsonify(sandbox_service.get_config())
+        result = sandbox_service.get_config()
+        try:
+            from tools.repair_bay.services.sandbox_manager import DOCKER_AVAILABLE
+
+            result["docker_available"] = DOCKER_AVAILABLE
+        except Exception:
+            result["docker_available"] = False
+        return jsonify(result)
 
     @bp.route("/api/sandbox/config", methods=["POST"])
     @login_required
@@ -206,7 +213,7 @@ def register_sandbox_routes(bp, admin_required):
             last_result_count = 0
             last_status = None
             terminal = {"completed", "failed", "cancelled", "error"}
-            for _ in range(180):  # max 3 minutes
+            for _ in range(120):  # max 60 seconds
                 try:
                     data = sandbox_service.get_run_status(run_id)
                     if not data.get("success"):
@@ -230,7 +237,7 @@ def register_sandbox_routes(bp, admin_required):
                         yield f"data: {json.dumps({'type': 'done', 'status': status, 'summary': run_data.get('summary', {})})}\n\n"
                         return
 
-                    time.sleep(1)
+                    time.sleep(0.5)
                 except Exception as exc:
                     yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
                     return

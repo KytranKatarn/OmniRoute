@@ -13,6 +13,28 @@ from flask_login import login_required
 
 logger = logging.getLogger(__name__)
 
+# Hard violations block deploy_execute; everything else is advisory.
+_HARD_RULES = {"ADR-013", "HARDCODED_SECRET"}
+
+_CAP_MAP_CACHE = None
+
+
+def _capability_map():
+    """Lazily load CAPABILITY_DEPARTMENT_MAP from the DHQ dispatcher.
+
+    Returns the dict, or None if it can't be imported (check is skipped then).
+    """
+    global _CAP_MAP_CACHE
+    if _CAP_MAP_CACHE is None:
+        try:
+            from tools.department_hq.services.department_dispatcher import CAPABILITY_DEPARTMENT_MAP
+
+            _CAP_MAP_CACHE = CAPABILITY_DEPARTMENT_MAP
+        except Exception:
+            logger.warning("[DeployHealth] CAPABILITY_DEPARTMENT_MAP unavailable — skipping capability audit")
+            _CAP_MAP_CACHE = False
+    return _CAP_MAP_CACHE or None
+
 
 def _run_pre_deploy_health_check(file_paths=None):
     """Run a quick pattern compliance check before deployment.
@@ -64,6 +86,25 @@ def _run_pre_deploy_health_check(file_paths=None):
                         "message": "Direct cloud API call — must use Bridge dispatcher",
                     }
                 )
+
+            # ADR-013-CAP: every dispatch(capability="X") must use a capability
+            # registered in CAPABILITY_DEPARTMENT_MAP — otherwise it silently
+            # defaults to Engineering & Technology and may misroute. Advisory only.
+            for cap in re.findall(
+                r"dispatch(?:_json)?\s*\([^)]*?capability\s*=\s*['\"]([^'\"]+)['\"]",
+                content,
+            ):
+                if _capability_map() is not None and cap not in _capability_map():
+                    violations.append(
+                        {
+                            "file": rel_path,
+                            "rule": "ADR-013-CAP",
+                            "message": (
+                                f"dispatch capability '{cap}' not in CAPABILITY_DEPARTMENT_MAP "
+                                "— add a mapping or it will default to Engineering & Technology"
+                            ),
+                        }
+                    )
 
             # Bare except clauses (poor error handling)
             if re.search(r"\bexcept\s*:", content):
@@ -298,6 +339,26 @@ def register_deploy_routes(bp, admin_required):
         if capability not in ("deploy_static", "deploy_vps"):
             return jsonify({"success": False, "error": f"Unknown capability: {capability}"}), 400
 
+        # Pre-deploy compliance gate — BLOCK on hard violations (ADR-013 /
+        # hardcoded secrets), advisory for everything else (bare except,
+        # unmapped dispatch capabilities).
+        changed_files = payload.get("changed_files") or []
+        health = _run_pre_deploy_health_check(file_paths=changed_files or None)
+        hard = [v for v in health.get("violations", []) if v.get("rule") in _HARD_RULES]
+        if hard:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "domain": payload.get("domain"),
+                        "capability": capability,
+                        "error": f"Pre-deploy gate blocked: {len(hard)} hard violation(s)",
+                        "health_check": health,
+                    }
+                ),
+                422,
+            )
+
         result = run_deploy_pipeline(capability, payload)
 
         return jsonify(
@@ -398,16 +459,20 @@ def register_deploy_routes(bp, admin_required):
                 domain = site["domain"]
                 key_ts = f"website_deploy_last_run_{domain}"
                 key_st = f"website_deploy_last_status_{domain}"
+                # deploy_static is async: the actual byte push happens later via
+                # the Hostinger MCP deploy-website skill. run_deploy_pipeline
+                # returns before any bytes land, and a verify here would snapshot
+                # PRE-deploy content as false proof — so skip verify_url and
+                # record a 'dispatched' status rather than 'success'.
                 result = run_deploy_pipeline(
                     "deploy_static",
                     {
                         "domain": domain,
                         "source_path": site["source"],
-                        "verify_url": site["verify_url"],
                         "changed_files": ["assets/portraits/"],
                     },
                 )
-                status = "success" if result.success else "failed"
+                status = "dispatched" if result.success else "failed"
                 ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
                 with _get_db(commit=True) as (conn, cur):
                     for k, v in [(key_ts, ts), (key_st, status)]:

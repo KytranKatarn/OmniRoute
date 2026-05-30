@@ -362,7 +362,7 @@ def merge_pr(pr_number: int, method: str = "squash") -> Dict:
         "success": True,
         # GitHub's merge response carries "merged": true; default True since a
         # <300 status already confirmed the merge. Callers check .get("merged").
-        "merged": bool(data.get("merged", True)),
+        "merged": bool(data.get("merged", False)),
         "pr_number": pr_number,
         "method": method,
         "sha": data.get("sha", ""),

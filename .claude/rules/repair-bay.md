@@ -5,11 +5,11 @@ globs: ["platform_v2/tools/repair_bay/**", "platform_v2/services/scan_service.py
 # Repair Bay Rules
 
 ## Structure
-- Route: `/tools/repair-bay` | 4 tabs: Diagnose, Repairs, Test Bay, Ship + ENGINEERING station panel
+- Route: `/tools/repair-bay` | 9 tabs: Dashboard (Reviews), PR Review, Repairs, Diagnose, Test Bay, Ship, P.R.O.B.E. (QA), Pushes, Module Review + ENGINEERING station panel
 - Service layer: `scan_service.py`, `proposal_service.py`, `sandbox_service.py` (business logic)
 - Route files are thin HTTP handlers calling service functions
 - Category: `AI_COMMAND` (not DEVELOPMENT_TOOLS — deleted)
-- `SandboxManager` class at `platform_v2/sandbox_manager.py` (top-level, NOT in tools/)
+- `SandboxManager` class at `platform_v2/tools/repair_bay/services/sandbox_manager.py` (top-level `platform_v2/sandbox_manager.py` does NOT exist — corrected 2026-05-29)
 
 ## Self-Evolution Pipeline
 - Scan -> Proposal -> Sandbox -> Deploy (deploy stays manual)

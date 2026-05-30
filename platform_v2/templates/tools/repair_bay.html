@@ -3855,6 +3855,8 @@ function switchTab(tabId) {
     if (tabId === 'sandbox') loadTestBay();
     if (tabId === 'deploy') loadShip();
     if (tabId === 'qa') loadQaTab();
+    if (tabId === 'pushes') { if (typeof window.loadPendingPushes === 'function') window.loadPendingPushes(); }
+    if (tabId === 'module-review') { if (typeof window.loadModuleReview === 'function') window.loadModuleReview(window.mrActiveCat); }
 }
 
 // Hash navigation on load

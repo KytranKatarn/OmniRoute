@@ -61,7 +61,7 @@ MODULE_CATEGORIES = {
         "archie_chat",
         "repair_bay",
         "agent_academy",
-        "automations",
+        # "automations" removed — enabled=False in module_registry (Decision #434)
         "wtf_hub",
     ],
     "saas_services": [
@@ -69,9 +69,9 @@ MODULE_CATEGORIES = {
         "google_work_suite",
         "user_profile",
         "kytran_business_suite",
-        "scheduler",
-        "social_media",
-        "task_planner",
+        # "scheduler" removed — enabled=False in module_registry
+        # "social_media" removed — enabled=False in module_registry
+        # "task_planner" removed — enabled=False in module_registry (Task #1984)
         "kytran_system_ops",
     ],
     "applications_concepts": [

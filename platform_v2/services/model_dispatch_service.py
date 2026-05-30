@@ -162,6 +162,15 @@ def _node_live_models(mesh_ip: str, port: int) -> Optional[set[str]]:
     return None
 
 
+def _canonical_model_name(model: str) -> str:
+    """Normalize an Ollama model name for comparison. Ollama's /api/tags always
+    returns the fully-qualified ``name:tag`` (defaulting to ``:latest``), but a
+    model can be registered in node_ollama_models without the tag. Treat the two
+    forms as equal so reconcile doesn't false-flag e.g. ``arctic-embed-cpu`` as
+    missing when the node reports ``arctic-embed-cpu:latest``."""
+    return model if ":" in model else f"{model}:latest"
+
+
 def _is_pullable(model: str) -> bool:
     if model in _runtime_unpullable:
         return False
@@ -306,7 +315,11 @@ def reconcile_fleet_models() -> None:
                     (node_str_id,),
                 )
                 registered = [r["model_name"] for r in cur.fetchall()]
-                missing = [m for m in registered if m not in live]
+                # Tag-normalize both sides: a node reports 'arctic-embed-cpu:latest'
+                # via /api/tags while the registry may hold the untagged
+                # 'arctic-embed-cpu'. Without this they false-flag as missing.
+                live_canon = {_canonical_model_name(m) for m in live}
+                missing = [m for m in registered if _canonical_model_name(m) not in live_canon]
                 if missing:
                     cur.execute(
                         "UPDATE node_ollama_models SET is_available = FALSE "

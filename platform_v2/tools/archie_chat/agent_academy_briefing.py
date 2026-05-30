@@ -13,7 +13,8 @@ def _build_agent_academy_briefing() -> str:
     try:
         with get_db_cursor(commit=False) as (conn, cur):
             cur.execute(
-                "SELECT COUNT(*) AS cnt FROM agent_benchmark_results " "WHERE created_at > NOW() - INTERVAL '7 days'"
+                "SELECT COUNT(*) AS cnt FROM agent_benchmark_results "
+                "WHERE benchmark_date > NOW() - INTERVAL '7 days'"
             )
             recent_benchmarks = (cur.fetchone() or {}).get("cnt", 0)
             lines.append(f"Benchmarks run (7d): {recent_benchmarks}")

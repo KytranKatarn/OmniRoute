@@ -22,8 +22,8 @@ def _build_account_center_briefing() -> str:
                 """
                 SELECT
                     COUNT(*) AS total,
-                    COUNT(*) FILTER (WHERE role = 'admin' OR access_level >= 90) AS admins,
-                    COUNT(*) FILTER (WHERE is_locked = true OR (lockout_until IS NOT NULL AND lockout_until > NOW())) AS locked,
+                    COUNT(*) FILTER (WHERE role = 'admin' OR is_admin = true) AS admins,
+                    COUNT(*) FILTER (WHERE locked_until IS NOT NULL AND locked_until > NOW()) AS locked,
                     COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') AS new_this_week
                 FROM users
                 """
@@ -39,48 +39,24 @@ def _build_account_center_briefing() -> str:
             # Subscription tiers
             cur.execute(
                 """
-                SELECT subscription_level, COUNT(*) as cnt
+                SELECT subscription_tier, COUNT(*) as cnt
                 FROM users
-                WHERE subscription_level IS NOT NULL
-                GROUP BY subscription_level
+                WHERE subscription_tier IS NOT NULL
+                GROUP BY subscription_tier
                 ORDER BY cnt DESC
                 LIMIT 5
                 """
             )
             tiers = cur.fetchall()
             if tiers:
-                tier_str = ", ".join(f"{r['subscription_level']}:{r['cnt']}" for r in tiers)
+                tier_str = ", ".join(f"{r['subscription_tier']}:{r['cnt']}" for r in tiers)
                 lines.append(f"Subscription tiers: {tier_str}")
 
-            # Auth events (24h)
-            cur.execute(
-                """
-                SELECT event_type, COUNT(*) as cnt
-                FROM auth_events
-                WHERE created_at > NOW() - INTERVAL '24 hours'
-                GROUP BY event_type
-                ORDER BY cnt DESC
-                LIMIT 6
-                """
-            )
-            events = cur.fetchall()
-            if events:
-                ev_str = " | ".join(f"{r['event_type']}:{r['cnt']}" for r in events)
-                lines.append(f"Auth events (24h): {ev_str}")
-            else:
-                lines.append("Auth events (24h): none recorded")
-
-            # Failed logins (24h)
-            cur.execute(
-                """
-                SELECT COUNT(*) AS cnt FROM auth_events
-                WHERE event_type = 'login_failed'
-                  AND created_at > NOW() - INTERVAL '24 hours'
-                """
-            )
-            fails = (cur.fetchone() or {}).get("cnt", 0)
+            # Failed logins — from users.failed_login_count (no auth_events table)
+            cur.execute("SELECT COALESCE(SUM(failed_login_count), 0) AS fails FROM users")
+            fails = (cur.fetchone() or {}).get("fails", 0)
             if fails and fails > 5:
-                lines.append(f"⚠️ {fails} failed logins in last 24h — possible brute-force risk")
+                lines.append(f"⚠️ {fails} accumulated failed-login attempts across accounts")
 
             # Pending invites
             cur.execute(

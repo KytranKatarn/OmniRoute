@@ -11,7 +11,7 @@ def _build_media_hub_briefing() -> str:
 
     try:
         with get_db_cursor(commit=False) as (conn, cur):
-            cur.execute("SELECT COUNT(*) AS cnt FROM media_hub_services WHERE is_active = true")
+            cur.execute("SELECT COUNT(*) AS cnt FROM media_hub_services WHERE is_enabled = true")
             services = (cur.fetchone() or {}).get("cnt", 0)
             lines.append(f"Active media services: {services}")
 

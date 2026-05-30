@@ -22,17 +22,12 @@ def _build_security_network_briefing() -> str:
                 """
                 SELECT
                     COUNT(*) AS total,
-                    COUNT(*) FILTER (WHERE status = 'online' OR last_seen > NOW() - INTERVAL '10 minutes') AS online,
-                    COUNT(*) FILTER (WHERE is_supervised = true) AS supervised
+                    COUNT(*) FILTER (WHERE status = 'online' OR last_seen_at > NOW() - INTERVAL '10 minutes') AS online
                 FROM network_devices
                 """
             )
             d = cur.fetchone() or {}
-            lines.append(
-                f"Devices: {d.get('total', 0)} known | "
-                f"{d.get('online', 0)} online | "
-                f"{d.get('supervised', 0)} supervised"
-            )
+            lines.append(f"Devices: {d.get('total', 0)} known | " f"{d.get('online', 0)} online")
 
             # Security events (24h)
             cur.execute(

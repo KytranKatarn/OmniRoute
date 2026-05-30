@@ -307,7 +307,12 @@ async def store_memory_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
     title = arguments.get("title", "")
     content = arguments.get("content", "")
-    memory_type = arguments.get("memory_type", "conversation_memory")
+    # Accept both `knowledge_type` (the documented param name in CLAUDE.md /
+    # MEMORY.md) and the legacy schema name `memory_type`. Previously only
+    # `memory_type` was read, so every caller passing `knowledge_type` (i.e.
+    # all of them, per the docs) silently fell back to conversation_memory —
+    # downgrading vault_note (1.2x) / mistake_learned (1.3x) search weight.
+    memory_type = arguments.get("knowledge_type") or arguments.get("memory_type") or "conversation_memory"
     category = arguments.get("category", "general")
     tags = arguments.get("tags", [])
     importance = min(max(arguments.get("importance", 0.6), 0.0), 1.0)
@@ -1244,6 +1249,18 @@ def register_knowledge_tools():
                     "type": "string",
                     "description": "Brief title (auto-generated if not provided)",
                 },
+                "knowledge_type": {
+                    "type": "string",
+                    "enum": [
+                        "conversation_memory",
+                        "vault_note",
+                        "code_snippet",
+                        "improvement",
+                        "mistake_learned",
+                    ],
+                    "description": "Type of entry (default: conversation_memory). vault_note=1.2x / mistake_learned=1.3x search weight. Alias: memory_type.",
+                    "default": "conversation_memory",
+                },
                 "memory_type": {
                     "type": "string",
                     "enum": [
@@ -1253,7 +1270,7 @@ def register_knowledge_tools():
                         "improvement",
                         "mistake_learned",
                     ],
-                    "description": "Type of memory (default: conversation_memory)",
+                    "description": "Legacy alias of knowledge_type.",
                     "default": "conversation_memory",
                 },
                 "category": {

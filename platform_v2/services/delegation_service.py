@@ -44,6 +44,7 @@ KNOWN_TOOL_CAPABILITIES = {
     "portrait_refinement",
     "translation_coverage_scan",
     "visual_scan",  # P.R.O.B.E. Playwright visual verification — logs and completes
+    "document_pr",  # persist a coder-doc vault_note for a merged PR (deterministic store)
 }
 
 VALID_DELEGATION_SOURCES = {
@@ -156,6 +157,13 @@ def execute_delegated_task(task: Dict[str, Any]) -> Dict[str, Any]:
                 "error": "missing_capability",
             }
 
+        # Auto-route PR documentation delegations (capability='documentation'
+        # carrying a pr_number, e.g. from the merge-pr skill Step 8) to the
+        # deterministic document_pr known-tool. The generic dispatcher path
+        # never persisted to the KB, so PR docs were silently lost (#3519).
+        if capability == "documentation" and (payload or {}).get("pr_number"):
+            capability = "document_pr"
+
         if capability in KNOWN_TOOL_CAPABILITIES:
             # Dedup rapid-fire deploy requests: if a *newer* pending deploy
             # for the same domain exists, this task is superseded — skip it.
@@ -216,8 +224,91 @@ def _is_deploy_superseded(task_id: int, capability: str, domain: str) -> bool:
         return False
 
 
+def _document_pr(payload: Dict[str, Any], reason: str = "") -> Dict[str, Any]:
+    """Deterministically persist a coder-doc vault_note for a merged PR.
+
+    Replaces the old ``capability='documentation'`` dispatch path, which sent a
+    prompt to C.O.D.E.X. but NEVER wrote to ``knowledge_base`` (#3519) — so PR
+    docs were silently lost. This ALWAYS persists a structured vault_note built
+    from PR metadata + the F.O.R.G.E. review summary already stored in the DB,
+    independent of any LLM call (the LLM step was the unreliable part).
+    """
+    pr_number = payload.get("pr_number")
+    if not pr_number:
+        return {
+            "success": False,
+            "summary": "document_pr requires pr_number in args",
+            "error": "missing_pr_number",
+        }
+
+    pr_title = payload.get("pr_title") or f"PR #{pr_number}"
+    repo = payload.get("repo") or "KytranKatarn/archie-platform"
+
+    # Best-effort: pull the diff-grounded F.O.R.G.E. review already in the DB.
+    review: Dict[str, Any] = {}
+    try:
+        from tools.repair_bay.services.pr_review_service import get_review
+
+        review = get_review(int(pr_number)) or {}
+    except Exception as _rev_exc:  # noqa: BLE001 — doc must persist regardless
+        logger.debug("document_pr: get_review failed for #%s: %s", pr_number, _rev_exc)
+
+    summary = (review.get("ai_summary") or "").strip()
+    changed, adds, dels = review.get("changed_files"), review.get("additions"), review.get("deletions")
+    verdict = review.get("review_status")
+
+    lines = [f"# PR #{pr_number} — {pr_title}", "", f"**Repo:** {repo}  |  **Merged.**"]
+    size_bits = []
+    if changed is not None:
+        size_bits.append(f"{changed} file(s)")
+    if adds is not None or dels is not None:
+        size_bits.append(f"+{adds or 0} / -{dels or 0}")
+    if size_bits:
+        lines.append(f"**Size:** {', '.join(size_bits)}")
+    if verdict:
+        lines.append(f"**F.O.R.G.E. review:** {verdict}")
+    if reason:
+        lines += ["", f"**Context:** {reason}"]
+    if summary:
+        lines += ["", "## F.O.R.G.E. review summary", summary]
+    lines += ["", f"_Auto-documented via delegate_task(document_pr) on merge of PR #{pr_number}._"]
+    content = "\n".join(lines)
+
+    title = f"PR #{pr_number}: {pr_title}"[:200]
+    tags = ["pr_doc", "coder_doc", f"pr_{pr_number}", repo.split("/")[-1]]
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO knowledge_base
+                    (knowledge_type, title, content, category, tags, importance_score, source_type)
+                VALUES ('vault_note', %s, %s, 'pr_documentation', %s, 0.85, 'delegate_document_pr')
+                RETURNING id
+                """,
+                (title, content, tags),
+            )
+            row = cur.fetchone()
+            kb_id = row["id"] if isinstance(row, dict) else row[0]
+        return {
+            "success": True,
+            "summary": f"Documented PR #{pr_number} -> KB vault_note #{kb_id}",
+            "result": {
+                "knowledge_base_id": kb_id,
+                "pr_number": pr_number,
+                "had_review_summary": bool(summary),
+            },
+        }
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("document_pr: KB insert failed for #%s", pr_number)
+        return {"success": False, "summary": f"document_pr KB insert failed: {exc}", "error": str(exc)}
+
+
 def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -> Dict[str, Any]:
     """Route a known capability to its deterministic service function."""
+    if capability == "document_pr":
+        return _document_pr(payload, reason)
+
     if capability in ("run_misroute_audit",):
         from services.misroute_audit_service import run_misroute_audit
 

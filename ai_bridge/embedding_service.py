@@ -42,7 +42,60 @@ if not _embedding_host.startswith("http"):
 OLLAMA_HOST = _embedding_host
 EMBEDDING_MODEL = os.getenv("OLLAMA_EMBEDDING_MODEL", "arctic-embed-cpu")
 EMBEDDING_DIMENSIONS = 768
-REQUEST_TIMEOUT = 120  # seconds — 2 min for arctic-embed-cpu cold-start load
+REQUEST_TIMEOUT = 30  # seconds — warm <1s, cold CPU load ~4-10s; fail over fast (#3525)
+
+# Cluster-delegated embedding routing (#3525): instead of always hitting the
+# contended hub GPU, route to online fleet nodes that have the embedding model
+# loaded (CPU outposts), with failover, then the configured host as last resort.
+_HOSTS_CACHE: dict = {"hosts": None, "ts": 0.0}
+_HOSTS_CACHE_TTL = 30  # seconds — cap DB lookups during bulk KB indexing
+
+
+def _resolve_embedding_hosts() -> list[str]:
+    """Ordered list of embedding endpoints: online fleet nodes that have the
+    embedding model available (mesh IPs), then OLLAMA_HOST (hub) as final
+    fallback. Fully defensive — any error returns just [OLLAMA_HOST]."""
+    import time
+
+    now = time.time()
+    cached = _HOSTS_CACHE.get("hosts")
+    if cached is not None and (now - _HOSTS_CACHE.get("ts", 0.0)) < _HOSTS_CACHE_TTL:
+        return cached
+
+    hosts: list[str] = []
+    try:
+        from database import get_db_cursor  # platform DB (RealDictCursor)
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT r.mesh_ip
+                FROM node_ollama_models m
+                JOIN remote_nodes r ON r.node_id = m.node_id
+                WHERE m.model_name = %s
+                  AND r.status = 'online'
+                  AND r.is_active = TRUE
+                  AND r.last_heartbeat > NOW() - INTERVAL '3 minutes'
+                  AND r.mesh_ip IS NOT NULL
+                ORDER BY r.current_load ASC NULLS LAST, random()
+                """,
+                (EMBEDDING_MODEL,),
+            )
+            for row in cur.fetchall():
+                ip = row["mesh_ip"] if isinstance(row, dict) else row[0]
+                if ip:
+                    url = f"http://{ip}:11434"
+                    if url not in hosts:
+                        hosts.append(url)
+    except Exception as e:  # noqa: BLE001 — resolution must never break embeddings
+        logger.debug("embedding host resolve failed (%s) — using default host", e)
+
+    if OLLAMA_HOST not in hosts:
+        hosts.append(OLLAMA_HOST)  # hub fallback always last
+
+    _HOSTS_CACHE["hosts"] = hosts
+    _HOSTS_CACHE["ts"] = now
+    return hosts
 
 
 @dataclass
@@ -115,43 +168,57 @@ class EmbeddingService:
             text = text[:max_chars]
             logger.debug(f"Truncated text to {max_chars} chars for embedding")
 
-        try:
-            response = requests.post(
-                self.endpoint,
-                json={"model": self.model, "input": text, "keep_alive": "35m"},
-                timeout=REQUEST_TIMEOUT,
-            )
-            response.raise_for_status()
-            data = response.json()
+        # Cluster-delegated routing with failover: try each online fleet node
+        # that has the embedding model, then the hub as last resort (#3525).
+        hosts = _resolve_embedding_hosts()
+        last_err = "no endpoints"
+        for _idx, _host in enumerate(hosts):
+            try:
+                response = requests.post(
+                    f"{_host}/api/embed",
+                    json={
+                    "model": self.model,
+                    "input": text,
+                    "keep_alive": "35m",
+                    # Force CPU: on GPU nodes (hub) Ollama otherwise tries to
+                    # load the embedder on the full 8GB GPU and times out. CPU
+                    # keeps it in RAM beside the GPU chat models (#3525).
+                    "options": {"num_gpu": 0},
+                },
+                    timeout=REQUEST_TIMEOUT,
+                )
+                response.raise_for_status()
+                data = response.json()
 
-            embeddings = data.get("embeddings", [])
-            if not embeddings:
-                logger.error("No embeddings in response")
-                return None
+                embeddings = data.get("embeddings", [])
+                if not embeddings:
+                    last_err = f"no embeddings in response @ {_host}"
+                    continue
 
-            embedding = embeddings[0]
-            if len(embedding) != EMBEDDING_DIMENSIONS:
-                logger.warning(
-                    f"Unexpected embedding dimensions: {len(embedding)} "
-                    f"(expected {EMBEDDING_DIMENSIONS})"
+                embedding = embeddings[0]
+                if len(embedding) != EMBEDDING_DIMENSIONS:
+                    logger.warning(
+                        f"Unexpected embedding dimensions: {len(embedding)} "
+                        f"(expected {EMBEDDING_DIMENSIONS})"
+                    )
+                if _idx > 0:
+                    logger.info(
+                        f"embedding: failed over to {_host} (attempt {_idx + 1}/{len(hosts)})"
+                    )
+                token_count = len(text.split())
+                return EmbeddingResult(
+                    embedding=embedding, model=self.model, token_count=token_count
                 )
 
-            # Estimate token count (rough approximation)
-            token_count = len(text.split())
+            except requests.exceptions.Timeout:
+                last_err = f"timeout >{REQUEST_TIMEOUT}s @ {_host}"
+            except requests.exceptions.RequestException as e:
+                last_err = f"{e} @ {_host}"
+            except Exception as e:  # noqa: BLE001
+                last_err = f"unexpected {e} @ {_host}"
 
-            return EmbeddingResult(
-                embedding=embedding, model=self.model, token_count=token_count
-            )
-
-        except requests.exceptions.Timeout:
-            logger.error(f"Timeout generating embedding (>{REQUEST_TIMEOUT}s)")
-            return None
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error generating embedding: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Unexpected error in embedding generation: {e}")
-            return None
+        logger.error(f"Embedding failed on all {len(hosts)} endpoint(s): {last_err}")
+        return None
 
     def generate_batch(
         self, texts: list[str], skip_empty: bool = True

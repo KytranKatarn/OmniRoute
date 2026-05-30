@@ -114,7 +114,7 @@ CAPABILITY_DEPARTMENT_MAP = {
     "tagging": "Analytics & Intelligence",
     "anomaly_detection": "Analytics & Intelligence",
     "pattern_recognition": "Analytics & Intelligence",
-    "embedding": "Analytics & Intelligence",
+    "embedding": "Documentation & Knowledge",  # E.M.B.E.R. #126 owns arctic-embed-cpu (Lv5)
     "translate": "Analytics & Intelligence",
     "detect_language": "Analytics & Intelligence",
     "analysis": "Analytics & Intelligence",

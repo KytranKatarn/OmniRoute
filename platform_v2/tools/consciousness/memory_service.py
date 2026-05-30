@@ -45,7 +45,18 @@ def get_db_connection():
 
 
 def generate_embedding(text: str) -> Optional[List[float]]:
-    """Generate embedding for text using Ollama"""
+    """Generate embedding via the cluster-delegated, fleet-aware embedding service
+    (#3525): routes to online nodes that have the embedder loaded (hub primary +
+    outpost backups) with failover. Falls back to the legacy hub-direct call only
+    if the fleet service can't be imported, so it's never worse than before."""
+    try:
+        from ai_bridge.embedding_service import generate_embedding as _fleet_embed
+
+        return _fleet_embed(text)
+    except Exception as e:  # noqa: BLE001 — fleet path optional, never break search
+        logger.debug("fleet embedding unavailable (%s) — legacy hub-direct fallback", e)
+
+    # Legacy hub-direct fallback (single node, no failover)
     try:
         response = requests.post(
             f"{OLLAMA_URL}/api/embeddings",

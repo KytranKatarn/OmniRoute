@@ -220,5 +220,64 @@ score += 1  # breaking keyword in title</div>
     </div>
   </div>
 
+  <!-- Governance -->
+  <div class="wtf-section">
+    <div class="wtf-section-title">GOVERNANCE</div>
+    <div class="wtf-flag-box" style="text-align:left;">
+      <h4>C.R.E.E.D. Institute Oversight</h4>
+      <p>WTF AI agents operate under C.R.E.E.D. Institute governance — an independent AI ethics body.</p>
+      <div class="wtf-trans-stats" style="border-top:1px solid #1a0a3a;border-bottom:none;margin-top:12px;">
+        <div class="wtf-stat">
+          <div class="wtf-stat-num" id="creed-score" style="color:#a0f;">99.5</div>
+          <div class="wtf-stat-label">ETHICS SCORE</div>
+        </div>
+        <div class="wtf-stat">
+          <div class="wtf-stat-num" id="creed-grade" style="color:#a0f;">A+</div>
+          <div class="wtf-stat-label">GRADE</div>
+        </div>
+        <div class="wtf-stat">
+          <div class="wtf-stat-num" id="creed-events">0</div>
+          <div class="wtf-stat-label">EVENTS TODAY</div>
+        </div>
+        <div class="wtf-stat" style="border-right:none;">
+          <div class="wtf-stat-num" id="creed-categories">0</div>
+          <div class="wtf-stat-label">ACTIVE CATEGORIES</div>
+        </div>
+      </div>
+      <p style="margin-top:14px;margin-bottom:0;">
+        <a href="https://creed-ai.org/public" class="wtf-flag-btn" target="_blank" rel="noopener">View C.R.E.E.D. public dashboard &rarr;</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    function setText(id, val) {
+      var el = document.getElementById(id);
+      if (el && val !== undefined && val !== null) {
+        el.textContent = String(val);
+      }
+    }
+    try {
+      var ctrl = new AbortController();
+      var timer = setTimeout(function () { ctrl.abort(); }, 8000);
+      fetch('https://creed.kytranempowerment.com/api/public/score', { signal: ctrl.signal })
+        .then(function (resp) {
+          clearTimeout(timer);
+          if (!resp.ok) { return null; }
+          return resp.json();
+        })
+        .then(function (data) {
+          if (!data) { return; }
+          setText('creed-score', data.score);
+          setText('creed-grade', data.grade);
+          setText('creed-events', data.events_today);
+          setText('creed-categories', data.active_categories);
+        })
+        .catch(function () { /* leave static fallback in place */ });
+    } catch (e) { /* leave static fallback in place */ }
+  })();
+  </script>
+
 </div>
 {% endblock %}

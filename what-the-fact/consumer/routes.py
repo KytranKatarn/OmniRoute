@@ -67,6 +67,61 @@ def _fetch_agent_stats() -> dict:
         return _AGENT_STATS_CACHE.get("data", {})
 
 
+_WELFARE_CACHE: dict = {}
+_WELFARE_CACHE_TTL = 120  # 2 min — welfare is live data
+
+
+def _get_welfare_lookup() -> dict:
+    """Return {display_name: {welfare_score, stress, energy, shift_state}} (#3355).
+
+    Calls hub /tools/department-hq/api/creed/fleet-agents via mesh (WTF_HUB_URL),
+    filters department='News & Media', and dedupes by agent id — fleet-agents
+    lists each agent once PER NODE (the bug that bit #3356). Keyed by display_name
+    to match TEAM_AGENTS 'name'. No-auth public endpoint over mesh; 2-min cache;
+    fails open to stale/empty so /team always renders.
+    """
+    now = time.time()
+    if _WELFARE_CACHE.get("ts", 0) + _WELFARE_CACHE_TTL > now:
+        return _WELFARE_CACHE.get("data", {})
+    hub_url = os.environ.get("WTF_HUB_URL", "")
+    if not hub_url:
+        return {}
+    try:
+        headers = {"Accept": "application/json"}
+        hub_token = os.environ.get("WTF_HUB_TOKEN", "")
+        if hub_token:
+            headers["Authorization"] = f"Bearer {hub_token}"
+        req = urllib.request.Request(
+            f"{hub_url}/tools/department-hq/api/creed/fleet-agents",
+            headers=headers,
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+        seen: set = set()
+        lookup: dict = {}
+        for node in (data.get("nodes") or []):
+            for a in (node.get("agents") or []):
+                if a.get("department") != "News & Media":
+                    continue
+                uid = a.get("id") or a.get("display_name")
+                if uid in seen:
+                    continue
+                seen.add(uid)
+                dname = a.get("display_name", "")
+                if dname:
+                    lookup[dname] = {
+                        "welfare_score": a.get("welfare_score"),
+                        "stress": a.get("stress_level"),
+                        "energy": a.get("energy_level"),
+                        "shift_state": a.get("shift_state", ""),
+                    }
+        _WELFARE_CACHE["ts"] = now
+        _WELFARE_CACHE["data"] = lookup
+        return lookup
+    except Exception:
+        return _WELFARE_CACHE.get("data", {})
+
+
 def _get_portrait_lookup() -> dict:
     """Return {display_name: portrait_url} from platform directory. Cached 1h."""
     now = time.time()
@@ -757,12 +812,14 @@ def team():
             text(f"SELECT COUNT(*) FROM {S}.sources")
         ).scalar() or 0
     portrait_lookup = _get_portrait_lookup()
+    welfare_lookup = _get_welfare_lookup()
     agents = []
     for agent in TEAM_AGENTS:
         a = dict(agent)
         live_url = portrait_lookup.get(agent["name"])
         if live_url:
             a["portrait_url"] = live_url
+        a["welfare"] = welfare_lookup.get(agent["name"])  # None if unavailable
         agents.append(a)
     return render_template("team.html", agents=agents, source_count=source_count)
 

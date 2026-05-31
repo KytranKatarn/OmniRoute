@@ -1,6 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
 
+<style>
+.wtf-team-welfare { display:flex; gap:8px; align-items:center; justify-content:center;
+  margin-top:10px; flex-wrap:wrap; }
+.wtf-welfare-pill { font-size:0.74rem; font-weight:700; padding:2px 9px; border-radius:11px;
+  border:1px solid; background:rgba(0,0,0,0.28); }
+.wtf-welfare-unit { font-weight:400; opacity:0.65; font-size:0.6rem; margin-left:1px; }
+.wtf-welfare-shift { font-size:0.6rem; text-transform:uppercase; letter-spacing:0.6px;
+  opacity:0.7; }
+</style>
+
 <div class="wtf-team-hero">
   <div class="wtf-team-hero-live">
     <span class="wtf-live-dot"></span>
@@ -33,6 +43,17 @@
     <div class="wtf-team-role">{{ agent.role }}</div>
     <span class="wtf-team-model">{{ agent.model }}</span>
     <div class="wtf-team-desc">{{ agent.description }}</div>
+    {% if agent.welfare and agent.welfare.welfare_score is not none %}
+    <div class="wtf-team-welfare" title="Live agent welfare, audited by C.R.E.E.D.">
+      <span class="wtf-welfare-pill"
+            style="border-color: {{ agent.accent_colour }};">
+        ♥ {{ agent.welfare.welfare_score | int }}<span class="wtf-welfare-unit">/100 welfare</span>
+      </span>
+      {% if agent.welfare.shift_state %}
+      <span class="wtf-welfare-shift">{{ agent.welfare.shift_state | replace('_', ' ') }}</span>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
   {% endfor %}
 

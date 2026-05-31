@@ -211,6 +211,7 @@ L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
 
 // Custom panes so clusters + pins always sit above province polygons
 map.createPane('provincePane'); map.getPane('provincePane').style.zIndex = 400;
+map.getPane('provincePane').style.pointerEvents = 'none';
 map.createPane('clusterPane');  map.getPane('clusterPane').style.zIndex  = 450;
 map.createPane('pinPane');      map.getPane('pinPane').style.zIndex      = 500;
 
@@ -304,6 +305,7 @@ function loadMapData() {
     if (provinceLayer) map.removeLayer(provinceLayer);
     provinceLayer = L.geoJSON(geo, {
       pane: 'provincePane',
+      interactive: false,
       style: function(feature) {
         var name = feature.properties.name || "";
         var pc = PROVINCE_CODES[name] || "";
@@ -323,20 +325,9 @@ function loadMapData() {
             "<br>Top: " + esc(pd.dominant_outlet)
           );
         }
-        layer.on("click", function() {
-          if (pc) {
-            var pcount = pd ? pd.articles : 0;
-            var phtml =
-              "<div style='font-family:monospace;font-size:13px;color:#fff;text-align:center;'>" +
-              "<b>" + esc(pcount.toLocaleString()) + " article" + (pcount === 1 ? "" : "s") + "</b><br>" +
-              "from " + esc(name) +
-              "<br><a href='/news?province=" + escAttr(pc) + "' style='color:#0af;text-decoration:none;font-weight:bold;'>View all &rarr;</a>" +
-              "</div>";
-            layer.bindPopup(phtml).openPopup();
-            setProvince(pc);
-            map.fitBounds(layer.getBounds(), {padding: [20, 20]});
-          }
-        });
+        // Province polygon click-to-filter removed (#3382) — use the province
+        // dropdown (toggleProvinceDropdown / setProvince) instead. Polygons are
+        // now non-interactive so pins and clusters receive clicks correctly.
       }
     }).addTo(map);
   }).catch(function(e) {

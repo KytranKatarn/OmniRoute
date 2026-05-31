@@ -809,6 +809,35 @@ def _proxy_tech(path: str, method: str = "GET", body: bytes = None, timeout: int
         return Response(json.dumps({"error": str(exc)}), status=502, content_type="application/json")
 
 
+# ---------------------------------------------------------------------------
+# C.R.E.E.D. badge proxy — server-side only; CREED_API_URL never exposed to JS
+# (KB #267314: internal URLs must never reach browser JavaScript)
+# ---------------------------------------------------------------------------
+_CREED_FALLBACK_SVG = (
+    b'<svg xmlns="http://www.w3.org/2000/svg" width="120" height="20">'
+    b'<rect width="120" height="20" rx="3" fill="#1a1a2e"/>'
+    b'<text x="6" y="14" font-family="monospace" font-size="10" fill="#a0a0c0">'
+    b'C.R.E.E.D.</text></svg>'
+)
+
+
+@bp.get("/api/creed-badge")
+def creed_badge():
+    """Proxy the C.R.E.E.D. overall badge SVG server-side so the internal
+    CREED_API_URL is never exposed to browser JavaScript."""
+    creed_url = os.environ.get("CREED_API_URL", "https://creed.kytranempowerment.com")
+    try:
+        req = urllib.request.Request(
+            creed_url + "/api/v1/badge/overall",
+            headers={"Accept": "image/svg+xml"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            svg_data = resp.read()
+        return Response(svg_data, content_type="image/svg+xml")
+    except Exception:
+        return Response(_CREED_FALLBACK_SVG, content_type="image/svg+xml")
+
+
 _VALID_BEATS = {"all","sports","healthcare","climate","crime","parliament","business","economy",
                 "municipal","transit","sci-tech","arts","education","indigenous","foreign",
                 "justice","immigration","housing","labour"}

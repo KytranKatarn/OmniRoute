@@ -126,6 +126,8 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
       {% set _cv_lbl = '✓ Established' if a.overall_verdict in ('verified','mostly_true') else '⚡ Developing' if a.overall_verdict == 'mixed' else '⚠ Contested' if a.overall_verdict == 'disputed' else '○ Unverifiable' %}
       <span class="wtf-art-badge" style="background:{{ _cv_col }}18;color:{{ _cv_col }};border:1px solid {{ _cv_col }}44;" title="Certainty: {{ a.overall_verdict.replace('_',' ').title() }}">{{ _cv_lbl }}</span>
       {% endif %}
+      <a href="https://what-the-fact.tech/transparency/{{ a.id }}" target="_blank" rel="noopener" style="font-size:10px;color:#a0f;text-decoration:none;white-space:nowrap;">View full audit trail &#x2192;</a>
+      <img src="/api/creed-badge" alt="C.R.E.E.D. audited" style="height:18px;vertical-align:middle;">
     </div>
     <h1 class="wtf-art-title">{{ a.title }}</h1>
     {% if a.url %}

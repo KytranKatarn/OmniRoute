@@ -417,3 +417,86 @@ def get_fact_checks(article_id: int):
         "evidence": r["evidence"], "checker": r["checker"],
         "checked_at": r["checked_at"].isoformat(),
     } for r in rows]})
+
+
+# WTF News & Media agent roster — mirrors consumer TEAM_AGENTS (name/role/model
+# are curated, stable facts). Each "activity" entry maps the agent to the wtf
+# pipeline table that records its per-article output, so articles_processed_7d /
+# last_active come straight from the data. Agents whose work isn't logged in the
+# wtf schema (social distribution, weather) report null activity. Kept here (not
+# fetched from the hub) so this public endpoint stays up even when the hub is busy.
+WTF_AGENTS = [
+    {"name": "F.A.C.T.", "full": "Factual Analysis, Credibility & Transparency",
+     "role": "Director & Orchestrator", "model": "gemma3:12b",
+     "activity": {"table": "audit_trail", "ts": "created_at", "where": "event_type = 'ingested'"}},
+    {"name": "B.I.A.S.", "full": "Balanced Information Analysis & Scoring",
+     "role": "Bias Analyst", "model": "gemma2:9b",
+     "activity": {"table": "bias_scores", "ts": "computed_at", "where": None}},
+    {"name": "V.E.R.I.F.Y.", "full": "Verification, Evidence Review & Integrity",
+     "role": "Fact-Checker", "model": "gemma2:9b",
+     "activity": {"table": "fact_checks", "ts": "checked_at", "where": None}},
+    {"name": "L.O.C.A.L.", "full": "Local Observer, Coverage & Area Liaison",
+     "role": "Geographic Intelligence Analyst", "model": "llama3.2:3b",
+     "activity": {"table": "articles", "ts": "ai_analyzed_at", "where": "province_code IS NOT NULL"}},
+    {"name": "I.N.K.", "full": "Investigative News & Knowledge",
+     "role": "News Investigator", "model": "dolphin3",
+     "activity": {"table": "story_clusters", "ts": "created_at", "where": None}},
+    {"name": "D.R.A.F.T.", "full": "Data Reduction & Factual Translation",
+     "role": "Staff Writer", "model": "dolphin3",
+     "activity": {"table": "summaries", "ts": "created_at", "where": None}},
+    {"name": "P.U.B.L.I.S.H.", "full": "Publish & Unified Broadcasting",
+     "role": "Broadcast Editor", "model": "mistral:7b", "activity": None},
+    {"name": "A.U.R.O.R.A.",
+     "full": "Atmospheric & Universal Resource for Observation, Research & Analysis",
+     "role": "Weather Intelligence", "model": "qwen2.5:7b", "activity": None},
+]
+
+
+@api.get("/agents")
+def list_agents():
+    """#3367 — WTF News & Media AI agents: roster + 7-day activity stats.
+
+    Returns each agent's name/acronym, role, model, is_active, plus live
+    pipeline activity: articles_processed_7d (count in the last 7 days) and
+    last_active (most recent output, all-time). Agents whose output isn't
+    recorded in the wtf schema (P.U.B.L.I.S.H. distribution, A.U.R.O.R.A.
+    weather) report null activity. No auth; CORS-open (handled app-wide).
+    """
+    S = _schema()
+    out = []
+    with _db().begin() as c:
+        for ag in WTF_AGENTS:
+            processed = None
+            last_active = None
+            act = ag.get("activity")
+            if act:
+                where = f"AND {act['where']}" if act.get("where") else ""
+                try:
+                    row = c.execute(text(f"""
+                        SELECT
+                            COUNT(*) FILTER (
+                                WHERE {act['ts']} >= NOW() - INTERVAL '7 days'
+                            ) AS n7,
+                            MAX({act['ts']}) AS last_ts
+                        FROM {S}.{act['table']}
+                        WHERE 1=1 {where}
+                    """)).mappings().first()
+                    processed = int(row["n7"]) if row and row["n7"] is not None else 0
+                    last_active = (
+                        row["last_ts"].isoformat() if row and row["last_ts"] else None
+                    )
+                except Exception:
+                    # A schema drift on one table must not fail the whole roster.
+                    processed = None
+                    last_active = None
+            out.append({
+                "name": ag["name"],
+                "acronym": ag["name"],
+                "full_name": ag["full"],
+                "role": ag["role"],
+                "model": ag["model"],
+                "is_active": True,
+                "articles_processed_7d": processed,
+                "last_active": last_active,
+            })
+    return jsonify({"agents": out, "count": len(out)})

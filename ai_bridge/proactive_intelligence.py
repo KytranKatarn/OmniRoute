@@ -55,11 +55,22 @@ class BriefingGenerator:
         sections = briefing.get("sections", [])
         sections_data = {}
 
-        # Gather data for each section
+        # Gather data for each section. Each section runs inside its own
+        # SAVEPOINT so a single failing query (e.g. schema drift) rolls back
+        # ONLY that section — without a savepoint the failure aborts the whole
+        # transaction and every later section PLUS the briefing_history INSERT
+        # below cascade-fail with "current transaction is aborted", masking the
+        # real per-section error (observed 2026-05-30 20:04).
         for section in sections:
             try:
+                cur.execute("SAVEPOINT briefing_section")
                 sections_data[section] = self._gather_section(cur, section)
+                cur.execute("RELEASE SAVEPOINT briefing_section")
             except Exception as e:
+                try:
+                    cur.execute("ROLLBACK TO SAVEPOINT briefing_section")
+                except Exception:
+                    conn.rollback()
                 logger.warning(f"Failed to gather section '{section}': {e}")
                 sections_data[section] = {"error": str(e)}
 
@@ -264,7 +275,24 @@ Write the briefing:"""
 
             generated = 0
             for briefing in briefings:
-                if self._is_due(briefing, cur):
+                # Isolate each due-check: a failing _is_due query must not abort
+                # the connection and poison every subsequent briefing's check
+                # (the "Due briefings check failed: current transaction is
+                # aborted" cascade observed 2026-05-30 20:06).
+                try:
+                    cur.execute("SAVEPOINT due_check")
+                    due = self._is_due(briefing, cur)
+                    cur.execute("RELEASE SAVEPOINT due_check")
+                except Exception as e:
+                    try:
+                        cur.execute("ROLLBACK TO SAVEPOINT due_check")
+                    except Exception:
+                        conn.rollback()
+                    logger.warning(
+                        f"Due-check failed for briefing #{briefing.get('id')}: {e}"
+                    )
+                    continue
+                if due:
                     cur.close()
                     conn.close()
                     self.generate_briefing(briefing["id"])

@@ -1,0 +1,142 @@
+suite:
+  name: "VPS Outpost — WTF Consumer Smoke"
+  description: "HTTP smoke suite for what-the-fact.com (wtf-consumer on VPS). Verifies public pages render and read-only API endpoints respond. Runs against the external URL (proven reachable by suite #25). All tests skip_auth: gated pages may 302 to login/paywall — that's an accepted pass. E2E checks (JS console errors, agent-tag colour rendering) are deferred to Phase 2 (Playwright); qa_spec_runner only supports HTTP page_load/api here."
+  base_url: "https://what-the-fact.com"
+
+tests:
+  # ----------------------------------------------------------- public pages
+  - name: "wtf-news-page-loads"
+    type: page_load
+    path: /news
+    skip_auth: true
+    expect:
+      status: [200, 302]
+      body_contains: "What The Fact"
+      max_load_ms: 10000
+
+  - name: "wtf-activity-page-loads"
+    type: page_load
+    path: /activity
+    skip_auth: true
+    expect:
+      status: [200, 302]
+      body_contains: "What The Fact"
+      max_load_ms: 10000
+
+  - name: "wtf-owners-page-loads"
+    type: page_load
+    path: /owners
+    skip_auth: true
+    expect:
+      status: [200, 302]
+      body_contains: "What The Fact"
+      max_load_ms: 10000
+
+  - name: "wtf-team-page-loads"
+    type: page_load
+    path: /team
+    skip_auth: true
+    expect:
+      status: [200, 302]
+      body_contains: "What The Fact"
+      max_load_ms: 10000
+
+  - name: "wtf-sources-page-loads"
+    type: page_load
+    path: /sources
+    skip_auth: true
+    expect:
+      status: [200, 302]
+      body_contains: "What The Fact"
+      max_load_ms: 10000
+
+  - name: "wtf-weather-page-loads"
+    type: page_load
+    path: /weather
+    skip_auth: true
+    expect:
+      status: [200, 302]
+      body_contains: "What The Fact"
+      max_load_ms: 10000
+
+  - name: "wtf-economy-page-loads"
+    type: page_load
+    path: /economy
+    skip_auth: true
+    expect:
+      status: [200, 302]
+      body_contains: "What The Fact"
+      max_load_ms: 10000
+
+  - name: "wtf-blindspot-page-loads"
+    type: page_load
+    path: /blindspot
+    skip_auth: true
+    expect:
+      status: [200, 302]
+      body_contains: "What The Fact"
+      max_load_ms: 10000
+
+  - name: "wtf-divergence-page-loads"
+    type: page_load
+    path: /divergence
+    skip_auth: true
+    expect:
+      status: [200, 302]
+      body_contains: "What The Fact"
+      max_load_ms: 10000
+
+  - name: "wtf-map-page-loads"
+    type: page_load
+    path: /map
+    skip_auth: true
+    expect:
+      status: [200, 302]
+      body_contains: "What The Fact"
+      max_load_ms: 10000
+
+  # --------------------------------------------------- read-only API surface
+  - name: "wtf-api-health"
+    type: api
+    method: GET
+    path: /api/health
+    skip_auth: true
+    expect:
+      status: [200]
+      max_response_ms: 10000
+
+  - name: "wtf-api-v1-sources"
+    type: api
+    method: GET
+    path: /api/v1/sources
+    skip_auth: true
+    expect:
+      status: [200]
+      max_response_ms: 10000
+
+  - name: "wtf-api-v1-blindspot"
+    type: api
+    method: GET
+    path: /api/v1/blindspot
+    skip_auth: true
+    expect:
+      status: [200]
+      max_response_ms: 10000
+
+  - name: "wtf-api-v1-divergence"
+    type: api
+    method: GET
+    path: /api/v1/divergence
+    skip_auth: true
+    expect:
+      status: [200]
+      max_response_ms: 10000
+
+  - name: "wtf-api-stats"
+    type: api
+    method: GET
+    path: /api/stats
+    skip_auth: true
+    expect:
+      status: [200]
+      max_response_ms: 10000

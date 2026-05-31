@@ -220,6 +220,10 @@ def warmup_fleet_models():
         ("workforce_planning", "Status: 'ping'"),  # K.I.N. gemma3:12b — fleet dispatch
         ("security", "Check: 'ping'"),  # S.H.I.E.L.D. qwen2.5:7b — fleet dispatch (was gemma2-cpu)
         ("conversation", "Hi"),  # D.R.A.F.T./A.C.C.O.R.D. dolphin3 — fleet dispatch
+        (
+            "code_review",
+            "Review: 'ping'",
+        ),  # F.O.R.G.E./P.R.O.B.E. coder 7B — keep warm so Repair Bay PR review never cold-loads (task 3449)
     ]
 
     try:

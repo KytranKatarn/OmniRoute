@@ -3054,6 +3054,23 @@ class DepartmentDispatcher:
         except Exception:
             return False
 
+    def _is_agentic_tool_write_enabled(self) -> bool:
+        """Check platform_settings for the agentic_tool_write flag (#3534 Phase 3).
+
+        Distinct from the read flag — writes (quarantined agent KB proposals via
+        the store_memory tool) are higher-risk, so they gate separately. Default OFF.
+        """
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'agentic_tool_write'")
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            return row[0].lower() in ("true", "1", "enabled") if row else False
+        except Exception:
+            return False
+
     def _log_agentic_tool_calls(self, agent, capability, module_id, queries, user_id=None):
         """Log each agentic search_knowledge tool call to task_execution_log (#3534).
 
@@ -6016,8 +6033,10 @@ class DepartmentDispatcher:
                         system_prompt=system_prompt,
                         user_prompt=prompt,
                         agent_name=agent_name,
+                        agent_id=agent.get("id") if isinstance(agent, dict) else None,
                         capability=capability,
                         module_id=module_id,
+                        write_enabled=self._is_agentic_tool_write_enabled(),
                     )
                     if _loop.get("used_tools") and _loop.get("success"):
                         llm_result = {

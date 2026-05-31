@@ -207,6 +207,8 @@ async def search_knowledge_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
         # Exclude rejected entries
         conditions.append("(review_status IS NULL OR review_status != 'rejected')")
+        # Quarantine agent-proposed writes until C.O.D.E.X. approves (#3534 P3).
+        conditions.append("(source_type IS DISTINCT FROM 'agent_proposed' OR review_status = 'approved')")
         where_clause = " AND ".join(conditions)
 
         # Execute search with weighted ranking (type weight * recency bonus)

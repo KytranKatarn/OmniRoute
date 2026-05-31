@@ -117,6 +117,7 @@ def _vector_search(embedding, limit, knowledge_types, min_importance):
                            1 - (embedding <=> %s::vector) as similarity
                     FROM knowledge_base
                     WHERE embedding IS NOT NULL
+                      AND (source_type IS DISTINCT FROM 'agent_proposed' OR review_status = 'approved')
                       AND knowledge_type IN ({placeholders})
                       AND importance_score >= %s
                     ORDER BY embedding <=> %s::vector
@@ -132,6 +133,7 @@ def _vector_search(embedding, limit, knowledge_types, min_importance):
                            1 - (embedding <=> %s::vector) as similarity
                     FROM knowledge_base
                     WHERE embedding IS NOT NULL
+                      AND (source_type IS DISTINCT FROM 'agent_proposed' OR review_status = 'approved')
                       AND importance_score >= %s
                     ORDER BY embedding <=> %s::vector
                     LIMIT %s
@@ -157,7 +159,11 @@ def _vector_search(embedding, limit, knowledge_types, min_importance):
 
 def _text_search(query, limit, knowledge_types, min_importance):
     """Fallback text search using ILIKE."""
-    conditions = ["importance_score >= %s"]
+    conditions = [
+        "importance_score >= %s",
+        # Quarantine agent-proposed writes until C.O.D.E.X. approves (#3534 P3).
+        "(source_type IS DISTINCT FROM 'agent_proposed' OR review_status = 'approved')",
+    ]
     params = [min_importance]
 
     if knowledge_types:

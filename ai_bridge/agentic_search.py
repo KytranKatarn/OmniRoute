@@ -138,6 +138,46 @@ def _execute_kb_tool(name, query, limit=5) -> str:
         return f"Knowledge-base search error: {exc}"
 
 
+# Phase 3 write tool — offered only when the dispatcher passes write_enabled=True
+# (flag agentic_tool_write). Writes are quarantined (services.agent_kb_service) —
+# the model never controls knowledge_type/source_type/review_status.
+STORE_MEMORY_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "store_memory",
+        "description": (
+            "Save a NEW, durable, reusable fact / lesson / decision you discovered "
+            "to the knowledge base for future tasks. Use sparingly — only for "
+            "self-contained knowledge worth keeping, not chit-chat. Entries are "
+            "reviewed before they become visible to others."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "content": {"type": "string", "description": "The fact/lesson, specific and self-contained."},
+                "title": {"type": "string", "description": "Short descriptive title."},
+                "tags": {"type": "array", "items": {"type": "string"}, "description": "Optional tags."},
+            },
+            "required": ["content"],
+        },
+    },
+}
+
+
+def _execute_store_memory(agent_id, agent_name, content, title=None, tags=None) -> str:
+    """Quarantined agent KB write via the sanctioned service. Returns a model-facing string."""
+    try:
+        from services.agent_kb_service import propose_agent_memory
+
+        res = propose_agent_memory(agent_id, agent_name, content, title=title, tags=tags)
+        if res.get("ok"):
+            return f"Saved to the knowledge base (pending review) as KB#{res['id']}."
+        return f"Not saved: {res.get('reason')}"
+    except Exception as exc:
+        logger.debug("[agentic_search] store_memory tool failed: %s", exc)
+        return f"Knowledge-base write error: {exc}"
+
+
 def run_tool_loop(
     model,
     system_prompt,
@@ -145,10 +185,12 @@ def run_tool_loop(
     *,
     ollama_url=None,
     agent_name=None,
+    agent_id=None,
     capability=None,
     module_id=None,
     max_iterations=3,
     timeout=120,
+    write_enabled=False,
 ):
     """Run a bounded native-tool-calling loop against Ollama ``/api/chat``.
 
@@ -173,6 +215,7 @@ def run_tool_loop(
 
     start = time.time()
     tool_queries = []
+    _loop_tools = TOOLS + ([STORE_MEMORY_TOOL] if write_enabled else [])
 
     def _result(success, response, error=None, iterations=0):
         return {
@@ -189,7 +232,7 @@ def run_tool_loop(
 
     try:
         for iteration in range(max_iterations):
-            payload = {"model": model, "messages": messages, "tools": TOOLS, "stream": False}
+            payload = {"model": model, "messages": messages, "tools": _loop_tools, "stream": False}
             resp = requests.post(url, json=payload, timeout=timeout)
             resp.raise_for_status()
             msg = (resp.json() or {}).get("message", {}) or {}
@@ -204,26 +247,29 @@ def run_tool_loop(
             for call in calls:
                 fn = call.get("function", {}) or {}
                 tool_name = fn.get("name") or "search_knowledge"
-                if tool_name not in _TOOL_KNOWLEDGE_TYPES:
-                    tool_name = "search_knowledge"
                 args = fn.get("arguments") or {}
                 if isinstance(args, str):
                     try:
                         args = json.loads(args)
                     except Exception:
                         args = {"query": args}
-                query = args.get("query") or ""
-                limit = args.get("limit", 5)
-                tool_queries.append({"tool": tool_name, "query": query})
-                tool_output = _execute_kb_tool(tool_name, query, limit)
+                if tool_name == "store_memory" and write_enabled:
+                    w_content = args.get("content") or ""
+                    w_title = args.get("title")
+                    w_tags = args.get("tags") if isinstance(args.get("tags"), list) else None
+                    tool_output = _execute_store_memory(agent_id, agent_name, w_content, w_title, w_tags)
+                    tool_queries.append({"tool": "store_memory", "query": (w_title or w_content[:60])})
+                    _label = "store_memory"
+                else:
+                    if tool_name not in _TOOL_KNOWLEDGE_TYPES:
+                        tool_name = "search_knowledge"
+                    query = args.get("query") or ""
+                    limit = args.get("limit", 5)
+                    tool_output = _execute_kb_tool(tool_name, query, limit)
+                    tool_queries.append({"tool": tool_name, "query": query})
+                    _label = f"{tool_name}({query[:60]!r})"
                 messages.append({"role": "tool", "content": tool_output})
-                logger.info(
-                    "[agentic_search] %s %s(%r) -> %d chars",
-                    agent_name or "?",
-                    tool_name,
-                    query[:80],
-                    len(tool_output),
-                )
+                logger.info("[agentic_search] %s %s -> %d chars", agent_name or "?", _label, len(tool_output))
 
         # Iterations exhausted while still tool-calling: force a final answer
         # with tools disabled so the model must synthesize from what it gathered.

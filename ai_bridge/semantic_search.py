@@ -321,11 +321,19 @@ class SemanticSearch:
         return fused[:limit]
 
     def _build_filter_clause(self, filters: Optional[dict]) -> tuple:
-        """Build SQL WHERE clause from filters"""
-        if not filters:
-            return "", []
+        """Build SQL WHERE clause from filters.
 
-        clauses = []
+        Always excludes quarantined agent-proposed KB writes (#3534 Phase 3):
+        they surface only after C.O.D.E.X. promotes review_status to 'approved'.
+        Applied to both the vector and keyword search paths (both interpolate
+        this clause). Independent of embedding state — quarantine never leaks
+        even if the embedding loop fills a pending row.
+        """
+        quarantine = "AND (source_type IS DISTINCT FROM 'agent_proposed' OR review_status = 'approved')"
+        if not filters:
+            return quarantine, []
+
+        clauses = [quarantine]
         params = []
 
         if filters.get("category"):

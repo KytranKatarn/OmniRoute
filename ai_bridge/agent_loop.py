@@ -649,6 +649,19 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # Agent KB write auto-review (#3534 Phase 3). C.O.D.E.X. promotes/rejects
+        # quarantined agent_proposed KB writes. Hourly; a no-op unless the
+        # agentic_tool_write flag is on AND pending writes exist.
+        self.scheduler.add_job(
+            with_app_context(self._run_agent_kb_review),
+            trigger=IntervalTrigger(hours=1),
+            id="agent_kb_review",
+            name="Agent Loop: Agent KB Write Auto-Review (C.O.D.E.X.)",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         # A.R.C.H.I.E. triage consumer — classifies director_reports every 30s,
         # escalates to Telegram only when warranted (Unified Voice Wave 2).
         self.scheduler.add_job(
@@ -4502,6 +4515,20 @@ class AgentLoop:
         "check_platform_health": 30,
     }
     _DELEGATE_DEFAULT_TIMEOUT_SECS = 360  # dispatcher 300s + 60s buffer
+
+    def _run_agent_kb_review(self):
+        """#3534 Phase 3: C.O.D.E.X. reviews pending agent-proposed KB writes.
+
+        Dispatches each quarantined ``source_type='agent_proposed'`` /
+        ``review_status='pending'`` entry to C.O.D.E.X. (via DHQ) to promote
+        (review_status='approved') or reject. No-op when there are none.
+        """
+        try:
+            from services.agent_kb_service import auto_review_pending_writes
+
+            auto_review_pending_writes(limit=20)
+        except Exception as exc:
+            logger.warning("[agent_kb_review] job failed: %s", exc)
 
     def _run_delegate_task_worker(self):
         """Pick up pending delegated tasks and execute via OrchestrationEngine.

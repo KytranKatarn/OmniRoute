@@ -124,6 +124,7 @@ website/kytranempowerment.com/assets/cart-icon.png
 # Standalone products (live at /mnt/standalone/, symlinked here)
 archie-code/
 kytran-creed/
+website/creed-ai.org/
 kytran-server-manager/
 kytran-gov-watch/
 kytran-business-suite/

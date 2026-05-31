@@ -428,6 +428,40 @@ def register_github_routes(bp, admin_required):
                         conn.commit()
                         logger.info(f"[FORGE] PR #{pr_number} merged — proposal #{proposal_id} deployed")
 
+                    # #3336: auto-queue C.O.D.E.X. documentation for EVERY merged
+                    # PR (not just ones with a proposal). Deduped against the
+                    # merge-pr skill's Step-8 delegation so a skill-merged PR is
+                    # not documented twice. Best-effort — never break the webhook.
+                    try:
+                        cur.execute(
+                            """SELECT 1 FROM unified_tasks
+                               WHERE delegation_args->'args'->>'pr_number' = %s
+                                 AND delegation_args->>'capability' = 'documentation'
+                                 AND created_at > NOW() - INTERVAL '2 hours'
+                               LIMIT 1""",
+                            (str(pr_number),),
+                        )
+                        if not cur.fetchone():
+                            from services.delegation_service import delegate_task
+
+                            _title = pr_data.get("title", f"PR #{pr_number}")
+                            _repo = (payload.get("repository") or {}).get("full_name", "KytranKatarn/archie-platform")
+                            delegate_task(
+                                capability="documentation",
+                                reason=f"Auto-document merged PR #{pr_number}: {_title}",
+                                args={
+                                    "pr_number": pr_number,
+                                    "pr_title": _title,
+                                    "repo": _repo,
+                                    "auto_store": True,
+                                },
+                                delegation_source="automation",
+                                requested_by="forge_webhook",
+                            )
+                            logger.info(f"[FORGE] PR #{pr_number} merged — queued C.O.D.E.X. documentation")
+                    except Exception as _doc_err:
+                        logger.warning(f"[FORGE] doc auto-queue failed for PR #{pr_number}: {_doc_err}")
+
             return jsonify({"success": True, "event": event_type, "pr": pr_number})
 
         except Exception as e:

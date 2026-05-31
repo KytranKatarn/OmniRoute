@@ -288,6 +288,11 @@ CAPABILITY_DEPARTMENT_MAP = {
     "privacy_law": "Legal & Regulatory",
     "regulatory_research": "Legal & Regulatory",
     "dispute_resolution": "Legal & Regulatory",
+    # Legal & Regulatory — E.T.H.O.S. (ethics analyst, agent 336, task #3277)
+    "ethics_review": "Legal & Regulatory",
+    "creed_analysis": "Legal & Regulatory",
+    "policy_assessment": "Legal & Regulatory",
+    "welfare_audit": "Legal & Regulatory",
     # Medical & Wellness — V.I.T.A.L. + F.A.I.T.H.
     "medical": "Medical & Wellness",
     "wellness": "Medical & Wellness",

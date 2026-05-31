@@ -684,6 +684,21 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # E.T.H.O.S. — weekly ethics brief (task #3277). Reviews K.I.N.'s agent
+        # welfare digest + the week's governance_audit_log and drafts an ethics
+        # assessment. Sundays 05:30 ET — after the nightly digests, weekly cadence.
+        self.scheduler.add_job(
+            with_app_context(self._run_ethos_ethics_brief),
+            trigger=CronTrigger(
+                day_of_week="sun", hour=5, minute=30, timezone="America/Toronto"
+            ),
+            id="ethos_ethics_brief",
+            name="Agent Loop: E.T.H.O.S. Weekly Ethics Brief",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         # F.O.R.G.E. — daily dep drift audit (Project #272 Phase 2 / Task #2109).
         # 03:15 UTC — after S.P.E.C.T.R.A. and K.I.N. digest windows.
         self.scheduler.add_job(
@@ -4789,6 +4804,137 @@ class AgentLoop:
             )
         except Exception as e:
             logger.error("triage_consumer failed: %s", e)
+
+    def _run_ethos_ethics_brief(self):
+        """Weekly E.T.H.O.S. ethics brief (task #3277).
+
+        E.T.H.O.S. (agent 336, Legal & Regulatory) is the platform's ethics
+        analyst. Once a week it reviews two inputs and drafts an ethics brief:
+          1. K.I.N.'s agent-welfare digest — non-exploitative AI is a core
+             C.R.E.E.D. mandate, so agent welfare IS an ethics matter. This is
+             the E.T.H.O.S.<->K.I.N. collaboration: K.I.N. operates welfare,
+             E.T.H.O.S. provides ethics oversight on it.
+          2. The week's governance_audit_log (events by category).
+
+        Dispatched to E.T.H.O.S. via the DHQ dispatcher (capability=ethics_review;
+        cloud escalation is already globally off via escalation_mode='local_only')
+        and persisted as a vault_note (source_type='ethos_ethics_brief'). Fails
+        gracefully — always logs the cycle, never raises into the scheduler.
+        """
+        start = time.time()
+        import json as _json
+        import os as _os
+        import sys as _sys
+
+        _platform_v2 = _os.path.join(
+            _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+            "platform_v2",
+        )
+        _sys.path.insert(0, _platform_v2)
+
+        welfare_summary = {}
+        gov_summary = []
+        brief_text = None
+        persisted = False
+        try:
+            # Input 1 — K.I.N. welfare digest (the collaboration the owner asked for)
+            try:
+                from services.agent_service import get_kin_welfare_digest
+
+                digest = get_kin_welfare_digest()
+                welfare_summary = digest.get("summary_metrics", {}) or {}
+            except Exception as wexc:
+                logger.warning("E.T.H.O.S.: K.I.N. welfare digest unavailable: %s", wexc)
+
+            # Input 2 — governance events over the last 7 days, by category
+            conn = get_db()
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    SELECT event_category, COUNT(*) AS n
+                    FROM governance_audit_log
+                    WHERE timestamp >= NOW() - INTERVAL '7 days'
+                    GROUP BY event_category
+                    ORDER BY n DESC
+                    LIMIT 20
+                    """
+                )
+                gov_summary = [
+                    {"category": r[0], "count": int(r[1])} for r in (cur.fetchall() or [])
+                ]
+            finally:
+                conn.close()
+
+            # Dispatch to E.T.H.O.S. for the ethics assessment
+            import tools.department_hq.services.department_dispatcher as _ddd
+
+            prompt = (
+                "You are E.T.H.O.S. (Ethical Transparency & Harmonization Oversight "
+                "System), the AI ethics analyst for the A.R.C.H.I.E. platform and the "
+                "C.R.E.E.D. governance institute.\n\n"
+                "Write a concise weekly ETHICS BRIEF from the data below. Cover: "
+                "(1) agent welfare ethics — is the platform treating its agents "
+                "non-exploitatively? (this welfare data comes from K.I.N., HR & "
+                "Culture); (2) governance activity — any ethical concerns in the "
+                "week's events; (3) 2-4 concrete recommendations. Map findings to the "
+                "five C.R.E.E.D. pillars (accountability, fairness, privacy, safety, "
+                "transparency). Be specific and honest; flag risks plainly.\n\n"
+                f"AGENT WELFARE (from K.I.N.):\n"
+                f"{_json.dumps(welfare_summary, indent=2, default=str)}\n\n"
+                f"GOVERNANCE EVENTS (last 7 days, by category):\n"
+                f"{_json.dumps(gov_summary, indent=2, default=str)}\n"
+            )
+            try:
+                result = _ddd.dispatch(
+                    capability="ethics_review",
+                    prompt=prompt,
+                    prefer_agent="E.T.H.O.S.",
+                    source_product="archie_platform",
+                )
+                if result is not None and getattr(result, "success", False):
+                    brief_text = (getattr(result, "response", "") or "").strip()
+            except Exception as dexc:
+                logger.warning("E.T.H.O.S.: dispatch failed: %s", dexc)
+
+            # Persist the brief as a vault_note (visible — not agent-quarantined)
+            if brief_text:
+                from services.time_utils import now_local_str
+
+                conn2 = get_db()
+                try:
+                    cur2 = conn2.cursor()
+                    title = f"E.T.H.O.S. Weekly Ethics Brief — {now_local_str()}"
+                    cur2.execute(
+                        """
+                        INSERT INTO knowledge_base
+                          (title, content, knowledge_type, source_type, category,
+                           importance_score, created_at)
+                        VALUES (%s, %s, 'vault_note', 'ethos_ethics_brief',
+                                'governance', 0.85, NOW())
+                        """,
+                        (title, brief_text),
+                    )
+                    conn2.commit()
+                    persisted = True
+                finally:
+                    conn2.close()
+        except Exception as exc:
+            logger.error("E.T.H.O.S. ethics brief failed: %s", exc)
+
+        duration_ms = int((time.time() - start) * 1000)
+        self._log_cycle(
+            job_name="ethos_ethics_brief",
+            items_processed=len(gov_summary),
+            items_failed=0 if persisted else 1,
+            duration_ms=duration_ms,
+            details={
+                "welfare_metrics": welfare_summary,
+                "gov_categories": gov_summary,
+                "brief_persisted": persisted,
+                "brief_chars": len(brief_text or ""),
+            },
+        )
 
     def _run_kin_welfare_digest(self):
         """Daily K.I.N. digest — 4-phase welfare intelligence pipeline.

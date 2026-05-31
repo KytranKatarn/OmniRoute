@@ -3020,6 +3020,11 @@ class DepartmentDispatcher:
     _RAG_CACHE_TTL = 300  # 5 minutes
     _RAG_MIN_RELEVANCE = 0.7
     _RAG_MAX_ENTRIES = 3
+    # Agentic tool-use KB search (#3534 Phase 1) — flag-gated, scoped tight.
+    # The agent issues its OWN search_knowledge calls mid-task instead of the
+    # single-shot RAG. Hub-only (fleet agents return early before this branch).
+    _AGENTIC_TOOL_CAPABILITIES = ("research", "knowledge_analysis")
+    _AGENTIC_TOOL_AGENTS = ("D.A.R.W.I.N.",)
 
     def _is_auto_context_enabled(self) -> bool:
         """Check platform_settings for rag_auto_context flag."""
@@ -3033,6 +3038,58 @@ class DepartmentDispatcher:
             return row[0].lower() in ("true", "1", "enabled") if row else False
         except Exception:
             return False
+
+    def _is_agentic_tool_search_enabled(self) -> bool:
+        """Check platform_settings for the agentic_tool_search flag (#3534)."""
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'agentic_tool_search'")
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            return row[0].lower() in ("true", "1", "enabled") if row else False
+        except Exception:
+            return False
+
+    def _log_agentic_tool_calls(self, agent, capability, module_id, queries, user_id=None):
+        """Log each agentic search_knowledge tool call to task_execution_log (#3534).
+
+        One lightweight row per KB search the agent issued, so the agentic
+        retrieval is visible in A.R.M.A.D.A. dispatch traffic. model_used is left
+        NULL (a KB search is not a model inference) to avoid polluting per-model
+        demand stats.
+        """
+        if not queries:
+            return
+        try:
+            from database import get_db_cursor
+            from psycopg2.extras import Json
+
+            with get_db_cursor(commit=True) as (_c, cur):
+                for q in queries:
+                    cur.execute(
+                        """INSERT INTO task_execution_log
+                               (agent_id, agent_name, module_source, task_type,
+                                capability, success, request_origin, requested_by,
+                                request_metadata, created_at)
+                           VALUES (%s, %s, 'agentic_tool_search', 'tool_call',
+                                   'search_knowledge', TRUE, 'agentic', %s, %s, NOW())""",
+                        (
+                            agent.get("id") if agent else None,
+                            agent.get("name") if agent else None,
+                            user_id,
+                            Json(
+                                {
+                                    "query": (q or "")[:500],
+                                    "parent_capability": capability,
+                                    "module_id": module_id,
+                                }
+                            ),
+                        ),
+                    )
+        except Exception as exc:
+            logger.debug("[BridgeDispatcher] agentic tool-call logging skipped: %s", exc)
 
     def _get_rag_context(self, prompt: str) -> Optional[str]:
         """
@@ -5179,6 +5236,19 @@ class DepartmentDispatcher:
 
         station_code = DEPARTMENT_FLOOR_MAP.get(dispatch_department, "ENGINEERING")
 
+        # 1c-bis. Agentic tool-search eligibility (#3534). When eligible, force the
+        # hub execution path (skip fleet routing) so the agent can run its native
+        # /api/chat tool-loop on the hub model. The flag is default OFF, so this is
+        # False in normal operation and fleet routing stays byte-for-byte unchanged.
+        _agentic_eligible = bool(
+            not json_mode
+            and not images
+            and capability in self._AGENTIC_TOOL_CAPABILITIES
+            and isinstance(agent, dict)
+            and agent.get("name") in self._AGENTIC_TOOL_AGENTS
+            and self._is_agentic_tool_search_enabled()
+        )
+
         # 1d. Node-preference: if selected hub agent is stationed on an online fleet
         # node, route inference there instead of hub Ollama. Falls through silently
         # if the node is offline or the dispatch fails.
@@ -5190,7 +5260,7 @@ class DepartmentDispatcher:
         # routing a chat-with-override to a node would silently swap the pinned
         # model for the agent's heavy roster model. Defense-in-depth mirroring
         # prefer_hub=local_only intent (task #3543, follow-up to #1306).
-        if agent and not model_override:
+        if agent and not model_override and not _agentic_eligible:
             _hub_agent_id = agent.get("id") if isinstance(agent, dict) else getattr(agent, "id", None)
             if _hub_agent_id:
                 _node_assign = self._find_fleet_agent_for_hub_agent(
@@ -5261,7 +5331,7 @@ class DepartmentDispatcher:
                 _agent_shift_state,
                 capability,
             )
-        if agent and _fleet_routing_enabled() and not _agent_shift_blocked:
+        if agent and _fleet_routing_enabled() and not _agent_shift_blocked and not _agentic_eligible:
             # Resolve the agent's model once — `model` is not yet a local
             # variable at this point in request_work() (it's assigned later
             # in the hub-execute branch). Without this derivation, any
@@ -5713,7 +5783,8 @@ class DepartmentDispatcher:
             dispatch_department = "Executive Office"
 
         # 2f. Fleet: if selected agent is on a remote node, dispatch via mesh
-        if agent and agent.get("is_remote"):
+        #     (skipped when agentic-eligible so the hub tool-loop can run — #3534)
+        if agent and agent.get("is_remote") and not _agentic_eligible:
             return self._dispatch_to_remote_node(
                 agent,
                 capability,
@@ -5911,11 +5982,72 @@ class DepartmentDispatcher:
             self._log_execution(comfyui_result, module_id, user_id, job_id=job_id)
             return comfyui_result
 
+        # 4a-pre. Agentic tool-search loop (#3534 Phase 1) — flag-gated, hub-only,
+        #     scoped to tool-capable agents. The agent issues its OWN KB searches
+        #     via /api/chat tools=[] before answering. Runs BEFORE single-shot RAG;
+        #     on no tool call or any error, llm_result stays None and the existing
+        #     RAG + _execute_llm path below runs unchanged.
+        llm_result = None
+        agentic_info = None
+        if (
+            not json_mode
+            and not images
+            and capability in self._AGENTIC_TOOL_CAPABILITIES
+            and agent_name in self._AGENTIC_TOOL_AGENTS
+            and self._is_agentic_tool_search_enabled()
+        ):
+            try:
+                from ai_bridge.agentic_search import is_tool_capable_model, run_tool_loop
+
+                if is_tool_capable_model(model):
+                    _loop = run_tool_loop(
+                        model=model,
+                        system_prompt=system_prompt,
+                        user_prompt=prompt,
+                        agent_name=agent_name,
+                        capability=capability,
+                        module_id=module_id,
+                    )
+                    if _loop.get("used_tools") and _loop.get("success"):
+                        llm_result = {
+                            "success": True,
+                            "response": _loop.get("response", ""),
+                            "model": model,
+                            "provider": "ollama",
+                            "node_id": None,
+                            "node_url": _loop.get("ollama_url"),
+                            "response_ms": _loop.get("duration_ms", 0),
+                            "prompt_tokens": 0,
+                            "completion_tokens": 0,
+                        }
+                        agentic_info = {
+                            "agentic_tool_search": True,
+                            "tool_calls": _loop.get("tool_calls", 0),
+                            "tool_queries": _loop.get("tool_queries", []),
+                            "iterations": _loop.get("iterations", 0),
+                        }
+                        self._log_agentic_tool_calls(
+                            agent, capability, module_id, _loop.get("tool_queries", []), user_id
+                        )
+                        logger.info(
+                            "[BridgeDispatcher] Agentic tool-loop: %s ran %d KB search(es) for %s",
+                            agent_name,
+                            _loop.get("tool_calls", 0),
+                            capability,
+                        )
+            except Exception as _ag_err:
+                logger.warning(
+                    "[BridgeDispatcher] Agentic tool-loop error (%s) — falling back to RAG",
+                    _ag_err,
+                )
+                llm_result = None
+
         # 4a. RAG auto-context injection (Task #1130)
         #     Prepend relevant KB entries to the prompt when enabled.
         #     Skips JSON mode (structured output) and image generation.
+        #     Skipped when the agentic tool-loop already produced a response.
         rag_injected = False
-        if not json_mode and self._is_auto_context_enabled():
+        if llm_result is None and not json_mode and self._is_auto_context_enabled():
             try:
                 rag_context = self._get_rag_context(prompt)
                 if rag_context:
@@ -5933,7 +6065,7 @@ class DepartmentDispatcher:
         # Route proactively to dispatch_pending_queue; model_dispatch_worker
         # serialises them one at a time when the model is warm.
         _is_cpu_model = bool(model and "-cpu" in model.lower())
-        if _is_cpu_model and priority != "critical" and not images:
+        if llm_result is None and _is_cpu_model and priority != "critical" and not images:
             _cpu_model_str = str(model).strip().lower() if model else ""
             if _cpu_model_str and _cpu_model_str not in ("none", "null", "comfyui"):
                 try:
@@ -5999,19 +6131,20 @@ class DepartmentDispatcher:
                         _cpu_q_err,
                     )
 
-        llm_result = self._execute_llm(
-            model=model,
-            prompt=prompt,
-            system_prompt=system_prompt,
-            json_mode=json_mode,
-            prefer_gpu=prefer_gpu,
-            temperature=temperature,
-            timeout=timeout,
-            agent_name=agent.get("name") if agent else None,
-            capability=capability,
-            module_id=module_id,
-            images=images,
-        )
+        if llm_result is None:
+            llm_result = self._execute_llm(
+                model=model,
+                prompt=prompt,
+                system_prompt=system_prompt,
+                json_mode=json_mode,
+                prefer_gpu=prefer_gpu,
+                temperature=temperature,
+                timeout=timeout,
+                agent_name=agent.get("name") if agent else None,
+                capability=capability,
+                module_id=module_id,
+                images=images,
+            )
 
         duration_ms = int((time.time() - start) * 1000)
 
@@ -6274,6 +6407,9 @@ class DepartmentDispatcher:
         # Merge failure-escalation flags so Bridge Command tracks contractor work
         if escalation_info:
             result_metadata.update(escalation_info)
+        # Surface agentic tool-search provenance (#3534) for A.R.M.A.D.A. traffic
+        if agentic_info:
+            result_metadata["agentic"] = agentic_info
 
         result = DispatchResult(
             success=llm_result.get("success", False),

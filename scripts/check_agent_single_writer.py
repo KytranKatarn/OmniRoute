@@ -115,6 +115,11 @@ _API_GENERATE_ALLOWLIST: set[str] = {
     # ai_bridge → department_hq migration backlog.
     "ai_bridge/archie_bridge.py",
     "ai_bridge/knowledge_analyzer.py",
+    # Agentic tool-use KB search (#3534) — native /api/chat tools=[] loop, a DHQ
+    # execution primitive invoked by department_dispatcher (agent + model already
+    # DHQ-selected; each tool call logged to task_execution_log). Same sanctioned
+    # inference layer as call_ollama. Flag-gated (agentic_tool_search), default OFF.
+    "ai_bridge/agentic_search.py",
     # Agent jobs — string literal in an alert message body ("inspect
     # systemctl status ollama and recent /api/generate logs") not raw
     # inference. All actual dispatch goes through department_dispatcher.

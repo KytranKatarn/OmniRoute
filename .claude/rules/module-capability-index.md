@@ -48,6 +48,7 @@ From `module_registry.py` (36 modules). Full detail: `search_knowledge(category=
 - **Fleet/K.I.N.**: A.R.M.A.D.A. merged. K.I.N. auto-rest at >80% capacity (task_queue_limit=500, trigger at 400). Telegram alert on rest trigger. cooldown_recovery restores after 30min. Fleet resource routing: `fleet_resource_router.py` + `model_sizes.py`. `FLEET_RESOURCE_ROUTING_ENABLED` env gates enforcement.
 - **Dispatch**: Claude Requests panel — `GET /api/dispatch/claude-feed`. ContextVar attribution flows `request_origin='claude'` through dispatcher to `task_execution_log`. DISPATCH QUEUE + LOADED MODELS panel: `GET /api/fleet/queue-status`.
 - **Delegation**: `mcp__archie__delegate_task(capability, reason)` → `unified_tasks` → `delegate_task_worker` (30s, max 3/cycle) → known-tool shortcut or dispatcher.
+- **Agentic KB tools (#3534, 2026-05-31, LIVE)**: tool-capable agents (D.A.R.W.I.N./S.P.E.C.T.R.A./W.A.T.C.H., 7B+) run a native Ollama `/api/chat` tool-loop to READ (`search_knowledge`/`search_mistakes`/`recall_context`) and WRITE (`store_memory`) the KB mid-task. `ai_bridge/agentic_search.py` (loop) + `services/agent_kb_service.py` (writes). Writes quarantined (`source_type='agent_proposed'`/`review_status='pending'`, embedding NULL) → hourly `agent_kb_review` job → C.O.D.E.X. promote/reject. Quarantine filter in semantic_search/rag_service/MCP search. Flags `agentic_tool_search` + `agentic_tool_write` (platform_settings, both ON). ADRs #663/#664; migration 409.
 - **Scheduler sidecar** (`archie_scheduler`): APScheduler runs separately. New sidecars MUST mirror platform volumes block exactly — drift = silent job degradation (KB #263303).
 - **Gaps**: agent_skills/budgets/creation_events not agent_service-owned (#2057); 18 legacy ai_bridge.* imports (#2058); CAPABILITY_TAXONOMY hardcoded in smart_router.
 - **Audits**: KB 256837/256843/256844 · **Rules**: `department-hq-dispatch.md`, `starbase.md`
@@ -230,6 +231,7 @@ All VPS (76.13.107.109) except KSO/KBS/CREED on hub.
 ### C.R.E.E.D. Institute — `creed_institute` · `/external/creed` · ✅
 - **Deployment**: Hub port 8086, creed.kytranempowerment.com (standalone per Decision #438).
 - **Capability**: Governance/ethics enforcement, public transparency, grant-target nonprofit.
+- **Public API (#3362, PR #2)**: `GET /api/public/score` (no auth) → `{score, grade, events_today, active_categories, last_checked}` for badge/widget consumption by WTF + other sites. `routes/public_routes.py`. Live (99.5/A+).
 - **Rules**: `standalone-extraction.md`
 
 ---

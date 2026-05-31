@@ -94,6 +94,7 @@ def _build_dashboard():
     data = {
         "governance": _fetch_creed_governance(),
         "redress": {"total": 0, "pending": 0},
+        "grants": {"active": 0, "next_deadline": None},
         "ethos_activity_7d": 0,
         "recent_activity": [],
         "latest_brief": None,
@@ -133,6 +134,16 @@ def _build_dashboard():
                     "title": b["title"],
                     "at": b["created_at"].isoformat() if b["created_at"] else None,
                 }
+            cur.execute(
+                "SELECT COUNT(*) AS n, "
+                "MIN(deadline) FILTER (WHERE deadline >= CURRENT_DATE) AS next_deadline "
+                "FROM creed_grants WHERE status NOT IN ('awarded', 'declined')"
+            )
+            gr = cur.fetchone()
+            if gr:
+                data["grants"]["active"] = int(gr["n"])
+                nd = gr["next_deadline"]
+                data["grants"]["next_deadline"] = nd.isoformat() if nd else None
     except Exception as e:
         logger.error("creed_command: dashboard DB gather failed: %s", e)
     return data

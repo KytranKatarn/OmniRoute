@@ -38,6 +38,26 @@
   .cc-act .cc-act-cap { font-family:'IBM Plex Mono',monospace; color:#8b5cf6; }
   .cc-act .cc-act-at { margin-left:auto; color:#64748b; font-size:0.74rem; }
   .cc-muted { color:#64748b; font-size:0.85rem; }
+  .cc-btn-sm { font-family:'Antonio',sans-serif; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.5px;
+    background:#ffffff0d; border:1px solid #ffffff22; color:#e2e8f0; border-radius:8px; padding:0.45rem 0.9rem; cursor:pointer; }
+  .cc-btn-sm:hover { border-color:#8b5cf6; }
+  .cc-btn-primary { background:#8b5cf6; color:#0a0a1a; border-color:#8b5cf6; font-weight:700; }
+  .cc-form-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:0.8rem; }
+  .cc-form-grid label { display:flex; flex-direction:column; font-size:0.72rem; color:#94a3b8; gap:0.3rem; }
+  .cc-form-grid input, .cc-form-grid select, .cc-form-grid textarea {
+    background:#0c0c1e; border:1px solid #ffffff1f; border-radius:6px; padding:0.5rem 0.6rem; color:#e2e8f0; font-family:inherit; font-size:0.85rem; }
+  table.cc-table { width:100%; border-collapse:collapse; font-size:0.84rem; }
+  table.cc-table th { text-align:left; font-family:'Antonio',sans-serif; text-transform:uppercase; letter-spacing:0.5px;
+    font-size:0.66rem; color:#64748b; padding:0.5rem 0.6rem; border-bottom:1px solid #ffffff1a; }
+  table.cc-table td { padding:0.6rem; border-bottom:1px solid #ffffff0d; color:#cbd5e1; vertical-align:middle; }
+  table.cc-table tr:hover td { background:#ffffff04; }
+  .cc-g-funder { font-family:'Orbitron',sans-serif; font-size:0.8rem; color:#fff; }
+  .cc-g-prog { color:#94a3b8; font-size:0.78rem; }
+  .cc-g-fit { font-family:'IBM Plex Mono',monospace; }
+  .cc-g-status { background:#0c0c1e; border:1px solid #ffffff22; color:#e2e8f0; border-radius:6px; padding:0.25rem 0.4rem; font-size:0.74rem; }
+  .cc-g-del { background:none; border:none; color:#64748b; cursor:pointer; font-size:1rem; }
+  .cc-g-del:hover { color:#ef4444; }
+  .cc-badge { display:inline-block; font-size:0.66rem; text-transform:uppercase; letter-spacing:0.5px; padding:2px 8px; border-radius:20px; }
 </style>
 
 <div class="cc-wrap">
@@ -89,13 +109,36 @@
 
   <!-- GRANTS -->
   <div class="cc-pane" id="pane-grants">
-    <span class="cc-phase">Phase 2 — #3611 / #3612</span>
-    <div class="cc-card">
-      <h2>Grants pipeline</h2>
-      <p>Track grant opportunities (funder, deadline, amount, fit-score, status),
-        draft applications with E.T.H.O.S. using C.R.E.E.D.'s live evidence, and get
-        deadline reminders.</p>
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:0.9rem;">
+      <h2 style="font-family:'Orbitron',sans-serif;font-size:1.05rem;color:#f1f5f9;margin:0;">Grants pipeline</h2>
+      <span id="cc-grants-count" class="cc-muted" style="font-size:0.8rem;"></span>
+      <button id="cc-grant-add-btn" class="cc-btn-sm" style="margin-left:auto;">+ Add grant</button>
     </div>
+
+    <form id="cc-grant-form" class="cc-card" style="display:none;">
+      <div class="cc-form-grid">
+        <label>Program / opportunity <span style="color:#ef4444">*</span><input id="g-title" maxlength="300" required></label>
+        <label>Funder <span style="color:#ef4444">*</span><input id="g-funder" maxlength="200" required></label>
+        <label>Amount (CAD)<input id="g-amount" type="number" step="0.01" min="0"></label>
+        <label>Deadline<input id="g-deadline" type="date"></label>
+        <label>Fit score (0–100)<input id="g-fit" type="number" min="0" max="100"></label>
+        <label>Status
+          <select id="g-status">
+            <option value="prospect">prospect</option><option value="drafting">drafting</option>
+            <option value="submitted">submitted</option><option value="awarded">awarded</option>
+            <option value="declined">declined</option>
+          </select></label>
+        <label style="grid-column:1/-1;">Funder URL<input id="g-url" maxlength="500"></label>
+        <label style="grid-column:1/-1;">Notes<textarea id="g-notes" rows="2"></textarea></label>
+      </div>
+      <div style="margin-top:0.7rem;display:flex;gap:0.6rem;align-items:center;">
+        <button type="submit" class="cc-btn-sm cc-btn-primary">Save grant</button>
+        <button type="button" id="cc-grant-cancel" class="cc-btn-sm">Cancel</button>
+        <span id="cc-grant-msg" class="cc-muted" style="font-size:0.8rem;"></span>
+      </div>
+    </form>
+
+    <div id="cc-grants-table" class="cc-muted">Loading…</div>
   </div>
 
   <!-- MARKETING -->

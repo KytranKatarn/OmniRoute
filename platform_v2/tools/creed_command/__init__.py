@@ -20,3 +20,6 @@ creed_command_bp = Blueprint(
 )
 
 from . import routes  # noqa: F401, E402
+from .grants_routes import register_grants_routes  # noqa: E402
+
+register_grants_routes(creed_command_bp, routes.admin_required)

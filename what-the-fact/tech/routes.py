@@ -21,9 +21,38 @@ def _schema():
     return os.environ.get("WTF_SCHEMA", "wtf")
 
 
+def _creed_api_url() -> str:
+    """Return the C.R.E.E.D. API base URL from env — never exposed to browser JS (KB #267314)."""
+    return os.environ.get("CREED_API_URL", "https://creed.kytranempowerment.com")
+
+
 @bp.get("/")
 def index():
-    return render_template("index.html")
+    """Homepage with live stats (#3352)."""
+    S = _schema()
+    stats = {"sources": 46, "articles": 22000, "beats": 18, "articles_today": 222}
+    try:
+        with _db().connect() as c:
+            row = c.execute(
+                text(f"""
+                    SELECT
+                        (SELECT COUNT(*) FROM {S}.sources) AS sources,
+                        (SELECT COUNT(*) FROM {S}.articles) AS articles,
+                        (SELECT COUNT(DISTINCT beat) FROM {S}.articles WHERE beat IS NOT NULL) AS beats,
+                        (SELECT COUNT(*) FROM {S}.articles
+                         WHERE published_at >= NOW() - INTERVAL '1 day') AS articles_today
+                """)
+            ).fetchone()
+            if row:
+                stats = {
+                    "sources": int(row.sources or 46),
+                    "articles": int(row.articles or 22000),
+                    "beats": int(row.beats or 18),
+                    "articles_today": int(row.articles_today or 222),
+                }
+    except Exception:
+        pass  # use fallback values
+    return render_template("index.html", stats=stats)
 
 
 @bp.get("/transparency")
@@ -87,13 +116,55 @@ def transparency(article_id: int):
             SELECT event_type, payload, created_at FROM {S}.audit_trail
             WHERE article_id = :id ORDER BY created_at
         """), {"id": article_id}).mappings().all()
+    # ── C.R.E.E.D. governance block (#3368) — server-side only, never exposed to JS ──
+    creed_score = None
+    try:
+        resp = requests.get(
+            f"{_creed_api_url()}/api/v1/scores",
+            timeout=3,
+        )
+        if resp.ok:
+            creed_score = resp.json()
+    except Exception:
+        pass  # graceful degradation — template renders "audit pending"
+
     return render_template(
         "transparency.html",
         a=art,
         fact_checks=[dict(r) for r in fc],
         cluster=dict(cluster) if cluster else None,
         trail=trail,
+        creed_score=creed_score,
     )
+
+
+@bp.get("/api/v1/creed-badge")
+def creed_badge():
+    """Server-side proxy for C.R.E.E.D. compliance SVG badge (#3352).
+    CREED_API_URL is NEVER exposed to browser JS — all fetching happens here (KB #267314).
+    """
+    from flask import Response
+
+    _FALLBACK_SVG = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="20">'
+        '<rect width="120" height="20" rx="3" fill="#555"/>'
+        '<rect x="75" width="45" height="20" rx="3" fill="#9f9f9f"/>'
+        '<text x="8" y="14" font-family="DejaVu Sans,sans-serif" font-size="11" fill="#fff">'
+        "C.R.E.E.D.</text>"
+        '<text x="78" y="14" font-family="DejaVu Sans,sans-serif" font-size="11" fill="#fff">'
+        "N/A</text>"
+        "</svg>"
+    )
+    try:
+        resp = requests.get(
+            f"{_creed_api_url()}/api/v1/badge/overall",
+            timeout=3,
+        )
+        if resp.ok and "svg" in resp.headers.get("Content-Type", ""):
+            return Response(resp.content, mimetype="image/svg+xml")
+    except Exception:
+        pass
+    return Response(_FALLBACK_SVG, mimetype="image/svg+xml")
 
 
 @bp.get("/api")

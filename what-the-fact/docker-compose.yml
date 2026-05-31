@@ -58,6 +58,9 @@ services:
     networks: [default, archie_net]
     environment:
       TZ: America/Toronto
+      # C.R.E.E.D. API base URL — server-side proxy only, never exposed to browser JS (KB #267314)
+      # Override in VPS .env if creed.kytranempowerment.com is unreachable from the container.
+      CREED_API_URL: ${CREED_API_URL:-https://creed.kytranempowerment.com}
 
 volumes:
   wtf_billing_data:

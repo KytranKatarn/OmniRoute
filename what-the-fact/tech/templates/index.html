@@ -1,15 +1,105 @@
 {% extends "base.html" %}
 {% block content %}
+
 <section class="wtf-hero">
   <h1>Radical transparency in AI news.</h1>
   <p>Every article scored, every decision audited, every source documented.
      Sign in with Kytran Empowerment for API access.</p>
   <a class="wtf-btn" href="/auth/kytran/login?next=/dashboard">Sign in with Kytran Empowerment</a>
 </section>
-<section class="wtf-methodology">
+
+<!-- Live stats bar (#3352) -->
+<section style="background:#050d1a;border-top:1px solid #1a2a3a;border-bottom:1px solid #1a2a3a;padding:14px 16px;margin:0 0 24px 0;">
+  <div style="max-width:860px;margin:0 auto;display:flex;gap:32px;flex-wrap:wrap;justify-content:center;">
+    <div style="text-align:center;">
+      <div style="font-size:1.6rem;font-weight:700;color:#38bdf8;">{{ stats.sources }}</div>
+      <div style="font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;color:#6b7280;">Sources</div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-size:1.6rem;font-weight:700;color:#38bdf8;">{{ "{:,}".format(stats.articles) }}</div>
+      <div style="font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;color:#6b7280;">Articles</div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-size:1.6rem;font-weight:700;color:#38bdf8;">{{ stats.beats }}</div>
+      <div style="font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;color:#6b7280;">Beats</div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-size:1.6rem;font-weight:700;color:#38bdf8;">{{ stats.articles_today }}</div>
+      <div style="font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;color:#6b7280;">Articles / day</div>
+    </div>
+  </div>
+</section>
+
+<!-- Feature tiles (#3352) -->
+<section style="max-width:860px;margin:0 auto 28px auto;padding:0 16px;">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+
+    <a href="/transparency" style="text-decoration:none;">
+      <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:16px;" onmouseover="this.style.borderColor='#38bdf8'" onmouseout="this.style.borderColor='#1a2a3a'">
+        <div style="font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;color:#38bdf8;margin-bottom:6px;">Audit Trail</div>
+        <div style="font-size:0.85rem;color:#e0e0e0;font-weight:600;">Transparency</div>
+        <div style="font-size:0.7rem;color:#6b7280;margin-top:4px;">Full audit log for every article — bias, fact-checks, geo, cluster.</div>
+      </div>
+    </a>
+
+    <a href="/api" style="text-decoration:none;">
+      <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:16px;" onmouseover="this.style.borderColor='#38bdf8'" onmouseout="this.style.borderColor='#1a2a3a'">
+        <div style="font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;color:#38bdf8;margin-bottom:6px;">Developer Hub</div>
+        <div style="font-size:0.85rem;color:#e0e0e0;font-weight:600;">API</div>
+        <div style="font-size:0.7rem;color:#6b7280;margin-top:4px;">REST endpoints, curl examples, bias + fact-check payloads.</div>
+      </div>
+    </a>
+
+    <a href="/dashboard" style="text-decoration:none;">
+      <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:16px;" onmouseover="this.style.borderColor='#38bdf8'" onmouseout="this.style.borderColor='#1a2a3a'">
+        <div style="font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;color:#38bdf8;margin-bottom:6px;">Live Map</div>
+        <div style="font-size:0.85rem;color:#e0e0e0;font-weight:600;">Dashboard</div>
+        <div style="font-size:0.7rem;color:#6b7280;margin-top:4px;">Geographic news distribution, agent activity, bias heatmap.</div>
+      </div>
+    </a>
+
+    <a href="/score" style="text-decoration:none;">
+      <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:16px;" onmouseover="this.style.borderColor='#38bdf8'" onmouseout="this.style.borderColor='#1a2a3a'">
+        <div style="font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;color:#38bdf8;margin-bottom:6px;">Live Scorer</div>
+        <div style="font-size:0.85rem;color:#e0e0e0;font-weight:600;">Score</div>
+        <div style="font-size:0.7rem;color:#6b7280;margin-top:4px;">Paste any article text — get bias band, fact-check, geo in seconds.</div>
+      </div>
+    </a>
+
+  </div>
+</section>
+
+<!-- C.R.E.E.D. badge + cross-links (#3352) -->
+<section style="max-width:860px;margin:0 auto 28px auto;padding:0 16px;display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;">
+
+  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:16px;flex:0 0 auto;">
+    <div style="font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;color:#9ca3af;margin-bottom:8px;">Ethics &amp; Compliance</div>
+    <!-- Badge via server-side proxy — CREED_API_URL never in browser JS (KB #267314) -->
+    <img src="/api/v1/creed-badge" alt="C.R.E.E.D. compliance badge" style="display:block;height:20px;margin-bottom:8px;">
+    <div style="font-size:0.68rem;color:#6b7280;">
+      Governed by <a href="https://creed-ai.org" style="color:#3b82f6;">C.R.E.E.D. Institute ↗</a>
+    </div>
+  </div>
+
+  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:16px;flex:1;min-width:200px;">
+    <div style="font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;color:#9ca3af;margin-bottom:8px;">Our Network</div>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      <a href="https://what-the-fact.com" style="color:#38bdf8;font-size:0.8rem;text-decoration:none;">what-the-fact.com ↗
+        <span style="color:#6b7280;font-size:0.65rem;display:block;">Consumer news feed &amp; bias ratings</span>
+      </a>
+      <a href="https://creed-ai.org" style="color:#38bdf8;font-size:0.8rem;text-decoration:none;">creed-ai.org ↗
+        <span style="color:#6b7280;font-size:0.65rem;display:block;">AI ethics governance &amp; transparency</span>
+      </a>
+    </div>
+  </div>
+
+</section>
+
+<section class="wtf-methodology" style="max-width:860px;margin:0 auto;padding:0 16px 28px;">
   <h2>How we score bias</h2>
   <p>WTF uses heuristic v1 — weighted keyword triggers calibrated against a 10-article golden
      file of Canadian political coverage. Full methodology →
      <a href="https://github.com/KytranKatarn/archie-platform">source</a>.</p>
 </section>
+
 {% endblock %}

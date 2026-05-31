@@ -104,8 +104,11 @@ class TestDeployPipelineSmoke:
         assert result.backup_id == 999
         assert result.retried is False
         assert result.rolled_back is False
+        assert result.metadata.get("status") == "deploy_pending"
         mock_execute.assert_called_once()
-        mock_verify.assert_called_once()
+        # deploy_static is async — the Hostinger push is Claude's MCP job, so the
+        # pipeline must NOT verify/retry a push that did not happen here (#3577).
+        mock_verify.assert_not_called()
 
     def test_risky_files_do_not_execute(self):
         """Dockerfile in changed_files must NOT call execute — must request approval."""
@@ -129,6 +132,40 @@ class TestDeployPipelineSmoke:
         assert "approval" in (result.error or "").lower()
         mock_execute.assert_not_called()
 
+    def test_deploy_static_short_circuits_no_verify_no_retry(self):
+        """deploy_static returns immediately after marking pending — no verify, no
+        sleep, no retry — even if a live verify would fail. Prevents the 360s
+        delegate-worker wedge (#3577)."""
+        from services.deploy_service import run_deploy_pipeline
+
+        mock_execute = MagicMock(return_value=True)
+        mock_verify = MagicMock(return_value=False)  # would fail the pipeline if called
+        mock_sleep = MagicMock()
+
+        with (
+            patch("services.deploy_service._deploy_static_hostinger", mock_execute),
+            patch("services.deploy_service.verify_deploy", mock_verify),
+            patch("services.deploy_service.snapshot_current", return_value=None),
+            patch("services.deploy_service.time.sleep", mock_sleep),
+        ):
+            result = run_deploy_pipeline(
+                capability="deploy_static",
+                context={
+                    "domain": "creed-ai.org",
+                    "source_path": "/tmp/fake",
+                    "changed_files": ["index.html"],
+                    "verify_url": "https://creed-ai.org/index.html",
+                },
+            )
+
+        assert result.success is True
+        assert result.retried is False
+        assert result.rolled_back is False
+        assert result.metadata.get("status") == "deploy_pending"
+        mock_execute.assert_called_once()
+        mock_verify.assert_not_called()
+        mock_sleep.assert_not_called()  # no VERIFY_WAIT / RETRY_DELAY sleeps → no wedge
+
     def test_retry_on_first_failure(self):
         """On first execute failure, pipeline retries once and succeeds."""
         from services.deploy_service import run_deploy_pipeline
@@ -139,19 +176,23 @@ class TestDeployPipelineSmoke:
             call_count["n"] += 1
             return call_count["n"] > 1  # fail first, succeed second
 
+        # Retry applies to deploy_vps (the container CAN actually deploy + verify).
+        # deploy_static short-circuits before verify/retry (#3577), so the retry
+        # path is exercised here via a VPS deploy.
         with (
-            patch("services.deploy_service._deploy_static_hostinger", side_effect=flaky_execute),
+            patch("services.deploy_service._deploy_vps", side_effect=flaky_execute),
             patch("services.deploy_service.verify_deploy", return_value=True),
             patch("services.deploy_service.snapshot_current", return_value=None),
             patch("services.deploy_service.time.sleep"),
         ):
             result = run_deploy_pipeline(
-                capability="deploy_static",
+                capability="deploy_vps",
                 context={
                     "domain": "test.com",
                     "source_path": "/tmp/fake",
                     "changed_files": ["data/translations.json"],
                     "verify_url": "https://test.com/data/translations.json",
+                    "container_name": "kytran_gov_watch",
                 },
             )
 

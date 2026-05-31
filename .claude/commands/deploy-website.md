@@ -82,31 +82,35 @@ If `$ARGUMENTS` is empty, list the domain map above and ask which to deploy. Acc
 
 If `$ARGUMENTS` is a domain, validate it's in the domain map. If not, show available domains.
 
-### 2. Delegate to Platform
+### 2. Deploy
 
-For each domain to deploy, call `mcp__archie__delegate_task` with:
-- `capability`: from the domain map above (`deploy_static` or `deploy_vps`)
-- `reason`: "Manual deploy triggered via /deploy-website for {domain}"
-- `delegation_source`: "claude"
-- `args`: the deploy context for that domain (source_path, changed_files, verify_url, container_name if VPS)
+**`deploy_static` domains (kytranempowerment.com, creed-ai.org) — deploy DIRECTLY. Do NOT delegate.**
+The in-container pipeline CANNOT push to Hostinger — `hosting_deployStaticWebsite` runs on Anthropic infra, not inside the container. Delegating `deploy_static` only marks `deploy_pending`; the live site never changes, and the verify/retry on a push-that-never-happened used to wedge the delegate worker for 6 min (task #3577). So YOU do the push:
 
-Example for kytranempowerment.com:
+1. Zip the FULL site from its `source_path` (exclude `.git`):
+   ```bash
+   TS=$(date +%Y%m%d_%H%M%S); cd <source_path>
+   zip -rq /tmp/<domain>_${TS}.zip . -x '.git/*' -x '.gitignore'
+   ```
+2. Push via MCP (replaces `public_html` entirely — always full-site zip):
+   ```
+   mcp__hostinger-api__hosting_deployStaticWebsite(domain="<domain>", archivePath="/tmp/<domain>_<TS>.zip", removeArchive=True)
+   ```
+   Expect `{"upload":{"status":"success"},"deploy":{"status":"success",...}}`.
+3. Update `system_config` (Step 5 below) → `success` + run timestamp.
+4. **Verify live**: fetch a changed file from `https://<domain>/...` and confirm the NEW content is served (not the old). For widgets that fetch a hub API, verify from an EXTERNAL vantage (e.g. outpost) — split-horizon DNS + Chrome Private Network Access give false negatives from the hub LAN (KB #269948).
+
+**`deploy_vps` domains (civic/gov/legal/market watch, what-the-fact) — delegate (the container CAN rsync + `docker compose up --build` over SSH):**
 ```
 mcp__archie__delegate_task(
-    capability="deploy_static",
-    reason="Manual deploy triggered via /deploy-website for kytranempowerment.com",
+    capability="deploy_vps",
+    reason="Manual deploy triggered via /deploy-website for {domain}",
     delegation_source="claude",
-    args={
-        "domain": "kytranempowerment.com",
-        "source_path": "/mnt/archie_brain/website/kytranempowerment.com",
-        "changed_files": ["data/translations.json"],
-        "verify_url": "https://kytranempowerment.com/data/translations.json",
-        "is_translation": True
-    }
+    args={domain, source_path, changed_files, verify_url, container_name},
 )
 ```
 
-For "all": call once per domain in sequence (not parallel — VPS has one SSH connection).
+For "all": do the `deploy_static` sites directly first, then the `deploy_vps` sites one at a time (VPS has one SSH connection).
 
 ### 3. Report
 

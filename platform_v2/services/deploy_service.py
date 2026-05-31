@@ -395,6 +395,32 @@ def run_deploy_pipeline(capability: str, context: dict) -> DeployResult:
         result.error = str(e)
         logger.exception("[DeployPipeline] Execute failed for %s", domain)
 
+    # deploy_static is ASYNC: the container only marks the domain deploy_pending in
+    # system_config — the real Hostinger push runs via Claude's hosting_deployStaticWebsite
+    # MCP tool (Anthropic infra), never from inside this container. Running verify/retry on
+    # a push that did not happen here ALWAYS fails → 120s retry sleep + _alert_and_propose
+    # LLM dispatch, which blows past the delegate_task worker's 360s timeout and wedges the
+    # single-instance worker for ALL delegations (task #3577, KB #269948). Short-circuit:
+    # return as soon as the pending mark lands. The actual push + live verify is the
+    # /deploy-website skill's job.
+    if capability == "deploy_static":
+        result.success = ok
+        if ok:
+            result.metadata["status"] = "deploy_pending"
+            result.metadata["note"] = (
+                "Marked deploy_pending only — the live Hostinger push must be run by "
+                "Claude via the /deploy-website skill (hosting_deployStaticWebsite). "
+                "No bytes were pushed by this pipeline."
+            )
+            logger.info(
+                "[DeployPipeline] %s deploy_static -> deploy_pending (async; skipping "
+                "in-container verify/retry — push is handled by the deploy-website skill)",
+                domain,
+            )
+        else:
+            result.error = result.error or "Failed to mark deploy_pending"
+        return result
+
     # Step 4 — Verify
     if ok and verify_url:
         time.sleep(VERIFY_WAIT_SECONDS)

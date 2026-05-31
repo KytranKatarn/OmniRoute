@@ -28,6 +28,16 @@
   .cc-link .cc-link-t { font-family:'Orbitron',sans-serif; font-size:0.85rem; color:#8b5cf6; }
   .cc-link .cc-link-d { font-size:0.78rem; color:#94a3b8; margin-top:0.3rem; }
   .cc-list { color:#94a3b8; font-size:0.86rem; line-height:1.8; margin:0.4rem 0 0; padding-left:1.1rem; }
+  .cc-kpis { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:0.9rem; margin-bottom:1rem; }
+  .cc-kpi { background:#ffffff05; border:1px solid #ffffff14; border-radius:12px; padding:1.1rem 1.2rem; }
+  .cc-kpi-n { font-family:'Orbitron',sans-serif; font-size:1.7rem; font-weight:700; color:#8b5cf6; line-height:1; }
+  .cc-kpi-l { font-family:'IBM Plex Mono',monospace; font-size:0.62rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.07em; margin-top:0.5rem; }
+  .cc-kpi.grade .cc-kpi-n { color:#22c55e; }
+  .cc-act { display:flex; align-items:center; gap:0.6rem; font-size:0.82rem; color:#cbd5e1; padding:0.35rem 0; border-bottom:1px solid #ffffff0d; }
+  .cc-act .cc-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .cc-act .cc-act-cap { font-family:'IBM Plex Mono',monospace; color:#8b5cf6; }
+  .cc-act .cc-act-at { margin-left:auto; color:#64748b; font-size:0.74rem; }
+  .cc-muted { color:#64748b; font-size:0.85rem; }
 </style>
 
 <div class="cc-wrap">
@@ -52,12 +62,16 @@
 
   <!-- DASHBOARD -->
   <div class="cc-pane active" id="pane-dashboard">
+    <div class="cc-kpis" id="cc-kpis">
+      <div class="cc-kpi"><div class="cc-kpi-n">…</div><div class="cc-kpi-l">Loading</div></div>
+    </div>
     <div class="cc-card">
-      <h2>E.T.H.O.S. work overview</h2>
-      <p>The home view will surface E.T.H.O.S.'s live work queue: mail to triage,
-        grants in flight, drafts pending approval, and this week's ethics brief.</p>
-      <span class="cc-phase">Phase 5 — #3615</span>
-      <p>Status endpoint: <code>/tools/creed-command/api/status</code> — module is live (P0 scaffold).</p>
+      <h2>This week's ethics brief</h2>
+      <div id="cc-brief" class="cc-muted">Loading…</div>
+    </div>
+    <div class="cc-card">
+      <h2>E.T.H.O.S. recent activity</h2>
+      <div id="cc-activity" class="cc-muted">Loading…</div>
     </div>
   </div>
 

@@ -1,15 +1,22 @@
----
-name: deploy-website
-description: Deploy a website via the A.R.C.H.I.E. Autonomous Deploy Pipeline. B.A.S.E. handles zip, upload, verify, retry, and rollback. Covers Hostinger static sites and VPS Docker products.
-allowed-tools: mcp__archie__delegate_task
-argument: Domain name or "all". Omit to see available sites.
----
+# Deploy Website
 
-# Deploy Website via Autonomous Deploy Pipeline
+Two deploy paths, by capability:
 
-All deploys go through `mcp__archie__delegate_task` — B.A.S.E. runs the full pipeline
-(risk check → snapshot → execute → verify → retry → rollback + alert on failure).
-Claude does not zip, upload, or SSH. One MCP call, platform does the rest.
+- **`deploy_static` (Hostinger shared hosting)** → Claude pushes DIRECTLY via the
+  `mcp__hostinger-api__hosting_deployStaticWebsite` MCP tool. Do NOT delegate — the
+  container can't reach the MCP tool (Anthropic infra), so delegating only marks
+  `deploy_pending` and the live site never changes (task #3577).
+- **`deploy_vps` (Docker products on the VPS)** → delegate to B.A.S.E. via
+  `mcp__archie__delegate_task`; the container rsyncs the changed files + runs
+  `docker compose up -d --build` over SSH, then verifies/retries/rolls back.
+
+## CRITICAL — Hostinger has no REST deploy
+
+**Hostinger Business Web Hosting (u982576611) has NO REST API deploy endpoint.**
+`POST /api/hosting/v1/websites/{username}/deploy` → 404 (KB #261679). FTP is not used.
+The ONLY working push is `mcp__hostinger-api__hosting_deployStaticWebsite`, which
+**replaces `public_html` entirely** — always a FULL-site zip, never partial, one zip
+per domain.
 
 ## Domain Map
 
@@ -27,107 +34,105 @@ Claude does not zip, upload, or SSH. One MCP call, platform does the rest.
 ## Deploy Context by Domain
 
 ```
-kytranempowerment.com:
-  source_path: /mnt/archie_brain/website/kytranempowerment.com
-  changed_files: ["data/translations.json"]
-  verify_url: https://kytranempowerment.com/data/translations.json
-
-creed-ai.org:
-  source_path: /mnt/standalone/websites/creed-ai.org
-  changed_files: ["data/translations.json"]
-  verify_url: https://creed-ai.org/data/translations.json
-
-what-the-fact.com:
-  source_path: /mnt/standalone/websites/what-the-fact.com
-  changed_files: ["data/translations.json"]
-  verify_url: https://what-the-fact.com/static/data/translations.json
-  container_name: wtf_consumer
-
-what-the-fact.tech:
-  source_path: /mnt/standalone/websites/what-the-fact.com
-  changed_files: ["data/translations.json"]
-  verify_url: https://what-the-fact.tech/static/data/translations.json
-  container_name: wtf_tech
-
-civic.kytranempowerment.com:
-  source_path: /mnt/standalone/kytran-civic-watch
-  changed_files: ["static/data/translations.json"]
-  verify_url: https://civic.kytranempowerment.com/data/translations.json
-  container_name: kytran_watch_api
-
-gov.kytranempowerment.com:
-  source_path: /mnt/standalone/kytran-gov-watch
-  changed_files: ["static/data/translations.json"]
-  verify_url: https://gov.kytranempowerment.com/static/data/translations.json
-  container_name: kytran_gov_watch
-
-legal.kytranempowerment.com:
-  source_path: /mnt/standalone/kytran-legal-watch
-  changed_files: ["static/data/translations.json"]
-  verify_url: https://legal.kytranempowerment.com/data/translations.json
-  container_name: kytran_legal_api
-
-market.kytranempowerment.com:
-  source_path: /mnt/standalone/kytran-market-watch
-  changed_files: ["static/data/translations.json"]
-  verify_url: https://market.kytranempowerment.com/static/data/translations.json
-  container_name: kytran_market_api
+kytranempowerment.com:  source_path /mnt/archie_brain/website/kytranempowerment.com
+                        verify_url  https://kytranempowerment.com/data/translations.json
+creed-ai.org:           source_path /mnt/standalone/websites/creed-ai.org   # canonical repo (monorepo path is a symlink to this)
+                        verify_url  https://creed-ai.org/data/translations.json
+what-the-fact.com:      source_path /mnt/standalone/websites/what-the-fact.com  container wtf_consumer
+                        verify_url  https://what-the-fact.com/static/data/translations.json
+what-the-fact.tech:     source_path /mnt/standalone/websites/what-the-fact.com  container wtf_tech
+                        verify_url  https://what-the-fact.tech/static/data/translations.json
+civic.kytranempowerment.com:  source_path /mnt/standalone/kytran-civic-watch   container kytran_watch_api
+                        changed_files ["static/data/translations.json"]  verify https://civic.kytranempowerment.com/data/translations.json
+gov.kytranempowerment.com:    source_path /mnt/standalone/kytran-gov-watch     container kytran_gov_watch
+                        changed_files ["static/data/translations.json"]  verify https://gov.kytranempowerment.com/static/data/translations.json
+legal.kytranempowerment.com:  source_path /mnt/standalone/kytran-legal-watch   container kytran_legal_api
+                        changed_files ["static/data/translations.json"]  verify https://legal.kytranempowerment.com/data/translations.json
+market.kytranempowerment.com: source_path /mnt/standalone/kytran-market-watch  container kytran_market_api
+                        changed_files ["static/data/translations.json"]  verify https://market.kytranempowerment.com/static/data/translations.json
 ```
+
+`what-the-fact.tech` is on the Hostinger account too, but it serves a VPS product —
+deploy it as `deploy_vps`, NOT static.
+
+---
 
 ## Steps
 
-### 1. Parse Argument
+### 1. Parse argument
 
-If `$ARGUMENTS` is empty, list the domain map above and ask which to deploy. Accept "all" to deploy all 8.
-
-If `$ARGUMENTS` is a domain, validate it's in the domain map. If not, show available domains.
+If `$ARGUMENTS` is empty, list the Domain Map and ask which to deploy. Accept "all".
+Validate the domain is in the map; if not, show the available domains.
 
 ### 2. Deploy
 
-**`deploy_static` domains (kytranempowerment.com, creed-ai.org) — deploy DIRECTLY. Do NOT delegate.**
-The in-container pipeline CANNOT push to Hostinger — `hosting_deployStaticWebsite` runs on Anthropic infra, not inside the container. Delegating `deploy_static` only marks `deploy_pending`; the live site never changes, and the verify/retry on a push-that-never-happened used to wedge the delegate worker for 6 min (task #3577). So YOU do the push:
+**`deploy_static` domains (kytranempowerment.com, creed-ai.org) — push DIRECTLY:**
 
 1. Zip the FULL site from its `source_path` (exclude `.git`):
    ```bash
    TS=$(date +%Y%m%d_%H%M%S); cd <source_path>
    zip -rq /tmp/<domain>_${TS}.zip . -x '.git/*' -x '.gitignore'
    ```
-2. Push via MCP (replaces `public_html` entirely — always full-site zip):
+2. Push (replaces `public_html` entirely):
    ```
    mcp__hostinger-api__hosting_deployStaticWebsite(domain="<domain>", archivePath="/tmp/<domain>_<TS>.zip", removeArchive=True)
    ```
-   Expect `{"upload":{"status":"success"},"deploy":{"status":"success",...}}`.
-3. Update `system_config` (Step 5 below) → `success` + run timestamp.
-4. **Verify live**: fetch a changed file from `https://<domain>/...` and confirm the NEW content is served (not the old). For widgets that fetch a hub API, verify from an EXTERNAL vantage (e.g. outpost) — split-horizon DNS + Chrome Private Network Access give false negatives from the hub LAN (KB #269948).
+   Expect `{"upload":{"status":"success"},"deploy":{"status":"success","data":{"message":"Request accepted"}}}`.
+3. Update `system_config`:
+   ```bash
+   docker exec archie_database psql -U archie -d archie -c "
+     UPDATE system_config SET value='success', updated_at=NOW()
+       WHERE key='website_deploy_last_status_<domain>';
+     UPDATE system_config SET value='$(date -u +%Y-%m-%dT%H:%M:%S)', updated_at=NOW()
+       WHERE key='website_deploy_last_run_<domain>';"
+   ```
+4. **Verify live** — fetch a changed file from `https://<domain>/...` and confirm the
+   NEW content is served (Hostinger propagates in 30–120s). For widgets that fetch a
+   hub API in the browser, verify from an EXTERNAL vantage (e.g. the outpost) — the
+   hub LAN resolves `*.kytranempowerment.com` to a private IP, so Chrome's Private
+   Network Access gives a false negative (KB #269948).
 
-**`deploy_vps` domains (civic/gov/legal/market watch, what-the-fact) — delegate (the container CAN rsync + `docker compose up --build` over SSH):**
+**`deploy_vps` domains — delegate (container rsyncs + rebuilds over SSH):**
 ```
 mcp__archie__delegate_task(
     capability="deploy_vps",
-    reason="Manual deploy triggered via /deploy-website for {domain}",
+    reason="Manual deploy via /deploy-website for {domain}",
     delegation_source="claude",
     args={domain, source_path, changed_files, verify_url, container_name},
 )
 ```
+Returns a task_id; B.A.S.E. (agent 139) runs snapshot → rsync → `docker compose up
+-d --build` → verify → retry-once → rollback-on-double-failure, async.
 
-For "all": do the `deploy_static` sites directly first, then the `deploy_vps` sites one at a time (VPS has one SSH connection).
+For "all": push the `deploy_static` sites directly first, then the `deploy_vps`
+sites one at a time (VPS has a single SSH connection).
 
 ### 3. Report
 
-Print a summary table:
+Print a table: `Domain | Capability | Result (✅/❌)`. For any `deploy_vps` failure,
+note the error and that Repair Bay has a proposal queued.
+
+---
+
+## Check deploy status anytime
+
+```bash
+docker exec archie_database psql -U archie -d archie -c \
+  "SELECT key, value FROM system_config WHERE key LIKE 'website_deploy%' ORDER BY key;"
 ```
-Domain                          | Capability     | Result
-kytranempowerment.com           | deploy_static  | ✅ success
-creed-ai.org                    | deploy_static  | ✅ success
-...
-```
+`deploy_pending` = queued (a delegate `deploy_static` only ever marks this — push it
+directly). `success` = last deploy worked. `failed` = last automated attempt broke.
 
-If any domain fails, say what the error was and that Repair Bay has a proposal queued.
+## When to use
 
-## Notes
+- After website HTML/JS/CSS/translations changes
+- When `system_config` shows `deploy_pending`
+- After approving portraits in Media Studio
+- Whenever the user says "push the site", "deploy", "update website"
 
-- B.A.S.E. (agent_id=139) owns all deploys — verify, retry, rollback are automatic
-- Risky files (.py, Dockerfile, .sql) trigger a Telegram approval request instead of deploying
-- Pre-deploy snapshot stored in knowledge_base for rollback
-- deploy_static always deploys the FULL site (partial deploys break public_html)
-- The pipeline runs async in the platform — the delegate_task call returns a task_id immediately
+## What NOT to do
+
+- Do NOT `POST /api/hosting/v1/websites/{username}/deploy` → 404
+- Do NOT use FTP
+- Do NOT deploy partial files — full-site zip only, always; one zip per domain
+- Do NOT delegate `deploy_static` expecting a live push — it only marks pending

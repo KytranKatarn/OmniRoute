@@ -4490,6 +4490,10 @@ class AgentLoop:
     _DELEGATE_CAPABILITY_TIMEOUTS = {
         "deploy_vps": 600,
         "deploy_static": 600,
+        # documentation: heavy 7B doc-gen, 250-530s on CPU outpost nodes.
+        # Dispatcher allows 600s (CAPABILITY_TIMEOUTS); +60s worker buffer.
+        # Was false-blocking at the 360s default (tasks #3549/#3551).
+        "documentation": 660,
         "run_qa_suite": 300,
         "run_misroute_audit": 120,
         "run_misroute_to_proposal_adapter": 120,

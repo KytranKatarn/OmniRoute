@@ -377,6 +377,12 @@ CAPABILITY_REQUIRES_SKILL = {
 CAPABILITY_TIMEOUTS = {
     "code_analysis": 600,
     "knowledge_analysis": 600,
+    # documentation = heavy 7B doc-gen (mistral:7b). On CPU outpost nodes
+    # (e.g. C.O.D.E.X.@outpost-asia) it routinely runs 250-530s. It was
+    # inheriting the 300s default and getting killed mid-job, marking
+    # delegated doc tasks 'blocked' even though the node often finished
+    # later (tasks #3549/#3551, 2026-05-31). Treat like code/knowledge.
+    "documentation": 600,
     # code_review runs in a background thread. mistral:7b cold-loads in 90-150s
     # under concurrent Repair Bay bursts; 300s gives the model time to warm and
     # serve queued requests without timing out (misroute_audit ADR-001 follow-up).

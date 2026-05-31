@@ -118,10 +118,14 @@
       sel.style.color = GCOLOR[g.status] || "#e2e8f0";
       sel.addEventListener("change", function () { updateGrant(g.id, { status: sel.value }); });
       tds.appendChild(sel); tr.appendChild(tds);
-      var tdd = el("td");
+      var tdd = el("td"); tdd.style.whiteSpace = "nowrap";
+      var draftBtn = el("button", "cc-btn-sm", g.draft ? "✎ Draft*" : "✎ Draft");
+      draftBtn.style.cssText = "padding:0.25rem 0.55rem;font-size:0.66rem;margin-right:0.4rem;";
+      draftBtn.title = g.draft ? "Regenerate E.T.H.O.S. draft" : "Draft with E.T.H.O.S.";
+      draftBtn.addEventListener("click", function () { draftGrant(g, draftBtn); });
       var del = el("button", "cc-g-del", "✕"); del.title = "Delete";
       del.addEventListener("click", function () { if (window.confirm("Delete this grant?")) deleteGrant(g.id); });
-      tdd.appendChild(del); tr.appendChild(tdd);
+      tdd.appendChild(draftBtn); tdd.appendChild(del); tr.appendChild(tdd);
       tbody.appendChild(tr);
     });
     table.appendChild(tbody); box.appendChild(table);
@@ -142,6 +146,64 @@
   function deleteGrant(id) {
     fetch("/tools/creed-command/api/grants/" + id, { method: "DELETE" })
       .then(function () { loadGrants(); }).catch(function () {});
+  }
+
+  function renderDraft(g, draft, at) {
+    var panel = document.getElementById("cc-draft-panel");
+    if (!panel) return;
+    panel.className = "";
+    while (panel.firstChild) panel.removeChild(panel.firstChild);
+    var card = el("div", "cc-card");
+    card.appendChild(el("h2", null, "E.T.H.O.S. draft — " + g.funder + " / " + g.title));
+    var meta = el("div", "cc-muted", at ? "Generated " + new Date(at).toLocaleString() + " · review + edit before submitting" : "Review + edit before submitting");
+    meta.style.cssText = "font-size:0.74rem;margin-bottom:0.6rem;";
+    card.appendChild(meta);
+    var body = el("div", null, draft); // textContent — XSS-safe
+    body.style.cssText = "white-space:pre-wrap;font-size:0.88rem;line-height:1.6;color:#cbd5e1;";
+    card.appendChild(body);
+    panel.appendChild(card);
+    if (panel.scrollIntoView) panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function pollDraft(g, since, tries, btn, orig) {
+    var panel = document.getElementById("cc-draft-panel");
+    if (tries <= 0) {
+      btn.disabled = false; btn.textContent = orig;
+      if (panel) { panel.className = "cc-muted"; panel.textContent = "Still drafting — check back shortly (E.T.H.O.S. may be busy)."; }
+      return;
+    }
+    fetch("/tools/creed-command/api/grants/" + g.id, { cache: "no-cache" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.draft && d.draft_generated_at && d.draft_generated_at !== since) {
+          btn.disabled = false; btn.textContent = orig;
+          renderDraft(g, d.draft, d.draft_generated_at); loadGrants();
+        } else {
+          setTimeout(function () { pollDraft(g, since, tries - 1, btn, orig); }, 5000);
+        }
+      })
+      .catch(function () { setTimeout(function () { pollDraft(g, since, tries - 1, btn, orig); }, 5000); });
+  }
+
+  function draftGrant(g, btn) {
+    var orig = btn.textContent;
+    btn.disabled = true; btn.textContent = "Drafting…";
+    var panel = document.getElementById("cc-draft-panel");
+    if (panel) { panel.className = "cc-muted"; panel.textContent = "E.T.H.O.S. is drafting — this can take a minute or two…"; }
+    fetch("/tools/creed-command/api/grants/" + g.id + "/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (res.ok && res.d.status === "drafting") {
+          pollDraft(g, res.d.since || null, 40, btn, orig); // ~40 × 5s ≈ 3.3 min
+        } else {
+          btn.disabled = false; btn.textContent = orig;
+          if (panel) { panel.className = "cc-muted"; panel.textContent = (res.d && res.d.error) || "Could not start drafting."; }
+        }
+      })
+      .catch(function () {
+        btn.disabled = false; btn.textContent = orig;
+        if (panel) { panel.className = "cc-muted"; panel.textContent = "Network error while drafting."; }
+      });
   }
 
   function submitGrant(e) {

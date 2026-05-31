@@ -699,6 +699,18 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # E.T.H.O.S. — daily C.R.E.E.D. grant deadline reminders (task #3612).
+        # 06:00 ET. Dormant until grants have deadlines within 7 days.
+        self.scheduler.add_job(
+            with_app_context(self._run_creed_grant_deadline_reminder),
+            trigger=CronTrigger(hour=6, minute=0, timezone="America/Toronto"),
+            id="creed_grant_deadline_reminder",
+            name="Agent Loop: C.R.E.E.D. Grant Deadline Reminder",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         # F.O.R.G.E. — daily dep drift audit (Project #272 Phase 2 / Task #2109).
         # 03:15 UTC — after S.P.E.C.T.R.A. and K.I.N. digest windows.
         self.scheduler.add_job(
@@ -4934,6 +4946,63 @@ class AgentLoop:
                 "brief_persisted": persisted,
                 "brief_chars": len(brief_text or ""),
             },
+        )
+
+    def _run_creed_grant_deadline_reminder(self):
+        """Daily reminder for C.R.E.E.D. grant deadlines within 7 days (task #3612).
+
+        Telegram-alerts the owner about active grants (creed_grants) whose deadline
+        falls within the next 7 days, de-duplicated via last_reminder_at (max once
+        per 3 days per grant). Dormant until grants have deadlines. Best-effort.
+        """
+        start = time.time()
+        sent = 0
+        try:
+            conn = get_db()
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    SELECT id, funder, title, deadline FROM creed_grants
+                    WHERE deadline IS NOT NULL
+                      AND deadline >= CURRENT_DATE
+                      AND deadline <= CURRENT_DATE + INTERVAL '7 days'
+                      AND status NOT IN ('awarded', 'declined')
+                      AND (last_reminder_at IS NULL
+                           OR last_reminder_at < NOW() - INTERVAL '3 days')
+                    ORDER BY deadline ASC
+                    """
+                )
+                rows = cur.fetchall() or []
+                if rows:
+                    lines = [f"• {r[1]} / {r[2]} — due {r[3]}" for r in rows]
+                    msg = "C.R.E.E.D. grant deadlines within 7 days:\n" + "\n".join(lines)
+                    try:
+                        import sys as _sys
+
+                        _sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+                        from services import telegram_service
+
+                        telegram_service.send_info("Grant deadlines", msg)
+                        sent = len(rows)
+                    except Exception as te:
+                        logger.warning("grant reminder Telegram failed: %s", te)
+                    cur.execute(
+                        "UPDATE creed_grants SET last_reminder_at = NOW() WHERE id = ANY(%s)",
+                        ([r[0] for r in rows],),
+                    )
+                    conn.commit()
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.error("creed grant deadline reminder failed: %s", e)
+
+        self._log_cycle(
+            job_name="creed_grant_deadline_reminder",
+            items_processed=sent,
+            items_failed=0,
+            duration_ms=int((time.time() - start) * 1000),
+            details={"reminders_sent": sent},
         )
 
     def _run_kin_welfare_digest(self):

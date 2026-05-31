@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}C.R.E.E.D. Command — E.T.H.O.S.{% endblock %}
+
+{% block content %}
+<style>
+  .cc-wrap { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: #e2e8f0; }
+  .cc-head { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:0.4rem; }
+  .cc-head h1 { font-family:'Orbitron',sans-serif; font-size:1.5rem; color:#8b5cf6; letter-spacing:1px; margin:0; }
+  .cc-agent { font-family:'IBM Plex Mono',monospace; font-size:0.72rem; color:#94a3b8; background:#ffffff0d;
+    border:1px solid #ffffff22; border-radius:20px; padding:3px 11px; }
+  .cc-sub { color:#94a3b8; font-size:0.9rem; margin:0 0 1.2rem; max-width:760px; line-height:1.6; }
+  .cc-tabs { display:flex; flex-wrap:wrap; gap:6px; border-bottom:1px solid #ffffff1a; margin-bottom:1.3rem; }
+  .cc-tab { font-family:'Antonio',sans-serif; font-size:0.82rem; text-transform:uppercase; letter-spacing:1px;
+    color:#94a3b8; background:none; border:none; border-bottom:2px solid transparent; padding:0.6rem 1rem; cursor:pointer; }
+  .cc-tab:hover { color:#e2e8f0; }
+  .cc-tab.active { color:#8b5cf6; border-bottom-color:#8b5cf6; }
+  .cc-pane { display:none; }
+  .cc-pane.active { display:block; }
+  .cc-phase { display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:0.62rem; text-transform:uppercase;
+    letter-spacing:1px; color:#f59e0b; background:#f59e0b18; border:1px solid #f59e0b44; border-radius:4px; padding:2px 8px; margin-bottom:0.8rem; }
+  .cc-card { background:#ffffff05; border:1px solid #ffffff14; border-radius:12px; padding:1.4rem 1.5rem; margin-bottom:1rem; }
+  .cc-card h2 { font-family:'Orbitron',sans-serif; font-size:1.05rem; color:#f1f5f9; margin:0 0 0.6rem; }
+  .cc-card p { color:#cbd5e1; font-size:0.9rem; line-height:1.6; margin:0.3rem 0; }
+  .cc-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:0.9rem; }
+  .cc-link { display:block; background:#ffffff05; border:1px solid #ffffff14; border-radius:10px; padding:1rem 1.1rem;
+    color:#e2e8f0; text-decoration:none; transition:border-color .15s; }
+  .cc-link:hover { border-color:#8b5cf6; }
+  .cc-link .cc-link-t { font-family:'Orbitron',sans-serif; font-size:0.85rem; color:#8b5cf6; }
+  .cc-link .cc-link-d { font-size:0.78rem; color:#94a3b8; margin-top:0.3rem; }
+  .cc-list { color:#94a3b8; font-size:0.86rem; line-height:1.8; margin:0.4rem 0 0; padding-left:1.1rem; }
+</style>
+
+<div class="cc-wrap">
+  <div class="cc-head">
+    <h1>C.R.E.E.D. Command Center</h1>
+    <span class="cc-agent">Agent: E.T.H.O.S. · #336 · Legal &amp; Regulatory</span>
+  </div>
+  <p class="cc-sub">
+    E.T.H.O.S.'s work dashboard for running C.R.E.E.D. as a nonprofit — mail, grants,
+    marketing, files, and the governance surfaces it owns. Outbound communication is
+    drafted by E.T.H.O.S. and sent only after human approval (via A.R.C.H.I.E.).
+  </p>
+
+  <div class="cc-tabs">
+    <button class="cc-tab active" data-tab="dashboard">Dashboard</button>
+    <button class="cc-tab" data-tab="inbox">Inbox</button>
+    <button class="cc-tab" data-tab="grants">Grants</button>
+    <button class="cc-tab" data-tab="marketing">Marketing</button>
+    <button class="cc-tab" data-tab="files">Files</button>
+    <button class="cc-tab" data-tab="governance">Governance</button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="cc-pane active" id="pane-dashboard">
+    <div class="cc-card">
+      <h2>E.T.H.O.S. work overview</h2>
+      <p>The home view will surface E.T.H.O.S.'s live work queue: mail to triage,
+        grants in flight, drafts pending approval, and this week's ethics brief.</p>
+      <span class="cc-phase">Phase 5 — #3615</span>
+      <p>Status endpoint: <code>/tools/creed-command/api/status</code> — module is live (P0 scaffold).</p>
+    </div>
+  </div>
+
+  <!-- INBOX -->
+  <div class="cc-pane" id="pane-inbox">
+    <span class="cc-phase">Phase 1 — #3608 / #3609 / #3610</span>
+    <div class="cc-card">
+      <h2>C.R.E.E.D. mail</h2>
+      <p>The five creed-ai.org mailboxes (contact@, grants@, research@, press@, admin@)
+        pull into the platform Email Manager via IMAP; E.T.H.O.S. triages and drafts
+        replies for human approval.</p>
+      <p><em>Pending: Hostinger IMAP / app passwords (owner-provided) before mail sync can start.</em></p>
+    </div>
+  </div>
+
+  <!-- GRANTS -->
+  <div class="cc-pane" id="pane-grants">
+    <span class="cc-phase">Phase 2 — #3611 / #3612</span>
+    <div class="cc-card">
+      <h2>Grants pipeline</h2>
+      <p>Track grant opportunities (funder, deadline, amount, fit-score, status),
+        draft applications with E.T.H.O.S. using C.R.E.E.D.'s live evidence, and get
+        deadline reminders.</p>
+    </div>
+  </div>
+
+  <!-- MARKETING -->
+  <div class="cc-pane" id="pane-marketing">
+    <span class="cc-phase">Phase 3 — #3613</span>
+    <div class="cc-card">
+      <h2>Marketing &amp; promotion</h2>
+      <p>Content calendar + promotion queue for creed-ai.org — announcements, press
+        outreach, and LinkedIn (via S.I.G.N.A.L.). E.T.H.O.S. drafts; humans approve.</p>
+    </div>
+  </div>
+
+  <!-- FILES -->
+  <div class="cc-pane" id="pane-files">
+    <span class="cc-phase">Phase 4 — #3614</span>
+    <div class="cc-card">
+      <h2>Document library</h2>
+      <p>Grant documents, research papers, policy templates, and brand assets —
+        uploaded, tagged, and linked to grants and mail threads.</p>
+    </div>
+  </div>
+
+  <!-- GOVERNANCE (live links) -->
+  <div class="cc-pane" id="pane-governance">
+    <div class="cc-card">
+      <h2>Governance surfaces E.T.H.O.S. owns</h2>
+      <p>Live public C.R.E.E.D. transparency surfaces. These are already shipped.</p>
+    </div>
+    <div class="cc-grid">
+      <a class="cc-link" href="https://creed.kytranempowerment.com/remediation" target="_blank" rel="noopener">
+        <div class="cc-link-t">Remediation Registry</div>
+        <div class="cc-link-d">Known limitations + governance position</div></a>
+      <a class="cc-link" href="https://creed.kytranempowerment.com/oversight" target="_blank" rel="noopener">
+        <div class="cc-link-t">Oversight Registry</div>
+        <div class="cc-link-d">Which decisions need a human, by risk</div></a>
+      <a class="cc-link" href="https://creed.kytranempowerment.com/incidents" target="_blank" rel="noopener">
+        <div class="cc-link-t">Incident Log</div>
+        <div class="cc-link-d">Voluntary AI incident disclosure</div></a>
+      <a class="cc-link" href="https://creed-ai.org/accountability.html" target="_blank" rel="noopener">
+        <div class="cc-link-t">Accountability &amp; Redress</div>
+        <div class="cc-link-d">Contest an AI decision (human-reviewed)</div></a>
+      <a class="cc-link" href="https://creed.kytranempowerment.com/results" target="_blank" rel="noopener">
+        <div class="cc-link-t">Live Governance Scores</div>
+        <div class="cc-link-d">Real-time compliance grade</div></a>
+      <a class="cc-link" href="https://creed-ai.org" target="_blank" rel="noopener">
+        <div class="cc-link-t">creed-ai.org</div>
+        <div class="cc-link-d">Public C.R.E.E.D. Institute site</div></a>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('creed_command.static', filename='js/creed-command.js') }}" defer></script>
+{% endblock %}

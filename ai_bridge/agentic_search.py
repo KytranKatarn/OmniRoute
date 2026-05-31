@@ -1,10 +1,10 @@
-"""ai_bridge/agentic_search.py — native tool-calling loop for agentic KB retrieval (#3534 Phase 1).
+"""ai_bridge/agentic_search.py — native tool-calling loop for agentic KB retrieval (#3534).
 
 A Department HQ execution primitive. It is invoked by
 ``tools.department_hq.services.department_dispatcher`` (``request_work``) for
-tool-capable agents so an agent can issue its OWN semantic KB searches mid-task
-via Ollama ``/api/chat`` ``tools=[]``, read the results, and refine — instead of
-the single-shot, system-injected RAG auto-context.
+tool-capable agents so an agent can issue its OWN knowledge-base searches
+mid-task via Ollama ``/api/chat`` ``tools=[]``, read the results, and refine —
+instead of the single-shot, system-injected RAG auto-context.
 
 ADR-013 note: this is NOT a rogue direct-Ollama call. The agent and model are
 already DHQ-selected before ``run_tool_loop`` runs, and each tool call is logged
@@ -12,10 +12,14 @@ to ``task_execution_log`` by the dispatcher. It sits in the same sanctioned
 inference layer as ``ai_bridge.archie_bridge.call_ollama`` (which the dispatcher
 also calls directly via ``_execute_llm``).
 
-Phase 1 is read-only: one tool, ``search_knowledge``, wrapping
-``ai_bridge.semantic_search.search``. The loop is bounded (``max_iterations`` +
-``timeout``). On any HTTP/parse error — or when the model emits no tool call —
-the caller falls back to the single-shot RAG path.
+Phase 1: one read-only tool (``search_knowledge``).
+Phase 2: adds ``search_mistakes`` (mistake_learned, 1.3x weight) and
+``recall_context`` (vault_note + conversation_memory), a tool-use prompting
+preamble, and expands beyond D.A.R.W.I.N. (dispatcher-side). All tools are
+read-only and back onto ``services.rag_service.search_knowledge`` (knowledge_type
+aware). The loop is bounded (``max_iterations`` + ``timeout``). On any HTTP/parse
+error — or when the model emits no tool call — the caller falls back to
+single-shot RAG.
 """
 
 import json
@@ -27,36 +31,65 @@ import requests
 
 logger = logging.getLogger("agent_loop")
 
-# Ollama-native tool schema (OpenAI function-calling shape). Read-only.
-SEARCH_KNOWLEDGE_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "search_knowledge",
-        "description": (
-            "Search the A.R.C.H.I.E. knowledge base (docs, past decisions, "
-            "mistakes, code) for facts you do not already know. Call this before "
-            "answering whenever the question depends on platform-specific details. "
-            "Returns the most relevant entries with a relevance score."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Natural-language search query for the knowledge base.",
+_MAX_LIMIT = 8
+
+
+def _kb_tool(name, description):
+    """Build an Ollama-native (OpenAI-shape) read-only KB tool schema."""
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Natural-language search query."},
+                    "limit": {"type": "integer", "description": "Max results (default 5, capped at 8)."},
                 },
-                "limit": {
-                    "type": "integer",
-                    "description": "Max results to return (default 5, capped at 8).",
-                },
+                "required": ["query"],
             },
-            "required": ["query"],
         },
-    },
+    }
+
+
+# Read-only KB tools the agent may call, and the knowledge_type filter each maps
+# to in services.rag_service.search_knowledge (None = all types).
+TOOLS = [
+    _kb_tool(
+        "search_knowledge",
+        "Search the A.R.C.H.I.E. knowledge base (all types) for facts you do not "
+        "already know. Use whenever the question depends on platform-specific detail.",
+    ),
+    _kb_tool(
+        "search_mistakes",
+        "Search past mistakes and hard-won lessons (mistake_learned entries). Use to "
+        "avoid repeating known errors before proposing an approach or a fix.",
+    ),
+    _kb_tool(
+        "recall_context",
+        "Recall prior documentation, decisions (ADRs), and past session context "
+        "(vault_note + conversation_memory). Use to ground answers in earlier work.",
+    ),
+]
+
+_TOOL_KNOWLEDGE_TYPES = {
+    "search_knowledge": None,
+    "search_mistakes": ["mistake_learned"],
+    "recall_context": ["vault_note", "conversation_memory"],
 }
 
+# Prepended to the agent's system prompt when the loop runs, so the model knows
+# the tools exist and is nudged to use them instead of guessing.
+TOOL_PREAMBLE = (
+    "You can consult the A.R.C.H.I.E. knowledge base with tools: search_knowledge "
+    "(general), search_mistakes (past errors/lessons), recall_context (prior docs "
+    "and decisions). When the answer depends on platform-specific facts, CALL a "
+    "tool and read the results before answering — do not guess. You may call tools "
+    "more than once to refine. When you have enough, answer normally with no tool call."
+)
+
 # Models known to emit reliable native tool_calls via Ollama /api/chat.
-# Conservative allow-list — Phase 1 only needs qwen2.5:7b (D.A.R.W.I.N.).
 TOOL_CAPABLE_MODELS = (
     "qwen2.5:7b",
     "qwen2.5:14b",
@@ -65,8 +98,6 @@ TOOL_CAPABLE_MODELS = (
     "mistral:7b",
     "llama3.1",
 )
-
-_MAX_LIMIT = 8
 
 
 def is_tool_capable_model(model) -> bool:
@@ -77,28 +108,33 @@ def is_tool_capable_model(model) -> bool:
     return any(m.startswith(t) or m == t for t in TOOL_CAPABLE_MODELS)
 
 
-def _execute_search_knowledge(query, limit=5) -> str:
-    """Run one semantic KB search and format the results for the model."""
+def _execute_kb_tool(name, query, limit=5) -> str:
+    """Run one read-only KB search (routed by tool name) and format for the model."""
     try:
-        from ai_bridge.semantic_search import search as semantic_search
+        from services.rag_service import search_knowledge as rag_search
 
         try:
             n = int(limit)
         except (TypeError, ValueError):
             n = 5
         n = max(1, min(n, _MAX_LIMIT))
-        results = semantic_search(query or "", limit=n)
+        knowledge_types = _TOOL_KNOWLEDGE_TYPES.get(name)
+        results = rag_search(query or "", limit=n, knowledge_types=knowledge_types)
         if not results:
             return f"No knowledge-base results for: {query!r}"
         blocks = []
         for r in results:
-            score = f"{r.score:.2f}" if getattr(r, "score", None) is not None else "?"
-            title = getattr(r, "title", None) or f"KB#{getattr(r, 'id', '?')}"
-            content = (getattr(r, "content", None) or "")[:600]
-            blocks.append(f"[KB#{getattr(r, 'id', '?')}] {title} (relevance {score})\n{content}")
+            kid = r.get("id", "?")
+            title = r.get("title") or f"KB#{kid}"
+            ktype = r.get("knowledge_type") or ""
+            rel = r.get("similarity", r.get("score"))
+            rel_s = f"{rel:.2f}" if isinstance(rel, (int, float)) else "?"
+            content = (r.get("content") or "")[:600]
+            tag = f"[{ktype}] " if ktype else ""
+            blocks.append(f"{tag}[KB#{kid}] {title} (relevance {rel_s})\n{content}")
         return "\n\n".join(blocks)
     except Exception as exc:
-        logger.debug("[agentic_search] search_knowledge tool failed: %s", exc)
+        logger.debug("[agentic_search] %s tool failed: %s", name, exc)
         return f"Knowledge-base search error: {exc}"
 
 
@@ -120,9 +156,10 @@ def run_tool_loop(
       {success, response, used_tools, tool_calls, tool_queries, iterations,
        error, duration_ms, ollama_url}
 
-    ``used_tools`` is True only if the model issued >= 1 search_knowledge call.
-    The dispatcher should accept the result only when ``used_tools and success``;
-    otherwise it falls back to the single-shot RAG path. Never raises.
+    ``tool_queries`` is a list of ``{"tool": <name>, "query": <str>}`` (one per
+    call). ``used_tools`` is True only if the model issued >= 1 tool call. The
+    dispatcher accepts the result only when ``used_tools and success``; otherwise
+    it falls back to the single-shot RAG path. Never raises.
     """
     base = ollama_url or os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
     # OLLAMA_HOST is often set without a scheme (e.g. "host.docker.internal:11434");
@@ -130,10 +167,9 @@ def run_tool_loop(
     if base and not base.startswith(("http://", "https://")):
         base = "http://" + base
     url = f"{base}/api/chat"
-    messages = []
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": user_prompt})
+
+    sys_content = f"{TOOL_PREAMBLE}\n\n{system_prompt}" if system_prompt else TOOL_PREAMBLE
+    messages = [{"role": "system", "content": sys_content}, {"role": "user", "content": user_prompt}]
 
     start = time.time()
     tool_queries = []
@@ -153,12 +189,7 @@ def run_tool_loop(
 
     try:
         for iteration in range(max_iterations):
-            payload = {
-                "model": model,
-                "messages": messages,
-                "tools": [SEARCH_KNOWLEDGE_TOOL],
-                "stream": False,
-            }
+            payload = {"model": model, "messages": messages, "tools": TOOLS, "stream": False}
             resp = requests.post(url, json=payload, timeout=timeout)
             resp.raise_for_status()
             msg = (resp.json() or {}).get("message", {}) or {}
@@ -166,16 +197,15 @@ def run_tool_loop(
 
             if not calls:
                 # Model produced a final answer (no further tool use).
-                return _result(
-                    bool(msg.get("content")),
-                    msg.get("content") or "",
-                    iterations=iteration + 1,
-                )
+                return _result(bool(msg.get("content")), msg.get("content") or "", iterations=iteration + 1)
 
             # Echo the assistant tool-call message, then run each tool.
             messages.append(msg)
             for call in calls:
                 fn = call.get("function", {}) or {}
+                tool_name = fn.get("name") or "search_knowledge"
+                if tool_name not in _TOOL_KNOWLEDGE_TYPES:
+                    tool_name = "search_knowledge"
                 args = fn.get("arguments") or {}
                 if isinstance(args, str):
                     try:
@@ -184,23 +214,20 @@ def run_tool_loop(
                         args = {"query": args}
                 query = args.get("query") or ""
                 limit = args.get("limit", 5)
-                tool_queries.append(query)
-                tool_output = _execute_search_knowledge(query, limit)
+                tool_queries.append({"tool": tool_name, "query": query})
+                tool_output = _execute_kb_tool(tool_name, query, limit)
                 messages.append({"role": "tool", "content": tool_output})
                 logger.info(
-                    "[agentic_search] %s search_knowledge(%r) -> %d chars",
+                    "[agentic_search] %s %s(%r) -> %d chars",
                     agent_name or "?",
+                    tool_name,
                     query[:80],
                     len(tool_output),
                 )
 
         # Iterations exhausted while still tool-calling: force a final answer
         # with tools disabled so the model must synthesize from what it gathered.
-        resp = requests.post(
-            url,
-            json={"model": model, "messages": messages, "stream": False},
-            timeout=timeout,
-        )
+        resp = requests.post(url, json={"model": model, "messages": messages, "stream": False}, timeout=timeout)
         resp.raise_for_status()
         content = ((resp.json() or {}).get("message", {}) or {}).get("content") or ""
         return _result(bool(content), content, error=None if content else "no final content", iterations=max_iterations)

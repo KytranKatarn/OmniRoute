@@ -3024,7 +3024,9 @@ class DepartmentDispatcher:
     # The agent issues its OWN search_knowledge calls mid-task instead of the
     # single-shot RAG. Hub-only (fleet agents return early before this branch).
     _AGENTIC_TOOL_CAPABILITIES = ("research", "knowledge_analysis")
-    _AGENTIC_TOOL_AGENTS = ("D.A.R.W.I.N.",)
+    # Phase 1: D.A.R.W.I.N. (research). Phase 2 adds the Analytics & Intelligence
+    # directors (knowledge_analysis, mistral:7b). All gated by is_tool_capable_model.
+    _AGENTIC_TOOL_AGENTS = ("D.A.R.W.I.N.", "S.P.E.C.T.R.A.", "W.A.T.C.H.")
 
     def _is_auto_context_enabled(self) -> bool:
         """Check platform_settings for rag_auto_context flag."""
@@ -3067,21 +3069,30 @@ class DepartmentDispatcher:
             from psycopg2.extras import Json
 
             with get_db_cursor(commit=True) as (_c, cur):
-                for q in queries:
+                for inv in queries:
+                    # Phase 2: each entry is {"tool": <name>, "query": <str>};
+                    # tolerate Phase-1 bare-string entries for safety.
+                    if isinstance(inv, dict):
+                        tool_name = inv.get("tool") or "search_knowledge"
+                        q = inv.get("query") or ""
+                    else:
+                        tool_name, q = "search_knowledge", (inv or "")
                     cur.execute(
                         """INSERT INTO task_execution_log
                                (agent_id, agent_name, module_source, task_type,
                                 capability, success, request_origin, requested_by,
                                 request_metadata, created_at)
                            VALUES (%s, %s, 'agentic_tool_search', 'tool_call',
-                                   'search_knowledge', TRUE, 'agentic', %s, %s, NOW())""",
+                                   %s, TRUE, 'agentic', %s, %s, NOW())""",
                         (
                             agent.get("id") if agent else None,
                             agent.get("name") if agent else None,
+                            tool_name,
                             user_id,
                             Json(
                                 {
-                                    "query": (q or "")[:500],
+                                    "query": q[:500],
+                                    "tool": tool_name,
                                     "parent_capability": capability,
                                     "module_id": module_id,
                                 }

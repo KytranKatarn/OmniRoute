@@ -231,7 +231,7 @@ All VPS (76.13.107.109) except KSO/KBS/CREED on hub.
 ### C.R.E.E.D. Institute — `creed_institute` · `/external/creed` · ✅
 - **Deployment**: Hub port 8086, creed.kytranempowerment.com (standalone per Decision #438).
 - **Capability**: Governance/ethics enforcement, public transparency, grant-target nonprofit.
-- **Public API (#3362, PR #2)**: `GET /api/public/score` (no auth) → `{score, grade, events_today, active_categories, last_checked}` for badge/widget consumption by WTF + other sites. `routes/public_routes.py`. Live (99.5/A+).
+- **Public APIs (all no-auth, CORS-open `*`, 60s cache)**: `GET /api/public/score` → `{score, grade, events_today, active_categories, last_checked}` (#3362, `routes/public_routes.py`); `GET /api/v1/scores` → `{overall, grade, event_count, by_category{accountability|fairness|privacy|safety|transparency}}` (`api_routes.py`, CORS added kytran-creed PR #3 — powers creed-ai.org governance widget); `GET /api/v1/badge/overall` → SVG badge (`badge_routes.py`). Consumed by creed-ai.org + WTF. Live (99.5/A+). **Verify cross-origin from EXTERNAL vantage** — hub-LAN browser hits Chrome PNA (split-horizon DNS → private IP), KB #269948/#269951.
 - **Rules**: `standalone-extraction.md`
 
 ---

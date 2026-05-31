@@ -305,6 +305,58 @@ def _document_pr(payload: Dict[str, Any], reason: str = "") -> Dict[str, Any]:
         return {"success": False, "summary": f"document_pr KB insert failed: {exc}", "error": str(exc)}
 
 
+def _persist_dispatched_documentation(reason: str, payload: Dict[str, Any], response: Optional[str]) -> Optional[int]:
+    """Persist LLM-generated documentation (non-PR delegations) as a vault_note.
+
+    The dispatcher path (``_execute_via_dispatcher``) returns the generated doc
+    text in ``dispatch_result.response``, but the worker only writes a short
+    summary to ``work_notes`` — the actual doc was NEVER stored in the KB
+    (#3553), so general ``capability='documentation'`` delegations produced no
+    searchable docs even when the task completed. PR docs use the deterministic
+    ``_document_pr`` path; everything else lands here. Persist so the doc shows
+    up in Consciousness like any other vault_note. Best-effort: a KB-insert
+    failure must not fail the delegation (the dispatch already succeeded).
+    """
+    text = (response or "").strip()
+    if not text:
+        return None
+
+    # Title precedence: explicit arg > the doc's own first heading/line >
+    # first line of the delegation reason > generic. Deriving from the
+    # generated doc keeps the title consistent with its content (F.O.R.G.E.
+    # review on #1317 flagged reason-only derivation as inconsistent).
+    def _first_meaningful_line(s: Optional[str]) -> str:
+        for ln in (s or "").splitlines():
+            cleaned = ln.strip().lstrip("#").strip()
+            if cleaned:
+                return cleaned
+        return ""
+
+    title = (
+        payload.get("title")
+        or _first_meaningful_line(text)
+        or _first_meaningful_line(reason)
+        or "Delegated documentation"
+    ).strip()[:200]
+    tags = ["coder_doc", "delegated_doc", "documentation"]
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO knowledge_base
+                    (knowledge_type, title, content, category, tags, importance_score, source_type)
+                VALUES ('vault_note', %s, %s, 'delegated_documentation', %s, 0.8, 'delegate_documentation')
+                RETURNING id
+                """,
+                (title, text, tags),
+            )
+            row = cur.fetchone()
+            return row["id"] if isinstance(row, dict) else row[0]
+    except Exception:  # noqa: BLE001 — doc persistence must not fail the delegation
+        logger.exception("_persist_dispatched_documentation: KB insert failed")
+        return None
+
+
 def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -> Dict[str, Any]:
     """Route a known capability to its deterministic service function."""
     if capability == "document_pr":
@@ -555,14 +607,29 @@ def _execute_via_dispatcher(
             "error": dispatch_result.error or "dispatch_failed",
         }
 
+    response = getattr(dispatch_result, "response", None)
+    summary = (
+        f"Dispatched to agent={dispatch_result.agent_name or 'unknown'} "
+        f"model={dispatch_result.model_used or 'unknown'}"
+    )
+
+    # #3553: persist the generated doc as a vault_note. The dispatcher returns
+    # the doc text in `response`, but the worker only writes `summary` to
+    # work_notes — so general documentation delegations (no pr_number, which
+    # would route to the deterministic _document_pr path instead) produced no
+    # searchable KB entry even on success. Gated to documentation; best-effort.
+    kb_id = None
+    if capability == "documentation":
+        kb_id = _persist_dispatched_documentation(reason, payload, response)
+        if kb_id:
+            summary += f" -> KB vault_note #{kb_id}"
+
     return {
         "success": True,
-        "summary": (
-            f"Dispatched to agent={dispatch_result.agent_name or 'unknown'} "
-            f"model={dispatch_result.model_used or 'unknown'}"
-        ),
+        "summary": summary,
         "result": {
-            "response": getattr(dispatch_result, "response", None),
+            "response": response,
+            "knowledge_base_id": kb_id,
             "agent": dispatch_result.agent_name,
             "model": dispatch_result.model_used,
             "tier": getattr(dispatch_result, "tier", None),

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any, Dict, Optional
 
 from database import get_db_cursor
@@ -473,18 +474,34 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
 
     if capability == "translation_coverage_scan":
         # Orchestrator does per-source isolation + ON CONFLICT upserts on
-        # translation_gaps (migration 322), and the worker enforces
-        # max_instances=1 / coalesce=True — collision with the daily cron at
-        # 02:00 UTC is rare and at worst redoes work, never corrupts state.
+        # translation_gaps (migration 322); the worker enforces
+        # max_instances=1 / coalesce=True.
+        #
+        # A git-hook trigger names the changed website/i18n file(s): scope the
+        # scan to just the affected source(s) and skip the heavy global passes
+        # (LLM generation, live domain audit, deploy) — that work belongs to the
+        # nightly cron. This keeps the delegate fast (seconds vs. the ~73-min
+        # full scan that false-blocked at the 360s worker timeout and wedged the
+        # single-instance worker). Non-git-hook callers run the full scan.
         from tools.consciousness.translation_scanners.orchestrator import (
             run_translation_coverage_scan,
         )
 
-        summary = run_translation_coverage_scan()
+        scoped_sources = None
+        scan_kwargs: dict = {}
+        scope_note = "full"
+        if payload.get("trigger") == "git_hook":
+            scoped_sources = _match_scan_sources(payload.get("changed_paths") or [])
+            if scoped_sources:
+                scan_kwargs = {"generate": False, "domain_audit": False, "deploy": False}
+                scope_note = "scoped:" + ",".join(e[0] for e in scoped_sources)
+
+        summary = run_translation_coverage_scan(sources=scoped_sources, **scan_kwargs)
         return {
             "success": True,
             "summary": (
-                f"Translation scan: gaps={summary.get('gaps_found', 0)} "
+                f"Translation scan ({scope_note}): "
+                f"gaps={summary.get('gaps_found', 0)} "
                 f"auto_fixed={summary.get('auto_fixed', 0)} "
                 f"routed={summary.get('routed', 0)} "
                 f"bundles={summary.get('bundles_written', 0)} "
@@ -553,6 +570,28 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
         "summary": f"Known-tool capability '{capability}' has no executor",
         "error": "known_but_unwired",
     }
+
+
+def _match_scan_sources(changed_paths: list) -> list:
+    """Map git-changed repo-relative paths → EXTERNAL_SCAN_SOURCES entries.
+
+    Lets a git-hook translation scan run only the source(s) whose files
+    changed. Returns the matching (label, directory, bundle_path) tuples;
+    empty list if nothing maps (caller then falls back to a full scan).
+    """
+    try:
+        from tools.consciousness.language_routes import EXTERNAL_SCAN_SOURCES
+    except Exception:  # noqa: BLE001
+        return []
+    repo_root = "/mnt/archie_brain"
+    abs_paths = [os.path.join(repo_root, p) for p in changed_paths if p]
+    matched = []
+    for entry in EXTERNAL_SCAN_SOURCES:
+        directory = entry[1]
+        prefix = directory.rstrip("/") + "/"
+        if any(ap == directory or ap.startswith(prefix) for ap in abs_paths):
+            matched.append(entry)
+    return matched
 
 
 def _execute_via_dispatcher(

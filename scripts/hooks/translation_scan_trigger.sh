@@ -41,6 +41,12 @@ TRIGGERED=$(printf '%s\n' "$CHANGED" \
 COUNT=$(printf '%s\n' "$TRIGGERED" | wc -l | tr -d ' ')
 SAMPLE=$(printf '%s\n' "$TRIGGERED" | head -3 | tr '\n' ',' | sed 's/,$//')
 
+# Python list literal of the changed repo-relative paths. The delegate handler
+# maps these onto EXTERNAL_SCAN_SOURCES and runs a SCOPED scan (changed source
+# only, no global generation/domain-audit/deploy) instead of the full ~73-min
+# nightly sweep — which previously false-blocked at the 360s worker timeout.
+PYLIST=$(printf '%s\n' "$TRIGGERED" | sed "s/.*/'&'/" | paste -sd, -)
+
 REASON="git $(basename "$0" .sh) — ${COUNT} website/i18n file(s) changed: ${SAMPLE}"
 
 # Dry-run mode: print what would happen without firing the docker exec call.
@@ -61,7 +67,7 @@ from services.delegation_service import delegate_task
 delegate_task(
     capability='translation_coverage_scan',
     reason=${REASON@Q},
-    args={'trigger': 'git_hook', 'changed_count': ${COUNT}},
+    args={'trigger': 'git_hook', 'changed_count': ${COUNT}, 'changed_paths': [${PYLIST}]},
     delegation_source='automation',
     requested_by='git_hook',
     priority=5,

@@ -167,8 +167,23 @@ def _export_bundle(source: str, bundle_path: str) -> Optional[int]:
     return sum(len(v) for v in data.values())
 
 
-def run_translation_coverage_scan(sources: Optional[list] = None) -> dict:
-    """Full nightly sequence. Returns summary dict."""
+def run_translation_coverage_scan(
+    sources: Optional[list] = None,
+    *,
+    generate: bool = True,
+    domain_audit: bool = True,
+    deploy: bool = True,
+) -> dict:
+    """Full nightly sequence. Returns summary dict.
+
+    The three keyword flags let a lightweight caller (e.g. the git-hook
+    delegate) run a SCOPED, fast scan: pass a single-source ``sources`` list
+    plus ``generate=False, domain_audit=False, deploy=False`` to detect+route
+    gaps for the changed source only, skipping the global LLM generation pass
+    (the multi-minute cost), the live domain audit (HTTP to every domain), and
+    the bundle-export→deploy step. Defaults preserve the original full nightly
+    behaviour byte-for-byte.
+    """
     from tools.consciousness.language_routes import EXTERNAL_SCAN_SOURCES
 
     start = time.time()
@@ -195,7 +210,7 @@ def run_translation_coverage_scan(sources: Optional[list] = None) -> dict:
         from .domain_audit_scanner import DomainAuditScanner
 
         domain_gaps = 0
-        for result in DomainAuditScanner().scan():
+        for result in DomainAuditScanner().scan() if domain_audit else []:
             _upsert_gap(result)
             totals["gaps_found"] += 1
             domain_gaps += 1
@@ -208,7 +223,7 @@ def run_translation_coverage_scan(sources: Optional[list] = None) -> dict:
     try:
         from .gap_batcher import route_domain_gaps_to_translate
 
-        batch_summary = route_domain_gaps_to_translate()
+        batch_summary = route_domain_gaps_to_translate() if domain_audit else {"batches_sent": 0, "gaps_routed": 0}
         totals["domain_batches_sent"] = batch_summary["batches_sent"]
         totals["domain_gaps_routed"] = batch_summary["gaps_routed"]
         logger.info("[TranslationScan] gap batcher: %s", batch_summary)
@@ -222,7 +237,10 @@ def run_translation_coverage_scan(sources: Optional[list] = None) -> dict:
     for entry in sources:
         label = entry[0]
         try:
-            rows = _semantic_candidate_rows(label)
+            # Semantic quality pass back-translates via the LLM dispatcher —
+            # the expensive bit. Skip it when generate=False (scoped git-hook
+            # detection scan wants no LLM calls).
+            rows = _semantic_candidate_rows(label) if generate else []
             for result in SemanticScanner(source=label, rows=rows).scan():
                 _upsert_gap(result)
                 totals["gaps_found"] += 1
@@ -232,7 +250,7 @@ def run_translation_coverage_scan(sources: Optional[list] = None) -> dict:
     # Generation pass — cap at NIGHTLY_CAP.
     # Each gap is isolated: one translation failure must not abort the whole
     # scan (e.g. if the bridge dispatcher is unavailable for a single call).
-    for gap in _load_open_missing_gaps(NIGHTLY_CAP):
+    for gap in _load_open_missing_gaps(NIGHTLY_CAP) if generate else []:
         try:
             if process_missing_gap(gap):
                 totals["auto_fixed"] += 1
@@ -256,7 +274,7 @@ def run_translation_coverage_scan(sources: Optional[list] = None) -> dict:
             count = _export_bundle(label, bundle_path)
             if count is not None:
                 totals["bundles_written"] += 1
-                if label in _DEPLOY_CONTEXT_BY_LABEL:
+                if deploy and label in _DEPLOY_CONTEXT_BY_LABEL:
                     try:
                         from services.deploy_service import run_deploy_pipeline
 
@@ -279,32 +297,37 @@ def run_translation_coverage_scan(sources: Optional[list] = None) -> dict:
     totals["duration_ms"] = int((time.time() - start) * 1000)
     logger.info("[TranslationScan] complete %s", totals)
 
-    # Store audit vault_note in knowledge_base
-    try:
-        from .audit_summary import store_audit_summary
+    # The audit vault_note + admin notification summarise a FULL scan. A scoped
+    # git-hook scan (generate=False) skips both: the audit title is date-only so
+    # repeated same-day scoped scans collide on the unique index, and a "scan
+    # complete" notice on every website commit would spam the admin feed.
+    if generate:
+        # Store audit vault_note in knowledge_base
+        try:
+            from .audit_summary import store_audit_summary
 
-        store_audit_summary(totals)
-    except Exception:  # noqa: BLE001
-        logger.exception("[TranslationScan] audit summary storage failed")
+            store_audit_summary(totals)
+        except Exception:  # noqa: BLE001
+            logger.exception("[TranslationScan] audit summary storage failed")
 
-    # Admin Telegram summary — best-effort
-    try:
-        msg = (
-            f"🌐 Translation Coverage Scan complete\n"
-            f"• gaps found: {totals['gaps_found']}\n"
-            f"• auto-fixed: {totals['auto_fixed']}\n"
-            f"• routed to review: {totals['routed']}\n"
-            f"• bundles written: {totals['bundles_written']}\n"
-            f"• duration: {totals['duration_ms']}ms"
-        )
-        with get_db_cursor(commit=True) as (_c, cur):
-            cur.execute(
-                """INSERT INTO system_notifications
-                       (type, title, message, source, priority, visibility, is_read, created_at)
-                   VALUES ('info','Translation Coverage Scan',%s,'agent_loop','normal','admin',FALSE,NOW())""",
-                (msg,),
+        # Admin Telegram summary — best-effort
+        try:
+            msg = (
+                f"🌐 Translation Coverage Scan complete\n"
+                f"• gaps found: {totals['gaps_found']}\n"
+                f"• auto-fixed: {totals['auto_fixed']}\n"
+                f"• routed to review: {totals['routed']}\n"
+                f"• bundles written: {totals['bundles_written']}\n"
+                f"• duration: {totals['duration_ms']}ms"
             )
-    except Exception:  # noqa: BLE001
-        logger.exception("telegram summary insert failed")
+            with get_db_cursor(commit=True) as (_c, cur):
+                cur.execute(
+                    """INSERT INTO system_notifications
+                           (type, title, message, source, priority, visibility, is_read, created_at)
+                       VALUES ('info','Translation Coverage Scan',%s,'agent_loop','normal','admin',FALSE,NOW())""",
+                    (msg,),
+                )
+        except Exception:  # noqa: BLE001
+            logger.exception("telegram summary insert failed")
 
     return totals

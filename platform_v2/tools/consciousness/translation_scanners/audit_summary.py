@@ -42,7 +42,7 @@ def store_audit_summary(totals: dict) -> int | None:
         with get_db_cursor(commit=True) as (_conn, cur):
             cur.execute(
                 """INSERT INTO knowledge_base
-                       (memory_type, title, content, category, tags, importance_score, created_at)
+                       (knowledge_type, title, content, category, tags, importance_score, created_at)
                    VALUES ('vault_note', %s, %s, %s, %s, 0.75, NOW())
                    RETURNING id""",
                 (title, content, AUDIT_CATEGORY, AUDIT_TAGS),

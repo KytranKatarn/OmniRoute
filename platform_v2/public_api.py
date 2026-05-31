@@ -728,3 +728,155 @@ def creed_stats():
     response = jsonify(data)
     response.headers["Cache-Control"] = "public, max-age=300"
     return response
+
+
+# ---------------------------------------------------------------------------
+# Endpoint: /redress-request — User redress / contest an AI decision (#3266)
+# ---------------------------------------------------------------------------
+#
+# Lets a user challenge an AI-made decision. Resolution is routed to a HUMAN
+# admin via Telegram (never an AI). Public aggregate stats (no PII) at
+# /accountability. grievance_log table (migration 411).
+
+
+def _add_business_days(start, n):
+    """Return start + n business days (skips Sat/Sun)."""
+    import datetime as _dt
+
+    d = start
+    added = 0
+    while added < n:
+        d += _dt.timedelta(days=1)
+        if d.weekday() < 5:
+            added += 1
+    return d
+
+
+@public_api_bp.route("/redress-request", methods=["POST"])
+def redress_request():
+    """Submit a request to contest an AI-made decision.
+
+    Body: {reason (required), ai_decision_ref?, desired_outcome?, email?}.
+    Creates a grievance_log row (status=pending), logs a governance_audit_log
+    event, sets a 5-business-day SLA, and Telegram-notifies a human admin.
+    Returns {request_ref, status, sla_due_at}. No AI auto-resolution.
+    """
+    import uuid as _uuid
+
+    from services.time_utils import now_utc
+
+    body = request.get_json(silent=True) or {}
+    reason = (body.get("reason") or "").strip()
+    decision_ref = (body.get("ai_decision_ref") or body.get("decision_id") or "").strip()
+    desired = (body.get("desired_outcome") or "").strip()
+    email = (body.get("email") or body.get("submitter_email") or "").strip()
+
+    # Validation
+    if not reason:
+        return jsonify({"error": "reason is required"}), 400
+    if len(reason) > 4000:
+        return jsonify({"error": "reason exceeds 4000 character limit"}), 400
+    if len(desired) > 2000:
+        return jsonify({"error": "desired_outcome exceeds 2000 character limit"}), 400
+    if len(decision_ref) > 200:
+        return jsonify({"error": "ai_decision_ref exceeds 200 character limit"}), 400
+    if email and ("@" not in email or len(email) > 255):
+        return jsonify({"error": "email is invalid"}), 400
+
+    request_ref = "RDR-" + _uuid.uuid4().hex[:8]
+    created = now_utc()
+    sla_due = _add_business_days(created, 5)
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO grievance_log
+                  (request_ref, ai_decision_ref, reason, desired_outcome,
+                   submitter_email, status, sla_due_at, created_at)
+                VALUES (%s, %s, %s, %s, %s, 'pending', %s, %s)
+                RETURNING id
+                """,
+                (request_ref, decision_ref or None, reason, desired or None, email or None, sla_due, created),
+            )
+            grievance_id = cur.fetchone()["id"]
+            cur.execute(
+                """
+                INSERT INTO governance_audit_log
+                  (event_type, event_category, action, target_table, target_id,
+                   reason, timestamp)
+                VALUES ('redress_requested', 'accountability', 'redress_submitted',
+                        'grievance_log', %s, %s, %s)
+                """,
+                (grievance_id, reason[:500], created),
+            )
+    except Exception as e:
+        logger.error("redress_request insert failed: %s", e)
+        return jsonify({"error": "could not record request, please retry"}), 500
+
+    # Notify a human admin (never an AI). Best-effort — never block the response.
+    try:
+        from services import telegram_service
+
+        telegram_service.send_system(
+            "New redress request",
+            f"{request_ref} — a user is contesting an AI decision"
+            f"{(' (' + decision_ref + ')') if decision_ref else ''}. "
+            f"SLA: {sla_due.strftime('%Y-%m-%d')}. Reason: {reason[:300]}",
+        )
+    except Exception as e:
+        logger.warning("redress_request Telegram notify failed: %s", e)
+
+    resp = jsonify(
+        {
+            "request_ref": request_ref,
+            "status": "pending",
+            "sla_due_at": sla_due.isoformat(),
+            "message": "Your request has been logged and routed to a human reviewer.",
+        }
+    )
+    return resp, 201
+
+
+@public_api_bp.route("/accountability")
+def accountability():
+    """Public, no-PII redress aggregate stats for creed-ai.org/accountability.
+
+    Returns counts by status, total, and average resolution time. Never exposes
+    any individual request content, email, or user identity.
+    """
+
+    def _fetch():
+        out = {
+            "total": 0,
+            "by_status": {"pending": 0, "under_review": 0, "resolved": 0, "denied": 0},
+            "avg_resolution_days": None,
+            "sla_business_days": 5,
+            "resolution_is_human": True,
+        }
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute("SELECT status, COUNT(*) AS n FROM grievance_log GROUP BY status")
+                for row in cur.fetchall() or []:
+                    if row["status"] in out["by_status"]:
+                        out["by_status"][row["status"]] = int(row["n"])
+                out["total"] = sum(out["by_status"].values())
+                cur.execute(
+                    """
+                    SELECT AVG(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 86400.0)
+                           AS avg_days
+                    FROM grievance_log
+                    WHERE resolved_at IS NOT NULL
+                    """
+                )
+                row = cur.fetchone()
+                if row and row["avg_days"] is not None:
+                    out["avg_resolution_days"] = round(float(row["avg_days"]), 1)
+        except Exception as e:
+            logger.error("accountability stats failed: %s", e)
+        return out
+
+    data = _get_cached("accountability", _fetch)
+    response = jsonify(data)
+    response.headers["Cache-Control"] = "public, max-age=300"
+    return response

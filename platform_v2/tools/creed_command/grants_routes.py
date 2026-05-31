@@ -105,9 +105,10 @@ def _generate_draft_bg(app_obj, grant_id, g):
                 prompt=prompt,
                 prefer_agent="E.T.H.O.S.",
                 source_product="archie_platform",
-                # Route off the contended hub GPU to the RTX 3070 (#3619);
-                # falls back to hub automatically if .246 is unavailable.
-                preferred_node="Starship-246",
+                # Route off the contended hub GPU to the GPU cluster (#3619/#3620):
+                # try Starship-246 (RTX 3070) then Starship-245 for redundancy;
+                # falls back to normal routing/hub automatically if both are down.
+                preferred_node=["Starship-246", "Starship-245"],
             )
             draft = ""
             if res is not None and getattr(res, "success", False):

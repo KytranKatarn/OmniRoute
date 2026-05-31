@@ -162,15 +162,32 @@ score += 1  # breaking keyword in title</div>
   <!-- Known Limitations -->
   <div class="wtf-section">
     <div class="wtf-section-title">KNOWN LIMITATIONS</div>
+    <style>
+      .wtf-remediation-link {
+        display: inline-block;
+        margin-left: 6px;
+        font-size: 0.78em;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #8b5cf6;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      .wtf-remediation-link:hover { text-decoration: underline; }
+    </style>
     <div class="wtf-method-block">
+      <p style="margin-bottom:12px;">Each limitation links to its entry in the independent
+        <a href="https://creed.kytranempowerment.com/remediation" target="_blank" rel="noopener" style="color:#8b5cf6;">C.R.E.E.D. Remediation Registry</a>,
+        which records our governance position and what we are doing about it.</p>
       <ul>
-        <li>LLM analysis is based on training data (cutoff 2024) &mdash; models do not have internet access or real-time fact databases.</li>
-        <li>Bias scoring reflects the LLM's interpretation of language patterns; it may not match human expert consensus in all cases.</li>
-        <li>Geolocation uses source province as fallback when AI confidence is low (&lt;0.5).</li>
-        <li>Not all articles receive full AI analysis &mdash; only priority articles (top 20/cycle) get LLM treatment; all others receive heuristic + source-editorial bias scoring.</li>
-        <li>Outlet bias profiles are rolling averages; new outlets are seeded from editorial stance data and refined over time.</li>
-        <li>Paywalled articles (Postmedia, Torstar) have limited body text — AI analysis relies on title + Open Graph description only.</li>
-        <li>DistilBERT Signal 3 (US-trained NLI model) may not map cleanly to Canadian political framing; treated as a second opinion, not ground truth.</li>
+        <li id="limit-llm-cutoff">LLM analysis is based on training data (cutoff 2024) &mdash; models do not have internet access or real-time fact databases.<a class="wtf-remediation-link" href="https://creed.kytranempowerment.com/remediation#wtf-llm-training-cutoff" target="_blank" rel="noopener">Remediation &#8599;</a></li>
+        <li id="limit-bias-consensus">Bias scoring reflects the LLM's interpretation of language patterns; it may not match human expert consensus in all cases.<a class="wtf-remediation-link" href="https://creed.kytranempowerment.com/remediation#wtf-bias-vs-human-consensus" target="_blank" rel="noopener">Remediation &#8599;</a></li>
+        <li id="limit-geolocation">Geolocation uses source province as fallback when AI confidence is low (&lt;0.5).<a class="wtf-remediation-link" href="https://creed.kytranempowerment.com/remediation#wtf-geolocation-province-fallback" target="_blank" rel="noopener">Remediation &#8599;</a></li>
+        <li id="limit-coverage">Not all articles receive full AI analysis &mdash; only priority articles (top 20/cycle) get LLM treatment; all others receive heuristic + source-editorial bias scoring.<a class="wtf-remediation-link" href="https://creed.kytranempowerment.com/remediation#wtf-priority-article-coverage" target="_blank" rel="noopener">Remediation &#8599;</a></li>
+        <li id="limit-outlet-bias">Outlet bias profiles are rolling averages; new outlets are seeded from editorial stance data and refined over time.<a class="wtf-remediation-link" href="https://creed.kytranempowerment.com/remediation#wtf-outlet-bias-rolling-average" target="_blank" rel="noopener">Remediation &#8599;</a></li>
+        <li id="limit-paywall">Paywalled articles (Postmedia, Torstar) have limited body text — AI analysis relies on title + Open Graph description only.<a class="wtf-remediation-link" href="https://creed.kytranempowerment.com/remediation#wtf-paywalled-body-text" target="_blank" rel="noopener">Remediation &#8599;</a></li>
+        <li id="limit-distilbert">DistilBERT Signal 3 (US-trained NLI model) may not map cleanly to Canadian political framing; treated as a second opinion, not ground truth.<a class="wtf-remediation-link" href="https://creed.kytranempowerment.com/remediation#wtf-distilbert-canadian-framing" target="_blank" rel="noopener">Remediation &#8599;</a></li>
       </ul>
     </div>
   </div>

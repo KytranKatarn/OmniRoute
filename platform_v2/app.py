@@ -2995,7 +2995,7 @@ def _clear_stale_fleet_ping_jobs():
             cur.execute(
                 """UPDATE bridge_jobs SET status='failed', error_message='Cleared on restart'
                    WHERE status='running'
-                     AND (module_source IN ('fleet_pilot', 'fleet_warmup') OR description ILIKE '%ping%')
+                     AND (module_source IN ('fleet_pilot', 'fleet_warmup', 'kin_warmth') OR description ILIKE '%ping%')
                      AND created_at < NOW() - INTERVAL '5 minutes'"""
             )
             cleared = cur.rowcount

@@ -258,34 +258,60 @@ def warmup_fleet_models():
     except Exception as e:
         logger.warning("[warmup_fleet] cycle failed: %s", e)
 
-    # Per-node pilot lights — guarantee ≥1 warm model on EVERY online node.
-    _warm_node_pilot_lights()
+    # K.I.N.-orchestrated per-node demand+welfare warmth (rest-aware) — #3532-v2.
+    _kin_fleet_warmth_policy()
 
 
-def _warm_node_pilot_lights():
-    """Keep a small 'pilot light' model warm on every online fleet node.
+def _kin_fleet_warmth_policy():
+    """K.I.N.-orchestrated per-node demand + welfare warmth policy (rest-aware).
 
-    The capability warmups above route via the dispatcher, which only warms the
-    node it happens to pick — an idle outpost the dispatcher never selects goes
-    cold and its next first dispatch eats a multi-minute cold load. This enqueues
-    a low-priority warmup task pinned to EACH online node (preferred_node_id), so
-    model_dispatch_worker dispatches it to that exact node, loading its smallest
-    model and resetting keep_alive (30m, > the 20-min warmup interval).
+    Replaces the old smallest-model 'pilot light' loop (#3532-v2). For every
+    online non-hub node, decide which model(s) to keep warm from three signals:
 
-    Fully ADR-013 compliant: routed through dispatch_pending_queue → the worker →
-    the dispatcher (visible in task_execution_log) — never a direct Ollama call.
-    priority=1 so real work always preempts; deduped + 5-min expiry so pilots
-    never pile up.
+      • DEMAND  — the node's top recently-dispatched models (``task_execution_log``
+        last 6h, ``node_used_id`` attribution). A node warms what it actually
+        serves instead of a blanket smallest-model pilot.
+      • WELFARE — K.I.N. owns agent rest. A zero-demand node whose assigned
+        agents are ALL rested (winding_down/cooldown/barracked/off_duty) is left
+        cold; otherwise it gets a smallest-model pilot floor so its first real
+        dispatch is still warm. The welfare gate fail-opens (applies the pilot)
+        whenever the node-agent signal is missing — never regress v1's
+        every-node-warm guarantee on uncertainty.
+      • REST    — during the hardware rest window (8PM–6AM ET) starship nodes
+        (laptops) are left asleep, mirroring ``fleet_resource_router``. Always-on
+        VPS outposts (``outpost`` / ``starbase_outpost``) are never rested.
+
+    Deterministic — no LLM in the loop (KB #269304/#269307: the M.U.S.E./geo
+    saga). Warmth is enqueued through ``dispatch_pending_queue`` →
+    ``model_dispatch_worker`` (ADR-013), pinned to the node (``preferred_node_id``),
+    tagged ``module_id='kin_warmth'``, priority=1 (real work always preempts),
+    deduped + 5-min expiry. The cycle is attributed to K.I.N. in
+    ``governance_audit_log`` (event_category='node_planning').
     """
     from database import get_db_cursor
 
-    # Smallest-first: cheapest useful always-ready engine per node.
+    # Smallest-first fallback when a node has no recent demand signal.
     PILOT_PREFERENCE = ["qwen2.5:1.5b", "llama3.2:3b", "nomic-embed-text"]
+    # Warm the single most-demanded model per node: matches v1's proven 1-model/
+    # node queue profile and avoids thrashing small-node VRAM (Starship-245 = 4GB,
+    # MAX_LOADED=2) or swamping _claim_preferred_node_tasks (2 pinned/cycle total).
+    # The v2 win is that this model is demand-chosen, not the smallest. Tunable.
+    TOP_K = 1
+
+    # Rest gate — mirror fleet_resource_router: starships sleep in the window.
+    try:
+        from tools.department_hq.fleet_helpers import is_fleet_rest_active
+
+        rest_active = is_fleet_rest_active()
+    except Exception:
+        rest_active = False
+
+    queued = rested = 0
     try:
         with get_db_cursor(commit=True) as (_c, cur):
             cur.execute(
                 """
-                SELECT rn.id, rn.node_name,
+                SELECT rn.id, rn.node_name, rn.deployment_mode,
                        array_agg(nom.model_name) FILTER (WHERE nom.is_available) AS models
                 FROM remote_nodes rn
                 LEFT JOIN node_ollama_models nom ON nom.node_id = rn.node_id
@@ -293,39 +319,126 @@ def _warm_node_pilot_lights():
                   AND rn.status = 'online'
                   AND rn.last_heartbeat > NOW() - INTERVAL '2 minutes'
                   AND rn.deployment_mode IS DISTINCT FROM 'starbase'
-                GROUP BY rn.id, rn.node_name
+                GROUP BY rn.id, rn.node_name, rn.deployment_mode
                 """
             )
             nodes = cur.fetchall()
-            queued = 0
+
             for n in nodes:
-                models = n.get("models") or []
-                if not models:
+                # REST: leave laptops asleep during the rest window.
+                if n["deployment_mode"] == "starship" and rest_active:
+                    rested += 1
                     continue
-                pilot = next((m for m in PILOT_PREFERENCE if m in models), models[0])
-                # Skip if a pilot is already pending/running for this node.
-                cur.execute(
-                    """SELECT 1 FROM dispatch_pending_queue
-                       WHERE preferred_node_id = %s AND module_id = 'fleet_pilot'
-                         AND status IN ('queued', 'running') LIMIT 1""",
-                    (n["id"],),
-                )
-                if cur.fetchone():
+
+                available = set(n.get("models") or [])
+                if not available:
                     continue
+
+                # DEMAND: top models this node actually served in the last 6h.
                 cur.execute(
                     """
-                    INSERT INTO dispatch_pending_queue
-                        (capability, model_needed, prompt, preferred_node_id,
-                         priority, module_id, source_product, expires_at)
-                    VALUES ('warmup', %s, 'ping', %s, 1, 'fleet_pilot', 'fleet_pilot',
-                            NOW() + INTERVAL '5 minutes')
+                    SELECT model_used, COUNT(*) AS n
+                    FROM task_execution_log
+                    WHERE node_used_id = %s
+                      AND created_at > NOW() - INTERVAL '6 hours'
+                      AND success IS TRUE
+                      AND model_used IS NOT NULL
+                      AND model_used NOT IN ('internal', 'batch')
+                      AND model_used NOT LIKE '%%:cloud'
+                    GROUP BY model_used
+                    ORDER BY n DESC
+                    LIMIT %s
                     """,
-                    (pilot, n["id"]),
+                    (n["id"], TOP_K),
                 )
-                queued += 1
-        logger.debug("[warmup_fleet] pilot lights queued for %d node(s)", queued)
+                targets = [r["model_used"] for r in cur.fetchall() if r["model_used"] in available]
+
+                # WELFARE floor: no recent demand → pilot only if some assigned
+                # agent is still on-shift (fail-open if the signal is missing).
+                if not targets:
+                    cur.execute(
+                        """
+                        SELECT
+                          COUNT(*) AS assigned,
+                          COUNT(*) FILTER (
+                            WHERE a.shift_state IN ('active', 'deployed')
+                          ) AS on_shift
+                        FROM node_agents na
+                        JOIN agents a ON a.id = na.source_agent_id
+                        WHERE na.node_id = %s
+                        """,
+                        (n["id"],),
+                    )
+                    w = cur.fetchone() or {}
+                    # Apply pilot unless we have positive evidence the node's
+                    # whole roster is rested (assigned > 0 and on_shift == 0).
+                    roster_all_rested = (w.get("assigned") or 0) > 0 and (w.get("on_shift") or 0) == 0
+                    if not roster_all_rested:
+                        pilot = next((m for m in PILOT_PREFERENCE if m in available), sorted(available)[0])
+                        targets = [pilot]
+
+                for model in targets:
+                    # Dedup: skip if a kin_warmth task for this node is in flight.
+                    cur.execute(
+                        """SELECT 1 FROM dispatch_pending_queue
+                           WHERE preferred_node_id = %s AND module_id = 'kin_warmth'
+                             AND status IN ('queued', 'running') LIMIT 1""",
+                        (n["id"],),
+                    )
+                    if cur.fetchone():
+                        break  # one in-flight warmth task per node is enough
+                    cur.execute(
+                        """
+                        INSERT INTO dispatch_pending_queue
+                            (capability, model_needed, prompt, preferred_node_id,
+                             priority, module_id, source_product, expires_at)
+                        VALUES ('warmup', %s, 'ping', %s, 1, 'kin_warmth', 'kin_warmth',
+                                NOW() + INTERVAL '5 minutes')
+                        """,
+                        (model, n["id"]),
+                    )
+                    queued += 1
+        logger.debug(
+            "[kin_warmth] cycle — %d warmth task(s) queued, %d starship(s) resting",
+            queued,
+            rested,
+        )
     except Exception as exc:
-        logger.warning("[warmup_fleet] pilot-light enqueue failed: %s", exc)
+        logger.warning("[kin_warmth] policy cycle failed: %s", exc)
+        return
+
+    _log_kin_warmth_audit(queued, rested, rest_active)
+
+
+def _log_kin_warmth_audit(queued: int, rested: int, rest_active: bool):
+    """Attribute the warmth cycle to K.I.N. in governance_audit_log (best-effort)."""
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (_c, cur):
+            cur.execute(
+                """
+                INSERT INTO governance_audit_log
+                    (event_type, event_category, agent_id, action, reason,
+                     outcome, timestamp, details)
+                VALUES ('fleet_warmth_policy', 'node_planning',
+                        (SELECT id FROM agents WHERE name = 'K.I.N.' LIMIT 1),
+                        'warm_fleet',
+                        'K.I.N. per-node demand+welfare warmth policy (rest-aware)',
+                        'success', NOW(), %s)
+                """,
+                (
+                    json.dumps(
+                        {
+                            "queued": queued,
+                            "starships_resting": rested,
+                            "rest_active": rest_active,
+                        }
+                    ),
+                ),
+            )
+    except Exception as exc:
+        logger.debug("[kin_warmth] audit log skipped: %s", exc)
 
 
 def save_model_state():

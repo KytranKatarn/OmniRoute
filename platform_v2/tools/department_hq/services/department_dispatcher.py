@@ -5055,6 +5055,7 @@ class DepartmentDispatcher:
         project_id: Optional[int] = None,
         images: Optional[List[str]] = None,
         source_product: Optional[str] = None,
+        preferred_node: Optional[str] = None,
     ) -> DispatchResult:
         """
         Main entry point — request AI work by capability.
@@ -5287,6 +5288,93 @@ class DepartmentDispatcher:
         # assignment uses `_node_assign['model']` and ignores model_override, so
         # routing a chat-with-override to a node would silently swap the pinned
         # model for the agent's heavy roster model. Defense-in-depth mirroring
+        # Explicit per-call node preference (#3619). When a caller pins a node
+        # (e.g. E.T.H.O.S. grant drafting -> Starship-246 to dodge hub-GPU
+        # contention), route the agent's model there via the verified
+        # _get_fleet_node_for_dispatch + _dispatch_to_node path. STRICTLY
+        # FAIL-SAFE: any miss (node offline, stale heartbeat, no model, no
+        # response, or any error) falls through to the normal hub flow below.
+        # preferred_node=None (every existing caller) -> this block is skipped.
+        if preferred_node and agent and not _agentic_eligible:
+            try:
+                _pn_db_id = None
+                _pn_conn = self._get_db()
+                try:
+                    _pn_cur = _pn_conn.cursor()
+                    _pn_cur.execute(
+                        "SELECT id FROM remote_nodes "
+                        "WHERE (node_name = %s OR node_id = %s) "
+                        "AND status = 'online' "
+                        "AND last_heartbeat > NOW() - INTERVAL '3 minutes' LIMIT 1",
+                        (str(preferred_node), str(preferred_node)),
+                    )
+                    _pn_row = _pn_cur.fetchone()
+                    _pn_db_id = _pn_row[0] if _pn_row else None
+                finally:
+                    _pn_conn.close()
+                _pn_model = (
+                    model_override
+                    or (agent.get("model") if isinstance(agent, dict) else getattr(agent, "model", ""))
+                    or ""
+                )
+                if _pn_db_id and _pn_model:
+                    _pn_info = self._get_fleet_node_for_dispatch(
+                        _pn_db_id, _pn_model, agent if isinstance(agent, dict) else None
+                    )
+                    if _pn_info:
+                        _pn_res = self._dispatch_to_node(
+                            agent_info=_pn_info,
+                            prompt=prompt,
+                            system_prompt=system_prompt,
+                            options={"temperature": 0.7},
+                            capability=capability,
+                            module_id=module_id,
+                            station_code=station_code,
+                            user_id=user_id,
+                            job_id=job_id,
+                        )
+                        if _pn_res and _pn_res.get("success"):
+                            _pn_dur = int((time.time() - start) * 1000)
+                            _pn_result = DispatchResult(
+                                success=True,
+                                response=_pn_res.get("response", ""),
+                                agent_name=_pn_info["agent_name"],
+                                agent_id=None,
+                                model_used=_pn_info["model"],
+                                department=dispatch_department,
+                                capability=capability,
+                                duration_ms=_pn_dur,
+                                prompt_tokens=_pn_res.get("prompt_tokens", 0),
+                                completion_tokens=_pn_res.get("completion_tokens", 0),
+                                provider="fleet_node",
+                                metadata={
+                                    "escalation": "preferred_node",
+                                    "preferred_node": str(preferred_node),
+                                    "node_id": _pn_info["node_id"],
+                                    "node_name": _pn_info["node_name"],
+                                    "node_hostname": _pn_info["node_hostname"],
+                                    "is_remote": True,
+                                },
+                            )
+                            self._log_execution(_pn_result, module_id, user_id, job_id=job_id)
+                            logger.info(
+                                "[BridgeDispatcher] preferred_node=%s served '%s' on %s",
+                                preferred_node,
+                                capability,
+                                _pn_info["node_name"],
+                            )
+                            return _pn_result
+                logger.info(
+                    "[BridgeDispatcher] preferred_node=%s not viable for '%s' — falling through to hub",
+                    preferred_node,
+                    capability,
+                )
+            except Exception as _pn_exc:
+                logger.warning(
+                    "[BridgeDispatcher] preferred_node routing error (falling through to hub): %s",
+                    _pn_exc,
+                )
+
         # prefer_hub=local_only intent (task #3543, follow-up to #1306).
         if agent and not model_override and not _agentic_eligible:
             _hub_agent_id = agent.get("id") if isinstance(agent, dict) else getattr(agent, "id", None)

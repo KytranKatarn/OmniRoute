@@ -557,10 +557,17 @@
                     return r.json();
                 })
                 .then(function (data) {
-                    var overall = data.overall || data;
-                    var grade = overall.grade || data.grade || '—';
-                    var score = overall.score !== undefined ? Math.round(overall.score) : (data.score !== undefined ? Math.round(data.score) : null);
-                    var events = overall.event_count !== undefined ? overall.event_count : (data.event_count !== undefined ? data.event_count : null);
+                    // /api/v1/scores shape: { overall: <number>, grade, event_count, by_category: {...} }.
+                    // Tolerate object-shaped overall and the public /score shape too.
+                    var overallObj = (data.overall && typeof data.overall === 'object') ? data.overall : data;
+                    var grade = data.grade || overallObj.grade || '—';
+                    var rawScore = (typeof data.overall === 'number') ? data.overall
+                        : (overallObj.score !== undefined ? overallObj.score
+                            : (data.score !== undefined ? data.score : null));
+                    var score = rawScore !== null ? Math.round(rawScore * 10) / 10 : null;
+                    var events = data.event_count !== undefined ? data.event_count
+                        : (overallObj.event_count !== undefined ? overallObj.event_count
+                            : (data.events_today !== undefined ? data.events_today : null));
 
                     var gradeEl = document.getElementById('lgd-grade');
                     if (gradeEl) { gradeEl.textContent = grade; gradeEl.style.color = gradeColor(grade); }
@@ -571,7 +578,7 @@
                     var eventsEl = document.getElementById('lgd-events');
                     if (eventsEl) eventsEl.textContent = events !== null ? Number(events).toLocaleString() : '—';
 
-                    renderCategories(data.categories || data.breakdown || null);
+                    renderCategories(data.by_category || data.categories || data.breakdown || null);
                     setStatus('Updated ' + new Date().toLocaleTimeString(), true);
                 })
                 .catch(function (err) {

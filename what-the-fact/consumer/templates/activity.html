@@ -90,28 +90,43 @@
   </div>
 
   <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
-      Source health &middot; coverage + ownership of {{ source_health|length }} outlets
+    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <span>Source health &middot; coverage + ownership of {{ source_health|length }} outlets</span>
+      <select id="sh-owner-filter" style="background:#060d14;color:#9ca3af;border:1px solid #1a2a3a;border-radius:3px;font-size:0.6rem;padding:2px 6px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">
+        <option value="">All owners</option>
+        <option value="corporate">Corporate</option>
+        <option value="public">Public</option>
+        <option value="independent">Independent</option>
+        <option value="unknown">Unknown</option>
+      </select>
     </div>
     <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:0.7rem;color:#9ca3af;">
+      <table id="sh-table" style="width:100%;border-collapse:collapse;font-size:0.7rem;color:#9ca3af;">
         <thead>
           <tr style="color:#6b7280;font-size:0.55rem;letter-spacing:1.5px;text-transform:uppercase;">
-            <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;">Status</th>
-            <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;">Source</th>
-            <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;">Owner</th>
-            <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;">Bias</th>
-            <th style="text-align:right;padding:6px 8px;border-bottom:1px solid #112233;">7d</th>
-            <th style="text-align:right;padding:6px 8px;border-bottom:1px solid #112233;">Total</th>
-            <th style="text-align:right;padding:6px 8px;border-bottom:1px solid #112233;" title="% of articles with full body text extracted. Lower % = less complete analysis.">Body %</th>
-            <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;">Last</th>
+            <th data-sh-col="status" style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;cursor:pointer;" title="Sort by status">Status</th>
+            <th data-sh-col="name" style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;cursor:pointer;" title="Sort by source name">Source</th>
+            <th data-sh-col="owner" style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;cursor:pointer;" title="Sort by owner">Owner</th>
+            <th data-sh-col="bias" style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;cursor:pointer;" title="Sort by bias">Bias</th>
+            <th data-sh-col="7d" style="text-align:right;padding:6px 8px;border-bottom:1px solid #112233;cursor:pointer;" title="Sort by articles last 7 days">7d</th>
+            <th data-sh-col="total" style="text-align:right;padding:6px 8px;border-bottom:1px solid #112233;cursor:pointer;" title="Sort by total articles">Total</th>
+            <th data-sh-col="body" style="text-align:right;padding:6px 8px;border-bottom:1px solid #112233;cursor:pointer;" title="% of articles with full body text extracted. Lower % = less complete analysis. Click to sort.">Body %</th>
+            <th data-sh-col="last" style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;cursor:pointer;" title="Sort by last article date">Last</th>
           </tr>
         </thead>
         <tbody>
           {% for src in source_health %}
           {% set status_color = '#10b981' if src.status == 'active' else ('#f59e0b' if src.status == 'stalled' else '#ef4444') %}
           {% set owner_color = '#f59e0b' if src.ownership_type == 'corporate' else ('#3b82f6' if src.ownership_type == 'public' else '#10b981') %}
-          <tr style="border-bottom:1px solid #0d1a26;">
+          <tr style="border-bottom:1px solid #0d1a26;"
+              data-status="{{ src.status }}"
+              data-name="{{ src.name }}"
+              data-owner-type="{{ src.ownership_type }}"
+              data-bias="{{ src.bias_lean }}"
+              data-7d="{{ src.articles_7d }}"
+              data-total="{{ src.articles_total }}"
+              data-body="{{ src.body_pct }}"
+              data-last="{{ src.last_article }}">
             <td style="padding:5px 8px;"><span title="{{ 'Active — articles ingested recently' if src.status == 'active' else ('Stalled — no new articles in 7+ days. RSS may be broken or rate-limited.' if src.status == 'stalled' else 'Dead — no articles ingested. Feed discontinued or unreachable.') }}" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{{ status_color }};cursor:help;"></span></td>
             <td style="padding:5px 8px;color:#e0e0e0;">{{ src.name }}</td>
             <td style="padding:5px 8px;color:{{ owner_color }};">{{ src.owner }}</td>
@@ -187,7 +202,7 @@
   <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
     <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
       Coverage progress &middot; pipeline completeness
-      {% if llm_days_left %}<span style="float:right;color:#f59e0b;font-size:0.6rem;">⏱ LLM ~{{ llm_days_left }}d remaining at {{ llm_rate }}/hr</span>{% endif %}
+      {% if llm_hours_left %}<span style="float:right;color:#f59e0b;font-size:0.6rem;">⏱ {{ llm_rate }}/hr &middot; ~{{ llm_hours_left }}h to clear {{ "{:,}".format(llm_pending_count) }} queued</span>{% elif llm_days_left %}<span style="float:right;color:#f59e0b;font-size:0.6rem;">⏱ LLM ~{{ llm_days_left }}d remaining at {{ llm_rate }}/hr</span>{% endif %}
     </div>
     {% set total_arts = [(stats.tier_pending or 0) + (stats.tier_quick_v1 or 0) + (stats.tier_quick_v1_full or 0) + (stats.tier_quick_v1_failed or 0), 1] | max %}
     {% for label, done, color, hint in [
@@ -313,6 +328,26 @@
 </div>
 
 <div style="max-width:1100px;margin:0 auto;padding:0 16px 24px;">
+
+  {% if creed_scan %}
+  <div style="background:#0d0a1a;border:1px solid #4c1d95;border-radius:4px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span style="color:#7c3aed;font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;font-weight:700;flex-shrink:0;">C.R.E.E.D. Governance</span>
+    <span style="color:#a78bfa;font-size:0.7rem;">Grade <strong style="color:#c4b5fd;">{{ creed_scan.grade }}</strong></span>
+    <span style="color:#6b7280;font-size:0.65rem;">&middot;</span>
+    <span style="color:#9ca3af;font-size:0.7rem;">Compliance <strong style="color:#a78bfa;">{{ creed_scan.overall }}%</strong></span>
+    {% if creed_scan.event_count %}
+    <span style="color:#6b7280;font-size:0.65rem;">&middot;</span>
+    <span style="color:#6b7280;font-size:0.65rem;">{{ creed_scan.event_count }} events tracked</span>
+    {% endif %}
+    {% if creed_scan.by_category %}
+    <span style="color:#6b7280;font-size:0.65rem;margin-left:auto;">
+      {% for cat, score in creed_scan.by_category.items() %}
+      <span style="margin-right:8px;text-transform:capitalize;">{{ cat }}&nbsp;<span style="color:#a78bfa;">{{ score }}%</span></span>
+      {% endfor %}
+    </span>
+    {% endif %}
+  </div>
+  {% endif %}
 
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
     <div style="color:#6b7280;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;">
@@ -463,5 +498,79 @@
 .wtf-act-result--unverifiable  { background: #111827; color: #6b7280; }
 </style>
 
+<script>
+/* Source-health table sort + filter (#3365) — dependency-free, scoped to #sh-table */
+(function () {
+  var table = document.getElementById('sh-table');
+  var filter = document.getElementById('sh-owner-filter');
+  if (!table) return;
+
+  var sortCol = null;
+  var sortAsc = true;
+  var STATUS_RANK = { active: 0, stalled: 1, dead: 2 };
+  var NUM_COLS = { '7d': true, total: true, body: true };
+
+  function rows() {
+    return Array.prototype.slice.call(table.tBodies[0].rows);
+  }
+
+  function applyFilter() {
+    var val = filter ? filter.value : '';
+    rows().forEach(function (r) {
+      r.style.display = (!val || r.getAttribute('data-owner-type') === val) ? '' : 'none';
+    });
+  }
+
+  function applySort(col) {
+    var rs = rows();
+    rs.sort(function (a, b) {
+      var av = a.getAttribute('data-' + col) || '';
+      var bv = b.getAttribute('data-' + col) || '';
+      var cmp;
+      if (col === 'status') {
+        cmp = (STATUS_RANK[av] !== undefined ? STATUS_RANK[av] : 9) -
+              (STATUS_RANK[bv] !== undefined ? STATUS_RANK[bv] : 9);
+      } else if (NUM_COLS[col]) {
+        cmp = (parseFloat(av) || 0) - (parseFloat(bv) || 0);
+      } else {
+        cmp = av.localeCompare(bv);
+      }
+      return sortAsc ? cmp : -cmp;
+    });
+    var tbody = table.tBodies[0];
+    rs.forEach(function (r) { tbody.appendChild(r); });
+  }
+
+  function updateHeaders(activeCol) {
+    var ths = table.tHead.rows[0].cells;
+    for (var i = 0; i < ths.length; i++) {
+      var col = ths[i].getAttribute('data-sh-col');
+      if (!col) continue;
+      var txt = ths[i].textContent.replace(/ [▲▼]$/, '');
+      ths[i].textContent = txt + (col === activeCol ? (sortAsc ? ' ▲' : ' ▼') : '');
+    }
+  }
+
+  /* Attach th click listeners */
+  var ths = table.tHead.rows[0].cells;
+  for (var i = 0; i < ths.length; i++) {
+    (function (th) {
+      var col = th.getAttribute('data-sh-col');
+      if (!col) return;
+      th.addEventListener('click', function () {
+        if (sortCol === col) { sortAsc = !sortAsc; } else { sortCol = col; sortAsc = true; }
+        applySort(col);
+        updateHeaders(col);
+        applyFilter();
+      });
+    })(ths[i]);
+  }
+
+  /* Attach filter listener */
+  if (filter) {
+    filter.addEventListener('change', applyFilter);
+  }
+})();
+</script>
 
 {% endblock %}

@@ -67,6 +67,44 @@ def _fetch_agent_stats() -> dict:
         return _AGENT_STATS_CACHE.get("data", {})
 
 
+# C.R.E.E.D. governance scan cache — 300s TTL (task #3358)
+_CREED_SCAN_CACHE: dict = {}
+_CREED_SCAN_CACHE_TTL = 300
+
+
+def _fetch_creed_scan() -> dict | None:
+    """Return C.R.E.E.D. /api/v1/scores as a flat dict or None on any error.
+
+    Calls CREED_API_URL (mesh value on VPS: http://100.64.0.4:8086) server-side
+    so the internal URL is never exposed to browser JS (KB #267314).
+    300s cache. Fail-open — returns None so the template skips the banner.
+    """
+    now = time.time()
+    if _CREED_SCAN_CACHE.get("ts", 0) + _CREED_SCAN_CACHE_TTL > now:
+        return _CREED_SCAN_CACHE.get("data")
+    creed_url = os.environ.get("CREED_API_URL", "https://creed.kytranempowerment.com")
+    try:
+        req = urllib.request.Request(
+            f"{creed_url}/api/v1/scores",
+            headers={"Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            raw = json.loads(resp.read())
+        data = {
+            "overall": int(raw.get("overall") or 0),
+            "grade": raw.get("grade") or "?",
+            "event_count": int(raw.get("event_count") or 0),
+            "by_category": raw.get("by_category") or {},
+            "ok": True,
+        }
+        _CREED_SCAN_CACHE["ts"] = now
+        _CREED_SCAN_CACHE["data"] = data
+        return data
+    except Exception:
+        # Fail-open: governance banner simply won't render if C.R.E.E.D. is unreachable
+        return _CREED_SCAN_CACHE.get("data")
+
+
 _WELFARE_CACHE: dict = {}
 _WELFARE_CACHE_TTL = 120  # 2 min — welfare is live data
 
@@ -786,6 +824,9 @@ def activity():
     geo_pending_count = int(stats.get("geo_pending") or 0)
     llm_days_left = round(llm_pending_count / (llm_rate * 24), 1) if llm_rate > 0 else None
     geo_days_left = round(geo_pending_count / (geo_rate * 24), 1) if geo_rate > 0 else None
+    llm_hours_left = round(llm_pending_count / llm_rate, 1) if llm_rate and llm_rate > 0 else None
+
+    creed_scan = _fetch_creed_scan()
 
     return render_template("activity.html", events=events, source_count=source_count,
                            total=total, page=page, total_pages=total_pages,
@@ -801,6 +842,9 @@ def activity():
                            llm_days_left=llm_days_left,
                            geo_days_left=geo_days_left,
                            llm_rate=round(llm_rate, 1),
+                           llm_hours_left=llm_hours_left,
+                           llm_pending_count=llm_pending_count,
+                           creed_scan=creed_scan,
                            is_subscriber=is_subscriber())
 
 

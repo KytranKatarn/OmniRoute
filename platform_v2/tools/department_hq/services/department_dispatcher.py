@@ -5182,7 +5182,15 @@ class DepartmentDispatcher:
         # 1d. Node-preference: if selected hub agent is stationed on an online fleet
         # node, route inference there instead of hub Ollama. Falls through silently
         # if the node is offline or the dispatch fails.
-        if agent:
+        #
+        # Guard with `not model_override`: when the caller hard-pins a model
+        # (e.g. shared chat model qwen2.5:7b under local_only), keep the call on
+        # the hub shared warm model rather than a node's roster model. The node
+        # assignment uses `_node_assign['model']` and ignores model_override, so
+        # routing a chat-with-override to a node would silently swap the pinned
+        # model for the agent's heavy roster model. Defense-in-depth mirroring
+        # prefer_hub=local_only intent (task #3543, follow-up to #1306).
+        if agent and not model_override:
             _hub_agent_id = agent.get("id") if isinstance(agent, dict) else getattr(agent, "id", None)
             if _hub_agent_id:
                 _node_assign = self._find_fleet_agent_for_hub_agent(
@@ -5748,7 +5756,13 @@ class DepartmentDispatcher:
         else:
             proficiency_level = skill_entry.get("level", 1) if skill_entry else 1
 
-        augmented_prompt, model_override = self._augment_for_proficiency(
+        # Unpack into a DISTINCT var — do NOT reassign `model_override`, which
+        # holds the caller's hard pin (e.g. shared chat model qwen2.5:7b under
+        # local_only). The proficiency/skill-template override only takes effect
+        # when the caller did NOT pin a model, so the caller's chat override is
+        # never superseded by a roster/proficiency model (task #3543, follow-up
+        # to #1306).
+        augmented_prompt, proficiency_model = self._augment_for_proficiency(
             agent_name,
             capability,
             proficiency_level,
@@ -5756,8 +5770,8 @@ class DepartmentDispatcher:
             "local_only" if local_only else self._get_routing_mode(),
         )
         system_prompt = augmented_prompt
-        if model_override:
-            model = model_override
+        if proficiency_model and not model_override:
+            model = proficiency_model
 
         logger.info(
             f"[BridgeDispatcher] Dispatching: capability='{capability}' → "

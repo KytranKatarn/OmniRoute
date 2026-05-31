@@ -122,9 +122,29 @@
 
   <main>{% block content %}{% endblock %}</main>
   <footer class="wtf-footer">
-    <span data-i18n="footer.copyright">Built on radical transparency.</span>
-    <a href="https://what-the-fact.tech" data-i18n="nav.transparency">How we score bias →</a>
+    <div class="wtf-footer-sites">
+      <span class="wtf-footer-site wtf-footer-site-active">what-the-fact.com</span>
+      <span class="wtf-footer-sep">|</span>
+      <a class="wtf-footer-site" href="https://what-the-fact.tech">what-the-fact.tech</a>
+      <span class="wtf-footer-sep">|</span>
+      <span class="wtf-footer-site">C.R.E.E.D. Certified</span>
+      <span class="wtf-footer-sep">|</span>
+      <a class="wtf-footer-site" href="https://creed-ai.org">creed-ai.org</a>
+    </div>
+    <div class="wtf-footer-links">
+      <span data-i18n="footer.copyright">Built on radical transparency.</span>
+      <a href="https://what-the-fact.tech" data-i18n="nav.transparency">How we score bias →</a>
+      <a href="https://what-the-fact.tech">→ Developer Hub</a>
+    </div>
   </footer>
+  <style>
+    .wtf-footer-sites{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;font-size:0.8rem;}
+    .wtf-footer-sites .wtf-footer-site{text-decoration:none;opacity:0.75;}
+    .wtf-footer-sites a.wtf-footer-site:hover{opacity:1;text-decoration:underline;}
+    .wtf-footer-sites .wtf-footer-site-active{font-weight:700;opacity:1;}
+    .wtf-footer-sep{opacity:0.4;}
+    .wtf-footer-links{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;}
+  </style>
   <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
   <script>
     fetch('/static/data/translations.json')

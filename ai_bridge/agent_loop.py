@@ -6742,6 +6742,7 @@ class AgentLoop:
             ram_free = psutil.virtual_memory().available / (1024**3)
             reloaded = 0
             actual_failed = 0
+            deferred = 0  # warm POSTs that timed out because the hub queue was busy — not real failures
             for model_name in list(missing):
                 ram_free = psutil.virtual_memory().available / (1024**3)
                 if ram_free < 10:
@@ -6787,19 +6788,33 @@ class AgentLoop:
                     else:
                         actual_failed += 1
                         logger.warning(f"Ollama health: {model_name} returned {r.status_code}")
+                except req.exceptions.Timeout:
+                    # Warm-load timed out waiting on the hub Ollama queue, which
+                    # serializes on NUM_PARALLEL=1 and is frequently mid-flight on a
+                    # multi-minute generation (translation drainage + WTF traffic).
+                    # This is contention, NOT a model health failure — on-demand
+                    # dispatch to these models still succeeds (e.g. mistral:7b is
+                    # 100% success in task_execution_log). Counting it as a failure
+                    # false-alarms the boot anomaly list every busy cycle, which led
+                    # to a wasted VRAM-drift misdiagnosis. Defer instead. (KB #270033)
+                    deferred += 1
+                    logger.info(f"Ollama health: {model_name} warm deferred (hub busy)")
                 except Exception as e:
                     actual_failed += 1
                     logger.warning(f"Ollama health: {model_name} failed: {e}")
 
             duration_ms = int((time.time() - start) * 1000)
-            # items_failed = actual load failures only (not deferred-by-cap models).
-            # details.total_desired shows the full warm set size for context.
+            # items_failed = actual load failures only. Warm-POST timeouts under a
+            # busy hub queue are counted as `deferred`, not failed, so a contended
+            # hub doesn't false-error every cycle (KB #270033). details surfaces the
+            # full warm set size + deferred count for context.
             self._log_cycle(
                 "ollama_model_health", reloaded, actual_failed, duration_ms,
                 details={
                     "missing": len(missing),
                     "reloaded": reloaded,
                     "actual_failed": actual_failed,
+                    "deferred_busy": deferred,
                     "total_desired": len(desired),
                     "warm_cap": HEALTH_WARM_CAP,
                 },

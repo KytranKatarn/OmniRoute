@@ -101,12 +101,22 @@ def _resolve_embedding_hosts() -> list[str]:
     except Exception as e:  # noqa: BLE001 — resolution must never break embeddings
         logger.debug("embedding host resolve failed (%s) — using default host", e)
 
-    if OLLAMA_HOST not in hosts:
-        hosts.append(OLLAMA_HOST)  # hub fallback always last
+    # Hub FIRST (#3524): embeddings are a LOCAL, CPU-only (num_gpu:0), latency-
+    # sensitive op called thousands of times. The local hub (host.docker.internal,
+    # 128 GB RAM, arctic-embed-cpu kept resident as a protected CONSCIOUSNESS_MODEL,
+    # re-warmed every 25 min) answers a warm embed in <1s and never touches the GPU
+    # — so the #3525 "keep the hub free for large GPU models" rationale does not
+    # apply to a CPU embed. Routing fleet-first instead meant a single embed tried
+    # up to 5 remote CPU VPS outposts over the mesh, serially at 30s each (~150s)
+    # before reaching the hub — the >120s timeouts that broke KB search on boot.
+    # Remote outposts stay as overflow/failover, capped so a slow tail can't stack
+    # multiple 30s timeouts.
+    ordered = [OLLAMA_HOST] + [h for h in hosts if h != OLLAMA_HOST]
+    ordered = ordered[:3]  # hub + at most 2 failover nodes
 
-    _HOSTS_CACHE["hosts"] = hosts
+    _HOSTS_CACHE["hosts"] = ordered
     _HOSTS_CACHE["ts"] = now
-    return hosts
+    return ordered
 
 
 @dataclass

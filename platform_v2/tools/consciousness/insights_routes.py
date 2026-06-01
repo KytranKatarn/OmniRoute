@@ -74,7 +74,7 @@ def register_insights_routes(bp, admin_required):
             # Sessions count
             sessions_total = 0
             try:
-                cur.execute("SELECT count(*) as total FROM collaboration_sessions")
+                cur.execute("SELECT count(*) as total FROM conversation_sessions")
                 sessions_row = cur.fetchone()
                 if sessions_row:
                     sessions_total = sessions_row["total"]

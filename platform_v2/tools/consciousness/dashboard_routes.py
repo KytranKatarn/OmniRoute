@@ -74,22 +74,29 @@ def register_dashboard_routes(bp, admin_required):
             cur.execute(
                 """
                 SELECT
-                    avg(energy_level) as avg_energy,
-                    avg(stress_level) as avg_stress,
-                    avg(mood_intensity) as avg_mood
-                FROM agent_emotional_state
+                    avg(aes.energy_level) as avg_energy,
+                    avg(aes.stress_level) as avg_stress,
+                    avg(aes.mood_intensity) as avg_mood
+                FROM agent_emotional_state aes
+                JOIN agents a ON a.id = aes.agent_id
+                WHERE a.worker_type = 'ai'
+                  AND aes.timestamp > NOW() - INTERVAL '1 hour'
             """
             )
             wellness = cur.fetchone()
 
-            # Fleet deployment status from agents table (Starbase data)
+            # Fleet deployment status (AI fleet) — buckets must PARTITION the fleet.
+            # 'deployed' previously mislabeled the active count; now reports the real
+            # shift_state='deployed' and exposes 'active' separately.
             cur.execute(
                 """
                 SELECT
-                    count(*) FILTER (WHERE shift_state = 'active') as deployed,
+                    count(*) FILTER (WHERE shift_state = 'active') as active,
+                    count(*) FILTER (WHERE shift_state = 'deployed') as deployed,
                     count(*) FILTER (WHERE shift_state = 'barracked') as barracked,
                     count(*) FILTER (WHERE shift_state IN ('off_duty', 'cooldown', 'winding_down')) as off_duty
                 FROM agents
+                WHERE worker_type = 'ai'
             """
             )
             fleet = cur.fetchone()
@@ -190,11 +197,15 @@ def register_dashboard_routes(bp, admin_required):
             # Intelligence total: everything ARCHIE knows
             intelligence_total = knowledge["total"] + trans["total_translations"] + decisions["cnt"]
 
-            # Embed % against full intelligence
+            # Blended "intelligence" embedding (KB + translations + decisions)
             total_embedded = knowledge["embedded"] + trans_embedded + decisions["embedded"]
-            embed_pct = 0
+            intelligence_embed_pct = 0
             if intelligence_total > 0:
-                embed_pct = round(100.0 * total_embedded / intelligence_total, 1)
+                intelligence_embed_pct = round(100.0 * total_embedded / intelligence_total, 1)
+            # KB-only coverage — what the "knowledge" panel should report.
+            kb_embed_pct = 0
+            if knowledge["total"] > 0:
+                kb_embed_pct = round(100.0 * knowledge["embedded"] / knowledge["total"], 1)
 
             return jsonify(
                 {
@@ -203,8 +214,10 @@ def register_dashboard_routes(bp, admin_required):
                         "total": knowledge["total"],
                         "total_entries": intelligence_total,
                         "kb_entries": knowledge["total"],
-                        "embedded": total_embedded,
-                        "embed_pct": embed_pct,
+                        "embedded": knowledge["embedded"],
+                        "embed_pct": kb_embed_pct,
+                        "intelligence_embedded": total_embedded,
+                        "intelligence_embed_pct": intelligence_embed_pct,
                         "categories": knowledge["categories"],
                         "conversations": kb_types.get("conversation_memory", 0),
                         "github_files": kb_types.get("github_file", 0),

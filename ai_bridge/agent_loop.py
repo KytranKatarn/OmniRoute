@@ -6592,8 +6592,19 @@ class AgentLoop:
                                 continue
                             content = base64.b64decode(resp.json().get("content", "")).decode("utf-8")
                             scan = scanner.scan_dependency_file(content, dep_file, owner_repo)
-                            total_entries += _store_dependency_scan(cur, scan)
-                            total_scans += 1
+                            # Per-file SAVEPOINT: a single failing INSERT must not poison
+                            # the shared txn and silently roll back the final commit while
+                            # the in-memory count is logged as SUCCESS (KB #270009 class).
+                            cur.execute("SAVEPOINT dep_scan")
+                            try:
+                                total_entries += _store_dependency_scan(cur, scan)
+                                cur.execute("RELEASE SAVEPOINT dep_scan")
+                                total_scans += 1
+                            except Exception as e_store:
+                                cur.execute("ROLLBACK TO SAVEPOINT dep_scan")
+                                logger.warning(
+                                    f"Dep scan store failed for {owner_repo}/{dep_file}: {e_store}"
+                                )
                         except Exception as e:
                             logger.warning(f"Dep scan failed for {owner_repo}/{dep_file}: {e}")
 

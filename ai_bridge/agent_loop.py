@@ -4547,6 +4547,14 @@ class AgentLoop:
         # Dispatcher allows 600s (CAPABILITY_TIMEOUTS); +60s worker buffer.
         # Was false-blocking at the 360s default (tasks #3549/#3551).
         "documentation": 660,
+        # research / compliance / code / analyze: heavy open-ended 7B work,
+        # same profile as documentation. Dispatcher allows 600s
+        # (CAPABILITY_TIMEOUTS); +60s worker buffer. Were false-blocking at
+        # the 360s default (tasks #3624-#3630, 2026-06-01, mistake #269999).
+        "research": 660,
+        "compliance": 660,
+        "code": 660,
+        "analyze": 660,
         # translation_coverage_scan: git-hook triggers now run a SCOPED scan
         # (seconds), but a manual/broad delegate runs the full multi-pass scan.
         # 900s backstop so a broad scan can't false-block at the 360s default.

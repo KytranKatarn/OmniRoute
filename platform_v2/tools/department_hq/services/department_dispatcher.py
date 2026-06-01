@@ -377,6 +377,14 @@ CAPABILITY_REQUIRES_SKILL = {
 CAPABILITY_TIMEOUTS = {
     "code_analysis": 600,
     "knowledge_analysis": 600,
+    # research / compliance / code / analyze = heavy open-ended 7B work.
+    # On CPU outpost nodes these routinely exceed the 300s default and get
+    # killed mid-job, false-blocking delegated backlog tasks (tasks
+    # #3624-#3630, 2026-06-01). Treat like code_analysis/knowledge_analysis.
+    "research": 600,
+    "compliance": 600,
+    "code": 600,
+    "analyze": 600,
     # documentation = heavy 7B doc-gen (mistral:7b). On CPU outpost nodes
     # (e.g. C.O.D.E.X.@outpost-asia) it routinely runs 250-530s. It was
     # inheriting the 300s default and getting killed mid-job, marking

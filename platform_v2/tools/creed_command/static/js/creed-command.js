@@ -225,6 +225,97 @@
       }).catch(function () { msg.style.color = "#fca5a5"; msg.textContent = "Network error."; });
   }
 
+  /* ---- Inbox (Hostinger creed-ai.org IMAP, read-only) — #3608/#3609/#3610 ---- */
+  var mailState = { box: null, loadedStatus: false, list: [] };
+
+  function renderMailBoxes() {
+    var wrap = document.getElementById("cc-mail-boxes");
+    if (!wrap) return;
+    while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
+    mailState.list.forEach(function (b) {
+      var chip = el("button", "cc-mail-chip" + (b.key === mailState.box ? " active" : ""));
+      chip.appendChild(el("span", "cc-mail-chip-addr", b.address));
+      if (b.error) {
+        chip.appendChild(el("span", "cc-mail-chip-err", b.error === "no password" ? "not set" : b.error));
+        if (b.error === "no password") chip.disabled = true;
+      } else {
+        chip.appendChild(el("span", "cc-mail-chip-badge", String(b.unseen != null ? b.unseen : 0)));
+      }
+      if (!chip.disabled) chip.addEventListener("click", function () { selectMailBox(b.key); });
+      wrap.appendChild(chip);
+    });
+  }
+
+  function loadMailStatus() {
+    mailState.loadedStatus = true;
+    var wrap = document.getElementById("cc-mail-boxes");
+    if (wrap && !wrap.firstChild) { wrap.appendChild(el("span", "cc-muted", "Checking mailboxes…")); }
+    fetch("/tools/creed-command/api/mail/status", { cache: "no-cache" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        mailState.list = d.mailboxes || [];
+        if (!mailState.box) {
+          var first = mailState.list.filter(function (b) { return b.configured && !b.error; })[0];
+          if (first) mailState.box = first.key;
+        }
+        renderMailBoxes();
+        if (mailState.box) loadInbox(mailState.box);
+      })
+      .catch(function () {
+        if (wrap) { wrap.textContent = ""; wrap.appendChild(el("span", "cc-muted", "Could not reach mail server.")); }
+      });
+  }
+
+  function selectMailBox(key) { mailState.box = key; renderMailBoxes(); loadInbox(key); }
+
+  function renderMailList(box, msgs) {
+    var list = document.getElementById("cc-mail-list");
+    if (!list) return;
+    while (list.firstChild) list.removeChild(list.firstChild);
+    if (!msgs.length) { list.className = "cc-card cc-muted"; list.textContent = "No messages."; return; }
+    list.className = "cc-card";
+    msgs.forEach(function (msg) {
+      var item = el("div", "cc-mail-item" + (msg.seen ? "" : " unseen"));
+      item.appendChild(el("div", "cc-mail-item-subj", msg.subject));
+      var meta = el("div", "cc-mail-item-meta");
+      meta.appendChild(el("span", "cc-mail-item-from", msg.from || "(unknown)"));
+      meta.appendChild(el("span", "cc-mail-item-date", msg.date ? fmtAt(msg.date) : ""));
+      item.appendChild(meta);
+      item.addEventListener("click", function () { openMessage(box, msg.uid); });
+      list.appendChild(item);
+    });
+  }
+
+  function loadInbox(box) {
+    var list = document.getElementById("cc-mail-list");
+    if (list) { list.className = "cc-card cc-muted"; list.textContent = "Loading…"; }
+    fetch("/tools/creed-command/api/mail/inbox?box=" + encodeURIComponent(box) + "&limit=25", { cache: "no-cache" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { renderMailList(box, d.messages || []); })
+      .catch(function () { if (list) { list.className = "cc-card cc-muted"; list.textContent = "Could not load inbox."; } });
+  }
+
+  function openMessage(box, uid) {
+    var read = document.getElementById("cc-mail-read");
+    if (read) { read.className = "cc-card cc-muted"; read.textContent = "Loading message…"; }
+    fetch("/tools/creed-command/api/mail/message?box=" + encodeURIComponent(box) + "&uid=" + encodeURIComponent(uid), { cache: "no-cache" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!read) return;
+        if (d.error) { read.className = "cc-card cc-muted"; read.textContent = "Could not load message."; return; }
+        read.className = "cc-card";
+        while (read.firstChild) read.removeChild(read.firstChild);
+        read.appendChild(el("h2", "cc-mail-read-subj", d.subject || "(no subject)"));
+        var meta = el("div", "cc-mail-read-meta");
+        meta.appendChild(el("div", null, "From: " + (d.from || "")));
+        if (d.to) meta.appendChild(el("div", null, "To: " + d.to));
+        meta.appendChild(el("div", null, d.date ? fmtAt(d.date) : ""));
+        read.appendChild(meta);
+        read.appendChild(el("div", "cc-mail-read-body", d.body || "(empty message)")); // textContent — XSS-safe
+      })
+      .catch(function () { if (read) { read.className = "cc-card cc-muted"; read.textContent = "Could not load message."; } });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     var tabs = document.querySelectorAll(".cc-tab");
     var panes = document.querySelectorAll(".cc-pane");
@@ -234,6 +325,7 @@
         tabs.forEach(function (t) { t.classList.toggle("active", t === tab); });
         panes.forEach(function (p) { p.classList.toggle("active", p.id === "pane-" + name); });
         if (history.replaceState) history.replaceState(null, "", "#" + name);
+        if (name === "inbox" && !mailState.loadedStatus) loadMailStatus();
       });
     });
     var hash = (location.hash || "").replace("#", "");
@@ -253,5 +345,8 @@
     var cancel = document.getElementById("cc-grant-cancel");
     if (cancel && form) cancel.addEventListener("click", function () { form.style.display = "none"; });
     if (form) form.addEventListener("submit", submitGrant);
+    var mailRefresh = document.getElementById("cc-mail-refresh");
+    if (mailRefresh) mailRefresh.addEventListener("click", loadMailStatus);
+    if ((location.hash || "").replace("#", "") === "inbox") loadMailStatus();
   });
 })();

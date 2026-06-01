@@ -97,13 +97,33 @@
 
   <!-- INBOX -->
   <div class="cc-pane" id="pane-inbox">
-    <span class="cc-phase">Phase 1 — #3608 / #3609 / #3610</span>
-    <div class="cc-card">
-      <h2>C.R.E.E.D. mail</h2>
-      <p>The five creed-ai.org mailboxes (contact@, grants@, research@, press@, admin@)
-        pull into the platform Email Manager via IMAP; E.T.H.O.S. triages and drafts
-        replies for human approval.</p>
-      <p><em>Pending: Hostinger IMAP / app passwords (owner-provided) before mail sync can start.</em></p>
+    <style>
+      .cc-mail-chip{display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:0.45rem 0.7rem;cursor:pointer;color:#cbd5e1;font:inherit;text-align:left;}
+      .cc-mail-chip:hover{border-color:#334155;}
+      .cc-mail-chip.active{border-color:#22d3ee;box-shadow:0 0 0 1px #22d3ee inset;}
+      .cc-mail-chip:disabled{opacity:0.5;cursor:not-allowed;}
+      .cc-mail-chip-addr{font-size:0.78rem;color:#e2e8f0;}
+      .cc-mail-chip-badge{font-size:0.7rem;color:#22d3ee;font-weight:600;}
+      .cc-mail-chip-err{font-size:0.68rem;color:#f59e0b;}
+      .cc-mail-item{padding:0.5rem 0.6rem;border-bottom:1px solid #1e293b;cursor:pointer;}
+      .cc-mail-item:hover{background:#0f172a;}
+      .cc-mail-item.unseen .cc-mail-item-subj{font-weight:700;color:#f1f5f9;}
+      .cc-mail-item-subj{font-size:0.84rem;color:#cbd5e1;margin-bottom:2px;}
+      .cc-mail-item-meta{display:flex;justify-content:space-between;gap:0.5rem;font-size:0.7rem;color:#64748b;}
+      .cc-mail-item-from{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;}
+      .cc-mail-read-subj{font-family:'Orbitron',sans-serif;font-size:0.98rem;color:#f1f5f9;margin:0 0 0.5rem;}
+      .cc-mail-read-meta{font-size:0.74rem;color:#64748b;margin-bottom:0.7rem;line-height:1.5;}
+      .cc-mail-read-body{white-space:pre-wrap;font-size:0.88rem;line-height:1.6;color:#cbd5e1;}
+    </style>
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:0.9rem;">
+      <h2 style="font-family:'Orbitron',sans-serif;font-size:1.05rem;color:#f1f5f9;margin:0;">C.R.E.E.D. mail</h2>
+      <span class="cc-muted" style="font-size:0.78rem;">5 creed-ai.org mailboxes · read-only IMAP</span>
+      <button id="cc-mail-refresh" class="cc-btn-sm" style="margin-left:auto;">↻ Refresh</button>
+    </div>
+    <div id="cc-mail-boxes" class="cc-mail-boxes" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.9rem;"></div>
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start;">
+      <div id="cc-mail-list" class="cc-card" style="flex:1 1 320px;min-width:280px;max-height:60vh;overflow:auto;"></div>
+      <div id="cc-mail-read" class="cc-card" style="flex:2 1 420px;min-width:300px;max-height:60vh;overflow:auto;"></div>
     </div>
   </div>
 

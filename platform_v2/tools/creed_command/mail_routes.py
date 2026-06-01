@@ -20,8 +20,12 @@ import imaplib
 import logging
 import os
 import re
+import smtplib
+import ssl
 import threading
+import time
 from email.header import decode_header, make_header
+from email.message import EmailMessage
 from email.utils import parsedate_to_datetime
 
 from flask import current_app, jsonify, request
@@ -33,6 +37,8 @@ logger = logging.getLogger(__name__)
 
 _IMAP_HOST = os.getenv("CREED_MAIL_IMAP_HOST", "imap.hostinger.com")
 _IMAP_PORT = int(os.getenv("CREED_MAIL_IMAP_PORT") or 993)
+_SMTP_HOST = os.getenv("CREED_MAIL_SMTP_HOST", "smtp.hostinger.com")
+_SMTP_PORT = int(os.getenv("CREED_MAIL_SMTP_PORT") or 465)
 _TIMEOUT = 15  # seconds — fail fast rather than wedge the web thread
 
 # box key (what the client sends as ?box=) -> (address, env password key)
@@ -179,6 +185,51 @@ def _fetch_message(box_key, uid):
             "date": _iso(msg.get("Date")),
             "body": _extract_body(msg),
         }
+    finally:
+        if m is not None:
+            try:
+                m.logout()
+            except Exception:
+                pass
+
+
+def _original_message_id(box_key, uid):
+    """Message-ID of the message being replied to (for In-Reply-To/References)."""
+    m = None
+    try:
+        m, _ = _connect(box_key)
+        m.select("INBOX", readonly=True)
+        typ, data = m.uid("FETCH", uid, "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])")
+        if typ == "OK" and data and isinstance(data[0], tuple):
+            hdr = email.message_from_bytes(data[0][1] or b"")
+            return hdr.get("Message-ID")
+    except Exception as e:
+        logger.warning("could not read Message-ID for %s/%s: %s", box_key, uid, e)
+    finally:
+        if m is not None:
+            try:
+                m.logout()
+            except Exception:
+                pass
+    return None
+
+
+def _append_sent(box_key, raw_bytes):
+    """Best-effort: copy a sent message into the mailbox's Sent folder so it
+    shows up in webmail. Never raises — a failed append must not fail the send."""
+    m = None
+    try:
+        m, _ = _connect(box_key)
+        stamp = imaplib.Time2Internaldate(time.time())
+        for folder in ("INBOX.Sent", "Sent", "Sent Items", "INBOX.Sent Items"):
+            try:
+                typ, _ = m.append(folder, "\\Seen", stamp, raw_bytes)
+                if typ == "OK":
+                    return
+            except Exception:
+                continue
+    except Exception as e:
+        logger.warning("append-to-Sent failed for %s: %s", box_key, e)
     finally:
         if m is not None:
             try:
@@ -434,3 +485,50 @@ def register_mail_routes(bp, admin_required):
             logger.error("mail_ai_get failed: %s", e)
             return jsonify({"error": "could not load"}), 500
         return jsonify(out)
+
+    @bp.route("/api/mail/send", methods=["POST"])
+    @login_required
+    @admin_required
+    def mail_send():
+        """Send an admin-approved reply FROM a creed-ai.org mailbox via Hostinger SMTP.
+
+        Outbound action — gated on an explicit human Send click in the UI. The body
+        is whatever the admin approved/edited (not auto-sent from the E.T.H.O.S. draft).
+        """
+        j = request.get_json(silent=True) or {}
+        box = (j.get("box") or "").strip().lower()
+        to = (j.get("to") or "").strip()
+        subject = (j.get("subject") or "").strip()
+        text = (j.get("body") or "").strip()
+        uid = (j.get("uid") or "").strip()  # optional — original message, for threading
+        if box not in _BOXES:
+            return jsonify({"error": "unknown mailbox"}), 400
+        if "@" not in to or " " in to or to.count("@") != 1:
+            return jsonify({"error": "invalid recipient"}), 400
+        if not subject or not text:
+            return jsonify({"error": "subject and body are required"}), 400
+        addr = _BOXES[box][0]
+        pw = _password(box)
+        if not pw:
+            return jsonify({"error": "mailbox not configured"}), 400
+        msg = EmailMessage()
+        msg["From"] = addr
+        msg["To"] = to
+        msg["Subject"] = subject
+        msg.set_content(text)
+        if uid.isdigit():
+            mid = _original_message_id(box, uid)
+            if mid:
+                msg["In-Reply-To"] = mid
+                msg["References"] = mid
+        try:
+            ctx = ssl.create_default_context()
+            with smtplib.SMTP_SSL(_SMTP_HOST, _SMTP_PORT, context=ctx, timeout=_TIMEOUT) as s:
+                s.login(addr, pw)
+                s.send_message(msg)
+        except Exception as e:
+            logger.error("mail_send %s -> %s failed: %s", box, to, e)
+            return jsonify({"error": "send failed", "detail": type(e).__name__}), 502
+        _append_sent(box, msg.as_bytes())
+        logger.info("CREED mail sent from %s to %s (subject=%.80s)", addr, to, subject)
+        return jsonify({"sent": True, "from": addr, "to": to})

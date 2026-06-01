@@ -312,6 +312,7 @@
         meta.appendChild(el("div", null, d.date ? fmtAt(d.date) : ""));
         read.appendChild(meta);
         read.appendChild(el("div", "cc-mail-read-body", d.body || "(empty message)")); // textContent — XSS-safe
+        mailState.currentMsg = { box: box, uid: uid, from: d.from || "", subject: d.subject || "" };
         read.appendChild(mailAiSection(box, uid));
         loadMailAi(box, uid);
       })
@@ -351,8 +352,74 @@
       return;
     }
     box.className = "cc-mail-ai-block";
-    box.appendChild(el("div", "cc-mail-ai-title", kind === "triage" ? "Triage" : "Draft reply"));
-    box.appendChild(el("div", "cc-mail-ai-text", data.result)); // textContent — XSS-safe
+    if (kind === "triage") {
+      box.appendChild(el("div", "cc-mail-ai-title", "Triage"));
+      box.appendChild(el("div", "cc-mail-ai-text", data.result)); // textContent — XSS-safe
+      return;
+    }
+    // draft → editable composer + send (human approves the final body before it goes out)
+    box.appendChild(el("div", "cc-mail-ai-title", "Draft reply — review, edit, send"));
+    var cm = mailState.currentMsg || {};
+    var fromAddr = addrForKey(cm.box);
+    var toIn = el("input", "cc-mail-input"); toIn.type = "text"; toIn.value = emailOf(cm.from || ""); toIn.placeholder = "recipient@example.com";
+    var subIn = el("input", "cc-mail-input"); subIn.type = "text"; subIn.value = reSubject(cm.subject || "");
+    var ta = el("textarea", "cc-mail-textarea"); ta.value = data.result;
+    var sendBtn = el("button", "cc-btn-sm cc-btn-send", "Send from " + (fromAddr || "mailbox"));
+    var statusEl = el("span", "cc-mail-send-status", "");
+    sendBtn.addEventListener("click", function () {
+      sendReply(cm.box, cm.uid, toIn.value.trim(), subIn.value.trim(), ta.value, sendBtn, statusEl);
+    });
+    box.appendChild(el("label", "cc-mail-flabel", "To"));
+    box.appendChild(toIn);
+    box.appendChild(el("label", "cc-mail-flabel", "Subject"));
+    box.appendChild(subIn);
+    box.appendChild(el("label", "cc-mail-flabel", "Message"));
+    box.appendChild(ta);
+    var row = el("div", "cc-mail-send-row");
+    row.appendChild(sendBtn);
+    row.appendChild(statusEl);
+    box.appendChild(row);
+  }
+
+  function emailOf(s) {
+    var m = /<([^>]+@[^>]+)>/.exec(s || "");
+    if (m) return m[1].trim();
+    m = /([^\s<]+@[^\s>]+)/.exec(s || "");
+    return m ? m[1].trim() : "";
+  }
+
+  function reSubject(s) {
+    s = (s || "").trim();
+    return /^re:/i.test(s) ? s : "Re: " + s;
+  }
+
+  function addrForKey(key) {
+    var b = (mailState.list || []).filter(function (x) { return x.key === key; })[0];
+    return b ? b.address : "";
+  }
+
+  function sendReply(box, uid, to, subject, body, btn, statusEl) {
+    function fail(t) { if (statusEl) { statusEl.className = "cc-mail-send-status err"; statusEl.textContent = t; } }
+    if (!to || to.indexOf("@") < 0) return fail("Enter a valid recipient.");
+    if (!body.trim()) return fail("Message is empty.");
+    if (!window.confirm("Send this reply from " + addrForKey(box) + " to " + to + "?")) return;
+    if (btn) btn.disabled = true;
+    if (statusEl) { statusEl.className = "cc-mail-send-status"; statusEl.textContent = "Sending…"; }
+    fetch("/tools/creed-command/api/mail/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ box: box, uid: uid, to: to, subject: subject, body: body }),
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (btn) btn.disabled = false;
+        if (res.ok && res.d.sent) {
+          if (statusEl) { statusEl.className = "cc-mail-send-status ok"; statusEl.textContent = "✓ Sent to " + res.d.to; }
+        } else {
+          fail((res.d && res.d.error) || "Send failed.");
+        }
+      })
+      .catch(function () { if (btn) btn.disabled = false; fail("Network error."); });
   }
 
   function pollMailAi(box, uid, tries) {

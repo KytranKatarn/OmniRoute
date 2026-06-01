@@ -460,8 +460,51 @@ def _mark_failed(task_id: int, error: str) -> None:
                 """,
                 (error[:500], task_id),
             )
+            _handle_failure_callback(cur, task_id, error)
     except Exception as exc:
         log.error("model_dispatch: mark_failed failed for task %d: %s", task_id, exc)
+
+
+def _handle_failure_callback(cur: RealDictCursor, task_id: int, error: str) -> None:
+    """Notify a delegation task that its queued dispatch failed/expired.
+
+    Layer-3 (#269999): without this, a delegation deferred to the cold-load
+    queue that then fails (or expires) orphans its unified_task in
+    'in_progress' forever. Mirrors delegation_service.mark_task_failed
+    (status='blocked' + delegation_failure note). Only fires for
+    ``delegation_result`` callbacks — other callback types are unaffected.
+    """
+    try:
+        cur.execute(
+            "SELECT callback_type, callback_data FROM dispatch_pending_queue WHERE id = %s",
+            (task_id,),
+        )
+        row = cur.fetchone()
+        if not row or row.get("callback_type") != "delegation_result":
+            return
+        import json as _json
+
+        cb = row.get("callback_data") or {}
+        tid = cb.get("task_id")
+        if not tid:
+            return
+        cur.execute(
+            "UPDATE unified_tasks SET status = 'blocked' WHERE id = %s",
+            (tid,),
+        )
+        cur.execute(
+            """
+            INSERT INTO work_notes (task_id, note_type, content, metadata)
+            VALUES (%s, 'delegation_failure', %s, %s::jsonb)
+            """,
+            (
+                tid,
+                f"Fleet cold-load queue #{task_id} failed: {(error or '')[:300]}",
+                _json.dumps({"outcome": "blocked", "via": "queue_callback", "queue_id": task_id}),
+            ),
+        )
+    except Exception as exc:
+        log.error("model_dispatch: failure callback for task %d failed: %s", task_id, exc)
 
 
 def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
@@ -485,6 +528,44 @@ def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
                     "UPDATE unified_tasks SET work_notes = %s, status = 'completed' WHERE id = %s",
                     (response[:2000], task_id_target),
                 )
+        elif cb_type == "delegation_result":
+            # Layer-3 (#269999): a Claude/automation delegation that was deferred
+            # to this cold-load queue finished. Write the output back to its
+            # unified_task (work_notes TABLE — mirrors
+            # delegation_service.mark_task_completed) and mark it completed,
+            # instead of leaving it orphaned in_progress.
+            import json as _json
+
+            tid = cb_data.get("task_id")
+            if tid:
+                cur.execute(
+                    "UPDATE unified_tasks SET status = 'completed', completed_at = now() WHERE id = %s",
+                    (tid,),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO work_notes (task_id, note_type, content, metadata)
+                    VALUES (%s, 'delegation_result', %s, %s::jsonb)
+                    """,
+                    (
+                        tid,
+                        f"Completed via fleet cold-load queue #{task_id} (async)",
+                        _json.dumps({"outcome": "completed", "via": "queue_callback", "queue_id": task_id}),
+                    ),
+                )
+                resp = (response or "").strip()
+                if resp:
+                    cur.execute(
+                        """
+                        INSERT INTO work_notes (task_id, note_type, content, metadata)
+                        VALUES (%s, 'delegation_output', %s, %s::jsonb)
+                        """,
+                        (
+                            tid,
+                            resp[:20000],
+                            _json.dumps({"outcome": "completed", "chars": len(resp), "via": "queue_callback"}),
+                        ),
+                    )
         elif cb_type == "webhook":
             # Fire async — don't block the worker cycle
             import json as _json
@@ -962,6 +1043,18 @@ def _expire_stale_tasks() -> int:
     """Mark tasks past their expires_at as expired. Returns count."""
     try:
         with get_db_cursor(commit=True) as (_conn, cur):
+            # Layer-3 (#269999): capture delegation rows about to expire FIRST so
+            # we can notify their unified_tasks (else they orphan in_progress).
+            cur.execute(
+                """
+                SELECT id FROM dispatch_pending_queue
+                 WHERE status = 'queued'
+                   AND expires_at IS NOT NULL
+                   AND expires_at < NOW()
+                   AND callback_type = 'delegation_result'
+                """,
+            )
+            expiring_delegations = [r["id"] for r in cur.fetchall()]
             cur.execute(
                 """
                 UPDATE dispatch_pending_queue
@@ -971,7 +1064,10 @@ def _expire_stale_tasks() -> int:
                   AND expires_at < NOW()
                 """,
             )
-            return cur.rowcount
+            rowcount = cur.rowcount
+            for _qid in expiring_delegations:
+                _handle_failure_callback(cur, _qid, "queue task expired before execution")
+            return rowcount
     except Exception as exc:
         log.debug("model_dispatch: expire_stale_tasks failed: %s", exc)
         return 0

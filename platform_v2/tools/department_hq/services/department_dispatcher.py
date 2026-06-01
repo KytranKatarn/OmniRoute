@@ -497,6 +497,7 @@ class DispatchResult:
     metadata: Optional[Dict] = None
     department: str = ""
     queued: bool = False  # True when task was deferred to dispatch_pending_queue
+    queue_id: Optional[int] = None  # dispatch_pending_queue.id when queued (for async callbacks)
 
     def __post_init__(self):
         # Normalize: if department was passed, use it; else derive from station_code
@@ -6391,6 +6392,7 @@ class DepartmentDispatcher:
                         capability=capability,
                         duration_ms=int((time.time() - start) * 1000),
                         error=f"Queued (id={queue_id}) — {model} not ready",
+                        queue_id=queue_id,
                     )
                 except Exception as _q_err:
                     logger.warning(

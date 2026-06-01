@@ -4686,6 +4686,7 @@ class AgentLoop:
                 mark_task_completed,
                 mark_task_failed,
                 mark_task_in_progress,
+                mark_task_queued,
             )
 
             tasks = fetch_pending_delegations(limit=3)
@@ -4762,6 +4763,24 @@ class AgentLoop:
                         except Exception:
                             pass
                         failed += 1
+                        continue
+
+                    if result.get("queued"):
+                        # Layer-3 (#269999): the dispatch was deferred to the
+                        # cold-load queue (model warming). Leave the task
+                        # in_progress — the dispatch_pending_queue callback flips
+                        # it to completed/blocked when the queue row finishes.
+                        # Do NOT mark it failed (the bug that orphaned #3636/#3637).
+                        q_summary = result.get("summary", "")
+                        try:
+                            mark_task_queued(task_id, q_summary)
+                        except Exception:
+                            pass
+                        logger.info(
+                            "Delegate task #%s queued to fleet (async) — %s",
+                            task_id,
+                            q_summary,
+                        )
                         continue
 
                     if result.get("success"):

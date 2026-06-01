@@ -188,7 +188,7 @@ def execute_delegated_task(task: Dict[str, Any]) -> Dict[str, Any]:
                         }
             return _execute_known_tool(capability, payload, reason)
 
-        return _execute_via_dispatcher(capability, payload, reason, origin=delegation_source)
+        return _execute_via_dispatcher(capability, payload, reason, origin=delegation_source, task_id=task.get("id"))
     except Exception as exc:
         logger.exception("execute_delegated_task failed for task #%s", task.get("id"))
         return {
@@ -599,6 +599,7 @@ def _execute_via_dispatcher(
     payload: Dict[str, Any],
     reason: str,
     origin: str = "mcp_client",
+    task_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Fallback: hand to the Department HQ dispatcher.
 
@@ -639,6 +640,25 @@ def _execute_via_dispatcher(
             prompt=prompt,
             module_id="delegation_service",
         )
+    # Layer-3 fix (#269999): a cold model returns queued=True with a
+    # dispatch_pending_queue id — the work is enqueued, NOT failed. Attach a
+    # result-callback so model_dispatch_worker writes the output back to this
+    # task when the model warms/completes (or marks it blocked on failure), and
+    # report 'queued' so the worker leaves the task in_progress rather than
+    # false-blocking it (the bug that orphaned tasks #3636/#3637).
+    if getattr(dispatch_result, "queued", False):
+        qid = getattr(dispatch_result, "queue_id", None)
+        if task_id and qid:
+            _attach_delegation_callback(qid, task_id, capability, reason)
+        return {
+            "success": False,
+            "queued": True,
+            "summary": (
+                f"Queued to fleet (queue #{qid}, "
+                f"{dispatch_result.model_used or 'model'} warming) — completes async via callback"
+            ),
+            "result": {"queue_id": qid, "status": "queued"},
+        }
     if not dispatch_result.success:
         return {
             "success": False,
@@ -789,6 +809,56 @@ def mark_task_in_progress(task_id: int) -> None:
         cur.execute(
             "UPDATE unified_tasks SET status = 'in_progress' WHERE id = %s",
             (task_id,),
+        )
+
+
+def _attach_delegation_callback(queue_id: int, task_id: int, capability: str, reason: str) -> None:
+    """Attach a ``delegation_result`` callback to a queued dispatch row.
+
+    When ``model_dispatch_worker`` finishes the cold-load job,
+    ``_handle_callback`` (model_dispatch_service) writes the response back to
+    this unified_task and flips it completed/blocked. Only updates rows still
+    awaiting execution so we never clobber a row that already finished in the
+    (tiny) race window between dispatch returning and this UPDATE.
+    """
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                UPDATE dispatch_pending_queue
+                   SET callback_type = 'delegation_result',
+                       callback_data = %s::jsonb
+                 WHERE id = %s AND status IN ('queued', 'running')
+                """,
+                (
+                    json.dumps(
+                        {
+                            "task_id": task_id,
+                            "capability": capability,
+                            "reason": (reason or "")[:200],
+                        }
+                    ),
+                    queue_id,
+                ),
+            )
+    except Exception as exc:
+        logger.warning("Failed to attach delegation callback to queue #%s: %s", queue_id, exc)
+
+
+def mark_task_queued(task_id: int, summary: str) -> None:
+    """Record that a delegated task was deferred to the cold-load queue.
+
+    Leaves status as ``in_progress`` (the worker set it before dispatch) and
+    adds a lifecycle note. The dispatch_pending_queue callback later flips the
+    task to completed/blocked — so we must NOT mark it failed here.
+    """
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            INSERT INTO work_notes (task_id, note_type, content, metadata)
+            VALUES (%s, 'delegation_queued', %s, %s::jsonb)
+            """,
+            (task_id, summary, json.dumps({"outcome": "queued"})),
         )
 
 

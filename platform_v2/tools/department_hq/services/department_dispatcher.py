@@ -657,7 +657,23 @@ def _pick_fleet_node(model: str, agent: Optional[dict]) -> Optional[int]:
     try:
         from services.fleet_resource_router import find_best_node_for_model
 
-        return find_best_node_for_model(model, home)
+        # AGENT MOBILITY PROFILE: nudge a profile-prioritised agent's model
+        # toward its preferred tier (platform→GPU, news→CPU/outpost), matching
+        # routing block 1a. Fail-safe → no bias.
+        profile_pref = None
+        try:
+            from services.fleet_dispatch_profile import (
+                get_dispatch_mode,
+                is_priority_department,
+            )
+
+            _mode = get_dispatch_mode()
+            if is_priority_department((agent or {}).get("department"), _mode):
+                profile_pref = "gpu" if _mode == "platform" else "cpu" if _mode == "news" else None
+        except Exception:
+            profile_pref = None
+
+        return find_best_node_for_model(model, home, profile_pref=profile_pref)
     except Exception:
         return home
 

@@ -147,7 +147,9 @@ def is_stale(node: dict[str, Any], seconds: int = STALE_HEARTBEAT_SECONDS) -> bo
     return (datetime.now(timezone.utc) - last_hb) > timedelta(seconds=seconds)
 
 
-def find_best_node_for_model(model: str, home_node_db_id: Optional[int] = None) -> Optional[int]:
+def find_best_node_for_model(
+    model: str, home_node_db_id: Optional[int] = None, *, profile_pref: Optional[str] = None
+) -> Optional[int]:
     """Find the best online fleet node for a given model.
 
     Scores all online nodes against the model. If a node scores significantly
@@ -157,6 +159,12 @@ def find_best_node_for_model(model: str, home_node_db_id: Optional[int] = None) 
     Colocation preference: if home node scores within 80% of best, keep home.
     This ensures news-team VPS agents stay on VPS for 1.5b models (GPU nodes
     score lower for CPU-preferred small models anyway).
+
+    ``profile_pref`` (AGENT MOBILITY PROFILE, optional): ``'gpu'`` nudges a
+    profile-prioritised agent's model toward GPU nodes (platform mode);
+    ``'cpu'`` nudges toward CPU/outpost nodes (news mode). Tiebreak only —
+    keeps the score-based path consistent with the dispatcher's routing block
+    1a. ``None`` (default) = byte-for-byte unchanged for every existing caller.
 
     Returns the integer DB id of the best node, or ``home_node_db_id`` if no
     improvement is found. Returns ``None`` only when there are no online nodes.
@@ -200,6 +208,12 @@ def find_best_node_for_model(model: str, home_node_db_id: Optional[int] = None) 
         score = score_node_for_model(node, model)
         if score is None:
             continue
+        # AGENT MOBILITY PROFILE bias — tiebreak only, consistent with the
+        # dispatcher's routing block 1a. Never un-disqualifies (None skips above).
+        if profile_pref == "gpu" and node.get("gpu_available"):
+            score += 0.5
+        elif profile_pref == "cpu" and not node.get("gpu_available"):
+            score += 0.5
         if node["id"] == home_node_db_id:
             home_score = score
         if best_score is None or score > best_score:

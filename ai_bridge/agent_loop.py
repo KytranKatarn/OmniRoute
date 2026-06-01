@@ -4624,14 +4624,41 @@ class AgentLoop:
                 queued = cur.fetchone()["n"]
                 slots = max(0, min(TARGET - queued, MAX_PROMOTE))
                 if slots > 0:
+                    # AGENT MOBILITY PROFILE: when news/platform is active, drain
+                    # that profile's product backlog first (news → WTF/watch/CREED
+                    # projects; platform → the rest). auto = pure priority order.
+                    try:
+                        from services.fleet_dispatch_profile import (
+                            get_dispatch_mode,
+                            is_priority_project,
+                        )
+
+                        _mode = get_dispatch_mode()
+                    except Exception:
+                        _mode = "auto"
+                    _pool = slots * 6 if _mode != "auto" else slots
                     cur.execute(
-                        "SELECT id, title, task_type FROM unified_tasks "
-                        "WHERE delegation_source IS NULL AND status = 'pending' "
-                        "AND task_type IS NOT NULL "
-                        "ORDER BY priority DESC, created_at ASC LIMIT %s",
-                        (slots,),
+                        "SELECT ut.id, ut.title, ut.task_type, p.name AS project_name "
+                        "FROM unified_tasks ut "
+                        "LEFT JOIN unified_projects p ON p.id = ut.project_id "
+                        "WHERE ut.delegation_source IS NULL AND ut.status = 'pending' "
+                        "AND ut.task_type IS NOT NULL "
+                        "ORDER BY ut.priority DESC, ut.created_at ASC LIMIT %s",
+                        (_pool,),
                     )
-                    for r in cur.fetchall():
+                    _cands = cur.fetchall()
+                    if _mode != "auto" and _cands:
+                        # Stable split keeps priority/created order within each
+                        # group; profile-matching projects promote first.
+                        _tagged = [(r, is_priority_project(r.get("project_name"), _mode)) for r in _cands]
+                        _cands = [r for r, p in _tagged if p] + [r for r, p in _tagged if not p]
+                        logger.info(
+                            "[FleetBacklogRunner] profile=%s: %d/%d candidate task(s) match profile",
+                            _mode,
+                            sum(1 for _, p in _tagged if p),
+                            len(_tagged),
+                        )
+                    for r in _cands[:slots]:
                         cap = CAP_MAP.get((r["task_type"] or "").lower(), "research")
                         args = json.dumps({"capability": cap, "reason": (r["title"] or "")[:300]})
                         cur.execute(

@@ -262,6 +262,60 @@ def warmup_fleet_models():
     _kin_fleet_warmth_policy()
 
 
+def _profile_warm_targets(cur, node_id, mode, available, k):
+    """Warm-slot models for the active mobility profile's on-shift agents.
+
+    When a NEWS/PLATFORM profile is active, a node's warm slot is reserved for
+    the model most-demanded among THAT profile's on-shift agents stationed on
+    this node (``task_execution_log`` last 6h), restricted to models the node
+    actually has. Returns ``[]`` for ``auto`` or when no profile agent
+    qualifies — the caller then falls back to the node's overall demand +
+    welfare pilot, so warmth never regresses on uncertainty. Dedups models,
+    preserves rank, caps at ``k``. Shares the profile split (News vs the rest)
+    with the dispatcher's routing block 1a via ``fleet_dispatch_profile``.
+    """
+    if not mode or mode == "auto":
+        return []
+    try:
+        from services.fleet_dispatch_profile import is_priority_department
+    except Exception:
+        return []
+    try:
+        cur.execute(
+            """
+            SELECT na.model, a.department, COALESCE(d.n, 0) AS demand
+            FROM node_agents na
+            JOIN agents a ON a.id = na.source_agent_id
+            LEFT JOIN (
+                SELECT model_used, COUNT(*) AS n
+                FROM task_execution_log
+                WHERE node_used_id = %s
+                  AND created_at > NOW() - INTERVAL '6 hours'
+                  AND success IS TRUE
+                  AND model_used IS NOT NULL
+                GROUP BY model_used
+            ) d ON d.model_used = na.model
+            WHERE na.node_id = %s
+              AND na.status = 'active'
+              AND a.shift_state IN ('active', 'deployed')
+            """,
+            (node_id, node_id),
+        )
+        rows = cur.fetchall() or []
+    except Exception:
+        return []
+    cand = [r for r in rows if r.get("model") in available and is_priority_department(r.get("department"), mode)]
+    cand.sort(key=lambda r: (-(r.get("demand") or 0), r.get("model") or ""))
+    out = []
+    for r in cand:
+        m = r.get("model")
+        if m and m not in out:
+            out.append(m)
+        if len(out) >= k:
+            break
+    return out
+
+
 def _kin_fleet_warmth_policy():
     """K.I.N.-orchestrated per-node demand + welfare warmth policy (rest-aware).
 
@@ -306,6 +360,16 @@ def _kin_fleet_warmth_policy():
     except Exception:
         rest_active = False
 
+    # AGENT MOBILITY PROFILE (auto/news/platform). When a profile is active the
+    # per-node warm slot is reserved for that profile's on-shift agents
+    # (see _profile_warm_targets); auto keeps the pure demand behaviour below.
+    try:
+        from services.fleet_dispatch_profile import get_dispatch_mode
+
+        profile_mode = get_dispatch_mode()
+    except Exception:
+        profile_mode = "auto"
+
     queued = rested = 0
     try:
         with get_db_cursor(commit=True) as (_c, cur):
@@ -334,24 +398,30 @@ def _kin_fleet_warmth_policy():
                 if not available:
                     continue
 
-                # DEMAND: top models this node actually served in the last 6h.
-                cur.execute(
-                    """
-                    SELECT model_used, COUNT(*) AS n
-                    FROM task_execution_log
-                    WHERE node_used_id = %s
-                      AND created_at > NOW() - INTERVAL '6 hours'
-                      AND success IS TRUE
-                      AND model_used IS NOT NULL
-                      AND model_used NOT IN ('internal', 'batch')
-                      AND model_used NOT LIKE '%%:cloud'
-                    GROUP BY model_used
-                    ORDER BY n DESC
-                    LIMIT %s
-                    """,
-                    (n["id"], TOP_K),
-                )
-                targets = [r["model_used"] for r in cur.fetchall() if r["model_used"] in available]
+                # PROFILE: when a mobility profile is active, reserve this node's
+                # warm slot for the profile's on-shift agents first — this is what
+                # makes the AUTO/NEWS/PLATFORM buttons move who is "in the boot".
+                targets = _profile_warm_targets(cur, n["id"], profile_mode, available, TOP_K)
+
+                # DEMAND: otherwise warm the node's overall top models (last 6h).
+                if not targets:
+                    cur.execute(
+                        """
+                        SELECT model_used, COUNT(*) AS n
+                        FROM task_execution_log
+                        WHERE node_used_id = %s
+                          AND created_at > NOW() - INTERVAL '6 hours'
+                          AND success IS TRUE
+                          AND model_used IS NOT NULL
+                          AND model_used NOT IN ('internal', 'batch')
+                          AND model_used NOT LIKE '%%:cloud'
+                        GROUP BY model_used
+                        ORDER BY n DESC
+                        LIMIT %s
+                        """,
+                        (n["id"], TOP_K),
+                    )
+                    targets = [r["model_used"] for r in cur.fetchall() if r["model_used"] in available]
 
                 # WELFARE floor: no recent demand → pilot only if some assigned
                 # agent is still on-shift (fail-open if the signal is missing).

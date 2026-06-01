@@ -4048,6 +4048,17 @@ function _applyDispatchMode(mode) {
         btn.style.borderColor = active ? '#00bcd4' : 'rgba(255,255,255,0.2)';
         btn.style.color = active ? '#00bcd4' : 'var(--dhq-text-dim)';
     });
+    // Read-back: show what the active profile is prioritising across
+    // warmth (K.I.N.), routing, and the backlog runner.
+    var status = document.getElementById('fleetModeStatus');
+    if (status) {
+        var msg = mode === 'news'
+                ? '→ News & Media agents prioritised: warm slots + routing (outpost-us) + WTF/Watch/CREED backlog first'
+            : mode === 'platform'
+                ? '→ Platform agents prioritised: warm GPU slots (incl. translate) + Starship routing + platform backlog first'
+                : '→ Demand-driven: each node warms its hottest model; routing & backlog by priority';
+        status.textContent = msg;
+    }
 }
 
 function loadDispatchMode() {

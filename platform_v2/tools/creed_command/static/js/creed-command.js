@@ -465,6 +465,95 @@
       .catch(function () { if (btn) btn.disabled = false; renderAiBlock(kind, { status: "error" }); });
   }
 
+  /* ---- Marketing studio (#3613) ---- */
+  var mktState = { loaded: false };
+  function mktLabel(c) {
+    return { linkedin: "LinkedIn", x: "X / Twitter", newsletter: "Newsletter", press: "Press pitch", blog: "Blog teaser" }[c] || c;
+  }
+
+  function renderMktAssets(list) {
+    var box = document.getElementById("cc-mkt-list");
+    if (!box) return;
+    while (box.firstChild) box.removeChild(box.firstChild);
+    if (!list.length) { box.className = "cc-muted"; box.textContent = "No assets yet — pick a channel + topic and click Generate."; return; }
+    box.className = "";
+    list.forEach(function (a) {
+      var card = el("div", "cc-mkt-asset");
+      var head = el("div", "cc-mkt-head");
+      head.appendChild(el("span", "cc-mkt-badge", mktLabel(a.channel)));
+      head.appendChild(el("span", "cc-mkt-topic", a.topic));
+      if (a.approved) head.appendChild(el("span", "cc-mkt-approved", "✓ approved"));
+      card.appendChild(head);
+      if (a.gen_status === "pending") {
+        card.appendChild(el("div", "cc-muted", "E.T.H.O.S. is writing… (GPU cluster)"));
+        pollMkt(a.id, 40);
+      } else if (a.gen_status === "error" || !a.content) {
+        card.appendChild(el("div", "cc-muted", "E.T.H.O.S. could not generate this — delete and retry."));
+      } else {
+        var ta = el("textarea", "cc-mail-textarea"); ta.value = a.content; ta.style.minHeight = "110px";
+        card.appendChild(ta);
+        var actions = el("div", "cc-mkt-actions");
+        var saveBtn = el("button", "cc-btn-sm", "Save edits");
+        saveBtn.addEventListener("click", function () { patchMkt(a.id, { content: ta.value }); });
+        var copyBtn = el("button", "cc-btn-sm", "Copy");
+        copyBtn.addEventListener("click", function () {
+          if (navigator.clipboard) navigator.clipboard.writeText(ta.value);
+          copyBtn.textContent = "Copied ✓"; setTimeout(function () { copyBtn.textContent = "Copy"; }, 1500);
+        });
+        var apprBtn = el("button", "cc-btn-sm", a.approved ? "Unapprove" : "Approve");
+        apprBtn.addEventListener("click", function () { patchMkt(a.id, { approved: !a.approved }); });
+        var delBtn = el("button", "cc-btn-sm", "Delete");
+        delBtn.addEventListener("click", function () { if (window.confirm("Delete this asset?")) deleteMkt(a.id); });
+        actions.appendChild(saveBtn); actions.appendChild(copyBtn); actions.appendChild(apprBtn); actions.appendChild(delBtn);
+        actions.appendChild(el("span", "right", a.updated_at ? fmtAt(a.updated_at) : ""));
+        card.appendChild(actions);
+      }
+      box.appendChild(card);
+    });
+  }
+
+  function loadMarketing() {
+    mktState.loaded = true;
+    fetch("/tools/creed-command/api/marketing", { cache: "no-cache" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { renderMktAssets(d.assets || []); })
+      .catch(function () { var b = document.getElementById("cc-mkt-list"); if (b) { b.className = "cc-muted"; b.textContent = "Could not load assets."; } });
+  }
+
+  function pollMkt(id, tries) {
+    if (tries <= 0) return;
+    setTimeout(function () {
+      fetch("/tools/creed-command/api/marketing/" + id, { cache: "no-cache" })
+        .then(function (r) { return r.json(); })
+        .then(function (a) { if (a.gen_status && a.gen_status !== "pending") loadMarketing(); else pollMkt(id, tries - 1); })
+        .catch(function () { pollMkt(id, tries - 1); });
+    }, 4000);
+  }
+
+  function genMkt() {
+    var chEl = document.getElementById("cc-mkt-channel");
+    var topicEl = document.getElementById("cc-mkt-topic");
+    var topic = (topicEl.value || "").trim();
+    if (!topic) { topicEl.focus(); return; }
+    var btn = document.getElementById("cc-mkt-gen");
+    if (btn) btn.disabled = true;
+    fetch("/tools/creed-command/api/marketing", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel: chEl.value, topic: topic }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function () { if (btn) btn.disabled = false; topicEl.value = ""; loadMarketing(); })
+      .catch(function () { if (btn) btn.disabled = false; });
+  }
+
+  function patchMkt(id, patch) {
+    fetch("/tools/creed-command/api/marketing/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) })
+      .then(function () { loadMarketing(); }).catch(function () {});
+  }
+  function deleteMkt(id) {
+    fetch("/tools/creed-command/api/marketing/" + id, { method: "DELETE" }).then(function () { loadMarketing(); }).catch(function () {});
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     var tabs = document.querySelectorAll(".cc-tab");
     var panes = document.querySelectorAll(".cc-pane");
@@ -475,6 +564,7 @@
         panes.forEach(function (p) { p.classList.toggle("active", p.id === "pane-" + name); });
         if (history.replaceState) history.replaceState(null, "", "#" + name);
         if (name === "inbox" && !mailState.loadedStatus) loadMailStatus();
+        if (name === "marketing" && !mktState.loaded) loadMarketing();
       });
     });
     var hash = (location.hash || "").replace("#", "");
@@ -497,5 +587,8 @@
     var mailRefresh = document.getElementById("cc-mail-refresh");
     if (mailRefresh) mailRefresh.addEventListener("click", loadMailStatus);
     if ((location.hash || "").replace("#", "") === "inbox") loadMailStatus();
+    var mktGen = document.getElementById("cc-mkt-gen");
+    if (mktGen) mktGen.addEventListener("click", genMkt);
+    if ((location.hash || "").replace("#", "") === "marketing") loadMarketing();
   });
 })();

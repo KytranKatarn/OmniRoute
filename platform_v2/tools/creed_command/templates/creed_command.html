@@ -179,12 +179,40 @@
 
   <!-- MARKETING -->
   <div class="cc-pane" id="pane-marketing">
-    <span class="cc-phase">Phase 3 — #3613</span>
-    <div class="cc-card">
-      <h2>Marketing &amp; promotion</h2>
-      <p>Content calendar + promotion queue for creed-ai.org — announcements, press
-        outreach, and LinkedIn (via S.I.G.N.A.L.). E.T.H.O.S. drafts; humans approve.</p>
+    <style>
+      .cc-mkt-form{display:flex;gap:0.6rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1rem;}
+      .cc-mkt-form .grow{flex:1 1 260px;}
+      .cc-mkt-asset{background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:0.8rem 0.9rem;margin-bottom:0.8rem;}
+      .cc-mkt-head{display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.5rem;}
+      .cc-mkt-badge{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:#0f172a;background:#22d3ee;border-radius:5px;padding:0.12rem 0.45rem;font-weight:700;}
+      .cc-mkt-topic{font-size:0.86rem;color:#e2e8f0;font-weight:600;}
+      .cc-mkt-approved{font-size:0.7rem;color:#34d399;font-weight:600;}
+      .cc-mkt-body{white-space:pre-wrap;font-size:0.85rem;line-height:1.55;color:#cbd5e1;background:#0b1220;border:1px solid #1e293b;border-radius:6px;padding:0.55rem 0.65rem;margin:0.4rem 0;}
+      .cc-mkt-actions{display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;}
+      .cc-mkt-actions .right{margin-left:auto;font-size:0.72rem;color:#64748b;}
+    </style>
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:0.9rem;">
+      <h2 style="font-family:'Orbitron',sans-serif;font-size:1.05rem;color:#f1f5f9;margin:0;">Marketing &amp; promotion</h2>
+      <span class="cc-muted" style="font-size:0.78rem;">E.T.H.O.S. drafts grounded in C.R.E.E.D.'s live evidence · you review &amp; approve</span>
     </div>
+    <div class="cc-mkt-form">
+      <div>
+        <label class="cc-mail-flabel">Channel</label>
+        <select id="cc-mkt-channel" class="cc-mail-input" style="width:auto;">
+          <option value="linkedin">LinkedIn</option>
+          <option value="x">X / Twitter</option>
+          <option value="newsletter">Newsletter</option>
+          <option value="press">Press pitch</option>
+          <option value="blog">Blog teaser</option>
+        </select>
+      </div>
+      <div class="grow">
+        <label class="cc-mail-flabel">Topic / angle</label>
+        <input id="cc-mkt-topic" class="cc-mail-input" type="text" placeholder="e.g. why preventive AI governance matters" />
+      </div>
+      <button id="cc-mkt-gen" class="cc-btn-sm cc-btn-send">Generate with E.T.H.O.S.</button>
+    </div>
+    <div id="cc-mkt-list"></div>
   </div>
 
   <!-- FILES -->

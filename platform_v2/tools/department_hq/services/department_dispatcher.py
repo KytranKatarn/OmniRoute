@@ -6617,10 +6617,15 @@ class DepartmentDispatcher:
         project_id: Optional[int] = None,
         images: Optional[List[str]] = None,
         prefer_agent: Optional[str] = None,
+        preferred_node=None,
     ) -> Dict:
         """
         Convenience method for JSON-mode requests.
         Returns parsed dict on success, None on failure.
+
+        ``preferred_node`` (str or ordered list) pins the dispatch to a fleet
+        node / cluster (e.g. a GPU Starship for the translation skill) — same
+        contract as ``request_work``; None = normal routing.
         """
         result = self.request_work(
             capability=capability,
@@ -6633,6 +6638,7 @@ class DepartmentDispatcher:
             project_id=project_id,
             images=images,
             prefer_agent=prefer_agent,
+            preferred_node=preferred_node,
         )
         if result.success:
             try:

@@ -100,11 +100,17 @@ def _generate_translation(en_text: str, language: str, glossary: Optional[list] 
         f'Respond ONLY with JSON: {{"translated": "...", "confidence": 0.0-1.0}}.\n'
         f"{glossary_block}\n\nTEXT: {en_text}"
     )
+    # Pin translation to the GPU Starships when available — R.O.S.E.T.T.A.'s
+    # mistral:7b fits the RTX 3070 (8GB), turning ~19s hub-CPU generations into
+    # ~2-3s. Ordered list = cluster fallback; the dispatcher skips busy/resting
+    # nodes and falls through to hub routing if neither GPU node is free
+    # (welfare/rest-gated, per PR #1352). KB #270009.
     r = dispatch_json(
         capability="translate",
         prompt=prompt,
         module_id="coverage_scan",
         prefer_agent="R.O.S.E.T.T.A.",
+        preferred_node=["Starship-246", "Starship-245"],
     )
     if not isinstance(r, dict):
         return {"translated": "", "confidence": 0.0}

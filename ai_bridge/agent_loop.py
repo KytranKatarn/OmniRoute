@@ -6726,7 +6726,23 @@ class AgentLoop:
                     # 90s timeout for most models, 180s for coder models.
                     # Concurrent Ollama inference (quality scorer, dispatch) can cause
                     # contention; failures are retried next 30-min cycle.
-                    timeout = 180 if "coder" in model_name else 90
+                    # Big CPU-tier models (gemma3:12b, mistral:7b, dolphin3, coder)
+                    # cold-load into RAM (num_gpu=0 above) and take far longer than
+                    # 90s on the hub — give them 600s so the keep-warm actually
+                    # succeeds instead of false-failing every cycle (KB #270009).
+                    _BIG_CPU_TIER = {
+                        "mistral:7b",
+                        "gemma3:12b",
+                        "dolphin3:latest",
+                        "qwen2.5-coder:7b",
+                        "phi4:14b",
+                        "deepseek-coder-v2:16b",
+                        "qwen3-coder-cpu:latest",
+                    }
+                    if model_name in _BIG_CPU_TIER or "coder" in model_name:
+                        timeout = 600
+                    else:
+                        timeout = 90
                     r = req.post(f"{ollama_host}/api/{endpoint}", json=data, timeout=timeout)
                     if r.status_code == 200:
                         reloaded += 1

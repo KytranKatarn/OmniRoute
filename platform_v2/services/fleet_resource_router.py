@@ -55,22 +55,33 @@ def score_node_for_model(node: dict[str, Any], model: str) -> Optional[float]:
     declared_cap = extra.get("max_model_gb")
 
     # Capacity check — disqualify if the model can't fit at all.
-    if footprint.prefer_gpu and gpu_avail:
-        if footprint.vram_gb > gpu_vram:
-            return None
+    # cpu_demoted: a prefer_gpu model that won't fit THIS node's VRAM but can
+    # still run on CPU using the node's RAM (e.g. gemma3:12b on a 29GB Starship
+    # whose 8GB GPU is too small, or on the 128GB hub). Allowed but penalised
+    # below so a node that can truly GPU-fit it ranks higher. RAM-gated: the
+    # 7.8GB outposts still disqualify (footprint.ram_gb 24 > 7.8). KB #270009.
+    cpu_demoted = False
+    if footprint.prefer_gpu and gpu_avail and footprint.vram_gb <= gpu_vram:
+        pass  # fits on GPU
     else:
-        # CPU path. extra_capabilities.max_model_gb (if set) is the
+        # CPU path: no GPU, a CPU-preferred model, OR a prefer_gpu model too big
+        # for this node's VRAM. extra_capabilities.max_model_gb (if set) is the
         # operator-declared ceiling; otherwise use ram_gb.
         cap = float(declared_cap) if declared_cap is not None else ram_gb
         required = max(footprint.vram_gb, footprint.ram_gb)
         if required > cap:
             return None
+        cpu_demoted = footprint.prefer_gpu and gpu_avail
 
     score = 1.0
 
     # Tier match — reward routing prefer_gpu models to GPU nodes and
     # CPU-only models to CPU nodes.
-    if footprint.prefer_gpu == gpu_avail:
+    if cpu_demoted:
+        # prefer_gpu model demoted to CPU (node VRAM too small) — allowed where
+        # RAM permits but dispreferred vs a node that can actually GPU-fit it.
+        score -= 0.5
+    elif footprint.prefer_gpu == gpu_avail:
         score += 1.0
         # Small CPU-only model on a dedicated CPU-only node is the IDEAL
         # placement — it frees hub GPU for prefer_gpu workloads. Without

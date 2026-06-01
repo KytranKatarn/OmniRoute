@@ -53,11 +53,26 @@ OUTPOST = {
 }
 
 
-def test_oversized_gpu_model_disqualifies_undersized_node():
-    # 14B model needs ~18GB VRAM; hub only has 8GB.
-    big = dict(HUB)
-    big["gpu_vram_gb"] = 4.0
-    assert score_node_for_model(big, "custom:14b") is None
+def test_oversized_gpu_model_disqualifies_when_ram_too_small():
+    # 14B won't fit a 4GB GPU AND won't fit a small-RAM node → disqualified.
+    # (e.g. a 7.8GB outpost-class node; RAM-gate via ram_gb / max_model_gb.)
+    tiny = dict(HUB)
+    tiny["gpu_vram_gb"] = 4.0
+    tiny["ram_gb"] = 8.0
+    assert score_node_for_model(tiny, "custom:14b") is None
+
+
+def test_oversized_gpu_model_cpu_fallback_when_ram_fits():
+    # 14B won't fit a 4GB GPU, but the node has ample RAM (hub 128GB / 29GB
+    # Starship) → allowed on CPU (cpu_demoted), not disqualified. KB #270009.
+    roomy = dict(HUB)
+    roomy["gpu_vram_gb"] = 4.0  # too small for 14B VRAM
+    demoted = score_node_for_model(roomy, "custom:14b")
+    assert demoted is not None and demoted > 0
+    # A node that can actually GPU-fit the model must outscore the CPU-demoted one.
+    gpu_fits = dict(HUB)
+    gpu_fits["gpu_vram_gb"] = 48.0
+    assert score_node_for_model(gpu_fits, "custom:14b") > demoted
 
 
 def test_small_model_fits_outpost_cpu_path():

@@ -227,11 +227,38 @@ class ModelService:
 
         return _capacity_ok()
 
+    # Hub big-model tier: models too large to co-reside on the 8GB GPU alongside
+    # the GPU hot model (qwen2.5:7b). On the HUB these are pinned to CPU
+    # (options.num_gpu=0) so they load into the 128GB RAM instead of fighting for
+    # ~3GB of free VRAM and failing ("no result"/cold-tier timeouts). Demand-driven:
+    # they load on dispatch when the owning agent is working and drain via
+    # keep_alive when idle. NOTE: load_model() is HUB-only (uses self.ollama_host),
+    # so Outpost/Starship node loads are unaffected — those keep their GPU placement.
+    # qwen2.5:7b is intentionally EXCLUDED (it is the GPU hot model). KB #270009.
+    _HUB_CPU_TIER = {
+        "mistral:7b",
+        "gemma3:12b",
+        "dolphin3:latest",
+        "qwen2.5-coder:7b",
+        "phi4:14b",
+        "deepseek-coder-v2:16b",
+        "qwen3-coder-cpu:latest",
+        "qwen2.5vl:7b",
+    }
+
     def load_model(self, model: str) -> bool:
-        """Load *model* via /api/generate with keep_alive=5m."""
+        """Load *model* via /api/generate with keep_alive=5m.
+
+        Hub big-model tier (``_HUB_CPU_TIER``) is pinned to CPU via
+        ``options.num_gpu=0`` so it loads into RAM rather than evicting / failing
+        to fit on the 8GB GPU.
+        """
         try:
             url = f"{self.ollama_host}/api/generate"
-            payload = json.dumps({"model": model, "keep_alive": "5m", "prompt": ""}).encode()
+            body = {"model": model, "keep_alive": "5m", "prompt": ""}
+            if model in self._HUB_CPU_TIER:
+                body["options"] = {"num_gpu": 0}
+            payload = json.dumps(body).encode()
             req = urllib.request.Request(
                 url,
                 data=payload,

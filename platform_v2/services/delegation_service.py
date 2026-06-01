@@ -792,12 +792,13 @@ def mark_task_in_progress(task_id: int) -> None:
         )
 
 
-def mark_task_completed(task_id: int, summary: str) -> None:
+def mark_task_completed(task_id: int, summary: str, response: str = None) -> None:
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             "UPDATE unified_tasks SET status = 'completed', completed_at = now() WHERE id = %s",
             (task_id,),
         )
+        # Lifecycle note (the short "Dispatched to agent=X" summary).
         cur.execute(
             """
             INSERT INTO work_notes (task_id, note_type, content, metadata)
@@ -805,6 +806,17 @@ def mark_task_completed(task_id: int, summary: str) -> None:
             """,
             (task_id, summary, json.dumps({"outcome": "completed"})),
         )
+        # #269999: persist the agent's ACTUAL output too, so delegated
+        # analysis/research/audit work is captured — not just the dispatch stub.
+        resp = (response or "").strip()
+        if resp:
+            cur.execute(
+                """
+                INSERT INTO work_notes (task_id, note_type, content, metadata)
+                VALUES (%s, 'delegation_output', %s, %s::jsonb)
+                """,
+                (task_id, resp[:20000], json.dumps({"outcome": "completed", "chars": len(resp)})),
+            )
 
 
 def mark_task_failed(task_id: int, error: str) -> None:

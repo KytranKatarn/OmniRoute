@@ -4758,7 +4758,8 @@ class AgentLoop:
 
                     if result.get("success"):
                         summary = result.get("summary", "")
-                        mark_task_completed(task_id, summary)
+                        _resp = (result.get("result") or {}).get("response")
+                        mark_task_completed(task_id, summary, response=_resp)
                         emit_delegation_event(
                             task_id,
                             "complete",

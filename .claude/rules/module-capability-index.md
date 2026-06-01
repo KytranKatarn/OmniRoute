@@ -83,6 +83,14 @@ From `module_registry.py` (36 modules). Full detail: `search_knowledge(category=
 ### Automations — `automations` · `/tools/automations` · ⛔
 - **Status**: Disabled. Scope unclear.
 
+### C.R.E.E.D. Command — `creed_command` · `/tools/creed-command` · ✅ · 🟢
+- **Capability**: E.T.H.O.S. (agent #336) governance work dashboard. 6 tabs — Dashboard (live CREED governance KPIs + weekly ethics brief), **Inbox** (5 Hostinger creed-ai.org boxes over IMAP → E.T.H.O.S. triage → draft → **send-as** via SMTP), **Grants** (pipeline + E.T.H.O.S. drafting), **Marketing** (channel-specific promo gen, grounded, no auto-publish), **Files** (in-DB bytea document library + grant linking), Governance (live CREED surface links).
+- **Mail (self-contained, NOT Email Manager — Stalwart-only, ADR-003/#675)**: `mail_routes.py` → imap.hostinger.com:993 + smtp.hostinger.com:465, per-box `CREED_MAIL_*_PASSWORD` in root `.env`. Read-only IMAP (BODY.PEEK); send gated on explicit human click. Routes: `/api/mail/{status,inbox,message,triage,draft,ai,send}`.
+- **Routes**: `grants_routes.py`, `mail_routes.py`, `marketing_routes.py`, `files_routes.py` — all `register_*_routes(bp, admin_required)`. Admin-only.
+- **E.T.H.O.S. dispatch**: `capability='policy_assessment'`, `prefer_agent='E.T.H.O.S.'`, **`preferred_node=['Starship-246','Starship-245']`** (GPU cluster, ~1-3s). Async+poll+DB for all AI ops.
+- **Tables**: `creed_grants`, `creed_mail_ai`, `creed_marketing_assets`, `creed_files` (migrations 412–416).
+- **KB Docs**: #269978–269992 (coder+user per PR) · **PRs**: #1354–1358 (+#1353 GPU routing). Project #367 (feature-complete 2026-06-01).
+
 ---
 
 ## saas_services (9)

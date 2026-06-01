@@ -28,8 +28,36 @@ def _should_skip_short(text: str) -> bool:
 
 
 def back_translate_to_en(non_en_text: str, source_lang: str) -> str:
-    """Dispatch Bridge back-translation. Out-of-module so tests can mock."""
-    from tools.department_hq.services.department_dispatcher import dispatch_json
+    """Dispatch Bridge back-translation. Out-of-module so tests can mock.
+
+    Uses the same per-language specialist as the forward translation so the QA
+    signal is as strong as the model that produced the text (gemma3 for ar/he/de,
+    mistral otherwise). gemma3 uses raw-text mode (no JSON envelope).
+    """
+    from tools.department_hq.services.department_dispatcher import dispatch, dispatch_json
+
+    from .generator import _RAW_OUTPUT_MODELS, get_translate_routing
+
+    model, agent = get_translate_routing(source_lang)
+
+    if model in _RAW_OUTPUT_MODELS:
+        prompt = (
+            f"Translate the following {source_lang} text literally to English. "
+            f"Output ONLY the English translation, nothing else.\n\nTEXT: {non_en_text}"
+        )
+        try:
+            r = dispatch(
+                capability="translate",
+                prompt=prompt,
+                module_id="coverage_scan",
+                prefer_agent=agent,
+                model_override=model,
+                local_only=True,
+            )
+            raw = (getattr(r, "response", "") or "").strip().strip('"').strip()
+            return raw.splitlines()[0].strip() if raw else ""
+        except Exception:
+            return ""
 
     prompt = (
         f"Translate the following {source_lang} text literally to English. "
@@ -40,6 +68,9 @@ def back_translate_to_en(non_en_text: str, source_lang: str) -> str:
         capability="translate",
         prompt=prompt,
         module_id="coverage_scan",
+        prefer_agent=agent,
+        model_override=model,
+        local_only=True,
     )
     if isinstance(result, dict):
         return result.get("en") or ""

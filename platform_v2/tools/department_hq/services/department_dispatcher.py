@@ -6634,6 +6634,8 @@ class DepartmentDispatcher:
         images: Optional[List[str]] = None,
         prefer_agent: Optional[str] = None,
         preferred_node=None,
+        model_override: Optional[str] = None,
+        local_only: bool = False,
     ) -> Dict:
         """
         Convenience method for JSON-mode requests.
@@ -6642,6 +6644,9 @@ class DepartmentDispatcher:
         ``preferred_node`` (str or ordered list) pins the dispatch to a fleet
         node / cluster (e.g. a GPU Starship for the translation skill) — same
         contract as ``request_work``; None = normal routing.
+        ``model_override`` hard-pins the model (e.g. a small co-fitting
+        translate model); ``local_only`` forces local routing (no cloud). Both
+        forward to ``request_work``; defaults preserve prior behaviour.
         """
         result = self.request_work(
             capability=capability,
@@ -6655,6 +6660,8 @@ class DepartmentDispatcher:
             images=images,
             prefer_agent=prefer_agent,
             preferred_node=preferred_node,
+            model_override=model_override,
+            local_only=local_only,
         )
         if result.success:
             try:

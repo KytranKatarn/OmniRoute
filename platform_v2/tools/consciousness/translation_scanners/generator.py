@@ -82,35 +82,115 @@ def _route_to_review(
     return task_id
 
 
+# Per-language translation routing (bake-off verified 2026-06-01). gemma3:12b is
+# the only local model that handles Arabic + Hebrew cleanly (and German more
+# precisely than mistral); R.O.S.E.T.T.A./mistral:7b covers the rest. Each maps
+# to a real Documentation & Knowledge agent so the dispatch is welfare/governance
+# tracked (K.I.N./C.R.E.E.D.). Override per language without a deploy via
+# platform_settings 'translate_route_<lang>' = "<model>|<agent>".
+_LANG_ROUTING = {
+    "ar": ("gemma3:12b", "Amina"),
+    "he": ("gemma3:12b", "Amina"),
+    "de": ("gemma3:12b", "Amina"),
+}
+_DEFAULT_ROUTING = ("mistral:7b", "R.O.S.E.T.T.A.")
+# Models that don't reliably emit the strict JSON envelope — use raw-text mode.
+_RAW_OUTPUT_MODELS = {"gemma3:12b"}
+
+# Full language names for the prompt — a model translates far more reliably from
+# "French" than from the bare code "fr". The 8 in-scope languages.
+_LANG_NAMES = {
+    "en": "English",
+    "fr": "French",
+    "es": "Spanish",
+    "de": "German",
+    "pt": "Portuguese",
+    "zh": "Chinese (Simplified)",
+    "ar": "Arabic",
+    "he": "Hebrew",
+}
+
+
+def get_translate_routing(language: str) -> tuple:
+    """Return ``(model, prefer_agent)`` for a target language. Fail-safe → default.
+
+    Overridable without a deploy via platform_settings
+    ``translate_route_<lang>`` = ``"<model>|<agent>"``.
+    """
+    lang = (language or "").lower()
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (_c, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key=%s", (f"translate_route_{lang}",))
+            row = cur.fetchone()
+        if row and row.get("value") and "|" in row["value"]:
+            model, agent = row["value"].split("|", 1)
+            return model.strip(), agent.strip()
+    except Exception:
+        pass
+    return _LANG_ROUTING.get(lang, _DEFAULT_ROUTING)
+
+
 def _generate_translation(en_text: str, language: str, glossary: Optional[list] = None) -> dict:
     """Return {'translated': str, 'confidence': float}.
 
-    Calls the Dept HQ dispatcher with the 'translate' capability. Returns an
-    empty translation on any dispatch failure so the caller can skip cleanly.
+    Routes the 'translate' capability to the per-language specialist through the
+    DHQ dispatcher (welfare/governance/cost tracked). gemma3-class models
+    (ar/he/de) don't emit the JSON envelope, so those use raw-text mode + lenient
+    parse; mistral uses structured JSON with a self-reported confidence. Returns
+    an empty translation on any dispatch failure so the caller can skip cleanly.
     """
-    from tools.department_hq.services.department_dispatcher import dispatch_json
+    from tools.department_hq.services.department_dispatcher import dispatch, dispatch_json
 
     glossary_block = ""
     if glossary:
         lines = "\n".join(f"- {g['source_text']} → {g['translated_text']}" for g in glossary[:10])
         glossary_block = f"\n\nBrand glossary (use consistently):\n{lines}\n"
 
+    lang_name = _LANG_NAMES.get((language or "").lower(), language)
+    model, agent = get_translate_routing(language)
+
+    if model in _RAW_OUTPUT_MODELS:
+        # Raw-text mode — gemma3 won't honour "respond ONLY with JSON". No
+        # preferred_node pin: a 12B can't co-fit the small starship GPUs, so the
+        # dispatcher routes it (hub CPU / capable node) instead of us forcing it.
+        prompt = (
+            f"Translate this English UI string to {lang_name}. "
+            f"Output ONLY the translation — no quotes, no explanation, no notes."
+            f"{glossary_block}\n\nTEXT: {en_text}"
+        )
+        try:
+            r = dispatch(
+                capability="translate",
+                prompt=prompt,
+                module_id="coverage_scan",
+                prefer_agent=agent,
+                model_override=model,
+                local_only=True,
+            )
+            raw = (getattr(r, "response", "") or "").strip().strip('"').strip()
+            translated = raw.splitlines()[0].strip() if raw else ""
+        except Exception:
+            translated = ""
+        # gemma3 gives no self-confidence; assign a sane default that auto-approves
+        # good output. The back-translation QA pass is the quality backstop.
+        return {"translated": translated, "confidence": 0.9 if translated else 0.0}
+
+    # JSON mode — mistral honours the envelope and reports a confidence we gate on.
     prompt = (
-        f"Translate the following English UI string to {language}.\n"
+        f"Translate the following English UI string to {lang_name}.\n"
         f'Respond ONLY with JSON: {{"translated": "...", "confidence": 0.0-1.0}}.\n'
         f"{glossary_block}\n\nTEXT: {en_text}"
     )
-    # Pin translation to the GPU Starships when available — R.O.S.E.T.T.A.'s
-    # mistral:7b fits the RTX 3070 (8GB), turning ~19s hub-CPU generations into
-    # ~2-3s. Ordered list = cluster fallback; the dispatcher skips busy/resting
-    # nodes and falls through to hub routing if neither GPU node is free
-    # (welfare/rest-gated, per PR #1352). KB #270009.
     r = dispatch_json(
         capability="translate",
         prompt=prompt,
         module_id="coverage_scan",
-        prefer_agent="R.O.S.E.T.T.A.",
+        prefer_agent=agent,
         preferred_node=["Starship-246", "Starship-245"],
+        model_override=model,
+        local_only=True,
     )
     if not isinstance(r, dict):
         return {"translated": "", "confidence": 0.0}

@@ -554,6 +554,88 @@
     fetch("/tools/creed-command/api/marketing/" + id, { method: "DELETE" }).then(function () { loadMarketing(); }).catch(function () {});
   }
 
+  /* ---- Document library (#3614) ---- */
+  var fileState = { loaded: false };
+  function fmtSize(n) {
+    if (n == null) return "";
+    if (n < 1024) return n + " B";
+    if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+    return (n / 1048576).toFixed(1) + " MB";
+  }
+
+  function renderFiles(list) {
+    var box = document.getElementById("cc-file-list");
+    if (!box) return;
+    while (box.firstChild) box.removeChild(box.firstChild);
+    if (!list.length) { box.className = "cc-muted"; box.textContent = "No files yet — upload one above."; return; }
+    box.className = "";
+    list.forEach(function (f) {
+      var row = el("div", "cc-file-row");
+      var left = el("div");
+      left.appendChild(el("div", "cc-file-name", f.filename));
+      left.appendChild(el("div", "cc-file-meta", fmtSize(f.size_bytes) + (f.uploaded_at ? " · " + fmtAt(f.uploaded_at) : "")));
+      row.appendChild(left);
+      if (f.tag) row.appendChild(el("span", "cc-file-tag", f.tag));
+      if (f.grant_title) row.appendChild(el("span", "cc-file-link", "↳ " + f.grant_title));
+      var actions = el("div", "cc-file-actions");
+      var dl = el("a", "cc-btn-sm", "Download");
+      dl.href = "/tools/creed-command/api/files/" + f.id + "/download";
+      dl.setAttribute("download", "");
+      actions.appendChild(dl);
+      var del = el("button", "cc-btn-sm", "Delete");
+      del.addEventListener("click", function () { if (window.confirm("Delete " + f.filename + "?")) deleteFile(f.id); });
+      actions.appendChild(del);
+      row.appendChild(actions);
+      box.appendChild(row);
+    });
+  }
+
+  function loadFiles() {
+    fileState.loaded = true;
+    fetch("/tools/creed-command/api/grants", { cache: "no-cache" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var sel = document.getElementById("cc-file-grant");
+        if (!sel) return;
+        var cur = sel.value;
+        while (sel.options.length > 1) sel.remove(1);
+        (d.grants || []).forEach(function (g) { var o = el("option", null, g.funder + " / " + g.title); o.value = g.id; sel.appendChild(o); });
+        sel.value = cur;
+      }).catch(function () {});
+    fetch("/tools/creed-command/api/files", { cache: "no-cache" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { renderFiles(d.files || []); })
+      .catch(function () { var b = document.getElementById("cc-file-list"); if (b) { b.className = "cc-muted"; b.textContent = "Could not load files."; } });
+  }
+
+  function uploadFile() {
+    var input = document.getElementById("cc-file-input");
+    var status = document.getElementById("cc-file-status");
+    function fail(t) { if (status) { status.className = "cc-mail-send-status err"; status.textContent = t; } }
+    if (!input || !input.files || !input.files[0]) return fail("Choose a file first.");
+    var fd = new FormData();
+    fd.append("file", input.files[0]);
+    fd.append("tag", (document.getElementById("cc-file-tag").value || "").trim());
+    fd.append("grant_id", document.getElementById("cc-file-grant").value || "");
+    var btn = document.getElementById("cc-file-upload");
+    if (btn) btn.disabled = true;
+    if (status) { status.className = "cc-mail-send-status"; status.textContent = "Uploading…"; }
+    fetch("/tools/creed-command/api/files", { method: "POST", body: fd })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (btn) btn.disabled = false;
+        if (res.ok) {
+          if (status) { status.className = "cc-mail-send-status ok"; status.textContent = "✓ Uploaded"; }
+          input.value = ""; document.getElementById("cc-file-tag").value = ""; loadFiles();
+        } else { fail((res.d && res.d.error) || "Upload failed."); }
+      })
+      .catch(function () { if (btn) btn.disabled = false; fail("Upload failed."); });
+  }
+
+  function deleteFile(id) {
+    fetch("/tools/creed-command/api/files/" + id, { method: "DELETE" }).then(function () { loadFiles(); }).catch(function () {});
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     var tabs = document.querySelectorAll(".cc-tab");
     var panes = document.querySelectorAll(".cc-pane");
@@ -565,6 +647,7 @@
         if (history.replaceState) history.replaceState(null, "", "#" + name);
         if (name === "inbox" && !mailState.loadedStatus) loadMailStatus();
         if (name === "marketing" && !mktState.loaded) loadMarketing();
+        if (name === "files" && !fileState.loaded) loadFiles();
       });
     });
     var hash = (location.hash || "").replace("#", "");
@@ -590,5 +673,8 @@
     var mktGen = document.getElementById("cc-mkt-gen");
     if (mktGen) mktGen.addEventListener("click", genMkt);
     if ((location.hash || "").replace("#", "") === "marketing") loadMarketing();
+    var fileUp = document.getElementById("cc-file-upload");
+    if (fileUp) fileUp.addEventListener("click", uploadFile);
+    if ((location.hash || "").replace("#", "") === "files") loadFiles();
   });
 })();

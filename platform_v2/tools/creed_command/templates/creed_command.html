@@ -217,12 +217,30 @@
 
   <!-- FILES -->
   <div class="cc-pane" id="pane-files">
-    <span class="cc-phase">Phase 4 — #3614</span>
-    <div class="cc-card">
-      <h2>Document library</h2>
-      <p>Grant documents, research papers, policy templates, and brand assets —
-        uploaded, tagged, and linked to grants and mail threads.</p>
+    <style>
+      .cc-file-form{display:flex;gap:0.6rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1rem;}
+      .cc-file-form .grow{flex:1 1 180px;}
+      .cc-file-row{display:flex;align-items:center;gap:0.7rem;flex-wrap:wrap;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:0.55rem 0.75rem;margin-bottom:0.5rem;}
+      .cc-file-name{font-size:0.86rem;color:#e2e8f0;font-weight:600;word-break:break-all;}
+      .cc-file-meta{font-size:0.72rem;color:#64748b;}
+      .cc-file-tag{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.04em;color:#22d3ee;border:1px solid #155e75;border-radius:5px;padding:0.1rem 0.4rem;}
+      .cc-file-link{font-size:0.72rem;color:#a5b4fc;}
+      .cc-file-actions{margin-left:auto;display:flex;gap:0.5rem;}
+    </style>
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:0.9rem;">
+      <h2 style="font-family:'Orbitron',sans-serif;font-size:1.05rem;color:#f1f5f9;margin:0;">Document library</h2>
+      <span class="cc-muted" style="font-size:0.78rem;">Grant docs, research, policy templates, brand assets · max 10 MB · stored in-DB, admin-only</span>
     </div>
+    <div class="cc-file-form">
+      <div><label class="cc-mail-flabel">File</label><input id="cc-file-input" class="cc-mail-input" type="file" /></div>
+      <div class="grow"><label class="cc-mail-flabel">Tag (optional)</label><input id="cc-file-tag" class="cc-mail-input" type="text" placeholder="e.g. grant, research, brand" /></div>
+      <div><label class="cc-mail-flabel">Link to grant (optional)</label>
+        <select id="cc-file-grant" class="cc-mail-input" style="width:auto;"><option value="">— none —</option></select>
+      </div>
+      <button id="cc-file-upload" class="cc-btn-sm cc-btn-send">Upload</button>
+      <span id="cc-file-status" class="cc-mail-send-status"></span>
+    </div>
+    <div id="cc-file-list"></div>
   </div>
 
   <!-- GOVERNANCE (live links) -->

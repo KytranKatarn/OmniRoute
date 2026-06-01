@@ -2061,6 +2061,15 @@ class DepartmentDispatcher:
                           )
                       )
                   )
+                  -- GPU-aware default routing (#3621): a node WITHOUT a GPU may
+                  -- only serve small (<4B) / embedding models. 7B+ models on CPU
+                  -- nodes are excluded here so they fall through to a GPU fleet
+                  -- node or the hub instead of running slowly on CPU outposts.
+                  AND (
+                      COALESCE(rn.gpu_available, false) = true
+                      OR na.model IS NULL
+                      OR na.model ~ '(:0.5b|:1b|:1.5b|:2b|:3b|embed)'
+                  )
                   {node_filter}
                 ORDER BY {order_by}
                 LIMIT 1

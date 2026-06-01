@@ -20,11 +20,14 @@ import imaplib
 import logging
 import os
 import re
+import threading
 from email.header import decode_header, make_header
 from email.utils import parsedate_to_datetime
 
-from flask import jsonify, request
+from flask import current_app, jsonify, request
 from flask_login import login_required
+
+from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +162,96 @@ def _extract_body(msg):
     return ""
 
 
+def _fetch_message(box_key, uid):
+    """Return {subject,from,to,date,body} for one message, or None."""
+    m = None
+    try:
+        m, addr = _connect(box_key)
+        m.select("INBOX", readonly=True)
+        typ, data = m.uid("FETCH", uid, "(BODY.PEEK[])")
+        if typ != "OK" or not data or not isinstance(data[0], tuple):
+            return None
+        msg = email.message_from_bytes(data[0][1])
+        return {
+            "subject": _dec(msg.get("Subject")) or "(no subject)",
+            "from": _dec(msg.get("From")),
+            "to": _dec(msg.get("To")),
+            "date": _iso(msg.get("Date")),
+            "body": _extract_body(msg),
+        }
+    finally:
+        if m is not None:
+            try:
+                m.logout()
+            except Exception:
+                pass
+
+
+def _triage_prompt(addr, msg):
+    return (
+        "You are E.T.H.O.S., the AI ethics analyst and inbox manager for the "
+        "C.R.E.E.D. Institute (a Canadian nonprofit advancing preventive AI ethics, "
+        "governance, and non-exploitative AI). Triage this inbound email to "
+        + addr
+        + ". Reply in exactly these six short labelled lines, nothing else:\n"
+        "Category: [inquiry|grant|press|research|partnership|spam|admin|legal|other]\n"
+        "Urgency: [low|medium|high]\n"
+        "Sentiment: [positive|neutral|negative]\n"
+        "Summary: <one sentence>\n"
+        "Action: <the single next step a human should take>\n"
+        "Owner: <which C.R.E.E.D. function should handle it>\n\n"
+        "Email:\nFrom: " + msg["from"] + "\nSubject: " + msg["subject"] + "\n\n" + (msg["body"] or "")[:3000]
+    )
+
+
+def _draft_prompt(addr, msg):
+    return (
+        "You are E.T.H.O.S., the contact for the C.R.E.E.D. Institute (a Canadian "
+        "nonprofit advancing preventive AI ethics, governance, and non-exploitative "
+        "AI). Draft a professional, concise reply (about 150 words) to the email "
+        "below, for a human to review before sending. Warm but precise. Do NOT invent "
+        "facts, figures, funding, partnerships, deadlines, or commitments. If the "
+        "request needs information you do not have, say a team member will follow up. "
+        "Sign off as 'E.T.H.O.S. - C.R.E.E.D. Institute'. Write ONLY the reply body.\n\n"
+        "Email:\nFrom: " + msg["from"] + "\nSubject: " + msg["subject"] + "\n\n" + (msg["body"] or "")[:3000]
+    )
+
+
+def _run_mail_ai_bg(app_obj, box, uid, kind, addr, msg):
+    """Background: E.T.H.O.S. triages or drafts a reply, stores result in creed_mail_ai.
+
+    Runs OFF the web request (the 7B dispatch can exceed 60s). Routes to E.T.H.O.S.
+    on the GPU cluster (Starship-246/245) for speed, falling back automatically.
+    """
+    with app_obj.app_context():
+        result, status = "", "error"
+        try:
+            from tools.department_hq.services.department_dispatcher import dispatch
+
+            prompt = _triage_prompt(addr, msg) if kind == "triage" else _draft_prompt(addr, msg)
+            res = dispatch(
+                capability="policy_assessment",
+                prompt=prompt,
+                prefer_agent="E.T.H.O.S.",
+                source_product="archie_platform",
+                preferred_node=["Starship-246", "Starship-245"],
+            )
+            if res is not None and getattr(res, "success", False):
+                result = (getattr(res, "response", "") or "").strip()
+                status = "done" if result else "error"
+        except Exception as e:
+            logger.error("mail AI %s %s/%s failed: %s", kind, box, uid, e)
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE creed_mail_ai SET result=%s, status=%s, updated_at=now() "
+                    "WHERE box=%s AND uid=%s AND kind=%s",
+                    (result, status, box, uid, kind),
+                )
+        except Exception as e:
+            logger.error("mail AI store %s %s/%s failed: %s", kind, box, uid, e)
+
+
 def register_mail_routes(bp, admin_required):
     @bp.route("/api/mail/status", methods=["GET"])
     @login_required
@@ -268,3 +361,76 @@ def register_mail_routes(bp, admin_required):
                     m.logout()
                 except Exception:
                     pass
+
+    def _kickoff_ai(kind):
+        body = request.get_json(silent=True) or {}
+        box = (body.get("box") or "").strip().lower()
+        uid = (body.get("uid") or "").strip()
+        if box not in _BOXES:
+            return jsonify({"error": "unknown mailbox"}), 400
+        if not uid.isdigit():
+            return jsonify({"error": "invalid uid"}), 400
+        msg = _fetch_message(box, uid)
+        if not msg:
+            return jsonify({"error": "message not found"}), 404
+        addr = _BOXES[box][0]
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "INSERT INTO creed_mail_ai (box, uid, kind, status) "
+                    "VALUES (%s, %s, %s, 'pending') "
+                    "ON CONFLICT (box, uid, kind) DO UPDATE SET "
+                    "status='pending', result=NULL, updated_at=now()",
+                    (box, uid, kind),
+                )
+        except Exception as e:
+            logger.error("mail AI kickoff insert failed: %s", e)
+            return jsonify({"error": "could not queue"}), 500
+        app_obj = current_app._get_current_object()
+        threading.Thread(
+            target=_run_mail_ai_bg,
+            args=(app_obj, box, uid, kind, addr, msg),
+            daemon=True,
+        ).start()
+        return jsonify({"status": "pending", "box": box, "uid": uid, "kind": kind}), 202
+
+    @bp.route("/api/mail/triage", methods=["POST"])
+    @login_required
+    @admin_required
+    def mail_triage():
+        """Kick off E.T.H.O.S. triage of a message (async). Poll GET /api/mail/ai."""
+        return _kickoff_ai("triage")
+
+    @bp.route("/api/mail/draft", methods=["POST"])
+    @login_required
+    @admin_required
+    def mail_draft():
+        """Kick off an E.T.H.O.S. draft reply (async). Poll GET /api/mail/ai."""
+        return _kickoff_ai("draft")
+
+    @bp.route("/api/mail/ai", methods=["GET"])
+    @login_required
+    @admin_required
+    def mail_ai_get():
+        """Current triage + draft state for one message."""
+        box = (request.args.get("box") or "").strip().lower()
+        uid = (request.args.get("uid") or "").strip()
+        if box not in _BOXES or not uid.isdigit():
+            return jsonify({"error": "bad params"}), 400
+        out = {"triage": None, "draft": None}
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT kind, status, result, updated_at FROM creed_mail_ai " "WHERE box=%s AND uid=%s",
+                    (box, uid),
+                )
+                for r in cur.fetchall() or []:
+                    out[r["kind"]] = {
+                        "status": r["status"],
+                        "result": r["result"],
+                        "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None,
+                    }
+        except Exception as e:
+            logger.error("mail_ai_get failed: %s", e)
+            return jsonify({"error": "could not load"}), 500
+        return jsonify(out)

@@ -312,8 +312,90 @@
         meta.appendChild(el("div", null, d.date ? fmtAt(d.date) : ""));
         read.appendChild(meta);
         read.appendChild(el("div", "cc-mail-read-body", d.body || "(empty message)")); // textContent — XSS-safe
+        read.appendChild(mailAiSection(box, uid));
+        loadMailAi(box, uid);
       })
       .catch(function () { if (read) { read.className = "cc-card cc-muted"; read.textContent = "Could not load message."; } });
+  }
+
+  /* ---- E.T.H.O.S. triage + draft-reply (#3620) ---- */
+  function mailAiSection(box, uid) {
+    var wrap = el("div", "cc-mail-ai");
+    var bar = el("div", "cc-mail-ai-bar");
+    bar.appendChild(el("span", "cc-mail-ai-label", "E.T.H.O.S.:"));
+    var tBtn = el("button", "cc-btn-sm", "⚖ Triage");
+    var dBtn = el("button", "cc-btn-sm", "✍ Draft reply");
+    tBtn.addEventListener("click", function () { runMailAi("triage", box, uid, tBtn); });
+    dBtn.addEventListener("click", function () { runMailAi("draft", box, uid, dBtn); });
+    bar.appendChild(tBtn);
+    bar.appendChild(dBtn);
+    wrap.appendChild(bar);
+    var t = el("div"); t.id = "cc-ai-triage"; wrap.appendChild(t);
+    var d = el("div"); d.id = "cc-ai-draft"; wrap.appendChild(d);
+    return wrap;
+  }
+
+  function renderAiBlock(kind, data) {
+    var box = document.getElementById("cc-ai-" + kind);
+    if (!box) return;
+    while (box.firstChild) box.removeChild(box.firstChild);
+    if (!data) return;
+    if (data.status === "pending") {
+      box.className = "cc-mail-ai-block cc-muted";
+      box.textContent = (kind === "triage" ? "Triaging" : "Drafting") + "… E.T.H.O.S. is working (GPU cluster).";
+      return;
+    }
+    if (data.status === "error" || !data.result) {
+      box.className = "cc-mail-ai-block cc-muted";
+      box.textContent = "E.T.H.O.S. could not complete this — try again.";
+      return;
+    }
+    box.className = "cc-mail-ai-block";
+    box.appendChild(el("div", "cc-mail-ai-title", kind === "triage" ? "Triage" : "Draft reply"));
+    box.appendChild(el("div", "cc-mail-ai-text", data.result)); // textContent — XSS-safe
+  }
+
+  function pollMailAi(box, uid, tries) {
+    if (tries <= 0) return;
+    fetch("/tools/creed-command/api/mail/ai?box=" + encodeURIComponent(box) + "&uid=" + encodeURIComponent(uid), { cache: "no-cache" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (mailState.box !== box) return; // user switched boxes
+        renderAiBlock("triage", d.triage);
+        renderAiBlock("draft", d.draft);
+        var pend = (d.triage && d.triage.status === "pending") || (d.draft && d.draft.status === "pending");
+        if (pend) setTimeout(function () { pollMailAi(box, uid, tries - 1); }, 4000);
+      })
+      .catch(function () { setTimeout(function () { pollMailAi(box, uid, tries - 1); }, 4000); });
+  }
+
+  function loadMailAi(box, uid) {
+    fetch("/tools/creed-command/api/mail/ai?box=" + encodeURIComponent(box) + "&uid=" + encodeURIComponent(uid), { cache: "no-cache" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        renderAiBlock("triage", d.triage);
+        renderAiBlock("draft", d.draft);
+        if ((d.triage && d.triage.status === "pending") || (d.draft && d.draft.status === "pending")) {
+          pollMailAi(box, uid, 60);
+        }
+      })
+      .catch(function () {});
+  }
+
+  function runMailAi(kind, box, uid, btn) {
+    if (btn) btn.disabled = true;
+    renderAiBlock(kind, { status: "pending" });
+    fetch("/tools/creed-command/api/mail/" + kind, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ box: box, uid: uid }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function () {
+        if (btn) btn.disabled = false;
+        setTimeout(function () { pollMailAi(box, uid, 60); }, 3000);
+      })
+      .catch(function () { if (btn) btn.disabled = false; renderAiBlock(kind, { status: "error" }); });
   }
 
   document.addEventListener("DOMContentLoaded", function () {

@@ -2876,9 +2876,55 @@ async function loadAutonomy() {
         if (typeof loadDispatchScheduler === 'function') await loadDispatchScheduler();
         if (typeof loadDispatchConfig === 'function') await loadDispatchConfig();
         if (typeof loadJobMonitoring === 'function') await loadJobMonitoring();
+        if (typeof loadAutonomyBacklogs === 'function') await loadAutonomyBacklogs();
         loaded['autonomy'] = true;
     } catch (e) {
         console.error('[loadAutonomy] error:', e);
+    }
+}
+
+// Backlogs control (decision #676) — see + toggle every module backlog on/off.
+async function loadAutonomyBacklogs() {
+    var el = document.getElementById('backlogContent');
+    if (!el) return;
+    function esc(s) { var d = document.createElement('div'); d.textContent = (s == null ? '' : String(s)); return d.innerHTML; }
+    try {
+        var data = await api('/api/dispatch/backlogs');
+        var rows = (data && data.backlogs) || [];
+        var cnt = document.getElementById('backlogCount');
+        if (cnt) cnt.textContent = rows.length + ' backlogs';
+        if (!rows.length) { el.className = ''; el.textContent = 'No backlogs registered.'; return; }
+        el.className = '';
+        var html = '<table class="dhq-table" style="width:100%;font-size:0.78rem;"><thead><tr>' +
+            '<th style="text-align:left;">Backlog</th><th style="text-align:left;">Module</th>' +
+            '<th style="text-align:left;">Drains</th><th>Queue</th><th>On</th></tr></thead><tbody>';
+        rows.forEach(function (b) {
+            var depth = (b.queue_depth == null) ? '—' : b.queue_depth;
+            var note = (b.backend === 'env') ? ' title="VPS env-gated — toggle records desired-state; redeploy to apply"' : '';
+            var envTag = (b.backend === 'env') ? ' <span style="color:var(--dhq-text-dim);font-size:0.62rem;">(env)</span>' : '';
+            html += '<tr>' +
+                '<td style="font-family:\'IBM Plex Mono\',monospace;">' + esc(b.key) + envTag + '</td>' +
+                '<td>' + esc(b.module) + '</td>' +
+                '<td style="color:var(--dhq-text-dim);">' + esc(b.drains) + '</td>' +
+                '<td style="text-align:center;">' + esc(depth) + '</td>' +
+                '<td style="text-align:center;"><input type="checkbox" ' + (b.enabled ? 'checked' : '') + note +
+                ' onchange="toggleBacklog(\'' + esc(b.key) + '\', this.checked, this)"></td></tr>';
+        });
+        html += '</tbody></table>';
+        el.innerHTML = html;
+    } catch (e) {
+        el.className = ''; el.textContent = 'Could not load backlogs.';
+    }
+}
+
+async function toggleBacklog(key, enabled, cb) {
+    try {
+        if (cb) cb.disabled = true;
+        await apiPost('/api/dispatch/backlogs/' + encodeURIComponent(key) + '/toggle', { enabled: enabled });
+    } catch (e) {
+        if (cb) cb.checked = !enabled;
+    } finally {
+        if (cb) cb.disabled = false;
     }
 }
 

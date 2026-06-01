@@ -314,6 +314,64 @@ def register_dispatch_routes(bp, admin_required_decorator):
             logger.error("[Dispatch] Loop toggle failed: %s", e)
             return jsonify({"success": False, "error": str(e)}), 500
 
+    # ── Backlogs (work_control_service — unified see/toggle, decision #676) ──
+
+    # Hub-DB queue-depth queries (best-effort; backlogs without one show "—").
+    _BACKLOG_DEPTH_SQL = {
+        "consciousness_embedding": "SELECT COUNT(*) AS n FROM knowledge_base WHERE embedding IS NULL",
+        "delegate_task_worker": (
+            "SELECT COUNT(*) AS n FROM unified_tasks " "WHERE delegation_source IS NOT NULL AND status = 'pending'"
+        ),
+        "fleet_backlog_runner": (
+            "SELECT COUNT(*) AS n FROM unified_tasks " "WHERE delegation_source IS NULL AND status = 'pending'"
+        ),
+    }
+
+    @bp.route("/api/dispatch/backlogs", methods=["GET"])
+    @admin_required_decorator
+    def dispatch_backlogs():
+        """Every module backlog with enabled-state + queue depth + last run."""
+        from services import work_control_service as wc
+
+        last_run = {}
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT job_name, MAX(created_at) AS last_run FROM autonomy_loop_log "
+                    "WHERE created_at >= NOW() - INTERVAL '7 days' GROUP BY job_name"
+                )
+                last_run = {r["job_name"]: r["last_run"] for r in cur.fetchall()}
+        except Exception as e:
+            logger.warning("[Dispatch] backlog last_run failed: %s", e)
+
+        out = []
+        for b in [c for c in wc.list_controls() if c["kind"] == "backlog"]:
+            depth = None
+            sql = _BACKLOG_DEPTH_SQL.get(b["key"])
+            if sql:
+                try:
+                    with get_db_cursor() as (conn, cur):
+                        cur.execute(sql)
+                        row = cur.fetchone()
+                        depth = int(row["n"]) if row else None
+                except Exception:
+                    depth = None
+            lr = last_run.get(b["key"])
+            out.append({**b, "queue_depth": depth, "last_run": lr.isoformat() if lr else None})
+        return jsonify({"success": True, "backlogs": out})
+
+    @bp.route("/api/dispatch/backlogs/<key>/toggle", methods=["POST"])
+    @admin_required_decorator
+    def dispatch_backlog_toggle(key):
+        """Enable/disable a backlog via work_control_service (routes to its backend)."""
+        from services import work_control_service as wc
+
+        data = request.get_json() or {}
+        res = wc.set_enabled(key, bool(data.get("enabled", True)))
+        if res.get("ok"):
+            return jsonify({"success": True, **res})
+        return jsonify({"success": False, **res}), 500
+
     # ── Approvals ──
 
     @bp.route("/api/dispatch/approvals", methods=["GET"])

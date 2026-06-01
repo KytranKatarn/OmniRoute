@@ -66,7 +66,7 @@ body { background: #0a0a12; color: #e0e0e0; font-family: 'IBM Plex Mono', monosp
       <h4>Three-Signal System</h4>
       <p>Every article receives up to three independent bias signals. The ensemble average is the displayed band — more signals = more defensible measurement.</p>
       <ul>
-        <li><strong>Signal 1 — Heuristic (v1/v3):</strong> Keyword frequency analysis against a weighted trigger-phrase list. Fast, runs on every article at ingest.</li>
+        <li><strong>Signal 1 — Heuristic (v3):</strong> 80+ Canadian loaded-language triggers — framing terms, charged adjectives and partisan word-choice pairs — matched against title + body, with <strong>headline matches weighted 3&times;</strong> (a headline sets the frame). Fast, deterministic, runs on every article at ingest. Re-scored across the back catalogue on 2026-06-01.</li>
         <li><strong>Signal 2 — LLM Tier-1:</strong> B.I.A.S. (qwen2.5:7b via DHQ) reads title + body and returns a structured score with rationale and trigger phrases. Uses Canadian political context (Liberal/NDP/Conservative spectrum). Runs on priority articles.</li>
         <li><strong>Signal 3 — ML v2 (DistilBERT zero-shot):</strong> <code style="font-size:9px;">valhalla/distilbart-mnli-12-3</code> runs NLI classification against left/center/right labels. CPU-only, independent of the LLM path. Backlog worker scores ~50 articles per 30-min cycle. US-trained — Canadian political framing (NDP/Liberal/Conservative) may not map cleanly; treated as a second opinion, not ground truth.</li>
         <li><strong>Ensemble:</strong> <code style="font-size:9px;">0.5 × heuristic_score + 0.5 × ml_v2_score</code> (where both are available). Band derived from same thresholds as single-signal scoring.</li>

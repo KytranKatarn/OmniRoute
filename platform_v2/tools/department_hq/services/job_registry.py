@@ -13,6 +13,14 @@ JOB_REGISTRY = {
     # =========================================================================
     # ai_bridge/agent_loop.py — 55 jobs
     # =========================================================================
+    # ── Backlog Drain (Phase 3, #676) ──
+    "fleet_backlog_runner": {
+        "department": "Operations & Infrastructure",
+        "director": "B.A.S.E.",
+        "description": "Promote pending backlog tasks to the fleet — DEFAULT OFF, toggled in Autonomy tab",
+        "interval": "60s",
+        "source_file": "ai_bridge/agent_loop.py",
+    },
     # ── Communications / Notifications ──
     "agent_email_queue": {
         "department": "Customer Success & Support",

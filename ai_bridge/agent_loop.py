@@ -649,6 +649,19 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # Fleet Backlog Runner (Phase 3, #676) — DEFAULT OFF; promotes a few
+        # pending unified_tasks to the fleet each cycle when enabled in the
+        # Autonomy tab. Bounded so it never floods the cluster.
+        self.scheduler.add_job(
+            with_app_context(self._run_fleet_backlog_runner),
+            trigger=IntervalTrigger(seconds=60),
+            id="fleet_backlog_runner",
+            name="Agent Loop: Fleet Backlog Runner",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         # Agent KB write auto-review (#3534 Phase 3). C.O.D.E.X. promotes/rejects
         # quarantined agent_proposed KB writes. Hourly; a no-op unless the
         # agentic_tool_write flag is on AND pending writes exist.
@@ -4560,6 +4573,72 @@ class AgentLoop:
             auto_review_pending_writes(limit=20)
         except Exception as exc:
             logger.warning("[agent_kb_review] job failed: %s", exc)
+
+    def _run_fleet_backlog_runner(self):
+        """Promote a few pending unified_tasks to the fleet (Phase 3, decision #676).
+
+        DEFAULT OFF — dormant until enabled in the DHQ Autonomy tab (Backlogs).
+        Keeps the delegated queue shallow (refills toward TARGET) so a large
+        backlog drains steadily via delegate_task_worker (3/cycle) + dispatcher
+        welfare-gating, instead of flooding the fleet. Fail-safe: any error is a
+        no-op for that cycle.
+        """
+        import time as _t
+
+        t0 = _t.time()
+        try:
+            from services.work_control_service import is_enabled
+
+            if not is_enabled("fleet_backlog_runner", default=False):
+                return
+        except Exception:
+            return  # control plane unavailable → do nothing
+
+        TARGET = 5  # keep ~5 tasks queued for the fleet
+        MAX_PROMOTE = 3  # never promote more than this per cycle
+        CAP_MAP = {
+            "research": "research",
+            "review": "analyze",
+            "bugfix": "debug",
+            "implementation": "code",
+            "testing": "analyze",
+            "documentation": "documentation",
+        }
+        promoted = 0
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "SELECT COUNT(*) AS n FROM unified_tasks "
+                    "WHERE delegation_source IS NOT NULL AND status = 'pending'"
+                )
+                queued = cur.fetchone()["n"]
+                slots = max(0, min(TARGET - queued, MAX_PROMOTE))
+                if slots > 0:
+                    cur.execute(
+                        "SELECT id, title, task_type FROM unified_tasks "
+                        "WHERE delegation_source IS NULL AND status = 'pending' "
+                        "AND task_type IS NOT NULL "
+                        "ORDER BY priority DESC, created_at ASC LIMIT %s",
+                        (slots,),
+                    )
+                    for r in cur.fetchall():
+                        cap = CAP_MAP.get((r["task_type"] or "").lower(), "research")
+                        args = json.dumps({"capability": cap, "reason": (r["title"] or "")[:300]})
+                        cur.execute(
+                            "UPDATE unified_tasks SET delegation_source = 'automation', "
+                            "delegation_args = %s WHERE id = %s AND delegation_source IS NULL",
+                            (args, r["id"]),
+                        )
+                        promoted += cur.rowcount
+        except Exception as e:
+            logger.warning("[FleetBacklogRunner] failed: %s", e)
+            self._log_cycle("fleet_backlog_runner", 0, 1, int((_t.time() - t0) * 1000), error_message=str(e)[:200])
+            return
+        if promoted:
+            logger.info("[FleetBacklogRunner] promoted %d task(s) to the fleet", promoted)
+        self._log_cycle("fleet_backlog_runner", promoted, 0, int((_t.time() - t0) * 1000))
 
     def _run_delegate_task_worker(self):
         """Pick up pending delegated tasks and execute via OrchestrationEngine.

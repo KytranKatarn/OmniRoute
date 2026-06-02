@@ -16,6 +16,33 @@ HUB_MESH=100.64.0.4
 FORCE="${1:-}"
 log(){ echo "[$(date -u +%H:%M:%S)] $*"; }
 
+# ---- Telegram alert helper (self-contained; secret-file, NOT in git) ----
+# Sources $DR/.telegram_env (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID; chmod 600,
+# boston-2-only) — mirrors the .hostinger_token pattern. Outbound push works even
+# though the long-poll bot is off (ARCHIE_RUN_TELEGRAM=0): sendMessage needs only
+# the token + chat_id. Depends on NOTHING from the hub (no container, no DB, no
+# platform import) so the FIRST alert fires before the standby is even up.
+# Always non-fatal: a Telegram failure NEVER aborts failover.
+tg_notify(){
+  local text="$1"
+  [ -f "$DR/.telegram_env" ] || { log "  (no $DR/.telegram_env — skipping Telegram alert)"; return 0; }
+  # shellcheck disable=SC1091
+  . "$DR/.telegram_env"
+  [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "${TELEGRAM_CHAT_ID:-}" ] \
+    || { log "  (Telegram token/chat unset — skipping alert)"; return 0; }
+  TG_TOKEN="$TELEGRAM_BOT_TOKEN" TG_CHAT="$TELEGRAM_CHAT_ID" TG_TEXT="$text" python3 - <<'PY' 2>/dev/null \
+    && log "  (Telegram alert sent)" || log "  (Telegram send failed — non-fatal)"
+import os, urllib.request, urllib.parse
+tok = os.environ["TG_TOKEN"]; chat = os.environ["TG_CHAT"]; text = os.environ["TG_TEXT"]
+data = urllib.parse.urlencode({
+    "chat_id": chat, "text": text,
+    "parse_mode": "HTML", "disable_web_page_preview": "true",
+}).encode()
+req = urllib.request.Request("https://api.telegram.org/bot%s/sendMessage" % tok, data=data)
+urllib.request.urlopen(req, timeout=12).read()
+PY
+}
+
 # ---- SAFETY: confirm the hub is really down (split-brain guard) ----
 log "Split-brain guard: checking the hub is actually down ($HUB_MESH:5432)..."
 if timeout 5 bash -c "echo > /dev/tcp/$HUB_MESH/5432" 2>/dev/null; then
@@ -27,6 +54,9 @@ if timeout 5 bash -c "echo > /dev/tcp/$HUB_MESH/5432" 2>/dev/null; then
   fi
   log "--force given: proceeding despite hub reachability (YOU asserted hub is dead)."
 fi
+
+# ---- 0. ALERT: announce failover is starting (before anything irreversible) ----
+tg_notify $'⚠️ <b>A.R.C.H.I.E. DR FAILOVER STARTING</b>\nThe hub (mesh 100.64.0.4) looks DOWN. Promoting the boston-2 replica to primary and starting the standby platform. You will get a follow-up message when it is live (or if it only partially comes up).'
 
 # ---- 1. PROMOTE replica -> primary (read-write) ----
 log "Promoting the replica (archie_dr_replica :5433) to PRIMARY..."
@@ -101,6 +131,9 @@ fi
 if [ "$H" = "200" ] && [ "${WOK:-}" = "WRITE_OK" ]; then
   log "✅ FAILOVER COMPLETE. Platform LIVE on boston-2 (degraded: no GPU; cloud/CPU inference)."
   log "   Remember Phase 5 (public ingress) for external users, and FAILBACK when the hub returns."
+  tg_notify $'✅ <b>A.R.C.H.I.E. DR FAILOVER COMPLETE</b>\nThe platform is LIVE on boston-2 (degraded: no GPU — CPU/cloud inference). External access needs the public-ingress/DNS step. Remember to FAILBACK once the hub returns.'
 else
   log "⚠️ FAILOVER PARTIAL: login=$H write=${WOK:-FAILED}. Investigate (logs: docker logs archie_platform_standby)."
+  tg_notify "⚠️ <b>A.R.C.H.I.E. DR FAILOVER PARTIAL</b>
+login=$H, db_write=${WOK:-FAILED}. The promote/start step did not fully verify. Investigate on boston-2: docker logs archie_platform_standby"
 fi

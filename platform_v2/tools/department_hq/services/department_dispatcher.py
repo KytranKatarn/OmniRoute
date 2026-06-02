@@ -3669,6 +3669,26 @@ class DepartmentDispatcher:
             except Exception:
                 pass
 
+            # Instrumentation (#3697): flag successful real-LLM dispatches that
+            # logged 0 tokens, so the logs reveal exactly which path/capability/
+            # model drops token capture. Grep `[token-gap]` in archie_platform logs.
+            if (
+                result.success
+                and (result.prompt_tokens + result.completion_tokens) == 0
+                and result.model_used
+                and result.model_used not in ("internal", "")
+                and "embed" not in (result.model_used or "")
+            ):
+                logger.warning(
+                    "[token-gap] 0-token success: cap=%s model=%s provider=%s module=%s agent=%s node=%s",
+                    result.capability,
+                    result.model_used,
+                    result.provider,
+                    module_id,
+                    result.agent_name,
+                    node_id_used,
+                )
+
             cur.execute(
                 """
                 INSERT INTO task_execution_log (
@@ -4143,8 +4163,8 @@ class DepartmentDispatcher:
                         department="Contractors",
                         capability=capability,
                         duration_ms=0,  # caller sets this
-                        prompt_tokens=result.get("prompt_tokens", 0),
-                        completion_tokens=result.get("completion_tokens", 0),
+                        prompt_tokens=result.get("prompt_tokens", result.get("prompt_eval_count", 0)),
+                        completion_tokens=result.get("completion_tokens", result.get("eval_count", 0)),
                         provider=f"contractor:{provider_key}",
                         metadata={
                             "escalation": "contractor_capability",

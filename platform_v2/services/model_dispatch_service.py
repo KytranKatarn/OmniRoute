@@ -804,7 +804,14 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
                 user_id=task.get("user_id"),
             )
             if result and result.get("success"):
-                _mark_done(task_id, result.get("response", ""), model, 0, node_id)
+                # Capture real tokens from the node result instead of hardcoding 0
+                # (node-executed queued work previously always logged result_tokens=0).
+                node_tokens = (
+                    (result.get("prompt_eval_count", 0) + result.get("eval_count", 0))
+                    or (result.get("prompt_tokens", 0) + result.get("completion_tokens", 0))
+                    or result.get("tokens_used", 0)
+                )
+                _mark_done(task_id, result.get("response", ""), model, node_tokens, node_id)
             else:
                 _mark_failed(task_id, result.get("error", "node dispatch failed") if result else "no result")
         else:

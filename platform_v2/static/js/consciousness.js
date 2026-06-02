@@ -3078,7 +3078,8 @@ function loadCodeHealth() {
     api("/api/code-health/audit-log"),
     api("/api/code-health/module-status").catch(function() { return {modules: [], summary: {}}; }),
     api("/api/code-health/standalone-status").catch(function() { return {standalones: []}; }),
-    api("/api/code-health/repair-pipeline").catch(function() { return {success: false, queue: {}, proposals: {}, governance: []}; })
+    api("/api/code-health/repair-pipeline").catch(function() { return {success: false, queue: {}, proposals: {}, governance: []}; }),
+    api("/api/code-health/orchestration").catch(function() { return {success: false, departments: []}; })
   ]).then(function(results) {
     // Hide loading bar and mark as cached
     var loader = document.getElementById("chLoadingBar");
@@ -3089,6 +3090,7 @@ function loadCodeHealth() {
     var statusData = results[2];
     var standaloneStatusData = results[3];
     var repairData = results[4];
+    var orchData = results[5] || {departments: []};
     var entries = auditData.entries || [];
     window._chAuditEntries = entries;
 
@@ -3176,6 +3178,7 @@ function loadCodeHealth() {
     _renderStructuralAudit(d, statusData.summary || {});
     _renderAuditTable(entries);
     _renderRepairBayPipeline(repairData);
+    _renderOrchestration(orchData);
 
     // Audit button handlers — async (one job that scans once + audits all modules,
     // server-side). Replaces the old client loop that re-scanned the tree per module.
@@ -3253,6 +3256,51 @@ function _chPollJob(jobId, jobType, btn, busyLabel, idleLabel) {
       finish(); // completed / failed / cancelled
     }).catch(function() { if (tries < 600) setTimeout(tick, 2000); else finish(); });
   })();
+}
+
+// B3 — Department Orchestration panel: who (which LLM/director) owns each Code-Health
+// finding (issue -> capability -> department) and the loop status (✓ fixed / ⚠ still-open).
+function _renderOrchestration(data) {
+  var el = document.getElementById("chOrchestration");
+  if (!el) return;
+  var depts = (data && data.departments) || [];
+  var deptColor = {
+    "Security & Compliance": "#ef4444", "Engineering & Technology": "#22d3ee",
+    "Documentation & Knowledge": "#8b5cf6", "Analytics & Intelligence": "#f59e0b",
+    "Research & Development": "#10b981"
+  };
+  var cards = depts.map(function(a) {
+    var c = deptColor[a.department] || "#94a3b8";
+    var dir = a.director ? '<span style="color:' + c + ';font-weight:700">' + escHtml(a.director) + '</span> ' : "";
+    return '<div style="border:1px solid ' + c + '33;border-left:3px solid ' + c + ';border-radius:6px;padding:8px 10px;background:rgba(255,255,255,0.02);min-width:158px;">' +
+      '<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.5px;">' + dir + '<span style="color:rgba(255,255,255,0.45)">' + escHtml(a.department) + '</span></div>' +
+      '<div style="font-size:0.58rem;color:rgba(255,255,255,0.3);margin:3px 0 6px;">' + (a.capabilities || []).join(" · ") + '</div>' +
+      '<div style="display:flex;gap:9px;font-size:0.72rem;flex-wrap:wrap;">' +
+        '<span title="open / pending">◷ ' + (a.open || 0) + '</span>' +
+        '<span title="deployed, awaiting re-verify" style="color:#22d3ee">▲ ' + (a.deployed || 0) + '</span>' +
+        '<span title="re-verified fixed" style="color:#10b981">✓ ' + (a.fixed || 0) + '</span>' +
+        '<span title="still flagged after deploy (regression)" style="color:#ef4444">⚠ ' + (a.still_open || 0) + '</span>' +
+      '</div></div>';
+  }).join("");
+  el.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">' +
+      '<span style="font-size:0.8rem;color:#a78bfa;font-weight:600;text-transform:uppercase;letter-spacing:1px;">Department Orchestration</span>' +
+      '<button id="chReverifyBtn" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.4);padding:5px 12px;border-radius:4px;font-size:0.7rem;cursor:pointer;text-transform:uppercase;letter-spacing:1px;">Re-verify Fixes</button>' +
+    '</div>' +
+    '<div style="font-size:0.6rem;color:rgba(255,255,255,0.3);margin-bottom:8px;">Which LLM owns each finding (issue → capability → department) · ✓ re-verified fixed / ⚠ still-open after deploy</div>' +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;">' + (cards || '<span style="color:rgba(255,255,255,0.3);font-size:0.75rem;">No code-health findings routed yet.</span>') + '</div>';
+  var rb = document.getElementById("chReverifyBtn");
+  if (rb && !rb._bound) {
+    rb._bound = true;
+    rb.addEventListener("click", function() {
+      rb.disabled = true; rb.style.opacity = "0.6"; rb.textContent = "Re-verifying…";
+      api("/api/code-health/reverify", {method: "POST"}).then(function(d) {
+        if (d && (d.job_id || d.already_running)) {
+          _chPollJob(d.job_id, "code_health_reverify", rb, "Re-verifying", "Re-verify Fixes");
+        } else { rb.disabled = false; rb.style.opacity = "1"; rb.textContent = "Re-verify Fixes"; }
+      }).catch(function() { rb.disabled = false; rb.style.opacity = "1"; rb.textContent = "Re-verify Fixes"; });
+    });
+  }
 }
 
 function _renderCodeHealthSummaryBar(summary, counts) {

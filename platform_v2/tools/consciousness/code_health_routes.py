@@ -886,6 +886,90 @@ def register_code_health_routes(bp, admin_required):
             return jsonify({"success": False, "already_running": True, "job_id": job_id, "error": err}), 409
         return jsonify({"success": True, "job_id": job_id, "status": "running"})
 
+    @bp.route("/api/code-health/orchestration")
+    @login_required
+    @admin_required
+    def code_health_orchestration():
+        """Which department LLM owns each Code-Health finding + the loop status.
+
+        Resolution chain mirrors live dispatch: issue_code -> _ISSUE_CAPABILITY_MAP ->
+        capability -> CAPABILITY_DEPARTMENT_MAP -> department -> director. Aggregates
+        proposals per department by lifecycle bucket so the UI shows who is fixing what
+        and whether re-verify confirmed it (fixed) or flagged a regression (still_open).
+        """
+        from services.audit_pipeline import _ISSUE_CAPABILITY_MAP
+
+        try:
+            from services.department_coordinator import CAPABILITY_DEPARTMENT_MAP
+        except Exception:
+            CAPABILITY_DEPARTMENT_MAP = {}
+        # Code-Health audit capabilities aren't all in CAPABILITY_DEPARTMENT_MAP
+        # (e.g. 'vulnerability_scan'); this override keeps the ownership faithful so
+        # security findings route to V.I.G.I.L., not the Engineering default.
+        _CH_CAP_DEPT = {
+            "vulnerability_scan": "Security & Compliance",
+            "security": "Security & Compliance",
+            "compliance": "Security & Compliance",
+            "code_review": "Engineering & Technology",
+            "code": "Engineering & Technology",
+            "debug": "Engineering & Technology",
+            "module_audit": "Documentation & Knowledge",
+            "documentation": "Documentation & Knowledge",
+        }
+        director = {
+            "Security & Compliance": "V.I.G.I.L.",
+            "Engineering & Technology": "F.O.R.G.E.",
+            "Documentation & Knowledge": "C.O.D.E.X.",
+            "Analytics & Intelligence": "S.P.E.C.T.R.A.",
+            "Research & Development": "D.A.R.W.I.N.",
+        }
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT status, metadata FROM improvement_proposals
+                   WHERE metadata->>'source' = 'code_health_audit'
+                   ORDER BY id DESC LIMIT 2000"""
+            )
+            rows = cur.fetchall()
+
+        agg = {}
+        for r in rows:
+            md = r.get("metadata") if isinstance(r.get("metadata"), dict) else {}
+            code = md.get("issue_code") or "?"
+            cap = _ISSUE_CAPABILITY_MAP.get(code, "code_review")
+            dept = _CH_CAP_DEPT.get(cap) or CAPABILITY_DEPARTMENT_MAP.get(cap, "Engineering & Technology")
+            a = agg.setdefault(
+                dept,
+                {
+                    "department": dept,
+                    "director": director.get(dept),
+                    "capabilities": set(),
+                    "open": 0,
+                    "deployed": 0,
+                    "fixed": 0,
+                    "still_open": 0,
+                    "total": 0,
+                },
+            )
+            a["capabilities"].add(cap)
+            a["total"] += 1
+            status = (r.get("status") or "").lower()
+            rev = (md.get("reverified") or "").lower()
+            if rev == "fixed":
+                a["fixed"] += 1
+            elif rev == "still_open":
+                a["still_open"] += 1
+            elif status in ("deployed", "implemented"):
+                a["deployed"] += 1
+            elif status not in ("rejected", "archived", "failed"):
+                a["open"] += 1
+
+        out = []
+        for a in agg.values():
+            a["capabilities"] = sorted(a["capabilities"])
+            out.append(a)
+        out.sort(key=lambda x: -x["total"])
+        return jsonify({"success": True, "departments": out})
+
     @bp.route("/api/code-health/audit/<int:audit_id>/details")
     @login_required
     @admin_required

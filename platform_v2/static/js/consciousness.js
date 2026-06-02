@@ -3177,51 +3177,27 @@ function loadCodeHealth() {
     _renderAuditTable(entries);
     _renderRepairBayPipeline(repairData);
 
-    // Audit button handlers
+    // Audit button handlers — async (one job that scans once + audits all modules,
+    // server-side). Replaces the old client loop that re-scanned the tree per module.
     var auditAllBtn = document.getElementById("chAuditAllBtn");
     if (auditAllBtn && !auditAllBtn._bound) {
       auditAllBtn._bound = true;
       auditAllBtn.addEventListener("click", function() {
-        // Audit modules one-by-one to avoid API timeout
-        var moduleKeys = _chModuleData ? Object.keys(_chModuleData) : [];
-        if (moduleKeys.length === 0) return;
         auditAllBtn.disabled = true;
         auditAllBtn.style.opacity = "0.6";
-        var done = 0, cleanCount = 0, issueCount = 0, repairCount = 0, total = moduleKeys.length;
-        auditAllBtn.textContent = "Auditing 0/" + total + "...";
-
-        function auditNext(idx) {
-          if (idx >= moduleKeys.length) {
-            var summary = cleanCount + " clean, " + issueCount + " issues";
-            if (repairCount > 0) summary += ", " + repairCount + " sent to repair";
-            auditAllBtn.textContent = summary + " — reloading...";
-            setTimeout(function() {
-              auditAllBtn.disabled = false;
-              auditAllBtn.textContent = "Audit All Modules";
-              auditAllBtn.style.opacity = "1";
-              _cache = {};
-              loadCodeHealth();
-            }, 1500);
-            return;
+        auditAllBtn.textContent = "Auditing…";
+        api("/api/code-health/audit", {method: "POST"}).then(function(d) {
+          // 409 already_running still returns the live job_id so we can attach to it.
+          if (d && (d.job_id || d.already_running)) {
+            _chPollJob(d.job_id, "code_health_audit", auditAllBtn, "Auditing", "Audit All Modules");
+          } else {
+            auditAllBtn.disabled = false; auditAllBtn.style.opacity = "1";
+            auditAllBtn.textContent = "Audit All Modules";
           }
-          var key = moduleKeys[idx];
-          api("/api/code-health/audit", {body: {module: key}}).then(function(d) {
-            done++;
-            if (d.success && d.results && d.results[0]) {
-              var r = d.results[0];
-              if (r.status === "completed") cleanCount++; else issueCount++;
-              if (r.proposals_created) repairCount += r.proposals_created;
-            }
-            auditAllBtn.textContent = "Auditing " + done + "/" + total + "...";
-            auditNext(idx + 1);
-          }).catch(function() {
-            done++;
-            issueCount++;
-            auditAllBtn.textContent = "Auditing " + done + "/" + total + "...";
-            auditNext(idx + 1);
-          });
-        }
-        auditNext(0);
+        }).catch(function() {
+          auditAllBtn.disabled = false; auditAllBtn.style.opacity = "1";
+          auditAllBtn.textContent = "Audit All Modules";
+        });
       });
     }
 
@@ -3230,20 +3206,18 @@ function loadCodeHealth() {
       refreshBtn._bound = true;
       refreshBtn.addEventListener("click", function() {
         refreshBtn.disabled = true;
-        refreshBtn.textContent = "Scanning...";
         refreshBtn.style.opacity = "0.6";
+        refreshBtn.textContent = "Scanning…";
         api("/api/code-health/scan", {method: "POST"}).then(function(d) {
-          refreshBtn.disabled = false;
-          refreshBtn.textContent = "Refresh Scan";
-          refreshBtn.style.opacity = "1";
-          if (d.success) {
-            _cache = {};
-            loadCodeHealth();
+          if (d && (d.job_id || d.already_running)) {
+            _chPollJob(d.job_id, "code_health_scan", refreshBtn, "Scanning", "Refresh Scan");
+          } else {
+            refreshBtn.disabled = false; refreshBtn.style.opacity = "1";
+            refreshBtn.textContent = "Refresh Scan";
           }
         }).catch(function() {
-          refreshBtn.disabled = false;
+          refreshBtn.disabled = false; refreshBtn.style.opacity = "1";
           refreshBtn.textContent = "Refresh Scan";
-          refreshBtn.style.opacity = "1";
         });
       });
     }
@@ -3252,6 +3226,33 @@ function loadCodeHealth() {
   });
 
   chLoadHistory();
+}
+
+// Poll an async Code-Health job (scan/audit/backfill) to completion, updating the
+// button label with live progress, then reload the dashboard. Reused by both the
+// Refresh-Scan and Audit-All buttons. Polls /api/code-health/job-status/<id> @2s.
+function _chPollJob(jobId, jobType, btn, busyLabel, idleLabel) {
+  function restore() {
+    if (btn) { btn.disabled = false; btn.style.opacity = "1"; btn.textContent = idleLabel; }
+  }
+  function finish() {
+    if (btn) btn.textContent = "Reloading…";
+    setTimeout(function() { restore(); _cache = {}; loadCodeHealth(); }, 800);
+  }
+  if (!jobId) { finish(); return; }
+  var tries = 0;
+  (function tick() {
+    tries++;
+    api("/api/code-health/job-status/" + jobId).then(function(j) {
+      if (!j || !j.success) { finish(); return; }
+      if (j.status === "running") {
+        if (btn) btn.textContent = busyLabel + " " + (j.completed || 0) + (j.total ? "/" + j.total : "") + "…";
+        if (tries < 600) setTimeout(tick, 2000); else finish();
+        return;
+      }
+      finish(); // completed / failed / cancelled
+    }).catch(function() { if (tries < 600) setTimeout(tick, 2000); else finish(); });
+  })();
 }
 
 function _renderCodeHealthSummaryBar(summary, counts) {

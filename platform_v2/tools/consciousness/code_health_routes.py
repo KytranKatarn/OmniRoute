@@ -5,14 +5,64 @@ API endpoints for codebase metrics, audit progress, and snapshots.
 """
 
 import logging
+import threading
 import time
 
-from flask import jsonify, request
+from flask import current_app, jsonify, request
 from flask_login import login_required
 
 from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
+
+
+def _ch_async_job(job_type, description, total_steps, work_fn):
+    """Run a heavy Code-Health op in a background thread, tracked in bridge_jobs.
+
+    Returns (job_id, None) on start, or (None, msg) if a same-type job is already
+    running (dispatch_service.create_job dedups via an advisory lock + running-row
+    check, so two scans can never collide). The worker gets its own app context so
+    DB access works off the request thread; it must not block the web worker.
+    """
+    from services.dispatch_service import get_dispatch_service
+
+    svc = get_dispatch_service()
+    job_id = svc.create_job(
+        job_type=job_type,
+        module_source="code_health",
+        description=description,
+        total_steps=max(1, int(total_steps or 1)),
+    )
+    if not job_id:
+        # Dedup hit — return the live job's id so the caller can still poll it.
+        existing_id = None
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT id FROM bridge_jobs
+                       WHERE job_type = %s AND module_source = 'code_health' AND status = 'running'
+                       ORDER BY created_at DESC LIMIT 1""",
+                    (job_type,),
+                )
+                r = cur.fetchone()
+                existing_id = r["id"] if r else None
+        except Exception:
+            existing_id = None
+        return existing_id, "a %s job is already running" % job_type
+    app_obj = current_app._get_current_object()
+
+    def _runner():
+        with app_obj.app_context():
+            try:
+                work_fn(job_id, svc)
+                svc.complete_job(job_id, "completed")
+            except Exception:
+                logger.exception("code_health async job %s (%s) failed", job_id, job_type)
+                svc.complete_job(job_id, "failed")
+
+    threading.Thread(target=_runner, daemon=True, name="ch-%s-%s" % (job_type, job_id)).start()
+    return job_id, None
+
 
 # In-memory TTL cache for the token-usage endpoint. The underlying data changes
 # slowly (daily ingest cron + a slow live dispatch trickle), so a short TTL makes
@@ -27,11 +77,46 @@ def register_code_health_routes(bp, admin_required):
     @login_required
     @admin_required
     def code_health_scan():
-        from services.code_metrics_service import scan_codebase, save_snapshot
+        """Full codebase scan — async (was a multi-second blocking filesystem walk).
+        Returns a job_id immediately; poll /api/code-health/job-status/<id>."""
 
-        metrics = scan_codebase(force=True)
-        snapshot_id = save_snapshot(metrics)
-        return jsonify({"success": True, "snapshot_id": snapshot_id, "metrics": metrics})
+        def work(job_id, svc):
+            from services.code_metrics_service import save_snapshot, scan_codebase
+
+            metrics = scan_codebase(force=True)
+            save_snapshot(metrics)
+            svc.update_job_progress(job_id, completed_delta=1)
+
+        job_id, err = _ch_async_job("code_health_scan", "Full codebase scan", 1, work)
+        if err:
+            return jsonify({"success": False, "already_running": True, "job_id": job_id, "error": err}), 409
+        return jsonify({"success": True, "job_id": job_id, "status": "running"})
+
+    @bp.route("/api/code-health/job-status/<int:job_id>")
+    @login_required
+    @admin_required
+    def code_health_job_status(job_id):
+        """Poll target for the async scan/audit/backfill jobs (reads bridge_jobs)."""
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT job_type, status, completed_steps, failed_steps, total_steps
+                   FROM bridge_jobs WHERE id = %s""",
+                (job_id,),
+            )
+            r = cur.fetchone()
+        if not r:
+            return jsonify({"success": False, "error": "job not found"}), 404
+        return jsonify(
+            {
+                "success": True,
+                "job_id": job_id,
+                "job_type": r.get("job_type"),
+                "status": r.get("status"),
+                "completed": r.get("completed_steps") or 0,
+                "failed": r.get("failed_steps") or 0,
+                "total": r.get("total_steps") or 0,
+            }
+        )
 
     @bp.route("/api/code-health/current")
     @login_required
@@ -545,10 +630,18 @@ def register_code_health_routes(bp, admin_required):
     @login_required
     @admin_required
     def code_health_backfill_git():
-        from services.code_metrics_service import backfill_git_history
+        """Backfill git history — async (the git walk is slow). Poll job-status."""
 
-        result = backfill_git_history()
-        return jsonify(result)
+        def work(job_id, svc):
+            from services.code_metrics_service import backfill_git_history
+
+            backfill_git_history()
+            svc.update_job_progress(job_id, completed_delta=1)
+
+        job_id, err = _ch_async_job("code_health_backfill", "Backfill git history", 1, work)
+        if err:
+            return jsonify({"success": False, "already_running": True, "job_id": job_id, "error": err}), 409
+        return jsonify({"success": True, "job_id": job_id, "status": "running"})
 
     @bp.route("/api/code-health/governance-log")
     @login_required
@@ -662,93 +755,101 @@ def register_code_health_routes(bp, admin_required):
 
         return jsonify({"success": True, "websites": results})
 
+    def _audit_one(key, mod_data):
+        """Audit one module: static analysis -> log_audit -> auto-submit to Repair Bay
+        (deduped). Returns a result dict. Shared by the sync single-module path and
+        the async audit-all job so both behave identically."""
+        from services.code_metrics_service import audit_single_module, log_audit
+
+        issues_found, notes, status, issues_list, profile = audit_single_module(key, module_data=mod_data)
+        log_audit(
+            module_name=key,
+            category=profile.upper(),
+            files_reviewed=mod_data.get("files", 0),
+            lines_before=mod_data.get("lines", 0),
+            lines_after=mod_data.get("lines", 0),
+            issues_found=issues_found,
+            notes=notes,
+            status=status,
+            audit_profile=profile,
+            trigger_reason="manual",
+            dispatched_via="local_static_analysis",
+        )
+        proposals_created = 0
+        proposals_skipped = 0
+        if issues_list:
+            try:
+                from services.audit_pipeline import process_audit_findings
+
+                repair_result = process_audit_findings(key, issues_list)
+                proposals_created = repair_result.get("proposals_created", 0)
+                proposals_skipped = repair_result.get("skipped_duplicates", 0)
+            except Exception as repair_err:
+                logger.warning("Auto-submit to Repair Bay failed for %s: %s", key, repair_err)
+        return {
+            "module": key,
+            "profile": profile,
+            "issues": issues_found,
+            "status": status,
+            "proposals_created": proposals_created,
+            "proposals_skipped": proposals_skipped,
+        }
+
     @bp.route("/api/code-health/audit", methods=["POST"])
     @login_required
     @admin_required
     def code_health_audit():
-        """Trigger audit for one or all modules. Dispatched via F.O.R.G.E.
-        Auto-submits findings to Repair Bay (deduped)."""
+        """Audit ONE module (sync — powers the per-module modal) or ALL modules
+        (async job). Findings auto-submit to Repair Bay (deduped)."""
         from flask import request as req
-        from services.code_metrics_service import (
-            audit_single_module,
-            log_audit,
-            scan_codebase,
-        )
+        from services.code_metrics_service import scan_codebase
 
         data = req.get_json(silent=True) or {}
         module_key = data.get("module")  # single module key, or None for all
 
-        # Get current module data for profile detection
-        metrics = scan_codebase()
-        all_modules = metrics.get("modules", {})
-
+        # Single module — fast, stay synchronous.
         if module_key:
+            metrics = scan_codebase()
+            all_modules = metrics.get("modules", {})
             if module_key not in all_modules:
                 return jsonify({"success": False, "error": f"Module not found: {module_key}"}), 404
-            targets = [module_key]
-        else:
-            targets = list(all_modules.keys())
-
-        results = []
-        for key in targets:
-            mod_data = all_modules.get(key, {})
             try:
-                issues_found, notes, status, issues_list, profile = audit_single_module(key, module_data=mod_data)
-                log_audit(
-                    module_name=key,
-                    category=profile.upper(),
-                    files_reviewed=mod_data.get("files", 0),
-                    lines_before=mod_data.get("lines", 0),
-                    lines_after=mod_data.get("lines", 0),
-                    issues_found=issues_found,
-                    notes=notes,
-                    status=status,
-                    audit_profile=profile,
-                    trigger_reason="manual",
-                    dispatched_via="local_static_analysis",
-                )
-
-                # Auto-submit findings to Repair Bay (deduped — won't create duplicates)
-                proposals_created = 0
-                proposals_skipped = 0
-                if issues_list:
-                    try:
-                        from services.audit_pipeline import process_audit_findings
-
-                        repair_result = process_audit_findings(key, issues_list)
-                        proposals_created = repair_result.get("proposals_created", 0)
-                        proposals_skipped = repair_result.get("skipped_duplicates", 0)
-                    except Exception as repair_err:
-                        logger.warning("Auto-submit to Repair Bay failed for %s: %s", key, repair_err)
-
-                results.append(
-                    {
-                        "module": key,
-                        "profile": profile,
-                        "issues": issues_found,
-                        "status": status,
-                        "proposals_created": proposals_created,
-                        "proposals_skipped": proposals_skipped,
-                    }
-                )
+                result = _audit_one(module_key, all_modules.get(module_key, {}))
             except Exception as e:
-                results.append(
-                    {
-                        "module": key,
-                        "profile": "unknown",
-                        "issues": -1,
-                        "status": f"error: {str(e)[:100]}",
-                    }
-                )
+                result = {"module": module_key, "profile": "unknown", "issues": -1, "status": f"error: {str(e)[:100]}"}
+            return jsonify({"success": True, "audited": 1, "results": [result], "trigger": "manual"})
 
-        return jsonify(
-            {
-                "success": True,
-                "audited": len(results),
-                "results": results,
-                "trigger": "manual",
-            }
-        )
+        # Audit ALL — async. The worker scans the tree ONCE then audits every module;
+        # the old client loop re-scanned the whole codebase per module (~37x). Poll
+        # /api/code-health/job-status/<id> for progress.
+        total_hint = 0
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute("SELECT per_module FROM code_metrics_snapshots ORDER BY scanned_at DESC LIMIT 1")
+                row = cur.fetchone()
+                if row and row.get("per_module"):
+                    import json as _json
+
+                    pm = _json.loads(row["per_module"]) if isinstance(row["per_module"], str) else row["per_module"]
+                    total_hint = len(pm)
+        except Exception:
+            total_hint = 0
+
+        def work(job_id, svc):
+            metrics = scan_codebase()
+            all_modules = metrics.get("modules", {})
+            for key, mod_data in all_modules.items():
+                try:
+                    _audit_one(key, mod_data)
+                    svc.update_job_progress(job_id, completed_delta=1)
+                except Exception:
+                    logger.warning("audit-all: module %s failed", key, exc_info=True)
+                    svc.update_job_progress(job_id, failed_delta=1)
+
+        job_id, err = _ch_async_job("code_health_audit", "Audit all modules", total_hint or 40, work)
+        if err:
+            return jsonify({"success": False, "already_running": True, "job_id": job_id, "error": err}), 409
+        return jsonify({"success": True, "job_id": job_id, "status": "running", "total": total_hint})
 
     @bp.route("/api/code-health/audit/<int:audit_id>/details")
     @login_required

@@ -256,6 +256,40 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
     if not verdict_is_approved(summary):
         return
 
+    # Tiered merge governance (ADR-001 / ADR-003): F.O.R.G.E. approval alone no
+    # longer force-merges. Only Tier 1 (small + approved) auto-merges; Tier 2/3 are
+    # GATED for human approval (chain: F.O.R.G.E. -> Dept Lead -> COO -> Kytran).
+    # Tunable: FORGE_AUTO_MERGE_MAX_TIER (default 1). Phase 1 of task #3709.
+    import os as _os
+
+    _review = get_review(pr_number) or {}
+    if "branch" not in _review and _review.get("head_branch"):
+        _review["branch"] = _review["head_branch"]
+    _tier = classify_pr_tier(_review)
+    try:
+        _max_auto = int(_os.getenv("FORGE_AUTO_MERGE_MAX_TIER", "1"))
+    except (TypeError, ValueError):
+        _max_auto = 1
+    if _tier > _max_auto:
+        _mark_tier_processed(pr_number, _tier)
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "INSERT INTO system_notifications (title, message, type, source, visibility) "
+                "VALUES (%s, %s, 'warning', 'forge', 'all')",
+                (
+                    f"PR #{pr_number} needs approval (Tier {_tier})",
+                    f"F.O.R.G.E. approved PR #{pr_number} but it is Tier {_tier} — gated for human "
+                    f"approval (F.O.R.G.E. → Dept Lead → COO → Kytran). Not auto-merged.",
+                ),
+            )
+        logger.info(
+            "[F.O.R.G.E.] PR #%s approved but Tier %s > max_auto %s — GATED (not merged)",
+            pr_number,
+            _tier,
+            _max_auto,
+        )
+        return
+
     try:
         from .github_service import merge_pr
 

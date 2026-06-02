@@ -367,6 +367,92 @@ def process_audit_findings(module_name, issues_list):
     }
 
 
+def _audit_file_path(module_name, issue_file):
+    """Rebuild the exact file_path key process_audit_findings uses, so a re-audit's
+    findings fingerprint-match the proposals created from the original audit."""
+    issue_file = issue_file or module_name
+    if module_name.startswith("standalone_") or module_name.startswith("website_") or module_name.startswith("["):
+        return f"{module_name}/{issue_file}"
+    return f"platform_v2/tools/{module_name}/{issue_file}"
+
+
+def _set_reverified(proposal_id, verdict):
+    """Stamp a proposal's metadata with the re-verify verdict + timestamp (UTC)."""
+    import datetime as _dt
+
+    stamp = json.dumps({"reverified": verdict, "reverified_at": _dt.datetime.now(_dt.timezone.utc).isoformat()})
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE improvement_proposals SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb WHERE id = %s",
+            (stamp, proposal_id),
+        )
+
+
+def reverify_deployed_findings(module_name=None):
+    """Close the self-healing loop. For Code-Health proposals now marked deployed/
+    implemented, re-audit the source module and confirm the finding is ACTUALLY gone:
+
+      - fingerprint (file_path, issue_code) absent from the fresh audit  -> 'fixed'
+      - still present                                                    -> 'still_open'
+
+    'still_open' is the important case: it means a deploy was marked done but the
+    scanner still flags the issue — a real regression we surface instead of trusting
+    the deploy blindly. Stamps metadata.reverified on each proposal. module_name
+    optionally scopes to one module. Returns {modules, fixed, still_open, details}.
+    """
+    from services.code_metrics_service import audit_single_module, scan_codebase
+
+    sql = (
+        "SELECT id, metadata FROM improvement_proposals "
+        "WHERE metadata->>'source' = 'code_health_audit' "
+        "AND status IN ('deployed', 'implemented') "
+        "AND COALESCE(metadata->>'reverified', '') = '' "
+    )
+    params = []
+    if module_name:
+        sql += "AND metadata->>'module_name' = %s "
+        params.append(module_name)
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+    if not rows:
+        return {"modules": 0, "fixed": 0, "still_open": 0, "details": []}
+
+    by_module = {}
+    for r in rows:
+        md = r["metadata"] if isinstance(r["metadata"], dict) else json.loads(r["metadata"] or "{}")
+        mod = md.get("module_name")
+        if mod:
+            by_module.setdefault(mod, []).append((r["id"], md))
+
+    all_modules = (scan_codebase() or {}).get("modules", {})
+    fixed = still_open = 0
+    details = []
+    for mod, props in by_module.items():
+        try:
+            _f, _n, _s, issues_list, _p = audit_single_module(mod, module_data=all_modules.get(mod, {}))
+        except Exception:
+            logger.warning("reverify: re-audit failed for %s — skipping", mod, exc_info=True)
+            continue
+        current = {(_audit_file_path(mod, iss.get("file")), iss.get("code")) for iss in (issues_list or [])}
+        for pid, md in props:
+            verdict = "still_open" if (md.get("file_path"), md.get("issue_code")) in current else "fixed"
+            if verdict == "fixed":
+                fixed += 1
+            else:
+                still_open += 1
+            _set_reverified(pid, verdict)
+            details.append({"proposal_id": pid, "module": mod, "issue_code": md.get("issue_code"), "verdict": verdict})
+
+    logger.info(
+        "reverify: %d module(s), %d confirmed fixed, %d still-open (regressions)",
+        len(by_module),
+        fixed,
+        still_open,
+    )
+    return {"modules": len(by_module), "fixed": fixed, "still_open": still_open, "details": details}
+
+
 def _has_open_audit_proposal(file_path, issue_code):
     """Check if an open proposal already exists for this file + issue code."""
     with get_db_cursor(commit=False) as (conn, cur):

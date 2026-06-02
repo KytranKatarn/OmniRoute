@@ -845,11 +845,46 @@ def register_code_health_routes(bp, admin_required):
                 except Exception:
                     logger.warning("audit-all: module %s failed", key, exc_info=True)
                     svc.update_job_progress(job_id, failed_delta=1)
+            # Close the self-healing loop: re-verify any deployed Code-Health fixes
+            # against this fresh audit (flips each fixed / still_open).
+            try:
+                from services.audit_pipeline import reverify_deployed_findings
+
+                reverify_deployed_findings()
+            except Exception:
+                logger.warning("audit-all: reverify pass failed", exc_info=True)
 
         job_id, err = _ch_async_job("code_health_audit", "Audit all modules", total_hint or 40, work)
         if err:
             return jsonify({"success": False, "already_running": True, "job_id": job_id, "error": err}), 409
         return jsonify({"success": True, "job_id": job_id, "status": "running", "total": total_hint})
+
+    @bp.route("/api/code-health/reverify", methods=["POST"])
+    @login_required
+    @admin_required
+    def code_health_reverify():
+        """Re-verify deployed Code-Health fixes — closes the self-healing loop by
+        re-auditing and confirming each finding is actually gone. Optional {"module"}
+        scopes to one module. Async; poll /job-status/<id> — the job encodes the
+        result as completed=fixed, failed=still_open (regressions)."""
+        from flask import request as req
+
+        module_key = (req.get_json(silent=True) or {}).get("module")
+
+        def work(job_id, svc):
+            from services.audit_pipeline import reverify_deployed_findings
+
+            res = reverify_deployed_findings(module_key)
+            svc.update_job_progress(
+                job_id,
+                completed_delta=int(res.get("fixed", 0)),
+                failed_delta=int(res.get("still_open", 0)),
+            )
+
+        job_id, err = _ch_async_job("code_health_reverify", "Re-verify deployed fixes", 1, work)
+        if err:
+            return jsonify({"success": False, "already_running": True, "job_id": job_id, "error": err}), 409
+        return jsonify({"success": True, "job_id": job_id, "status": "running"})
 
     @bp.route("/api/code-health/audit/<int:audit_id>/details")
     @login_required

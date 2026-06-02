@@ -2234,9 +2234,17 @@ class DepartmentDispatcher:
                     logger.warning(f"[BridgeDispatcher] Refusing fleet dispatch (flag enforced): {reason}")
                     return None
                 if "capacity-mismatch" in reason:
-                    logger.warning(f"[BridgeDispatcher] Capacity mismatch (flag off, proceeding): {reason}")
-                else:
-                    logger.debug(f"[BridgeDispatcher] Capacity check: {reason}")
+                    # HARD capacity mismatch — score_node_for_model returned None because
+                    # the model's memory footprint exceeds this node's RAM/declared
+                    # ceiling, so the dispatch is GUARANTEED to time out (this is the
+                    # outpost-boston 7B-on-CPU failure: ~90 guaranteed-fail jobs/hour).
+                    # Refuse regardless of the soft-warn flag and let the caller escalate
+                    # to a capable tier (hub/Starship). A capable node always exists for
+                    # any model we run, so this never strands work; at worst a node with
+                    # a mis-reported ram_gb is skipped and the job escalates to the hub.
+                    logger.warning(f"[BridgeDispatcher] Refusing fleet dispatch — capacity mismatch: {reason}")
+                    return None
+                logger.debug(f"[BridgeDispatcher] Capacity check: {reason}")
         except Exception as cap_err:
             # Fail-open: capacity precheck must never block real dispatch.
             logger.debug(f"[BridgeDispatcher] Capacity precheck skipped: {cap_err}")
@@ -2371,20 +2379,31 @@ class DepartmentDispatcher:
                     "completion_tokens": data.get("eval_count", 0),
                 }
             else:
-                logger.warning(
-                    f"[BridgeDispatcher] Fleet node {hostname}:{port} "
-                    f"returned HTTP {resp.status_code} — body: {resp.text[:800]}"
-                )
-                return None
+                # HTTP error from the node. Previously this `return None` skipped the
+                # failure UPDATE below, leaving the bridge_job stuck 'running' until the
+                # stale-reaper closed it with a NULL error_message. Now we capture the
+                # reason and fall through to mark it failed immediately.
+                _err = f"HTTP {resp.status_code} from {node_name} ({hostname}:{port}): {resp.text[:500]}"
+                logger.warning(f"[BridgeDispatcher] Fleet node {hostname}:{port} returned {_err}")
 
         except requests.exceptions.Timeout:
-            logger.warning(f"[BridgeDispatcher] Fleet dispatch timeout (240s) to " f"{hostname}:{port} model={model}")
-            return None
+            # Timeout also used to leak to the reaper. Capture it — a persistent timeout
+            # usually means the node cannot actually run this model (e.g. a 7B routed to
+            # a CPU outpost) or is cold-loading past 240s.
+            _err = (
+                f"timeout after 240s — {node_name} ({hostname}:{port}) did not return for model={model} "
+                f"(likely cannot run this model, or cold-load exceeded the window)"
+            )
+            logger.warning(f"[BridgeDispatcher] Fleet dispatch timeout (240s) to {hostname}:{port} model={model}")
         except Exception as e:
+            _err = f"{type(e).__name__}: {str(e)[:500]}"
             logger.warning(f"[BridgeDispatcher] Fleet dispatch failed: {e}")
 
-        # Mark bridge_job failed
+        # Mark bridge_job failed WITH the captured reason, so fleet failures are
+        # debuggable in bridge_jobs.error_message instead of surfacing as NULL-error
+        # reaped rows. Reached by the HTTP-error, timeout, and exception paths above.
         if bridge_job_id:
+            _reason = (locals().get("_err") or "fleet dispatch failed (no detail captured)")[:1000]
             try:
                 conn = self._get_db()
                 cur = conn.cursor()
@@ -2392,10 +2411,11 @@ class DepartmentDispatcher:
                     """
                     UPDATE bridge_jobs
                     SET status = 'failed',
-                        completed_at = NOW()
+                        completed_at = NOW(),
+                        error_message = %s
                     WHERE id = %s
                     """,
-                    (bridge_job_id,),
+                    (_reason, bridge_job_id),
                 )
                 conn.commit()
                 cur.close()

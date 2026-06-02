@@ -224,18 +224,8 @@ def deduplicate_knowledge():
                 logger.info(f"[Knowledge] Archived {len(dupes)} duplicate entries")
         if _session:
             complete_work_session(_session, jobs_completed=1)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (146, "C.O.D.E.X.", "mistral:7b", 0, "documentation"),
-                )
-        except Exception as _tel:
-            logger.debug("[C.O.D.E.X.] task_execution_log write failed: %s", _tel)
+        # [#3700 Stage B] Removed hand-rolled task_execution_log row — this job performs NO LLM inference (pure DB/git/file work); the row fabricated an agent+model that never ran.
+        # Old row hardcoded model/success=true/node=68/0 tokens. Job accounting kept via _log_cycle.
     except Exception as e:
         logger.error(f"[Knowledge] Deduplication error: {e}")
         if _session:
@@ -270,18 +260,8 @@ def index_claude_sessions():
             logger.info(f"[Sessions] Indexed {count} Claude sessions")
         if _session:
             complete_work_session(_session, jobs_completed=1)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (146, "C.O.D.E.X.", "mistral:7b", 0, "knowledge_indexing"),
-                )
-        except Exception as _tel:
-            logger.debug("[C.O.D.E.X.] task_execution_log write failed: %s", _tel)
+        # [#3700 Stage B] Removed hand-rolled task_execution_log row — this job performs NO LLM inference (pure DB/git/file work); the row fabricated an agent+model that never ran.
+        # Old row hardcoded model/success=true/node=68/0 tokens. Job accounting kept via _log_cycle.
     except Exception as e:
         logger.error(f"[Sessions] Indexing error: {e}")
         if _session:
@@ -340,24 +320,10 @@ def consciousness_analysis_batch():
         )
         if _session:
             complete_work_session(_session, jobs_completed=1)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (
-                        137,
-                        "S.P.E.C.T.R.A.",
-                        "mistral:7b",
-                        int((_time.time() - start) * 1000),
-                        "knowledge_analysis",
-                    ),
-                )
-        except Exception as _tel:
-            logger.debug("[S.P.E.C.T.R.A.] task_execution_log write failed: %s", _tel)
+        # [#3700] Removed hand-rolled task_execution_log row. _trigger_loop_op("analysis")
+        # routes through knowledge_analyzer -> department_dispatcher, which already logs the
+        # real per-inference row (actual model, eval_count tokens, real node_used_id). The old
+        # hardcoded row (mistral:7b / success=true / node=68 / 0 tokens) was a lossy duplicate.
     except Exception as e:
         logger.warning(f"[ConsciousnessAnalysis] Analysis batch failed: {e}")
         _log_cycle(
@@ -416,16 +382,33 @@ def consciousness_embedding_batch():
         _start_ts = time.time()
         _trigger_loop_op("embedding")
         _log_cycle("consciousness_embedding", 1, 0, 0, department="Documentation & Knowledge")
-        # Log to task_execution_log so E.M.B.E.R. appears in DHQ Dispatch Traffic + History
+        # [#3700 Stage C] Honest embedding telemetry marker so E.M.B.E.R. shows in DHQ Dispatch
+        # Traffic. Embeddings are the documented ADR-013 exception (direct Ollama arctic-embed,
+        # NOT routed through the dispatcher), so this is an explicit per-cycle batch-trigger
+        # marker — not a per-inference row. tokens_used=0 (vector-gen has no chat tokens);
+        # node 68 = hub (Archie Starbase) where arctic-embed-cpu runs; request_metadata tags it
+        # so the token chart classifies it as LOCAL vector-gen, not fabricated chat inference.
         try:
             from database import get_db_cursor
+            from psycopg2.extras import Json
 
             with get_db_cursor(commit=True) as (_, _cur):
                 _cur.execute(
                     """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (126, 'E.M.B.E.R.', 'arctic-embed-cpu', %s, true, 'embedding', 68)""",
-                    (int((time.time() - _start_ts) * 1000),),
+                           (agent_id, agent_name, model_used, provider, duration_ms,
+                            tokens_used, success, capability, node_used_id, request_metadata)
+                       VALUES (126, 'E.M.B.E.R.', 'arctic-embed-cpu', 'ollama', %s,
+                               0, true, 'embedding', 68, %s)""",
+                    (
+                        int((time.time() - _start_ts) * 1000),
+                        Json(
+                            {
+                                "row_kind": "embedding_batch_marker",
+                                "token_source": "n/a_embedding",
+                                "note": "per-cycle trigger marker; vector-gen (ADR-013 exception)",
+                            }
+                        ),
+                    ),
                 )
         except Exception as _tel:
             logger.debug("[E.M.B.E.R.] task_execution_log write failed: %s", _tel)
@@ -750,24 +733,8 @@ def sync_learned_skills():
         )
         if _session:
             complete_work_session(_session, jobs_completed=1)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (
-                        146,
-                        "C.O.D.E.X.",
-                        "mistral:7b",
-                        int((time.time() - start) * 1000),
-                        "documentation",
-                    ),
-                )
-        except Exception as _tel:
-            logger.debug("[C.O.D.E.X.] task_execution_log write failed: %s", _tel)
+        # [#3700 Stage B] Removed hand-rolled task_execution_log row — this job performs NO LLM inference (pure DB/git/file work); the row fabricated an agent+model that never ran.
+        # Old row hardcoded model/success=true/node=68/0 tokens. Job accounting kept via _log_cycle.
 
     except Exception as e:
         logger.warning(f"[SkillSync] Skill sync failed: {e}")
@@ -993,24 +960,8 @@ def github_auto_pull():
         )
         if _session:
             complete_work_session(_session, jobs_completed=pulled)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (
-                        136,
-                        "F.O.R.G.E.",
-                        "mistral:7b",
-                        int((time.time() - start) * 1000),
-                        "code",
-                    ),
-                )
-        except Exception as _tel:
-            logger.debug("[F.O.R.G.E.] task_execution_log write failed: %s", _tel)
+        # [#3700 Stage B] Removed hand-rolled task_execution_log row — this job performs NO LLM inference (pure DB/git/file work); the row fabricated an agent+model that never ran.
+        # Old row hardcoded model/success=true/node=68/0 tokens. Job accounting kept via _log_cycle.
 
     except Exception as e:
         logger.warning(f"[GitPull] Auto-pull failed: {e}")
@@ -1400,24 +1351,10 @@ Respond with ONLY a JSON object (no markdown, no explanation):
         )
         if _session:
             complete_work_session(_session, jobs_completed=analyzed)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (
-                        136,
-                        "F.O.R.G.E.",
-                        "mistral:7b",
-                        int((time.time() - start) * 1000),
-                        "code_review",
-                    ),
-                )
-        except Exception as _tel:
-            logger.debug("[F.O.R.G.E.] task_execution_log write failed: %s", _tel)
+        # [#3700] Removed hand-rolled task_execution_log row — this job dispatches its real
+        # LLM work through department_dispatcher (see dispatch() above), which logs the real
+        # per-inference row. The old hardcoded row (F.O.R.G.E./mistral:7b/node=68/0 tokens) was
+        # a lossy duplicate.
 
     except Exception as e:
         logger.warning(f"[SkillAnalyzer] Job failed: {e}")
@@ -1472,18 +1409,8 @@ def conversation_consolidation():
         )
         if _session:
             complete_work_session(_session, jobs_completed=1)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (146, "C.O.D.E.X.", "mistral:7b", duration_ms, "documentation"),
-                )
-        except Exception as _tel:
-            logger.debug("[C.O.D.E.X.] task_execution_log write failed: %s", _tel)
+        # [#3700 Stage B] Removed hand-rolled task_execution_log row — real LLM work routes through department_dispatcher (via the helper / improvement_chat / auto_tagger), which logs the real per-inference row.
+        # Old row hardcoded model/success=true/node=68/0 tokens. Job accounting kept via _log_cycle.
     except Exception as e:
         duration_ms = int((time.time() - start) * 1000)
         _log_cycle(
@@ -1539,18 +1466,8 @@ def improvement_detection():
         )
         if _session:
             complete_work_session(_session, jobs_completed=1)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (140, "D.A.R.W.I.N.", "qwen2.5:7b", duration_ms, "research"),
-                )
-        except Exception as _tel:
-            logger.debug("[D.A.R.W.I.N.] task_execution_log write failed: %s", _tel)
+        # [#3700 Stage B] Removed hand-rolled task_execution_log row — real LLM work routes through department_dispatcher (via the helper / improvement_chat / auto_tagger), which logs the real per-inference row.
+        # Old row hardcoded model/success=true/node=68/0 tokens. Job accounting kept via _log_cycle.
     except Exception as e:
         duration_ms = int((time.time() - start) * 1000)
         _log_cycle(
@@ -1599,18 +1516,8 @@ def daily_self_reflection():
         _log_cycle("daily_self_reflection", 1, 0, duration_ms, department="Executive Office")
         if _session:
             complete_work_session(_session, jobs_completed=1)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (2, "A.R.C.H.I.E.", "qwen2.5:7b", duration_ms, "research"),
-                )
-        except Exception as _tel:
-            logger.debug("[A.R.C.H.I.E.] task_execution_log write failed: %s", _tel)
+        # [#3700 Stage B] Removed hand-rolled task_execution_log row — real LLM work routes through department_dispatcher (via the helper / improvement_chat / auto_tagger), which logs the real per-inference row.
+        # Old row hardcoded model/success=true/node=68/0 tokens. Job accounting kept via _log_cycle.
     except Exception as e:
         duration_ms = int((time.time() - start) * 1000)
         _log_cycle(
@@ -1666,18 +1573,8 @@ def weekly_memory_consolidation():
         )
         if _session:
             complete_work_session(_session, jobs_completed=1)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (2, "A.R.C.H.I.E.", "qwen2.5:7b", duration_ms, "research"),
-                )
-        except Exception as _tel:
-            logger.debug("[A.R.C.H.I.E.] task_execution_log write failed: %s", _tel)
+        # [#3700 Stage B] Removed hand-rolled task_execution_log row — real LLM work routes through department_dispatcher (via the helper / improvement_chat / auto_tagger), which logs the real per-inference row.
+        # Old row hardcoded model/success=true/node=68/0 tokens. Job accounting kept via _log_cycle.
     except Exception as e:
         duration_ms = int((time.time() - start) * 1000)
         _log_cycle(
@@ -1905,24 +1802,10 @@ Respond with ONLY valid JSON:
             },
             department="Engineering & Technology",
         )
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
-                               %s, 'internal', %s, true, %s, 68)""",
-                    (
-                        "D.A.R.W.I.N.",
-                        "D.A.R.W.I.N.",
-                        int((time.time() - start) * 1000),
-                        "research",
-                    ),
-                )
-        except Exception as _tel:
-            logger.debug("[D.A.R.W.I.N.] task_execution_log write failed: %s", _tel)
+        # [#3700] Removed hand-rolled task_execution_log row — this job dispatches its real
+        # per-repo LLM work through department_dispatcher (see dispatch above), which logs the
+        # real per-inference rows. The old hardcoded row (D.A.R.W.I.N./'internal'/node=68/
+        # 0 tokens) was a lossy duplicate.
 
     except Exception as e:
         logger.warning(f"[RepoRelevance] Job failed: {e}")
@@ -2175,24 +2058,10 @@ capabilities: [<list>]
         )
         if _session:
             complete_work_session(_session, jobs_completed=adapted)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (
-                        136,
-                        "F.O.R.G.E.",
-                        "mistral:7b",
-                        int((time.time() - start) * 1000),
-                        "code",
-                    ),
-                )
-        except Exception as _tel:
-            logger.debug("[F.O.R.G.E.] task_execution_log write failed: %s", _tel)
+        # [#3700] Removed hand-rolled task_execution_log row — this job dispatches its real
+        # LLM work through department_dispatcher (see dispatch above), which logs the real
+        # per-inference row. The old hardcoded row (F.O.R.G.E./mistral:7b/node=68/0 tokens)
+        # was a lossy duplicate.
 
     except Exception as e:
         logger.warning(f"[SkillAdapt] Job failed: {e}")
@@ -2367,24 +2236,8 @@ def install_skills_to_claude():
         )
         if _session:
             complete_work_session(_session, jobs_completed=installed)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (
-                        136,
-                        "F.O.R.G.E.",
-                        "mistral:7b",
-                        int((time.time() - start) * 1000),
-                        "code",
-                    ),
-                )
-        except Exception as _tel:
-            logger.debug("[F.O.R.G.E.] task_execution_log write failed: %s", _tel)
+        # [#3700 Stage B] Removed hand-rolled task_execution_log row — this job performs NO LLM inference (pure DB/git/file work); the row fabricated an agent+model that never ran.
+        # Old row hardcoded model/success=true/node=68/0 tokens. Job accounting kept via _log_cycle.
 
     except Exception as e:
         logger.warning(f"[SkillInstaller] Job failed: {e}")
@@ -2690,24 +2543,10 @@ def test_installed_skills():
         )
         if _session:
             complete_work_session(_session, jobs_completed=tested)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (
-                        136,
-                        "F.O.R.G.E.",
-                        "mistral:7b",
-                        int((time.time() - start) * 1000),
-                        "code_review",
-                    ),
-                )
-        except Exception as _tel:
-            logger.debug("[F.O.R.G.E.] task_execution_log write failed: %s", _tel)
+        # [#3700] Removed hand-rolled task_execution_log row — this job dispatches its real
+        # LLM work through department_dispatcher (see dispatch above), which logs the real
+        # per-inference row. The old hardcoded row (F.O.R.G.E./mistral:7b/node=68/0 tokens)
+        # was a lossy duplicate.
 
     except Exception as e:
         logger.warning(f"[SkillTester] Job failed: {e}")
@@ -2905,24 +2744,8 @@ def push_skills_to_fleet():
         )
         if _session:
             complete_work_session(_session, jobs_completed=pushed_total)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (
-                        139,
-                        "B.A.S.E.",
-                        "qwen2.5:7b",
-                        int((time.time() - start) * 1000),
-                        "code",
-                    ),
-                )
-        except Exception as _tel:
-            logger.debug("[B.A.S.E.] task_execution_log write failed: %s", _tel)
+        # [#3700 Stage B] Removed hand-rolled task_execution_log row — this job performs NO LLM inference (pure DB/git/file work); the row fabricated an agent+model that never ran.
+        # Old row hardcoded model/success=true/node=68/0 tokens. Job accounting kept via _log_cycle.
 
     except Exception as e:
         logger.warning("[SkillPush] Job failed: %s", e)
@@ -3074,18 +2897,8 @@ def auto_generate_project_docs():
         )
         if _session:
             complete_work_session(_session, jobs_completed=succeeded)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (140, "D.A.R.W.I.N.", "qwen2.5:7b", duration, "research"),
-                )
-        except Exception as _tel:
-            logger.debug("[D.A.R.W.I.N.] task_execution_log write failed: %s", _tel)
+        # [#3700 Stage B] Removed hand-rolled task_execution_log row — real LLM work routes through department_dispatcher (via the helper / improvement_chat / auto_tagger), which logs the real per-inference row.
+        # Old row hardcoded model/success=true/node=68/0 tokens. Job accounting kept via _log_cycle.
     except Exception as e:
         duration = int((time.time() - start) * 1000)
         _log_cycle(
@@ -3159,18 +2972,8 @@ def auto_link_knowledge_batch():
             )
         if _session:
             complete_work_session(_session, jobs_completed=total_linked)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (146, "C.O.D.E.X.", "mistral:7b", duration, "knowledge_analysis"),
-                )
-        except Exception as _tel:
-            logger.debug("[C.O.D.E.X.] task_execution_log write failed: %s", _tel)
+        # [#3700 Stage B] Removed hand-rolled task_execution_log row — this job performs NO LLM inference (pure DB/git/file work); the row fabricated an agent+model that never ran.
+        # Old row hardcoded model/success=true/node=68/0 tokens. Job accounting kept via _log_cycle.
     except Exception as e:
         duration = int((time.time() - start) * 1000)
         _log_cycle(
@@ -3264,18 +3067,8 @@ def generate_weekly_reports():
         )
         if _session:
             complete_work_session(_session, jobs_completed=succeeded)
-        try:
-            from database import get_db_cursor
-
-            with get_db_cursor(commit=True) as (_, _cur):
-                _cur.execute(
-                    """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES (%s, %s, %s, %s, true, %s, 68)""",
-                    (146, "C.O.D.E.X.", "mistral:7b", duration, "documentation"),
-                )
-        except Exception as _tel:
-            logger.debug("[C.O.D.E.X.] task_execution_log write failed: %s", _tel)
+        # [#3700 Stage B] Removed hand-rolled task_execution_log row — this job performs NO LLM inference (pure DB/git/file work); the row fabricated an agent+model that never ran.
+        # Old row hardcoded model/success=true/node=68/0 tokens. Job accounting kept via _log_cycle.
     except Exception as e:
         duration = int((time.time() - start) * 1000)
         _log_cycle(
@@ -3312,6 +3105,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="knowledge_deduplication",
         name="Agent Loop: Knowledge Deduplication",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3320,6 +3116,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="session_indexer",
         name="Agent Loop: Claude Session Indexer",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3328,6 +3127,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_consciousness_analysis",
         name="Agent Loop: Consciousness Analysis Batch",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3336,6 +3138,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_consciousness_embedding",
         name="Agent Loop: Consciousness Embedding Batch",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3344,6 +3149,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_skill_sync",
         name="Agent Loop: Skill Sync to Claude",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3352,6 +3160,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_github_auto_pull",
         name="Agent Loop: GitHub Auto-Pull & Re-Index",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3360,6 +3171,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_skill_analyzer",
         name="Agent Loop: Skill Analyzer (Bridge AI)",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3368,6 +3182,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_conversation_consolidation",
         name="Agent Loop: Conversation Consolidation",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3376,6 +3193,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_improvement_detection",
         name="Agent Loop: Improvement Detection",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3384,6 +3204,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_daily_self_reflection",
         name="Agent Loop: Daily Self-Reflection",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3392,6 +3215,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_weekly_memory_consolidation",
         name="Agent Loop: Weekly Memory Consolidation",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3400,6 +3226,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_knowledge_auto_link",
         name="Agent Loop: Knowledge Auto-Link to Projects",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3408,6 +3237,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_auto_generate_docs",
         name="Agent Loop: D.A.R.W.I.N. Auto-Documentation",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3416,6 +3248,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_weekly_knowledge_report",
         name="Agent Loop: C.O.D.E.X. Weekly Knowledge Reports",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3424,6 +3259,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_github_repo_analysis",
         name="Agent Loop: GitHub Repo Relevance Analysis",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3432,6 +3270,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_skill_installer",
         name="Agent Loop: Skill Installer (Claude Code)",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3440,6 +3281,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_skill_tester",
         name="Agent Loop: Skill Tester (Structural + Dry-Run)",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3448,6 +3292,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_skill_fleet_push",
         name="Agent Loop: Skill Fleet Push (Cluster Distribution)",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     scheduler.add_job(
@@ -3456,6 +3303,9 @@ def register_consciousness_jobs(scheduler, flask_app):
         id="agent_skill_adaptation",
         name="Agent Loop: Skill Adaptation for A.R.C.H.I.E.",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
     )
 
     logger.info("[ConsciousnessJobs] Registered 19 consciousness jobs")

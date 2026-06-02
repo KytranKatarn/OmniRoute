@@ -1,0 +1,38 @@
+# Phase 3 — warm STANDBY of archie_platform on boston-2 (DR node).
+# Points at the LOCAL read-only replica (127.0.0.1:5433). Kept STOPPED until a
+# failover promotes the replica to read-write. No GPU (boston-2 is CPU-only).
+# Source + secrets + .env staged under /opt/archie-dr/platform/ (mounted as /mnt/archie_brain).
+services:
+  archie_platform_standby:
+    image: archie_brain-archie_platform
+    container_name: archie_platform_standby
+    command: ["gunicorn", "--bind", "127.0.0.1:3000", "--workers", "2", "--threads", "4", "--timeout", "600", "app:app"]
+    restart: "no"           # warm standby — started by failover.sh, not on boot
+    network_mode: host       # reach the local replica (127.0.0.1:5433) + the mesh
+    env_file:
+      - /opt/archie-dr/platform/.env
+    environment:
+      TZ: America/Toronto
+      PYTHONPATH: /mnt/archie_brain
+      NODE_CLIENT_DIR: /mnt/archie_brain/node_client
+      FLASK_ENV: production
+      DB_HOST: "127.0.0.1"      # local replica (override the hub's archie_database)
+      DB_PORT: "5433"
+      DB_NAME: archie
+      DB_USER: archie
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      DB_PASSWORD: ""
+      HOST_IP: "100.64.0.10"
+      # SECRET_KEY / FLASK_SECRET_KEY come from .env so login sessions stay valid post-failover
+    volumes:
+      - /opt/archie-dr/platform:/mnt/archie_brain
+      - /opt/archie-dr/platform/platform_v2:/app
+      - /opt/archie-dr/platform/secrets/database/password.txt:/run/secrets/db_password:ro
+      - /opt/archie-dr/platform/secrets/stripe/secret_key.txt:/run/secrets/stripe_secret_key:ro
+      - /opt/archie-dr/platform/secrets/stripe/publishable_key.txt:/run/secrets/stripe_publishable_key:ro
+      - /opt/archie-dr/platform/secrets/stripe/webhook_secret.txt:/run/secrets/stripe_webhook_secret:ro
+    tmpfs:
+      - /tmp:size=512m
+      - /var/run:size=16m
+    mem_limit: 4g
+    cpus: 3.0

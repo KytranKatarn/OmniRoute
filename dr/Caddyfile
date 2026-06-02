@@ -1,0 +1,8 @@
+# Phase 5 — public HTTPS ingress for the recovered platform on boston-2 (DR).
+# Started by failover.sh (NOT during normal ops — avoids ACME noise while DNS
+# still points at the hub). Caddy auto-provisions a real Let's Encrypt cert via
+# HTTP-01 the moment the platform A-record points here (i.e., right after the flip).
+platform.kytranempowerment.com {
+    reverse_proxy 127.0.0.1:3000
+    encode gzip
+}

@@ -1,0 +1,14 @@
+# Phase 5 — Caddy HTTPS ingress for the DR platform on boston-2.
+# Started ONLY by failover.sh (restart:"no"), so it doesn't run / attempt ACME
+# during normal ops while DNS still points at the hub.
+services:
+  caddy:
+    image: caddy:2
+    container_name: archie_dr_caddy
+    restart: "no"
+    network_mode: host            # bind 80/443 on host; reach standby at 127.0.0.1:3000
+    cap_add: [NET_BIND_SERVICE]
+    volumes:
+      - /opt/archie-dr/ingress/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/archie-dr/ingress/caddy_data:/data
+      - /opt/archie-dr/ingress/caddy_config:/config

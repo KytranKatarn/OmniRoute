@@ -3877,40 +3877,43 @@ function _mixLocalCloudColor(pct) {
   return "rgb(" + r + "," + g + "," + b + ")";
 }
 
-var _teCache = {};            // {days: {t: epoch_ms, d: payload}}
+var _teCache = {};            // {range: {t: epoch_ms, d: payload}}
 var _teClientTTL = 300000;    // 5 min — instant in-session tab re-opens
 
-function loadTokenEconomy(days, force) {
-  days = days || 30;
+// rng is a range token: "1h" | "24h" | 7 | 30 | 90 | 365. Numbers keep the old
+// callers working (loadTokenEconomy(30)); they map to the same daily windows.
+function loadTokenEconomy(rng, force) {
+  rng = String(rng || 30);
   var btns = document.querySelectorAll(".te-range");
   for (var i = 0; i < btns.length; i++) {
-    btns[i].classList.toggle("active", String(btns[i].getAttribute("data-te")) === String(days));
+    btns[i].classList.toggle("active", String(btns[i].getAttribute("data-te")) === rng);
   }
   // Render instantly from client cache when fresh — no server round-trip.
-  var c = _teCache[days];
+  var c = _teCache[rng];
   if (!force && c && (Date.now() - c.t) < _teClientTTL) {
     _renderTokenEconomy(c.d);
     _tePrewarm();
     return;
   }
-  api("/api/code-health/token-usage?days=" + days + (force ? "&refresh=1" : ""))
-    .then(function(d) { _teCache[days] = { t: Date.now(), d: d }; _renderTokenEconomy(d); _tePrewarm(); })
+  api("/api/code-health/token-usage?range=" + encodeURIComponent(rng) + (force ? "&refresh=1" : ""))
+    .then(function(d) { _teCache[rng] = { t: Date.now(), d: d }; _renderTokenEconomy(d); _tePrewarm(); })
     .catch(function() { /* token economy is non-critical — never break the tab */ });
 }
 
-// Background-prefetch every window once so clicking 7D/30D/90D/ALL is instant
+// Background-prefetch every window once so clicking 1H/24H/7D/30D/90D/ALL is instant
 // (no stutter). Runs after the first render; staggered so we don't hammer the DB.
 var _tePrewarmed = false;
 function _tePrewarm() {
   if (_tePrewarmed) return;
   _tePrewarmed = true;
-  var windows = [7, 30, 90, 365];
-  windows.forEach(function(d, i) {
-    if (_teCache[d]) return;
+  var windows = ["1h", "24h", 7, 30, 90, 365];
+  windows.forEach(function(w, i) {
+    var k = String(w);
+    if (_teCache[k]) return;
     setTimeout(function() {
-      if (_teCache[d]) return;
-      api("/api/code-health/token-usage?days=" + d)
-        .then(function(j) { _teCache[d] = { t: Date.now(), d: j }; })
+      if (_teCache[k]) return;
+      api("/api/code-health/token-usage?range=" + encodeURIComponent(k))
+        .then(function(j) { _teCache[k] = { t: Date.now(), d: j }; })
         .catch(function() {});
     }, 400 * (i + 1));
   });
@@ -3950,7 +3953,9 @@ function _renderTokenEconomy(d) {
   }
   var canvas = document.getElementById("chTokenChart");
   if (canvas && window.Chart) {
-    var labels = (d.series || []).map(function(s) { return s.day; });
+    // Sub-day ranges (1h/24h) carry a server-rendered Toronto-local label (HH:MM);
+    // daily ranges fall back to the ISO date in `day`.
+    var labels = (d.series || []).map(function(s) { return s.label || s.day; });
     var local = (d.series || []).map(function(s) { return s.local; });
     var ext = (d.series || []).map(function(s) { return s.external; });
     var est = (d.series || []).map(function(s) { return s.estimated; });

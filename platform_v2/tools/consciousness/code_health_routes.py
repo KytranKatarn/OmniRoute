@@ -149,17 +149,53 @@ def register_code_health_routes(bp, admin_required):
         Estimated-backfill rows (request_metadata.token_source='estimated') are reported
         as a SEPARATE series — never mixed into the 'real' local/external numbers.
         """
-        try:
-            days = int(request.args.get("days", 30))
-        except (TypeError, ValueError):
-            days = 30
-        if days not in (7, 30, 90, 365):
-            days = 30
+        # Range windows. Sub-day ranges (1h/24h) bucket finer than a day so recent
+        # dispatch activity is visible (matches the 1H/24H buttons on other charts):
+        #   1h → 5-minute buckets · 24h → hourly · 7/30/90/365 → daily.
+        # `bucket`/`gran` come from this fixed whitelist (never user input) so they are
+        # safe to embed in SQL; the time window is passed as a bound ::interval param.
+        # Epoch-floor buckets are timezone-type-agnostic: extract(epoch …) yields the
+        # correct absolute instant whether created_at is naive-UTC or timestamptz, so
+        # `… AT TIME ZONE 'America/Toronto'` then renders the right local wall time.
+        # (date_trunc on a NAIVE column would mis-convert by the UTC offset — bug avoided.)
+        _b5 = "to_timestamp(floor(extract(epoch from created_at)/300)*300)"  # 5-min boundary
+        _bh = "to_timestamp(floor(extract(epoch from created_at)/3600)*3600)"  # hour boundary
+        _bd = "(created_at AT TIME ZONE 'America/Toronto')::date"
+        # `label` is a server-rendered Toronto-local axis label so the frontend never
+        # has to parse a UTC timestamp (which would drift by the browser's tz). day
+        # ranges keep label NULL → frontend falls back to the ISO date in `day`.
+        _RANGE = {
+            "1h": {
+                "interval": "1 hour",
+                "bucket": _b5,
+                "label": f"to_char({_b5} AT TIME ZONE 'America/Toronto', 'HH24:MI')",
+                "gran": "5min",
+            },
+            "24h": {
+                "interval": "24 hours",
+                "bucket": _bh,
+                "label": f"to_char({_bh} AT TIME ZONE 'America/Toronto', 'HH24:MI')",
+                "gran": "hour",
+            },
+            "7": {"interval": "7 days", "bucket": _bd, "label": "NULL", "gran": "day"},
+            "30": {"interval": "30 days", "bucket": _bd, "label": "NULL", "gran": "day"},
+            "90": {"interval": "90 days", "bucket": _bd, "label": "NULL", "gran": "day"},
+            "365": {"interval": "365 days", "bucket": _bd, "label": "NULL", "gran": "day"},
+        }
+        rng = (request.args.get("range") or "").lower()
+        if rng not in _RANGE:
+            # Back-compat: derive the range token from the legacy ?days= param.
+            try:
+                _d = int(request.args.get("days", 30))
+            except (TypeError, ValueError):
+                _d = 30
+            rng = str(_d) if str(_d) in _RANGE else "30"
+        spec = _RANGE[rng]
 
         # Serve from TTL cache when fresh (skips ~2-3s of aggregation over 259k+ rows).
-        # ?refresh=1 forces a recompute.
+        # ?refresh=1 forces a recompute. Keyed by the range token.
         if request.args.get("refresh") != "1":
-            _hit = _TOKEN_USAGE_CACHE.get(days)
+            _hit = _TOKEN_USAGE_CACHE.get(rng)
             if _hit and (time.time() - _hit[0]) < _TOKEN_USAGE_TTL:
                 payload = dict(_hit[1])
                 payload["_cached"] = True
@@ -176,9 +212,18 @@ def register_code_health_routes(bp, admin_required):
         # COALESCE so NULL metadata is treated as 'not estimated' (else NOT(NULL)=NULL
         # silently drops every real row from the local/external sums).
         est = "(COALESCE(request_metadata->>'token_source','') IN ('estimated', 'estimated_historical'))"
-        where = "created_at > now() - make_interval(days => %s) AND tokens_used IS NOT NULL"
+        # Window is a bound ::interval param so psycopg2 still processes the %% escapes
+        # in `cls`. All three aggregate queries pass (spec["interval"],).
+        where = "created_at > now() - %s::interval AND tokens_used IS NOT NULL"
 
-        out = {"days": days, "totals": {}, "agents": [], "series": []}
+        out = {
+            "range": rng,
+            "granularity": spec["gran"],
+            "days": rng if rng in ("1h", "24h") else int(rng),
+            "totals": {},
+            "agents": [],
+            "series": [],
+        }
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 f"""SELECT
@@ -189,7 +234,7 @@ def register_code_health_routes(bp, admin_required):
                         COUNT(*) FILTER (WHERE {cls}='external' AND NOT {est}) external_disp
                     FROM task_execution_log
                     WHERE {where}""",
-                (days,),
+                (spec["interval"],),
             )
             t = cur.fetchone() or {}
             lt = int(t.get("local_tokens") or 0)
@@ -225,7 +270,7 @@ def register_code_health_routes(bp, admin_required):
                     ) sub
                     GROUP BY agent_name
                     ORDER BY tokens DESC LIMIT 25""",
-                (days,),
+                (spec["interval"],),
             )
             for r in cur.fetchall():
                 tok = int(r.get("tokens") or 0)
@@ -250,19 +295,21 @@ def register_code_health_routes(bp, admin_required):
                 )
 
             cur.execute(
-                f"""SELECT (created_at AT TIME ZONE 'America/Toronto')::date d,
+                f"""SELECT {spec['bucket']} d, {spec['label']} lbl,
                         COALESCE(SUM(CASE WHEN {cls}='local'    AND NOT {est} THEN tokens_used END),0) local,
                         COALESCE(SUM(CASE WHEN {cls}='external' AND NOT {est} THEN tokens_used END),0) external,
                         COALESCE(SUM(CASE WHEN {est} THEN tokens_used END),0) estimated
                     FROM task_execution_log
                     WHERE {where}
-                    GROUP BY d ORDER BY d""",
-                (days,),
+                    GROUP BY d, lbl ORDER BY d""",
+                (spec["interval"],),
             )
             for r in cur.fetchall():
+                _d = r.get("d")
                 out["series"].append(
                     {
-                        "day": r["d"].isoformat() if r.get("d") else None,
+                        "day": _d.isoformat() if _d is not None and hasattr(_d, "isoformat") else _d,
+                        "label": r.get("lbl"),
                         "local": int(r.get("local") or 0),
                         "external": int(r.get("external") or 0),
                         "estimated": int(r.get("estimated") or 0),
@@ -312,7 +359,7 @@ def register_code_health_routes(bp, admin_required):
                 ],
                 "note": "Jan–Apr is an ESTIMATE of AI-assisted build effort (owner hand-written + DeepSeek web + a capacity-limited Claude) from lines×tok/line + commits×tok/commit — not pure-Claude tokens, and none of it ran on local fleet. Agent growth is real. Measured tokens begin 2026-05-03.",
             }
-        _TOKEN_USAGE_CACHE[days] = (time.time(), out)
+        _TOKEN_USAGE_CACHE[rng] = (time.time(), out)
         return jsonify(out)
 
     @bp.route("/api/code-health/audit-log")

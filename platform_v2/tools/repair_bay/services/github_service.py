@@ -324,7 +324,43 @@ def get_pr_status(pr_number: int) -> Dict:
 
 
 def merge_pr(pr_number: int, method: str = "squash") -> Dict:
-    """Merge a pull request via PUT (GitHub requires PUT for merges)."""
+    """Merge a pull request via PUT (GitHub requires PUT for merges).
+
+    Pre-merge conflict guard (#3709 Phase 1): refuses to merge when GitHub
+    reports a definitive conflict with the base branch — stops a conflicted
+    branch from being squash-merged and breaking main (the "don't break each
+    other's builds" guard). GitHub's ``mergeable_state`` can be: clean, dirty
+    (= merge conflict), behind, blocked, unstable, draft, has_hooks, unknown
+    (still computing). We HARD-block only on a definitive conflict; 'unknown'
+    means GitHub has not finished computing, so we re-poll once before allowing
+    (never false-block on a transient unknown). 'behind'/'blocked'/'unstable'
+    are CI/branch-protection states, not conflicts — GitHub itself rejects
+    those with a clear error, so we let the merge attempt surface it.
+    """
+    pre_ok, pre = _api_get(f"/repos/{REPO_FULL}/pulls/{pr_number}")
+    if pre_ok:
+        state = (pre.get("mergeable_state") or "").lower()
+        mergeable = pre.get("mergeable")
+        if state == "unknown" or mergeable is None:
+            import time as _time
+
+            _time.sleep(2)
+            pre_ok2, pre2 = _api_get(f"/repos/{REPO_FULL}/pulls/{pr_number}")
+            if pre_ok2:
+                state = (pre2.get("mergeable_state") or "").lower()
+                mergeable = pre2.get("mergeable")
+        if mergeable is False or state == "dirty":
+            return {
+                "success": False,
+                "merged": False,
+                "conflict": True,
+                "mergeable_state": state,
+                "error": (
+                    f"Refusing to merge PR #{pr_number}: conflicts with base "
+                    f"(mergeable={mergeable}, mergeable_state={state!r}). "
+                    f"Rebase the branch on main and resolve conflicts first."
+                ),
+            }
     try:
         resp = requests.put(
             f"{API_BASE}/repos/{REPO_FULL}/pulls/{pr_number}/merge",

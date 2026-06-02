@@ -281,20 +281,35 @@ def _document_pr(payload: Dict[str, Any], reason: str = "") -> Dict[str, Any]:
 
     try:
         with get_db_cursor(commit=True) as (conn, cur):
+            # Idempotent upsert: re-documenting an already-documented PR must be a
+            # harmless refresh, NOT a hard failure. A plain INSERT tripped the
+            # partial unique index idx_kb_title_unique (title WHERE title IS NOT
+            # NULL) and false-blocked the delegated task (e.g. PR #1384 re-queue).
             cur.execute(
                 """
                 INSERT INTO knowledge_base
                     (knowledge_type, title, content, category, tags, importance_score, source_type)
                 VALUES ('vault_note', %s, %s, 'pr_documentation', %s, 0.85, 'delegate_document_pr')
-                RETURNING id
+                ON CONFLICT (title) WHERE title IS NOT NULL
+                DO UPDATE SET
+                    content = EXCLUDED.content,
+                    category = EXCLUDED.category,
+                    tags = EXCLUDED.tags,
+                    source_type = EXCLUDED.source_type,
+                    updated_at = NOW()
+                RETURNING id, (xmax = 0) AS inserted
                 """,
                 (title, content, tags),
             )
             row = cur.fetchone()
-            kb_id = row["id"] if isinstance(row, dict) else row[0]
+            if isinstance(row, dict):
+                kb_id, was_insert = row["id"], row["inserted"]
+            else:
+                kb_id, was_insert = row[0], row[1]
+        verb = "Documented" if was_insert else "Refreshed doc for"
         return {
             "success": True,
-            "summary": f"Documented PR #{pr_number} -> KB vault_note #{kb_id}",
+            "summary": f"{verb} PR #{pr_number} -> KB vault_note #{kb_id}",
             "result": {
                 "knowledge_base_id": kb_id,
                 "pr_number": pr_number,

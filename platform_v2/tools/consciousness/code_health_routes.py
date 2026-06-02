@@ -125,6 +125,115 @@ def register_code_health_routes(bp, admin_required):
         snapshots = get_snapshots(limit=365)
         return jsonify({"snapshots": snapshots})
 
+    @bp.route("/api/code-health/token-usage")
+    @login_required
+    @admin_required
+    def code_health_token_usage():
+        """Token economy for the Code Health tab.
+
+        Sourced from task_execution_log (real Ollama eval_count tokens). Returns:
+          - totals: local vs external token + dispatch split (+ pct_local)
+          - agents: per-agent LLM usage (models, dispatches, tokens, local split)
+          - series: tokens-over-time per day (local, external, estimated)
+
+        Local = our own compute (provider fleet_node / ollama / NULL hub-local).
+        External = cloud (provider names a cloud proxy, or model is a :cloud variant).
+        Estimated-backfill rows (request_metadata.token_source='estimated') are reported
+        as a SEPARATE series — never mixed into the 'real' local/external numbers.
+        """
+        try:
+            days = int(request.args.get("days", 30))
+        except (TypeError, ValueError):
+            days = 30
+        if days not in (7, 30, 90, 365):
+            days = 30
+
+        # Cloud/external detector (note: %% escapes the LIKE % for psycopg2 params)
+        cls = (
+            "CASE WHEN provider ILIKE '%%cloud%%' OR model_used ILIKE '%%:cloud' "
+            "OR provider IN ('openai','gemini','anthropic','minimax','groq','cohere',"
+            "'cerebras','together','pollinations','huggingface','cloudflare') "
+            "THEN 'external' ELSE 'local' END"
+        )
+        # COALESCE so NULL metadata is treated as 'not estimated' (else NOT(NULL)=NULL
+        # silently drops every real row from the local/external sums).
+        est = "(COALESCE(request_metadata->>'token_source','') = 'estimated')"
+        where = "created_at > now() - make_interval(days => %s) AND tokens_used IS NOT NULL"
+
+        out = {"days": days, "totals": {}, "agents": [], "series": []}
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                f"""SELECT
+                        COALESCE(SUM(CASE WHEN {cls}='local'    AND NOT {est} THEN tokens_used END),0) local_tokens,
+                        COALESCE(SUM(CASE WHEN {cls}='external' AND NOT {est} THEN tokens_used END),0) external_tokens,
+                        COALESCE(SUM(CASE WHEN {est} THEN tokens_used END),0) estimated_tokens,
+                        COUNT(*) FILTER (WHERE {cls}='local'    AND NOT {est}) local_disp,
+                        COUNT(*) FILTER (WHERE {cls}='external' AND NOT {est}) external_disp
+                    FROM task_execution_log
+                    WHERE {where}""",
+                (days,),
+            )
+            t = cur.fetchone() or {}
+            lt = int(t.get("local_tokens") or 0)
+            xt = int(t.get("external_tokens") or 0)
+            out["totals"] = {
+                "local_tokens": lt,
+                "external_tokens": xt,
+                "estimated_tokens": int(t.get("estimated_tokens") or 0),
+                "local_disp": int(t.get("local_disp") or 0),
+                "external_disp": int(t.get("external_disp") or 0),
+                "pct_local": round(100.0 * lt / (lt + xt), 1) if (lt + xt) else 100.0,
+            }
+
+            cur.execute(
+                f"""SELECT agent_name,
+                        array_agg(DISTINCT model_used) FILTER (WHERE model_used IS NOT NULL) models,
+                        COUNT(*) disp,
+                        COALESCE(SUM(tokens_used),0) tokens,
+                        COALESCE(SUM(CASE WHEN {cls}='local'    THEN tokens_used END),0) local_tokens,
+                        COALESCE(SUM(CASE WHEN {cls}='external' THEN tokens_used END),0) external_tokens
+                    FROM task_execution_log
+                    WHERE {where} AND NOT {est} AND agent_name IS NOT NULL
+                    GROUP BY agent_name
+                    ORDER BY tokens DESC LIMIT 25""",
+                (days,),
+            )
+            for r in cur.fetchall():
+                tok = int(r.get("tokens") or 0)
+                loc = int(r.get("local_tokens") or 0)
+                out["agents"].append(
+                    {
+                        "agent": r.get("agent_name"),
+                        "models": list(r.get("models") or []),
+                        "dispatches": int(r.get("disp") or 0),
+                        "tokens": tok,
+                        "local_tokens": loc,
+                        "external_tokens": int(r.get("external_tokens") or 0),
+                        "local_pct": round(100.0 * loc / tok) if tok else 100,
+                    }
+                )
+
+            cur.execute(
+                f"""SELECT (created_at AT TIME ZONE 'America/Toronto')::date d,
+                        COALESCE(SUM(CASE WHEN {cls}='local'    AND NOT {est} THEN tokens_used END),0) local,
+                        COALESCE(SUM(CASE WHEN {cls}='external' AND NOT {est} THEN tokens_used END),0) external,
+                        COALESCE(SUM(CASE WHEN {est} THEN tokens_used END),0) estimated
+                    FROM task_execution_log
+                    WHERE {where}
+                    GROUP BY d ORDER BY d""",
+                (days,),
+            )
+            for r in cur.fetchall():
+                out["series"].append(
+                    {
+                        "day": r["d"].isoformat() if r.get("d") else None,
+                        "local": int(r.get("local") or 0),
+                        "external": int(r.get("external") or 0),
+                        "estimated": int(r.get("estimated") or 0),
+                    }
+                )
+        return jsonify(out)
+
     @bp.route("/api/code-health/audit-log")
     @login_required
     @admin_required

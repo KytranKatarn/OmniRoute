@@ -178,6 +178,7 @@ function loadTabData(tab) {
     case "github":      loadGitHub(); break;
     case "languages":   loadLanguages(); checkActiveJobs(); break;
     case "codehealth":  loadCodeHealth(); break;
+    case "tokens":      loadTokenEconomy(30); break;
   }
 }
 
@@ -2514,7 +2515,7 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   var hash = window.location.hash.replace("#", "");
-  var validTabs = ["dashboard", "devhq", "knowledge", "github", "languages", "codehealth"];
+  var validTabs = ["dashboard", "devhq", "knowledge", "github", "languages", "codehealth", "tokens"];
   if (hash && validTabs.indexOf(hash) !== -1) {
     lcarsHeaderSwitchTab(hash);
     switchConsciousnessTab(hash);
@@ -3052,6 +3053,7 @@ function updateBreadcrumbs(repoName, path) {
 
 var _chModuleChart = null;
 var _chHistoryChart = null;
+var _chTokenChart = null;
 
 function loadCodeHealth() {
   // Show loading indicator
@@ -3852,6 +3854,80 @@ function _renderModuleChart(modules, displayNames) {
       }
     }
   });
+}
+
+// ── Token Economy (Code Health tab) ──────────────────────────────
+function _fmtTok(n) {
+  n = n || 0;
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + "k";
+  return "" + n;
+}
+
+function loadTokenEconomy(days) {
+  days = days || 30;
+  var btns = document.querySelectorAll(".te-range");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].classList.toggle("active", String(btns[i].getAttribute("data-te")) === String(days));
+  }
+  api("/api/code-health/token-usage?days=" + days)
+    .then(function(d) { _renderTokenEconomy(d); })
+    .catch(function() { /* token economy is non-critical — never break the tab */ });
+}
+
+function _renderTokenEconomy(d) {
+  if (!d || !d.totals) return;
+  var t = d.totals;
+  var sum = document.getElementById("teSummary");
+  if (sum) {
+    sum.innerHTML =
+      '<div class="te-cell"><div class="v" style="color:#22c55e">' + _fmtTok(t.local_tokens) + '</div><div class="l">Local tokens</div><div class="l" style="color:rgba(255,255,255,0.3)">' + (t.local_disp || 0).toLocaleString() + ' dispatches</div></div>' +
+      '<div class="te-cell"><div class="v" style="color:#f59e0b">' + _fmtTok(t.external_tokens) + '</div><div class="l">External (cloud)</div><div class="l" style="color:rgba(255,255,255,0.3)">' + (t.external_disp || 0).toLocaleString() + ' dispatches</div></div>' +
+      '<div class="te-cell"><div class="v" style="color:#22d3ee">' + (t.pct_local != null ? t.pct_local : 100) + '%</div><div class="l">Run locally</div></div>' +
+      '<div class="te-cell"><div class="v" style="color:rgba(148,163,184,0.9)">' + _fmtTok(t.estimated_tokens) + '</div><div class="l">Estimated (backfill)</div></div>';
+  }
+  var ag = document.getElementById("teAgents");
+  if (ag) {
+    var rows = (d.agents || []).map(function(a) {
+      var models = escHtml((a.models || []).join(", "));
+      var ext = a.external_tokens > 0 ? ' <span title="uses cloud" style="color:#f59e0b">☁</span>' : "";
+      return '<tr><td>' + escHtml(a.agent || "") + ext + '</td><td style="color:rgba(255,255,255,0.55)">' + models + '</td><td style="text-align:right">' + (a.dispatches || 0).toLocaleString() + '</td><td style="text-align:right;color:#a78bfa">' + _fmtTok(a.tokens) + '</td><td style="text-align:right">' + (a.local_pct != null ? a.local_pct : 100) + '%</td></tr>';
+    }).join("");
+    ag.innerHTML = '<table><thead><tr><th>Agent</th><th>Model(s)</th><th style="text-align:right">Disp.</th><th style="text-align:right">Tokens</th><th style="text-align:right">Local%</th></tr></thead><tbody>' +
+      (rows || '<tr><td colspan="5" style="text-align:center;color:rgba(255,255,255,0.3)">No token data in range</td></tr>') + '</tbody></table>';
+  }
+  var canvas = document.getElementById("chTokenChart");
+  if (canvas && window.Chart) {
+    var labels = (d.series || []).map(function(s) { return s.day; });
+    var local = (d.series || []).map(function(s) { return s.local; });
+    var ext = (d.series || []).map(function(s) { return s.external; });
+    var est = (d.series || []).map(function(s) { return s.estimated; });
+    if (_chTokenChart) _chTokenChart.destroy();
+    _chTokenChart = new Chart(canvas, {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [
+          { label: "Local", data: local, stack: "real", borderColor: "#22c55e", backgroundColor: "rgba(34,197,94,0.25)", fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 },
+          { label: "External (cloud)", data: ext, stack: "real", borderColor: "#f59e0b", backgroundColor: "rgba(245,158,11,0.3)", fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 },
+          { label: "Estimated (backfill)", data: est, stack: "est", borderColor: "rgba(148,163,184,0.8)", backgroundColor: "transparent", borderDash: [5, 4], fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { labels: { color: "rgba(255,255,255,0.6)", boxWidth: 12, font: { size: 11 } } },
+          tooltip: { callbacks: { label: function(c) { return c.dataset.label + ": " + _fmtTok(c.parsed.y); } } }
+        },
+        scales: {
+          x: { ticks: { color: "rgba(255,255,255,0.5)", maxTicksLimit: 8, font: { size: 10 } }, grid: { color: "rgba(255,255,255,0.05)" } },
+          y: { stacked: true, ticks: { color: "rgba(255,255,255,0.5)", font: { size: 10 }, callback: function(v) { return _fmtTok(v); } }, grid: { color: "rgba(255,255,255,0.06)" } }
+        }
+      }
+    });
+  }
 }
 
 function _auditBtnCell(moduleKey) {

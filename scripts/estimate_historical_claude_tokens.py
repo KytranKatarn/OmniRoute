@@ -56,6 +56,19 @@ MONTH_RANGES = {
     "2026-04": ("2026-04-01", "2026-04-30"),
 }
 
+# CAPACITY-CEILING token estimate (NOT lines×ratio). These are conservative, realistic
+# Claude OUTPUT-token monthly totals for the early period — bounded by the account caps
+# AND by how little got used when AI was brand new (exploratory, copy-paste workflow).
+# Max 20× started ~May 2026, so ALL of Dec–Apr was capacity-limited (Dec 1× Pro,
+# Jan–Feb 2× parallel). Far below the theoretical ceilings. Tweak freely.
+#   key window (per MONTH_RANGES) -> monthly Claude output tokens
+CAPACITY_TOKENS = {
+    "2026-01": 1_800_000,   # Dec 17→Jan 31 (46d): 1× Pro fresh + 2× ramping, ~40k/day avg
+    "2026-02": 1_800_000,   # Feb (28d): 2× parallel, ~65k/day
+    "2026-03": 2_900_000,   # Mar (31d): heavier, ~95k/day
+    "2026-04": 3_600_000,   # Apr (30d): heaviest pre-Max, ~120k/day
+}
+
 REPO = "/mnt/archie_brain"
 MONTHS = ["2026-01", "2026-02", "2026-03", "2026-04"]  # measured window starts 2026-05-03
 MEASURED_SINCE = "2026-05-03"
@@ -118,22 +131,16 @@ def main():
     if not (real_tok and mlines and mcommits):
         print(f"[hist-est] missing anchors (real_tok={real_tok}, lines={mlines}, commits={mcommits}) — abort", file=sys.stderr)
         return 1
-    tpl = real_tok / mlines
-    tpc = real_tok / mcommits
-    lbm = lines_by_month(MONTHS[0])
-    cbm = commits_by_month(MONTHS[0])
+    lbm = lines_by_month(MONTHS[0])  # git lines (for the impact 'lines built' metric only)
 
     rows = []
     total = 0
-    print(f"[hist-est] anchors: {real_tok:,} real tok / {mlines:,} lines = {tpl:.0f} tok/line | "
-          f"/ {mcommits:,} commits = {tpc:.0f} tok/commit")
+    print(f"[hist-est] capacity-ceiling method | real measured output (May+): {real_tok:,}")
     for m in MONTHS:
-        lines, commits = lbm.get(m, 0), cbm.get(m, 0)
-        loc_est = round(lines * tpl)
-        commit_est = round(commits * tpc)
-        blended = round((loc_est + commit_est) / 2)
+        lines = lbm.get(m, 0)
+        blended = CAPACITY_TOKENS.get(m, 0)  # conservative capacity-bounded monthly tokens
         total += blended
-        print(f"  {m}: {lines:,} lines / {commits:,} commits -> loc~{loc_est:,} commit~{commit_est:,} BLEND={blended:,}")
+        print(f"  {m}: {lines:,} git lines | capacity-est tokens = {blended:,}")
         s, e = MONTH_RANGES.get(m, (f"{m}-01", f"{m}-28"))
         sd, ed = dt.date.fromisoformat(s), dt.date.fromisoformat(e)
         days = [sd + dt.timedelta(days=i) for i in range((ed - sd).days + 1)]
@@ -142,14 +149,13 @@ def main():
         meta = {
             "source": SOURCE_TAG,
             "token_source": SOURCE_TAG,
-            "method": "blend(lines*tok_per_line, commits*tok_per_commit) spread daily",
+            "method": "capacity-ceiling: conservative daily Claude output under 1x/2x account caps (AI was new); spread daily",
             # per-day share so the impact endpoint's SUM(lines_inserted) over daily
-            # rows returns the true monthly/total lines (not days×monthly).
-            "lines_inserted": round(lines / len(days)), "month_lines": lines, "commits": commits,
-            "tokens_per_line": round(tpl, 1), "tokens_per_commit": round(tpc, 1),
-            "loc_estimate": loc_est, "commit_estimate": commit_est,
+            # rows returns the true monthly/total git lines (not days×monthly).
+            "lines_inserted": round(lines / len(days)) if days else 0, "month_lines": lines,
+            "monthly_tokens_est": blended,
             "month": m, "spread_range": [s, e], "spread_days": len(days),
-            "note": "approximation; pre-retention build-out; not measured",
+            "note": "rough capacity-limited estimate; Dec 1x Pro + Jan-Feb 2x parallel + DeepSeek(web) + hand-written; Max 20x ~May; not measured",
         }
         meta_json = json.dumps(meta)
         mid = len(days) // 2

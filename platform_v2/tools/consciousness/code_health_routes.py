@@ -295,7 +295,22 @@ def register_code_health_routes(bp, admin_required):
                 "est_historical_tokens": int(imp.get("est_tokens") or 0),
                 "lines_built_est_period": int(imp.get("lines_built") or 0),
                 "agents_by_month": agents_by_month,
-                "note": "Jan–Apr 2026 tokens are estimated (blend of lines×tok/line + commits×tok/commit); agent growth is real.",
+                # Honest capacity/authorship timeline (owner-reported): the early build
+                # was AI-ASSISTED (owner + DeepSeek + a capacity-limited Claude), not pure
+                # Claude — and Claude capacity was capped before the Max 20x era.
+                "capacity_phases": [
+                    {
+                        "period": "Dec 2025",
+                        "detail": "1× Claude Pro (paid) + DeepSeek (web) + hand-written — capacity-capped",
+                    },
+                    {
+                        "period": "Jan–Feb 2026",
+                        "detail": "2× Claude accounts in parallel + DeepSeek (web) — token limits hit",
+                    },
+                    {"period": "Mar–Apr 2026", "detail": "scaling up"},
+                    {"period": "May 2026 →", "detail": "Max 20× — measured (real tokens)"},
+                ],
+                "note": "Jan–Apr is an ESTIMATE of AI-assisted build effort (owner hand-written + DeepSeek web + a capacity-limited Claude) from lines×tok/line + commits×tok/commit — not pure-Claude tokens, and none of it ran on local fleet. Agent growth is real. Measured tokens begin 2026-05-03.",
             }
         _TOKEN_USAGE_CACHE[days] = (time.time(), out)
         return jsonify(out)

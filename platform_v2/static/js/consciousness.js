@@ -3865,6 +3865,18 @@ function _fmtTok(n) {
   return "" + n;
 }
 
+// Blend cloud-orange (0% local) ↔ local-purple (100% local) by an agent's local%,
+// so the agent name's COLOR represents where its models actually ran (mix = midpoint).
+function _mixLocalCloudColor(pct) {
+  var t = Math.max(0, Math.min(1, (pct == null ? 100 : pct) / 100));
+  var orange = [245, 158, 11];   // cloud
+  var purple = [167, 139, 250];  // local
+  var r = Math.round(orange[0] + (purple[0] - orange[0]) * t);
+  var g = Math.round(orange[1] + (purple[1] - orange[1]) * t);
+  var b = Math.round(orange[2] + (purple[2] - orange[2]) * t);
+  return "rgb(" + r + "," + g + "," + b + ")";
+}
+
 var _teCache = {};            // {days: {t: epoch_ms, d: payload}}
 var _teClientTTL = 300000;    // 5 min — instant in-session tab re-opens
 
@@ -3927,7 +3939,11 @@ function _renderTokenEconomy(d) {
       var ext = a.external_tokens > 0 ? ' <span title="uses cloud" style="color:#f59e0b">☁</span>' : "";
       // Tokens column = agent total only (per-model breakdown lives in the Models column).
       var tokCell = '<span style="color:#a78bfa">' + _fmtTok(a.tokens) + '</span>';
-      return '<tr><td>' + escHtml(a.agent || "") + ext + '</td><td>' + models + '</td><td style="text-align:right">' + (a.dispatches || 0).toLocaleString() + '</td><td style="text-align:right">' + tokCell + '</td><td style="text-align:right">' + (a.local_pct != null ? a.local_pct : 100) + '%</td></tr>';
+      // Agent name color = BLEND of cloud-orange↔local-purple by its local%, so a
+      // 50/50 agent sits exactly in the middle (not a hard cutoff).
+      var pct = a.local_pct != null ? a.local_pct : 100;
+      var agentCol = _mixLocalCloudColor(pct);
+      return '<tr><td style="color:' + agentCol + '">' + escHtml(a.agent || "") + ext + '</td><td>' + models + '</td><td style="text-align:right">' + (a.dispatches || 0).toLocaleString() + '</td><td style="text-align:right">' + tokCell + '</td><td style="text-align:right">' + pct + '%</td></tr>';
     }).join("");
     ag.innerHTML = '<table><thead><tr><th>Agent</th><th>Model(s)</th><th style="text-align:right">Disp.</th><th style="text-align:right">Tokens</th><th style="text-align:right">Local%</th></tr></thead><tbody>' +
       (rows || '<tr><td colspan="5" style="text-align:center;color:rgba(255,255,255,0.3)">No token data in range</td></tr>') + '</tbody></table>';
@@ -3977,17 +3993,24 @@ function _renderCloudImpact(imp) {
     var label = (a.month || "").slice(5); // MM
     return '<div class="imp-bar" style="height:' + h + 'px" title="' + escHtml(a.month) + ': ' + a.cumulative + ' agents (+' + a.created + ')"><b>' + a.cumulative + '</b><span>' + label + '</span></div>';
   }).join("");
+  var phases = (imp.capacity_phases || []).map(function(p) {
+    return '<div style="display:flex;gap:10px;padding:3px 8px;border-bottom:1px solid rgba(255,255,255,0.04);">' +
+             '<span style="color:#f59e0b;font-family:\'Orbitron\',sans-serif;font-size:0.58rem;min-width:96px;">' + escHtml(p.period) + '</span>' +
+             '<span style="font-size:0.62rem;color:rgba(255,255,255,0.6);">' + escHtml(p.detail) + '</span>' +
+           '</div>';
+  }).join("");
   el.innerHTML =
     '<div class="imp-wrap">' +
       '<div style="text-align:center;font-family:\'Orbitron\',sans-serif;font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;color:#f59e0b;margin-bottom:8px;">☁ Cloud Impact — Built From Here</div>' +
       '<div class="imp-cells">' +
-        '<div class="imp-cell"><div class="v" style="color:#f59e0b">~' + _fmtTok(imp.est_historical_tokens) + '</div><div class="l">Est. cloud tokens (Jan–Apr)</div></div>' +
+        '<div class="imp-cell"><div class="v" style="color:#f59e0b">~' + _fmtTok(imp.est_historical_tokens) + '</div><div class="l">Est. AI-assisted tokens (Jan–Apr)</div></div>' +
         '<div class="imp-cell"><div class="v" style="color:#a78bfa">' + (imp.lines_built_est_period || 0).toLocaleString() + '</div><div class="l">Lines built (est period)</div></div>' +
         '<div class="imp-cell"><div class="v" style="color:#22d3ee">' + (agents.length ? agents[agents.length - 1].cumulative : 0) + '</div><div class="l">Agents built</div></div>' +
         '<div class="imp-cell"><div class="v" style="color:rgba(255,255,255,0.7)">' + escHtml(imp.origin || "") + '</div><div class="l">Project origin</div></div>' +
       '</div>' +
       (bars ? '<div style="font-size:0.55rem;color:rgba(255,255,255,0.4);text-align:center;margin:2px 0 18px;">Agent fleet growth (cumulative)</div><div class="imp-bars">' + bars + '</div>' : '') +
-      '<div style="font-size:0.52rem;color:rgba(255,255,255,0.35);text-align:center;margin-top:12px;font-style:italic;">' + escHtml(imp.note || "") + ' Measured tokens begin ' + escHtml(imp.measured_since || "") + '.</div>' +
+      (phases ? '<div style="margin-top:14px;font-family:\'Orbitron\',sans-serif;font-size:0.58rem;letter-spacing:1px;text-transform:uppercase;color:rgba(245,158,11,0.7);text-align:center;margin-bottom:4px;">Capacity &amp; authorship</div>' + phases : '') +
+      '<div style="font-size:0.52rem;color:rgba(255,255,255,0.35);text-align:center;margin-top:12px;font-style:italic;">' + escHtml(imp.note || "") + '</div>' +
     '</div>';
 }
 

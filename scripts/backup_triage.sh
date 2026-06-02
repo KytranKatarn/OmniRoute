@@ -48,6 +48,13 @@ else
     STATUS=failed; FAIL_REASON="pg_dump failed"
     log "  DB dump FAILED — see log"
 fi
+# wtf DB (secondary; non-fatal) — WTF news data lives in a separate `wtf` DB on hub postgres
+if docker exec archie_database pg_dump -U archie -d wtf -Fc -Z 6 > "$RUN/database/wtf_${TS}.dump" 2>>"$LOG"; then
+    log "  wtf DB dump OK ($(stat -c %s "$RUN/database/wtf_${TS}.dump") bytes)"
+else
+    log "  wtf DB dump FAILED (non-fatal; archie dump is the primary)"
+    rm -f "$RUN/database/wtf_${TS}.dump"
+fi
 
 # ----- [2/4] Code tar -----
 log "[2/4] Code tar..."
@@ -99,6 +106,46 @@ else
     USB_STATUS=failed
 fi
 
+# ----- Ship to DR node boston-2 (off-hub cold copy for DRP, mesh-only) -----
+# Gives the DR node a local Tier-2 cold restore artifact independent of the hub,
+# and a warm starting point that shortens failback re-clone. Mesh IP only
+# (100.64.0.10) — never a public hostname. Non-fatal: primary+USB still stand.
+DR_STATUS=success
+DR_NODE=100.64.0.10
+DR_DIR=/opt/archie-dr/backups
+SSH_KEY=/home/kytran/.ssh/id_ed25519
+DR_KEEP=7
+log "Shipping to DR node boston-2 (${DR_NODE}) via rsync over mesh..."
+if [[ -f "$SSH_KEY" ]] && rsync -a \
+     -e "ssh -i $SSH_KEY -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new" \
+     "$RUN" "root@${DR_NODE}:${DR_DIR}/" >>"$LOG" 2>&1; then
+    log "  DR ship OK -> ${DR_NODE}:${DR_DIR}/$(basename "$RUN")"
+    # Prune DR copies (keep most-recent ${DR_KEEP})
+    ssh -i "$SSH_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "root@${DR_NODE}" \
+        "ls -td ${DR_DIR}/*_Daily_Triage 2>/dev/null | tail -n +$((DR_KEEP+1)) | xargs -r rm -rf" >>"$LOG" 2>&1 || true
+else
+    log "  DR ship FAILED (primary+USB copies still OK)"
+    DR_STATUS=failed
+fi
+
+# ----- Refresh DR warm-standby source on boston-2 (prevent staged-source drift) -----
+# Mirrors the LIVE bind-mounted source (platform_v2 + ai_bridge) into the DR node's
+# staged platform so a real failover boots current code. (ai_bridge drift was the
+# Phase-5b boot blocker — KB #270232.) Non-fatal; only when the DR node is reachable.
+DR_PLATFORM=/opt/archie-dr/platform
+if [[ "${DR_STATUS:-failed}" == "success" ]]; then
+    log "Refreshing DR warm-standby source on boston-2 (platform_v2 + ai_bridge)..."
+    for sub in platform_v2 ai_bridge; do
+        if rsync -a --delete --exclude='__pycache__' --exclude='*.pyc' \
+             -e "ssh -i $SSH_KEY -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new" \
+             "/mnt/archie_brain/$sub/" "root@${DR_NODE}:${DR_PLATFORM}/$sub/" >>"$LOG" 2>&1; then
+            log "  refreshed $sub"
+        else
+            log "  WARN: $sub refresh failed (non-fatal)"
+        fi
+    done
+fi
+
 # ----- Retention: keep 14 most-recent triage dailies on primary, 7 on USB -----
 log "Pruning old primary triage dirs (keep 14)..."
 ls -td /mnt/data2/backups/*_Daily_Triage 2>/dev/null | tail -n +15 | xargs -r rm -rf
@@ -117,6 +164,9 @@ BEGIN
         -- USB tier: lets backup_service.get_health_summary() track USB staleness
         INSERT INTO backup_log (component, tier, status, file_path, size_bytes, notes, created_at)
         VALUES ('daily_triage', 'usb', '${USB_STATUS}', '/mnt/external-backup/$(basename "${RUN}")', ${SZ_TOTAL}, 'backup_triage.sh USB copy', NOW());
+        -- DR tier: off-hub cold copy on boston-2 (mesh); lets get_health_summary() track DR staleness
+        INSERT INTO backup_log (component, tier, status, file_path, size_bytes, notes, created_at)
+        VALUES ('daily_triage', 'dr', '${DR_STATUS}', 'boston-2:${DR_DIR}/$(basename "${RUN}")', ${SZ_TOTAL}, 'backup_triage.sh DR ship (boston-2 mesh 100.64.0.10)', NOW());
     ELSE
         INSERT INTO backup_log (backup_type, file_path, file_size_bytes, status, error_message, completed_at, created_at)
         VALUES ('daily_triage', '${RUN}', ${SZ_TOTAL}, '${STATUS}', NULLIF('${FAIL_REASON}', ''), NOW(), NOW());

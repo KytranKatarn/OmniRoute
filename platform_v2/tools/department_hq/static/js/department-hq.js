@@ -3546,6 +3546,11 @@ function switchArmadaSection(s) {
             }
         }
         if (!loaded['dispatch']) { loaded['dispatch'] = true; loadDispatch(); }
+        // The Dispatch History panel now lives only inside this A.R.M.A.D.A.
+        // sub-tab (there is no top-level 'dispatch' tab anymore), so dhInit()
+        // — which fires the first dhFetch() — was never called and the panel
+        // sat on "Loading…" / "—" forever. Init it on first mount.
+        if (typeof dhInit === 'function') dhInit();
     }
 
     // TRAFFIC: move traffic panel from dispatch content

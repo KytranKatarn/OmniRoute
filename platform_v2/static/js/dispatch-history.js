@@ -29,6 +29,7 @@
     document.getElementById('dhFilterAgent').value = '';
     document.getElementById('dhFilterCapability').value = '';
     document.getElementById('dhFilterSource').value = 'all';
+    var st = document.getElementById('dhFilterStatus'); if (st) st.value = 'all';
     document.getElementById('dhFilterQ').value = '';
     _setDefaultDates();
     window.dhFetch(true);
@@ -95,6 +96,7 @@
       agent:      document.getElementById('dhFilterAgent').value,
       capability: document.getElementById('dhFilterCapability').value,
       source:     document.getElementById('dhFilterSource').value,
+      status:     (document.getElementById('dhFilterStatus') || {}).value || 'all',
       from:       document.getElementById('dhFilterFrom').value,
       to:         document.getElementById('dhFilterTo').value,
       q:          document.getElementById('dhFilterQ').value,

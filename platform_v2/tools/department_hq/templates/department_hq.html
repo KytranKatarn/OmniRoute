@@ -369,6 +369,11 @@
             <option value="task">Tasks only</option>
             <option value="job">Jobs only</option>
           </select>
+          <select id="dhFilterStatus" class="dh-filter-select" onchange="dhFetch(true)">
+            <option value="all">All Statuses</option>
+            <option value="success">Success</option>
+            <option value="failed">Failed</option>
+          </select>
           <input type="date" id="dhFilterFrom" class="dh-filter-input" onchange="dhFetch(true)">
           <input type="date" id="dhFilterTo"   class="dh-filter-input" onchange="dhFetch(true)">
           <input type="text" id="dhFilterQ"    class="dh-filter-input"

@@ -439,6 +439,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
         agent = request.args.get("agent", "").strip()
         capability = request.args.get("capability", "").strip()
         source = request.args.get("source", "all")  # all | task | job
+        status = request.args.get("status", "all")  # all | success | failed
         q = request.args.get("q", "").strip()
         try:
             per_page = min(int(request.args.get("per_page", 25)), 100)
@@ -463,6 +464,8 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     task_filters.append("tel.agent_name = %(agent)s")
                 if capability:
                     task_filters.append("tel.capability = %(capability)s")
+                if status in ("success", "failed"):
+                    task_filters.append("tel.success = %(status_bool)s")
                 if q:
                     task_filters.append(
                         "(tel.agent_name ILIKE %(q_like)s OR tel.capability ILIKE %(q_like)s"
@@ -499,6 +502,8 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     job_filters.append("bj.agent_name = %(agent)s")
                 if capability:
                     job_filters.append("bj.job_type = %(capability)s")
+                if status in ("success", "failed"):
+                    job_filters.append("(bj.status = 'completed') = %(status_bool)s")
                 if q:
                     job_filters.append(
                         "(bj.agent_name ILIKE %(q_like)s OR bj.job_type ILIKE %(q_like)s"
@@ -541,6 +546,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     "agent": agent or None,
                     "capability": capability or None,
                     "q_like": "%" + q + "%" if q else None,
+                    "status_bool": (True if status == "success" else False if status == "failed" else None),
                 }
 
                 # Stats query

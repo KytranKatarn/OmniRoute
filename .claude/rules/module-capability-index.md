@@ -21,6 +21,7 @@ From `module_registry.py` (36 modules). Full detail: `search_knowledge(category=
 - **Tables**: `backups`, `backup_locks`, `webhook_subscriptions`, `backup_log`, `deployment_package_jobs`. All `@admin_required`.
 - **Retention**: GFS 7 daily / 4 weekly / 3 monthly. Job #60 auto-cleanup 07:00 AM. Path normalization: `/backups/` and `/mnt/data2/backups/` variants.
 - **Standalone schema map**: gov_watch→`gov_watch`, civic_watch→`civic_transparency`, wtf→`wtf`; kbs/media_hub/creed/kso/legal_watch/market_watch → own DBs (partial = code-only).
+- **DR cold-copy (2026-06-02)**: nightly `scripts/backup_triage.sh` (cron 02:00) ships each Daily_Triage to `boston-2:/opt/archie-dr/backups` over mesh (keep-7, `backup_log` tier='dr') + dumps the `wtf` DB + refreshes the boston-2 warm-standby source. Restore needs `pgvector/pgvector:pg16` image (KB #256851). Docs KB #270238/#270239. Project #368.
 - **KB Docs**: #264022 · #264472 (audit 2026-05-09) · **Rules**: `admin-ops.md`
 
 ### Security & Network — `security_network` · `/tools/security-network` · ✅ · 🟢

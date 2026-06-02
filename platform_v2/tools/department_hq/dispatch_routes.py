@@ -500,7 +500,9 @@ def register_dispatch_routes(bp, admin_required_decorator):
                            bj.module_source AS module,
                            NULL::text AS model_used,
                            NULL::int AS duration_ms,
-                           (bj.status = 'completed') AS success,
+                           CASE WHEN bj.status = 'completed' THEN TRUE
+                                WHEN bj.status IN ('failed','error','expired','cancelled','timeout') THEN FALSE
+                                ELSE NULL END AS success,
                            bj.error_message,
                            bj.created_at,
                            NULL::int AS tokens_used,
@@ -540,7 +542,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                         COUNT(*)::int AS total_calls,
                         ROUND(
                             100.0 * SUM(CASE WHEN success THEN 1 ELSE 0 END)
-                            / NULLIF(COUNT(*), 0), 1
+                            / NULLIF(COUNT(*) FILTER (WHERE success IS NOT NULL), 0), 1
                         ) AS success_rate,
                         ROUND(
                             AVG(CASE WHEN success AND duration_ms IS NOT NULL

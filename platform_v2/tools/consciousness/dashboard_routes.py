@@ -246,7 +246,9 @@ def register_dashboard_routes(bp, admin_required):
                         "avg_stress": float(wellness["avg_stress"] or 0),
                         "avg_mood": float(wellness["avg_mood"] or 0),
                         "tasks_last_hour": recent["tasks_1h"],
-                        "success_rate_1h": round(recent["successes_1h"] / max(recent["tasks_1h"], 1) * 100, 1),
+                        # Use the helper's decided-only rate (ok/(ok+failed)); do NOT
+                        # recompute success/total — that dilutes with in-flight work.
+                        "success_rate_1h": recent["success_rate"],
                     },
                     "projects": {
                         "active": projects["active"],

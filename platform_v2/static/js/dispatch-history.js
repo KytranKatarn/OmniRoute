@@ -184,8 +184,8 @@
 
       /* Status */
       var statTd = document.createElement('td');
-      statTd.textContent = r.success ? '✅' : '❌';
-      statTd.style.color  = r.success ? '#4ade80' : '#f87171';
+      statTd.textContent = r.success === true ? '✅' : r.success === false ? '❌' : '⏳';
+      statTd.style.color  = r.success === true ? '#4ade80' : r.success === false ? '#f87171' : '#fbbf24';
       tr.appendChild(statTd);
 
       tbody.appendChild(tr);

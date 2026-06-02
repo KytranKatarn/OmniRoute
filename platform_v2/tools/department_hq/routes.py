@@ -148,8 +148,12 @@ def register_routes(bp, _admin_required=None):
         # Hero stats
         try:
             with get_db_cursor(cursor_factory=None) as (conn, cur):
-                # Agents by shift state
-                cur.execute("SELECT shift_state, COUNT(*) FROM agents GROUP BY shift_state")
+                # Agents by shift state — exclude decommissioned (82 retired rows
+                # were inflating the Overview "Agents" total to 156 vs ~74 live).
+                cur.execute(
+                    "SELECT shift_state, COUNT(*) FROM agents "
+                    "WHERE shift_state != 'decommissioned' GROUP BY shift_state"
+                )
                 shifts = {r[0]: r[1] for r in cur.fetchall()}
                 result["agents"] = {
                     "total": sum(shifts.values()),
@@ -303,6 +307,7 @@ def register_routes(bp, _admin_required=None):
                            COUNT(*) FILTER (WHERE shift_state = 'active') as active,
                            COUNT(DISTINCT department) as depts
                     FROM agents
+                    WHERE shift_state != 'decommissioned'
                     GROUP BY floor
                     ORDER BY CASE floor
                         WHEN 'BRIDGE' THEN 1 WHEN 'OPERATIONS' THEN 2

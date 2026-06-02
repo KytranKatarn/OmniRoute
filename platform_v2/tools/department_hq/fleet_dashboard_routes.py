@@ -91,27 +91,42 @@ def register_dashboard_routes(bp, auth_decorator):
         try:
             with get_db_cursor(commit=False) as (conn, cur):
 
-                # Get active agents count
+                # Get active agents count — use shift_state (canonical live state),
+                # not the legacy `status` column which over-counts (75 vs 56).
                 cur.execute(
                     """
                     SELECT COUNT(*) as active_agents
                     FROM agents
-                    WHERE status = 'active'
+                    WHERE shift_state = 'active'
                 """
                 )
                 agent_stats = cur.fetchone()
 
-                # Get recent token usage (last 24h)
+                # Recent token usage (last 24h) — was reading the DEAD token_usage_log
+                # table (frozen 2026-05-13, always ~0). task_execution_log is the live
+                # per-dispatch ledger with real Ollama eval counts (prompt+completion).
                 cur.execute(
                     """
                     SELECT
                         COALESCE(SUM(tokens_used), 0) as total_tokens,
                         COUNT(*) as total_requests
-                    FROM token_usage_log
+                    FROM task_execution_log
                     WHERE created_at > NOW() - INTERVAL '24 hours'
                 """
                 )
                 token_stats = cur.fetchone()
+
+                # In-flight work right now — for a meaningful system_load proxy.
+                # (Using the 24h request count would peg load to ~100%.)
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS inflight
+                    FROM bridge_jobs
+                    WHERE status NOT IN
+                        ('completed','failed','error','expired','cancelled','timeout')
+                """
+                )
+                inflight_stats = cur.fetchone()
 
                 # Get A.R.C.H.I.E.'s emotional state
                 cur.execute(
@@ -132,8 +147,9 @@ def register_dashboard_routes(bp, auth_decorator):
                 _, llm_total = _get_cached_ollama_tags()
                 llm_online = llm_total
 
-                # System load from active requests ratio (capped 0-100)
-                active_requests = token_stats["total_requests"] if token_stats else 0
+                # System load from IN-FLIGHT work ratio (capped 0-100). active_requests
+                # = jobs running/queued now, not the 24h total (which pegged load ~100%).
+                active_requests = inflight_stats["inflight"] if inflight_stats else 0
                 system_load = min(int(active_requests / max(1, active_requests + 10) * 100), 100)
 
                 return jsonify(

@@ -4368,6 +4368,7 @@
                     <button onclick="loadTokenEconomy(7)" class="ch-range-btn te-range" data-te="7">7D</button>
                     <button onclick="loadTokenEconomy(30)" class="ch-range-btn te-range active" data-te="30">30D</button>
                     <button onclick="loadTokenEconomy(90)" class="ch-range-btn te-range" data-te="90">90D</button>
+                    <button onclick="loadTokenEconomy(365)" class="ch-range-btn te-range" data-te="365" title="Since project origin (2025-12-17)">ALL</button>
                 </div>
                 <div id="teSummary" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:14px;"></div>
                 <div class="te-grid" style="display:grid;grid-template-columns:1fr;gap:14px;">
@@ -4382,8 +4383,18 @@
                         </div>
                     </div>
                 </div>
+                <div id="teImpact" style="margin-top:14px;"></div>
                 <style>
                   @media(min-width:900px){ #tokenEconomyCard .te-grid{ grid-template-columns:1fr 1.25fr; } }
+                  #teImpact .imp-wrap{ border:1px solid rgba(245,158,11,0.25); background:linear-gradient(180deg,rgba(245,158,11,0.06),rgba(2,6,23,0.4)); border-radius:8px; padding:12px 14px; }
+                  #teImpact .imp-cells{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-bottom:10px; }
+                  #teImpact .imp-cell{ text-align:center; padding:8px 14px; }
+                  #teImpact .imp-cell .v{ font-family:'Orbitron',sans-serif; font-size:1.15rem; font-weight:700; }
+                  #teImpact .imp-cell .l{ font-size:0.55rem; letter-spacing:1px; text-transform:uppercase; color:rgba(255,255,255,0.45); margin-top:2px; }
+                  #teImpact .imp-bars{ display:flex; align-items:flex-end; gap:6px; height:64px; padding:0 4px; }
+                  #teImpact .imp-bar{ flex:1; background:linear-gradient(180deg,#a78bfa,#6d28d9); border-radius:3px 3px 0 0; min-height:3px; position:relative; }
+                  #teImpact .imp-bar span{ position:absolute; bottom:-16px; left:0; right:0; text-align:center; font-size:0.5rem; color:rgba(255,255,255,0.4); }
+                  #teImpact .imp-bar b{ position:absolute; top:-14px; left:0; right:0; text-align:center; font-size:0.5rem; color:rgba(167,139,250,0.9); }
                   #tokenEconomyCard .te-cell{ min-width:118px;text-align:center;padding:10px 16px;border-radius:8px;border:1px solid rgba(167,139,250,0.2);background:rgba(167,139,250,0.06); }
                   #tokenEconomyCard .te-cell .v{ font-family:'Orbitron',sans-serif;font-size:1.3rem;font-weight:700;line-height:1.1; }
                   #tokenEconomyCard .te-cell .l{ font-size:0.58rem;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,0.45);margin-top:3px; }

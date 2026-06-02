@@ -3865,15 +3865,43 @@ function _fmtTok(n) {
   return "" + n;
 }
 
-function loadTokenEconomy(days) {
+var _teCache = {};            // {days: {t: epoch_ms, d: payload}}
+var _teClientTTL = 300000;    // 5 min — instant in-session tab re-opens
+
+function loadTokenEconomy(days, force) {
   days = days || 30;
   var btns = document.querySelectorAll(".te-range");
   for (var i = 0; i < btns.length; i++) {
     btns[i].classList.toggle("active", String(btns[i].getAttribute("data-te")) === String(days));
   }
-  api("/api/code-health/token-usage?days=" + days)
-    .then(function(d) { _renderTokenEconomy(d); })
+  // Render instantly from client cache when fresh — no server round-trip.
+  var c = _teCache[days];
+  if (!force && c && (Date.now() - c.t) < _teClientTTL) {
+    _renderTokenEconomy(c.d);
+    _tePrewarm();
+    return;
+  }
+  api("/api/code-health/token-usage?days=" + days + (force ? "&refresh=1" : ""))
+    .then(function(d) { _teCache[days] = { t: Date.now(), d: d }; _renderTokenEconomy(d); _tePrewarm(); })
     .catch(function() { /* token economy is non-critical — never break the tab */ });
+}
+
+// Background-prefetch every window once so clicking 7D/30D/90D/ALL is instant
+// (no stutter). Runs after the first render; staggered so we don't hammer the DB.
+var _tePrewarmed = false;
+function _tePrewarm() {
+  if (_tePrewarmed) return;
+  _tePrewarmed = true;
+  var windows = [7, 30, 90, 365];
+  windows.forEach(function(d, i) {
+    if (_teCache[d]) return;
+    setTimeout(function() {
+      if (_teCache[d]) return;
+      api("/api/code-health/token-usage?days=" + d)
+        .then(function(j) { _teCache[d] = { t: Date.now(), d: j }; })
+        .catch(function() {});
+    }, 400 * (i + 1));
+  });
 }
 
 function _renderTokenEconomy(d) {
@@ -3890,9 +3918,16 @@ function _renderTokenEconomy(d) {
   var ag = document.getElementById("teAgents");
   if (ag) {
     var rows = (d.agents || []).map(function(a) {
-      var models = escHtml((a.models || []).join(", "));
+      // Models column: token count next to each model; CLOUD models (name + count) in orange.
+      var models = (a.models || []).map(function(m) {
+        var nameCol = m.cloud ? "#f59e0b" : "rgba(255,255,255,0.6)";
+        var tokCol = m.cloud ? "#f59e0b" : "rgba(167,139,250,0.6)";
+        return '<span style="color:' + nameCol + '">' + escHtml(m.model || "?") + '</span> <span style="color:' + tokCol + '">' + _fmtTok(m.tokens) + '</span>';
+      }).join(", ");
       var ext = a.external_tokens > 0 ? ' <span title="uses cloud" style="color:#f59e0b">☁</span>' : "";
-      return '<tr><td>' + escHtml(a.agent || "") + ext + '</td><td style="color:rgba(255,255,255,0.55)">' + models + '</td><td style="text-align:right">' + (a.dispatches || 0).toLocaleString() + '</td><td style="text-align:right;color:#a78bfa">' + _fmtTok(a.tokens) + '</td><td style="text-align:right">' + (a.local_pct != null ? a.local_pct : 100) + '%</td></tr>';
+      // Tokens column = agent total only (per-model breakdown lives in the Models column).
+      var tokCell = '<span style="color:#a78bfa">' + _fmtTok(a.tokens) + '</span>';
+      return '<tr><td>' + escHtml(a.agent || "") + ext + '</td><td>' + models + '</td><td style="text-align:right">' + (a.dispatches || 0).toLocaleString() + '</td><td style="text-align:right">' + tokCell + '</td><td style="text-align:right">' + (a.local_pct != null ? a.local_pct : 100) + '%</td></tr>';
     }).join("");
     ag.innerHTML = '<table><thead><tr><th>Agent</th><th>Model(s)</th><th style="text-align:right">Disp.</th><th style="text-align:right">Tokens</th><th style="text-align:right">Local%</th></tr></thead><tbody>' +
       (rows || '<tr><td colspan="5" style="text-align:center;color:rgba(255,255,255,0.3)">No token data in range</td></tr>') + '</tbody></table>';
@@ -3928,6 +3963,32 @@ function _renderTokenEconomy(d) {
       }
     });
   }
+  _renderCloudImpact(d.impact);
+}
+
+function _renderCloudImpact(imp) {
+  var el = document.getElementById("teImpact");
+  if (!el) return;
+  if (!imp) { el.innerHTML = ""; return; }
+  var agents = imp.agents_by_month || [];
+  var peak = agents.reduce(function(mx, a) { return Math.max(mx, a.cumulative || 0); }, 1);
+  var bars = agents.map(function(a) {
+    var h = Math.round(((a.cumulative || 0) / peak) * 60) + 3;
+    var label = (a.month || "").slice(5); // MM
+    return '<div class="imp-bar" style="height:' + h + 'px" title="' + escHtml(a.month) + ': ' + a.cumulative + ' agents (+' + a.created + ')"><b>' + a.cumulative + '</b><span>' + label + '</span></div>';
+  }).join("");
+  el.innerHTML =
+    '<div class="imp-wrap">' +
+      '<div style="text-align:center;font-family:\'Orbitron\',sans-serif;font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;color:#f59e0b;margin-bottom:8px;">☁ Cloud Impact — Built From Here</div>' +
+      '<div class="imp-cells">' +
+        '<div class="imp-cell"><div class="v" style="color:#f59e0b">~' + _fmtTok(imp.est_historical_tokens) + '</div><div class="l">Est. cloud tokens (Jan–Apr)</div></div>' +
+        '<div class="imp-cell"><div class="v" style="color:#a78bfa">' + (imp.lines_built_est_period || 0).toLocaleString() + '</div><div class="l">Lines built (est period)</div></div>' +
+        '<div class="imp-cell"><div class="v" style="color:#22d3ee">' + (agents.length ? agents[agents.length - 1].cumulative : 0) + '</div><div class="l">Agents built</div></div>' +
+        '<div class="imp-cell"><div class="v" style="color:rgba(255,255,255,0.7)">' + escHtml(imp.origin || "") + '</div><div class="l">Project origin</div></div>' +
+      '</div>' +
+      (bars ? '<div style="font-size:0.55rem;color:rgba(255,255,255,0.4);text-align:center;margin:2px 0 18px;">Agent fleet growth (cumulative)</div><div class="imp-bars">' + bars + '</div>' : '') +
+      '<div style="font-size:0.52rem;color:rgba(255,255,255,0.35);text-align:center;margin-top:12px;font-style:italic;">' + escHtml(imp.note || "") + ' Measured tokens begin ' + escHtml(imp.measured_since || "") + '.</div>' +
+    '</div>';
 }
 
 function _auditBtnCell(moduleKey) {

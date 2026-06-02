@@ -5,6 +5,7 @@ API endpoints for codebase metrics, audit progress, and snapshots.
 """
 
 import logging
+import time
 
 from flask import jsonify, request
 from flask_login import login_required
@@ -12,6 +13,13 @@ from flask_login import login_required
 from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
+
+# In-memory TTL cache for the token-usage endpoint. The underlying data changes
+# slowly (daily ingest cron + a slow live dispatch trickle), so a short TTL makes
+# repeat tab loads instant without going stale in any way that matters. Keyed by
+# the `days` window. Per-gunicorn-worker (not shared) — that's fine for an admin view.
+_TOKEN_USAGE_CACHE = {}
+_TOKEN_USAGE_TTL = 600  # seconds
 
 
 def register_code_health_routes(bp, admin_required):
@@ -148,6 +156,16 @@ def register_code_health_routes(bp, admin_required):
         if days not in (7, 30, 90, 365):
             days = 30
 
+        # Serve from TTL cache when fresh (skips ~2-3s of aggregation over 259k+ rows).
+        # ?refresh=1 forces a recompute.
+        if request.args.get("refresh") != "1":
+            _hit = _TOKEN_USAGE_CACHE.get(days)
+            if _hit and (time.time() - _hit[0]) < _TOKEN_USAGE_TTL:
+                payload = dict(_hit[1])
+                payload["_cached"] = True
+                payload["_cache_age_s"] = int(time.time() - _hit[0])
+                return jsonify(payload)
+
         # Cloud/external detector (note: %% escapes the LIKE % for psycopg2 params)
         cls = (
             "CASE WHEN provider ILIKE '%%cloud%%' OR model_used ILIKE '%%:cloud' "
@@ -157,7 +175,7 @@ def register_code_health_routes(bp, admin_required):
         )
         # COALESCE so NULL metadata is treated as 'not estimated' (else NOT(NULL)=NULL
         # silently drops every real row from the local/external sums).
-        est = "(COALESCE(request_metadata->>'token_source','') = 'estimated')"
+        est = "(COALESCE(request_metadata->>'token_source','') IN ('estimated', 'estimated_historical'))"
         where = "created_at > now() - make_interval(days => %s) AND tokens_used IS NOT NULL"
 
         out = {"days": days, "totals": {}, "agents": [], "series": []}
@@ -185,15 +203,26 @@ def register_code_health_routes(bp, admin_required):
                 "pct_local": round(100.0 * lt / (lt + xt), 1) if (lt + xt) else 100.0,
             }
 
+            # Per-agent, with a per-MODEL token breakdown (jsonb array, biggest first)
+            # so the UI can show the token count next to each model.
             cur.execute(
                 f"""SELECT agent_name,
-                        array_agg(DISTINCT model_used) FILTER (WHERE model_used IS NOT NULL) models,
-                        COUNT(*) disp,
-                        COALESCE(SUM(tokens_used),0) tokens,
-                        COALESCE(SUM(CASE WHEN {cls}='local'    THEN tokens_used END),0) local_tokens,
-                        COALESCE(SUM(CASE WHEN {cls}='external' THEN tokens_used END),0) external_tokens
-                    FROM task_execution_log
-                    WHERE {where} AND NOT {est} AND agent_name IS NOT NULL
+                        jsonb_agg(jsonb_build_object('model', model_used, 'tokens', mt, 'cloud', ext_t > 0)
+                                  ORDER BY mt DESC) models,
+                        SUM(md) disp,
+                        SUM(mt) tokens,
+                        SUM(local_t) local_tokens,
+                        SUM(ext_t) external_tokens
+                    FROM (
+                        SELECT agent_name, COALESCE(model_used, '?') model_used,
+                            COALESCE(SUM(tokens_used),0) mt,
+                            COUNT(*) md,
+                            COALESCE(SUM(CASE WHEN {cls}='local'    THEN tokens_used END),0) local_t,
+                            COALESCE(SUM(CASE WHEN {cls}='external' THEN tokens_used END),0) ext_t
+                        FROM task_execution_log
+                        WHERE {where} AND NOT {est} AND agent_name IS NOT NULL
+                        GROUP BY agent_name, COALESCE(model_used, '?')
+                    ) sub
                     GROUP BY agent_name
                     ORDER BY tokens DESC LIMIT 25""",
                 (days,),
@@ -204,7 +233,14 @@ def register_code_health_routes(bp, admin_required):
                 out["agents"].append(
                     {
                         "agent": r.get("agent_name"),
-                        "models": list(r.get("models") or []),
+                        "models": [
+                            {
+                                "model": m.get("model"),
+                                "tokens": int(m.get("tokens") or 0),
+                                "cloud": bool(m.get("cloud")),
+                            }
+                            for m in (r.get("models") or [])
+                        ],
                         "dispatches": int(r.get("disp") or 0),
                         "tokens": tok,
                         "local_tokens": loc,
@@ -232,6 +268,36 @@ def register_code_health_routes(bp, admin_required):
                         "estimated": int(r.get("estimated") or 0),
                     }
                 )
+
+            # Cloud impact — the "how cloud helped build this" story. Pre-measurement
+            # build-out (Jan–Apr 2026) is estimated (token_source='estimated_historical',
+            # see scripts/estimate_historical_claude_tokens.py); agent-growth is real.
+            cur.execute(
+                """SELECT
+                       COALESCE(SUM(tokens_used),0) est_tokens,
+                       COALESCE(SUM((request_metadata->>'lines_inserted')::bigint),0) lines_built
+                   FROM task_execution_log
+                   WHERE COALESCE(request_metadata->>'token_source','') = 'estimated_historical'"""
+            )
+            imp = cur.fetchone() or {}
+            cur.execute(
+                """SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') m, COUNT(*) n
+                   FROM agents WHERE created_at IS NOT NULL
+                   GROUP BY 1 ORDER BY 1"""
+            )
+            agents_by_month, running = [], 0
+            for r in cur.fetchall():
+                running += int(r.get("n") or 0)
+                agents_by_month.append({"month": r.get("m"), "created": int(r.get("n") or 0), "cumulative": running})
+            out["impact"] = {
+                "origin": "2025-12-17",
+                "measured_since": "2026-05-03",
+                "est_historical_tokens": int(imp.get("est_tokens") or 0),
+                "lines_built_est_period": int(imp.get("lines_built") or 0),
+                "agents_by_month": agents_by_month,
+                "note": "Jan–Apr 2026 tokens are estimated (blend of lines×tok/line + commits×tok/commit); agent growth is real.",
+            }
+        _TOKEN_USAGE_CACHE[days] = (time.time(), out)
         return jsonify(out)
 
     @bp.route("/api/code-health/audit-log")

@@ -41,8 +41,8 @@ if [ "${INREC:-}" = "f" ]; then log "Replica promoted to PRIMARY (read-write).";
   log "ERROR: replica did NOT leave recovery (pg_is_in_recovery=$INREC). Aborting before starting platform."; exit 2; fi
 
 # ---- 2. START the standby platform (now points at the RW DB) ----
-log "Starting standby platform (archie_platform_standby)..."
-cd "$DR/platform" && docker compose -f docker-compose.standby.yml up -d archie_platform_standby >/dev/null 2>&1
+log "Starting standby platform + scheduler (archie_platform_standby + archie_scheduler_standby)..."
+cd "$DR/platform" && docker compose -f docker-compose.standby.yml up -d archie_platform_standby archie_scheduler_standby >/dev/null 2>&1
 
 # ---- 3. VERIFY platform serves + DB is writable ----
 log "Verifying platform serves /login + DB accepts writes..."
@@ -59,7 +59,30 @@ WOK=$(docker exec archie_dr_replica psql -U archie -d archie -p 5433 -tAc \
   "CREATE TABLE IF NOT EXISTS _dr_failover_marker(at timestamptz default now()); INSERT INTO _dr_failover_marker DEFAULT VALUES; SELECT 'WRITE_OK';" 2>/dev/null | tail -1)
 log "  DB write check: ${WOK:-FAILED}"
 
-# ---- 4. PUBLIC INGRESS (Caddy) + DNS FLIP (Phase 5) ----
+# ---- 4. FLEET REPOINT: point surviving nodes at boston-2 (Phase 5b) ----
+# Each node's hub URL is a BAKED container env var → repoint.sh RECREATES the
+# sync container (a `docker restart` ignores --env-file). KB #270232. Mesh IP
+# only — MagicDNS dies with the hub. Non-fatal: failover proceeds per-node.
+DR_MESH=100.64.0.10
+FLEET_KEY="$DR/.ssh/id_ed25519"
+# Surviving global outposts (root@, /opt/archie-node). LAN Starships die with a
+# Montreal-site outage. outpost-us (kytran@, /opt/archie-outpost) = TODO (divergent path).
+FLEET_NODES=( "root@100.64.0.5" "root@100.64.0.7" "root@100.64.0.8" )
+log "Repointing surviving fleet nodes -> boston-2 ($DR_MESH)..."
+if [ -f "$FLEET_KEY" ]; then
+  for node in "${FLEET_NODES[@]}"; do
+    if ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$node" \
+         "/opt/archie-node/repoint.sh $DR_MESH" >/dev/null 2>&1; then
+      log "  repointed $node"
+    else
+      log "  WARN: could not repoint $node (skipping)"
+    fi
+  done
+else
+  log "  WARN: $FLEET_KEY missing — cannot repoint fleet (stage the DR key; DR plan 5b)."
+fi
+
+# ---- 5. PUBLIC INGRESS (Caddy) + DNS FLIP (Phase 5) ----
 log "Starting public HTTPS ingress (Caddy)..."
 if [ -f "$DR/ingress/docker-compose.caddy.yml" ]; then
   ( cd "$DR/ingress" && docker compose -f docker-compose.caddy.yml up -d caddy >/dev/null 2>&1 ) \

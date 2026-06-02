@@ -6,7 +6,7 @@ services:
   archie_platform_standby:
     image: archie_brain-archie_platform
     container_name: archie_platform_standby
-    command: ["gunicorn", "--bind", "127.0.0.1:3000", "--workers", "2", "--threads", "4", "--timeout", "600", "app:app"]
+    command: ["gunicorn", "--bind", "127.0.0.1:3000", "--bind", "100.64.0.10:3000", "--workers", "2", "--threads", "4", "--timeout", "600", "app:app"]
     restart: "no"           # warm standby — started by failover.sh, not on boot
     network_mode: host       # reach the local replica (127.0.0.1:5433) + the mesh
     env_file:
@@ -36,3 +36,42 @@ services:
       - /var/run:size=16m
     mem_limit: 4g
     cpus: 3.0
+
+  # DR scheduler — runs the autonomous APScheduler job loop on boston-2 during
+  # a failover so background work (ingest, embedding, fleet_health, delegate
+  # worker, etc.) resumes — not just API/manual dispatch. Dormant (restart:no);
+  # failover.sh starts it. ARCHIE_RUN_TELEGRAM=0 = no long-poll bot (push still
+  # works). Task #3679 / KB #270232. NOTE: boston-2 has no GPU + no /mnt/standalone,
+  # so GPU jobs fall back (cloud/CPU) and Code-Health/standalone scans are degraded.
+  archie_scheduler_standby:
+    image: archie_brain-archie_platform
+    container_name: archie_scheduler_standby
+    command: ["python3", "scheduler_daemon.py"]
+    restart: "no"
+    network_mode: host
+    env_file:
+      - /opt/archie-dr/platform/.env
+    environment:
+      TZ: America/Toronto
+      PYTHONPATH: /mnt/archie_brain
+      NODE_CLIENT_DIR: /mnt/archie_brain/node_client
+      ARCHIE_RUN_SCHEDULER: "1"
+      ARCHIE_RUN_TELEGRAM: "0"
+      FLASK_ENV: production
+      DB_HOST: "127.0.0.1"
+      DB_PORT: "5433"
+      DB_NAME: archie
+      DB_USER: archie
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      DB_PASSWORD: ""
+      HOST_IP: "100.64.0.10"
+      DEPLOYMENT_MODE: dr
+    volumes:
+      - /opt/archie-dr/platform:/mnt/archie_brain
+      - /opt/archie-dr/platform/platform_v2:/app
+      - /opt/archie-dr/platform/secrets/database/password.txt:/run/secrets/db_password:ro
+    tmpfs:
+      - /tmp:size=512m
+      - /var/run:size=16m
+    mem_limit: 2g
+    cpus: 2.0

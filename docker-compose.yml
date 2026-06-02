@@ -1040,6 +1040,10 @@ services:
       - SCOUT_VPS_SOCKS=socks5://100.64.0.2:1080
       - SCOUT_PROXY_URL=${SCOUT_PROXY_URL:-}
       - SCREENSHOT_DIR=/mnt/screenshots
+      # session_fetch skill calls the platform's internal sessions route to load
+      # imported storage_state cookies (claude/deepseek/…). KB #270262.
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY:-}
+      - PLATFORM_INTERNAL_URL=http://archie_platform:3000
     volumes:
       - /mnt/data2/scout/screenshots:/mnt/screenshots
     networks:

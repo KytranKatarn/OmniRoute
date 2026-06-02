@@ -17,6 +17,7 @@ SKILL_MAP = {
     "web_scrape": "skills.web_scrape",
     "multi_page_scrape": "skills.multi_page_scrape",
     "authenticated_fetch": "skills.authenticated_fetch",
+    "session_fetch": "skills.session_fetch",
     "search_scrape": "skills.search_scrape",
     "site_change_monitor": "skills.site_change_monitor",
     "pdf_extract": "skills.pdf_extract",
@@ -63,7 +64,7 @@ class JobWorker:
         requested_by: str,
     ) -> int:
         auto_approve = job_type in {
-            "web_scrape", "multi_page_scrape", "authenticated_fetch",
+            "web_scrape", "multi_page_scrape", "authenticated_fetch", "session_fetch",
             "search_scrape", "site_change_monitor", "pdf_extract",
             "document_download", "procurement_sync", "ancestry_research",
             "crm_enrich", "contact_harvest", "social_profile_check", "price_monitor",

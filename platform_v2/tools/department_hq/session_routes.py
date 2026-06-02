@@ -19,7 +19,11 @@ logger = logging.getLogger(__name__)
 
 _INTERNAL_KEY = os.getenv("INTERNAL_API_KEY", "")
 
-_SUPPORTED_PLATFORMS = {"linkedin", "twitter", "facebook"}
+# Platforms allowed for cookie-import → encrypted Playwright storage_state.
+# claude/deepseek added 2026-06-02 so S.C.O.U.T. authenticated_fetch can read
+# bot-protected share pages (claude.ai/share, chat.deepseek.com/share) with a
+# real logged-in session — see KB #270262 / reference_scout-browser-intelligence.
+_SUPPORTED_PLATFORMS = {"linkedin", "twitter", "facebook", "claude", "deepseek", "openai"}
 
 
 def _cookies_to_storage_state(cookies: list) -> dict:

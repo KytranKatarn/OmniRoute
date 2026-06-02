@@ -159,21 +159,19 @@ def register_routes(bp, _admin_required=None):
                 }
 
                 # Bridge jobs 24h
-                cur.execute(
-                    """
-                    SELECT status, COUNT(*) FROM bridge_jobs
-                    WHERE created_at > NOW() - INTERVAL '24 hours'
-                    GROUP BY status
-                """
-                )
-                jobs = {r[0]: r[1] for r in cur.fetchall()}
-                total_jobs = sum(jobs.values())
-                completed_jobs = jobs.get("completed", 0)
+                # Unified dispatch health (task_execution_log + bridge_jobs) via
+                # the shared helper — was bridge_jobs-only with rate=completed/total
+                # (incl. in-flight), so it read ~53% while the DHQ panel read ~100%.
+                # Now identical to the DHQ DISPATCH METRICS + Consciousness numbers.
+                from services.dispatch_health_service import dispatch_health
+
+                _dh = dispatch_health(24)
                 result["jobs_24h"] = {
-                    "total": total_jobs,
-                    "completed": completed_jobs,
-                    "failed": jobs.get("failed", 0) + jobs.get("error", 0),
-                    "success_rate": round(completed_jobs / total_jobs * 100, 1) if total_jobs > 0 else 0,
+                    "total": _dh["total"],
+                    "completed": _dh["success"],
+                    "failed": _dh["failed"],
+                    "pending": _dh["pending"],
+                    "success_rate": _dh["success_rate"],
                 }
 
                 # Knowledge base

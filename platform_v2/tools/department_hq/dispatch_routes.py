@@ -111,40 +111,23 @@ def register_dispatch_routes(bp, admin_required_decorator):
                         }
                     )
 
-                # ── Dispatch Metrics (24h) ──
-                cur.execute(
-                    """SELECT
-                           COUNT(*) AS total_24h,
-                           COUNT(*) FILTER (WHERE success = TRUE) AS success_24h,
-                           COUNT(*) FILTER (WHERE success = FALSE) AS failed_24h,
-                           COALESCE(ROUND(AVG(duration_ms)::numeric, 1), 0)
-                               AS avg_duration_ms,
-                           COUNT(*) FILTER (
-                               WHERE created_at > NOW() - INTERVAL '1 hour'
-                           ) AS total_1h,
-                           COUNT(*) FILTER (
-                               WHERE success = TRUE
-                               AND created_at > NOW() - INTERVAL '1 hour'
-                           ) AS success_1h,
-                           COUNT(*) FILTER (
-                               WHERE success = FALSE
-                               AND created_at > NOW() - INTERVAL '1 hour'
-                           ) AS failed_1h
-                       FROM task_execution_log
-                       WHERE created_at > NOW() - INTERVAL '24 hours'"""
-                )
-                row = cur.fetchone()
-                if row:
-                    r = dict(row)
-                    result["dispatch_metrics"] = {
-                        "total_24h": int(r.get("total_24h") or 0),
-                        "success_24h": int(r.get("success_24h") or 0),
-                        "failed_24h": int(r.get("failed_24h") or 0),
-                        "avg_duration_ms": float(r.get("avg_duration_ms") or 0),
-                        "total_1h": int(r.get("total_1h") or 0),
-                        "success_1h": int(r.get("success_1h") or 0),
-                        "failed_1h": int(r.get("failed_1h") or 0),
-                    }
+                # ── Dispatch Metrics (24h) ── unified via the shared helper so
+                # THIS panel, the Overview "Dispatches 24h" card and the
+                # Consciousness dashboard all report the SAME truthful number
+                # (task_execution_log + bridge_jobs, success_rate over decided
+                # work, in-flight excluded). Single source of truth:
+                # services/dispatch_health_service.py.
+                from services.dispatch_health_service import dispatch_health
+
+                h = dispatch_health(24)
+                result["dispatch_metrics"] = {
+                    "total_24h": h["total"],
+                    "success_24h": h["success"],
+                    "failed_24h": h["failed"],
+                    "pending_24h": h["pending"],
+                    "success_rate": h["success_rate"],
+                    "avg_duration_ms": h["avg_duration_ms"],
+                }
 
                 # ── Agent Workload by Department ──
                 cur.execute(
@@ -1247,8 +1230,33 @@ def register_dispatch_routes(bp, admin_required_decorator):
                         }
                     )
 
-            total = len(feed)
-            successes = sum(1 for f in feed if f["success"])
+            # True dispatched totals — NOT len(feed), which is capped at the row
+            # LIMIT and only sees sync request_origin='claude' rows. delegate_task
+            # is async, so its executions land in unified_tasks, not
+            # task_execution_log. Count terminal delegations (completed+blocked)
+            # alongside the sync rows so the header stops showing "0 dispatched"
+            # when delegated work actually ran.
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT
+                           (SELECT COUNT(*) FROM task_execution_log
+                              WHERE request_origin = 'claude'
+                                AND created_at > NOW() - INTERVAL %(win)s) AS tel_total,
+                           (SELECT COUNT(*) FROM task_execution_log
+                              WHERE request_origin = 'claude' AND success IS TRUE
+                                AND created_at > NOW() - INTERVAL %(win)s) AS tel_ok,
+                           (SELECT COUNT(*) FROM unified_tasks
+                              WHERE delegation_source = 'claude'
+                                AND status IN ('completed', 'blocked')
+                                AND created_at > NOW() - INTERVAL %(win)s) AS del_total,
+                           (SELECT COUNT(*) FROM unified_tasks
+                              WHERE delegation_source = 'claude' AND status = 'completed'
+                                AND created_at > NOW() - INTERVAL %(win)s) AS del_ok""",
+                    {"win": f"{hours} hours"},
+                )
+                c = dict(cur.fetchone())
+            total = int(c["tel_total"] or 0) + int(c["del_total"] or 0)
+            successes = int(c["tel_ok"] or 0) + int(c["del_ok"] or 0)
             return jsonify(
                 {
                     "success": True,

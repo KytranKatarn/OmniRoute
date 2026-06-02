@@ -101,16 +101,20 @@ def register_dashboard_routes(bp, admin_required):
             )
             fleet = cur.fetchone()
 
-            # Recent dispatch activity (last hour)
-            cur.execute(
-                """
-                SELECT count(*) as tasks_1h,
-                       count(*) FILTER (WHERE success = true) as successes_1h
-                FROM task_execution_log
-                WHERE created_at > NOW() - INTERVAL '1 hour'
-            """
-            )
-            recent = cur.fetchone()
+            # Recent dispatch activity (last hour) — unified across BOTH dispatch
+            # sinks via the shared helper. Was task_execution_log-only, so the
+            # FLEET STATUS card showed ~100% while bridge_jobs (fleet/cold-queue)
+            # had real failures in the same hour. Now matches the DHQ panels.
+            from services.dispatch_health_service import dispatch_health
+
+            _dh1 = dispatch_health(1)
+            recent = {
+                "tasks_1h": _dh1["total"],
+                "successes_1h": _dh1["success"],
+                "failed_1h": _dh1["failed"],
+                "pending_1h": _dh1["pending"],
+                "success_rate": _dh1["success_rate"],
+            }
 
             # Projects (from Dev HQ) -- via shared service
             projects = project_service.get_project_stats()

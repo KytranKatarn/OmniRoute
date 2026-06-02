@@ -188,7 +188,7 @@ async function loadOverview() {
         html += '<div class="dhq-hero-stats">';
         html += heroCard(a.active || 0, 'Agents Online', '#00e5ff');
         html += heroCard(o.models_loaded || '?', 'Models Loaded', '#10b981');
-        html += heroCard(j.total || 0, 'Jobs 24h', '#fbbf24');
+        html += heroCard(j.total || 0, 'Dispatches 24h', '#fbbf24');
         html += heroCard(j.success_rate ? j.success_rate + '%' : '—', 'Success Rate', j.success_rate >= 90 ? '#10b981' : j.success_rate >= 70 ? '#fbbf24' : '#f87171');
         html += heroCard(s.security_issues || 0, 'Security Issues', s.security_issues > 0 ? '#f87171' : '#10b981');
         html += heroCard(formatNum(k.total || 0), 'KB Entries', '#8b5cf6');
@@ -3013,13 +3013,19 @@ function renderDispatchMetrics(m) {
     var total = m.total_24h || 0;
     var success = m.success_24h || 0;
     var failed = m.failed_24h || 0;
+    var pending = m.pending_24h || 0;
     var avg = m.avg_duration_ms ? (m.avg_duration_ms / 1000).toFixed(1) + 's' : '--';
-    var rate = total > 0 ? Math.round(success / total * 100) : 0;
+    // Use the server's rate (computed over DECIDED work only — excludes
+    // in-flight); fall back to local ok/(ok+failed) so old payloads still work.
+    var rate = (typeof m.success_rate === 'number')
+        ? m.success_rate
+        : ((success + failed) > 0 ? Math.round(success / (success + failed) * 100) : 0);
     var rateClass = rate >= 95 ? 'good' : rate >= 80 ? 'warn' : 'bad';
     var html = '<div class="dhq-metrics-row">'
         + _metricCell('TOTAL 24H', total, '')
         + _metricCell('SUCCESS', success, 'good')
         + _metricCell('FAILED', failed, failed > 0 ? 'bad' : '')
+        + (pending > 0 ? _metricCell('IN-FLIGHT', pending, 'warn') : '')
         + _metricCell('AVG RESPONSE', avg, '')
         + _metricCell('SUCCESS RATE', rate + '%', rateClass)
         + '</div>';

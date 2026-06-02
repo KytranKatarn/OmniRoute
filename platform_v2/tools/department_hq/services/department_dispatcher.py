@@ -432,6 +432,57 @@ _NODE_MODEL_DISPATCH_TS: Dict[tuple, List[float]] = {}
 _DISPATCH_BURST_WINDOW_SEC = 600  # 10 min lookback
 _DISPATCH_BURST_THRESHOLD = 2  # >=2 dispatches in the window => sustained demand
 
+# Fleet node circuit-breaker. A node can heartbeat + answer /api/tags yet complete
+# zero generations (e.g. the outpost-US inference stack down while it keeps hosting
+# Watch/WTF). Without this, every dispatch to it times out (the 91/hr boston fails).
+# In-memory + per-process (mirrors _NODE_MODEL_DISPATCH_TS): a node that fails
+# repeatedly with NO recent success is "open" and skipped in candidate selection so
+# work routes to healthy siblings; a periodic probe is let through to detect recovery,
+# and one success closes the breaker. Fail-open everywhere — never blocks real work.
+_NODE_FAIL_TS: Dict[int, List[float]] = {}
+_NODE_OK_TS: Dict[int, List[float]] = {}
+_NODE_CB_LAST_PROBE: Dict[int, float] = {}
+_NODE_CB_WINDOW_SEC = 300  # 5 min lookback
+_NODE_CB_FAIL_THRESHOLD = 3  # >=3 fails + 0 ok in window => circuit open
+_NODE_CB_PROBE_INTERVAL_SEC = 120  # while open, let one probe through every 2 min
+
+
+def _node_record_result(node_id, ok: bool) -> None:
+    """Record a fleet dispatch outcome for the circuit-breaker. A success clears the
+    node's recent-failure history (closes the breaker)."""
+    if node_id is None:
+        return
+    try:
+        now = time.time()
+        store = _NODE_OK_TS if ok else _NODE_FAIL_TS
+        hist = [t for t in store.get(node_id, []) if now - t < _NODE_CB_WINDOW_SEC]
+        hist.append(now)
+        store[node_id] = hist
+        if ok:
+            _NODE_FAIL_TS[node_id] = []
+    except Exception:
+        pass
+
+
+def _node_circuit_open(node_id) -> bool:
+    """True if this node should be skipped (>=N recent failures, no recent success),
+    except for a throttled probe to detect recovery. Fail-open on any error."""
+    try:
+        if node_id is None:
+            return False
+        now = time.time()
+        fails = [t for t in _NODE_FAIL_TS.get(node_id, []) if now - t < _NODE_CB_WINDOW_SEC]
+        oks = [t for t in _NODE_OK_TS.get(node_id, []) if now - t < _NODE_CB_WINDOW_SEC]
+        if len(fails) >= _NODE_CB_FAIL_THRESHOLD and not oks:
+            last_probe = _NODE_CB_LAST_PROBE.get(node_id, 0)
+            if now - last_probe >= _NODE_CB_PROBE_INTERVAL_SEC:
+                _NODE_CB_LAST_PROBE[node_id] = now
+                return False  # probe: let one through to detect recovery
+            return True
+        return False
+    except Exception:
+        return False
+
 
 # Module-level cache so we only hit Ollama /api/tags once per process.
 _INSTALLED_MODELS_CACHE = {"names": None, "fetched_at": 0}
@@ -1930,6 +1981,15 @@ class DepartmentDispatcher:
                 if model_preference and model != model_preference:
                     continue
 
+                # Circuit-breaker: skip a node that's been failing with no recent
+                # success, so work routes to a healthy sibling (use all healthy nodes).
+                if _node_circuit_open(candidate["node_id"]):
+                    logger.debug(
+                        f"[BridgeDispatcher] Circuit-breaker open for {candidate['node_name']} "
+                        f"(node_id={candidate['node_id']}) — skipping, routing to a healthy node"
+                    )
+                    continue
+
                 # Resolve best reachable address (LAN → mesh → vpn)
                 resolved_host, resolved_port, conn_type = self._resolve_node_address(
                     hostname=candidate["node_hostname"],
@@ -2249,6 +2309,16 @@ class DepartmentDispatcher:
             # Fail-open: capacity precheck must never block real dispatch.
             logger.debug(f"[BridgeDispatcher] Capacity precheck skipped: {cap_err}")
 
+        # Circuit-breaker (covers dispatch paths that bypass _find_fleet_agent's
+        # selection skip): refuse a node that's failing with no recent success and
+        # escalate. A throttled probe is let through to detect recovery.
+        if _node_circuit_open(node_id):
+            logger.warning(
+                f"[BridgeDispatcher] Circuit-breaker OPEN for {node_name} (node_id={node_id}) "
+                f"— refusing fleet dispatch, escalating to a healthy tier"
+            )
+            return None
+
         # Create bridge_job for tracking
         bridge_job_id = None
         try:
@@ -2366,6 +2436,7 @@ class DepartmentDispatcher:
                     f"{agent_name}@{node_name} returned "
                     f"{len(response_text)} chars"
                 )
+                _node_record_result(node_id, True)  # closes the circuit-breaker for this node
 
                 return {
                     "success": True,
@@ -2398,6 +2469,9 @@ class DepartmentDispatcher:
         except Exception as e:
             _err = f"{type(e).__name__}: {str(e)[:500]}"
             logger.warning(f"[BridgeDispatcher] Fleet dispatch failed: {e}")
+
+        # Feed the circuit-breaker: this node just failed a dispatch.
+        _node_record_result(node_id, False)
 
         # Mark bridge_job failed WITH the captured reason, so fleet failures are
         # debuggable in bridge_jobs.error_message instead of surfacing as NULL-error

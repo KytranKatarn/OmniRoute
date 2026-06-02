@@ -56,7 +56,8 @@ From `module_registry.py` (36 modules). Full detail: `search_knowledge(category=
 - **Audits**: KB 256837/256843/256844 · **Rules**: `department-hq-dispatch.md`, `starbase.md`
 
 ### Consciousness — `consciousness` · `/tools/consciousness` · ✅ · 🟢
-- **Capability**: 5 tabs + Dev HQ subtabs + Code Health. Owns `knowledge_base` (25,874+ entries, 99%+ embedded). Embedding/Analysis/Translate/GitHub-ingest loops. 129 routes, 62+ async jobs.
+- **Capability**: 5 tabs + Dev HQ subtabs + Code Health + **Token Economy** tab. Owns `knowledge_base` (31k+ entries, 99%+ embedded). Embedding/Analysis/Translate/GitHub-ingest loops. 129 routes, 62+ async jobs.
+- **Token Economy tab** (PR #1394, panel-tokens): local-vs-external token split, per-agent+per-model token counts (cloud=orange, agent-name color=local/cloud blend), tokens-over-time (7/30/90/ALL), Cloud Impact + capacity/authorship timeline. Endpoint `GET /api/code-health/token-usage?days=` (`code_health_routes.py`, source=task_execution_log, 600s TTL cache). Claude CLI tokens via host cron `scripts/ingest_claude_cli_tokens.py`; historical estimate `scripts/estimate_historical_claude_tokens.py` (capacity-ceiling, ADR-685). Docs KB #270263/#270264/#270265.
 - **Integrations**: MCP `store_memory`/`search_knowledge`/`recall_context`/`create_task`/`log_decision`. Repair Bay Code Health (one-way).
 - **Audit**: KB 256840 · **Rules**: `consciousness.md`, `project-knowledge.md`
 

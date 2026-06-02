@@ -109,6 +109,7 @@
     _setVal('dhStatTotal',    '.dh-stat-value', String((s.total_calls || 0).toLocaleString()));
     _setVal('dhStatSuccess',  '.dh-stat-value', (s.success_rate  || 0).toFixed(1) + '%');
     _setVal('dhStatDuration', '.dh-stat-value', (s.avg_duration_s || 0).toFixed(1) + 's');
+    _setVal('dhStatTokens',   '.dh-stat-value', (s.total_tokens || 0).toLocaleString());
     var ag = document.getElementById('dhStatTopAgent');
     var mo = document.getElementById('dhStatTopModule');
     if (ag) ag.textContent = s.top_agent  || '—';
@@ -122,7 +123,7 @@
     if (!rows.length) {
       var emptyTr = document.createElement('tr');
       var emptyTd = document.createElement('td');
-      emptyTd.colSpan = 9;
+      emptyTd.colSpan = 10;
       emptyTd.style.cssText = 'text-align:center;opacity:0.5;';
       emptyTd.textContent = 'No records found';
       emptyTr.appendChild(emptyTd);
@@ -182,6 +183,15 @@
       durTd.appendChild(_durSpan(r.duration_ms));
       tr.appendChild(durTd);
 
+      /* Tokens — reported model tokens for this dispatch (— when none logged) */
+      var tokTd = document.createElement('td');
+      tokTd.textContent = (r.tokens_used != null && r.tokens_used > 0)
+        ? Number(r.tokens_used).toLocaleString() : '—';
+      tokTd.style.fontFamily = '\'IBM Plex Mono\',monospace';
+      tokTd.style.fontSize = '0.68rem';
+      tokTd.style.color = 'var(--dhq-text-dim)';
+      tr.appendChild(tokTd);
+
       /* Status */
       var statTd = document.createElement('td');
       statTd.textContent = r.success === true ? '✅' : r.success === false ? '❌' : '⏳';
@@ -196,7 +206,7 @@
       detailTr.id = 'dh-detail-' + i;
       detailTr.style.display = 'none';
       var detailTd = document.createElement('td');
-      detailTd.colSpan = 9;
+      detailTd.colSpan = 10;
       var div = document.createElement('div');
       div.className = 'dh-expand-details';
 

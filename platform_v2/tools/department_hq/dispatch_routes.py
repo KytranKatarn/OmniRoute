@@ -127,6 +127,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     "pending_24h": h["pending"],
                     "success_rate": h["success_rate"],
                     "avg_duration_ms": h["avg_duration_ms"],
+                    "tokens_24h": h["tokens"],
                 }
 
                 # ── Agent Workload by Department ──
@@ -540,6 +541,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     WITH combined AS ({union})
                     SELECT
                         COUNT(*)::int AS total_calls,
+                        COALESCE(SUM(tokens_used), 0)::bigint AS total_tokens,
                         ROUND(
                             100.0 * SUM(CASE WHEN success THEN 1 ELSE 0 END)
                             / NULLIF(COUNT(*) FILTER (WHERE success IS NOT NULL), 0), 1
@@ -561,6 +563,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     "total_calls": int(sr["total_calls"] or 0),
                     "success_rate": float(sr["success_rate"] or 0),
                     "avg_duration_s": float(sr["avg_duration_s"] or 0),
+                    "total_tokens": int(sr["total_tokens"] or 0),
                     "top_agent": sr["top_agent"] or "—",
                     "top_module": sr["top_module"] or "—",
                 }
@@ -1053,6 +1056,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     """SELECT COALESCE(module_source, 'unknown') AS label,
                               COUNT(*) AS total,
                               COUNT(*) FILTER (WHERE success) AS successes,
+                              COALESCE(SUM(tokens_used), 0)::bigint AS tokens,
                               ROUND(AVG(duration_ms))::int AS avg_ms
                        FROM task_execution_log
                        WHERE created_at > NOW() - INTERVAL '%s hours'
@@ -1065,6 +1069,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     """SELECT COALESCE(agent_name, 'unknown') AS label,
                               COUNT(*) AS total,
                               COUNT(*) FILTER (WHERE success) AS successes,
+                              COALESCE(SUM(tokens_used), 0)::bigint AS tokens,
                               ROUND(AVG(duration_ms))::int AS avg_ms
                        FROM task_execution_log
                        WHERE created_at > NOW() - INTERVAL '%s hours'
@@ -1077,6 +1082,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     """SELECT COALESCE(model_used, 'unknown') AS label,
                               COUNT(*) AS total,
                               COUNT(*) FILTER (WHERE success) AS successes,
+                              COALESCE(SUM(tokens_used), 0)::bigint AS tokens,
                               ROUND(AVG(duration_ms))::int AS avg_ms
                        FROM task_execution_log
                        WHERE created_at > NOW() - INTERVAL '%s hours'

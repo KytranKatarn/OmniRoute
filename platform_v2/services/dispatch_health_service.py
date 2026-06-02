@@ -63,14 +63,14 @@ def dispatch_health(hours: float = 24.0) -> Dict[str, object]:
                 SELECT CASE WHEN success IS TRUE THEN 'ok'
                             WHEN success IS FALSE THEN 'failed'
                             ELSE 'pending' END AS outcome,
-                       duration_ms
+                       duration_ms, tokens_used
                 FROM task_execution_log
                 WHERE created_at > NOW() - INTERVAL %(win)s
                 UNION ALL
                 SELECT CASE WHEN status = 'completed' THEN 'ok'
                             WHEN status = ANY(%(failed)s) THEN 'failed'
                             ELSE 'pending' END AS outcome,
-                       NULL::int AS duration_ms
+                       NULL::int AS duration_ms, NULL::int AS tokens_used
                 FROM bridge_jobs
                 WHERE created_at > NOW() - INTERVAL %(win)s
             )
@@ -79,6 +79,7 @@ def dispatch_health(hours: float = 24.0) -> Dict[str, object]:
                 COUNT(*) FILTER (WHERE outcome = 'ok') AS success,
                 COUNT(*) FILTER (WHERE outcome = 'failed') AS failed,
                 COUNT(*) FILTER (WHERE outcome = 'pending') AS pending,
+                COALESCE(SUM(tokens_used), 0) AS tokens,
                 COALESCE(
                     ROUND(AVG(duration_ms) FILTER (WHERE duration_ms IS NOT NULL)::numeric, 1),
                     0
@@ -101,4 +102,8 @@ def dispatch_health(hours: float = 24.0) -> Dict[str, object]:
         "decided": decided,
         "success_rate": round(success / decided * 100, 1) if decided else 0.0,
         "avg_duration_ms": float(row.get("avg_duration_ms") or 0),
+        # Reported model tokens (prompt+completion) over the window. LOWER BOUND:
+        # only task_execution_log rows carry tokens; bridge_jobs and ~2,250
+        # agent_loop LLM rows log 0. Honest label downstream: "reported tokens".
+        "tokens": int(row.get("tokens") or 0),
     }

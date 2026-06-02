@@ -3021,12 +3021,14 @@ function renderDispatchMetrics(m) {
         ? m.success_rate
         : ((success + failed) > 0 ? Math.round(success / (success + failed) * 100) : 0);
     var rateClass = rate >= 95 ? 'good' : rate >= 80 ? 'warn' : 'bad';
+    var tokens = m.tokens_24h || 0;  // reported model tokens (prompt+completion, lower bound)
     var html = '<div class="dhq-metrics-row">'
-        + _metricCell('TOTAL 24H', total, '')
+        + _metricCell('DISPATCHES 24H', total, '')
         + _metricCell('SUCCESS', success, 'good')
         + _metricCell('FAILED', failed, failed > 0 ? 'bad' : '')
         + (pending > 0 ? _metricCell('IN-FLIGHT', pending, 'warn') : '')
         + _metricCell('AVG RESPONSE', avg, '')
+        + _metricCell('TOKENS 24H', formatNum(tokens), '')
         + _metricCell('SUCCESS RATE', rate + '%', rateClass)
         + '</div>';
     setHtml(el, html);
@@ -3440,6 +3442,7 @@ function showTrafficView(view) {
             + '<th style="text-align:right;padding:2px 6px;font-weight:400">TOTAL</th>'
             + '<th style="text-align:right;padding:2px 6px;font-weight:400">OK%</th>'
             + '<th style="text-align:right;padding:2px 6px;font-weight:400">AVG MS</th>'
+            + '<th style="text-align:right;padding:2px 6px;font-weight:400">TOKENS</th>'
             + '</tr>';
         rows.forEach(function(r) {
             var pct = r.total > 0 ? Math.round(r.successes / r.total * 100) : 0;
@@ -3449,6 +3452,7 @@ function showTrafficView(view) {
                 + '<td style="padding:3px 6px;text-align:right">' + r.total + '</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:' + pctColor + '">' + pct + '%</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.avg_ms != null ? r.avg_ms : '—') + '</td>'
+                + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + formatNum(r.tokens || 0) + '</td>'
                 + '</tr>';
         });
         setHtml(el, html + '</table>');

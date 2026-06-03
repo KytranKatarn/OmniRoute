@@ -590,7 +590,8 @@ def _run_api_test(test, base_url, session, auth):
     """
     Execute an API test using requests.
 
-    Checks: expect.status, expect.json_contains, expect.max_response_ms.
+    Checks: expect.status, expect.json_contains, expect.json_nonempty,
+    expect.min_items, expect.json_gt, expect.max_response_ms.
     Uses allow_redirects=False so we can verify 302s.
     """
     test_name = test.get("name", "unnamed_api_test")
@@ -672,6 +673,49 @@ def _run_api_test(test, base_url, session, auth):
                 result["assertions"]["json_parse"] = "fail"
                 result["status"] = "fail"
                 result["error_message"] = (result.get("error_message") or "") + " Response is not valid JSON."
+
+        # Check data-nonempty assertions (standalone coverage — KB #270283).
+        # json_contains can't express "non-empty" and throws on top-level arrays,
+        # so these are the checks that actually catch an empty-but-HTTP-200 site.
+        #   expect.json_nonempty: true  -> JSON must be a non-empty list or dict
+        #   expect.min_items: N         -> top-level JSON list/dict length >= N
+        #   expect.json_gt: {key: N}    -> resp_json[key] > N (numeric, for stat dicts)
+        if expect.get("json_nonempty") or expect.get("min_items") is not None or expect.get("json_gt"):
+            try:
+                rj = resp.json()
+            except ValueError:
+                result["assertions"]["json_parse"] = "fail"
+                result["status"] = "fail"
+                result["error_message"] = (result.get("error_message") or "") + " Response is not valid JSON."
+                rj = None
+            if rj is not None:
+                if expect.get("json_nonempty"):
+                    nonempty_ok = bool(rj)
+                    result["assertions"]["json_nonempty"] = "pass" if nonempty_ok else "fail"
+                    if not nonempty_ok:
+                        result["status"] = "fail"
+                        result["error_message"] = (result.get("error_message") or "") + " Expected non-empty JSON."
+                min_items = expect.get("min_items")
+                if min_items is not None:
+                    n = len(rj) if isinstance(rj, (list, dict)) else 0
+                    items_ok = n >= min_items
+                    result["assertions"]["min_items"] = "pass" if items_ok else "fail"
+                    if not items_ok:
+                        result["status"] = "fail"
+                        result["error_message"] = (
+                            result.get("error_message") or ""
+                        ) + f" Expected >= {min_items} items, got {n}."
+                json_gt = expect.get("json_gt")
+                if json_gt and isinstance(json_gt, dict) and isinstance(rj, dict):
+                    for gt_key, threshold in json_gt.items():
+                        actual = rj.get(gt_key)
+                        gt_ok = isinstance(actual, (int, float)) and not isinstance(actual, bool) and actual > threshold
+                        result["assertions"][f"json_gt_{gt_key}"] = "pass" if gt_ok else "fail"
+                        if not gt_ok:
+                            result["status"] = "fail"
+                            result["error_message"] = (
+                                result.get("error_message") or ""
+                            ) + f" Expected {gt_key} > {threshold}, got {actual!r}."
 
         # Check max_response_ms
         max_ms = expect.get("max_response_ms")

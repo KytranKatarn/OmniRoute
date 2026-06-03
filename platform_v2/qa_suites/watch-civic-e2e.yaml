@@ -1,6 +1,6 @@
 suite:
   name: "watch-civic-e2e"
-  description: "Civic Watch — availability, login gate, and main content pages"
+  description: "Civic Watch — availability + data-nonempty + auth gate (anti-empty-site, KB #270283)"
   base_url: "https://civic.kytranempowerment.com"
 
 tests:
@@ -12,26 +12,59 @@ tests:
     expect:
       status: [200, 302]
 
-  - name: "login-page"
-    type: api
-    method: GET
-    path: /login
-    skip_auth: true
-    expect:
-      status: [200, 302]
-
-  - name: "health-endpoint"
+  - name: "health-ok"
     type: api
     method: GET
     path: /api/health
     skip_auth: true
     expect:
-      status: [200, 404]
+      status: [200]
+      json_contains:
+        status: "ok"
 
-  - name: "dashboard-authenticated-gate"
-    type: api
-    method: GET
+  - name: "dashboard-renders"
+    type: page_load
     path: /dashboard
     skip_auth: true
     expect:
-      status: [200, 302, 401]
+      status: [200]
+
+  # --- data-nonempty: go RED on an empty site (the 2026-06-02 regression) ---
+  - name: "contracts-nonempty"
+    type: api
+    method: GET
+    path: /api/contracts
+    skip_auth: true
+    critical: true
+    expect:
+      status: [200]
+      min_items: 1
+
+  - name: "events-nonempty"
+    type: api
+    method: GET
+    path: /api/events
+    skip_auth: true
+    critical: true
+    expect:
+      status: [200]
+      min_items: 1
+
+  - name: "lobbying-overview-has-data"
+    type: api
+    method: GET
+    path: /api/lobbying/overview
+    skip_auth: true
+    expect:
+      status: [200]
+      json_gt:
+        total_communications: 0
+
+  # --- auth gate: a gated route must reject an anonymous caller ---
+  - name: "gated-route-blocks-anon"
+    type: api
+    method: GET
+    path: /api/lobbying/top-clients
+    skip_auth: true
+    expect:
+      status: [401, 403, 302]

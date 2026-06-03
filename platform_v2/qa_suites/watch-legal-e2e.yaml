@@ -1,6 +1,6 @@
 suite:
   name: "watch-legal-e2e"
-  description: "Legal Watch — availability, login gate, and main content pages"
+  description: "Legal Watch — availability, login gate, AND data-nonempty (anti-empty-site, KB #270283)"
   base_url: "https://legal.kytranempowerment.com"
 
 tests:
@@ -12,26 +12,64 @@ tests:
     expect:
       status: [200, 302]
 
-  - name: "login-page"
-    type: api
-    method: GET
-    path: /login
-    skip_auth: true
-    expect:
-      status: [200, 302]
-
-  - name: "health-endpoint"
+  - name: "health-ok"
     type: api
     method: GET
     path: /api/health
     skip_auth: true
     expect:
-      status: [200, 404]
+      status: [200]
+      json_contains:
+        status: "ok"
 
-  - name: "dashboard-authenticated-gate"
-    type: api
-    method: GET
+  - name: "dashboard-renders"
+    type: page_load
     path: /dashboard
     skip_auth: true
     expect:
-      status: [200, 302, 401]
+      status: [200]
+
+  # --- data-nonempty: these go RED on an empty site (the 2026-06-02 regression
+  # that the old status-only suite passed green). Require the json_gt / min_items
+  # assertions added to qa_spec_runner. ---
+  - name: "stats-has-data"
+    type: api
+    method: GET
+    path: /api/stats
+    skip_auth: true
+    critical: true
+    expect:
+      status: [200]
+      json_gt:
+        total_events: 0
+        regulations: 0
+
+  - name: "events-nonempty"
+    type: api
+    method: GET
+    path: /api/events
+    skip_auth: true
+    critical: true
+    expect:
+      status: [200]
+      min_items: 1
+
+  - name: "regulations-nonempty"
+    type: api
+    method: GET
+    path: /api/regulations
+    skip_auth: true
+    critical: true
+    expect:
+      status: [200]
+      min_items: 1
+
+  - name: "ethics-stats-present"
+    type: api
+    method: GET
+    path: /api/ethics/stats
+    skip_auth: true
+    expect:
+      status: [200]
+      json_gt:
+        total: 0

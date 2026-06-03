@@ -1,0 +1,26 @@
+suite:
+  name: "wtf-tech-smoke"
+  description: "what-the-fact.tech — availability + articles data-nonempty (KB #270283)"
+  base_url: "https://what-the-fact.tech"
+
+# wtf-tech (what-the-fact-wtf-tech-1) is a separate app from .com; it exposes a
+# smaller API surface (no /api/health, no /api/stats) — /api/v1/articles is the
+# public data signal.
+tests:
+  - name: "home-loads"
+    type: page_load
+    path: /
+    skip_auth: true
+    expect:
+      status: [200]
+
+  - name: "articles-nonempty"
+    type: api
+    method: GET
+    path: /api/v1/articles
+    skip_auth: true
+    critical: true
+    expect:
+      status: [200]
+      path: articles
+      min_items: 1

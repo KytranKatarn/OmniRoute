@@ -132,11 +132,33 @@ tests:
       status: [200]
       max_response_ms: 10000
 
+  # --------------------------------------------------- data-nonempty (KB #270283)
   - name: "wtf-api-stats"
     type: api
     method: GET
     path: /api/stats
     skip_auth: true
+    critical: true
     expect:
       status: [200]
       max_response_ms: 10000
+      json_gt:
+        articles: 0
+        sources: 0
+
+  - name: "wtf-api-v1-articles-nonempty"
+    type: api
+    method: GET
+    path: /api/v1/articles
+    skip_auth: true
+    critical: true
+    expect:
+      status: [200]
+      json_contains:
+        ok: true
+      json_gt:
+        count: 0
+
+  # NOTE: /api/v1/featured-story.story is curated and can be null (no featured
+  # story selected right now) — intentionally NOT asserted to avoid flaky false
+  # failures. The reliable data-nonempty signals are /api/stats + /api/v1/articles.

@@ -3783,6 +3783,14 @@ class DepartmentDispatcher:
                     node_id_used,
                 )
 
+            # DRP attribution (#3728): on the boston-2 standby (ARCHIE_DR_MODE=1)
+            # tag every dispatch so A.R.M.A.D.A. can tell DR-mode agent work from
+            # normal hub work. Defensive copy; pure no-op on the hub (env unset).
+            req_meta = dict(result.metadata or {})
+            if os.getenv("ARCHIE_DR_MODE", "0") == "1":
+                req_meta["dr_mode"] = True
+                req_meta["dr_node"] = "boston-2"
+
             cur.execute(
                 """
                 INSERT INTO task_execution_log (
@@ -3820,7 +3828,7 @@ class DepartmentDispatcher:
                     result.station_code,
                     user_id,
                     "normal",
-                    json.dumps(result.metadata or {}),
+                    json.dumps(req_meta),
                     job_id,
                     worker_type,
                     request_origin,

@@ -1,0 +1,29 @@
+# A.R.C.H.I.E. DR Phase 7 — quorum auto-promote watchdog (one cycle per run).
+# Installed on boston-2. Driven by dr-watchdog.timer (every 60s). Oneshot: each
+# activation runs exactly one coordinator cycle; state persists in
+# /opt/archie-dr/watchdog_state between runs.
+#
+# Install (boston-2):
+#   cp dr-watchdog.{service,timer} /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable --now dr-watchdog.timer     # ONLY after the dry-run drill
+#
+# Roll out DISABLED-first: leave the timer stopped, or `touch
+# /opt/archie-dr/.watchdog_disabled`, until the dry-run drill passes.
+
+[Unit]
+Description=A.R.C.H.I.E. DR quorum auto-promote watchdog (one cycle)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/archie-dr/watchdog/dr_watchdog.sh
+# Hard ceiling so a stuck probe can never wedge the timer. Must exceed the armed
+# responder's runtime (the whole ABORT_WINDOW, default 300s, runs in one
+# invocation while it polls for button taps) — 600s leaves headroom.
+TimeoutStartSec=600
+Nice=10
+# All side effects are explicit files under /opt/archie-dr; no extra hardening
+# needed, but keep it from writing elsewhere.
+ProtectHome=read-only

@@ -16,32 +16,19 @@ HUB_MESH=100.64.0.4
 FORCE="${1:-}"
 log(){ echo "[$(date -u +%H:%M:%S)] $*"; }
 
-# ---- Telegram alert helper (self-contained; secret-file, NOT in git) ----
-# Sources $DR/.telegram_env (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID; chmod 600,
-# boston-2-only) — mirrors the .hostinger_token pattern. Outbound push works even
-# though the long-poll bot is off (ARCHIE_RUN_TELEGRAM=0): sendMessage needs only
-# the token + chat_id. Depends on NOTHING from the hub (no container, no DB, no
-# platform import) so the FIRST alert fires before the standby is even up.
-# Always non-fatal: a Telegram failure NEVER aborts failover.
-tg_notify(){
-  local text="$1"
-  [ -f "$DR/.telegram_env" ] || { log "  (no $DR/.telegram_env — skipping Telegram alert)"; return 0; }
+# ---- Telegram alert helper (shared, sourced — NOT in git: see tg_notify.sh) ----
+# tg_notify() now lives in $DR/tg_notify.sh so failover.sh AND the Phase 7
+# watchdog use ONE implementation (DRY). DR + log() are defined above, so the
+# helper resolves correctly. Fail-safe: if the shared file is missing (e.g. not
+# yet deployed), define a no-op stub so failover NEVER aborts over a missing
+# alert helper — alerting is best-effort, promotion is not.
+if [ -f "$DR/tg_notify.sh" ]; then
   # shellcheck disable=SC1091
-  . "$DR/.telegram_env"
-  [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "${TELEGRAM_CHAT_ID:-}" ] \
-    || { log "  (Telegram token/chat unset — skipping alert)"; return 0; }
-  TG_TOKEN="$TELEGRAM_BOT_TOKEN" TG_CHAT="$TELEGRAM_CHAT_ID" TG_TEXT="$text" python3 - <<'PY' 2>/dev/null \
-    && log "  (Telegram alert sent)" || log "  (Telegram send failed — non-fatal)"
-import os, urllib.request, urllib.parse
-tok = os.environ["TG_TOKEN"]; chat = os.environ["TG_CHAT"]; text = os.environ["TG_TEXT"]
-data = urllib.parse.urlencode({
-    "chat_id": chat, "text": text,
-    "parse_mode": "HTML", "disable_web_page_preview": "true",
-}).encode()
-req = urllib.request.Request("https://api.telegram.org/bot%s/sendMessage" % tok, data=data)
-urllib.request.urlopen(req, timeout=12).read()
-PY
-}
+  . "$DR/tg_notify.sh"
+else
+  log "  (WARN: $DR/tg_notify.sh missing — Telegram alerts disabled, continuing)"
+  tg_notify(){ :; }
+fi
 
 # ---- SAFETY: confirm the hub is really down (split-brain guard) ----
 log "Split-brain guard: checking the hub is actually down ($HUB_MESH:5432)..."
@@ -110,6 +97,23 @@ if [ -f "$FLEET_KEY" ]; then
   done
 else
   log "  WARN: $FLEET_KEY missing — cannot repoint fleet (stage the DR key; DR plan 5b)."
+fi
+
+# ---- 4b. WTF: repoint its DB to boston-2 so it keeps SERVING + SAVING in DR ----
+# WTF's data is the hub `wtf` DATABASE (NOT the empty archie.wtf schema — KB #270304),
+# now live on boston-2 at $DR_MESH:5433. WTF runs on outpost-boston (kytran@, mesh
+# 100.64.0.2). Flip WTF_DATABASE_URL host hub->boston-2 then `up -d` (an env change
+# needs up -d, not restart). Non-fatal — a WTF repoint failure never aborts failover.
+WTF_HOST="${WTF_HOST:-kytran@100.64.0.2}"
+WTF_DIR="${WTF_DIR:-/opt/archie-products/what-the-fact}"
+if [ -f "$FLEET_KEY" ]; then
+  log "Repointing WTF DB -> boston-2 ($DR_MESH:5433) on $WTF_HOST ..."
+  if ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$WTF_HOST" \
+       "cd '$WTF_DIR' && sed -i.bak-dr 's#@100.64.0.4/wtf#@$DR_MESH:5433/wtf#' .env && docker compose up -d" >/dev/null 2>&1; then
+    log "  WTF repointed — ingest keeps saving to the boston-2 wtf DB."
+  else
+    log "  WARN: WTF repoint failed (manual: on $WTF_HOST edit $WTF_DIR/.env DB host -> $DR_MESH:5433, then docker compose up -d)."
+  fi
 fi
 
 # ---- 5. PUBLIC INGRESS (Caddy) + DNS FLIP (Phase 5) ----

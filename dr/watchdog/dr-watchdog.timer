@@ -1,0 +1,17 @@
+# Fires the DR watchdog every 60s on boston-2. Paired with dr-watchdog.service.
+# Enable ONLY after the dry-run drill passes (see README.md).
+
+[Unit]
+Description=Run the A.R.C.H.I.E. DR quorum watchdog every 60s
+
+[Timer]
+# First run 60s after boot (let the network/replica settle), then every 60s.
+OnBootSec=60
+OnUnitActiveSec=60
+# If the box was asleep/busy, run once on resume rather than stacking misses.
+Persistent=false
+AccuracySec=5s
+Unit=dr-watchdog.service
+
+[Install]
+WantedBy=timers.target

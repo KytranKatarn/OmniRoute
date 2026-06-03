@@ -164,6 +164,7 @@ def load_config():
     config = {
         "node_id": os.environ.get("NODE_ID", ""),
         "hub_url": os.environ.get("HUB_URL", ""),
+        "dr_hub_url": os.environ.get("DR_HUB_URL", ""),
         "hub_api_key": os.environ.get("HUB_API_KEY", ""),
         "ollama_host": os.environ.get("OLLAMA_HOST", ""),
         "heartbeat_interval": int(os.environ.get("HEARTBEAT_INTERVAL", "30")),
@@ -182,6 +183,7 @@ def load_config():
                 "node_id": "node_id",
                 "hub_url": "hub_url",
                 "server_url": "hub_url",
+                "dr_hub_url": "dr_hub_url",
                 "hub_api_key": "hub_api_key",
                 "api_key": "hub_api_key",
                 "ollama_host": "ollama_host",
@@ -241,6 +243,15 @@ def load_config():
 
     # Strip trailing slash from hub_url
     config["hub_url"] = config["hub_url"].rstrip("/")
+
+    # --- DR auto-failover state. The node self-heals its heartbeat/sync target
+    # to the boston-2 standby if the primary hub dies (no external repoint
+    # needed — that is impossible when the hub itself is down). dr_hub_url comes
+    # from env DR_HUB_URL / config.json, defaulting to the boston-2 DR mesh. ---
+    config["primary_hub_url"] = config["hub_url"]
+    config["dr_hub_url"] = (config.get("dr_hub_url") or "http://100.64.0.10:3000").rstrip("/")
+    config["_active"] = "primary"
+    config["_dr_primary_ok"] = 0
 
     return config
 
@@ -2174,6 +2185,21 @@ def _heartbeat_thread(config):
                     )
                 heartbeat_failures = 0
                 current_interval = base_interval
+                # DR failback: while running on the DR hub, probe the primary;
+                # once it has recovered for a few checks, switch back to it.
+                if config.get("_active") == "dr":
+                    if _probe_hub(config.get("primary_hub_url"), config):
+                        config["_dr_primary_ok"] = config.get("_dr_primary_ok", 0) + 1
+                        if config["_dr_primary_ok"] >= 3:
+                            config["hub_url"] = config["primary_hub_url"]
+                            config["_active"] = "primary"
+                            config["_dr_primary_ok"] = 0
+                            logger.info(
+                                "[DR] Primary hub recovered — FAILED BACK to %s",
+                                config["hub_url"],
+                            )
+                    else:
+                        config["_dr_primary_ok"] = 0
             else:
                 heartbeat_failures += 1
                 _handle_heartbeat_failure(
@@ -2259,6 +2285,34 @@ def main():
     logger.info("Node client stopped cleanly.")
 
 
+def _probe_hub(url, config):
+    """Lightweight reachability check for a hub URL (GET /login -> 200).
+    Never raises and can't hang (http_get has a 15s timeout)."""
+    if not url:
+        return False
+    try:
+        status, _ = http_get(f"{url}/login")
+        return status == 200
+    except Exception:
+        return False
+
+
+def _maybe_dr_failover(config):
+    """If the primary hub is unreachable and a reachable DR hub is configured,
+    switch the active hub to DR so the node keeps working on the standby.
+    Returns True if it switched. No-op if the DR hub isn't answering yet."""
+    dr = config.get("dr_hub_url")
+    if not dr or config.get("_active") == "dr" or config.get("hub_url") == dr:
+        return False
+    if _probe_hub(dr, config):
+        config["hub_url"] = dr
+        config["_active"] = "dr"
+        config["_dr_primary_ok"] = 0
+        logger.warning("[DR] Primary hub down — FAILED OVER to DR hub %s", dr)
+        return True
+    return False
+
+
 def _handle_heartbeat_failure(config, failure_count, base_interval):
     """Handle heartbeat failure with escalating recovery actions."""
     if failure_count == 3:
@@ -2268,10 +2322,15 @@ def _handle_heartbeat_failure(config, failure_count, base_interval):
             base_interval * 2,
         )
     elif failure_count == 5:
-        logger.warning(
-            "Heartbeat failed %d consecutive times — attempting re-registration",
-            failure_count,
-        )
+        # Primary hub looks dead — try DR failover first, then (re)register
+        # against whichever hub is now active.
+        if _maybe_dr_failover(config):
+            logger.warning("[DR] Heartbeat now targeting DR hub %s", config["hub_url"])
+        else:
+            logger.warning(
+                "Heartbeat failed %d consecutive times — attempting re-registration",
+                failure_count,
+            )
         _attempt_re_registration(config)
     elif failure_count == 10:
         logger.warning(

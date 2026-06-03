@@ -4782,8 +4782,102 @@ function showNodeDetail(node) {
         body.appendChild(viewAll);
     }
 
+    // Hardware-aware AI model recommendation (#3731)
+    var modelsContainer = document.createElement('div');
+    body.appendChild(modelsContainer);
+    _dhqRenderNodeModels(node, modelsContainer);
+
     var modal = document.getElementById('fleetNodeModal');
     if (modal) modal.style.display = 'flex';
+}
+
+// #3731 — hardware-aware model recommendation panel inside the node detail modal.
+// Reads GET /api/nodes/<node_id>/model-recommendation, renders the warm set, and
+// offers a one-click "download recommended" that POSTs to provision-warm-set
+// (which fans out to the OTA model_pull/checkpoint_pull queue).
+function _dhqRenderNodeModels(node, container) {
+    container.textContent = '';
+    var h = document.createElement('div');
+    h.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.65rem;letter-spacing:2px;color:var(--cat-accent,#00ffff);margin:14px 0 6px;text-transform:uppercase;border-bottom:1px solid rgba(0,255,255,0.2);padding-bottom:4px;';
+    h.textContent = 'AI Models';
+    container.appendChild(h);
+
+    var loading = document.createElement('div');
+    loading.style.cssText = 'font-size:0.7rem;color:rgba(163,230,53,0.6);padding:6px 0;';
+    loading.textContent = 'Analyzing hardware…';
+    container.appendChild(loading);
+
+    var nid = node.node_id;
+    if (!nid) { loading.textContent = 'No node_id — cannot compute recommendation.'; return; }
+
+    fetch('/tools/department-hq/api/nodes/' + encodeURIComponent(nid) + '/model-recommendation')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (!data || !data.success) { loading.textContent = 'Recommendation unavailable.'; return; }
+        loading.remove();
+        var rec = data.recommendation || {};
+
+        var tierRow = document.createElement('div');
+        tierRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);';
+        var tl = document.createElement('span'); tl.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;color:rgba(163,230,53,0.6);letter-spacing:1px;'; tl.textContent = 'Tier';
+        var tv = document.createElement('span'); tv.style.cssText = 'font-size:0.78rem;color:#e0e0e0;text-align:right;'; tv.textContent = rec.tier || '--';
+        tierRow.appendChild(tl); tierRow.appendChild(tv); container.appendChild(tierRow);
+
+        var warmLbl = document.createElement('div');
+        warmLbl.style.cssText = 'font-size:0.68rem;color:rgba(163,230,53,0.6);letter-spacing:1px;margin:8px 0 4px;';
+        warmLbl.textContent = 'Recommended (warm set):';
+        container.appendChild(warmLbl);
+
+        var chips = document.createElement('div');
+        chips.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;';
+        (rec.recommended_ollama || []).forEach(function(m){
+            var c = document.createElement('span');
+            c.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.65rem;color:#00ffff;background:rgba(0,255,255,0.1);border:1px solid rgba(0,255,255,0.3);border-radius:10px;padding:2px 8px;';
+            c.textContent = m; chips.appendChild(c);
+        });
+        if (rec.recommended_comfyui) {
+            var cc = document.createElement('span');
+            cc.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.65rem;color:#a855f7;background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.3);border-radius:10px;padding:2px 8px;';
+            cc.textContent = '🎨 ' + rec.recommended_comfyui; chips.appendChild(cc);
+        }
+        if (!(rec.recommended_ollama || []).length && !rec.recommended_comfyui) {
+            var none = document.createElement('span'); none.style.cssText = 'font-size:0.7rem;color:#888;'; none.textContent = 'Nothing fits this hardware.'; chips.appendChild(none);
+        }
+        container.appendChild(chips);
+
+        if ((rec.cannot_run_ollama || []).length) {
+            var cant = document.createElement('div');
+            cant.style.cssText = 'font-size:0.62rem;color:#888;margin-top:6px;';
+            cant.textContent = 'Can’t run: ' + rec.cannot_run_ollama.join(', ');
+            container.appendChild(cant);
+        }
+
+        if ((rec.recommended_ollama || []).length || rec.recommended_comfyui) {
+            var btn = document.createElement('button');
+            btn.style.cssText = 'margin-top:10px;width:100%;background:rgba(0,255,255,0.15);border:1px solid rgba(0,255,255,0.5);color:#00ffff;padding:8px;border-radius:4px;cursor:pointer;font-size:0.72rem;letter-spacing:1px;font-family:\'IBM Plex Mono\',monospace;';
+            btn.textContent = '⬇ DOWNLOAD RECOMMENDED MODELS';
+            btn.addEventListener('click', function(){ _dhqProvisionWarmSet(node, btn); });
+            container.appendChild(btn);
+        }
+      })
+      .catch(function(){ loading.textContent = 'Recommendation request failed.'; });
+}
+
+function _dhqProvisionWarmSet(node, btn) {
+    if (node.id === undefined || node.id === null) { alert('Node has no numeric id; cannot queue pulls.'); return; }
+    if (!confirm('Queue download of the recommended models onto ' + (node.node_name || node.node_id) + '? They pull over the mesh in the background.')) return;
+    btn.disabled = true; btn.textContent = 'QUEUEING…';
+    fetch('/tools/department-hq/api/nodes/' + encodeURIComponent(node.id) + '/provision-warm-set', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({include_comfyui: true})
+    }).then(function(r){ return r.json(); }).then(function(data){
+        if (data && data.success) {
+            var n = (data.queued && data.queued.models ? data.queued.models.length : 0) + (data.queued && data.queued.checkpoint ? 1 : 0);
+            btn.textContent = '✓ QUEUED ' + n + ' DOWNLOAD' + (n === 1 ? '' : 'S');
+            btn.style.color = '#10b981'; btn.style.borderColor = 'rgba(16,185,129,0.5)';
+        } else {
+            btn.disabled = false; btn.textContent = 'ERROR — RETRY'; btn.style.color = '#ef4444';
+        }
+    }).catch(function(){ btn.disabled = false; btn.textContent = 'ERROR — RETRY'; btn.style.color = '#ef4444'; });
 }
 
 function closeFleetDetail() {

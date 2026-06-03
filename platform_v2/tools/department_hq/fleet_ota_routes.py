@@ -161,6 +161,79 @@ def register_ota_routes(bp, auth_decorator):
             logger.exception("Failed to queue checkpoint pull for node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
+    @bp.route("/api/nodes/<int:node_id>/provision-warm-set", methods=["POST"])
+    @auth_decorator
+    def api_provision_warm_set(node_id):
+        """Queue the hardware-recommended warm-set onto a node in one shot (#3731).
+
+        Computes the model plan from the node's reported hardware
+        (services.node_provisioning) then fans out to the SAME mesh_sync_log queue
+        the per-model OTA endpoints use: one 'model_pull' per recommended Ollama
+        model + one 'checkpoint_pull' for the ComfyUI checkpoint (if the node has a
+        GPU that fits one). This is the "+Add Node: download everything you need"
+        action. Body (optional): {"include_comfyui": true}.
+        """
+        from services.node_provisioning import recommend_from_node_row
+
+        node = _get_node_for_user_by_int_id(node_id, current_user.id)
+        if not node:
+            return jsonify({"success": False, "error": "Node not found"}), 404
+        node_id_str = node["node_id"]
+        include_comfyui = (request.get_json(silent=True) or {}).get("include_comfyui", True)
+
+        try:
+            queued = {"models": [], "checkpoint": None}
+            with get_db_cursor(commit=True) as (conn, cur):
+                # Re-fetch hardware columns directly — don't depend on the helper's SELECT.
+                cur.execute(
+                    "SELECT cpu_cores, ram_gb, gpu_available, gpu_vram_gb, gpu_model "
+                    "FROM remote_nodes WHERE node_id = %s",
+                    (node_id_str,),
+                )
+                hw = cur.fetchone() or {}
+                rec = recommend_from_node_row(hw)
+
+                for model_name in rec.recommended_ollama:
+                    cur.execute(
+                        "INSERT INTO mesh_sync_log (node_id, sync_type, payload, status, sent_at) "
+                        "VALUES (%s, 'model_pull', %s, 'sent', NOW()) RETURNING id",
+                        (node_id_str, json.dumps({"model_name": model_name})),
+                    )
+                    queued["models"].append({"model": model_name, "sync_id": cur.fetchone()["id"]})
+
+                if include_comfyui and rec.recommended_comfyui:
+                    filename = rec.recommended_comfyui
+                    # Hub serves checkpoints over the mesh at the PREFIXED path (KB #266408).
+                    url = f"http://100.64.0.4:3000/tools/department-hq/api/fleet/checkpoints/{filename}"
+                    cur.execute(
+                        "INSERT INTO mesh_sync_log (node_id, sync_type, payload, status, sent_at) "
+                        "VALUES (%s, 'checkpoint_pull', %s, 'sent', NOW()) RETURNING id",
+                        (
+                            node_id_str,
+                            json.dumps(
+                                {
+                                    "url": url,
+                                    "filename": filename,
+                                    "checkpoints_dir": "/comfyui/models/checkpoints",
+                                }
+                            ),
+                        ),
+                    )
+                    queued["checkpoint"] = {"filename": filename, "sync_id": cur.fetchone()["id"]}
+
+            return jsonify(
+                {
+                    "success": True,
+                    "node_id": node_id_str,
+                    "tier": rec.tier,
+                    "queued": queued,
+                    "recommendation": rec.to_dict(),
+                }
+            )
+        except Exception:
+            logger.exception("Failed to provision warm-set for node %s", node_id)
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
     @bp.route("/api/nodes/<int:node_id>/compose-recreate", methods=["POST"])
     @auth_decorator
     def api_compose_recreate(node_id):

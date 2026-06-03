@@ -723,6 +723,75 @@ def register_node_routes(bp, login_required, admin_required):
             logger.error(f"Error getting nodes: {e}")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
+    @bp.route("/api/nodes/<node_id>/model-recommendation")
+    @login_required
+    def get_node_model_recommendation(node_id):
+        """Hardware-aware model plan for an EXISTING node (#3731).
+
+        Reads the node's heartbeat-reported hardware from remote_nodes and
+        returns what Ollama + ComfyUI models it can/can't run + a warm set to
+        pull. Powers the +Add Node wizard and the node detail panel.
+        """
+        try:
+            from services.node_provisioning import recommend_from_node_row
+
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    "SELECT node_id, node_name, cpu_cores, ram_gb, gpu_available, "
+                    "gpu_vram_gb, gpu_model FROM remote_nodes WHERE node_id = %s",
+                    (node_id,),
+                )
+                row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Node not found"}), 404
+            rec = recommend_from_node_row(row)
+            return jsonify(
+                {
+                    "success": True,
+                    "node_id": row["node_id"],
+                    "node_name": row.get("node_name"),
+                    "hardware": {
+                        "cpu_cores": row.get("cpu_cores"),
+                        "ram_gb": row.get("ram_gb"),
+                        "gpu_available": row.get("gpu_available"),
+                        "gpu_vram_gb": row.get("gpu_vram_gb"),
+                        "gpu_model": row.get("gpu_model"),
+                    },
+                    "recommendation": rec.to_dict(),
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error computing node recommendation for {node_id}: {e}")
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    @bp.route("/api/nodes/model-recommendation", methods=["POST"])
+    @login_required
+    def post_model_recommendation():
+        """Hardware-aware model plan for a node that does NOT exist yet (#3731).
+
+        Pre-enrollment preview: the wizard POSTs a hardware profile (or the
+        installer auto-detects and posts it) and gets back the can/can't-run
+        plan before the node is registered. Body:
+          {cpu_cores, ram_gb, gpu_available, gpu_vram_gb, gpu_model}
+        """
+        try:
+            from services.node_provisioning import recommend
+
+            data = request.get_json(silent=True) or {}
+            rec = recommend(
+                cpu_cores=int(data.get("cpu_cores") or 0),
+                ram_gb=float(data.get("ram_gb") or 0.0),
+                gpu_available=bool(data.get("gpu_available")),
+                gpu_vram_gb=float(data.get("gpu_vram_gb") or 0.0),
+                gpu_model=str(data.get("gpu_model") or ""),
+            )
+            return jsonify({"success": True, "recommendation": rec.to_dict()})
+        except (TypeError, ValueError) as e:
+            return jsonify({"success": False, "error": f"Invalid hardware payload: {e}"}), 400
+        except Exception as e:
+            logger.error(f"Error computing model recommendation: {e}")
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
     @bp.route("/api/nodes/install.sh", methods=["GET"])
     def get_node_install_script():
         """Serve the node installation script"""

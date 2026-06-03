@@ -643,10 +643,15 @@ def register_node_routes(bp, login_required, admin_required):
                 return "local"
             return "external"
 
-    @bp.route("/api/nodes")
+    # NOTE: served at /api/nodes/all — the bare /api/nodes is owned by
+    # fleet_dashboard_routes.api_list_nodes (user-scoped, account-center). This is
+    # the ALL-nodes admin/fleet view (with summary). Previously both claimed
+    # /api/nodes and this one was shadowed/dead (route collision). Distinct path
+    # de-collides them; the Fleet/ARMADA tab uses /api/fleet-map, not this.
+    @bp.route("/api/nodes/all")
     @login_required
     def get_all_nodes():
-        """Get all registered remote nodes"""
+        """Get all registered remote nodes (admin/fleet, unscoped)."""
         try:
             with get_db_cursor(commit=False) as (conn, cur):
 

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 
 from database import get_db_cursor
 from services.node_provisioning import recommend_from_node_row
@@ -56,12 +57,17 @@ def auto_provision_nodes(dry_run: bool = False, max_nodes: int = 2) -> dict:
     it WOULD do). Live runs respect the platform_settings gate and rate-limit to
     max_nodes that actually have a gap.
     """
+    # In DR mode the hub (checkpoint source) is down and boston-2 has no checkpoint
+    # files, so skip ComfyUI checkpoint pulls — they resume after failback. Ollama
+    # model_pull is node-local (pulls from the registry) and proceeds normally.
+    dr_mode = os.getenv("ARCHIE_DR_MODE", "0") == "1"
     summary = {
         "enabled": False,
         "scanned": 0,
         "provisioned": [],
         "skipped_stocked": 0,
         "dry_run": dry_run,
+        "dr_mode": dr_mode,
     }
     with get_db_cursor(commit=not dry_run) as (conn, cur):
         enabled = _is_enabled(cur)
@@ -124,7 +130,7 @@ def auto_provision_nodes(dry_run: bool = False, max_nodes: int = 2) -> dict:
                 if not _ollama_present(m, present_full, present_bases) and m not in node_recent
             ]
             ckpt = rec.recommended_comfyui
-            pull_ckpt = bool(ckpt and ckpt not in present_comfy and ckpt not in node_recent)
+            pull_ckpt = bool(ckpt and ckpt not in present_comfy and ckpt not in node_recent and not dr_mode)
 
             if not to_pull and not pull_ckpt:
                 summary["skipped_stocked"] += 1

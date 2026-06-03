@@ -179,7 +179,11 @@ def register_ota_routes(bp, auth_decorator):
         if not node:
             return jsonify({"success": False, "error": "Node not found"}), 404
         node_id_str = node["node_id"]
-        include_comfyui = (request.get_json(silent=True) or {}).get("include_comfyui", True)
+        # In DR mode the hub (checkpoint source) is down + boston-2 has no checkpoint
+        # files, so don't queue ComfyUI checkpoint pulls — they resume after failback.
+        include_comfyui = (request.get_json(silent=True) or {}).get("include_comfyui", True) and os.getenv(
+            "ARCHIE_DR_MODE", "0"
+        ) != "1"
 
         try:
             queued = {"models": [], "checkpoint": None}

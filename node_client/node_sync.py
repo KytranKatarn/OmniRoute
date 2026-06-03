@@ -616,6 +616,23 @@ def _get_agent_welfare():
         return {}
 
 
+def _get_cpu_model():
+    """Best-effort CPU model string (Linux /proc/cpuinfo, else platform.processor())."""
+    try:
+        with open("/proc/cpuinfo", "r") as f:
+            for line in f:
+                if line.lower().startswith("model name"):
+                    return line.split(":", 1)[1].strip()
+    except Exception:
+        pass
+    try:
+        import platform as _pf
+
+        return _pf.processor() or None
+    except Exception:
+        return None
+
+
 def send_heartbeat(config):
     """
     POST heartbeat with metrics to the Hub.
@@ -635,6 +652,8 @@ def send_heartbeat(config):
         "memory_usage": mem,
         "gpu_usage": gpu if gpu is not None else 0,
         "ram_gb": ram_gb,
+        "cpu_cores": os.cpu_count() or 0,
+        "cpu_model": _get_cpu_model(),
         "gpu_available": gpu_model is not None,
         "gpu_model": gpu_model,
         "gpu_vram_gb": gpu_vram_gb,

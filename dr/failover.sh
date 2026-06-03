@@ -132,12 +132,33 @@ else
   log "WARN: DNS flip NOT run (missing $DR/.hostinger_token). MANUAL: point platform A-record -> 2.25.133.122."
 fi
 
+# ---- verify the DR SCHEDULER actually came up (background jobs, not just the API) ----
+# Without this, a silently-dead scheduler means ingest/embedding/fleet-health/
+# delegate-worker/node-auto-provision are all stalled while failover reports success.
+SCHED="DOWN"
+if docker ps --filter name=archie_scheduler_standby --filter status=running \
+     --format '{{.Names}}' 2>/dev/null | grep -q archie_scheduler_standby; then
+  sleep 3   # let the agent loop register its jobs
+  if docker logs archie_scheduler_standby 2>&1 | grep -q "Agent loop started with"; then
+    SCHED="UP"
+  else
+    SCHED="STARTED_NO_JOBS"
+  fi
+fi
+log "DR scheduler (archie_scheduler_standby): $SCHED"
+
 if [ "$H" = "200" ] && [ "${WOK:-}" = "WRITE_OK" ]; then
-  log "✅ FAILOVER COMPLETE. Platform LIVE on boston-2 (degraded: no GPU; cloud/CPU inference)."
   log "   Remember Phase 5 (public ingress) for external users, and FAILBACK when the hub returns."
-  tg_notify $'✅ <b>A.R.C.H.I.E. DR FAILOVER COMPLETE</b>\nThe platform is LIVE on boston-2 (degraded: no GPU — CPU/cloud inference). External access needs the public-ingress/DNS step. Remember to FAILBACK once the hub returns.'
+  if [ "$SCHED" = "UP" ]; then
+    log "✅ FAILOVER COMPLETE. Platform + scheduler LIVE on boston-2 (degraded: no GPU; cloud/CPU inference)."
+    tg_notify $'✅ <b>A.R.C.H.I.E. DR FAILOVER COMPLETE</b>\nPlatform + background scheduler are LIVE on boston-2 (degraded: no GPU — CPU/cloud inference). External access needs the public-ingress/DNS step. Remember to FAILBACK once the hub returns.'
+  else
+    log "⚠️ FAILOVER: platform LIVE but SCHEDULER=$SCHED — background jobs may NOT be running. Check: docker logs archie_scheduler_standby"
+    tg_notify "⚠️ <b>A.R.C.H.I.E. DR FAILOVER — PLATFORM UP, SCHEDULER $SCHED</b>
+The API is live on boston-2, but the background job scheduler did not verify. Recurring work (ingest, embedding, fleet health, delegate worker, node auto-provision) may be stalled. On boston-2: docker logs archie_scheduler_standby"
+  fi
 else
-  log "⚠️ FAILOVER PARTIAL: login=$H write=${WOK:-FAILED}. Investigate (logs: docker logs archie_platform_standby)."
+  log "⚠️ FAILOVER PARTIAL: login=$H write=${WOK:-FAILED} scheduler=$SCHED. Investigate (logs: docker logs archie_platform_standby)."
   tg_notify "⚠️ <b>A.R.C.H.I.E. DR FAILOVER PARTIAL</b>
-login=$H, db_write=${WOK:-FAILED}. The promote/start step did not fully verify. Investigate on boston-2: docker logs archie_platform_standby"
+login=$H, db_write=${WOK:-FAILED}, scheduler=$SCHED. The promote/start step did not fully verify. Investigate on boston-2: docker logs archie_platform_standby"
 fi

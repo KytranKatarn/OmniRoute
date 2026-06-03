@@ -747,34 +747,58 @@ STANDALONE_PRODUCTS = [
         "name": "gov_watch",
         "display_name": "Gov Watch",
         "code_path": "/mnt/standalone/kytran-gov-watch",
-        "db_schema": "gov_watch",  # schema in hub archie DB
+        # LIVE DB = Postgres container `gov_watch_db` on outpost-us (NOT a hub
+        # schema). The old hub `gov_watch` schema is stale — do not dump it.
+        "db_kind": "pg_container",
+        "db_node": "100.64.0.2",  # outpost-us (mesh)
+        "db_ssh_user": "kytran",
+        "db_container": "gov_watch_db",
         "backup_type": "full",
     },
     {
         "name": "civic_watch",
         "display_name": "Civic Watch",
         "code_path": "/mnt/standalone/kytran-civic-watch",
-        "db_schema": "civic_transparency",  # actual schema name in hub archie DB
+        # LIVE DB = SQLite in the civic API container on outpost-us (watch.db,
+        # 54 MB — civic.db is an empty legacy file).
+        "db_kind": "sqlite",
+        "db_node": "100.64.0.2",  # outpost-us (mesh)
+        "db_ssh_user": "kytran",
+        "db_container": "kytran_watch_api",
+        "db_path": "/app/data/watch.db",
         "backup_type": "full",
     },
     {
         "name": "legal_watch",
         "display_name": "Legal Watch",
         "code_path": "/mnt/standalone/kytran-legal-watch",
-        "db_schema": None,  # own DB on VPS
+        # LIVE DB = SQLite in the legal API container on boston-2 (migrated
+        # 2026-06-02; DNS legal.kytranempowerment.com -> boston-2).
+        "db_kind": "sqlite",
+        "db_node": "100.64.0.10",  # boston-2 (mesh)
+        "db_ssh_user": "root",
+        "db_container": "kytran_legal_api",
+        "db_path": "/app/data/legal.db",
         "backup_type": "full",
     },
     {
         "name": "market_watch",
         "display_name": "Market Watch",
         "code_path": "/mnt/standalone/kytran-market-watch",
-        "db_schema": None,  # own DB on VPS
+        # LIVE DB = SQLite in the market API container on outpost-us.
+        "db_kind": "sqlite",
+        "db_node": "100.64.0.2",  # outpost-us (mesh)
+        "db_ssh_user": "kytran",
+        "db_container": "kytran_market_api",
+        "db_path": "/app/data/market.db",
         "backup_type": "full",
     },
     {
         "name": "wtf",
         "display_name": "What The Fact",
         "code_path": "/mnt/archie_brain/what-the-fact",
+        # WTF DB = real Postgres DB on the hub (schema "wtf" in DB "wtf").
+        "db_kind": "hub_schema",
         "db_schema": "wtf",  # schema within the wtf database
         "db_name": "wtf",  # separate postgres DB — connect: psql -U archie -d wtf
         "backup_type": "full",
@@ -782,8 +806,104 @@ STANDALONE_PRODUCTS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Remote-DB backup helpers (watch products). Their LIVE databases live in
+# containers on fleet nodes, not on the hub. All traffic uses the Headscale
+# mesh (100.64.0.x). The archie_platform container ships an ssh client + the
+# hub key at /root/.ssh/id_ed25519, which is authorized on every node.
+# ---------------------------------------------------------------------------
+def _ssh_key_path():
+    for k in ("/root/.ssh/id_ed25519", "/home/kytran/.ssh/id_ed25519"):
+        if os.path.exists(k):
+            return k
+    return "/root/.ssh/id_ed25519"
+
+
+def _ssh_cmd(user_host):
+    return [
+        "ssh",
+        "-i",
+        _ssh_key_path(),
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=20",
+        user_host,
+    ]
+
+
+def _backup_remote_sqlite(product, out_path):
+    """Online .backup() of a SQLite DB inside a container on a fleet node,
+    streamed off-box over the mesh. Consistent under live writes (unlike cp).
+    Returns (size_bytes, error_or_None)."""
+    import subprocess
+    import sqlite3
+
+    user_host = f"{product['db_ssh_user']}@{product['db_node']}"
+    ctr = product["db_container"]
+    dbp = product["db_path"]
+    snap = "/tmp/_archie_bk.sqlite"
+    inner = "import sqlite3;" f"b=sqlite3.connect('{snap}');" f"sqlite3.connect('{dbp}').backup(b);" "b.close()"
+    remote = (
+        f'docker exec {ctr} python3 -c "{inner}" && '
+        f"docker exec {ctr} cat {snap} && "
+        f"docker exec {ctr} rm -f {snap}"
+    )
+    try:
+        with open(out_path, "wb") as fh:
+            r = subprocess.run(
+                _ssh_cmd(user_host) + [remote],
+                stdout=fh,
+                stderr=subprocess.PIPE,
+                timeout=300,
+            )
+    except Exception as e:
+        return 0, f"sqlite ssh error ({product['db_node']}): {e}"
+    if r.returncode != 0:
+        return 0, f"sqlite backup ({product['db_node']}): {r.stderr.decode()[:200]}"
+    size = os.path.getsize(out_path) if os.path.exists(out_path) else 0
+    if size < 1000:
+        return size, f"sqlite backup too small ({size}B) — {product['db_node']}:{dbp}"
+    try:
+        ok = sqlite3.connect(out_path).execute("PRAGMA integrity_check").fetchone()[0]
+        if ok != "ok":
+            return size, f"sqlite integrity_check={ok} — {product['db_node']}:{dbp}"
+    except Exception as e:
+        return size, f"sqlite verify error: {e}"
+    return size, None
+
+
+def _backup_remote_pg_container(product, out_path):
+    """pg_dump -Fc of a Postgres DB in a container on a fleet node, using the
+    container's own POSTGRES_* env (no secret in code). Streams over the mesh.
+    Returns (size_bytes, error_or_None)."""
+    import subprocess
+
+    user_host = f"{product['db_ssh_user']}@{product['db_node']}"
+    ctr = product["db_container"]
+    remote = f"docker exec {ctr} sh -c " "'PGPASSWORD=$POSTGRES_PASSWORD pg_dump -U $POSTGRES_USER -Fc $POSTGRES_DB'"
+    try:
+        with open(out_path, "wb") as fh:
+            r = subprocess.run(
+                _ssh_cmd(user_host) + [remote],
+                stdout=fh,
+                stderr=subprocess.PIPE,
+                timeout=300,
+            )
+    except Exception as e:
+        return 0, f"pg_dump ssh error ({product['db_node']}): {e}"
+    if r.returncode != 0:
+        return 0, f"pg_dump ({product['db_node']}/{ctr}): {r.stderr.decode()[:200]}"
+    size = os.path.getsize(out_path) if os.path.exists(out_path) else 0
+    if size < 100:
+        return size, f"pg_dump too small ({size}B) — {product['db_node']}/{ctr}"
+    return size, None
+
+
 def backup_standalone(standalone_name):
-    """Backup one standalone: pg_dump of its schema + code tar.gz.
+    """Backup one standalone: live DB dump (mesh/SSH for node-hosted DBs) + code tar.gz.
     Returns {'success': bool, 'backup_name': str, 'errors': list}."""
     import subprocess
     import tarfile as _tarfile
@@ -806,10 +926,27 @@ def backup_standalone(standalone_name):
     errors = []
     warnings = []
 
-    # 1. pg_dump of schema (only for products with a hub archie DB schema)
-    db_dump_path = os.path.join(backup_path, f"{standalone_name}_schema.sql")
+    # 1. Database backup — handler depends on where the LIVE DB physically lives:
+    #    hub_schema   → pg_dump a schema in the hub archie/wtf DB (e.g. wtf)
+    #    sqlite       → online .backup() of a SQLite DB in a container on a node
+    #    pg_container → pg_dump -Fc of a Postgres DB in a container on a node
+    # Back-compat: products without db_kind fall back to legacy db_schema behaviour.
+    db_kind = product.get("db_kind") or ("hub_schema" if product.get("db_schema") else None)
+    db_dump_path = None
     db_size = 0
-    if product["db_schema"]:
+
+    if db_kind == "sqlite":
+        db_dump_path = os.path.join(backup_path, f"{standalone_name}.db")
+        db_size, _dberr = _backup_remote_sqlite(product, db_dump_path)
+        if _dberr:
+            errors.append(_dberr)
+    elif db_kind == "pg_container":
+        db_dump_path = os.path.join(backup_path, f"{standalone_name}.dump")
+        db_size, _dberr = _backup_remote_pg_container(product, db_dump_path)
+        if _dberr:
+            errors.append(_dberr)
+    elif db_kind == "hub_schema":
+        db_dump_path = os.path.join(backup_path, f"{standalone_name}_schema.sql")
         pg_env = os.environ.copy()
         db_password = os.getenv("DB_PASSWORD") or ""
         if not db_password:
@@ -848,7 +985,7 @@ def backup_standalone(standalone_name):
         except Exception as e:
             errors.append(f"pg_dump error: {e}")
     else:
-        warnings.append(f"no hub DB schema for {standalone_name} — code-only backup")
+        warnings.append(f"no DB configured for {standalone_name} — code-only backup")
 
     # 2. Code tar.gz
     code_archive = os.path.join(backup_path, f"{standalone_name}_code.tar.gz")
@@ -876,7 +1013,7 @@ def backup_standalone(standalone_name):
     else:
         warnings.append(f"code_path not mounted: {code_path} (schema-only backup)")
 
-    db_size = os.path.getsize(db_dump_path) if os.path.exists(db_dump_path) else 0
+    db_size = os.path.getsize(db_dump_path) if (db_dump_path and os.path.exists(db_dump_path)) else 0
     total_size = code_size + db_size
     if errors:
         status = "failed"

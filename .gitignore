@@ -27,6 +27,9 @@ build/
 *.log
 logs/
 
+# QA / P.R.O.B.E. test artifacts
+platform_v2/qa/test-screenshots/
+
 # Database
 *.db
 *.sqlite

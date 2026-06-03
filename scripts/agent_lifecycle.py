@@ -34,7 +34,11 @@ def _get_session_cookies(base_url="http://192.168.1.200:3000"):
     import urllib.parse
     import http.cookiejar
 
-    password = os.getenv("ARCHIE_TEST_PASSWORD", "Kyt$13ran2025")
+    password = os.getenv("ARCHIE_TEST_PASSWORD") or os.getenv("PROBE_TEST_PASS")
+    if not password:
+        raise RuntimeError(
+            "Set ARCHIE_TEST_PASSWORD (or PROBE_TEST_PASS) — no test password is hardcoded."
+        )
     cj = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
     opener.open(

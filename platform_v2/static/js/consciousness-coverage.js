@@ -34,7 +34,7 @@
     if (!grid) return;
     let data;
     try {
-      const r = await fetch("/api/translations/coverage-health", { credentials: "include" });
+      const r = await fetch("/tools/consciousness/api/translations/coverage-health", { credentials: "include" });
       if (!r.ok) return;
       data = await r.json();
     } catch (e) {
@@ -77,7 +77,7 @@
     btn.disabled = true;
     btn.textContent = "Scanning...";
     try {
-      const r = await fetch("/api/translations/full-scan", { method: "POST", credentials: "include" });
+      const r = await fetch("/tools/consciousness/api/translations/full-scan", { method: "POST", credentials: "include" });
       const j = await r.json();
       btn.textContent = j.success ? "Scan started — check back in ~5 min" : "Failed";
     } catch (e) {

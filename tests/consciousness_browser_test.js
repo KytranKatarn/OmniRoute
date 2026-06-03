@@ -38,9 +38,14 @@ const { chromium } = require('playwright');
 
     // Step 1: Login
     try {
+      // No hardcoded credential — supply via env (PROBE_TEST_PASS / ARCHIE_TEST_PASSWORD).
+      const TEST_PASS = process.env.PROBE_TEST_PASS || process.env.ARCHIE_TEST_PASSWORD;
+      if (!TEST_PASS) {
+        throw new Error('Set PROBE_TEST_PASS (or ARCHIE_TEST_PASSWORD) — no test password is hardcoded.');
+      }
       await page.goto('http://192.168.1.200:3000/login', { waitUntil: 'networkidle', timeout: 15000 });
       await page.fill('input[name="username"], input[name="email"], #username, #email', 'admin');
-      await page.fill('input[name="password"], #password', 'Kyt$13ran2025');
+      await page.fill('input[name="password"], #password', TEST_PASS);
       await page.click('button[type="submit"], input[type="submit"], .login-btn, #login-btn');
       await page.waitForURL('**/dashboard**', { timeout: 10000 }).catch(() => {});
 

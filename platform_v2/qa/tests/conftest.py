@@ -2,7 +2,6 @@
 
 import pytest
 import pytest_asyncio
-import asyncio
 import os
 import logging
 from datetime import datetime
@@ -13,21 +12,21 @@ pytestmark = pytest.mark.asyncio
 
 logger = logging.getLogger("probe.tests")
 
+# NOTE: no custom `event_loop` fixture. pytest-asyncio 1.x manages loops via its
+# own session/function runners (driven by asyncio_default_*_loop_scope in
+# pytest.ini, both pinned to `session` here). Redefining `event_loop` is
+# deprecated in 1.x and was ignored — it only added confusion.
+
 BASE_URL = os.getenv("PROBE_BASE_URL", "http://192.168.1.200:3000")
-TEST_USER = os.getenv("PROBE_TEST_USER", "admin")
-TEST_PASS = os.getenv("PROBE_TEST_PASS", "Kyt$13ran2025")
+TEST_USER = os.getenv("PROBE_TEST_USER", "probe")
+# No hardcoded credential — must be supplied via the PROBE_TEST_PASS env var.
+# (Was previously a hardcoded default; removed so the secret never lives in git.)
+TEST_PASS = os.getenv("PROBE_TEST_PASS")
 SCREENSHOT_DIR = os.path.join(
     os.path.dirname(os.path.dirname(__file__)),
     "test-screenshots",
     datetime.now().strftime("%Y-%m-%d"),
 )
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -39,19 +38,52 @@ async def browser():
     await pw.stop()
 
 
-@pytest_asyncio.fixture
-async def authenticated_page(browser):
+@pytest_asyncio.fixture(scope="session")
+async def auth_context(browser):
+    """Log in ONCE per pytest session and share the authenticated context.
+
+    Previously `authenticated_page` was function-scoped and re-logged-in for
+    every test. A full run is ~30 logins, which trips the platform IP rate
+    limit (20 / 15 min) and makes later suites fail with a misleading
+    "login failed". One login per session keeps us well under the limit.
+    """
+    if not TEST_PASS:
+        pytest.fail(
+            "PROBE_TEST_PASS env var is not set. Authenticated P.R.O.B.E. suites "
+            "require it (and optionally PROBE_TEST_USER, default 'probe'). "
+            "No password is hardcoded — set it in the runner env / .env.",
+            pytrace=False,
+        )
     context = await browser.new_context(viewport={"width": 1280, "height": 800})
     page = await context.new_page()
-    page._console_errors = []
-    page.on("console", lambda msg: (page._console_errors.append(msg.text) if msg.type == "error" else None))
     await page.goto(f"{BASE_URL}/login")
     await page.fill('input[name="username"]', TEST_USER)
     await page.fill('input[name="password"]', TEST_PASS)
     await page.click('button[type="submit"]')
-    await page.wait_for_url(f"{BASE_URL}/**", timeout=10000)
-    yield page
+    # A failed login redirects back to /login. Assert we actually left it and
+    # fail LOUD with the real reason instead of letting every downstream test
+    # fail with a misleading "missing tabs" (status != artifact).
+    await page.wait_for_timeout(1500)
+    if "/login" in page.url:
+        body = (await page.inner_text("body"))[:200].replace("\n", " ")
+        pytest.fail(
+            f"Login failed for user {TEST_USER!r} — still on /login. "
+            f"Check QA_TEST_USER/QA_TEST_PASS. Page said: {body!r}",
+            pytrace=False,
+        )
+    await page.close()
+    yield context
     await context.close()
+
+
+@pytest_asyncio.fixture
+async def authenticated_page(auth_context):
+    """Fresh page per test, sharing the session's authenticated cookies."""
+    page = await auth_context.new_page()
+    page._console_errors = []
+    page.on("console", lambda msg: (page._console_errors.append(msg.text) if msg.type == "error" else None))
+    yield page
+    await page.close()
 
 
 async def navigate_to(page, path):

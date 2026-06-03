@@ -9,6 +9,7 @@ All requests go through:
   Flask route -> compliance_service.generate_remediation_plan ->
     Bridge dispatcher -> Department HQ coordinator -> F.O.R.G.E. (qwen2.5-coder:7b)
 """
+import os
 import sys
 import time
 import json
@@ -18,7 +19,11 @@ import http.cookiejar
 
 BASE = "http://192.168.1.200:3000"
 USER = "admin"
-PASS = "Kyt$13ran2025"
+# No hardcoded credential — supply via env (PROBE_TEST_PASS / ARCHIE_TEST_PASSWORD).
+PASS = os.getenv("PROBE_TEST_PASS") or os.getenv("ARCHIE_TEST_PASSWORD")
+if not PASS:
+    print("Set PROBE_TEST_PASS (or ARCHIE_TEST_PASSWORD) — no test password is hardcoded.")
+    sys.exit(2)
 
 jar = http.cookiejar.CookieJar()
 opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))

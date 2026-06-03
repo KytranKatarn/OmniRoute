@@ -16,7 +16,9 @@ async def test_agent_academy_loads(authenticated_page):
 async def test_agent_academy_tabs(authenticated_page):
     page = authenticated_page
     await navigate_to(page, "/tools/agent-academy/")
-    result = await check_tabs(page, ["Benchmarks", "Training", "A/B Testing", "Skills", "Reports"])
+    # Source of truth: header_tabs in agent_academy.html (Skills/Reports replaced
+    # by Models/Knowledge).
+    result = await check_tabs(page, ["Benchmarks", "Training", "Models", "A/B Testing", "Knowledge"])
     assert len(result["missing"]) == 0, f"Missing tabs: {result['missing']}"
 
 

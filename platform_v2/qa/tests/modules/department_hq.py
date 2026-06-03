@@ -64,14 +64,22 @@ async def test_fleet_subtabs_render(authenticated_page):
     )
     assert disp == "block", f"Fleet panel not visible (display={disp})"
     for section in ["cluster", "dispatch", "traffic", "network", "orchestration"]:
-        chars = await page.evaluate(
-            "(s) => { if (typeof switchArmadaSection==='function') switchArmadaSection(s);"
-            " const c=Array.from(document.querySelectorAll('[id*=\"'+s+'\"]'))"
-            "   .find(e=>getComputedStyle(e).display!=='none');"
-            " return c ? c.innerText.trim().length : 0; }",
+        await page.evaluate(
+            "(s) => { if (typeof switchArmadaSection==='function') switchArmadaSection(s); }",
             section,
         )
-        await page.wait_for_timeout(700)
+        await page.wait_for_timeout(800)
+        # Measure the CONTENT panel, not the nav button: ids like `armadaBtn-cluster`
+        # (7 chars = "CLUSTER") also match [id*="cluster"] and were picked first,
+        # falsely reporting the populated panel (#armadaSection-cluster) as empty.
+        chars = await page.evaluate(
+            "(s) => {"
+            " const els=Array.from(document.querySelectorAll('[id*=\"'+s+'\"]'))"
+            "   .filter(e=>!/btn/i.test(e.id) && getComputedStyle(e).display!=='none');"
+            " let max=0; for (const e of els){ const n=(e.innerText||'').trim().length; if(n>max) max=n; }"
+            " return max; }",
+            section,
+        )
         assert chars > 40, f"ARMADA '{section}' sub-tab rendered empty ({chars} chars)"
 
 

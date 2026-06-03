@@ -186,6 +186,8 @@ def execute_delegated_task(task: Dict[str, Any]) -> Dict[str, Any]:
                             "summary": (f"{capability} {domain}: skipped — superseded by newer pending deploy"),
                             "result": {"domain": domain, "skipped": True, "reason": "superseded"},
                         }
+            if isinstance(payload, dict):
+                payload = {**payload, "_task_id": task.get("id")}
             return _execute_known_tool(capability, payload, reason)
 
         return _execute_via_dispatcher(capability, payload, reason, origin=delegation_source, task_id=task.get("id"))
@@ -406,6 +408,29 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
         }
 
     if capability == "run_qa_suite":
+        # Host-side Playwright UI suite: if a module with a pytest test file is
+        # named, ENQUEUE it for the host runner (the container has no chromium) and
+        # let scripts/run_ui_qa_queue.py drive the real browser test + post results
+        # back to this task. Non-UI delegations keep the in-container API path. #371
+        import os as _os
+
+        ui_module = payload.get("module") or payload.get("suite_name")
+        if ui_module and _os.path.isfile(f"/app/qa/tests/modules/{ui_module}.py"):
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "INSERT INTO ui_qa_queue (module, requested_by, task_id, status) "
+                    "VALUES (%s, %s, %s, 'queued') RETURNING id",
+                    (ui_module, payload.get("requested_by") or "delegate_task", payload.get("_task_id")),
+                )
+                row = cur.fetchone()
+                qid = row["id"] if isinstance(row, dict) else row[0]
+            return {
+                "success": True,
+                "summary": f"UI QA '{ui_module}' queued for the host Playwright runner (queue #{qid}); results post back to this task.",
+            }
+
         from services.qa_service import run_suite as _run_suite
 
         suite_id = payload.get("suite_id")

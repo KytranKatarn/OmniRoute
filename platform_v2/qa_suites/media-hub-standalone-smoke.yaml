@@ -2,6 +2,12 @@ suite:
   name: "media-hub-standalone-smoke"
   description: "Media Hub standalone (port 8105) — health, auth gates, M.A.V.E.N. routes, watchlist, preferences"
   base_url: "http://192.168.1.200:8105"
+  auth:
+    # media_hub honors the platform QA token via /api/qa/auth (ported 2026-06-03,
+    # reusing the SSO->flask_login bridge). username = an existing admin (claude);
+    # password is a dummy the token path ignores.
+    username: "${MEDIA_TEST_USERNAME}"
+    password: "${MEDIA_TEST_PASSWORD}"
 
 tests:
   # ── Public surface ────────────────────────────────────────────────────────────
@@ -217,3 +223,34 @@ tests:
     skip_auth: true
     expect:
       status: [200, 302, 401, 403]
+
+  # ── AUTHENTICATED data-nonempty (via ported /api/qa/auth — enforce 200, KB #270283) ──
+  # These omit skip_auth so they run on the P.R.O.B.E.-authenticated session; a
+  # 302/401/403 here means auth broke = red (no unauth loophole).
+  - name: "maven-status-authed"
+    type: api
+    method: GET
+    path: /maven/api/status
+    expect:
+      status: [200]
+      json_contains:
+        success: true
+
+  - name: "maven-series-authed-nonempty"
+    type: api
+    method: GET
+    path: /maven/api/series
+    critical: true
+    expect:
+      status: [200]
+      json_gt:
+        total_series: 0
+
+  - name: "maven-discover-authed-nonempty"
+    type: api
+    method: GET
+    path: /maven/api/discover
+    critical: true
+    expect:
+      status: [200]
+      json_nonempty: true

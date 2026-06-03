@@ -1,0 +1,40 @@
+suite:
+  name: "kbs-auth-smoke"
+  description: "Kytran Business Suite (port 8091) — P.R.O.B.E. authenticated smoke via the ported /api/qa/auth endpoint. Proves P.R.O.B.E. establishes a KBS session (login_user + multi-tenant session) and reaches an authed, enabled-plugin data route. KB #270283/#270289."
+  base_url: "http://192.168.1.200:8091"
+  auth:
+    # KBS honors the platform QA token via /api/qa/auth (ported 2026-06-03,
+    # registered at the root + exempted in PUBLIC_ROUTES; sets login_user +
+    # session tenant_id/tenant_role). username = the KBS agent account
+    # (admin@kytranempowerment.com); password is a dummy the token path ignores.
+    username: "${KBS_TEST_USERNAME}"
+    password: "${KBS_TEST_PASSWORD}"
+
+tests:
+  - name: "kbs-health"
+    type: api
+    method: GET
+    path: /health
+    skip_auth: true
+    expect:
+      status: [200]
+
+  - name: "kbs-login-page"
+    type: api
+    method: GET
+    path: /auth/login
+    skip_auth: true
+    expect:
+      status: [200, 302]
+
+  # Authenticated (via /api/qa/auth). A 302/401 here = auth broke = red; the
+  # tenant API guard 401s unauthenticated /api callers, so a 200 + non-empty
+  # body proves P.R.O.B.E. holds a real KBS session + tenant context.
+  - name: "invoices-authed-nonempty"
+    type: api
+    method: GET
+    path: /plugins/invoicing/api/invoices
+    critical: true
+    expect:
+      status: [200]
+      json_nonempty: true

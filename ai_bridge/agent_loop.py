@@ -662,6 +662,20 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # Node auto-provision (#3732) — stocks a newly enrolled fleet node's
+        # recommended warm-set automatically (idempotent diff vs present models →
+        # OTA mesh_sync_log pull queue). DEFAULT OFF, gated by platform_settings
+        # 'node_auto_provision_enabled'. Rate-limited (max 2 nodes/cycle).
+        self.scheduler.add_job(
+            with_app_context(self._run_node_auto_provision),
+            trigger=IntervalTrigger(minutes=10),
+            id="node_auto_provision",
+            name="Agent Loop: Node Auto-Provision (warm-set)",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         # Agent KB write auto-review (#3534 Phase 3). C.O.D.E.X. promotes/rejects
         # quarantined agent_proposed KB writes. Hourly; a no-op unless the
         # agentic_tool_write flag is on AND pending writes exist.
@@ -4581,6 +4595,24 @@ class AgentLoop:
             auto_review_pending_writes(limit=20)
         except Exception as exc:
             logger.warning("[agent_kb_review] job failed: %s", exc)
+
+    def _run_node_auto_provision(self):
+        """#3732: stock a newly enrolled fleet node's recommended warm-set.
+
+        Diffs each approved+online wizard node's hardware recommendation
+        (services.node_provisioning) against the models it already reports, and
+        queues the gap into the OTA ``mesh_sync_log`` pull queue. Idempotent
+        (fully-stocked nodes are no-ops) and gated behind platform_settings
+        ``node_auto_provision_enabled`` (default off). No-op until enabled.
+        """
+        try:
+            from services.node_auto_provision import auto_provision_nodes
+
+            res = auto_provision_nodes(dry_run=False, max_nodes=2)
+            if res.get("provisioned"):
+                logger.info("[node_auto_provision] %s", res)
+        except Exception as exc:
+            logger.warning("[node_auto_provision] job failed: %s", exc)
 
     def _run_fleet_backlog_runner(self):
         """Promote a few pending unified_tasks to the fleet (Phase 3, decision #676).

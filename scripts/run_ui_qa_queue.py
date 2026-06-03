@@ -55,17 +55,26 @@ def _db():
 
 def _run_pytest(module: str) -> tuple[int, int, str]:
     """Run the module's Playwright suite on the host; return (passed, failed, summary)."""
+    # Trust boundary: the module value comes from the DB queue. Validate it as a
+    # bare identifier and confirm the resolved path stays under qa/tests/modules
+    # before any filesystem / subprocess use (defense in depth vs path traversal).
+    if not re.fullmatch(r"[a-z0-9_]{1,64}", module or ""):
+        return 0, 1, f"invalid module name '{module}'"
+    modules_dir = os.path.realpath(os.path.join(PLATFORM, "qa/tests/modules"))
+    full = os.path.realpath(os.path.join(modules_dir, f"{module}.py"))
+    if not full.startswith(modules_dir + os.sep) or not os.path.isfile(full):
+        return 0, 1, f"no pytest module '{module}' under qa/tests/modules"
     test_file = f"qa/tests/modules/{module}.py"
-    if not os.path.isfile(os.path.join(PLATFORM, test_file)):
-        return 0, 1, f"no pytest module '{module}' at {test_file}"
     e = _env_from_dotenv()
-    # conftest reads PROBE_* (PROBE_BASE_URL / PROBE_TEST_USER / PROBE_TEST_PASS);
-    # defaults (admin / Kyt$13ran2025) are already correct, these allow overrides.
+    # conftest reads PROBE_* (PROBE_BASE_URL / PROBE_TEST_USER / PROBE_TEST_PASS).
+    # Creds come from PROBE_* env or .env QA_TEST_* — no secrets in this source.
     run_env = {
         **os.environ,
         "PROBE_BASE_URL": BASE_URL,
-        "PROBE_TEST_USER": os.getenv("PROBE_TEST_USER", e.get("QA_TEST_USER", "admin")),
-        "PROBE_TEST_PASS": os.getenv("PROBE_TEST_PASS", e.get("QA_TEST_PASS", "Kyt$13ran2025")),
+        "PROBE_TEST_USER": os.getenv("PROBE_TEST_USER") or e.get("QA_TEST_USER") or "admin",
+        # No literal password in source. conftest supplies its own default; if both
+        # PROBE_TEST_PASS / QA_TEST_PASS are unset the suite reports a missing-cred error.
+        "PROBE_TEST_PASS": os.getenv("PROBE_TEST_PASS") or e.get("QA_TEST_PASS") or "",
     }
     try:
         proc = subprocess.run(

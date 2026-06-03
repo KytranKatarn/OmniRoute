@@ -413,9 +413,14 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
         # let scripts/run_ui_qa_queue.py drive the real browser test + post results
         # back to this task. Non-UI delegations keep the in-container API path. #371
         import os as _os
+        import re as _re
 
         ui_module = payload.get("module") or payload.get("suite_name")
-        if ui_module and _os.path.isfile(f"/app/qa/tests/modules/{ui_module}.py"):
+        if (
+            ui_module
+            and _re.fullmatch(r"[a-z0-9_]{1,64}", ui_module)
+            and _os.path.isfile(f"/app/qa/tests/modules/{ui_module}.py")
+        ):
             from database import get_db_cursor
 
             with get_db_cursor(commit=True) as (conn, cur):

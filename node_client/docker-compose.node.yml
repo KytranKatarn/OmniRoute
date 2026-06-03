@@ -29,7 +29,11 @@ services:
       - OLLAMA_NUM_PARALLEL=4
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
-      - ollama_data:/root/.ollama
+      # Host bind-mount (#3437), NOT a named volume: model data lives under the
+      # install dir (C:\archie-node\ollama-models / /opt/archie-node/ollama-models)
+      # so it survives `docker volume prune` AND Docker Desktop factory reset
+      # (the named ollama_data volume got wiped 2026-05-29, losing all models).
+      - ./ollama-models:/root/.ollama
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
     healthcheck:
@@ -102,7 +106,7 @@ services:
       MESH_IP: ${MESH_IP:-}
     volumes:
       - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock
-      - comfyui_data:/comfyui/models
+      - ./comfyui-models:/comfyui/models
     command: ["python3", "-u", "node_sync.py"]
     healthcheck:
       test: ["CMD-SHELL", "grep -q node_sync /proc/1/cmdline || exit 1"]
@@ -154,7 +158,7 @@ services:
               count: all
               capabilities: [gpu]
     volumes:
-      - comfyui_data:/comfyui/models
+      - ./comfyui-models:/comfyui/models
     ports:
       - "${COMFYUI_PORT:-8188}:8188"
     networks:
@@ -163,9 +167,12 @@ services:
     environment:
       TZ: America/Toronto
 volumes:
-  ollama_data:
   pg_data:
-  comfyui_data:
+  # ollama / comfyui model data are now relative host bind-mounts (#3437):
+  # ./ollama-models and ./comfyui-models under the install dir, so they survive
+  # `docker volume prune` and Docker Desktop factory reset. pg_data stays a named
+  # volume (Postgres data — bind-mounting it on Windows Docker Desktop causes
+  # permission issues, and it is not the data we need to protect from prune).
 
 networks:
   archie_net:

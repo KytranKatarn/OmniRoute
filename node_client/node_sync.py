@@ -97,22 +97,56 @@ def _find_config_path():
     return _get_config_paths()[0]
 
 
+# Resolved Ollama base URL — set once load_config() validates/detects a working
+# endpoint, so helpers without `config` (get_ollama_status, _get_agent_welfare)
+# use the same working host instead of a hardcoded 'ollama' that is unresolvable
+# on Windows Docker Desktop (#3466).
+_RESOLVED_OLLAMA_HOST = None
+
+
+def _ollama_responds(host):
+    """True if Ollama answers /api/tags at *host*."""
+    if not host:
+        return False
+    try:
+        status, _ = http_get(f"{host.rstrip('/')}/api/tags")
+        return status == 200
+    except Exception:
+        return False
+
+
 def _auto_detect_ollama():
-    """Try common Ollama endpoints and return the first that responds, or None."""
+    """Return the first Ollama endpoint that responds, or None.
+
+    Ordered for cross-platform reach: an explicit OLLAMA_HOST that actually
+    works, then host network, then Docker Desktop's host.docker.internal
+    (Windows/Mac), then the node ollama container names. host.docker.internal
+    is what makes Windows Starships work — the 'ollama' service name does NOT
+    resolve there, which silently broke model_pull (#3466)."""
+    env = os.environ.get("OLLAMA_HOST")
     candidates = [
-        "http://localhost:11434",
+        env,
         "http://host.docker.internal:11434",
+        "http://localhost:11434",
+        "http://archie_node_ollama:11434",
+        "http://ollama:11434",
     ]
+    seen = set()
     for host in candidates:
-        try:
-            url = f"{host}/api/tags"
-            status, _ = http_get(url)
-            if status == 200:
-                logger.info("Auto-detected Ollama at %s", host)
-                return host
-        except Exception:
-            pass
+        if not host or host in seen:
+            continue
+        seen.add(host)
+        if _ollama_responds(host):
+            logger.info("Auto-detected Ollama at %s", host)
+            return host
     return None
+
+
+def _ollama_base():
+    """Resolved Ollama base URL for helpers that don't carry `config`."""
+    if _RESOLVED_OLLAMA_HOST:
+        return _RESOLVED_OLLAMA_HOST
+    return _auto_detect_ollama() or os.environ.get("OLLAMA_HOST") or "http://localhost:11434"
 
 
 def write_config(config, path=None):
@@ -215,17 +249,29 @@ def load_config():
     else:
         logger.info("No config.json found at %s — using env vars", config_path)
 
-    # Auto-detect Ollama host if not configured
-    if not config.get("ollama_host"):
+    # Resolve + VALIDATE the Ollama host. A configured value (env / config.json)
+    # can be an unresolvable Docker service name on Windows Docker Desktop (e.g.
+    # 'http://ollama:11434'), which silently breaks model_pull (#3466). If the
+    # configured host does not answer /api/tags, auto-detect a working endpoint
+    # and override. Re-runs every startup, so it self-heals if the host changes.
+    global _RESOLVED_OLLAMA_HOST
+    configured = config.get("ollama_host")
+    if not _ollama_responds(configured):
         detected = _auto_detect_ollama()
         if detected:
+            if configured and detected != configured:
+                logger.warning(
+                    "Configured Ollama host %s is unreachable — using detected %s (#3466)",
+                    configured,
+                    detected,
+                )
             config["ollama_host"] = detected
-        else:
+        elif not configured:
             config["ollama_host"] = "http://localhost:11434"
-            logger.warning(
-                "Could not auto-detect Ollama; defaulting to %s",
-                config["ollama_host"],
-            )
+            logger.warning("Could not auto-detect Ollama; defaulting to %s", config["ollama_host"])
+        # else: keep the configured host — detection failed but a value was set;
+        # the pull will error loudly and the hub reaper retries.
+    _RESOLVED_OLLAMA_HOST = config.get("ollama_host")
 
     # Store config path for later writes
     config["_config_path"] = config_path
@@ -501,7 +547,7 @@ def get_ollama_models(ollama_host):
 
 def get_ollama_status():
     """Query local Ollama for loaded and available models."""
-    ollama_host = os.getenv("OLLAMA_HOST", "http://ollama:11434")
+    ollama_host = _ollama_base()
     result = {"loaded_models": [], "available_models": []}
     try:
         tags_status, tags = http_get(f"{ollama_host}/api/tags")
@@ -585,7 +631,7 @@ def _get_agent_welfare():
         conn.close()
 
         # Check which models are loaded in Ollama
-        ollama_host = os.environ.get("OLLAMA_HOST", "http://ollama:11434")
+        ollama_host = _ollama_base()
         loaded_models = set()
         try:
             ps_status, ps_data = http_get(f"{ollama_host}/api/ps")

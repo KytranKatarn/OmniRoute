@@ -350,6 +350,7 @@ docker run -d --name archie_outpost_sync \
   --restart unless-stopped \
   -e NODE_ID="$NODE_ID" \
   -e HUB_URL="$HUB_URL" \
+  -e DR_HUB_URL="http://100.64.0.10:3000" \
   -e HUB_API_KEY="$HUB_API_KEY" \
   -e NODE_TYPE=outpost \
   -e HEARTBEAT_INTERVAL=60 \

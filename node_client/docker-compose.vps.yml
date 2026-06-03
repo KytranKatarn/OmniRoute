@@ -20,11 +20,17 @@ services:
     image: archie-node-api:local
     container_name: archie_node_api
     restart: unless-stopped
+    # Baseline resource cap (audit #270456: node_api ran UNBOUNDED on every node → OOM risk).
+    mem_limit: 768m
+    cpus: 0.5
     command: python3 -u node_api.py
     environment:
       TZ: America/Toronto
       NODE_ID: ${NODE_ID:-outpost_us_001}
-      HUB_URL: ${HUB_URL:-https://platform.kytranempowerment.com}
+      # Mesh IP — NEVER the public CDN hostname (60s cap, bypasses the queue). Canonical mandate.
+      HUB_URL: ${HUB_URL:-http://100.64.0.4:3000}
+      # DR standby on boston-2 — node_sync.py auto-fails-over here if the primary hub dies.
+      DR_HUB_URL: ${DR_HUB_URL:-http://100.64.0.10:3000}
       HUB_API_KEY: ${HUB_API_KEY:-}
       OLLAMA_HOST: http://host.docker.internal:11434
       DATABASE_URL: ""

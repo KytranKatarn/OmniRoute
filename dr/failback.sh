@@ -133,8 +133,19 @@ restore-normal)  # platform + fleet + WTF + DNS back to the hub; boston-2 -> rep
   else
     log "   WARN: WTF reverse-repoint failed (manual: on $WTF_HOST set $WTF_DIR/.env DB host -> $HUB_MESH, docker compose up -d)."
   fi
-  log "4) flip DNS back to the hub (platform A-record):"
-  log "     run the hub-direction DNS flip (reverse of dns_flip.sh) — platform.kytranempowerment.com -> hub public IP"
+  log "4) flip DNS back to the hub (platform A-record)..."
+  # Auto-discover the hub's CURRENT public IP (it changes if the hub moved) by
+  # asking the hub itself over the mesh — so the flip-back needs NO manual input.
+  if [ -z "${HUB_PUBLIC_IP:-}" ]; then
+    HUB_PUBLIC_IP=$(ssh -i "$FLEET_KEY" -o ConnectTimeout=10 -o BatchMode=yes "$HUB_SSH" \
+      "curl -s --max-time 8 https://api.ipify.org 2>/dev/null || dig -4 +short myip.opendns.com @resolver1.opendns.com 2>/dev/null" 2>/dev/null | tr -d '[:space:]')
+    log "   auto-discovered hub public IP: ${HUB_PUBLIC_IP:-<none>}"
+  fi
+  if [ -n "${HUB_PUBLIC_IP:-}" ] && [ -x "$DR/dns_flip_back.sh" ]; then
+    "$DR/dns_flip_back.sh" "$HUB_PUBLIC_IP" 2>&1 | sed 's/^/    /'
+  else
+    log "     MANUAL (auto-discovery failed): $DR/dns_flip_back.sh <hub_public_ip>  — get it on the hub: curl -s ifconfig.me"
+  fi
   log "5) re-establish boston-2 as a REPLICA of the hub (the normal direction):"
   log "     ON BOSTON-2: $DR/setup_replica.sh   (re-clones boston-2 from the hub; resumes streaming)"
   log "Then run: $0 verify"

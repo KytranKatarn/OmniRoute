@@ -4704,6 +4704,7 @@ function showNodeDetail(node) {
         { title: 'Hardware', rows: [
             ['GPU', node.gpu_model || node.gpu || 'None'],
             ['VRAM', node.gpu_vram_gb ? node.gpu_vram_gb + ' GB' : '--'],
+            ['CPU', (node.cpu_cores ? node.cpu_cores + ' cores' : '--') + (node.cpu_model ? ' · ' + node.cpu_model : '')],
             ['RAM', (node.ram_gb || node.ram) ? (node.ram_gb || node.ram) + ' GB' : '--'],
             ['Region', node.region || '--']
         ]},

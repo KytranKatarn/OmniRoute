@@ -650,8 +650,10 @@ def register_node_routes(bp, login_required, admin_required):
     # de-collides them; the Fleet/ARMADA tab uses /api/fleet-map, not this.
     @bp.route("/api/nodes/all")
     @login_required
+    @admin_required
     def get_all_nodes():
-        """Get all registered remote nodes (admin/fleet, unscoped)."""
+        """Get all registered remote nodes (admin/fleet, unscoped). Admin-only —
+        unscoped cluster listing; non-admins use the user-scoped /api/nodes."""
         try:
             with get_db_cursor(commit=False) as (conn, cur):
 

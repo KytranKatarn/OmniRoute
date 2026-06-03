@@ -1,0 +1,52 @@
+suite:
+  name: "creed-smoke"
+  description: "C.R.E.E.D. Governance — public score APIs + data-nonempty (KB #270283)"
+  base_url: "https://creed.kytranempowerment.com"
+
+# Note: C.R.E.E.D. has no /api/health route — the public score endpoints are the
+# liveness + data signal. All endpoints are public (no-auth, CORS-open).
+tests:
+  - name: "home-loads"
+    type: api
+    method: GET
+    path: /
+    skip_auth: true
+    expect:
+      status: [200, 302]
+
+  - name: "v1-scores-has-data"
+    type: api
+    method: GET
+    path: /api/v1/scores
+    skip_auth: true
+    critical: true
+    expect:
+      status: [200]
+      json_nonempty: true
+      json_gt:
+        overall: 0
+        event_count: 0
+
+  - name: "public-score-positive"
+    type: api
+    method: GET
+    path: /api/public/score
+    skip_auth: true
+    critical: true
+    expect:
+      status: [200]
+      json_nonempty: true
+      json_gt:
+        score: 0
+
+  - name: "ethics-by-department-nonempty"
+    type: api
+    method: GET
+    path: /api/ethics/by-department
+    skip_auth: true
+    expect:
+      status: [200]
+      json_contains:
+        success: true
+      path: by_department
+      min_items: 1

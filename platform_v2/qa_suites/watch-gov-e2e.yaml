@@ -1,6 +1,6 @@
 suite:
   name: "watch-gov-e2e"
-  description: "Gov Watch (P.R.O.C.U.R.E.) — availability, login gate, procurement feed"
+  description: "Gov Watch (P.R.O.C.U.R.E.) — availability + data-nonempty on proactive disclosures (KB #270283)"
   base_url: "https://gov.kytranempowerment.com"
 
 tests:
@@ -12,34 +12,40 @@ tests:
     expect:
       status: [200, 302]
 
-  - name: "login-page"
-    type: api
-    method: GET
-    path: /login
-    skip_auth: true
-    expect:
-      status: [200, 302]
-
-  - name: "health-endpoint"
+  - name: "health-ok"
     type: api
     method: GET
     path: /api/health
     skip_auth: true
     expect:
-      status: [200, 404]
+      status: [200]
+      json_contains:
+        status: "ok"
 
-  - name: "tenders-gate"
+  # --- data-nonempty: proactive disclosures wrap data in {ok, records} — assert
+  # the nested list is non-empty via expect.path (35k+ records in the DB). ---
+  - name: "proactive-recent-nonempty"
     type: api
     method: GET
-    path: /tenders
+    path: /procure/api/proactive/recent
     skip_auth: true
+    critical: true
     expect:
-      status: [200, 302, 401]
+      status: [200]
+      json_contains:
+        ok: true
+      path: records
+      min_items: 1
 
-  - name: "procure-dispatch-available"
+  - name: "proactive-trends-nonempty"
     type: api
     method: GET
-    path: /api/procure/dispatch
+    path: /procure/api/proactive/trends
     skip_auth: true
+    critical: true
     expect:
-      status: [200, 302, 401, 405]
+      status: [200]
+      json_contains:
+        ok: true
+      path: trends
+      min_items: 1

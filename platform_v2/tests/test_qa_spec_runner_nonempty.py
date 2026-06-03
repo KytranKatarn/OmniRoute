@@ -105,6 +105,28 @@ def test_backward_compat_no_new_keys():
     assert "min_items" not in r["assertions"]
 
 
+def test_path_min_items_passes_on_nested_array():
+    # {"ok": true, "records": [...]} -> path: records, min_items: 1
+    r = _run({"status": [200], "path": "records", "min_items": 1}, {"ok": True, "records": [1, 2]})
+    assert r["status"] == "pass"
+
+
+def test_path_min_items_fails_on_empty_nested_array():
+    r = _run({"status": [200], "path": "records", "min_items": 1}, {"ok": True, "records": []})
+    assert r["status"] == "fail"
+
+
+def test_path_missing_key_fails():
+    r = _run({"status": [200], "path": "records", "min_items": 1}, {"ok": True})
+    assert r["status"] == "fail"
+    assert r["assertions"]["json_path"] == "fail"
+
+
+def test_path_dotted_resolves():
+    r = _run({"status": [200], "path": "data.items", "min_items": 2}, {"data": {"items": [1, 2, 3]}})
+    assert r["status"] == "pass"
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     failed = 0

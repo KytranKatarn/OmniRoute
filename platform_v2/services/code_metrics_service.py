@@ -1445,6 +1445,24 @@ def audit_module_web(module_path):
                     elif not re.match(r"^[\w\-]+$", match):
                         _add_issue("HARDCODED_SECRET", fname)
 
+                # Hardcoded default for a SECRET-keyed getenv()/environ.get() —
+                # e.g. os.getenv("X_PASSWORD", "literal"). The keyword-anchored
+                # pattern above misses these: the secret keyword is in the env-var
+                # NAME, not before the assignment (KB #270467).
+                for match in re.findall(
+                    r'(?:getenv|environ\.get)\(\s*["\'][^"\']*'
+                    r'(?:pass|pwd|secret|token|api_?key|cred)[^"\']*["\']'
+                    r'\s*,\s*["\']([^"\']{8,})["\']',
+                    content,
+                    re.IGNORECASE,
+                ):
+                    if match.startswith("test_") or "${" in match or "process.env" in match:
+                        continue
+                    if re.match(r"^(sk-|ghp_|gho_|glpat-)", match):
+                        _add_issue("HARDCODED_SECRET", fname, "possible API key (getenv default)")
+                    elif not re.match(r"^[\w\-]+$", match):
+                        _add_issue("HARDCODED_SECRET", fname, "hardcoded getenv default secret")
+
                 # Inline script blocks in HTML (>5 lines of logic)
                 if ext in (".html", ".htm"):
                     script_blocks = re.findall(r"<script[^>]*>(.*?)</script>", content, re.DOTALL)
@@ -1529,6 +1547,23 @@ def audit_module_config(module_path):
                         _add_issue("HARDCODED_SECRET", fname, "possible API key")
                     elif not re.match(r"^[\w\-\.\/]+$", match):
                         _add_issue("HARDCODED_SECRET", fname)
+
+                # Hardcoded default for a SECRET-keyed getenv()/environ.get()
+                # (KB #270467) — the loop above skips any match containing
+                # "os.getenv", so secret defaults slip through.
+                for match in re.findall(
+                    r'(?:getenv|environ\.get)\(\s*["\'][^"\']*'
+                    r'(?:pass|pwd|secret|token|api_?key|cred)[^"\']*["\']'
+                    r'\s*,\s*["\']([^"\']{8,})["\']',
+                    content,
+                    re.IGNORECASE,
+                ):
+                    if match.startswith("test_") or "${" in match or "process.env" in match:
+                        continue
+                    if re.match(r"^(sk-|ghp_|gho_|glpat-)", match):
+                        _add_issue("HARDCODED_SECRET", fname, "possible API key (getenv default)")
+                    elif not re.match(r"^[\w\-\.\/]+$", match):
+                        _add_issue("HARDCODED_SECRET", fname, "hardcoded getenv default secret")
 
                 # Docker-specific checks
                 if is_docker:

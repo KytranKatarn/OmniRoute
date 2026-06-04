@@ -4009,6 +4009,12 @@ function loadClusterActivity() {
                             row.appendChild(tsEl); row.appendChild(iconEl); row.appendChild(agentEl);
                             row.appendChild(arrEl); row.appendChild(nodeEl); row.appendChild(capEl);
                             if (srcShort) row.appendChild(srcEl);
+                            if (e.dr_mode) {
+                                var drpBadge = document.createElement('span');
+                                drpBadge.style.cssText = 'background:#ef444433;color:#ef4444;font-size:0.6rem;padding:1px 5px;border-radius:3px;font-weight:600;font-family:"IBM Plex Mono",monospace;flex-shrink:0;';
+                                drpBadge.textContent = 'DRP';
+                                row.appendChild(drpBadge);
+                            }
                             idx++;
                         }
                         logEl.appendChild(row);

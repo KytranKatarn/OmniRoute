@@ -1025,7 +1025,8 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     """SELECT COALESCE(a.name, tel.agent_name) AS agent_name,
                               tel.capability, tel.model_used, tel.module_source,
                               tel.success, tel.duration_ms, tel.created_at,
-                              COALESCE(rn.node_name, 'Hub') AS node_name
+                              COALESCE(rn.node_name, 'Hub') AS node_name,
+                              (tel.request_metadata->>'dr_mode')::boolean AS dr_mode
                        FROM task_execution_log tel
                        LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
                        LEFT JOIN agents a ON (
@@ -1049,6 +1050,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                             "success": r.get("success"),
                             "duration_ms": r.get("duration_ms"),
                             "ts": r["created_at"].isoformat() if r.get("created_at") else None,
+                            "dr_mode": bool(r.get("dr_mode")),
                         }
                     )
 

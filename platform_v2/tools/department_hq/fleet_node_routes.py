@@ -263,7 +263,40 @@ def _generate_setup_sh(
     """
     headscale_login_server = "https://mesh.kytranempowerment.com"
     safe_name = node_name.replace('"', "").replace("'", "")
+    _is_satellite = deployment_mode == "satellite"
     _is_outpost = deployment_mode in ("starbase_outpost", "outpost")
+
+    # Satellite: minimal enrollment — Tailscale only, no Docker, no Ollama.
+    if _is_satellite:
+        authkey_line = f"  --authkey={headscale_authkey} \\\n" if headscale_authkey else ""
+        return f"""#!/usr/bin/env bash
+# ARCHIE Satellite Enrollment — {safe_name}
+# Node: {node_id}
+# Lightweight: Headscale mesh join + hub registration. No Docker or Ollama required.
+set -e
+echo "==> [1/4] Install Tailscale"
+curl -fsSL https://tailscale.com/install.sh | sudo sh
+echo "==> [2/4] Join Headscale mesh"
+sudo tailscale up \\
+  --login-server={headscale_login_server} \\
+{authkey_line}  --accept-routes \\
+  --hostname={node_id}
+echo "==> [3/4] Discover mesh IP"
+MESH_IP=""
+for i in 1 2 3; do
+  MESH_IP=$(tailscale ip -4 2>/dev/null || true)
+  [ -n "$MESH_IP" ] && break
+  sleep 5
+done
+[ -z "$MESH_IP" ] && MESH_IP="${{MESH_IP_OVERRIDE:-}}"
+echo "==> [4/4] Register with hub"
+curl -s -X POST {hub_mesh_url}/tools/department-hq/api/nodes/{node_id}/mesh-ip \\
+  -H "Content-Type: application/json" \\
+  -d '{{"mesh_ip": "'"$MESH_IP"'", "token": "{token}"}}'
+echo ""
+echo "Satellite '{safe_name}' enrolled. Mesh IP: $MESH_IP"
+echo "Approve in Fleet tab: {hub_url}/tools/department-hq#fleet"
+"""
 
     # For starship nodes: pre-load docker-compose.node.yml from disk and embed
     # it as a bash heredoc in step 9 so the compose file is bundled in the
@@ -4310,7 +4343,7 @@ def register_node_routes(bp, login_required, admin_required):
         node_name = request.args.get("name", "").strip()
         mesh_ip_param = (request.args.get("mesh_ip") or "").strip()
         deployment_mode = request.args.get("deployment_mode", "starship").strip()
-        if deployment_mode not in ("starship", "starbase_outpost"):
+        if deployment_mode not in ("starship", "starbase_outpost", "satellite"):
             deployment_mode = "starship"
 
         # Validate mesh IP if provided
@@ -4322,11 +4355,19 @@ def register_node_routes(bp, login_required, admin_required):
 
         # Generate unique node ID and setup token
         # Prefix reflects deployment tier: outpost for VPS nodes, starship for LAN GPU nodes
-        _id_prefix = "outpost" if deployment_mode == "starbase_outpost" else "starship"
+        _id_prefix = (
+            "outpost"
+            if deployment_mode == "starbase_outpost"
+            else ("satellite" if deployment_mode == "satellite" else "starship")
+        )
         node_id = f"{_id_prefix}_{secrets.token_hex(8)}"
         setup_token = secrets.token_urlsafe(32)
         if not node_name:
-            _name_prefix = "Outpost" if deployment_mode == "starbase_outpost" else "Starship"
+            _name_prefix = (
+                "Outpost"
+                if deployment_mode == "starbase_outpost"
+                else ("Satellite" if deployment_mode == "satellite" else "Starship")
+            )
             node_name = f"{_name_prefix}-{secrets.token_hex(3).upper()}"
 
         # Two-phase URLs (2026-05-25 user mandate):
@@ -4423,6 +4464,14 @@ def register_node_routes(bp, login_required, admin_required):
                 )
                 cmd_win = _generate_setup_ps1(hub_public_url, node_id, setup_token, node_name)
                 cmd_win_oneliner = f"iex (iwr '{hub_public_url}/tools/department-hq/install?token={setup_token}' -UseBasicParsing).Content"
+                # Satellite: the "command" is the full bash script (no one-liner curl wrapper needed
+                # since the script itself is minimal and can be pasted directly into any terminal).
+                cmd_satellite = cmd_linux if deployment_mode == "satellite" else None
+                mobile_enroll_url = (
+                    f"{hub_public_url}/tools/department-hq/fleet/satellite/enroll?token={setup_token}"
+                    if deployment_mode == "satellite"
+                    else None
+                )
                 resp = {
                     "success": True,
                     "node_id": node_id,
@@ -4431,6 +4480,10 @@ def register_node_routes(bp, login_required, admin_required):
                     "command_linux": cmd_linux_oneliner,
                     "command_windows": cmd_win_oneliner,
                 }
+                if cmd_satellite:
+                    resp["command_satellite"] = cmd_satellite
+                if mobile_enroll_url:
+                    resp["mobile_enroll_url"] = mobile_enroll_url
                 if headscale_authkey:
                     resp["headscale_authkey"] = headscale_authkey
                 return jsonify(resp)

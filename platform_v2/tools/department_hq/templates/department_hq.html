@@ -841,6 +841,7 @@
                 <select id="addNodeDeployMode" onchange="updateAddNodeModal()" style="width:100%;margin-top:6px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.25);color:#e0e0e0;padding:8px 12px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;box-sizing:border-box;">
                   <option value="starship">Starship (LAN — GPU laptop/desktop)</option>
                   <option value="starbase_outpost">Outpost (VPS — remote CPU node)</option>
+                  <option value="satellite">Satellite (mobile / IoT — mesh-only, no Docker)</option>
                 </select>
               </div>
               <div style="margin-bottom:20px;">
@@ -879,18 +880,25 @@
     function updateAddNodeModal() {
       const mode = (document.getElementById('addNodeDeployMode') || {}).value || 'starship';
       const isOutpost = mode === 'starbase_outpost';
+      const isSatellite = mode === 'satellite';
       const hdr = document.getElementById('addNodeModalHeader');
       if (hdr) {
         const closeBtn = hdr.querySelector('span');
-        hdr.textContent = isOutpost ? 'ENLIST NEW OUTPOST NODE' : 'ENLIST NEW STARSHIP NODE';
+        hdr.textContent = isSatellite ? 'ENLIST SATELLITE NODE' : (isOutpost ? 'ENLIST NEW OUTPOST NODE' : 'ENLIST NEW STARSHIP NODE');
         if (closeBtn) hdr.appendChild(closeBtn);
       }
+      // Hide OS selector for satellite (no Windows/Linux distinction — Tailscale-only)
+      const osRow = document.querySelector('[name="addNodeOs"]');
+      const osSection = osRow ? osRow.closest('div').parentElement : null;
+      if (osSection) osSection.style.display = isSatellite ? 'none' : '';
       // Step2 instruction reflects the OS/mode combination
       const osEl = document.querySelector('input[name="addNodeOs"]:checked');
       const os = osEl ? osEl.value : 'linux';
       const instrEl = document.getElementById('addNodeStep2Instruction');
       if (instrEl) {
-        if (isOutpost || os === 'linux') {
+        if (isSatellite) {
+          instrEl.textContent = 'PASTE IN TERMINAL OR OPEN MOBILE ENROLL URL:';
+        } else if (isOutpost || os === 'linux') {
           instrEl.textContent = 'RUN THIS ON THE TARGET MACHINE (bash as root / sudo):';
         } else {
           instrEl.textContent = 'RUN THIS ON THE TARGET MACHINE (PowerShell as Admin):';
@@ -924,7 +932,14 @@
         const data = await resp.json();
         if (!data.success) throw new Error(data.error || 'Unknown error');
         document.getElementById('addNodeResultId').textContent = data.node_id;
-        document.getElementById('addNodeCommand').value = os === 'windows' ? data.command_windows : data.command_linux;
+        const isSat = deployMode === 'satellite';
+        document.getElementById('addNodeCommand').value = isSat
+          ? (data.command_satellite || data.command_linux)
+          : (os === 'windows' ? data.command_windows : data.command_linux);
+        if (isSat && data.mobile_enroll_url) {
+          document.getElementById('addNodeCommand').value +=
+            '\n\n# Mobile (iOS/Android): open this URL in Tailscale browser:\n# ' + data.mobile_enroll_url;
+        }
         updateAddNodeModal();
         document.getElementById('addNodeStep1').style.display = 'none';
         document.getElementById('addNodeStep2').style.display = 'block';

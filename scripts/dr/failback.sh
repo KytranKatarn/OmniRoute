@@ -25,7 +25,7 @@ HUB_MESH="${HUB_MESH:-100.64.0.4}"; HUB_PG="${HUB_PG:-5432}"
 B2_MESH="${B2_MESH:-100.64.0.10}"; B2_PG="${B2_PG:-5433}"
 B2_CONTAINER="${B2_CONTAINER:-archie_dr_replica}"
 HUB_DB_CONTAINER="${HUB_DB_CONTAINER:-archie_database}"
-HUB_SSH="${HUB_SSH:-root@$HUB_MESH}"          # how boston-2 reaches the hub host over SSH
+HUB_SSH="${HUB_SSH:-kytran@$HUB_MESH}"        # hub uses kytran@ not root@ (pubkey in authorized_keys)
 FLEET_KEY="${FLEET_KEY:-$DR/.ssh/id_ed25519}"
 REPL_USER="${REPL_USER:-replicator}"
 BACK_SLOT="${BACK_SLOT:-hub_failback}"         # slot on boston-2 that feeds the hub

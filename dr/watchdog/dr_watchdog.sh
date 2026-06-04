@@ -49,7 +49,9 @@ if ! declare -p OUTPOSTS >/dev/null 2>&1; then
   OUTPOSTS=( root@100.64.0.5 root@100.64.0.7 root@100.64.0.8 )
 fi
 QUORUM="${QUORUM:-2}"            # outpost down-votes required (majority of 3)
-K="${K:-3}"                     # consecutive down-cycles before arming
+K="${K:-3}"                     # consecutive down-cycles before arming (confirmed-down quorum)
+K_BLACKOUT="${K_BLACKOUT:-5}"   # cycles before arming when ALL outposts are unreachable
+                                # (mesh died with hub — weaker signal, needs more evidence)
 ABORT_WINDOW="${ABORT_WINDOW:-300}"   # seconds between arm and fire (5 min)
 SSH_TIMEOUT="${SSH_TIMEOUT:-15}"
 ARMED_POLL_INTERVAL="${ARMED_POLL_INTERVAL:-5}"   # while armed, read taps this often (s)
@@ -79,6 +81,11 @@ count_down(){
 }
 # quorum_met <down_count> — exit 0 if down_count >= QUORUM.
 quorum_met(){ [ "${1:-0}" -ge "${QUORUM:-2}" ]; }
+# count_unreachable <result>... — echoes how many args equal "unreachable".
+count_unreachable(){ local n=0 r; for r in "$@"; do [ "$r" = "unreachable" ] && n=$((n+1)); done; echo "$n"; }
+# blackout_quorum_met <unreachable_count> <total_outposts>
+# True when ALL outposts are unreachable — Headscale (on hub) is down, not a single-node blip.
+blackout_quorum_met(){ [ "${1:-0}" -ge "${2:-3}" ] && [ "${2:-3}" -gt 0 ]; }
 
 # ---- State (key=val, sourced) ----
 consec_down=0
@@ -265,26 +272,48 @@ main(){
     results+=( "$r" )
   done
   down_count="$(count_down "${results[@]}")"
+  unreachable_count="$(count_unreachable "${results[@]}")"
 
-  # 5. Quorum test.
-  if ! quorum_met "$down_count"; then
-    log "no quorum ($down_count/${#OUTPOSTS[@]} outposts down; need $QUORUM) → likely a boston-2 mesh blip. Reset."
+  # 5. Quorum test — two valid failure modes:
+  #   a) Normal:   >= QUORUM outposts confirm hub-down  → arm at K cycles
+  #   b) Blackout: ALL outposts unreachable             → arm at K_BLACKOUT cycles
+  #      Outposts go unreachable when Headscale (on hub) dies — they lose the
+  #      control plane and can't SSH-probe. This is evidence the hub is down,
+  #      not just a boston-2 blip.  The higher K_BLACKOUT threshold guards against
+  #      a transient fleet-wide connectivity event.
+  _blackout=0
+  if quorum_met "$down_count"; then
+    : # standard confirmed-down quorum — unchanged path
+  elif blackout_quorum_met "$unreachable_count" "${#OUTPOSTS[@]}"; then
+    log "BLACKOUT: all ${#OUTPOSTS[@]} outposts unreachable (Headscale/mesh likely down with hub). Using K_BLACKOUT=$K_BLACKOUT."
+    _blackout=1
+  else
+    log "no quorum ($down_count/${#OUTPOSTS[@]} down, $unreachable_count unreachable; need $QUORUM confirmed OR all-unreachable) → transient blip. Reset."
     reset_state
     exit 0
   fi
   consec_down=$((consec_down+1))
   save_state
-  log "QUORUM hub-down ($down_count/${#OUTPOSTS[@]}). consecutive=$consec_down (arm at K=$K)."
+  _arm_at=$K; [ "$_blackout" -eq 1 ] && _arm_at=$K_BLACKOUT
+  log "$([ "$_blackout" -eq 1 ] && echo "BLACKOUT" || echo "QUORUM") hub-down ($down_count down, $unreachable_count unreachable). consecutive=$consec_down (arm at $_arm_at)."
 
   # 6. Arm — alert the owner with tappable Proceed / Cancel / Standby buttons.
-  if [ "$consec_down" -ge "$K" ] && [ "$armed_at" -eq 0 ]; then
+  if [ "$consec_down" -ge "$_arm_at" ] && [ "$armed_at" -eq 0 ]; then
     armed_at="$(now_epoch)"; save_state
-    log "ARMED at $armed_at. Auto-failover in ${ABORT_WINDOW}s unless cancelled."
-    tg_notify "⚠️ <b>A.R.C.H.I.E. DR WATCHDOG — HUB DOWN (quorum)</b>
+    log "ARMED at $armed_at (mode: $([ "$_blackout" -eq 1 ] && echo BLACKOUT || echo QUORUM)). Auto-failover in ${ABORT_WINDOW}s unless cancelled."
+    if [ "$_blackout" -eq 1 ]; then
+      tg_notify "⚠️ <b>A.R.C.H.I.E. DR WATCHDOG — HUB DOWN (BLACKOUT)</b>
+boston-2 cannot reach the hub ($HUB_MESH) AND all ${#OUTPOSTS[@]} outposts are unreachable — Headscale/mesh died with the hub.
+<b>Auto-failover to boston-2 in $((ABORT_WINDOW/60)) min.</b>
+✅ Proceed now (fail over) · 🛑 Cancel (snooze $((SNOOZE_CANCEL_SECONDS/60)) min) · ⏸ Standby (hold $((SNOOZE_STANDBY_SECONDS/60)) min).
+Or reply <code>/dr_proceed</code> · <code>/dr_abort</code> · <code>/dr_standby</code>." "$ARM_KEYBOARD"
+    else
+      tg_notify "⚠️ <b>A.R.C.H.I.E. DR WATCHDOG — HUB DOWN (quorum)</b>
 boston-2 + $down_count/${#OUTPOSTS[@]} outposts cannot reach the hub ($HUB_MESH).
 <b>Auto-failover to boston-2 in $((ABORT_WINDOW/60)) min.</b>
 ✅ Proceed now (fail over) · 🛑 Cancel (snooze $((SNOOZE_CANCEL_SECONDS/60)) min) · ⏸ Standby (hold $((SNOOZE_STANDBY_SECONDS/60)) min).
 Or reply <code>/dr_proceed</code> · <code>/dr_abort</code> · <code>/dr_standby</code>." "$ARM_KEYBOARD"
+    fi
   fi
 
   # 7. ARMED → responsive action loop. Polls Telegram every ARMED_POLL_INTERVAL

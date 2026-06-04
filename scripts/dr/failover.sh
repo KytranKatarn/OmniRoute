@@ -130,6 +130,30 @@ if [ -f "$FLEET_KEY" ]; then
   fi
 fi
 
+# ---- 4d. Watch-series agents: repoint *_HUB_URL / BRIDGE_URL hub -> boston-2 DRP ----
+# gov-watch / legal-watch / what-the-fact each dispatch AI work (bias scoring,
+# procurement analysis, etc.) via GOV_BRIDGE_URL / CROSS_WATCH_HUB_URL / WTF_HUB_URL
+# pointing at the hub (100.64.0.4:3000). Flip to the local DRP platform so agent
+# dispatch keeps working during the outage. Files are LOCAL to boston-2 — no SSH.
+log "Repointing watch-series agent hub URLs -> boston-2 DRP ($DR_MESH)..."
+watch_flip=0
+for product_dir in gov-watch legal-watch what-the-fact; do
+  env_file="/opt/archie-products/$product_dir/.env"
+  if [ -f "$env_file" ] && grep -q "100.64.0.4:3000" "$env_file"; then
+    if sed -i.bak-dr "s|http://100.64.0.4:3000|http://$DR_MESH:3000|g" "$env_file" 2>/dev/null; then
+      ( cd "/opt/archie-products/$product_dir" && docker compose up -d >/dev/null 2>&1 ) \
+        && log "  $product_dir: hub URLs flipped + containers restarted" \
+        || log "  WARN: $product_dir restart failed (env flipped — manual: docker compose up -d)"
+      watch_flip=$((watch_flip+1))
+    else
+      log "  WARN: $product_dir sed failed (manual: sed $env_file 100.64.0.4->$DR_MESH, docker compose up -d)"
+    fi
+  fi
+done
+[ "$watch_flip" -gt 0 ] \
+  && log "  $watch_flip watch products repointed to boston-2 DRP." \
+  || log "  (no watch .env files contained hub URLs — skipping)"
+
 # ---- 5. PUBLIC INGRESS (Caddy) + DNS FLIP (Phase 5) ----
 log "Starting public HTTPS ingress (Caddy)..."
 if [ -f "$DR/ingress/docker-compose.caddy.yml" ]; then

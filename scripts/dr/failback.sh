@@ -145,6 +145,16 @@ restore-normal)  # platform + fleet + WTF + DNS back to the hub; boston-2 -> rep
       "sed -i.bak-fb 's#reverse_proxy http://$DR_MESH:3000#reverse_proxy http://$HUB_MESH:3000#' /etc/caddy/Caddyfile && caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 && systemctl reload caddy" >/dev/null 2>&1 \
       && log "   Beacon front-door back on the hub." || log "   WARN: Beacon reverse-repoint failed (manual: sed Caddyfile $DR_MESH->$HUB_MESH + reload caddy)."
   fi
+  log "4b) repoint watch-series agent hub URLs back to the hub ($HUB_MESH)..."
+  for product_dir in gov-watch legal-watch what-the-fact; do
+    env_file="/opt/archie-products/$product_dir/.env"
+    if [ -f "$env_file" ] && grep -q "$DR_MESH:3000" "$env_file"; then
+      sed -i.bak-fb "s|http://$DR_MESH:3000|http://$HUB_MESH:3000|g" "$env_file" \
+        && ( cd "/opt/archie-products/$product_dir" && docker compose up -d >/dev/null 2>&1 ) \
+        && log "   $product_dir watch URLs back to hub." \
+        || log "   WARN: $product_dir reverse-repoint failed (manual: sed $env_file $DR_MESH->$HUB_MESH, docker compose up -d)"
+    fi
+  done
 
   if [ -z "${HUB_PUBLIC_IP:-}" ]; then
     HUB_PUBLIC_IP=$(ssh -i "$FLEET_KEY" -o ConnectTimeout=10 -o BatchMode=yes "$HUB_SSH" \

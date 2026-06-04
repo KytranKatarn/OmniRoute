@@ -9,10 +9,10 @@
 ## Live identity (provisioned 2026-06-03)
 - Hostinger KVM1 `srv1730304` · VM id `1730304` · DC 24 (Boston)
 - `FRONTDOOR_PUBLIC_IP` = `2.25.170.252`
-- `FRONTDOOR_MESH_IP`   = `100.64.0.11` (Headscale host `frontdoor-kvm1`, user `archie-fleet`)
-- Fleet node_id = `ingress_01699263f6cd9dc9` (DB id 129) — approved/online, `bridge_enabled=false`
+- `FRONTDOOR_MESH_IP`   = `100.64.0.11` (Headscale host `beacon`, user `archie-fleet`)
+- Fleet node_id = `beacon_01699263f6cd9dc9` (DB id 129) — approved/online, `bridge_enabled=false`
 - SSH = `root@2.25.170.252` (hub ed25519 key, baked via recreate)
-- Root pw + node token in gitignored root `.env` (`FRONTDOOR_KVM1_*`)
+- Root pw + node token in gitignored root `.env` (`BEACON_*`)
 - Hub mesh = `100.64.0.4:3000` · boston-2 (DR) mesh = `100.64.0.10`
 - Headscale control plane (public) = `https://mesh.kytranempowerment.com`
 - STATUS: **Phase 1 COMPLETE (2026-06-03)** ✅ — Caddy installed; `fdtest.kytranempowerment.com` reverse-proxies over mesh to hub `100.64.0.4:3000`, valid Let's Encrypt cert, verified end-to-end `GET → 200` (A.R.C.H.I.E. hub login over valid TLS). **`fdtest` left up as a permanent front-door HEALTH ENDPOINT** (200 = front-door + hub reachable). Real 27-subdomain cutover NOT yet done (see Step 6).

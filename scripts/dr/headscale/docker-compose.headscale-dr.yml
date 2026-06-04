@@ -1,0 +1,27 @@
+# Headscale DR standby — runs on boston-2 during hub outage only.
+# Start: cd /opt/archie-dr/headscale && docker compose up -d
+# Stop:  cd /opt/archie-dr/headscale && docker compose down
+# Data dir is populated by failover.sh from the latest Daily_Triage backup.
+
+services:
+  headscale-dr:
+    image: headscale/headscale:v0.25.1
+    container_name: archie_headscale_dr
+    restart: "no"
+    mem_limit: 256m
+    cpus: "0.25"
+    ports:
+      - "8095:8095"
+      - "9090:9090"
+      - "3478:3478/udp"
+    volumes:
+      - ./data:/var/lib/headscale
+      - ./config-dr.yaml:/etc/headscale/config.yaml:ro
+    tmpfs:
+      - /var/run/headscale
+    command: serve
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8095/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3

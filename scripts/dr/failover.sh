@@ -211,6 +211,40 @@ else
     log "  WARN: CREED not staged at $CREED_DIR (run backup_triage.sh to pre-stage) — skipping"
 fi
 
+# ---- 4f. Headscale DR standby — mesh control plane continues for long outages ----
+# The mesh DATA PLANE (WireGuard) keeps working without Headscale; standby is
+# needed only for new node enrollments and key rotation during extended outages.
+# Latest backup (headscale_*.tar.gz) ships here nightly via backup_triage.sh.
+# Beacon mesh.kytranempowerment.com entry is flipped hub:8095 -> boston-2:8095.
+HS_DIR="$DR/headscale"
+log "Starting Headscale DR standby (mesh control plane)..."
+if [ -d "$HS_DIR" ] && [ -f "$HS_DIR/docker-compose.headscale-dr.yml" ]; then
+    # Extract latest Headscale backup into the data dir
+    HS_DUMP=$(ls -t "$DR/backups/"*_Daily_Triage/database/headscale_*.tar.gz 2>/dev/null | head -1)
+    mkdir -p "$HS_DIR/data"
+    if [ -n "$HS_DUMP" ]; then
+        tar -xzf "$HS_DUMP" -C "$HS_DIR/data" 2>/dev/null \
+            && log "  Headscale data restored from $(basename "$HS_DUMP")" \
+            || log "  WARN: Headscale data extraction failed — starting with empty DB"
+    else
+        log "  WARN: no Headscale backup found — starting with empty DB (new enrollments possible, existing nodes from cache)"
+    fi
+    ( cd "$HS_DIR" && docker compose -f docker-compose.headscale-dr.yml up -d >/dev/null 2>&1 ) \
+        && log "  Headscale DR started on boston-2 (:8095)" \
+        || log "  WARN: Headscale DR failed to start — mesh DATA PLANE still works from node cache"
+    # Flip Beacon mesh entry hub:8095 -> boston-2:8095
+    if [ -f "$FLEET_KEY" ]; then
+        ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$BEACON_HOST" \
+            "sed -i.bak-dr 's|http://$HUB_MESH:8095|http://$DR_MESH:8095|' /etc/caddy/Caddyfile \
+             && caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 \
+             && systemctl reload caddy" >/dev/null 2>&1 \
+            && log "  Beacon mesh.kytranempowerment.com -> boston-2 ($DR_MESH:8095)" \
+            || log "  WARN: Beacon mesh flip failed (manual: sed Caddyfile $HUB_MESH:8095->$DR_MESH:8095 + reload)"
+    fi
+else
+    log "  WARN: Headscale DR not staged at $HS_DIR (run: rsync scripts/dr/headscale/ boston-2:/opt/archie-dr/headscale/) — skipping"
+fi
+
 # ---- 5. PUBLIC INGRESS (Caddy) + DNS FLIP (Phase 5) ----
 log "Starting public HTTPS ingress (Caddy)..."
 if [ -f "$DR/ingress/docker-compose.caddy.yml" ]; then

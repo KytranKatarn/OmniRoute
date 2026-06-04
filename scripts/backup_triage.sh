@@ -132,6 +132,20 @@ else
     USB_STATUS=failed
 fi
 
+# Headscale data (DB + keys — enables DR Headscale standby on boston-2 for #3673)
+# Extracting from Docker volume via alpine sidecar.
+if docker ps --filter name=archie_headscale --filter status=running -q 2>/dev/null | grep -q .; then
+    if docker run --rm \
+           -v archie_headscale_data:/source:ro \
+           -v "$RUN/database":/out \
+           alpine tar -czf /out/headscale_${TS}.tar.gz -C /source . 2>>"$LOG"; then
+        log "  Headscale data dump OK ($(stat -c %s "$RUN/database/headscale_${TS}.tar.gz") bytes)"
+    else
+        log "  Headscale data dump FAILED (non-fatal)"
+        rm -f "$RUN/database/headscale_${TS}.tar.gz"
+    fi
+fi
+
 # ----- Ship to DR node boston-2 (off-hub cold copy for DRP, mesh-only) -----
 # Gives the DR node a local Tier-2 cold restore artifact independent of the hub,
 # and a warm starting point that shortens failback re-clone. Mesh IP only

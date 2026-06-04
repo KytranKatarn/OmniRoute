@@ -156,7 +156,21 @@ restore-normal)  # platform + fleet + WTF + DNS back to the hub; boston-2 -> rep
     fi
   done
 
-  log "4c) stop C.R.E.E.D. on boston-2 + revert Beacon :8086 back to hub..."
+  log "4c) stop Headscale DR standby + revert Beacon mesh entry back to hub..."
+  HS_DIR="$DR/headscale"
+  [ -f "$HS_DIR/docker-compose.headscale-dr.yml" ] \
+    && ( cd "$HS_DIR" && docker compose -f docker-compose.headscale-dr.yml down >/dev/null 2>&1 ) \
+    && log "   Headscale DR stopped." \
+    || log "   (Headscale DR was not running — nothing to stop)"
+  if [ -f "$FLEET_KEY" ]; then
+    ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$BEACON_HOST" \
+      "sed -i.bak-fb 's|http://$DR_MESH:8095|http://$HUB_MESH:8095|' /etc/caddy/Caddyfile \
+       && caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 \
+       && systemctl reload caddy" >/dev/null 2>&1 \
+      && log "   Beacon mesh entry back to hub ($HUB_MESH:8095)." \
+      || log "   WARN: Beacon mesh reverse-repoint failed (manual: sed Caddyfile $DR_MESH:8095->$HUB_MESH:8095 + reload)"
+  fi
+  log "4d) stop C.R.E.E.D. on boston-2 + revert Beacon :8086 back to hub..."
   CREED_DIR=/opt/archie-products/creed
   [ -f "$CREED_DIR/docker-compose.yml" ] \
     && ( cd "$CREED_DIR" && docker compose down >/dev/null 2>&1 ) \
